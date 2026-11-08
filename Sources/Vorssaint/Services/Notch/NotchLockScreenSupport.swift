@@ -282,7 +282,7 @@ enum NotchLockScreenLayout {
     static let gaugeMaximum: CGFloat = 260
     static let accessoriesHeight: CGFloat = 126
     static let batteryHeight: CGFloat = 126
-    /// AI: Claude, then Codex beside Lifetime, Agents at work and Streak.
+    /// AI: Claude, then Lifetime, Agents at work and Streak.
     /// Agents at work takes the spare height and gives it back first.
     static let claudeHeight: CGFloat = 130
     static let pairHeight: CGFloat = 130
@@ -297,7 +297,7 @@ enum NotchLockScreenLayout {
         case .accessories: return accessoriesHeight...accessoriesHeight
         case .battery: return batteryHeight...batteryHeight
         case .claude: return claudeHeight...claudeHeight
-        case .codex, .lifetime: return pairHeight...pairHeight
+        case .lifetime: return pairHeight...pairHeight
         case .agents: return agentsMinimum...agentsMaximum
         case .streak: return streakHeight...streakHeight
         case .calendar: return calendarMinimum...calendarMaximum

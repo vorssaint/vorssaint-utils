@@ -14,9 +14,7 @@ struct NotchLimitVisibilityStrings {
     let seatDetailFormat: String
     let claudeDetail: String
     let apiDetail: String
-    let codexDetail: String
     /// Why a place has no switch for an account.
-    let notShown: String
     /// The API key's spending this month, in a pill with little room.
     let apiMonth: String
     let creditsLeftFormat: String
@@ -36,8 +34,6 @@ extension FeatureStrings {
             seatDetailFormat: "Seat · %@",
             claudeDetail: "Usual Claude Code sign-in",
             apiDetail: "API key · Claude Code outside the app",
-            codexDetail: "Usual Codex home",
-            notShown: "This place doesn’t show this account.",
             apiMonth: "Month",
             creditsLeftFormat: "~%@ left")
         case .ptBR: return NotchLimitVisibilityStrings(
@@ -48,8 +44,6 @@ extension FeatureStrings {
             seatDetailFormat: "Assento · %@",
             claudeDetail: "Login habitual do Claude Code",
             apiDetail: "Chave de API · Claude Code fora do app",
-            codexDetail: "Pasta habitual do Codex",
-            notShown: "Este lugar não mostra esta conta.",
             apiMonth: "Mês",
             creditsLeftFormat: "~%@ restantes")
         case .tr: return NotchLimitVisibilityStrings(
@@ -60,8 +54,6 @@ extension FeatureStrings {
             seatDetailFormat: "Koltuk · %@",
             claudeDetail: "Her zamanki Claude Code oturumu",
             apiDetail: "API anahtarı · Uygulama dışındaki Claude Code",
-            codexDetail: "Her zamanki Codex klasörü",
-            notShown: "Bu yer bu hesabı göstermez.",
             apiMonth: "Ay",
             creditsLeftFormat: "~%@ kaldı")
         case .ru: return NotchLimitVisibilityStrings(
@@ -72,8 +64,6 @@ extension FeatureStrings {
             seatDetailFormat: "Место · %@",
             claudeDetail: "Обычный вход в Claude Code",
             apiDetail: "API-ключ · Claude Code вне приложения",
-            codexDetail: "Обычная папка Codex",
-            notShown: "Здесь этот аккаунт не показывается.",
             apiMonth: "Месяц",
             creditsLeftFormat: "Осталось ~%@")
         case .es: return NotchLimitVisibilityStrings(
@@ -84,8 +74,6 @@ extension FeatureStrings {
             seatDetailFormat: "Asiento · %@",
             claudeDetail: "Inicio de sesión habitual de Claude Code",
             apiDetail: "Clave de API · Claude Code fuera de la app",
-            codexDetail: "Carpeta habitual de Codex",
-            notShown: "Este lugar no muestra esta cuenta.",
             apiMonth: "Mes",
             creditsLeftFormat: "Quedan ~%@")
         case .sk: return NotchLimitVisibilityStrings(
@@ -96,8 +84,6 @@ extension FeatureStrings {
             seatDetailFormat: "Miesto · %@",
             claudeDetail: "Bežné prihlásenie do Claude Code",
             apiDetail: "Kľúč API · Claude Code mimo aplikácie",
-            codexDetail: "Bežný priečinok Codexu",
-            notShown: "Toto miesto tento účet nezobrazuje.",
             apiMonth: "Mesiac",
             creditsLeftFormat: "Zostáva ~%@")
         case .de: return NotchLimitVisibilityStrings(
@@ -108,8 +94,6 @@ extension FeatureStrings {
             seatDetailFormat: "Platz · %@",
             claudeDetail: "Übliche Claude Code-Anmeldung",
             apiDetail: "API-Schlüssel · Claude Code außerhalb der App",
-            codexDetail: "Üblicher Codex-Ordner",
-            notShown: "Dieser Ort zeigt dieses Konto nicht.",
             apiMonth: "Monat",
             creditsLeftFormat: "~%@ übrig")
         case .fr: return NotchLimitVisibilityStrings(
@@ -120,8 +104,6 @@ extension FeatureStrings {
             seatDetailFormat: "Siège · %@",
             claudeDetail: "Connexion habituelle à Claude Code",
             apiDetail: "Clé API · Claude Code hors de l’app",
-            codexDetail: "Dossier Codex habituel",
-            notShown: "Cet endroit n’affiche pas ce compte.",
             apiMonth: "Mois",
             creditsLeftFormat: "~%@ restants")
         case .it: return NotchLimitVisibilityStrings(
@@ -132,8 +114,6 @@ extension FeatureStrings {
             seatDetailFormat: "Posto · %@",
             claudeDetail: "Accesso abituale a Claude Code",
             apiDetail: "Chiave API · Claude Code fuori dall’app",
-            codexDetail: "Cartella abituale di Codex",
-            notShown: "Questo posto non mostra questo account.",
             apiMonth: "Mese",
             creditsLeftFormat: "~%@ rimasti")
         case .ja: return NotchLimitVisibilityStrings(
@@ -144,8 +124,6 @@ extension FeatureStrings {
             seatDetailFormat: "シート · %@",
             claudeDetail: "通常の Claude Code のサインイン",
             apiDetail: "API キー · アプリ外の Claude Code",
-            codexDetail: "通常の Codex フォルダ",
-            notShown: "この場所にはこのアカウントは表示されません。",
             apiMonth: "今月",
             creditsLeftFormat: "残り約 %@")
         case .ko: return NotchLimitVisibilityStrings(
@@ -156,8 +134,6 @@ extension FeatureStrings {
             seatDetailFormat: "시트 · %@",
             claudeDetail: "평소의 Claude Code 로그인",
             apiDetail: "API 키 · 앱 밖의 Claude Code",
-            codexDetail: "평소의 Codex 폴더",
-            notShown: "이곳에는 이 계정이 표시되지 않습니다.",
             apiMonth: "이번 달",
             creditsLeftFormat: "약 %@ 남음")
         case .uk: return NotchLimitVisibilityStrings(
@@ -168,8 +144,6 @@ extension FeatureStrings {
             seatDetailFormat: "Місце · %@",
             claudeDetail: "Звичайний вхід у Claude Code",
             apiDetail: "API-ключ · Claude Code поза застосунком",
-            codexDetail: "Звичайна тека Codex",
-            notShown: "Тут цей обліковий запис не показується.",
             apiMonth: "Місяць",
             creditsLeftFormat: "Залишилось ~%@")
         case .zhHans: return NotchLimitVisibilityStrings(
@@ -180,8 +154,6 @@ extension FeatureStrings {
             seatDetailFormat: "席位 · %@",
             claudeDetail: "常用的 Claude Code 登录",
             apiDetail: "API 密钥 · App 外的 Claude Code",
-            codexDetail: "常用的 Codex 文件夹",
-            notShown: "此处不显示该账户。",
             apiMonth: "本月",
             creditsLeftFormat: "剩余约 %@")
         case .zhTW: return NotchLimitVisibilityStrings(
@@ -192,8 +164,6 @@ extension FeatureStrings {
             seatDetailFormat: "席位 · %@",
             claudeDetail: "常用的 Claude Code 登入",
             apiDetail: "API 密鑰 · App 外的 Claude Code",
-            codexDetail: "常用的 Codex 檔案夾",
-            notShown: "此處不顯示這個帳號。",
             apiMonth: "本月",
             creditsLeftFormat: "剩餘約 %@")
         case .zhHK: return NotchLimitVisibilityStrings(
@@ -204,8 +174,6 @@ extension FeatureStrings {
             seatDetailFormat: "席位 · %@",
             claudeDetail: "常用嘅 Claude Code 登入",
             apiDetail: "API 密鑰 · App 以外嘅 Claude Code",
-            codexDetail: "常用嘅 Codex 檔案夾",
-            notShown: "呢度唔會顯示呢個帳戶。",
             apiMonth: "本月",
             creditsLeftFormat: "剩餘約 %@")
         }

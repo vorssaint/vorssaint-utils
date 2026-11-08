@@ -3,33 +3,16 @@
 
 import Foundation
 
-/// The coding agents whose session logs the island reads. Their names are
-/// product names and stay untranslated.
+/// The coding agent whose session logs the island reads: Claude, in Claude
+/// Code and the Claude app. Its name is a product name and stays untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude
 
     var id: String { rawValue }
 
-    var displayName: String {
-        switch self {
-        case .claude: return "Claude"
-        case .codex: return "Codex"
-        case .opencode: return "OpenCode"
-        case .copilot: return "GitHub Copilot"
-        }
-    }
+    var displayName: String { "Claude" }
 
-    var symbol: String {
-        switch self {
-        case .claude: return "sparkle"
-        case .codex: return "chevron.left.forwardslash.chevron.right"
-        case .opencode: return "terminal"
-        case .copilot: return "infinity"
-        }
-    }
-
-    /// Whether the provider records a plan allowance in its local logs.
-    var reportsLimits: Bool { self != .copilot }
+    var symbol: String { "sparkle" }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -78,15 +61,12 @@ struct AgentUsageRecord: Equatable {
     var cost: Double?
     /// What cache reads saved against paying the full input price.
     var savings: Double
-    /// Whether cost was reported directly by the provider rather than derived from list pricing.
-    var reportedCost: Bool = false
     /// Claude Code inside the Claude app, which signs in with the plan; its
     /// sessions in a terminal or an editor bill an API key when one is set.
     var claudeApp: Bool = false
 
     init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
-         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false,
-         claudeApp: Bool = false) {
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, claudeApp: Bool = false) {
         self.provider = provider
         self.date = date
         self.model = model
@@ -96,7 +76,6 @@ struct AgentUsageRecord: Equatable {
         self.tokens = tokens
         self.cost = cost
         self.savings = savings
-        self.reportedCost = reportedCost
         self.claudeApp = claudeApp
     }
 }
@@ -129,8 +108,6 @@ struct AgentLimits: Equatable {
     enum Source: Equatable {
         /// Saved on this Mac by the Claude app, which checks them itself.
         case claudeApp
-        /// Copied by the agent into its session log with each response.
-        case sessionLog
         /// Asked of the agent on request, which checks the account itself.
         case account
     }

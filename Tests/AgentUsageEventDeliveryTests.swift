@@ -28,7 +28,7 @@ enum AgentUsageEventDeliveryTests {
         var running = true
         var session = 1
         var readerSession = 1
-        var providers: [AgentProvider] = [.claude, .codex, .copilot]
+        var providers: [AgentProvider] = [.claude]
         let events = Events()
         func soundContext(_ provider: AgentProvider) -> AppSoundContext { AppSoundContext(provider: provider) }
     }
@@ -79,13 +79,13 @@ enum AgentUsageEventDeliveryTests {
         suite.expect(host.events.values.isEmpty, "stopping without restarting still drops queued events")
         host.running = true
 
-        host.providers = [.codex]
+        host.providers = []
         host.report(finished)
         host.report(events[1])
         host.report(events[2])
         drain()
         suite.expect(host.events.values.isEmpty, "delivery still respects disabled providers")
-        host.providers = [.claude, .codex, .copilot]
+        host.providers = [.claude]
         NotchAgentSupport.minimum = 30
         host.report(finished)
         NotchAgentSupport.threshold = nil
@@ -106,10 +106,10 @@ enum AgentUsageEventDeliveryTests {
         drain()
         suite.expect(host.events.values == [.needsInput(wait)], "a session waiting on the person is told")
         host.events.values.removeAll()
-        host.providers = [.codex]
+        host.providers = []
         host.report(.needsInput(wait))
         NotchAgentSupport.input = false
-        host.providers = [.claude, .codex, .copilot]
+        host.providers = [.claude]
         host.report(.needsInput(wait))
         host.report(.needsInput(paused))
         drain()

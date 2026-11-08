@@ -103,7 +103,7 @@ enum AgentClaudeAppUsage {
     static func sessionStart(_ records: [AgentUsageRecord], samples: [Sample], organization: String? = nil) -> Date? {
         guard let reading = readings(samples, organization: organization).last?.date else { return nil }
         let recent = records.filter {
-            $0.provider == .claude && $0.date <= reading && reading.timeIntervalSince($0.date) < AgentUsageSummary.blockHistory
+            $0.date <= reading && reading.timeIntervalSince($0.date) < AgentUsageSummary.blockHistory
         }
         return AgentUsageSummary.currentBlock(recent, now: reading)?.start
     }

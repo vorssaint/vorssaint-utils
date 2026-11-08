@@ -44,14 +44,13 @@ enum AgentClaudeBillingTests {
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let first = Date(timeIntervalSince1970: 1_790_000_000)
         let start = calendar.startOfDay(for: first)
-        func day(_ offset: Int, claude: Double, codex: Double = 0) -> AgentBucket {
+        func day(_ offset: Int, claude: Double) -> AgentBucket {
             var bucket = AgentBucket(start: calendar.date(byAdding: .day, value: offset, to: start)!)
             bucket.byProvider[.claude] = AgentTotals(cost: claude + 20)
             bucket.claudeAPI = AgentTotals(cost: claude)
-            bucket.byProvider[.codex] = AgentTotals(cost: codex)
             return bucket
         }
-        var days = [day(0, claude: 3), day(1, claude: 2, codex: 9)]
+        var days = [day(0, claude: 3), day(1, claude: 2)]
         let domain = "com.vorssaint.tests.claude-credits"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -85,24 +84,17 @@ enum AgentClaudeBillingTests {
     }
 
     private static func layout(_ suite: TestSuite) {
-        let tiles = NotchAgentSupport.tiles(cards: [.limits, .spend, .live], providers: [.claude, .codex],
-                                            claudeUsesAPI: true)
-        suite.expect(tiles.first?.splitsBilling == true && tiles.first?.fullWidth == true
-                        && tiles.dropFirst().allSatisfy { !$0.splitsBilling },
-                     "only Claude's limits card splits when an API key pays for Claude Code")
-        let rows = NotchAgentSupport.rows(tiles, width: 600)
-        suite.expect(rows.map(\.count) == [1, 2, 1] && rows.first?.first?.splitsBilling == true,
-                     "the split card takes a row of its own")
-        suite.expect(NotchAgentSupport.height(of: rows[0], width: 600) == NotchAgentSupport.splitHeight
-                        && NotchAgentSupport.height(of: rows[0], width: 300) == NotchAgentSupport.stackedSplitHeight
-                        && NotchAgentSupport.height(of: rows[1], width: 600) == NotchAgentSupport.sessionCardHeight,
-                     "the split card stacks its halves, and grows, where cards do not pair; Codex keeps a row for its sessions")
-        suite.expect(NotchAgentSupport.tiles(cards: [.limits], providers: [.claude]).first?.splitsBilling == false,
-                     "without an API key Claude keeps its usual card")
-        sessionRows(suite, split: rows[0])
+        func limits(_ width: CGFloat, api: Bool) -> CGFloat {
+            NotchAgentSupport.pageLayout(width: width, claudeSeats: nil, claudeUsesAPI: api, live: []).limits
+        }
+        suite.expect(limits(600, api: true) == NotchAgentSupport.splitHeight
+                        && limits(300, api: true) == NotchAgentSupport.stackedSplitHeight
+                        && limits(600, api: false) == NotchAgentSupport.sessionCardHeight,
+                     "without seats, Claude's card splits beside the API key's spending, stacked where the page is narrow")
+        sessionRows(suite)
     }
 
-    private static func sessionRows(_ suite: TestSuite, split: [NotchAgentTile]) {
+    private static func sessionRows(_ suite: TestSuite) {
         func live(app: Int, terminal: Int) -> [AgentLiveSession] {
             let now = Date(timeIntervalSince1970: 1_800_000_000)
             return (0..<(app + terminal)).map {
@@ -113,11 +105,12 @@ enum AgentClaudeBillingTests {
         }
         let row = NotchAgentSupport.sessionRowHeight
         func height(app: Int, terminal: Int, width: CGFloat = 600) -> CGFloat {
-            NotchAgentSupport.height(of: split, width: width, live: live(app: app, terminal: terminal))
+            NotchAgentSupport.pageLayout(width: width, claudeSeats: nil, claudeUsesAPI: true,
+                                         live: live(app: app, terminal: terminal)).limits
         }
-        suite.expect(NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: []) == 1
-                        && NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: live(app: 1, terminal: 0)) == 1
-                        && NotchAgentSupport.sessionRows(provider: .claude, place: .app, live: live(app: 3, terminal: 0)) == 3,
+        suite.expect(NotchAgentSupport.sessionRows(place: .app, live: []) == 1
+                        && NotchAgentSupport.sessionRows(place: .app, live: live(app: 1, terminal: 0)) == 1
+                        && NotchAgentSupport.sessionRows(place: .app, live: live(app: 3, terminal: 0)) == 3,
                      "a slot keeps one row with no session or one, and a row for each of three")
         suite.expect(height(app: 0, terminal: 0) == NotchAgentSupport.splitHeight
                         && height(app: 1, terminal: 1) == NotchAgentSupport.splitHeight

@@ -226,7 +226,7 @@ extension AgentUsageSnapshot {
     /// The seat a Claude-app session runs under, the active one when its own
     /// is unknown; nil for sessions outside the app and without seats.
     func claudeSeat(for session: AgentLiveSession) -> ClaudeSeat? {
-        guard session.provider == .claude, session.place == .app, !claudeSeats.isEmpty else { return nil }
+        guard session.place == .app, !claudeSeats.isEmpty else { return nil }
         return claudeLiveSeats[session.id].flatMap { id in claudeSeats.first { $0.id == id } } ?? activeClaudeSeat
     }
 }

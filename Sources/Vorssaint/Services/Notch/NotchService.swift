@@ -894,18 +894,9 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        let enabled = NotchAgentSupport.providers()
-        // Added Codex accounts have cards before, or without, any log.
-        let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
-        guard usage.loaded || !accounts.isEmpty else { return nil }
-        let seats = !usage.claudeSeats.isEmpty
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && seats) }
-        guard !providers.isEmpty else { return 0 }
-        return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.pageTiles(usage, providers: providers, codexAccounts: accounts,
-                                        claudeUsesAPI: AgentClaudeBilling.usesAPI()),
-            width: width), width: width, live: usage.live)
+        guard usage.loaded else { return nil }
+        guard usage.seen.contains(.claude) || !usage.claudeSeats.isEmpty else { return 0 }
+        return NotchAgentSupport.pageLayout(usage, width: width, claudeUsesAPI: AgentClaudeBilling.usesAPI()).total
     }
     var expandedGeometry: NotchGeometry {
         var result = geometry
@@ -4254,9 +4245,9 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
-            // ending, the first read landing, which agents have cards, which
-            // are working, since each one's mark widens the strip, and how
-            // many sessions each card lists, a row each on the AI page.
+            // ending, the first read landing, whether Claude has a page, whether
+            // it is working, and how many sessions the limits card lists, a
+            // row each on the AI page.
             AgentUsageService.shared.$snapshot
                 .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider)),
                         $0.live.map { "\($0.provider.rawValue).\($0.place)" }.sorted(), $0.claudeSeats.map(\.id)) }
@@ -4266,17 +4257,6 @@ final class NotchService: ObservableObject {
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
-                }.store(in: &subscriptions)
-            // An added or removed Codex account adds or removes a card.
-            CodexProfileLimitsService.shared.$states
-                .map { $0.map(\.id) }
-                .removeDuplicates()
-                .dropFirst()
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in
-                    guard let self, self.selected == .agents else { return }
-                    self.objectWillChange.send()
-                    self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
         if modules.contains(.calendar) {

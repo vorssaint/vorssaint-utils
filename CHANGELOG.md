@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- AI Agents follows only Claude, in Claude Code and the Claude app, including Claude Team seats. Its page always shows every seat's limits across the top, Trend and Spending side by side, and a year of daily activity drawn like a contribution graph. Settings → Dynamic Island → Content → AI Agents.
+- Folders of Claude Code logs synced from other computers are searched through all their subfolders, so one folder can hold several Claude profiles, and a response found in two of them counts once.
+
+### Removed
+- AI Agents no longer reads Codex, OpenCode or GitHub Copilot, and drops Codex banked resets, Codex account cards, and the choice and order of the page's cards.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary

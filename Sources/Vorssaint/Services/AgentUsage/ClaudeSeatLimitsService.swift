@@ -58,8 +58,7 @@ final class ClaudeSeatLimitsService: ObservableObject {
 
     /// Claude is read and the person added seats.
     var isActive: Bool {
-        NotchAgentSupport.isEnabled(in: defaults) && NotchAgentSupport.providers(in: defaults).contains(.claude)
-            && !states.isEmpty
+        NotchAgentSupport.isEnabled(in: defaults) && !states.isEmpty
     }
 
     /// Follows the saved seats and whether Claude is on, and resumes after
@@ -79,7 +78,7 @@ final class ClaudeSeatLimitsService: ObservableObject {
             }
             identityModified = identityModified.filter { kept.contains($0.key) }
         }
-        guard NotchAgentSupport.isEnabled(in: defaults), NotchAgentSupport.providers(in: defaults).contains(.claude) else {
+        guard NotchAgentSupport.isEnabled(in: defaults) else {
             pause()
             publish()
             return
@@ -160,7 +159,7 @@ final class ClaudeSeatLimitsService: ObservableObject {
         queue.async { [weak self] in
             let result: Result<AgentClaudeServer.Summary, AgentClaudeServer.Failure>
             if let executable = AgentClaudeServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
-                var environment = AgentCodexServer.environment(for: executable, searchPath: nil)
+                var environment = AgentClaudeServer.launchEnvironment(for: executable)
                 environment["PATH"] = AgentClaudeServer.searchPath(after: environment["PATH"] ?? "", home: home)
                 result = request.run(executable, location: .seat(folder), environment: environment)
             } else {

@@ -11,9 +11,9 @@ enum AgentUsageSummaryCacheTests {
         var now = AgentTimestamp.parse("2026-03-07T23:55:00Z")!
         let cache = AgentUsageSummaryCache()
         var records: [AgentUsageRecord] = (0..<6_000).map { index -> AgentUsageRecord in
-            let provider: AgentProvider = index % 2 == 0 ? .claude : .codex
+            let provider = AgentProvider.claude
             let date = now.addingTimeInterval(-Double(index) * 1_400 + 900)
-            let model = index % 2 == 0 ? "claude-opus-5-5" : "gpt-6-sol"
+            let model = index % 2 == 0 ? "claude-opus-5-5" : "claude-sonnet-5-5"
             let tokens = AgentTokens(input: index + 1, output: 10)
             let cost: Double? = index % 13 == 0 ? nil : Double(index % 11) / 8
             return AgentUsageRecord(provider: provider, date: date, model: model, project: "p\(index % 7)",
@@ -32,15 +32,15 @@ enum AgentUsageSummaryCacheTests {
         }
         check("cached history matches every field of the full summary")
         suite.expect(cache.accumulatedRecords == records.count, "the first snapshot accumulates history once")
-        live = [AgentLiveSession(id: "live", provider: .codex, started: now, lastActivity: now,
-                                 model: "gpt-6-sol", project: "p", tokens: AgentTokens(), cost: 0)]
+        live = [AgentLiveSession(id: "live", provider: .claude, started: now, lastActivity: now,
+                                 model: "claude-sonnet-5-5", project: "p", tokens: AgentTokens(), cost: 0)]
         check("live sessions update without changing historical usage")
         suite.expect(cache.accumulatedRecords == 0, "live-only publications accumulate no historical records")
-        limits[.codex] = AgentLimits(provider: .codex, windows: [], observedAt: now, source: .sessionLog)
-        plans[.codex] = AgentPlan(name: "Pro", monthlyPrice: 200)
+        limits[.claude] = AgentLimits(provider: .claude, windows: [], observedAt: now, source: .account)
+        plans[.claude] = AgentPlan(name: "Pro", monthlyPrice: 200)
         check("plan and limit changes update independently from historical totals")
         suite.expect(cache.accumulatedRecords == 0, "metadata-only publications accumulate no historical records")
-        let appended = AgentUsageRecord(provider: .codex, date: now, model: "gpt-6-sol", project: "new",
+        let appended = AgentUsageRecord(provider: .claude, date: now, model: "claude-sonnet-5-5", project: "new",
             session: "s", tokens: AgentTokens(input: 50, output: 10), cost: 0.25, savings: 0.125)
         records.append(appended)
         cache.recordChanged(at: records.count - 1, previous: nil)
@@ -74,7 +74,7 @@ enum AgentUsageSummaryCacheTests {
         check("sliding windows expire and future responses become current without a history scan")
         suite.expect(cache.accumulatedRecords == 0, "clock-only updates leave historical totals cached")
         live = []
-        providers = [.claude]
+        providers = []
         check("disabling a provider removes its usage, limits and live sessions")
         providers = Set(AgentProvider.allCases)
         check("reenabling a provider rebuilds its historical totals")
@@ -106,10 +106,10 @@ enum AgentUsageSummaryCacheTests {
         func apply(output: Int, key: String, age: TimeInterval = 0) {
             let tokens = AgentTokens(input: 100, output: output)
             let billable = AgentBillable(tokens: tokens)
-            let price = AgentPricing.cost(billable, model: "gpt-6-sol")
-            let record = AgentUsageRecord(provider: .codex, date: now.addingTimeInterval(-age), model: "gpt-6-sol",
+            let price = AgentPricing.cost(billable, model: "claude-sonnet-5-5")
+            let record = AgentUsageRecord(provider: .claude, date: now.addingTimeInterval(-age), model: "claude-sonnet-5-5",
                 project: "project", session: "s", tokens: tokens, cost: price.cost, savings: price.savings)
-            store.apply([.usage(key: key, record: record, billable: billable)], file: "f", provider: .codex,
+            store.apply([.usage(key: key, record: record, billable: billable)], file: "f", provider: .claude,
                         tracksTurns: false, modified: now, now: now)
         }
         apply(output: 5, key: "first")

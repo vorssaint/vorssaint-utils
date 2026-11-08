@@ -46,7 +46,7 @@ proportions.
 
 There is one badge per place that has a session. The terminal badge is
 grey, `#3A3A3C`, with the white `>_` (`NotchAgentTerminalMark`). The app badge
-is filled with the agent's color (Claude `#D97757`, Codex `#7D99FF`, from
+is filled with the agent's color (Claude `#D97757`, from
 `AgentProvider.tint`) and carries the agent's mark in white
 (`NotchAgentMark(tint: .white)`, with no inner tile, because the badge is the
 tile).

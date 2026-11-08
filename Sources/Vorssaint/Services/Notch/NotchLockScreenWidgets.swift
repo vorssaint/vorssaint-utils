@@ -10,7 +10,7 @@ import Foundation
 enum NotchLockScreenWidget: String, CaseIterable, Identifiable {
     case cpu, gpu, memory, network, accessories, battery
     case calendar, nowPlaying
-    case claude, codex, lifetime, agents, streak
+    case claude, lifetime, agents, streak
 
     enum Place: String, CaseIterable, Identifiable {
         case mac, stage, ai
@@ -26,7 +26,7 @@ enum NotchLockScreenWidget: String, CaseIterable, Identifiable {
         switch self {
         case .cpu, .gpu, .memory, .network, .accessories, .battery: return .mac
         case .calendar, .nowPlaying: return .stage
-        case .claude, .codex, .lifetime, .agents, .streak: return .ai
+        case .claude, .lifetime, .agents, .streak: return .ai
         }
     }
 
@@ -34,7 +34,7 @@ enum NotchLockScreenWidget: String, CaseIterable, Identifiable {
     /// widens to the whole rail, so a hidden or moved partner leaves no hole.
     var isHalf: Bool {
         switch self {
-        case .cpu, .gpu, .memory, .network, .codex, .lifetime: return true
+        case .cpu, .gpu, .memory, .network, .lifetime: return true
         default: return false
         }
     }
@@ -55,7 +55,6 @@ enum NotchLockScreenWidget: String, CaseIterable, Identifiable {
         case .calendar: return "calendar"
         case .nowPlaying: return "play.circle"
         case .claude: return "gauge.with.dots.needle.33percent"
-        case .codex: return "gauge.with.dots.needle.67percent"
         case .lifetime: return "dollarsign.circle"
         case .agents: return "sparkle"
         case .streak: return "flame"
