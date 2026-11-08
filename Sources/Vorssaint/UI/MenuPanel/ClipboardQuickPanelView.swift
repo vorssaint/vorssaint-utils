@@ -75,6 +75,16 @@ struct ClipboardQuickPanelView: View {
 
     private var toolbar: some View {
         HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 20, height: 24)
+                .overlay {
+                    WindowMoveHandle(onDragEnded: { point in
+                        NotchService.shared.dockContentIfDropped(.clipboard, at: point)
+                    })
+                }
+                .accessibilityHidden(true)
             TextField(text.search, text: $history.quickQuery)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
@@ -90,6 +100,7 @@ struct ClipboardQuickPanelView: View {
             .disabled(history.selectedQuickEntry == nil && !history.quickPreviewPresented)
             .help(text.previewLabel)
             .accessibilityLabel(text.previewLabel)
+            MoveContentToIslandButton(content: .clipboard)
             Button {
                 history.hideHistoryWindow()
             } label: {
