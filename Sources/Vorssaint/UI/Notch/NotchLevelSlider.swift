@@ -301,8 +301,10 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
         if hoverArea == nil {
             // A pointer that arrives with its button already held, as from
             // a drag begun elsewhere, still shows the bar will take a scroll.
-            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect,
-                                                             .enabledDuringMouseDrag],
+            // A drag begun on another bar keeps its events to itself, so the
+            // pointer's next move over this bar settles the hover too.
+            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways,
+                                                             .inVisibleRect, .enabledDuringMouseDrag],
                                       owner: self)
             addTrackingArea(area)
             hoverArea = area
@@ -312,6 +314,9 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
 
     override func mouseEntered(with event: NSEvent) { hovering = true }
     override func mouseExited(with event: NSEvent) { hovering = false }
+    override func mouseMoved(with event: NSEvent) {
+        hovering = bounds.contains(convert(event.locationInWindow, from: nil))
+    }
 
     /// As the level moves, AppKit marks only strips around the hidden knob
     /// for redrawing. The cell draws the whole bar, fill and swell together,
