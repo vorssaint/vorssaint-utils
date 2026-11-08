@@ -3,13 +3,12 @@
 
 import Foundation
 
-/// US dollars per million tokens, from each provider's published API list.
+/// US dollars per million tokens, from Anthropic's published API list.
 struct AgentPrice: Equatable {
     let input: Double
     let output: Double
     let cacheRead: Double
-    /// Short-lived cache writes. Providers that do not bill writes separately
-    /// charge the input price.
+    /// Short-lived cache writes.
     let cacheWrite: Double
     /// One-hour cache writes.
     let cacheWriteLong: Double
@@ -54,7 +53,7 @@ struct AgentPriceList: Equatable {
     }
 
     struct Plan: Equatable {
-        /// Found inside the plan the agents record, like "max_20x".
+        /// Found inside the plan Claude Code records, like "max_20x".
         let match: String
         let name: String
         let monthly: Double?
@@ -68,29 +67,25 @@ struct AgentPriceList: Equatable {
     /// The day the list was last reviewed; the newer of two lists wins.
     let updated: Date
     let claude: [Model]
-    let codex: [Model]
     let claudePlans: [Plan]
-    let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
 
-    static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
-                                      webSearch: 0, usOnlyMultiplier: 1)
+    static let empty = AgentPriceList(updated: .distantPast, claude: [], claudePlans: [], webSearch: 0,
+                                      usOnlyMultiplier: 1)
 
     static func decode(_ data: Data) -> AgentPriceList? {
         guard data.count <= maximumSize,
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               number(json["schema"], in: 1...1_000) == Double(schema),
               let updated = (json["updated"] as? String).flatMap(day),
-              let claude = json["claude"] as? [String: Any], let codex = json["codex"] as? [String: Any],
-              let claudeModels = models(claude["models"], prefix: "claude-"),
-              let codexModels = models(codex["models"], prefix: nil),
-              let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
+              let claude = json["claude"] as? [String: Any],
+              let claudeModels = models(claude["models"]),
+              let claudePlans = plans(claude["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
-        return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
-                              claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
-                              usOnlyMultiplier: usOnly)
+        return AgentPriceList(updated: updated, claude: claudeModels, claudePlans: claudePlans,
+                              webSearch: webSearch, usOnlyMultiplier: usOnly)
     }
 
     /// The newer of the list inside the app and the last one downloaded. On
@@ -101,18 +96,17 @@ struct AgentPriceList: Equatable {
         return downloaded.updated >= shipped.updated ? downloaded : shipped
     }
 
-    private static func models(_ value: Any?, prefix: String?) -> [Model]? {
+    private static func models(_ value: Any?) -> [Model]? {
         guard let entries = value as? [[String: Any]], (1...500).contains(entries.count) else { return nil }
         var result: [Model] = []
         var seen = Set<String>()
         for entry in entries {
             guard let id = entry["id"] as? String, identifier(id, length: 64), seen.insert(id).inserted,
-                  prefix.map(id.hasPrefix) ?? !id.hasPrefix("claude-"),
+                  id.hasPrefix("claude-"),
                   let input = number(entry["input"], in: 0...1_000),
                   let output = number(entry["output"], in: 0...1_000),
                   let cacheRead = number(entry["cacheRead"], in: 0...1_000) else { return nil }
-            // Fields left out fall back to plain input pricing, the way
-            // providers without separate cache writes bill them.
+            // Fields left out fall back to plain input pricing.
             let cacheWrite = entry["cacheWrite"] == nil ? input : number(entry["cacheWrite"], in: 0...1_000)
             let cacheWriteLong = entry["cacheWriteLong"] == nil ? cacheWrite : number(entry["cacheWriteLong"], in: 0...1_000)
             let fast = entry["fastMultiplier"] == nil ? 1 : number(entry["fastMultiplier"], in: 1...10)
@@ -147,7 +141,7 @@ struct AgentPriceList: Equatable {
     }
 
     /// Lowercase letters, digits, dots, dashes and underscores: the shape of
-    /// every model and plan the agents record.
+    /// every model and plan Claude Code records.
     private static func identifier(_ text: String, length: Int) -> Bool {
         (1...length).contains(text.count) && text.unicodeScalars.allSatisfy {
             ("a"..."z").contains($0) || ("0"..."9").contains($0) || $0 == "." || $0 == "-" || $0 == "_"
@@ -197,7 +191,7 @@ enum AgentPricing {
     static func normalized(_ model: String) -> String {
         var id = model.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         if let range = id.range(of: "claude-") { id = String(id[range.lowerBound...]) }
-        // Copilot names Claude point releases with a dot where Anthropic's
+        // Some routers name Claude point releases with a dot where Anthropic's
         // own logs and the public price list use a dash.
         if id.hasPrefix("claude-") { id = id.replacingOccurrences(of: ".", with: "-") }
         if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
@@ -215,8 +209,7 @@ enum AgentPricing {
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
-        let table = id.hasPrefix("claude-") ? list.claude : list.codex
-        guard let match = table.filter({ matches(id, family: $0.id) })
+        guard id.hasPrefix("claude-"), let match = list.claude.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
         // A smaller, larger or specialized sibling the list does not name is
         // priced very differently from its family; better no figure than a
@@ -226,9 +219,10 @@ enum AgentPricing {
         return match.price
     }
 
-    /// A family matches at a word boundary: "gpt-5" is not "gpt-5.1", and a
-    /// number after it names another version, so "claude-opus-5" is not a
-    /// later "claude-opus-5-6". A snapshot date after it is the same model.
+    /// A family matches at a word boundary: "claude-opus-5" is not
+    /// "claude-opus-50", and a number after it names another version, so
+    /// "claude-opus-5" is not a later "claude-opus-5-6". A snapshot date after
+    /// it is the same model.
     private static func matches(_ id: String, family: String) -> Bool {
         guard id.hasPrefix(family) else { return false }
         let rest = id.dropFirst(family.count)
@@ -263,43 +257,27 @@ enum AgentPricing {
         return (cost, savings)
     }
 
-    /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
-    /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
-    /// model no list knows yet still reads well.
+    /// Readable model names: "claude-opus-5-5" reads "Opus 5.5". Built from
+    /// the name itself, so a model no list knows yet still reads well.
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
-        guard !id.isEmpty else { return "" }
-        if id.hasPrefix("claude-") {
-            // A router's tag after a colon, like ":thinking", is a mode of the same model.
-            let family = id.split(separator: ":", maxSplits: 1).first.map(String.init) ?? id
-            var parts = family.dropFirst(7).split(separator: "-").map(String.init)
-            // Snapshot dates and version suffixes add nothing to a name.
-            parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
-            parts.removeAll { $0.hasPrefix("v") && $0.dropFirst().first?.isNumber == true }
-            parts.removeAll { $0 == "latest" }
-            let words = parts.filter { !$0.allSatisfy({ $0.isNumber || $0 == "." }) }
-            let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
-            let version = versions.joined(separator: ".")
-            let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
-            return name.filter { !$0.isEmpty }.joined(separator: " ")
-        }
-        guard id.hasPrefix("gpt-") else { return id }
-        var parts = id.dropFirst(4).split(separator: "-").map(String.init)
-        // An alias names whatever it points to today.
-        parts.removeAll { $0 == "latest" }
-        // A dated snapshot, "-2026-10-01" or "-20261001", is the same model.
+        guard id.hasPrefix("claude-") else { return id }
+        // A router's tag after a colon, like ":thinking", is a mode of the same model.
+        let family = id.split(separator: ":", maxSplits: 1).first.map(String.init) ?? id
+        var parts = family.dropFirst(7).split(separator: "-").map(String.init)
+        // Snapshot dates and version suffixes add nothing to a name.
         parts.removeAll { $0.count >= 6 && $0.allSatisfy(\.isNumber) }
-        if parts.count >= 4, let year = Int(parts[parts.count - 3]), (2000...2100).contains(year),
-           parts.suffix(2).allSatisfy({ $0.count == 2 && $0.allSatisfy(\.isNumber) }) {
-            parts.removeLast(3)
-        }
-        guard let first = parts.first else { return "GPT" }
-        let head = first.first?.isNumber == true ? "GPT-" + first : "GPT " + first.capitalized
-        return ([head] + parts.dropFirst().map(\.capitalized)).joined(separator: " ")
+        parts.removeAll { $0.hasPrefix("v") && $0.dropFirst().first?.isNumber == true }
+        parts.removeAll { $0 == "latest" }
+        let words = parts.filter { !$0.allSatisfy({ $0.isNumber || $0 == "." }) }
+        let versions = parts.filter { $0.allSatisfy({ $0.isNumber || $0 == "." }) }
+        let version = versions.joined(separator: ".")
+        let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
+        return name.filter { !$0.isEmpty }.joined(separator: " ")
     }
 }
 
-/// Subscriptions, recognized from what the agents keep on disk.
+/// Subscriptions, recognized from what Claude Code keeps on disk.
 enum AgentPlans {
     static func claude(organizationType: String?, rateLimitTier: String?,
                        list: AgentPriceList = AgentPricing.list) -> AgentPlan? {
@@ -312,14 +290,5 @@ enum AgentPlans {
         let name = type.replacingOccurrences(of: "claude_", with: "").replacingOccurrences(of: "_", with: " ")
             .trimmingCharacters(in: .whitespaces)
         return name.isEmpty ? nil : AgentPlan(name: name.capitalized, monthlyPrice: nil)
-    }
-
-    static func codex(planType: String?, list: AgentPriceList = AgentPricing.list) -> AgentPlan? {
-        guard let raw = planType?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-              !raw.isEmpty else { return nil }
-        if let plan = list.codexPlans.first(where: { $0.match == raw }) {
-            return AgentPlan(name: plan.name, monthlyPrice: plan.monthly)
-        }
-        return AgentPlan(name: raw.prefix(1).uppercased() + raw.dropFirst(), monthlyPrice: nil)
     }
 }

@@ -30,7 +30,7 @@ enum AppSoundTests {
     private static func rules(_ suite: TestSuite) {
         let cli = AppSoundContext(provider: .claude, place: .terminal)
         let app = AppSoundContext(provider: .claude, place: .app)
-        let unsure = AppSoundContext(provider: .codex, place: nil)
+        let unsure = AppSoundContext(provider: .claude, place: nil)
         let claudeApp = "com.anthropic.claudefordesktop"
         suite.expect(AppSoundRules.isLooking(at: cli, frontmost: "com.mitchellh.ghostty")
                         && !AppSoundRules.isLooking(at: cli, frontmost: claudeApp),
@@ -38,9 +38,9 @@ enum AppSoundTests {
         suite.expect(AppSoundRules.isLooking(at: app, frontmost: claudeApp)
                         && !AppSoundRules.isLooking(at: app, frontmost: "com.apple.Terminal"),
                      "an app session is in view only while its own app is in front")
-        suite.expect(AppSoundRules.isLooking(at: unsure, frontmost: "com.openai.codex")
+        suite.expect(AppSoundRules.isLooking(at: unsure, frontmost: claudeApp)
                         && AppSoundRules.isLooking(at: unsure, frontmost: "com.googlecode.iterm2")
-                        && !AppSoundRules.isLooking(at: unsure, frontmost: claudeApp),
+                        && !AppSoundRules.isLooking(at: unsure, frontmost: "com.apple.Safari"),
                      "a session whose place is not known counts as in view in a terminal or its agent's app")
         suite.expect(!AppSoundRules.isLooking(at: .none, frontmost: "com.apple.Terminal")
                         && !AppSoundRules.isLooking(at: cli, frontmost: nil),
@@ -295,29 +295,29 @@ enum AppSoundTests {
         var heard: [AgentProvider] = []
         store.turnStarted = { heard.append($0) }
 
-        store.apply([.turnBegan(now)], file: "early", provider: .codex, tracksTurns: true, modified: now, now: now)
+        store.apply([.turnBegan(now)], file: "early", provider: .claude, tracksTurns: true, modified: now, now: now)
         suite.expect(heard.isEmpty, "turns read before transitions are reported, at launch, are history")
 
         store.reportsTransitions = true
-        store.apply([.turnBegan(now)], file: "a", provider: .codex, tracksTurns: true, modified: now, now: now)
-        suite.expect(heard == [.codex], "a turn opening is heard")
-        store.apply([.turnBegan(now)], file: "a", provider: .codex, tracksTurns: true, modified: now, now: now)
-        suite.expect(heard == [.codex], "a log read again from its start opens no second turn")
-        store.apply([.turnActive(now)], file: "a", provider: .codex, tracksTurns: true, modified: now, now: now)
-        suite.expect(heard == [.codex], "work going on in an open turn is not a start")
+        store.apply([.turnBegan(now)], file: "a", provider: .claude, tracksTurns: true, modified: now, now: now)
+        suite.expect(heard == [.claude], "a turn opening is heard")
+        store.apply([.turnBegan(now)], file: "a", provider: .claude, tracksTurns: true, modified: now, now: now)
+        suite.expect(heard == [.claude], "a log read again from its start opens no second turn")
+        store.apply([.turnActive(now)], file: "a", provider: .claude, tracksTurns: true, modified: now, now: now)
+        suite.expect(heard == [.claude], "work going on in an open turn is not a start")
 
         store.apply([.turnActive(now)], file: "b", provider: .claude, tracksTurns: true, modified: now, now: now)
-        suite.expect(heard == [.codex, .claude], "work seen before its turn's opening starts it all the same")
+        suite.expect(heard == [.claude, .claude], "work seen before its turn's opening starts it all the same")
 
         let old = now.addingTimeInterval(-AgentUsageStore.lateEnd - 1)
-        store.apply([.turnBegan(old)], file: "c", provider: .codex, tracksTurns: true, modified: now, now: now)
+        store.apply([.turnBegan(old)], file: "c", provider: .claude, tracksTurns: true, modified: now, now: now)
         suite.expect(heard.count == 2, "a turn found late, long after it opened, is not news")
 
-        store.apply([.turnBegan(now)], file: "d", provider: .opencode, tracksTurns: false, modified: now, now: now)
+        store.apply([.turnBegan(now)], file: "d", provider: .claude, tracksTurns: false, modified: now, now: now)
         suite.expect(heard.count == 2, "a subagent's work belongs to its parent's turn")
 
         store.closeIdleTurns(now: now.addingTimeInterval(NotchAgentSupport.idleTurn), after: NotchAgentSupport.idleTurn)
-        store.apply([.turnActive(now.addingTimeInterval(NotchAgentSupport.idleTurn + 1))], file: "a", provider: .codex,
+        store.apply([.turnActive(now.addingTimeInterval(NotchAgentSupport.idleTurn + 1))], file: "a", provider: .claude,
                     tracksTurns: true, modified: now, now: now.addingTimeInterval(NotchAgentSupport.idleTurn + 1))
         suite.expect(heard.count == 2, "work resuming after an approval is the same turn, not a new start")
     }

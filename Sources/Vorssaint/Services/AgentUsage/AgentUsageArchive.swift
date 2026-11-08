@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 6
+    private static let format = 7
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -120,8 +120,6 @@ enum AgentUsageArchive {
         }
         body.count(store.limits.count)
         for limits in store.limits { body.limits(limits) }
-        body.optional(store.codexPlan) { $0.string($1) }
-        body.date(store.codexPlanObserved)
         for sessions in [store.turns, store.waiting] {
             body.count(sessions.count)
             for session in sessions { body.session(session) }
@@ -196,8 +194,6 @@ enum AgentUsageArchive {
                 store.records.append(.init(key: key, record: record, billable: billable, sources: sources))
             }
             for _ in 0..<(try reader.count()) { store.limits.append(try reader.limits()) }
-            store.codexPlan = try reader.optional { try $0.string() }
-            store.codexPlanObserved = try reader.date()
             for _ in 0..<(try reader.count()) { store.turns.append(try reader.session()) }
             for _ in 0..<(try reader.count()) { store.waiting.append(try reader.session()) }
             var cursors: [AgentLogCursor.Saved] = []
@@ -258,14 +254,6 @@ enum AgentUsageArchive {
             if let value { write(&self, value) }
         }
 
-        mutating func dictionary<Value>(_ values: [String: Value], _ write: (inout Writer, Value) -> Void) {
-            count(values.count)
-            for key in values.keys.sorted() {
-                string(key)
-                if let value = values[key] { write(&self, value) }
-            }
-        }
-
         mutating func provider(_ value: AgentProvider) { string(value.rawValue) }
 
         mutating func tokens(_ value: AgentTokens) {
@@ -299,7 +287,6 @@ enum AgentUsageArchive {
             }
             date(value.observedAt)
             switch value.source {
-            case .sessionLog: count(0)
             case .claudeApp: count(1)
             case .account: count(2)
             }
@@ -322,20 +309,6 @@ enum AgentUsageArchive {
             string(value.project)
             string(value.model)
             bool(value.turnOpen)
-            bool(value.sawUsageRecords)
-            optional(value.lastTotal) { $0.tokens($1) }
-            bool(value.fast)
-            bool(value.codexSubagent)
-            bool(value.codexHeaderRead)
-            string(value.codexRoot)
-            string(value.codexTotalsSession)
-            bool(value.codexApp)
-            dictionary(value.copilotTotals) { $0.tokens($1) }
-            dictionary(value.copilotRequests) { $0.int($1) }
-            dictionary(value.copilotRequestModels) { $0.string($1) }
-            dictionary(value.copilotReportedRequests) { $0.int($1) }
-            optional(value.copilotTurnID) { $0.string($1) }
-            bool(value.copilotFinalResponse)
         }
     }
 
@@ -417,16 +390,6 @@ enum AgentUsageArchive {
             try bool() ? try read(&self) : nil
         }
 
-        mutating func dictionary<Value>(_ read: (inout Reader) throws -> Value) throws -> [String: Value] {
-            var values: [String: Value] = [:]
-            for _ in 0..<(try count()) {
-                let key = try string()
-                guard values[key] == nil else { throw Malformed() }
-                values[key] = try read(&self)
-            }
-            return values
-        }
-
         mutating func provider() throws -> AgentProvider {
             guard let provider = AgentProvider(rawValue: try string()) else { throw Malformed() }
             return provider
@@ -466,7 +429,6 @@ enum AgentUsageArchive {
             let observed = try date()
             let source: AgentLimits.Source
             switch try unsigned() {
-            case 0: source = .sessionLog
             case 1: source = .claudeApp
             case 2: source = .account
             default: throw Malformed()
@@ -481,20 +443,7 @@ enum AgentUsageArchive {
         }
 
         mutating func state() throws -> AgentLogState {
-            var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
-                                      sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
-            value.codexSubagent = try bool()
-            value.codexHeaderRead = try bool()
-            value.codexRoot = try string()
-            value.codexTotalsSession = try string()
-            value.codexApp = try bool()
-            value.copilotTotals = try dictionary { try $0.tokens() }
-            value.copilotRequests = try dictionary { try $0.amount() }
-            value.copilotRequestModels = try dictionary { try $0.string() }
-            value.copilotReportedRequests = try dictionary { try $0.amount() }
-            value.copilotTurnID = try optional { try $0.string() }
-            value.copilotFinalResponse = try bool()
-            return value
+            AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool())
         }
     }
 }

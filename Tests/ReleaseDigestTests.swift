@@ -198,7 +198,7 @@ enum ReleaseDigestTests {
             ("Added", "The window switcher can limit how many items sit in a row and wraps the rest. Settings → Window switcher → Options → Maximum columns.", [.switcher]),
             ("Fixed", "Dock clicks and Dock Preview act on the right instance when an app runs as several processes.", [.dockPreview, .dockClick]),
             ("Fixed", "Settings → Features no longer jumps or goes blank when a feature is installed or removed while scrolled down.", []),
-            ("Fixed", "AI Agents follows OpenCode 2, including databases upgraded from OpenCode 1 and the cost of compactions.", [.notchAgents]),
+            ("Fixed", "AI Agents follows Claude Code sessions resumed after their process was killed, and the cost of compactions.", [.notchAgents]),
             ("Changed", "App sliders in the Volume mixer follow perceived loudness, so 50% sounds clearly quieter. Saved levels keep how loud each app plays.", [.mixer]),
             ("Changed", "Command Bar opens and searches faster, with the same matching and ranking rules.", [.commandBar]),
             ("Changed", "Save as GIF and Copy as GIF work for recordings of any length.", []),

@@ -76,6 +76,14 @@ struct AgentBucket: Equatable, Identifiable {
     }
 }
 
+/// One day of the activity map: when it began and what it was worth at API
+/// prices.
+struct AgentDayValue: Equatable, Identifiable {
+    let start: Date
+    let cost: Double
+    var id: Date { start }
+}
+
 /// Claude's allowance renews five hours after the first request that
 /// follows a renewal. Local activity alone places that window closely.
 struct AgentBlock: Equatable {
@@ -86,6 +94,9 @@ struct AgentBlock: Equatable {
 
 struct AgentUsageSnapshot: Equatable {
     static let dayCount = 91
+    /// The activity map's span: 53 weeks, so its first column is whole
+    /// whatever weekday today is.
+    static let yearDayCount = 371
 
     var loaded = false
     var now = Date.distantPast
@@ -95,8 +106,11 @@ struct AgentUsageSnapshot: Equatable {
     /// Each of `days`' models, by provider and name, for the ledger that
     /// keeps them once their logs are gone.
     var dayModels: [[String: AgentShare]] = []
-    /// Every day the ledger kept, all agents, filled in by the service.
+    /// Every day the ledger kept, filled in by the service.
     var lifetime = AgentPeriodUsage()
+    /// The last `yearDayCount` days' value from the ledger, oldest first,
+    /// ending with today; filled in by the service.
+    var year: [AgentDayValue] = []
     /// Today's hours, from midnight.
     var hours: [AgentBucket] = []
     var limits: [AgentProvider: AgentLimits] = [:]
@@ -157,7 +171,7 @@ enum AgentUsageSummary {
         for record in records where providers.contains(record.provider) {
             snapshot.seen.insert(record.provider)
             snapshot.lastActivity[record.provider] = max(snapshot.lastActivity[record.provider] ?? .distantPast, record.date)
-            if record.provider == .claude, record.date > now.addingTimeInterval(-blockHistory), record.date <= now {
+            if record.date > now.addingTimeInterval(-blockHistory), record.date <= now {
                 claude.append(record)
             }
             if record.date >= recent, record.date <= now {
@@ -166,7 +180,7 @@ enum AgentUsageSummary {
             guard let first = starts.first, record.date >= first, record.date < tomorrow,
                   let day = index(of: record.date, in: starts) else { continue }
             days[day].byProvider[record.provider, default: AgentTotals()].add(record)
-            if record.provider == .claude, !record.claudeApp { days[day].claudeAPI.add(record) }
+            if !record.claudeApp { days[day].claudeAPI.add(record) }
             if day == lastDay, let hour = index(of: record.date, in: hourStarts) {
                 hours[hour].byProvider[record.provider, default: AgentTotals()].add(record)
             }
@@ -363,7 +377,7 @@ final class AgentUsageSummaryCache {
             let record = records[position]
             guard isRecent(record, now: now) else { recentPositions.remove(position); continue }
             guard record.date <= now else { continue }
-            if record.provider == .claude { claude.append(record) }
+            claude.append(record)
             if record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow) {
                 result.burnRate[record.provider, default: AgentTotals()].add(record)
             }
@@ -383,9 +397,7 @@ final class AgentUsageSummaryCache {
 
     private func isRecent(_ record: AgentUsageRecord, now: Date) -> Bool {
         guard providers.contains(record.provider) else { return false }
-        return record.provider == .claude
-            ? record.date > now.addingTimeInterval(-AgentUsageSummary.blockHistory)
-            : record.date >= now.addingTimeInterval(-AgentUsageSummary.burnWindow)
+        return record.date > now.addingTimeInterval(-AgentUsageSummary.blockHistory)
     }
 
     private func accumulate(_ record: AgentUsageRecord, previous: AgentUsageRecord?) {
@@ -406,7 +418,7 @@ final class AgentUsageSummaryCache {
             delta.unpriced -= previous.cost == nil ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
-        if record.provider == .claude, !record.claudeApp { history!.days[day].claudeAPI += delta }
+        if !record.claudeApp { history!.days[day].claudeAPI += delta }
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
             history!.hours[hour].byProvider[record.provider, default: AgentTotals()] += delta
         }
