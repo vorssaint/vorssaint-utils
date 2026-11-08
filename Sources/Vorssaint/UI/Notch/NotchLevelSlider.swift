@@ -217,6 +217,45 @@ struct NotchLevelSlider: NSViewRepresentable {
     }
 }
 
+/// A press begun elsewhere, on the island, on another bar or in another app,
+/// keeps the pointer's events away from a bar it is dragged onto, and the bar
+/// hears nothing on release either until the pointer moves again. So the
+/// drags and releases themselves, in the app and outside it, settle every
+/// bar's hover. One pair of monitors serves all the bars on screen.
+@MainActor private enum NotchLevelHoverWatch {
+    private static let controls = NSHashTable<NotchLevelControl>.weakObjects()
+    private static var monitors: [Any] = []
+    private static let events: NSEvent.EventTypeMask = [.leftMouseDragged, .leftMouseUp,
+                                                        .rightMouseDragged, .rightMouseUp,
+                                                        .otherMouseDragged, .otherMouseUp]
+
+    static func add(_ control: NotchLevelControl) {
+        controls.add(control)
+        guard monitors.isEmpty else { return }
+        if let local = NSEvent.addLocalMonitorForEvents(matching: events, handler: { event in
+            refresh()
+            return event
+        }) { monitors.append(local) }
+        if let global = NSEvent.addGlobalMonitorForEvents(matching: events, handler: { _ in
+            MainActor.assumeIsolated { refresh() }
+        }) { monitors.append(global) }
+    }
+
+    static func remove(_ control: NotchLevelControl) {
+        controls.remove(control)
+        guard controls.allObjects.isEmpty else { return }
+        monitors.forEach(NSEvent.removeMonitor)
+        monitors = []
+    }
+
+    private static func refresh() {
+        // After the event is handled, so a release has ended any drag first.
+        DispatchQueue.main.async {
+            controls.allObjects.forEach { $0.refreshHoverFromPointer() }
+        }
+    }
+}
+
 private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     var scrollable = true
     var acceptsSliderScroll: Bool { scrollable && isEnabled }
@@ -365,10 +404,19 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if window == nil {
+            NotchLevelHoverWatch.remove(self)
             cancelScroll()
             hovering = false
             stopHoverFade()
+        } else {
+            NotchLevelHoverWatch.add(self)
         }
+    }
+
+    /// Takes up whether the pointer is over the bar, wherever it now is.
+    fileprivate func refreshHoverFromPointer() {
+        guard let window, window.isVisible else { return }
+        hovering = bounds.contains(convert(window.mouseLocationOutsideOfEventStream, from: nil))
     }
 
     override func mouseDown(with event: NSEvent) {

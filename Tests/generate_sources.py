@@ -115,6 +115,8 @@ def main():
     (OUTPUT / "NotchLevelSlider.swift").unlink(missing_ok=True)
     write("NotchLevelTrackingContract.swift", "import AppKit\nimport SwiftUI\n"
           + declaration(slider_control, "struct NotchLevelSlider:")
+          + declaration(slider_control, "@MainActor private enum NotchLevelHoverWatch")
+              .replace("@MainActor private enum NotchLevelHoverWatch", "@MainActor enum NotchLevelHoverWatch", 1)
           + declaration(slider_control, "private final class NotchLevelControl:")
               .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
           + declaration(slider_control, "private final class NotchLevelCell:"))
