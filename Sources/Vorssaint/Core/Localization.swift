@@ -2814,7 +2814,7 @@ extension Strings {
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
         uninstallerTrashDetectionTitle: "Suggest cleanup for apps moved to Trash",
-        uninstallerTrashDetectionCaption: "Watch the Trash and offer to review an app's leftover files after you move it there.",
+        uninstallerTrashDetectionCaption: "Watch the Trash and offer to review leftover files for apps you move there.",
         uninstallerTrashDetectionNeedsFDA: "Full Disk Access is required to watch the Trash. Grant access in System Settings, then return to the app.",
         uninstallerTrashDetectionFailed: "Could not start Trash monitoring. Turn this setting off and on to try again.",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",

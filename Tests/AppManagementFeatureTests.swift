@@ -539,6 +539,25 @@ enum AppManagementFeatureTests {
         suite.expect(editorSelection?.bundleID == "com.vendor.editor"
                && editorSelection?.url == editorApp.standardizedFileURL,
                "a complete third party app bundle is accepted with its standardized path")
+        let reusedApp = selectionBundle("Reused.app", bundleID: "com.vendor.first")
+        let firstReusedSelection = UninstallerSupport.selection(for: reusedApp)
+        _ = Bundle(url: reusedApp)?.bundleIdentifier
+        let parkedApp = selectionFixture.appendingPathComponent("Reused Old.app", isDirectory: true)
+        try? FileManager.default.moveItem(at: reusedApp, to: parkedApp)
+        let replacementApp = selectionBundle("Reused.app", bundleID: "com.vendor.second")
+        let replacementSelection = UninstallerSupport.selection(for: replacementApp)
+        suite.expect(firstReusedSelection?.bundleID == "com.vendor.first"
+               && replacementSelection?.bundleID == "com.vendor.second"
+               && UninstallerSupport.bundleIdentifier(of: replacementApp) == "com.vendor.second",
+               "a replacement bundle at a previously read path uses its current on-disk identifier")
+        let replacementSnapshot = UninstallerSupport.bundleSnapshot(of: replacementApp)
+        suite.expect(replacementSnapshot != nil
+               && UninstallerSupport.bundleSnapshot(of: replacementApp) == replacementSnapshot,
+               "an unchanged bundle retains its cache snapshot")
+        try? Data(contentsOf: replacementApp.appendingPathComponent("Contents/Info.plist"))
+            .write(to: replacementApp.appendingPathComponent("Contents/Info.plist"), options: .atomic)
+        suite.expect(UninstallerSupport.bundleSnapshot(of: replacementApp) != replacementSnapshot,
+               "rewriting a bundle's Info.plist invalidates its cache snapshot")
         let appleEditorApp = selectionBundle("AppleEditor.app", bundleID: "com.apple.editor")
         suite.expect(UninstallerSupport.selection(for: appleEditorApp) == nil,
                "an Apple bundle identifier is refused before it can claim uninstall paths")
@@ -775,8 +794,20 @@ enum AppManagementFeatureTests {
                 home: URL(fileURLWithPath: "/Users/test"))
             && !UninstallerSupport.applicationIsInTrustedInstallRoot(
                 URL(fileURLWithPath: "/Users/test/Downloads/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && !UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Archive/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && !UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash/Archive/Editor.app"),
                 home: URL(fileURLWithPath: "/Users/test")),
-               "embedded helpers belong to the selected app while unregistered download copies never own shared data")
+               "embedded helpers and direct Trash apps can claim shared data, but downloads and nested Trash apps cannot")
         let uninstallCandidateIDs: Set<String> = ["com.vendor.editor", "com.vendor.editor.helper"]
         suite.expect(UninstallerSupport.exclusiveBundleIDs(
                    uninstallCandidateIDs,

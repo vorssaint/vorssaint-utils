@@ -126,11 +126,11 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 ## Full Disk Access
 
-**Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access. Vorssaint also watches the user Trash for newly removed apps so it can offer the same cleanup review immediately.
+**Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access. If you enable the optional Trash cleanup offer, Vorssaint also watches the user Trash for newly removed apps.
 
-**What uses it.** The uninstaller, for a deeper scan.
+**What uses it.** The uninstaller, for a deeper scan, and the optional Trash cleanup offer.
 
-**If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders.
+**If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders, and Trash monitoring stays unavailable.
 
 **Optional.** Yes. There is no pop up for Full Disk Access. You add Vorssaint in System Settings, under Privacy and Security, Full Disk Access, and Vorssaint opens that pane for you when the feature calls for it.
 

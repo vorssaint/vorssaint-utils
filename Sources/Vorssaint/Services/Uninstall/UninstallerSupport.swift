@@ -37,11 +37,7 @@ enum TrashSuggestionNotchAvailability: Equatable {
 
 enum TrashSuggestionSupport {
     static func bundleIdentifierOnDisk(at appURL: URL) -> String? {
-        let infoURL = UninstallerSupport.infoPlistURL(in: appURL)
-        guard let data = try? Data(contentsOf: infoURL),
-              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
-              let dictionary = plist as? [String: Any] else { return nil }
-        return UninstallerSupport.verifiedBundleID(dictionary["CFBundleIdentifier"] as? String)
+        UninstallerSupport.verifiedBundleID(UninstallerSupport.bundleIdentifier(of: appURL))
     }
 
     static func monitoringState(enabled: Bool, hasFullDiskAccess: Bool,
@@ -92,6 +88,13 @@ enum UninstallerSupport {
     struct FileIdentity: Equatable, Hashable {
         let device: UInt64
         let inode: UInt64
+    }
+
+    struct BundleSnapshot: Hashable {
+        let bundle: FileIdentity
+        let info: FileIdentity
+        let infoModifiedSeconds: Int
+        let infoModifiedNanoseconds: Int
     }
 
     /// An app the uninstaller has agreed to take: its verified bundle
@@ -276,13 +279,13 @@ enum UninstallerSupport {
         // Something named like an app that does not read as one is still
         // reported as an app, never as a stray document.
         let unreadable: Refusal = appURL.pathExtension.lowercased() == "app" ? .unidentified : .notAnApp
-        guard let bundle = Bundle(url: appURL) else { return .failure(unreadable) }
+        guard let info = infoDictionary(of: appURL) else { return .failure(unreadable) }
         // System apps are SIP-protected and their support data is live OS
         // state; removing either would be wrong, so refuse the selection.
         guard !InstalledApps.isSystemApplication(at: appURL) else { return .failure(.systemApp) }
         // Only a verified bundle identifier becomes a path component. A
         // display name is presentation only and can never claim user data.
-        guard let rawBundleID = bundle.bundleIdentifier,
+        guard let rawBundleID = info["CFBundleIdentifier"] as? String,
               CleanerSupport.looksLikeBundleID(rawBundleID) else { return .failure(unreadable) }
         guard let bundleID = verifiedBundleID(rawBundleID) else {
             return .failure(isOwnBundleID(rawBundleID) ? .thisApp : .sharedIdentifier)
@@ -312,6 +315,17 @@ enum UninstallerSupport {
         return fileIdentity(at: contents) == nil
             ? wrapped.appendingPathComponent("Info.plist")
             : contents.appendingPathComponent("Info.plist")
+    }
+
+    static func infoDictionary(of appURL: URL) -> [String: Any]? {
+        guard let data = try? Data(contentsOf: infoPlistURL(in: appURL)),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil)
+        else { return nil }
+        return plist as? [String: Any]
+    }
+
+    static func bundleIdentifier(of appURL: URL) -> String? {
+        infoDictionary(of: appURL)?["CFBundleIdentifier"] as? String
     }
 
     /// The bundle a wrapper's WrappedBundle link names. Bundle follows only a
@@ -369,6 +383,19 @@ enum UninstallerSupport {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }
         return FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino))
+    }
+
+    static func bundleSnapshot(of appURL: URL) -> BundleSnapshot? {
+        let infoURL = infoPlistURL(in: appURL)
+        var info = stat()
+        guard let bundle = fileIdentity(at: appURL),
+              lstat(infoURL.path, &info) == 0 else { return nil }
+        return BundleSnapshot(
+            bundle: bundle,
+            info: FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino)),
+            infoModifiedSeconds: Int(info.st_mtimespec.tv_sec),
+            infoModifiedNanoseconds: Int(info.st_mtimespec.tv_nsec)
+        )
     }
 
     /// A missing entry or ancestor is absence; an unreadable or invalid path
@@ -438,7 +465,14 @@ enum UninstallerSupport {
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             home.appendingPathComponent("Applications", isDirectory: true),
         ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
-        return roots.contains { path.hasPrefix($0 + "/") }
+        return roots.contains { path.hasPrefix($0 + "/") } || isInTrash(url, home: home)
+    }
+
+    static func isInTrash(_ url: URL, home: URL) -> Bool {
+        let parent = url.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
+        let trash = home.appendingPathComponent(".Trash", isDirectory: true)
+            .resolvingSymlinksInPath().standardizedFileURL.path
+        return parent == trash
     }
 
     static func strippedAppName(_ raw: String) -> String {

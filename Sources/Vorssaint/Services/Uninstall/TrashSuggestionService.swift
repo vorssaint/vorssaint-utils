@@ -76,6 +76,7 @@ final class TrashSuggestionService: ObservableObject {
         }
         self.stream = stream
         isStarted = true
+        AppUninstaller.prepareInstalledApplications()
         monitoringState = TrashSuggestionSupport.monitoringState(
             enabled: true, hasFullDiskAccess: true, streamStarted: true)
     }
