@@ -7,7 +7,7 @@ import Foundation
 /// The cards the AI page can show, in the order a person arranges them. Raw
 /// values are stored in the saved order, so cases are never renamed.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    case limits, spend, live, trend, models, projects, activity, resets
+    case limits, spend, live, trend, models, projects, activity, resets, allowance
 
     var id: String { rawValue }
 
@@ -21,6 +21,7 @@ enum NotchAgentCard: String, CaseIterable, Identifiable {
         case .projects: return "folder"
         case .activity: return "square.grid.3x3.fill"
         case .resets: return "arrow.counterclockwise.circle"
+        case .allowance: return "gauge.with.dots.needle.67percent"
         }
     }
 
@@ -131,6 +132,20 @@ enum NotchAgentSupport {
 
     static func limitFocus(in defaults: UserDefaults = .standard) -> NotchAgentLimitFocus {
         NotchAgentLimitFocus(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsLimitFocus) ?? "") ?? .mostUsed
+    }
+
+    /// Whether the OpenCode card shows Go allowances instead of plain API value.
+    static func goMode(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsOpenCodeGo) as? Bool ?? false
+    }
+
+    /// Whether the Console is asked for the account's exact Go allowances.
+    static func goConsole(in defaults: UserDefaults = .standard) -> Bool {
+        goMode(in: defaults) && (defaults.object(forKey: DefaultsKey.notchAgentsGoConsole) as? Bool ?? false)
+    }
+
+    static func goPlan(in defaults: UserDefaults = .standard) -> AgentGoPlan {
+        AgentGoPlan(rawValue: defaults.string(forKey: DefaultsKey.notchAgentsGoPlan) ?? "") ?? .go
     }
 
     /// The allowance the closed island shows: the window the person chose,
@@ -283,6 +298,9 @@ enum NotchAgentSupport {
     static let spacing: CGFloat = 10
     static let cardHeight: CGFloat = 96
     static let chartHeight: CGFloat = 118
+    /// The allowance card holds a header, the binding model and three
+    /// windows, so it stands taller than a limits card.
+    static let allowanceCardHeight: CGFloat = 148
     /// An account card also says when it was checked, and the Resets card
     /// beside account cards names the account its resets belong to.
     static let accountCardHeight: CGFloat = 116
@@ -294,8 +312,9 @@ enum NotchAgentSupport {
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
-        cards.flatMap { card -> [NotchAgentTile] in
+                      codexAccounts: [String] = [], claudeAccount: String? = nil,
+                      goMode: Bool = false) -> [NotchAgentTile] {
+        let tiles = cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
                 if provider == .claude, let claudeAccount {
@@ -308,9 +327,19 @@ enum NotchAgentSupport {
             // the card names once others have cards.
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
+            // The Go allowance belongs to OpenCode and only shows in Go mode.
+            case .allowance: return providers.contains(.opencode) && goMode
+                ? [NotchAgentTile(card: .allowance, provider: .opencode)] : []
+            // The trend meters API value, which Go replaces with allowances.
+            case .trend: return goMode ? [] : [NotchAgentTile(card: card, provider: nil)]
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
         }
+        // The remaining widget leads the page in Go mode.
+        guard goMode, let index = tiles.firstIndex(where: { $0.card == .allowance }) else { return tiles }
+        var ordered = tiles
+        ordered.insert(ordered.remove(at: index), at: 0)
+        return ordered
     }
 
     /// Cards pair up in reading order; a chart, or a card left without a
@@ -337,6 +366,7 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
+        if row.contains(where: { $0.card == .allowance }) { return allowanceCardHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
 

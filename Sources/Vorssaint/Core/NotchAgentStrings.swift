@@ -101,6 +101,22 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let allowanceCard: String
+    let goMode: String
+    let goPlan: String
+    let rollingTitle: String
+    let weeklyLeftTitle: String
+    let monthlyLeftTitle: String
+    let goConsole: String
+    let goConsoleHint: String
+    let goEndpoint: String
+    let goKey: String
+    let goCheck: String
+    let goKeyMissing: String
+    let goCheckFailed: String
+    let goKeySaved: String
+    let goKeyEmpty: String
+    let tokensCard: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -144,6 +160,7 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
+        case .allowance: return allowanceCard
         }
     }
 
@@ -285,7 +302,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        allowanceCard: "Remaining",
+        goMode: "OpenCode Go",
+        goPlan: "Go plan",
+        rollingTitle: "Rolling 5h",
+        weeklyLeftTitle: "Weekly left",
+        monthlyLeftTitle: "Monthly left",
+        goConsole: "Check the Console",
+        goConsoleHint: "Reads the account’s exact allowances with a Console API key. Without one the island estimates from this Mac.",
+        goEndpoint: "Endpoint",
+        goKey: "API key",
+        goCheck: "Check now",
+        goKeyMissing: "Add a Console API key with Usage access to check allowances.",
+        goCheckFailed: "The Console could not be checked. The island keeps its estimate.",
+        goKeySaved: "Saved",
+        goKeyEmpty: "Not set",
+        tokensCard: "Tokens")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -384,7 +417,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        allowanceCard: "Залишок",
+        goMode: "OpenCode Go",
+        goPlan: "План Go",
+        rollingTitle: "Останні 5 год",
+        weeklyLeftTitle: "Тиждень залишок",
+        monthlyLeftTitle: "Місяць залишок",
+        goConsole: "Перевіряти Console",
+        goConsoleHint: "Читає точні ліміти облікового запису за ключем Console API. Без нього острівець оцінює за цим Mac.",
+        goEndpoint: "Адреса",
+        goKey: "Ключ API",
+        goCheck: "Перевірити",
+        goKeyMissing: "Додайте ключ Console API з доступом до використання.",
+        goCheckFailed: "Не вдалося перевірити Console. Острівець лишає оцінку.",
+        goKeySaved: "Збережено",
+        goKeyEmpty: "Не задано",
+        tokensCard: "Токени")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -483,7 +532,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        allowanceCard: "Restante",
+        goMode: "OpenCode Go",
+        goPlan: "Plano Go",
+        rollingTitle: "Últimas 5h",
+        weeklyLeftTitle: "Semana restante",
+        monthlyLeftTitle: "Mês restante",
+        goConsole: "Verificar o Console",
+        goConsoleHint: "Lê os limites exatos da conta com uma chave de API do Console. Sem ela, a ilha estima a partir deste Mac.",
+        goEndpoint: "Endereço",
+        goKey: "Chave de API",
+        goCheck: "Verificar",
+        goKeyMissing: "Adicione uma chave de API do Console com acesso de uso.",
+        goCheckFailed: "Não foi possível verificar o Console. A ilha mantém a estimativa.",
+        goKeySaved: "Salva",
+        goKeyEmpty: "Não definida",
+        tokensCard: "Tokens")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -582,7 +647,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        allowanceCard: "Restante",
+        goMode: "OpenCode Go",
+        goPlan: "Plan Go",
+        rollingTitle: "Últimas 5 h",
+        weeklyLeftTitle: "Semana restante",
+        monthlyLeftTitle: "Mes restante",
+        goConsole: "Consultar la consola",
+        goConsoleHint: "Lee los límites exactos de la cuenta con una clave de API de la consola. Sin ella, la isla estima desde este Mac.",
+        goEndpoint: "Dirección",
+        goKey: "Clave de API",
+        goCheck: "Comprobar",
+        goKeyMissing: "Añade una clave de API de la consola con acceso de uso.",
+        goCheckFailed: "No se pudo comprobar la consola. La isla conserva su estimación.",
+        goKeySaved: "Guardada",
+        goKeyEmpty: "Sin definir",
+        tokensCard: "Tokens")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -681,7 +762,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        allowanceCard: "Zostatok",
+        goMode: "OpenCode Go",
+        goPlan: "Plán Go",
+        rollingTitle: "Posledných 5 h",
+        weeklyLeftTitle: "Týždeň zostáva",
+        monthlyLeftTitle: "Mesiac zostáva",
+        goConsole: "Kontrolovať Console",
+        goConsoleHint: "Načíta presné limity účtu kľúčom Console API. Bez neho ostrov odhaduje z tohto Macu.",
+        goEndpoint: "Adresa",
+        goKey: "Kľúč API",
+        goCheck: "Skontrolovať",
+        goKeyMissing: "Pridajte kľúč Console API s prístupom k využitiu.",
+        goCheckFailed: "Console sa nepodarilo skontrolovať. Ostrov si necháva odhad.",
+        goKeySaved: "Uložený",
+        goKeyEmpty: "Nenastavený",
+        tokensCard: "Tokeny")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -780,7 +877,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        allowanceCard: "Rest",
+        goMode: "OpenCode Go",
+        goPlan: "Go Plan",
+        rollingTitle: "Letzte 5 Std",
+        weeklyLeftTitle: "Woche übrig",
+        monthlyLeftTitle: "Monat übrig",
+        goConsole: "Console abfragen",
+        goConsoleHint: "Liest die genauen Limits des Kontos mit einem Console-API-Schlüssel. Ohne ihn schätzt das Island anhand dieses Macs.",
+        goEndpoint: "Adresse",
+        goKey: "API-Schlüssel",
+        goCheck: "Prüfen",
+        goKeyMissing: "Füge einen Console-API-Schlüssel mit Nutzungszugriff hinzu.",
+        goCheckFailed: "Die Console konnte nicht geprüft werden. Das Island behält seine Schätzung.",
+        goKeySaved: "Gespeichert",
+        goKeyEmpty: "Nicht festgelegt",
+        tokensCard: "Tokens")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -879,7 +992,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        allowanceCard: "Restant",
+        goMode: "OpenCode Go",
+        goPlan: "Forfait Go",
+        rollingTitle: "5 dernières h",
+        weeklyLeftTitle: "Semaine restante",
+        monthlyLeftTitle: "Mois restant",
+        goConsole: "Interroger la console",
+        goConsoleHint: "Lit les limites exactes du compte avec une clé API de la console. Sans elle, l’îlot estime depuis ce Mac.",
+        goEndpoint: "Adresse",
+        goKey: "Clé API",
+        goCheck: "Vérifier",
+        goKeyMissing: "Ajoutez une clé API de la console avec accès à l’usage.",
+        goCheckFailed: "La console n’a pas pu être vérifiée. L’îlot garde son estimation.",
+        goKeySaved: "Enregistrée",
+        goKeyEmpty: "Non définie",
+        tokensCard: "Jetons")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -978,7 +1107,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        allowanceCard: "Rimanente",
+        goMode: "OpenCode Go",
+        goPlan: "Piano Go",
+        rollingTitle: "Ultime 5 ore",
+        weeklyLeftTitle: "Settimana restante",
+        monthlyLeftTitle: "Mese restante",
+        goConsole: "Controlla la console",
+        goConsoleHint: "Legge i limiti esatti dell’account con una chiave API della console. Senza, l’isola stima da questo Mac.",
+        goEndpoint: "Indirizzo",
+        goKey: "Chiave API",
+        goCheck: "Controlla",
+        goKeyMissing: "Aggiungi una chiave API della console con accesso all’utilizzo.",
+        goCheckFailed: "Impossibile controllare la console. L’isola mantiene la stima.",
+        goKeySaved: "Salvata",
+        goKeyEmpty: "Non impostata",
+        tokensCard: "Token")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1077,7 +1222,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        allowanceCard: "Остаток",
+        goMode: "OpenCode Go",
+        goPlan: "План Go",
+        rollingTitle: "Последние 5 ч",
+        weeklyLeftTitle: "Неделя остаток",
+        monthlyLeftTitle: "Месяц остаток",
+        goConsole: "Проверять Console",
+        goConsoleHint: "Читает точные лимиты аккаунта по ключу Console API. Без него остров оценивает по этому Mac.",
+        goEndpoint: "Адрес",
+        goKey: "Ключ API",
+        goCheck: "Проверить",
+        goKeyMissing: "Добавьте ключ Console API с доступом к использованию.",
+        goCheckFailed: "Не удалось проверить Console. Остров оставляет оценку.",
+        goKeySaved: "Сохранён",
+        goKeyEmpty: "Не задан",
+        tokensCard: "Токены")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1176,7 +1337,23 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        allowanceCard: "Kalan",
+        goMode: "OpenCode Go",
+        goPlan: "Go planı",
+        rollingTitle: "Son 5 saat",
+        weeklyLeftTitle: "Hafta kalan",
+        monthlyLeftTitle: "Ay kalan",
+        goConsole: "Console’u denetle",
+        goConsoleHint: "Hesabın tam limitlerini bir Console API anahtarıyla okur. Anahtar yoksa ada bu Mac’e göre tahmin eder.",
+        goEndpoint: "Adres",
+        goKey: "API anahtarı",
+        goCheck: "Denetle",
+        goKeyMissing: "Kullanım erişimli bir Console API anahtarı ekleyin.",
+        goCheckFailed: "Console denetlenemedi. Ada tahminini korur.",
+        goKeySaved: "Kayıtlı",
+        goKeyEmpty: "Ayarlanmadı",
+        tokensCard: "Jeton")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1275,7 +1452,23 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        allowanceCard: "残量",
+        goMode: "OpenCode Go",
+        goPlan: "Goプラン",
+        rollingTitle: "直近5時間",
+        weeklyLeftTitle: "週の残り",
+        monthlyLeftTitle: "月の残り",
+        goConsole: "Consoleを確認",
+        goConsoleHint: "Console APIキーでアカウントの正確な上限を読みます。キーなしではこのMacから推定します。",
+        goEndpoint: "エンドポイント",
+        goKey: "APIキー",
+        goCheck: "今すぐ確認",
+        goKeyMissing: "使用量アクセス付きのConsole APIキーを追加してください。",
+        goCheckFailed: "Consoleを確認できませんでした。推定値を表示します。",
+        goKeySaved: "保存済み",
+        goKeyEmpty: "未設定",
+        tokensCard: "トークン")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1374,7 +1567,23 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        allowanceCard: "잔량",
+        goMode: "OpenCode Go",
+        goPlan: "Go 플랜",
+        rollingTitle: "최근 5시간",
+        weeklyLeftTitle: "주간 잔량",
+        monthlyLeftTitle: "월간 잔량",
+        goConsole: "Console 확인",
+        goConsoleHint: "Console API 키로 계정의 정확한 한도를 읽습니다. 키가 없으면 이 Mac에서 추정합니다.",
+        goEndpoint: "엔드포인트",
+        goKey: "API 키",
+        goCheck: "지금 확인",
+        goKeyMissing: "사용량 접근 권한이 있는 Console API 키를 추가하세요.",
+        goCheckFailed: "Console을 확인할 수 없습니다. 추정치를 유지합니다.",
+        goKeySaved: "저장됨",
+        goKeyEmpty: "설정 안 됨",
+        tokensCard: "토큰")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1473,7 +1682,23 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        allowanceCard: "剩余",
+        goMode: "OpenCode Go",
+        goPlan: "Go 套餐",
+        rollingTitle: "近5小时",
+        weeklyLeftTitle: "本周剩余",
+        monthlyLeftTitle: "本月剩余",
+        goConsole: "检查 Console",
+        goConsoleHint: "使用 Console API 密钥读取帐户的准确额度。没有密钥时，小岛按本机估算。",
+        goEndpoint: "端点",
+        goKey: "API 密钥",
+        goCheck: "立即检查",
+        goKeyMissing: "添加一个有用量访问权限的 Console API 密钥。",
+        goCheckFailed: "无法检查 Console，小岛保留估算值。",
+        goKeySaved: "已保存",
+        goKeyEmpty: "未设置",
+        tokensCard: "Token")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1572,7 +1797,23 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        allowanceCard: "剩餘",
+        goMode: "OpenCode Go",
+        goPlan: "Go 方案",
+        rollingTitle: "近5小時",
+        weeklyLeftTitle: "本週剩餘",
+        monthlyLeftTitle: "本月剩餘",
+        goConsole: "檢查 Console",
+        goConsoleHint: "使用 Console API 金鑰讀取帳戶的準確額度。沒有金鑰時，小島按本機估算。",
+        goEndpoint: "端點",
+        goKey: "API 金鑰",
+        goCheck: "立即檢查",
+        goKeyMissing: "新增一個有用度存取權的 Console API 金鑰。",
+        goCheckFailed: "無法檢查 Console，小島保留估算值。",
+        goKeySaved: "已儲存",
+        goKeyEmpty: "未設定",
+        tokensCard: "Token")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1671,5 +1912,21 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        allowanceCard: "剩餘",
+        goMode: "OpenCode Go",
+        goPlan: "Go 方案",
+        rollingTitle: "近5小時",
+        weeklyLeftTitle: "本週剩餘",
+        monthlyLeftTitle: "本月剩餘",
+        goConsole: "檢查 Console",
+        goConsoleHint: "使用 Console API 金鑰讀取帳戶的準確額度。沒有金鑰時，小島按本機估算。",
+        goEndpoint: "端點",
+        goKey: "API 金鑰",
+        goCheck: "立即檢查",
+        goKeyMissing: "新增一個有用度存取權的 Console API 金鑰。",
+        goCheckFailed: "無法檢查 Console，小島保留估算值。",
+        goKeySaved: "已儲存",
+        goKeyEmpty: "未設定",
+        tokensCard: "Token")
 }

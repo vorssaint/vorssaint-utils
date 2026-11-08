@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "updated": "2026-11-09",
+  "sources": [
+    "https://opencode.ai/console",
+    "https://opencode.ai/v2/docs/console/go",
+    "https://opencode.ai/v2/docs/console/api"
+  ],
+  "notes": [
+    "Curated 2026-11-09 from the Go console tables. Verify after 2026-12-09: Go lineups and promo multipliers change often.",
+    "Each model has a monthly dollar cap. 20% of it is available per rolling 5 hours and 50% per week; the monthly cap is 100%. Values below are Go and Go Plus monthly caps; Go Teams runs 5 USD/month higher on every model unless a model lists its own teams value.",
+    "These caps are the fallback while the Console has not been checked. With a Console API key the island reads the account's exact allowances instead; nothing is sent anywhere else.",
+    "Matching is case-insensitive on the normalized model id, so display names like GPT 6 Luna match gpt-6-luna."
+  ],
+  "plans": {
+    "go": { "rolling": 12, "weekly": 30, "monthly": 60 },
+    "plus": { "rolling": 24, "weekly": 60, "monthly": 120 },
+    "teams": { "rolling": 16, "weekly": 40, "monthly": 80 }
+  },
+  "models": [
+    { "id": "kimi-k3", "go": 15, "plus": 60, "aliases": ["kimi-k3-1", "kimi/kimi-k3"] },
+    { "id": "kimi-k3.1-pro", "go": 15, "plus": 60 },
+    { "id": "gpt-6-luna", "go": 15, "plus": 60 },
+    { "id": "gpt-5.6-luna", "go": 15, "plus": 60 },
+    { "id": "claude-haiku-5-5", "go": 15, "plus": 60, "aliases": ["claude-haiku-5-5-latest", "haiku-5-5"] },
+    { "id": "minimax-m3.1-flash", "go": 20, "plus": 80, "aliases": ["minimax-m3-1-flash"] },
+    { "id": "deepseek-v4.1-flash", "go": 100, "plus": 200 },
+    { "id": "mimo-v2.6-flash", "go": 60, "plus": 120, "aliases": ["mimo-v2-6-flash"] },
+    { "id": "muse-spark-1.3-contributor", "go": 60, "plus": 120, "aliases": ["muse-spark-1-3-contributor", "muse spark 1.3 contributor"] },
+    { "id": "glm-5.3-flash", "go": 60, "plus": 180, "aliases": ["glm-5-3-flash"] },
+    { "id": "qwen-3.7-plus", "go": 60, "plus": 180, "aliases": ["qwen-3-7-plus"] }
+  ]
+}

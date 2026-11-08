@@ -290,6 +290,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentGoSupport.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentGoConsole.swift
         Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
@@ -693,6 +695,7 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+cp Resources/agent-go-limits.json "$STAGE/Contents/Resources/agent-go-limits.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
