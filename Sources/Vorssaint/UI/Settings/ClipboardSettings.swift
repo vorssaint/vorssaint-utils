@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct ClipboardSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var history = ClipboardHistoryService.shared
@@ -41,12 +42,13 @@ struct ClipboardSettings: View {
 
     var body: some View {
         Form {
-            if AppFeature.clipboardHistory.isAvailable {
+            if shows(.clipboardHistory) {
                 Section {
                     Toggle(text.enable, isOn: $enabled)
                         .onChange(of: enabled) { _, _ in
                             ClipboardHistoryService.shared.syncWithPreferences()
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .clipboardHistory))
                     Text(text.caption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -105,7 +107,7 @@ struct ClipboardSettings: View {
                 clipboardAutoClearSection
             }
 
-            if AppFeature.finderCutPaste.isAvailable {
+            if shows(.finderCutPaste) {
                 Section {
                     Toggle(text.pasteImageAsFile, isOn: $pasteImageAsFile)
                         .onChange(of: pasteImageAsFile) { _, _ in
@@ -120,12 +122,13 @@ struct ClipboardSettings: View {
                 }
             }
 
-            if AppFeature.pastePlain.isAvailable {
+            if shows(.pastePlain) {
                 Section {
                     Toggle(l10n.s.pastePlainName, isOn: $pastePlainEnabled)
                         .onChange(of: pastePlainEnabled) { _, _ in
                             PastePlainService.shared.syncWithPreferences()
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .pastePlain))
                     Text(l10n.s.pastePlainCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -147,7 +150,7 @@ struct ClipboardSettings: View {
                 .settingsFormSectionAnchor(.pastePlain)
             }
 
-            if AppFeature.clipboardHistory.isAvailable {
+            if shows(.clipboardHistory) {
                 clipboardStatsSection
             }
         }
@@ -180,6 +183,10 @@ struct ClipboardSettings: View {
             let sanitized = Defaults.sanitizedClipboardMenuBarPreviewLength(value)
             if sanitized != value { menuBarPreviewLength = sanitized }
         }
+    }
+
+    private func shows(_ feature: AppFeature) -> Bool {
+        feature.isAvailable && (focus == nil || focus == feature)
     }
 
     @ViewBuilder

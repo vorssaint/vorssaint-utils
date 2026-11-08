@@ -75,7 +75,7 @@ enum SettingsDirectory {
                         rows.append(SettingsSidebarItem(
                             id: .setting(.keyboardBrightnessShortcuts), destination: destination,
                             title: FeatureStrings.brightness(language).keyboardLight,
-                            icon: "keyboard"))
+                            icon: "light.max"))
                     }
                     return rows
                 }
@@ -124,7 +124,9 @@ enum SettingsDirectory {
             SettingsSidebarSection(id: 2, title: categories.files, items: rows(2) + byGroup.files),
         ]
         let remaining = grouped.filter { ![0, 1, 2, 4].contains($0.id) }
-        return [featured[0]] + featured.dropFirst().filter { !$0.items.isEmpty } + remaining
+        return SettingsSidebarSupport.uniqueIcons(in:
+            [featured[0]] + featured.dropFirst().filter { !$0.items.isEmpty } + remaining
+        )
     }
 
     static func sidebarItems(_ s: Strings,
@@ -354,7 +356,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.whatsAppDownloads(language).title,
                                                  FeatureStrings.whatsAppDownloads(language).automatic,
                                                  FeatureStrings.whatsAppDownloads(language).fileTypes]),
-                SettingsDirectoryItem(page: .homebrew, title: s.homebrewName, icon: "shippingbox"),
+                SettingsDirectoryItem(page: .homebrew, title: s.homebrewName, icon: "mug"),
                 SettingsDirectoryItem(page: .uninstaller, title: s.uninstallerName, icon: "trash"),
                 SettingsDirectoryItem(page: .killProcess,
                                       title: FeatureStrings.killProcess(language).pageTitle,
@@ -390,7 +392,7 @@ enum SettingsDirectory {
                                       keywords: FeatureStrings.notchMascot(language).searchKeywords),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
-                                      icon: "command",
+                                      icon: "magnifyingglass",
                                       keywords: [FeatureStrings.commandBar(language).openButton,
                                                  FeatureStrings.commandBar(language).searchPlaceholder,
                                                  FeatureStrings.commandBar(language).appCenterTitle,
@@ -453,7 +455,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
             ]),
             (categories.app, [
-                SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
+                SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "keyboard",
                                       keywords: [s.hotkeyToggle]),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",

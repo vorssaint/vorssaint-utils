@@ -7,6 +7,14 @@ import Foundation
 
 /// Every UserDefaults key used by the app, in one place.
 enum DefaultsKey {
+    static let settingsSidebarFavorites = "settingsSidebarFavorites"
+    static let settingsSidebarOrder = "settingsSidebarOrder"
+    static let settingsSidebarSort = "settingsSidebarSort"
+    static let settingsSidebarUsage = "settingsSidebarUsage"
+    static let featureHubLayout = "featureHubLayout"
+    static let featureHubCategoryFilter = "featureHubCategoryFilter"
+    static let featureHubStatusFilter = "featureHubStatusFilter"
+    static let featureHubSortOrder = "featureHubSortOrder"
     static let language = "appLanguage"                   // AppLanguage.rawValue
     static let appearance = "appAppearance"               // AppAppearance.rawValue
     static let liquidGlassEnabled = "liquidGlassEnabled"  // Liquid Glass in windows and panels on macOS 26+

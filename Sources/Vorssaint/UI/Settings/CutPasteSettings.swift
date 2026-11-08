@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct CutPasteSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = FinderCutPaste.shared
@@ -31,12 +32,13 @@ struct CutPasteSettings: View {
 
     var body: some View {
         Form {
-            if AppFeature.finderCutPaste.isAvailable {
+            if shows(.finderCutPaste) {
                 Section {
                     Toggle(l10n.s.cutPasteEnable, isOn: $enabled)
                         .onChange(of: enabled) { _, _ in
                             FinderCutPaste.shared.syncWithPreferences()
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .finderCutPaste))
                     Text(l10n.s.cutPasteEnableCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -66,12 +68,13 @@ struct CutPasteSettings: View {
                 }
             }
 
-            if AppFeature.finderRename.isAvailable {
+            if shows(.finderRename) {
                 Section {
                     Toggle(renameText.enableLabel, isOn: $renameEnabled)
                         .onChange(of: renameEnabled) { _, _ in
                             FinderRenameService.shared.syncWithPreferences()
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .finderRename))
                     Text(renameText.caption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -134,7 +137,8 @@ struct CutPasteSettings: View {
                 .settingsFormSectionAnchor(.finderRename)
             }
 
-            if needsAccessibility, !permissions.accessibility {
+            if needsAccessibility, !permissions.accessibility,
+               focus == nil || focus?.permissions.contains(.accessibility) == true {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                     if AppFeature.finderCutPaste.isAvailable, enabled {
@@ -147,6 +151,10 @@ struct CutPasteSettings: View {
         }
         .formStyle(.grouped)
         .onChange(of: l10n.language) { _, _ in renameError = nil }
+    }
+
+    private func shows(_ feature: AppFeature) -> Bool {
+        feature.isAvailable && (focus == nil || focus == feature)
     }
 
     private func howRow(keys: [String], text: String) -> some View {

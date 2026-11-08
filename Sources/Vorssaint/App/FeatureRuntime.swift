@@ -204,6 +204,24 @@ final class FeatureRuntime: ObservableObject {
         setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)
     }
 
+    func setPrimaryEnabled(_ feature: AppFeature, _ enabled: Bool) {
+        guard feature.isAvailable else { return }
+        let keys = feature.primaryEnabledKeys
+        guard !keys.isEmpty else { return }
+        let defaults = UserDefaults.standard
+        if enabled {
+            let activationKeys = feature == .audioPriority ? keys : Array(keys.prefix(1))
+            guard !activationKeys.allSatisfy({ defaults.bool(forKey: $0) }) else { return }
+            activationKeys.forEach { defaults.set(true, forKey: $0) }
+            if feature.requestsAccessibilityOnHeroActivation, !Permissions.shared.accessibility {
+                Permissions.shared.requestAccessibility()
+            }
+        } else {
+            keys.forEach { defaults.set(false, forKey: $0) }
+        }
+        sync([feature])
+    }
+
     private func savedPreferences() -> [String: Any] {
         guard let domain = Bundle.main.bundleIdentifier else { return [:] }
         return UserDefaults.standard.persistentDomain(forName: domain) ?? [:]

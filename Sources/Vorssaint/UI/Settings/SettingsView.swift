@@ -53,17 +53,33 @@ struct SettingsView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var router = SettingsRouter.shared
     @ObservedObject private var features = FeatureRuntime.shared
+    private let sidebarUndoManager: UndoManager?
     @AppStorage(DefaultsKey.superKeySource) private var superKeySourceRaw =
         SuperKeySource.capsLock.rawValue
+    @AppStorage(DefaultsKey.settingsSidebarFavorites) private var sidebarFavoritesRaw = ""
+    @AppStorage(DefaultsKey.settingsSidebarOrder) private var sidebarOrderRaw = ""
+    @AppStorage(DefaultsKey.settingsSidebarSort) private var sidebarSortRaw =
+        SettingsSidebarSortMode.defaultOrder.rawValue
+    @AppStorage(DefaultsKey.settingsSidebarUsage) private var sidebarUsageRaw = "{}"
+    @AppStorage(DefaultsKey.notchEnabled) private var notchEnabled = false
+    @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
+    @ObservedObject private var keepAwake = KeepAwakeManager.shared
     @State private var searchQuery = ""
     @State private var activeSearchIndex: Int?
     @State private var directoryCache = SettingsDirectoryCache()
+    @State private var sidebarUndoController = SettingsSidebarUndoController()
     @State private var collapsedSectionIDs: Set<Int> = []
     @State private var navigationFromSidebar = false
     /// The row just picked in the sidebar, until the router has taken it.
     @State private var sidebarPick: SettingsSidebarItem.ID?
+    @State private var confirmingNotchUninstall = false
+    @State private var confirmingFeatureUninstall: AppFeature?
     @State private var columnVisibility = NavigationSplitViewVisibility.all
     @FocusState private var sidebarSearchFocused: Bool
+
+    init(sidebarUndoManager: UndoManager? = nil) {
+        self.sidebarUndoManager = sidebarUndoManager
+    }
 
     private struct SearchResultsSnapshot: Equatable {
         let query: String
@@ -87,11 +103,19 @@ struct SettingsView: View {
     }
 
     private var sidebarSections: [SettingsSidebarSection] {
-        directoryCache.navigation(
+        let sections = directoryCache.navigation(
             strings: l10n.s, language: l10n.language,
             superKeySource: SuperKeySource.sanitized(superKeySourceRaw),
             featureRevision: features.revision,
             isAvailable: { features.isAvailable($0) })
+        return SettingsSidebarSupport.organizedSections(
+            sections,
+            favorites: Set(SettingsSidebarSupport.keys(from: sidebarFavoritesRaw)),
+            sortMode: SettingsSidebarSortMode(rawValue: sidebarSortRaw) ?? .defaultOrder,
+            manualOrder: SettingsSidebarSupport.keys(from: sidebarOrderRaw),
+            usage: SettingsSidebarSupport.usage(from: sidebarUsageRaw),
+            favoritesTitle: SettingsSidebarStrings.localized(l10n.language).favorites
+        )
     }
 
     private var sidebarItems: [SettingsSidebarItem] {
@@ -146,7 +170,7 @@ struct SettingsView: View {
 
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebar(searchResults: searchResults)
-                .navigationSplitViewColumnWidth(min: 198, ideal: 210, max: 240)
+                .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
         } detail: {
             // NavigationSplitView's detail slot sometimes queries its content
             // for an unconstrained ideal size (settling the divider, or on a
@@ -164,6 +188,7 @@ struct SettingsView: View {
             }
         }
         .navigationSplitViewStyle(.balanced)
+        .navigationTitle(selectedSidebarTitle)
         .toolbar {
             // SwiftUI adds its sidebar button only to windows it creates, and
             // this one is AppKit's. Without it, a sidebar dragged shut could
@@ -209,43 +234,56 @@ struct SettingsView: View {
         .onChange(of: router.requestID) { _, _ in
             searchQuery = ""
             activeSearchIndex = nil
+            recordSidebarUsage()
             ensureVisiblePage()
         }
     }
 
-    /// macOS 27 backs the pinned sidebar search field with a hard top scroll
-    /// edge, so rows fade out cleanly under it. On macOS 26 that effect does
-    /// not render inside split-view sidebars and the pinned field has no
-    /// backing of its own, so rows slid legibly across the placeholder
-    /// (issues #183, #254); there the field lives on a fixed header above the
-    /// list, where rows can never reach it. Earlier systems keep the classic
-    /// opaque sidebar chrome.
-    @ViewBuilder
     private func sidebar(searchResults: SearchResultsSnapshot) -> some View {
-#if compiler(>=6.2)
-        if #available(macOS 27, *) {
-            sidebarList(searchResults: searchResults)
-                .searchable(text: $searchQuery,
-                            placement: .sidebar,
-                            prompt: l10n.s.settingsSearchPlaceholder)
-                .scrollEdgeEffectStyle(.hard, for: .top)
-        } else if #available(macOS 26, *) {
-            VStack(spacing: 0) {
+        VStack(spacing: 0) {
+            HStack(spacing: 4) {
                 SidebarSearchField(query: $searchQuery, isFocused: $sidebarSearchFocused)
+                    .frame(maxWidth: .infinity)
+                sidebarOrganizationMenu
+            }
+            .padding(.trailing, 8)
+            #if compiler(>=6.2)
+            if #available(macOS 26.0, *) {
+                sidebarList(searchResults: searchResults)
+                    .scrollEdgeEffectStyle(.hard, for: .top)
+            } else {
                 sidebarList(searchResults: searchResults)
             }
-        } else {
+            #else
             sidebarList(searchResults: searchResults)
-                .searchable(text: $searchQuery,
-                            placement: .sidebar,
-                            prompt: l10n.s.settingsSearchPlaceholder)
+            #endif
         }
-#else
-        sidebarList(searchResults: searchResults)
-            .searchable(text: $searchQuery,
-                        placement: .sidebar,
-                        prompt: l10n.s.settingsSearchPlaceholder)
-#endif
+    }
+
+    private var sidebarOrganizationMenu: some View {
+        let strings = SettingsSidebarStrings.localized(l10n.language)
+        return Menu {
+            Picker(strings.sortBy, selection: sidebarSortSelection) {
+                Text(strings.defaultOrder).tag(SettingsSidebarSortMode.defaultOrder)
+                Text(strings.mostUsed).tag(SettingsSidebarSortMode.mostUsed)
+                Text(strings.name).tag(SettingsSidebarSortMode.name)
+                Text(strings.manual).tag(SettingsSidebarSortMode.manual)
+            }
+            Divider()
+            Button(SettingsSidebarStrings.resetUsageTitle(l10n.language)) {
+                sidebarUsageRaw = "{}"
+            }
+            .disabled(SettingsSidebarSupport.usage(from: sidebarUsageRaw).isEmpty)
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(strings.organize)
+        .accessibilityLabel(strings.organize)
     }
 
     private var hasSearchQuery: Bool {
@@ -254,6 +292,45 @@ struct SettingsView: View {
 
     /// A sidebar dragged shut reports `.detailOnly` here as well.
     private var sidebarShown: Bool { columnVisibility != .detailOnly }
+
+    private var sidebarSortSelection: Binding<SettingsSidebarSortMode> {
+        Binding(
+            get: { SettingsSidebarSortMode(rawValue: sidebarSortRaw) ?? .defaultOrder },
+            set: { sidebarSortRaw = $0.rawValue }
+        )
+    }
+
+    private func recordSidebarUsage() {
+        guard let selectedSidebarItem,
+              let item = sidebarItems.first(where: { $0.id == selectedSidebarItem }) else { return }
+        var usage = SettingsSidebarSupport.usage(from: sidebarUsageRaw)
+        usage[item.stableKey, default: 0] += 1
+        sidebarUsageRaw = SettingsSidebarSupport.usageStorage(usage)
+    }
+
+    private func toggleFavorite(_ item: SettingsSidebarItem) {
+        var favorites = Set(SettingsSidebarSupport.keys(from: sidebarFavoritesRaw))
+        if !favorites.insert(item.stableKey).inserted {
+            favorites.remove(item.stableKey)
+        }
+        sidebarFavoritesRaw = SettingsSidebarSupport.storage(for: favorites.sorted())
+    }
+
+    private func moveSidebarItems(sectionID: Int, from source: IndexSet, to destination: Int) {
+        guard let sectionIndex = sidebarSections.firstIndex(where: { $0.id == sectionID }) else { return }
+        var sections = sidebarSections
+        var movedItems = sections[sectionIndex].items
+        movedItems.move(fromOffsets: source, toOffset: destination)
+        sections[sectionIndex] = SettingsSidebarSection(
+            id: sectionID, title: sections[sectionIndex].title, items: movedItems)
+        let updatedOrder = SettingsSidebarSupport.storage(
+            for: sections.flatMap(\.items).map(\.stableKey))
+        guard updatedOrder != sidebarOrderRaw else { return }
+        if let sidebarUndoManager {
+            sidebarUndoController.registerUndo(for: sidebarOrderRaw, with: sidebarUndoManager)
+        }
+        sidebarOrderRaw = updatedOrder
+    }
 
     private func toggleSidebar() {
         let next: NavigationSplitViewVisibility = sidebarShown ? .detailOnly : .all
@@ -319,6 +396,39 @@ struct SettingsView: View {
             ?? items.first?.id
     }
 
+    private var selectedSidebarTitle: String {
+        guard let selectedSidebarItem,
+              let item = sidebarItems.first(where: { $0.id == selectedSidebarItem }) else {
+            return l10n.s.settingsTitle
+        }
+        return item.title
+    }
+
+    private var focusedFeature: AppFeature? {
+        guard let selectedSidebarItem,
+              let item = sidebarItems.first(where: { $0.id == selectedSidebarItem }) else { return nil }
+        switch item.id {
+        case .feature(let feature):
+            return feature
+        case .setting(.keyboardBrightnessShortcuts):
+            return .brightness
+        case .setting:
+            return AppFeature.allCases.first { $0.settingsDestination == item.destination }
+        case .page(let page):
+            switch page {
+            case .notch:
+                return .notch
+            case .general, .features, .energy, .monitor, .mouse:
+                return nil
+            default:
+                let matches = AppFeature.allCases.filter {
+                    $0.settingsDestination == item.destination
+                }
+                return matches.count == 1 ? matches.first : nil
+            }
+        }
+    }
+
     private func scrollSidebarToSelection(_ proxy: ScrollViewProxy) {
         guard !hasSearchQuery, let selected = selectedSidebarItem else { return }
         proxy.scrollTo(selected, anchor: .center)
@@ -335,23 +445,36 @@ struct SettingsView: View {
     @ViewBuilder
     private var normalSidebarRows: some View {
         let sections = sidebarSections
-        let items = directoryCache.items
-        let selectedID = SettingsSidebarSupport.selection(for: router.destination, in: items,
-                                                          preferredID: router.sidebarFeature.map { .feature($0) })
         ForEach(sections) { section in
             Section {
                 if !collapsedSectionIDs.contains(section.id) {
                     ForEach(section.items) { item in
                         HStack(spacing: 9) {
-                            Image(systemName: item.icon)
-                                .foregroundStyle(selectedID == item.id
-                                    ? AnyShapeStyle(.primary) : AnyShapeStyle(.tint))
-                                .frame(width: 18)
+                            SettingsIconTile(symbol: item.icon, accentGroup: item.accentGroup)
                             Text(item.title)
+                                .fontWeight(item.id == selectedSidebarItem ? .semibold : .regular)
                         }
                         .tag(item.id)
                         .id(item.id)
                         .help(item.title)
+                        .contextMenu {
+                            let strings = SettingsSidebarStrings.localized(l10n.language)
+                            Button {
+                                toggleFavorite(item)
+                            } label: {
+                                Label(
+                                    SettingsSidebarSupport.keys(from: sidebarFavoritesRaw)
+                                        .contains(item.stableKey)
+                                        ? strings.removeFromFavorites : strings.addToFavorites,
+                                    systemImage: SettingsSidebarSupport.keys(from: sidebarFavoritesRaw)
+                                        .contains(item.stableKey) ? "heart.slash" : "heart"
+                                )
+                            }
+                        }
+                    }
+                    .onMove { source, destination in
+                        guard SettingsSidebarSortMode(rawValue: sidebarSortRaw) == .manual else { return }
+                        moveSidebarItems(sectionID: section.id, from: source, to: destination)
                     }
                 }
             } header: {
@@ -392,9 +515,12 @@ struct SettingsView: View {
         return Button {
             requestSearchItem(suggestion)
         } label: {
-            Label(group.pageItem.title, systemImage: group.pageItem.icon)
+            HStack(spacing: 9) {
+                SettingsIconTile(symbol: group.pageItem.icon)
+                Text(group.pageItem.title)
                 .fontWeight(.semibold)
-                .searchResultRowStyle(isSelected: isSelected)
+            }
+            .searchResultRowStyle(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -408,7 +534,10 @@ struct SettingsView: View {
         return Button {
             requestSearchItem(suggestion)
         } label: {
-            Label(suggestion.title, systemImage: suggestion.icon)
+            HStack(spacing: 9) {
+                SettingsIconTile(symbol: suggestion.icon)
+                Text(suggestion.title)
+            }
                 .searchResultRowStyle(isSelected: isSelected)
                 .padding(.leading, 18)
         }
@@ -563,6 +692,244 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var detail: some View {
+        VStack(spacing: 0) {
+            if let item = selectedSidebarItem,
+               let sidebarItem = sidebarItems.first(where: { $0.id == item }) {
+                SettingsFeatureHeader(
+                    symbol: sidebarItem.icon,
+                    title: sidebarItem.title,
+                    description: detailHeroDescription(for: sidebarItem),
+                    accentGroup: sidebarItem.accentGroup
+                ) {
+                    featureHeroAccessory
+                }
+                .frame(maxWidth: 804)
+                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 22)
+                .padding(.top, 18)
+                .padding(.bottom, 8)
+            }
+            pageContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .environment(\.settingsFocusedFeature, focusedFeature)
+            if let feature = focusedFeature, router.page != .features {
+                featurePageFooter(feature)
+            }
+        }
+        .alert(FeatureStrings.hub(l10n.language).notchUninstallTitle,
+               isPresented: $confirmingNotchUninstall) {
+            let hub = FeatureStrings.hub(l10n.language)
+            Button(hub.notchUninstallWithExtensions, role: .destructive) {
+                FeatureRuntime.shared.setAvailable(
+                    [AppFeature.notch] + AppFeature.dynamicIslandExtensions.filter(\.isAvailable),
+                    false)
+            }
+            Button(hub.notchUninstallKeepExtensions, role: .destructive) {
+                FeatureRuntime.shared.setAvailable([.notch], false)
+            }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            let hub = FeatureStrings.hub(l10n.language)
+            Text(String(format: hub.notchUninstallMessageFormat,
+                        AppFeature.dynamicIslandExtensions.filter(\.isAvailable)
+                            .map { $0.hubTitle(l10n.s, hub: hub) }.joined(separator: ", ")))
+        }
+        .confirmationDialog(FeatureStrings.hub(l10n.language).uninstallButton,
+                            isPresented: Binding(
+                                get: { confirmingFeatureUninstall != nil },
+                                set: { if !$0 { confirmingFeatureUninstall = nil } }),
+                            titleVisibility: .visible) {
+            Button(FeatureStrings.hub(l10n.language).uninstallButton, role: .destructive) {
+                guard let feature = confirmingFeatureUninstall else { return }
+                confirmingFeatureUninstall = nil
+                FeatureRuntime.shared.setAvailable([feature], false)
+            }
+            Button(FeatureStrings.hub(l10n.language).presetConfirmCancel, role: .cancel) {
+                confirmingFeatureUninstall = nil
+            }
+        } message: {
+            if let feature = confirmingFeatureUninstall {
+                Text(feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var featureHeroAccessory: some View {
+        if let feature = focusedFeature {
+            HStack(spacing: 12) {
+                if feature.hasHeroAction || feature == .screenshot {
+                    Button {
+                        performFeatureHeroAction(for: feature)
+                    } label: {
+                        Label(featureHeroActionTitle(for: feature),
+                              systemImage: featureHeroActionSymbol(for: feature))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(!canPerformFeatureHeroAction(feature))
+                }
+                if feature == .keepAwake || !feature.primaryEnabledKeys.isEmpty {
+                    Toggle(isOn: featureActivationBinding(for: feature)) { EmptyView() }
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                    .accessibilityLabel(feature.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language)))
+                    .disabled(!feature.isAvailable)
+                }
+            }
+        }
+    }
+
+    private func featureHeroActionTitle(for feature: AppFeature) -> String {
+        switch feature {
+        case .screenshot: "Take Screenshot"
+        case .cleaningMode: "Lock now"
+        default: "Open"
+        }
+    }
+
+    private func featureHeroActionSymbol(for feature: AppFeature) -> String {
+        switch feature {
+        case .screenshot: "camera.viewfinder"
+        case .cleaningMode: "lock.fill"
+        default: "arrow.up.right"
+        }
+    }
+
+    private func canPerformFeatureHeroAction(_ feature: AppFeature) -> Bool {
+        guard feature.isAvailable else { return false }
+        switch feature {
+        case .notch: return notchEnabled
+        case .shelf: return shelfEnabled
+        case .cleaningMode: return !CleaningModeManager.shared.isActive
+        default: return true
+        }
+    }
+
+    private func featureActivationBinding(for feature: AppFeature) -> Binding<Bool> {
+        Binding(
+            get: {
+                if feature == .keepAwake { return keepAwake.isActive }
+                return feature.primaryEnabledKeys.contains {
+                    UserDefaults.standard.bool(forKey: $0)
+                }
+            },
+            set: { isEnabled in
+                if feature == .keepAwake {
+                    if isEnabled {
+                        keepAwake.startLastPick()
+                    } else if keepAwake.isActive {
+                        keepAwake.toggle()
+                    }
+                } else {
+                    FeatureRuntime.shared.setPrimaryEnabled(feature, isEnabled)
+                }
+            }
+        )
+    }
+
+    private func featurePageFooter(_ feature: AppFeature) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                router.request(FeatureSettingsDestination(.features), targetFeature: feature)
+            } label: {
+                Label("Show in Features", systemImage: "square.grid.2x2")
+            }
+            .buttonStyle(.borderless)
+            .help("Find this feature in the Features page")
+            Spacer(minLength: 8)
+            Button(role: .destructive) {
+                if feature == .notch,
+                   AppFeature.dynamicIslandExtensions.contains(where: \.isAvailable) {
+                    confirmingNotchUninstall = true
+                } else {
+                    confirmingFeatureUninstall = feature
+                }
+            } label: {
+                Label("Uninstall", systemImage: "trash")
+            }
+            .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: 804)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 10)
+        .background(.bar)
+    }
+
+    private func performFeatureHeroAction(for feature: AppFeature) {
+        switch feature {
+        case .quickLauncher:
+            QuickLauncherService.shared.show()
+        case .quitApps:
+            QuickTogglesService.shared.showQuitApps()
+        case .cameraPreview:
+            CameraPreviewService.shared.show()
+        case .scratchpad:
+            ScratchpadService.shared.show()
+        case .commandBar:
+            CommandBarService.shared.show()
+        case .radialMenu:
+            RadialMenuService.shared.presentPreview()
+        case .shelf:
+            ShelfService.shared.summon()
+        case .notch:
+            NotchService.shared.open()
+        case .screenshot:
+            ScreenCaptureService.shared.capture(initial: .screenshot)
+        case .cleaningMode:
+            CleaningModeManager.shared.activate()
+        default:
+            break
+        }
+    }
+
+    private func detailHeroDescription(for item: SettingsSidebarItem) -> String? {
+        let feature: AppFeature?
+        switch item.id {
+        case .feature(let selected): feature = selected
+        case .setting(.keyboardBrightnessShortcuts): feature = .brightness
+        case .setting(.panelConfiguration): feature = nil
+        case .setting:
+            feature = AppFeature.allCases.first {
+                $0.settingsDestination.sectionAnchor == item.destination.sectionAnchor
+                    && $0.settingsDestination.page == item.destination.page
+            }
+        case .page(let page):
+            switch page {
+            case .general, .features, .energy, .monitor, .mouse:
+                feature = nil
+            case .notch:
+                feature = .notch
+            default:
+                let matches = AppFeature.allCases.filter {
+                    $0.settingsDestination == item.destination
+                }
+                feature = matches.count == 1 ? matches.first : nil
+            }
+        }
+
+        if let feature {
+            return feature.hubDescription(FeatureStrings.hub(l10n.language))
+        }
+        switch item.destination.page {
+        case .general: return FeatureStrings.generalSettings(l10n.language).pageDescription
+        case .features: return FeatureStrings.hub(l10n.language).intro
+        case .energy: return FeatureStrings.settingsPages(l10n.language).energyDescription
+        case .monitor: return FeatureStrings.settingsPages(l10n.language).monitorDescription
+        case .mouse: return FeatureStrings.settingsPages(l10n.language).mouseDescription
+        case .notch: return FeatureStrings.notch(l10n.language).description
+        case .shortcuts: return l10n.s.shortcutsPageCaption
+        case .advanced: return FeatureStrings.settingsPages(l10n.language).advancedDescription
+        case .about: return FeatureStrings.settingsPages(l10n.language).aboutDescription
+        case .support: return FeatureStrings.settingsPages(l10n.language).supportDescription
+        case .releaseNotes: return FeatureStrings.settingsPages(l10n.language).releaseNotesDescription
+        default: return nil
+        }
+    }
+
+    @ViewBuilder
+    private var pageContent: some View {
         switch router.page {
         case .general:
             if let anchor = router.destination.sectionAnchor,
@@ -577,17 +944,17 @@ struct SettingsView: View {
         case .textSnippets: TextSnippetsSettings()
         case .notch: NotchSettings()
         case .notchMascot: NotchMascotSettings()
-        case .radialMenu: RadialMenuSettings()
+        case .radialMenu: RadialMenuSettings(focus: focusedFeature)
         case .commandBar: CommandBarSettings()
         case .energy: EnergySettings(focus: router.destination.sectionAnchor)
-        case .monitor: MonitorSettings()
-        case .mouse: MouseSettings()
+        case .monitor: MonitorSettings(focus: focusedFeature)
+        case .mouse: MouseSettings(focus: focusedFeature)
         case .switcher: SwitcherSettings()
-        case .dock: DockSettings()
+        case .dock: DockSettings(focus: focusedFeature)
         case .keyDebounce: KeyboardDebounceSettings()
         case .keyRemapping: KeyboardRemappingSettings()
         case .superKey: SuperKeySettings()
-        case .cutPaste: CutPasteSettings()
+        case .cutPaste: CutPasteSettings(focus: focusedFeature)
         case .autoQuit: AutoQuitSettings()
         case .quitProtection: QuitProtectionSettings()
         case .uninstaller: UninstallerView()
@@ -598,10 +965,10 @@ struct SettingsView: View {
         case .homebrew: HomebrewSettings()
         case .appUpdates: AppUpdatesSettings()
         case .media: MediaSettings()
-        case .clipboard: ClipboardSettings()
+        case .clipboard: ClipboardSettings(focus: focusedFeature)
         case .quickTools: QuickToolsSettings()
         case .screenshot: ScreenCaptureSettings()
-        case .windowLayout: WindowLayoutSettings()
+        case .windowLayout: WindowLayoutSettings(focus: focusedFeature)
         case .shelf: ShelfSettings()
         case .shortcuts: ShortcutsSettings()
         case .advanced: AdvancedSettings()
@@ -609,6 +976,30 @@ struct SettingsView: View {
         case .releaseNotes: ReleaseNotesSettings()
         case .support: SupportSettings()
         }
+    }
+}
+
+@MainActor
+private final class SettingsSidebarUndoController {
+    private weak var undoManager: UndoManager?
+
+    func registerUndo(for previousOrder: String, with undoManager: UndoManager) {
+        self.undoManager = undoManager
+        undoManager.registerUndo(withTarget: self) { controller in
+            controller.restore(previousOrder)
+        }
+        undoManager.setActionName("Reorder Sidebar")
+    }
+
+    private func restore(_ order: String) {
+        guard let undoManager else { return }
+        let currentOrder = UserDefaults.standard.string(forKey: DefaultsKey.settingsSidebarOrder) ?? ""
+        guard currentOrder != order else { return }
+        undoManager.registerUndo(withTarget: self) { controller in
+            controller.restore(currentOrder)
+        }
+        undoManager.setActionName("Reorder Sidebar")
+        UserDefaults.standard.set(order, forKey: DefaultsKey.settingsSidebarOrder)
     }
 }
 
@@ -763,10 +1154,6 @@ struct AboutSettings: View {
                         .textSelection(.enabled)
                 }
             }
-            Text(l10n.s.aboutDescription)
-                .font(.system(size: 12))
-                .multilineTextAlignment(.center)
-                .foregroundStyle(.secondary)
             HStack(spacing: 12) {
                 Button(l10n.s.reviewIntro) {
                     appDelegate()?.showOnboarding()

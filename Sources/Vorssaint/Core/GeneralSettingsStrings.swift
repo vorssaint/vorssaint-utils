@@ -58,7 +58,7 @@ extension FeatureStrings {
 
 extension GeneralSettingsStrings {
     static let uk = GeneralSettingsStrings(
-        pageDescription: "Як запускається Vorssaint, який має вигляд і що показує панель на смузі меню.",
+        pageDescription: "Налаштуйте вигляд Vorssaint, панель меню, запуск під час входу та вбудовані елементи керування.",
         appearanceCaption: "Стосується лише вікон і панелей Vorssaint, а не всього Mac.",
         launchAtLoginCaption: "Автоматично відкривається щоразу після запуску Mac.",
         liquidGlassCaption: "Прозорі панелі з ефектом скла.",
@@ -87,7 +87,7 @@ extension GeneralSettingsStrings {
     )
 
     static let enUS = GeneralSettingsStrings(
-        pageDescription: "How Vorssaint starts, how it looks and what its menu bar panel shows.",
+        pageDescription: "Set Vorssaint’s appearance, menu bar panel, launch-at-login behavior and built-in controls.",
         appearanceCaption: "Applies to Vorssaint’s own windows and panels, not to the whole Mac.",
         launchAtLoginCaption: "Opens by itself every time you turn on your Mac.",
         liquidGlassCaption: "See-through, glass-like panels.",
@@ -116,7 +116,7 @@ extension GeneralSettingsStrings {
     )
 
     static let ptBR = GeneralSettingsStrings(
-        pageDescription: "Como o Vorssaint inicia, como ele aparece e o que o painel da barra de menus mostra.",
+        pageDescription: "Configure a aparência do Vorssaint, o painel da barra de menus, a abertura ao iniciar sessão e os controles integrados.",
         appearanceCaption: "Vale para as janelas e painéis do Vorssaint, não para o Mac inteiro.",
         launchAtLoginCaption: "Abre sozinho toda vez que você liga o Mac.",
         liquidGlassCaption: "Painéis translúcidos, com aparência de vidro.",
@@ -145,7 +145,7 @@ extension GeneralSettingsStrings {
     )
 
     static let tr = GeneralSettingsStrings(
-        pageDescription: "Vorssaint’in nasıl başladığı, nasıl göründüğü ve menü çubuğu panelinin neler gösterdiği.",
+        pageDescription: "Vorssaint’in görünümünü, menü çubuğu panelini, oturum açılışında başlamasını ve yerleşik denetimlerini ayarlayın.",
         appearanceCaption: "Yalnızca Vorssaint’in kendi pencereleri ve panelleri için geçerlidir, tüm Mac için değil.",
         launchAtLoginCaption: "Mac’i her açtığınızda kendiliğinden açılır.",
         liquidGlassCaption: "Cam görünümlü, yarı saydam paneller.",
@@ -174,7 +174,7 @@ extension GeneralSettingsStrings {
     )
 
     static let ru = GeneralSettingsStrings(
-        pageDescription: "Как Vorssaint запускается, как выглядит и что показывает панель в строке меню.",
+        pageDescription: "Настройте внешний вид Vorssaint, панель строки меню, запуск при входе и встроенные элементы управления.",
         appearanceCaption: "Действует только на окна и панели Vorssaint, а не на весь Mac.",
         launchAtLoginCaption: "Открывается сам при каждом включении Mac.",
         liquidGlassCaption: "Полупрозрачные панели, похожие на стекло.",
@@ -203,7 +203,7 @@ extension GeneralSettingsStrings {
     )
 
     static let es = GeneralSettingsStrings(
-        pageDescription: "Cómo se inicia Vorssaint, cómo se ve y qué muestra el panel de la barra de menús.",
+        pageDescription: "Configura la apariencia de Vorssaint, el panel de la barra de menús, el inicio de sesión y los controles integrados.",
         appearanceCaption: "Solo afecta a las ventanas y paneles de Vorssaint, no a todo el Mac.",
         launchAtLoginCaption: "Se abre solo cada vez que enciendes el Mac.",
         liquidGlassCaption: "Paneles translúcidos, con aspecto de cristal.",
@@ -232,7 +232,7 @@ extension GeneralSettingsStrings {
     )
 
     static let sk = GeneralSettingsStrings(
-        pageDescription: "Ako sa Vorssaint spúšťa, ako vyzerá a čo zobrazuje jeho panel v lište.",
+        pageDescription: "Nastavte vzhľad Vorssaintu, panel v lište, spúšťanie pri prihlásení a vstavané ovládacie prvky.",
         appearanceCaption: "Platí len pre vlastné okná a panely Vorssaint, nie pre celý Mac.",
         launchAtLoginCaption: "Otvorí sa sám vždy, keď zapnete Mac.",
         liquidGlassCaption: "Priehľadné panely v štýle skla.",
@@ -261,7 +261,7 @@ extension GeneralSettingsStrings {
     )
 
     static let de = GeneralSettingsStrings(
-        pageDescription: "Wie Vorssaint startet, wie es aussieht und was das Panel in der Menüleiste zeigt.",
+        pageDescription: "Lege Erscheinungsbild, Menüleisten-Panel, Start bei der Anmeldung und integrierte Steuerelemente von Vorssaint fest.",
         appearanceCaption: "Gilt nur für die Fenster und Panels von Vorssaint, nicht für den ganzen Mac.",
         launchAtLoginCaption: "Öffnet sich von selbst, sobald du den Mac einschaltest.",
         liquidGlassCaption: "Durchscheinende Panels wie aus Glas.",
@@ -290,7 +290,7 @@ extension GeneralSettingsStrings {
     )
 
     static let fr = GeneralSettingsStrings(
-        pageDescription: "Comment Vorssaint démarre, à quoi il ressemble et ce que montre le panneau de la barre des menus.",
+        pageDescription: "Configurez l’apparence de Vorssaint, son panneau de barre des menus, son lancement à l’ouverture de session et ses commandes intégrées.",
         appearanceCaption: "Ne concerne que les fenêtres et panneaux de Vorssaint, pas tout le Mac.",
         launchAtLoginCaption: "S’ouvre tout seul à chaque démarrage du Mac.",
         liquidGlassCaption: "Panneaux translucides, à l’aspect de verre.",
@@ -319,7 +319,7 @@ extension GeneralSettingsStrings {
     )
 
     static let it = GeneralSettingsStrings(
-        pageDescription: "Come si avvia Vorssaint, che aspetto ha e cosa mostra il pannello nella barra dei menu.",
+        pageDescription: "Configura l’aspetto di Vorssaint, il pannello nella barra dei menu, l’avvio all’accesso e i controlli integrati.",
         appearanceCaption: "Vale solo per le finestre e i pannelli di Vorssaint, non per tutto il Mac.",
         launchAtLoginCaption: "Si apre da solo ogni volta che accendi il Mac.",
         liquidGlassCaption: "Pannelli traslucidi, con l’aspetto del vetro.",
@@ -348,7 +348,7 @@ extension GeneralSettingsStrings {
     )
 
     static let ja = GeneralSettingsStrings(
-        pageDescription: "Vorssaint の起動方法、外観、メニューバーのパネルに表示する内容。",
+        pageDescription: "Vorssaint の外観、メニューバーパネル、ログイン時の起動、内蔵コントロールを設定できます。",
         appearanceCaption: "Vorssaint のウインドウとパネルにだけ適用され、Mac 全体には影響しません。",
         launchAtLoginCaption: "Mac の電源を入れるたびに自動で開きます。",
         liquidGlassCaption: "ガラスのように透ける半透明のパネル。",
@@ -377,7 +377,7 @@ extension GeneralSettingsStrings {
     )
 
     static let ko = GeneralSettingsStrings(
-        pageDescription: "Vorssaint가 시작되는 방식, 모습, 그리고 메뉴 막대 패널에 표시되는 내용.",
+        pageDescription: "Vorssaint의 모양, 메뉴 막대 패널, 로그인 시 실행과 내장 제어 기능을 설정하세요.",
         appearanceCaption: "Vorssaint의 윈도우와 패널에만 적용되며 Mac 전체에는 영향을 주지 않습니다.",
         launchAtLoginCaption: "Mac을 켤 때마다 자동으로 열립니다.",
         liquidGlassCaption: "유리처럼 비치는 반투명 패널.",
@@ -406,7 +406,7 @@ extension GeneralSettingsStrings {
     )
 
     static let zhHans = GeneralSettingsStrings(
-        pageDescription: "Vorssaint 的启动方式、外观，以及菜单栏面板显示的内容。",
+        pageDescription: "设置 Vorssaint 的外观、菜单栏面板、登录时启动和内置控制项。",
         appearanceCaption: "仅影响 Vorssaint 自己的窗口和面板，不影响整台 Mac。",
         launchAtLoginCaption: "每次开机时自动打开。",
         liquidGlassCaption: "像玻璃一样通透的半透明面板。",
@@ -435,7 +435,7 @@ extension GeneralSettingsStrings {
     )
 
     static let zhTW = GeneralSettingsStrings(
-        pageDescription: "Vorssaint 的啟動方式、外觀，以及選單列面板顯示的內容。",
+        pageDescription: "設定 Vorssaint 的外觀、選單列面板、登入時啟動與內建控制項。",
         appearanceCaption: "僅影響 Vorssaint 自己的視窗和面板，不影響整台 Mac。",
         launchAtLoginCaption: "每次開機時自動開啟。",
         liquidGlassCaption: "像玻璃一樣通透的半透明面板。",
@@ -464,7 +464,7 @@ extension GeneralSettingsStrings {
     )
 
     static let zhHK = GeneralSettingsStrings(
-        pageDescription: "Vorssaint 的啟動方式、外觀，以及選單列面板顯示的內容。",
+        pageDescription: "設定 Vorssaint 嘅外觀、選單列面板、登入時啟動同內建控制項。",
         appearanceCaption: "只影響 Vorssaint 自己的視窗和面板，不影響整部 Mac。",
         launchAtLoginCaption: "每次開機時自動開啟。",
         liquidGlassCaption: "像玻璃一樣通透的半透明面板。",

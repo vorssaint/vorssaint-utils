@@ -39,6 +39,7 @@ struct SuperKeySettings: View {
                         permissions.requestAccessibility()
                         permissions.openAccessibilitySettings()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .superKey))
                 Picker(text.sourceKey, selection: sourceBinding) {
                     ForEach(SuperKeySource.allCases) { source in
                         Text(text.sourceLabel(source)).tag(source)

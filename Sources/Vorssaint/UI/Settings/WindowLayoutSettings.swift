@@ -4,6 +4,7 @@
 import SwiftUI
 
 struct WindowLayoutSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var features = FeatureRuntime.shared
@@ -30,18 +31,13 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
-    // Same preference the Switcher page exposes next to Dock Preview; it is
-    // mirrored here because it is a window-juggling behavior people look for
-    // on this page too.
-    @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
-
     private var text: WindowLayoutFeatureStrings {
         FeatureStrings.windowLayout(l10n.language)
     }
 
     var body: some View {
         Form {
-            if AppFeature.windowLayout.isAvailable {
+            if shows(.windowLayout) {
                 Section {
                     Toggle(text.showInPanel, isOn: $showInPanel)
                     Text(text.caption)
@@ -53,7 +49,8 @@ struct WindowLayoutSettings: View {
                 }
             }
 
-            if !permissions.accessibility {
+            if !permissions.accessibility,
+               focus == nil || focus?.permissions.contains(.accessibility) == true {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
@@ -62,21 +59,23 @@ struct WindowLayoutSettings: View {
             // The green button override has no page of its own; it lives here
             // with the other window behaviors and keeps this page reachable
             // when it is the only one of the two still switched on in the hub.
-            if AppFeature.windowMaximizer.isAvailable {
+            if focus == .windowMaximizer, AppFeature.windowMaximizer.isAvailable {
                 windowMaximizerSection
             }
 
-            if AppFeature.windowLayout.isAvailable || AppFeature.windowMaximizer.isAvailable {
-                Section {
-                    Toggle(WindowStageManagerStrings.localized(l10n.language).title,
-                           isOn: $reserveStageManagerSpace)
-                    Text(WindowStageManagerStrings.localized(l10n.language).caption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+            if focus == nil || focus == .windowLayout {
+                if AppFeature.windowLayout.isAvailable || AppFeature.windowMaximizer.isAvailable {
+                    Section {
+                        Toggle(WindowStageManagerStrings.localized(l10n.language).title,
+                               isOn: $reserveStageManagerSpace)
+                        Text(WindowStageManagerStrings.localized(l10n.language).caption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
 
-            if AppFeature.windowLayout.isAvailable {
+            if shows(.windowLayout) {
                 Section(text.gestureSection) {
                     Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
                         .onChange(of: edgeSnapEnabled) { _, _ in
@@ -154,6 +153,7 @@ struct WindowLayoutSettings: View {
                         .onChange(of: shortcutsEnabled) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .windowLayout))
                     Text(text.shortcutsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -219,16 +219,6 @@ struct WindowLayoutSettings: View {
                     }
                 }
 
-                Section {
-                    Toggle(l10n.s.dockClickCycleWindows, isOn: $dockClickCycleWindows)
-                        .onChange(of: dockClickCycleWindows) { _, _ in
-                            DockClickService.shared.syncWithPreferences()
-                        }
-                    Text(l10n.s.dockClickCycleWindowsCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
                 placementSections
 
                 Section(text.other) {
@@ -256,12 +246,17 @@ struct WindowLayoutSettings: View {
         }
     }
 
+    private func shows(_ feature: AppFeature) -> Bool {
+        feature.isAvailable && (focus == nil || focus == feature)
+    }
+
     private var windowMaximizerSection: some View {
         Section {
             Toggle(l10n.s.windowMaximizeName, isOn: $maximizeEnabled)
                 .onChange(of: maximizeEnabled) { _, _ in
                     WindowMaximizer.shared.syncWithPreferences()
                 }
+                .modifier(FeaturePrimaryToggleModifier(feature: .windowMaximizer))
             Text(l10n.s.windowMaximizeCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)

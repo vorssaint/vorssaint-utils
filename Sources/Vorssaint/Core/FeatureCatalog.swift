@@ -40,6 +40,11 @@ enum AppFeature: String, CaseIterable {
 /// Hub sections, in display order.
 enum FeatureGroup: String, CaseIterable {
     case windowsDock, mouseKeyboard, clipboardFiles, sound, energyDisplay, tools, dynamicIsland, monitor
+
+    static let featureHubDisplayOrder: [FeatureGroup] = [
+        .tools, .dynamicIsland, .sound, .energyDisplay,
+        .windowsDock, .mouseKeyboard, .clipboardFiles, .monitor,
+    ]
 }
 
 /// System permissions surfaced by the hub's transparency portal.
@@ -145,7 +150,7 @@ extension AppFeature {
         case .mouseAcceleration: return "cursorarrow.rays"
         case .mouseNavigation: return "arrow.left.arrow.right"
         case .mouseButtonShortcuts: return "button.programmable"
-        case .middleClick: return "hand.tap"
+        case .middleClick: return "rectangle.and.hand.point.up.left"
         case .keyboardDebounce: return "keyboard"
         case .keyRemapping: return "keyboard.badge.ellipsis"
         case .textSnippets: return "text.append"
@@ -297,6 +302,37 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
             return []
+        }
+    }
+
+    var primaryEnabledKeys: [String] {
+        switch self {
+        case .windowLayout:
+            return [DefaultsKey.windowLayoutShortcutsEnabled]
+        default:
+            return enabledKeys
+        }
+    }
+
+    var hasHeroAction: Bool {
+        switch self {
+        case .quickLauncher, .quitApps, .cameraPreview, .scratchpad, .commandBar,
+             .radialMenu, .shelf, .notch, .cleaningMode:
+            return true
+        default:
+            return false
+        }
+    }
+
+    var requestsAccessibilityOnHeroActivation: Bool {
+        switch self {
+        case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse,
+             .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts,
+             .middleClick, .keyboardDebounce, .keyRemapping, .superKey,
+             .mouseClickDebounce, .radialMenu:
+            return true
+        default:
+            return false
         }
     }
 

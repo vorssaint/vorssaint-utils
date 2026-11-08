@@ -28,6 +28,7 @@ struct ShelfSettings: View {
                     .onChange(of: enabled) { _, _ in
                         ShelfService.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .shelf))
                 Text(l10n.s.shelfEnableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -128,11 +129,6 @@ struct ShelfSettings: View {
                         Text(l10n.s.shelfEdgeCaption)
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    }
-                    Button {
-                        ShelfService.shared.summon()
-                    } label: {
-                        Label(l10n.s.shelfOpenNow, systemImage: "tray.and.arrow.down")
                     }
                 }
 
