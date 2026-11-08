@@ -57,6 +57,14 @@ final class ClipboardHistoryService: ObservableObject {
             }
         }
     }
+    @Published var quickPinnedTab = false {
+        didSet {
+            if quickPinnedTab != oldValue {
+                resetQuickSelection()
+                clearQuickBatchSelection()
+            }
+        }
+    }
     /// The highlighted entry itself, not its row: a copy arriving while the
     /// window is open inserts above it, and a position would then point at
     /// a different entry than the one Return is about to paste.
@@ -415,7 +423,9 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     var filteredQuickEntries: [ClipboardHistoryEntry] {
-        filteredEntries(matching: quickQuery)
+        let matches = filteredEntries(matching: quickQuery)
+        guard quickLayout == .list else { return matches }
+        return matches.filter { $0.isPinned == quickPinnedTab }
     }
 
     var selectedQuickEntryID: UUID? {

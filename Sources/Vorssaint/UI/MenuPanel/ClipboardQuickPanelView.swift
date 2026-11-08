@@ -35,6 +35,16 @@ struct ClipboardQuickPanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             toolbar
+            if layout == .list {
+                Picker(text.search, selection: $history.quickPinnedTab) {
+                    Text(text.recent).tag(false)
+                    Text(text.pinned).tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
             Divider()
             HStack(spacing: 0) {
                 content
@@ -67,6 +77,10 @@ struct ClipboardQuickPanelView: View {
         }
         .onChange(of: history.quickQuery) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
+        }
+        .onChange(of: history.quickPinnedTab) { _, _ in
+            previewSelection.select(history.selectedQuickEntryID)
+            previewIsEditing = false
         }
         .onChange(of: history.quickWindowPresentationID) { _, _ in
             previewSelection.select(history.selectedQuickEntryID)
@@ -110,12 +124,6 @@ struct ClipboardQuickPanelView: View {
     private var content: some View {
         if filtered.isEmpty {
             emptyState(history.entries.isEmpty ? text.empty : text.noResults)
-        } else if layout == .list && canReorderEntries {
-            HStack(spacing: 0) {
-                listColumn(title: text.recent, entries: history.recentEntries)
-                Divider()
-                listColumn(title: text.pinned, entries: history.pinnedEntries)
-            }
         } else {
             ScrollViewReader { proxy in
                 // A plain stack for an ordinary history: with every entry
@@ -152,6 +160,7 @@ struct ClipboardQuickPanelView: View {
                         }
                     }
                 }
+                .id(history.quickPinnedTab)
                 .background(ScrollBounceDisabler())
                 .onChange(of: history.quickSelectionID) { _, _ in
                     scrollSelectedEntry(with: proxy)
@@ -177,49 +186,6 @@ struct ClipboardQuickPanelView: View {
                 }
             }
         }
-    }
-
-    /// Each column scrolls independently so recent history does not push pins away.
-    private func listColumn(title: String, entries: [ClipboardHistoryEntry]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title.uppercased())
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .tracking(0.6)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 6)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    Group {
-                        if entries.count <= Self.eagerRowLimit {
-                            VStack(alignment: .leading, spacing: 0) {
-                                topAnchor
-                                rows(title: nil, entries: entries)
-                            }
-                        } else {
-                            LazyVStack(alignment: .leading, spacing: 0) {
-                                topAnchor
-                                rows(title: nil, entries: entries)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, Self.listVerticalInset)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .background(ScrollBounceDisabler())
-                .onChange(of: history.quickSelectionID) { _, _ in
-                    scrollSelectedEntry(with: proxy)
-                }
-                .onChange(of: history.quickSelectionIsVisible) { _, _ in
-                    scrollSelectedEntry(with: proxy)
-                }
-                .onChange(of: history.quickWindowPresentationID) { _, _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: .top)
-                }
-            }
-        }
-        .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// Emits the headers, rows and cards straight into the enclosing lazy
@@ -251,9 +217,7 @@ struct ClipboardQuickPanelView: View {
     private var sections: some View {
         if history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             if layout == .list {
-                rows(title: text.pinned, entries: history.pinnedEntries)
-                rows(title: text.recent, entries: history.recentEntries,
-                     followsSection: !history.pinnedEntries.isEmpty)
+                rows(title: nil, entries: filtered)
             } else {
                 cards(history.pinnedEntries)
                 if !history.pinnedEntries.isEmpty, !history.recentEntries.isEmpty {
