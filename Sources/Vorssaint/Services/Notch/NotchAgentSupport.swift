@@ -119,7 +119,7 @@ struct NotchAgentActivityGrid: Equatable {
     let activeDays: Int
 }
 
-enum NotchAgentSupport {enum NotchAgentSupport {
+enum NotchAgentSupport {
     static let defaultFinishMinimum: TimeInterval = 60
     static let finishMinimums: [TimeInterval] = [0, 30, 60, 120, 300]
     static let defaultLimitThreshold = 80.0

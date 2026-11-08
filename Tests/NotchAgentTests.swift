@@ -170,7 +170,7 @@ enum NotchAgentTests {
         // A list published for older builds still carries other agents' prices, which are ignored.
         let minimal = AgentPriceList.decode(priceJSON(
             claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5}"#,
-            extra: #","notes":"a field from a later list","codex":{"models":[{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1}],"plans":[]}"#))
+            extra: #","notes":"a field from a later list","other":{"models":[{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1}],"plans":[]}"#))
         let long = AgentPriceList.decode(priceJSON(claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"longContext":{"above":272000,"inputMultiplier":2,"outputMultiplier":1.5}}"#))
         suite.expect(long?.claude.first?.price.longContext == AgentLongContext(above: 272_000, input: 2, output: 1.5),
                      "a model can carry its own long-context threshold and premium")
@@ -1333,7 +1333,7 @@ enum NotchAgentTests {
                                                           now: now, locale: locale) == nil,
                      "a reset already past or never reported shows no time")
 
-        let overrides = NotchAgentSupport.parseSimulatedRestingUsage("claude.weekly=0.86, claude.session=1.7,bad,codex.weekly=1,claude.other=1")
+        let overrides = NotchAgentSupport.parseSimulatedRestingUsage("claude.weekly=0.86, claude.session=1.7,bad,gemini.weekly=1,claude.other=1")
         suite.expect(overrides.count == 1 && overrides[.claude]?[.weekly] == 0.86 && overrides[.claude]?[.session] == 1,
                      "stand-in usage skips anything malformed or unknown and stays within a whole window")
         let simulated = meters(NotchAgentSupport.applyingSimulation(all, [.claude: [.weekly: 0.86]]))
@@ -1538,7 +1538,7 @@ enum NotchAgentTests {
                      "a missing or unknown resting layout rests as Single")
         defaults.set(NotchAgentRestingLayout.cycle.rawValue, forKey: DefaultsKey.notchAgentsRestingLayout)
         suite.expect(NotchAgentSupport.restingLayout(in: defaults) == .cycle, "the chosen resting layout is kept")
-        defaults.set("claude,codex,unknown", forKey: DefaultsKey.notchAgentsRestingHidden)
+        defaults.set("claude,gemini,unknown", forKey: DefaultsKey.notchAgentsRestingHidden)
         suite.expect(NotchAgentSupport.restingHidden(in: defaults) == [.claude],
                      "agents left out at rest ignore unknown names")
         defaults.set(false, forKey: DefaultsKey.notchAgentsFinishAlert)
