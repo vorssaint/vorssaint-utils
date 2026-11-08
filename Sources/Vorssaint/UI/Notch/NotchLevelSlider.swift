@@ -65,6 +65,7 @@ struct NotchLevelSlider: NSViewRepresentable {
     static func dismantleNSView(_ slider: NSSlider, coordinator: Coordinator) {
         (slider as? NotchLevelControl)?.cancelScroll()
         coordinator.stopEasing()
+        coordinator.stopFillFade()
     }
 
     func updateNSView(_ slider: NSSlider, context: Context) {
@@ -77,7 +78,9 @@ struct NotchLevelSlider: NSViewRepresentable {
         (slider as? NotchLevelControl)?.scrollable = scrollable
         (slider as? NotchLevelControl)?.reducesMotion = context.environment.accessibilityReduceMotion
         (slider.cell as? NotchLevelCell)?.leavesHoverRoom = scrollable
-        (slider.cell as? NotchLevelCell)?.fill = NSColor(tint)
+        context.coordinator.setFill(NSColor(tint),
+                                    animated: slider.window?.occlusionState.contains(.visible) == true
+                                        && !context.environment.accessibilityReduceMotion)
         (slider.cell as? NotchLevelCell)?.marker = marker
         (slider.cell as? NotchLevelCell)?.trackThickness = trackThickness
         let bounded = value.isFinite ? min(upper, max(lower, value)) : lower
@@ -112,7 +115,51 @@ struct NotchLevelSlider: NSViewRepresentable {
         private var easing: NotchSliderEasing?
         private var timer: Timer?
         private var lastTracked: Double?
+        private var fillFade: (from: NSColor, to: NSColor, start: Double)?
+        private var fillTimer: Timer?
         init(_ parent: NotchLevelSlider) { self.parent = parent }
+
+        /// A new tint, such as a fader's orange in boost, fades in over the
+        /// same short time a level eases, rather than flipping at once.
+        func setFill(_ color: NSColor, animated: Bool) {
+            guard let slider, let cell = slider.cell as? NotchLevelCell,
+                  !Self.same(color, fillFade?.to ?? cell.fill) else { return }
+            guard animated else {
+                stopFillFade()
+                cell.fill = color
+                slider.needsDisplay = true
+                return
+            }
+            fillFade = (cell.fill, color, CACurrentMediaTime())
+            guard fillTimer == nil else { return }
+            let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in self?.fillTick() }
+            RunLoop.main.add(timer, forMode: .common)
+            fillTimer = timer
+        }
+
+        func stopFillFade() {
+            fillTimer?.invalidate()
+            fillTimer = nil
+            if let to = fillFade?.to { (slider?.cell as? NotchLevelCell)?.fill = to }
+            fillFade = nil
+        }
+
+        private func fillTick() {
+            guard let fade = fillFade, let slider, let cell = slider.cell as? NotchLevelCell else { return stopFillFade() }
+            let step = NotchSliderEasing(from: 0, to: 1, start: fade.start).value(at: CACurrentMediaTime())
+            cell.fill = step.done ? fade.to : fade.from.blended(withFraction: step.value, of: fade.to) ?? fade.to
+            slider.needsDisplay = true
+            if step.done { stopFillFade() }
+        }
+
+        private static func same(_ first: NSColor, _ second: NSColor) -> Bool {
+            guard let first = first.usingColorSpace(.sRGB), let second = second.usingColorSpace(.sRGB) else {
+                return first == second
+            }
+            return [first.redComponent - second.redComponent, first.greenComponent - second.greenComponent,
+                    first.blueComponent - second.blueComponent, first.alphaComponent - second.alphaComponent]
+                .allSatisfy { abs($0) < 0.001 }
+        }
         func trackingChanged(_ value: Bool) {
             if value {
                 stopEasing()
@@ -252,7 +299,10 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         if hoverArea == nil {
-            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            // A pointer that arrives with its button already held, as from
+            // a drag begun elsewhere, still shows the bar will take a scroll.
+            let area = NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect,
+                                                             .enabledDuringMouseDrag],
                                       owner: self)
             addTrackingArea(area)
             hoverArea = area
