@@ -98,9 +98,27 @@ enum NotchMascotTests {
         defaults.set(true, forKey: AppFeature.commandBar.availabilityKey)
 
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.notchMascotEnabled)
+        NotchMascotSupport.toggleFromIsland(in: defaults)
+        suite.expect(AppFeature.notchMascot.isAvailable(in: defaults)
+                     && defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
+                     "the island Companion control installs and enables the opt-in feature on its first use")
+        NotchMascotSupport.toggleFromIsland(in: defaults)
+        suite.expect(!defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
+                     "the island Companion control switches an enabled companion off")
+        defaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
+
         suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.visits(in: defaults)
-                     && NotchMascotSupport.commandBarStyle(in: defaults) == nil,
-                     "the companion is opt-in, and the Command Bar keeps its own window until it is on")
+                     && NotchCommandBarSupport.style(in: defaults) == .island,
+                     "the Command Bar opens inside the island by default without enabling the Companion")
+        defaults.set(true, forKey: DefaultsKey.notchCommandBarFromIsland)
+        suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.visits(in: defaults)
+                     && NotchCommandBarSupport.style(in: defaults) == .island,
+                     "the Command Bar can come from the island without the opt-in companion")
+        defaults.set(true, forKey: DefaultsKey.notchCommandBar)
+        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == nil,
+                     "the legacy island route remains gated by the Companion")
         defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
         suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.reacts(in: defaults),
                      "switched on but not installed on the Features page, it stays away")
@@ -114,27 +132,38 @@ enum NotchMascotTests {
         defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
         suite.expect(NotchMascotSupport.isEnabled(in: defaults) && NotchMascotSupport.visits(in: defaults)
                      && NotchMascotSupport.reacts(in: defaults)
-                     && NotchMascotSupport.commandBarStyle(in: defaults) == .droplet,
-                     "turned on, it visits now and then, reacts, and the Command Bar falls from the island as a drop")
+                     && NotchCommandBarSupport.style(in: defaults) == .island,
+                     "turned on, the Companion visits and reacts while the Command Bar stays in the island")
+        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == .island,
+                     "the legacy Companion preference continues to select its saved presentation")
+        defaults.set(NotchCommandBarStyle.island.rawValue, forKey: DefaultsKey.notchCommandBarStyle)
+        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == .island,
+                     "the legacy Companion preference continues to select the open-island presentation")
+        defaults.set(false, forKey: DefaultsKey.notchCommandBar)
+        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == nil,
+                     "turning off the legacy Companion preference restores the standalone route")
+        defaults.set(true, forKey: DefaultsKey.notchCommandBar)
+        defaults.set(NotchCommandBarStyle.droplet.rawValue, forKey: DefaultsKey.notchCommandBarStyle)
         defaults.set(false, forKey: DefaultsKey.notchMascotReactions)
         suite.expect(NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.reacts(in: defaults)
                      && NotchMascotSupport.visits(in: defaults),
                      "its reactions can be turned off while it still rests and visits")
         defaults.set(true, forKey: DefaultsKey.notchMascotReactions)
         defaults.set(false, forKey: AppFeature.notchMascot.availabilityKey)
-        suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.visits(in: defaults)
-                     && !NotchMascotSupport.reacts(in: defaults) && NotchMascotSupport.commandBarStyle(in: defaults) == nil,
-                     "uninstalled, it leaves the island and the Command Bar keeps its own window")
-        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
         defaults.set(NotchCommandBarStyle.island.rawValue, forKey: DefaultsKey.notchCommandBarStyle)
-        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == .island, "the bar can open inside the island instead")
+        suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.visits(in: defaults)
+                     && !NotchMascotSupport.reacts(in: defaults)
+                     && NotchCommandBarSupport.style(in: defaults) == .island,
+                     "the Command Bar can open inside the island even when the companion is uninstalled")
+        defaults.set(true, forKey: AppFeature.notchMascot.availabilityKey)
+        suite.expect(NotchCommandBarSupport.style(in: defaults) == .island, "the bar can open inside the island instead")
         defaults.set("puddle", forKey: DefaultsKey.notchCommandBarStyle)
-        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == .droplet, "an unknown style falls back to the drop")
-        defaults.set(false, forKey: DefaultsKey.notchCommandBar)
-        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == nil, "turned off, the bar keeps its own window")
-        defaults.set(true, forKey: DefaultsKey.notchCommandBar)
+        suite.expect(NotchCommandBarSupport.style(in: defaults) == .droplet, "an unknown style falls back to the drop")
+        defaults.set(false, forKey: DefaultsKey.notchCommandBarFromIsland)
+        suite.expect(NotchCommandBarSupport.style(in: defaults) == nil, "turned off, the bar keeps its own window")
+        defaults.set(true, forKey: DefaultsKey.notchCommandBarFromIsland)
         defaults.set(false, forKey: AppFeature.commandBar.availabilityKey)
-        suite.expect(NotchMascotSupport.commandBarStyle(in: defaults) == nil,
+        suite.expect(NotchCommandBarSupport.style(in: defaults) == nil,
                      "a Command Bar taken off the Features page never comes out of the island")
         defaults.set(true, forKey: AppFeature.commandBar.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.notchMascotVisits)
@@ -143,8 +172,8 @@ enum NotchMascotTests {
         defaults.set(true, forKey: DefaultsKey.notchMascotVisits)
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchMascotSupport.isEnabled(in: defaults) && !NotchMascotSupport.visits(in: defaults)
-                     && NotchMascotSupport.commandBarStyle(in: defaults) == nil,
-                     "without the island there is no companion and no bar from it")
+                     && NotchCommandBarSupport.style(in: defaults) == nil,
+                     "without the island, the Command Bar falls back to its own window")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(NotchMascotStyle.robot.rawValue, forKey: DefaultsKey.notchMascotStyle)
         defaults.set(NotchMascotShape.pill.rawValue, forKey: DefaultsKey.notchMascotShape)
@@ -159,11 +188,12 @@ enum NotchMascotTests {
         let keys = [DefaultsKey.notchMascotEnabled, DefaultsKey.notchMascotVisits, DefaultsKey.notchMascotReactions,
                     DefaultsKey.notchMascotStyle,
                     DefaultsKey.notchMascotShape, DefaultsKey.notchMascotPalette, DefaultsKey.notchCommandBar,
-                    DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency,
+                    DefaultsKey.notchCommandBarFromIsland, DefaultsKey.notchCommandBarStyle,
+                    DefaultsKey.notchCommandBar, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency,
                     DefaultsKey.notchMascotHidesWhenIdle]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil && $0.hasPrefix("notch") }
                      && SettingsBackupSupport.exportKeys().isSuperset(of: keys),
-                     "every companion preference travels in a settings backup with the island's")
+                     "companion and island Command Bar preferences travel in settings backups")
         suite.expect(Set(NotchMascotShape.allCases.map(\.rawValue)).count == 4
                      && Set(NotchMascotPalette.allCases.map(\.rawValue)).count == 7
                      && Set(NotchMascotPalette.allCases.map { "\($0.light)" }).count == 7
@@ -775,20 +805,28 @@ enum NotchMascotTests {
     private static func dropletContracts(_ suite: TestSuite) {
         let edge = CommandBarDropletMotion.rootDepth
         let field = CGRect(x: 28, y: edge + CommandBarDropletMotion.landingGap, width: 560, height: 50)
-        let icon = CGPoint(x: field.minX + 27, y: field.midY)
         let centerX: CGFloat = 308
-        let drop = CommandBarDropletMotion.drop(edge: edge, centerX: centerX, field: field, icon: icon)
+        let notchWidth: CGFloat = 196
+        let notchHeight: CGFloat = 32.5
+        let drop = CommandBarDropletMotion.drop(edge: edge, centerX: centerX,
+                                                sourceSize: CGSize(width: notchWidth, height: notchHeight), field: field)
         let structure = elements(CommandBarDropletMotion.neckPath(drop.frames[0], edge: edge, centerX: centerX))
         suite.expect(drop.frames.count == drop.keyTimes.count && drop.keyTimes.first == 0 && drop.keyTimes.last == 1
                      && zip(drop.keyTimes, drop.keyTimes.dropFirst()).allSatisfy { $0 < $1 }
                      && drop.frames.allSatisfy { elements(CommandBarDropletMotion.neckPath($0, edge: edge, centerX: centerX)) == structure },
                      "the drop is one run of frames whose neck keeps its curves, so each turns into the next")
         let first = drop.frames[0], last = drop.frames[drop.frames.count - 1]
-        suite.expect(first.bead.midY < edge + 2 && first.bead.midX == centerX && first.mascotScale < 1,
-                     "the drop starts in the island's edge, with the companion small inside")
-        suite.expect(last.bead == field && last.mascot == icon && last.mascotScale == 1 && last.neckRoot == 0
+        suite.expect(first.bead == CGRect(x: centerX - notchWidth / 2, y: edge - notchHeight,
+                                          width: notchWidth, height: notchHeight)
+                     && first.radius > 0,
+                     "the drop starts at the fitted island's exact width and height")
+        let falling = drop.frames.prefix(drop.frameIndex(at: drop.landing) + 1)
+        suite.expect(falling.allSatisfy { $0.bead.width >= notchWidth - 0.5 }
+                     && zip(falling, falling.dropFirst()).allSatisfy { $0.bead.width <= $1.bead.width + 0.5 },
+                     "the tear widens steadily from the full notch instead of shrinking to a bead before it opens")
+        suite.expect(last.bead == field && last.neckRoot == 0
                      && last.neckEnd <= edge,
-                     "it ends as the bar's field, with the companion in the icon's place and no neck left")
+                     "it ends as the bar's field with no neck left")
         suite.expect(drop.duration > 0.4 && drop.duration < 0.9 && drop.landing > 0.15 && drop.landing < drop.reveal
                      && drop.reveal <= drop.duration && drop.reveal < 0.7,
                      "it falls and opens quickly, landing first, and the bar takes over before the swing ends")
@@ -832,14 +870,18 @@ enum NotchMascotTests {
                      "a drop closed or typed into at either end has nothing left to play")
 
         let bar = CGRect(x: field.minX, y: field.minY, width: field.width, height: 380)
-        let back = CommandBarDropletMotion.retract(edge: edge, centerX: centerX, bar: bar, field: field, icon: icon)
+        let back = CommandBarDropletMotion.retract(edge: edge, centerX: centerX,
+                                                   sourceSize: CGSize(width: notchWidth, height: notchHeight),
+                                                   bar: bar, field: field)
         let start = back.frames[0], end = back.frames[back.frames.count - 1]
-        suite.expect(back.frames.count == back.keyTimes.count && start.bead == bar && start.mascot == icon
-                     && start.mascotScale == 1 && back.duration < 0.8,
-                     "the way back starts as the whole bar, its companion in the icon's place")
-        suite.expect(end.bead.midY < edge && end.mascotScale == CommandBarDropletMotion.ridingScale
+        suite.expect(back.frames.count == back.keyTimes.count && start.bead == bar && back.duration < 0.8,
+                     "the way back starts as the whole bar without a companion")
+        suite.expect(abs(end.bead.minX - (centerX - notchWidth / 2)) < 0.001
+                     && abs(end.bead.minY - (edge - notchHeight)) < 0.001
+                     && abs(end.bead.width - notchWidth) < 0.001
+                     && abs(end.bead.height - notchHeight) < 0.001
                      && back.frames.allSatisfy { elements(CommandBarDropletMotion.neckPath($0, edge: edge, centerX: centerX)) == structure },
-                     "and ends risen into the island, the companion small inside the drop")
+                     "and ends inside the island's exact fitted dimensions")
         let side = CommandBarDropletMotion.beadSide
         suite.expect(back.frames.allSatisfy { frame in
             let gap = frame.bead.minY - edge

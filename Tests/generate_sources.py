@@ -1479,6 +1479,9 @@ def main():
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
+    music_visibility = music_visibility.replace(
+        "focusActive: idleStatus.focusActive)",
+        "focusActive: idleStatus.focusActive, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
     music_visibility = music_visibility.replace("calendar: hasCalendarActivity", "calendar: false")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
@@ -1494,7 +1497,10 @@ def main():
     music_visibility = music_visibility.replace("AppFeature.connectedDevices.isAvailable",
                                                 "AppFeature.connectedDevices.isAvailable(in: ReviewDefaults.current)")
     write("NotchMusicVisibility.swift", "import Foundation\nextension NotchMusicVisibilityTests {\n"
+          + "enum PreciseVolumeRollerService { static let shared = Roller(); struct Roller { "
+            "func syncWithPreferences() {} } }\n"
           + "final class Service: State {\nfunc resignPanelKey() { panel?.resignKey() }\n"
+          + "func clearLevelFeedback() {}\n"
           + music_visibility + "}\n}\n")
     write("NotchScreenEdgeClicks.swift", "import AppKit\nextension NotchScreenEdgeClickTests {\nfinal class Service: State {\n"
           + "func open() { openings += 1; expanded = true; syncScreenEdgeClicks() }\n"
@@ -1665,6 +1671,7 @@ def main():
           + declaration(metric_view, "    var detailKind:") + "}\n"
           + "final class Service: State {\n"
           + "func syncWithPreferences() { presentationSyncs += 1; refreshModules(); syncVisibleConsumers(); NotchTimerService.shared.syncWithPreferences() }\n"
+          + "func clearLevelFeedback() {}\n"
           + availability_declaration(notch, "    private func metricIsAvailable(")
           + declaration(notch, "    private func refreshModules(")
               .replace("NotchSupport.modules()", "NotchSupport.modules(in: ReviewDefaults.current)")
@@ -1971,12 +1978,17 @@ def main():
           + declaration(service, "enum QuickLauncherItem:")
           + "final class Launcher {\nvar isEditing = false\nvar activeUtility: QuickLauncherItem?\n"
           + "var editingOptionsItem: QuickLauncherItem?\nvar selectedIndex: Int?\nvar keyboardIndex: Int?\nvar presentationID = UUID()\n"
+          + "var shortcutsPageEnabled = false\n"
           + "var candidates: [QuickLauncherItem] = QuickLauncherItem.allCases\n"
           + "var visibleItems: [QuickLauncherItem] { candidates.filter { $0.feature.isAvailable(in: ReviewDefaults.current) } }\n"
           + 'func hide() { events.append("hide") }\n'
           + availability_declaration(service, "    func run(_ item: QuickLauncherItem)")
-          + declaration(service, "    func prepareForPresentation()")
+              .replace("item.feature.isAvailable(in: ReviewDefaults.current)", "isAvailable(item)")
+          + declaration(service, "    func prepareForPresentation(")
           + availability_declaration(service, "    func refreshAvailability()")
+          + availability_declaration(service, "    private func isAvailable(_ item:")
+              .replace("NotchCustomShortcutSupport.stored().contains { $0.destinations.contains(.shortcutsPage) }",
+                       "shortcutsPageEnabled")
           + declaration(service, "    private func clampSelection()")
           + declaration(service, "    func activateSelection()")
           + declaration(service, "    func activate(at index:")

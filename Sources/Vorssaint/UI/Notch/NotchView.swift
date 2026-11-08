@@ -6,11 +6,13 @@ import SwiftUI
 
 struct NotchView: View {
     @ObservedObject var service: NotchService
+    @ObservedObject private var plugins = NotchPluginRegistry.shared
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
     @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
+    @State private var pageHeightResizeStart: CGFloat?
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -47,8 +49,9 @@ struct NotchView: View {
             // The backdrop is a separate, non-interactive hosting view. Claim
             // empty space here so SwiftUI keeps the taps that land on it. This
             // draws nothing, so it does not hold a click in this window at the
-            // window server; the fill above does.
-            .onTapGesture { }
+            // window server; the fill above does. Simultaneous keeps controls
+            // in the activity wings interactive as well.
+            .modifier(NotchSurfaceTapGesture())
             .onChange(of: reduceTransparency) {
                 DispatchQueue.main.async { service.refreshPresentation(animated: false) }
             }
@@ -87,11 +90,14 @@ struct NotchView: View {
                                          size: service.surfaceSize)
             } else if service.captureControlsCollapsed {
                 HStack(spacing: 0) {
-                    Image(systemName: options.selectedTool.systemImageName).frame(width: 28)
+                    Image(systemName: options.selectedTool.systemImageName)
+                        .frame(width: NotchCaptureControlsLayout.compactControlWidth)
                     Color.clear.frame(width: service.geometry.cameraWidth)
-                    Image(systemName: "chevron.down").frame(width: 28)
+                    Image(systemName: "chevron.down")
+                        .frame(width: NotchCaptureControlsLayout.compactControlWidth)
                 }
                 .font(.system(size: 10, weight: .semibold))
+                .padding(.horizontal, NotchCaptureControlsLayout.compactControlInset)
                 .frame(maxHeight: .infinity)
                 .accessibilityHidden(true)
             } else {
@@ -161,7 +167,7 @@ struct NotchView: View {
                 .accessibilityLabel(notice.accessibilityText)
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { service.activateNotice(notice) }
-                .accessibilityHint(text.open)
+                .accessibilityHint(notice.event == .cleaningMode ? l10n.s.cleaningOverlayUnlock : text.open)
                 .transition(.opacity)
             }
         } else if service.peeking {
@@ -309,12 +315,57 @@ struct NotchView: View {
             .padding(.top, geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
+            .overlay(alignment: .bottom) {
+                if service.geometry.layout == .custom, !service.showingSections,
+                   !service.showingCommandBar, service.captureControls == nil {
+                    Image(systemName: "arrow.up.and.down")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.38))
+                        .frame(width: 48, height: 14)
+                        .contentShape(Rectangle())
+                        .background(NotchVerticalResizeCursor())
+                        .onHover { hovering in
+                            (hovering ? NSCursor.resizeUpDown : NSCursor.arrow).set()
+                        }
+                        .gesture(pageHeightResizeGesture)
+                        .help(text.maximumHeight)
+                        .accessibilityLabel(text.maximumHeight)
+                        .accessibilityHint(text.sizeHint)
+                        .accessibilityIdentifier("notch.resize-height")
+                }
+            }
             .contentShape(Rectangle())
             .contextMenu { islandMenu }
             // Opening the island makes its panel key, so Keyboard navigation would ring
             // the first control. Show the ring once keyboard input begins.
             .focusEffectDisabled(!service.showsKeyboardFocus)
             .onAppear { UpdateService.shared.checkIfStale() }
+    }
+
+    private struct NotchVerticalResizeCursor: NSViewRepresentable {
+        func makeNSView(context: Context) -> NSView { CursorRectView() }
+        func updateNSView(_ view: NSView, context: Context) {}
+
+        private final class CursorRectView: NSView {
+            override func resetCursorRects() {
+                addCursorRect(bounds, cursor: .resizeUpDown)
+            }
+
+            override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        }
+    }
+
+    private var pageHeightResizeGesture: some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                let start = pageHeightResizeStart ?? service.expandedGeometry.customHeight
+                if pageHeightResizeStart == nil { pageHeightResizeStart = start }
+                service.updateExpandedPageHeight(start + value.translation.height)
+            }
+            .onEnded { _ in
+                service.finishExpandedPageHeightResize()
+                pageHeightResizeStart = nil
+            }
     }
 
     private var pageName: String {
@@ -370,13 +421,18 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
                     HStack(spacing: 6) {
-                        items.trailing; trailingSections(band)
+                        items.trailing; trailingSections(band); NotchContentTransferHandle()
+                        updateControl(band); pinMark
+                    }
+                    HStack(spacing: 6) {
+                        items.trailing; trailingSections(band); NotchContentTransferHandle()
                         NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
                     }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
-                    HStack(spacing: 6) { items.trailing; trailingSections(band) }
+                    HStack(spacing: 6) {
+                        items.trailing; trailingSections(band); NotchContentTransferHandle(); pinMark
+                    }
+                    HStack(spacing: 6) { items.trailing; trailingSections(band); NotchContentTransferHandle() }
                 }
             }
         }
@@ -466,12 +522,16 @@ struct NotchView: View {
         switch service.selected {
         case .controls:
             let items = NotchSupport.controls()
-            let shortcuts = items.filter { $0 != .music && !$0.isLevel }
+            let shortcuts = items.filter { $0 != .music && !$0.isLevel }.count
+                + NotchCustomShortcutSupport.stored().count
             let levels = items.filter(\.isLevel).count
             let band = NotchBand(geometry: service.expandedGeometry, contentWidth: size.width)
             size.height = max(size.height, NotchLayout.controls(
                 hasCards: items.contains(.music), levelRow: NotchLayout.bandLevelCount(levels, band: band) < levels,
-                shortcutCount: shortcuts.count, width: size.width, height: size.height).height)
+                shortcutCount: shortcuts, width: size.width, height: size.height).height)
+            if !plugins.plugins.isEmpty {
+                size.height += NotchLayout.rowSpacing + NotchLayout.shortcutHeight
+            }
         case .timer:
             let session = NotchTimerService.shared.session
             size.height = max(size.height, NotchLayout.timer(
@@ -510,7 +570,8 @@ struct NotchView: View {
     }
 
     private var headerFeedback: NotchNotice? {
-        guard let notice = service.notice, notice.level != nil,
+        let current = service.expanded ? service.levelFeedback : service.notice
+        guard let notice = current, notice.level != nil,
               [.volume, .brightness, .keyboardLight].contains(notice.event) else { return nil }
         // The home page shows its levels in the top row, or just below it,
         // where they already move with the key; a reading over one would only
@@ -709,6 +770,15 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: true)
                                 .padding(.leading, restingBatteryInset)
+                        case .focus:
+                            HStack(spacing: 4) {
+                                Image(systemName: service.idleContent.symbol)
+                                    .font(.system(size: 12))
+                                Text(service.idleStatus.focusActive ? "On" : "Off")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .lineLimit(1)
+                            }
+                            .padding(.leading, restingBatteryInset)
                         case .none: EmptyView()
                         }
                     }
@@ -734,7 +804,8 @@ struct NotchRestingStrip: View {
                         case .agents:
                             NotchAgentRestingWing(leading: false)
                                 .padding(.trailing, restingBatteryInset)
-                        case .none: EmptyView()
+                        case .focus, .none:
+                            EmptyView()
                         }
                     }
                     .frame(width: geometry.restingWingWidth)

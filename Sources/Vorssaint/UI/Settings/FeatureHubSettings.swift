@@ -1095,6 +1095,7 @@ struct PermissionsPortalSections: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
+    @ObservedObject private var focusStatus = NotchIdleStatusService.shared
     let hub: FeatureHubStrings
     let visiblePermissions: [AppPermission]
     @State private var automation: [Permissions.AutomationTarget: Permissions.AutomationStatus] = [:]
@@ -1120,6 +1121,7 @@ struct PermissionsPortalSections: View {
             // read the moment the portal shows; automation is checked off the
             // main thread because the AE round trip can block briefly.
             permissions.refresh()
+            focusStatus.refreshPermissionStatus()
             if visiblePermissions.contains(.accessibility)
                 || visiblePermissions.contains(.screenRecording) {
                 permissions.setActivePermissionSurface(pollingDemandID, visible: true)
@@ -1184,6 +1186,12 @@ struct PermissionsPortalSections: View {
             // macOS has no public preflight API for this permission. The
             // system records the app only after its first protected write.
             return .unknown
+        case .focusStatus:
+            switch focusStatus.status.authorization {
+            case .authorized: return .granted
+            case .notDetermined: return .unknown
+            case .denied: return .missing
+            }
         }
     }
 
@@ -1305,6 +1313,8 @@ private struct PermissionPortalRow: View {
             || Permissions.shared.calendarAccess == .writeOnly
         case .camera: return Permissions.shared.camera == .undetermined
         case .microphone: return Permissions.shared.microphone == .undetermined
+        case .focusStatus:
+            return NotchIdleStatusService.shared.status.authorization == .notDetermined
         case .filesAndFolders, .automationFinder, .automationPlayback, .audioCapture,
              .appManagement: return false
         }
@@ -1323,6 +1333,7 @@ private struct PermissionPortalRow: View {
         case .calendar: Permissions.shared.requestCalendar()
         case .camera: Permissions.shared.requestCamera()
         case .microphone: Permissions.shared.requestMicrophone()
+        case .focusStatus: NotchIdleStatusService.shared.requestFocusAuthorization()
         case .filesAndFolders, .automationFinder, .automationPlayback, .audioCapture,
              .appManagement:
             break
@@ -1342,6 +1353,7 @@ private struct PermissionPortalRow: View {
         case .calendar: Permissions.shared.openCalendarSettings()
         case .camera: Permissions.shared.openCameraSettings()
         case .appManagement: Permissions.shared.openAppManagementSettings()
+        case .focusStatus: NotchIdleStatusService.shared.openFocusSettings()
         }
     }
 }
@@ -1559,6 +1571,7 @@ extension AppPermission {
         case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
         case .appManagement: return FeatureStrings.settingsCategories(L10n.shared.language).appManagement
+        case .focusStatus: return "Focus Status"
         }
     }
 
@@ -1577,6 +1590,7 @@ extension AppPermission {
         case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).permission
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
         case .appManagement: return hub.explainAppManagement
+        case .focusStatus: return "Allows the Dynamic Island to show whether a Focus is currently on."
         }
     }
 }

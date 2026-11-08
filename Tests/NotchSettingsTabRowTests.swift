@@ -15,7 +15,7 @@ enum NotchSettingsTabRowTests {
         // sidebar at its widest and the page's margins.
         let narrowestRow = CGFloat(SettingsWindowSupport.minContentWidth) - 240 - 22 * 2
         for (language, _) in LocalizationTests.languages {
-            let row = NotchSettingsTabRow(tab: .constant(.layout), language: language, canOpen: true, open: {})
+            let row = NotchSettingsTabRow(tab: .constant(.layout), language: language)
             let segmented = NSHostingView(rootView: row).fittingSize.width
             let narrow = NSHostingController(rootView: row)
                 .sizeThatFits(in: CGSize(width: narrowestRow, height: 200)).width

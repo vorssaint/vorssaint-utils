@@ -239,6 +239,7 @@ enum NotchPresentationRefreshContract {
         var panel: Panel? { windowHost?.panel }
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                      safeAreaTop: 32, cameraWidth: 210)
+        var pageHeightResize: NotchPageHeight.Resize?
         var expandedPageTop = NotchPageTop.row
         var modules = NotchModule.allCases
         var homeControls: [NotchControlItem] = []
@@ -596,8 +597,8 @@ enum NotchPresentationRefreshContract {
         suite.expect(material.windowHost?.usesGlass == true, "expanded content requests the glass backdrop")
         material.showingCommandBar = true
         material.refreshPresentation(animated: false)
-        suite.expect(!material.usesGlassSurface && material.windowHost?.usesGlass == false,
-                     "the Command Bar keeps the open island black, as its drop is")
+        suite.expect(material.usesGlassSurface && material.windowHost?.usesGlass == true,
+                     "the Command Bar uses the open island's Liquid Glass backdrop")
         material.showingCommandBar = false
         material.expanded = false
         material.noticeExpanded = true
@@ -845,8 +846,8 @@ enum NotchPresentationRefreshContract {
         physical.refreshPresentation(animated: false)
         suite.expect(physical.panel?.isVisible == true && !physical.compactActivityGeometry.compactActivityUsesFooter
                && physical.compactActivityGeometry.compactActivityWingWidth == 0
-               && physical.windowHost?.targetSize.height == physical.geometry.menuBarHeight,
-               "an active timer on a physical camera retracts its wings and stays at menu-bar height without a menu measurement")
+               && physical.windowHost?.targetSize.height == physical.geometry.cameraHeight,
+               "an active timer without menu measurements remains within camera height and omits unavailable wings")
     }
 
     private static func mascotYieldChecks(_ suite: TestSuite) {

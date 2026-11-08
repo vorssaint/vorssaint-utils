@@ -231,6 +231,16 @@ enum NotchDestinationContract {
 
         QuickLauncherService.shared = QuickLauncherContract.Launcher()
         let launcher = QuickLauncherService.shared
+        launcher.activeUtility = .shortcuts
+        launcher.refreshAvailability()
+        suite.expect(launcher.activeUtility == nil,
+               "the Tools shortcut utility disappears when no shortcut uses that destination")
+        launcher.shortcutsPageEnabled = true
+        launcher.activeUtility = .shortcuts
+        launcher.refreshAvailability()
+        suite.expect(launcher.activeUtility == .shortcuts,
+               "the Tools shortcut utility stays available when a shortcut uses that destination")
+        launcher.activeUtility = nil
         let firstPresentation = launcher.presentationID
         service.open(.tools)
         suite.expect(service.selected == .tools && launcher.selectedIndex == 0 && launcher.presentationID != firstPresentation,
@@ -486,17 +496,64 @@ enum NotchDestinationContract {
                "returning home is opt-in and preserves the existing opening behavior")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHomeModule] as? String == NotchModule.controls.rawValue,
                "the previously available home option keeps Controls as its initial destination")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchExpiredLastPageModule] as? String
+                     == NotchModule.controls.rawValue,
+               "an expired last-page window defaults to Controls")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchOpensActivity] as? Bool == true,
                "opening the visible activity stays the default")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchRememberLastPageFor] as? Double
+                     == NotchSupport.defaultLastPageWindow,
+               "last-page reopening uses a five-minute window by default")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLastPageClosedAt),
+               "the last-close timestamp stays local instead of being backed up")
+
+        let now = Date(timeIntervalSince1970: 1_000)
+        suite.expect(NotchSupport.remembersLastPage(closedAt: nil,
+                                                    within: NotchSupport.defaultLastPageWindow, now: now),
+               "a missing close timestamp preserves the existing last-page behavior")
+        suite.expect(NotchSupport.remembersLastPage(
+            closedAt: now.addingTimeInterval(-NotchSupport.defaultLastPageWindow),
+            within: NotchSupport.defaultLastPageWindow, now: now),
+               "the last page is remembered through the configured time-window boundary")
+        suite.expect(!NotchSupport.remembersLastPage(
+            closedAt: now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+            within: NotchSupport.defaultLastPageWindow, now: now),
+               "an expired time window no longer remembers the last page")
+        suite.expect(!NotchSupport.remembersLastPage(closedAt: now.addingTimeInterval(1),
+                                                     within: NotchSupport.defaultLastPageWindow, now: now),
+               "a future close timestamp is treated as expired")
+        suite.expect(NotchSupport.sanitizedLastPageWindow(.infinity) == NotchSupport.defaultLastPageWindow
+                     && NotchSupport.sanitizedLastPageWindow(0) == 5
+                     && NotchSupport.lastPageWindowRange.lowerBound == 5
+                     && NotchSupport.sanitizedLastPageWindow(63) == 65
+                     && NotchSupport.sanitizedLastPageWindow(.greatestFiniteMagnitude)
+                        == NotchSupport.lastPageWindowRange.upperBound,
+               "invalid and off-step intervals are snapped to the five-second choices in range")
+        suite.expect(NotchSupport.lastPageWindowText(65) == "1:05"
+                     && NotchSupport.lastPageWindowText(60) == "1:00"
+                     && NotchSupport.lastPageWindowText(30 * 60) == "30:00",
+                     "the reopening interval displays exact seconds at five-second slider steps")
+        suite.expect(abs(NotchSupport.steppedDelay(0.13, in: NotchSupport.hoverDelayRange,
+                                                   step: 0.05, fallback: 0.25) - 0.15) < 0.001
+                     && NotchSupport.sanitizedHoverDelay(0.13) == 0.13
+                     && NotchSupport.sanitizedCloseDelay(0.13) == 0.13,
+                     "continuous sliders retain their existing fifty-millisecond delay choices without drawing tick marks")
+        NotchSupport.noteLastPageClosed(at: now, in: defaults)
+        suite.expect(defaults.object(forKey: DefaultsKey.notchLastPageClosedAt) as? Date == now,
+               "closing stores the timestamp used to measure the next reopening")
+        defaults.removeObject(forKey: DefaultsKey.notchLastPageClosedAt)
+
         for returnHome in [false, true] {
             defaults.set(returnHome, forKey: DefaultsKey.notchReturnHome)
             let payload = SettingsBackupSupport.payload(appVersion: "test") {
                 if $0 == DefaultsKey.notchReturnHome { return returnHome }
                 if $0 == DefaultsKey.notchHomeModule { return NotchModule.music.rawValue }
+                if $0 == DefaultsKey.notchExpiredLastPageModule { return NotchModule.calendar.rawValue }
                 if $0 == DefaultsKey.notchOpensActivity { return false }
                 if $0 == DefaultsKey.notchHideUntilHover { return true }
                 if $0 == DefaultsKey.notchHoverDelay { return 0.65 }
                 if $0 == DefaultsKey.notchCloseDelay { return 1.5 }
+                if $0 == DefaultsKey.notchRememberLastPageFor { return 420.0 }
                 return nil
             }
             let data = try? JSONSerialization.data(withJSONObject: payload)
@@ -504,11 +561,13 @@ enum NotchDestinationContract {
             let restored = decoded.flatMap { SettingsBackupSupport.sanitizedSettings(from: $0) }
             suite.expect(restored?[DefaultsKey.notchReturnHome] as? Bool == returnHome
                    && restored?[DefaultsKey.notchHomeModule] as? String == NotchModule.music.rawValue
+                   && restored?[DefaultsKey.notchExpiredLastPageModule] as? String == NotchModule.calendar.rawValue
                    && restored?[DefaultsKey.notchOpensActivity] as? Bool == false
                    && restored?[DefaultsKey.notchHoverDelay] as? Double == 0.65
                    && restored?[DefaultsKey.notchCloseDelay] as? Double == 1.5
+                   && restored?[DefaultsKey.notchRememberLastPageFor] as? Double == 420
                    && restored?[DefaultsKey.notchHideUntilHover] as? Bool == true,
-                   "the opening behavior, selected page, activity choice and hover timings survive backup and restore")
+                   "the opening behavior, selected page, activity choice and timing preferences survive backup and restore")
 
             let service = Service()
             service.open(.files)
@@ -530,6 +589,76 @@ enum NotchDestinationContract {
             defaults.set("", forKey: DefaultsKey.notchHiddenModules)
             defaults.set("", forKey: DefaultsKey.notchModuleOrder)
         }
+
+        defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+        defaults.set(NotchSupport.defaultLastPageWindow, forKey: DefaultsKey.notchRememberLastPageFor)
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("", forKey: DefaultsKey.notchModuleOrder)
+        let recent = Service()
+        recent.open(.files)
+        defaults.set(Date.now.addingTimeInterval(-60), forKey: DefaultsKey.notchLastPageClosedAt)
+        recent.expanded = false
+        recent.open()
+        suite.expect(recent.selected == .files, "a recent close reopens the last selected page")
+
+        let expired = Service()
+        expired.open(.files)
+        defaults.set(Date.now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+                     forKey: DefaultsKey.notchLastPageClosedAt)
+        expired.expanded = false
+        expired.open()
+        suite.expect(expired.selected == .controls, "an expired last-page window reopens on Controls")
+
+        defaults.set(NotchModule.music.rawValue, forKey: DefaultsKey.notchExpiredLastPageModule)
+        let selectedExpired = Service()
+        selectedExpired.open(.files)
+        defaults.set(Date.now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+                     forKey: DefaultsKey.notchLastPageClosedAt)
+        selectedExpired.expanded = false
+        selectedExpired.open()
+        suite.expect(selectedExpired.selected == .music,
+                     "an expired last-page window reopens on the chosen fallback page")
+        defaults.set(NotchModule.controls.rawValue, forKey: DefaultsKey.notchExpiredLastPageModule)
+
+        defaults.set("controls", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("music,files", forKey: DefaultsKey.notchModuleOrder)
+        let hiddenControls = Service()
+        hiddenControls.open(.files)
+        defaults.set(Date.now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+                     forKey: DefaultsKey.notchLastPageClosedAt)
+        hiddenControls.expanded = false
+        hiddenControls.open()
+        suite.expect(hiddenControls.selected == .music,
+               "an expired window falls back to the first available page when Controls is hidden")
+
+        defaults.set(true, forKey: DefaultsKey.notchReturnHome)
+        defaults.set(NotchModule.music.rawValue, forKey: DefaultsKey.notchHomeModule)
+        let fixedDestination = Service()
+        fixedDestination.open(.files)
+        fixedDestination.compactActivity = .timer
+        defaults.set(Date.now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+                     forKey: DefaultsKey.notchLastPageClosedAt)
+        fixedDestination.expanded = false
+        fixedDestination.open()
+        suite.expect(fixedDestination.selected == .music,
+               "a user-selected fixed reopening page takes priority over an activity and the time window")
+
+        defaults.set(false, forKey: DefaultsKey.notchReturnHome)
+        defaults.set(true, forKey: DefaultsKey.notchOpensActivity)
+        let active = Service()
+        active.open(.files)
+        active.compactActivity = .timer
+        defaults.set(Date.now.addingTimeInterval(-NotchSupport.defaultLastPageWindow - 1),
+                     forKey: DefaultsKey.notchLastPageClosedAt)
+        active.expanded = false
+        active.open()
+        suite.expect(active.selected == .timer,
+               "a visible activity still takes precedence over an expired last-page window")
+
+        defaults.removeObject(forKey: DefaultsKey.notchLastPageClosedAt)
+        defaults.set("", forKey: DefaultsKey.notchHiddenModules)
+        defaults.set("", forKey: DefaultsKey.notchModuleOrder)
+        defaults.set(NotchSupport.defaultLastPageWindow, forKey: DefaultsKey.notchRememberLastPageFor)
         defaults.set(true, forKey: DefaultsKey.notchReturnHome)
         for page in NotchSupport.modules(in: defaults) {
             defaults.set(page.rawValue, forKey: DefaultsKey.notchHomeModule)
@@ -549,6 +678,7 @@ enum NotchDestinationContract {
             defaults.set(destination.rawValue, forKey: DefaultsKey.notchHomeModule)
             let service = Service()
             service.open(.files)
+            let pageBeforeExplore = service.selected
             service.expanded = false
             let focusRequests = MenuPanelFocus.shared.normalRequests
             service.open()
@@ -556,7 +686,7 @@ enum NotchDestinationContract {
                    && service.showingSections == (destination == .explore),
                    "reopening shows the selected app panel or Explore destination")
             if destination == .explore {
-                suite.expect(service.highlightedSection == .files && service.sectionQuery.isEmpty,
+                suite.expect(service.highlightedSection == pageBeforeExplore && service.sectionQuery.isEmpty,
                        "reopening Explore highlights its current page for keyboard navigation")
             }
             suite.expect(MenuPanelFocus.shared.normalRequests - focusRequests == (destination == .appPanel ? 1 : 0),
@@ -566,11 +696,14 @@ enum NotchDestinationContract {
             suite.expect(service.selected == .music && !service.showingAppPanel && !service.showingSections,
                    "explicit page navigation wins over a saved app panel or Explore destination")
 
+            let currentPage = service.selected
             service.expanded = false
             service.compactActivity = .timer
             service.open()
-            suite.expect(service.selected == .timer && !service.showingAppPanel && !service.showingSections,
-                   "a visible activity wins over a saved app panel or Explore destination")
+            suite.expect(service.selected == (destination == .appPanel ? .controls : currentPage)
+                   && service.showingAppPanel == (destination == .appPanel)
+                   && service.showingSections == (destination == .explore),
+                   "the saved \(destination.rawValue) destination wins over an activity")
 
             defaults.set(false, forKey: DefaultsKey.notchOpensActivity)
             service.expanded = false
@@ -647,8 +780,7 @@ enum NotchDestinationContract {
         }
     }
 
-    /// What the closed island is already showing is what opening it shows,
-    /// unless the user turned that off for activities.
+    /// Visible activity and notification routes respect the reopening preference.
     private static func activityContracts(defaults: UserDefaults, expect: (Bool, String) -> Void) {
         let banner = NotchNotice(event: .systemNotification, title: "Alex", detail: "Hello", symbol: "bell.fill",
                                  notification: NotchNotificationContent(app: "Chat", title: "Alex", subtitle: "", body: "Hello"),
@@ -663,12 +795,17 @@ enum NotchDestinationContract {
                 service.open(.files)
                 service.expanded = false
                 service.compactActivity = activity
-                expect(service.reopeningModule == activity.module, "a visible activity is what a peek names before opening")
+                let fixedPage = returnHome ? .controls : activity.module
+                expect(service.reopeningModule == fixedPage,
+                       returnHome ? "a fixed reopening page is what a peek names over \(activity)"
+                                  : "a visible activity is what a peek names before opening")
                 service.open()
-                expect(service.selected == activity.module,
-                       "hovering or clicking an island that shows \(activity) opens that activity, not the reopening page")
+                expect(service.selected == fixedPage,
+                       returnHome ? "opening over \(activity) follows the fixed reopening page"
+                                  : "opening an island that shows \(activity) opens its activity page")
                 service.open()
-                expect(service.selected == activity.module, "an already open island stays on the activity's page")
+                expect(service.selected == fixedPage,
+                       "an already open island stays on the page selected by its reopening preference")
                 service.open(.files)
                 expect(service.selected == .files, "an explicit page still wins over the visible activity")
                 service.expanded = false

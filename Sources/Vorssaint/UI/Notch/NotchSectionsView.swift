@@ -12,6 +12,7 @@ import SwiftUI
 struct NotchSectionsView: View {
     @ObservedObject var service: NotchService
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchCustomShortcuts) private var customShortcutsData = Data()
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchStrings { FeatureStrings.notch(l10n.language) }
@@ -19,11 +20,15 @@ struct NotchSectionsView: View {
     private static let pitch = NotchLayout.sectionTileHeight + NotchLayout.sectionSpacing
 
     var body: some View {
+        let shortcuts = NotchCustomShortcutSupport.stored()
         Group {
-            if sections.isEmpty {
+            if sections.isEmpty && shortcuts.isEmpty {
                 NotchEmptyView(symbol: "magnifyingglass", message: FeatureStrings.clipboard(l10n.language).noResults)
             } else {
-                gallery
+                VStack(alignment: .leading, spacing: 10) {
+                    if !sections.isEmpty { gallery }
+                    if !shortcuts.isEmpty { shortcutRail(shortcuts) }
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -32,6 +37,30 @@ struct NotchSectionsView: View {
                 service.highlightedSection = visible.first
             }
         }
+    }
+
+    private func shortcutRail(_ shortcuts: [NotchCustomShortcut]) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                ForEach(shortcuts) { shortcut in
+                    Button {
+                        service.perform { NotchCustomShortcutSupport.run(shortcut) }
+                    } label: {
+                        Label(shortcut.name, systemImage: shortcut.symbol)
+                            .font(.system(size: 12, weight: .medium))
+                            .lineLimit(1)
+                            .padding(.horizontal, 12)
+                            .frame(height: 38)
+                            .background(.white.opacity(0.06), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help(shortcut.name)
+                    .accessibilityIdentifier("notch.explore.shortcut.\(shortcut.id.uuidString)")
+                }
+            }
+        }
+        .scrollIndicators(.never)
+        .accessibilityLabel(NotchCustomShortcutStrings.localized(l10n.language).title)
     }
 
     private var gallery: some View {

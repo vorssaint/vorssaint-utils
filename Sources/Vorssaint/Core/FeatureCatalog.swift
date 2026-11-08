@@ -50,7 +50,7 @@ enum FeatureGroup: String, CaseIterable {
 /// System permissions surfaced by the hub's transparency portal.
 enum AppPermission: String, CaseIterable {
     case accessibility, screenRecording, fullDiskAccess, filesAndFolders, notifications,
-         automationFinder, automationPlayback, audioCapture, microphone, camera, appManagement, calendar
+         automationFinder, automationPlayback, audioCapture, microphone, camera, appManagement, calendar, focusStatus
 }
 
 enum PermissionPollingSupport {
@@ -388,7 +388,7 @@ extension AppFeature {
         case .notchWatch: return [.screenRecording, .notifications]
         case .notchNotifications: return [.accessibility]
         case .notchCalendar: return [.calendar]
-        case .notch: return [.accessibility, .automationPlayback]
+        case .notch: return [.accessibility, .automationPlayback, .focusStatus]
         case .mouseAcceleration, .spacesOrder:
             return []
         case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
@@ -576,6 +576,10 @@ extension AppFeature {
                     || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
                         && boolFor(DefaultsKey.brightnessControlEnabled))
                     || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
+            case (.notch, .focusStatus):
+                return NotchSupport.decodeIdleContentOrder(
+                    stringFor(DefaultsKey.notchIdleContentOrder),
+                    legacyRaw: stringFor(DefaultsKey.notchIdleContent)).contains(.focus)
             case (.radialMenu, .accessibility):
                 if let profiles = dataFor(DefaultsKey.radialMenuProfiles) {
                     return RadialMenuSupport.needsAccessibility(RadialMenuSupport.decodeProfiles(profiles))
@@ -673,6 +677,7 @@ extension AppPermission {
         case .calendar: return "calendar"
         case .camera: return "camera"
         case .appManagement: return "app.badge"
+        case .focusStatus: return "moon.fill"
         }
     }
 }

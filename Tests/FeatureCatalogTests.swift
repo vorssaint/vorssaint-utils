@@ -718,7 +718,7 @@ enum FeatureCatalogTests {
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationPlayback", "audioCapture", "microphone", "camera",
-            "appManagement", "calendar",
+            "appManagement", "calendar", "focusStatus",
         ], "permission portal contains every supported permission")
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",

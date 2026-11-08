@@ -16,10 +16,12 @@ struct NotchScratchpadView: View {
     @ObservedObject private var pad = ScratchpadService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchBand) private var band
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var loadFailed = false
     @State private var copied = false
     @State private var hoveredPadID: UUID?
     @State private var editor = EditorHandle()
+    @State private var tearOffTranslation = CGSize.zero
     @AppStorage(DefaultsKey.scratchpadTextSize) private var storedTextSize = ScratchpadSupport.defaultTextSize
     private var text: ScratchpadFeatureStrings { FeatureStrings.scratchpad(l10n.language) }
     private var textSize: CGFloat { CGFloat(ScratchpadSupport.sanitizedTextSize(storedTextSize)) }
@@ -87,6 +89,9 @@ struct NotchScratchpadView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .offset(ScratchpadTransferSupport.resistedOffset(for: tearOffTranslation))
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.62),
+                   value: tearOffTranslation)
         .notchBand(leading: {
             if !loadFailed { padControls }
         }, trailing: {
@@ -179,6 +184,10 @@ struct NotchScratchpadView: View {
 
     private var noteActions: some View {
         HStack(spacing: 6) {
+            NotchScratchpadTearOffHandle(title: text.moveToWindow, translation: $tearOffTranslation,
+                                         onThreshold: service.provideHapticFeedback) {
+                service.perform { pad.show(allowsIsland: false) }
+            }
             NotchIconButton(symbol: "textformat",
                             title: text.formatMarks,
                             selected: pad.marksExpanded) {
@@ -194,6 +203,53 @@ struct NotchScratchpadView: View {
                 copied = true
             }
             .disabled(pad.text.isEmpty)
+        }
+    }
+
+    private struct NotchScratchpadTearOffHandle: View {
+        let title: String
+        @Binding var translation: CGSize
+        let onThreshold: () -> Void
+        let action: () -> Void
+
+        @State private var isDragging = false
+        @State private var thresholdWasReached = false
+
+        var body: some View {
+            Image(systemName: "arrow.down.to.line")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 28, height: 28)
+                .background(.white.opacity(0), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            guard hypot(value.translation.width, value.translation.height) > 4 else { return }
+                            isDragging = true
+                            translation = value.translation
+                            if ScratchpadTransferSupport.shouldTearOff(translation: value.translation),
+                               !thresholdWasReached {
+                                thresholdWasReached = true
+                                onThreshold()
+                            }
+                        }
+                        .onEnded { value in
+                            let tearOff = ScratchpadTransferSupport.shouldTearOff(translation: value.translation)
+                            let wasTap = !isDragging
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.62)) {
+                                translation = .zero
+                                isDragging = false
+                                thresholdWasReached = false
+                            }
+                            if tearOff || wasTap { action() }
+                        }
+                )
+                .help(title)
+                .accessibilityLabel(title)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { action() }
+                .accessibilityIdentifier("scratchpad.tear-off")
         }
     }
 

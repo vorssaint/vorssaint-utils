@@ -21,6 +21,7 @@ final class NotchLockScreenModel: ObservableObject {
     /// sleeping and waking, and cleared once it unlocks.
     @Published var playedWhileLocked = false
     @Published var padlockOpen = false
+    @Published var islandCollapseProgress: CGFloat = 0
 
     func showsMusic(_ playback: NotchPlayback?) -> Bool {
         gates.music && playback.map {
@@ -47,19 +48,19 @@ struct NotchLockScreenIsland: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        let wing = max(0, (size.width - cameraWidth) / 2)
+        let islandWidth = NotchLockScreenLayout.islandWidth(
+            cameraWidth: cameraWidth, expandedWidth: size.width, collapseProgress: model.islandCollapseProgress)
+        let wing = max(0, (islandWidth - cameraWidth) / 2)
         let padlockSide = min(geometry.compactMusicArtworkSide, wing)
         let playing = model.showsMusic(music.playback) && music.playback?.isPlaying == true
         NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height))
             .fill(.black)
             .overlay {
                 HStack(spacing: 0) {
-                    Image(systemName: model.padlockOpen ? "lock.open.fill" : "lock.fill")
-                        .font(.system(size: min(13, size.height * 0.42), weight: .semibold))
-                        .foregroundStyle(.white)
-                        .contentTransition(.symbolEffect(.replace))
-                        .symbolEffect(.bounce, options: .speed(1.4), value: reduceMotion ? false : model.padlockOpen)
-                        .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: model.padlockOpen)
+                    NotchLockScreenPadlock(openProgress: model.padlockOpen ? 1 : 0)
+                        .animation(reduceMotion ? nil : .spring(response: NotchLockScreenSupport.padlockTransitionDuration,
+                                                                dampingFraction: 0.78),
+                                   value: model.padlockOpen)
                         .frame(width: padlockSide, height: padlockSide)
                         .padding(.leading, max(0, min(geometry.compactMusicArtworkInset, wing - padlockSide)))
                         .frame(width: wing, height: size.height, alignment: .leading)
@@ -73,11 +74,41 @@ struct NotchLockScreenIsland: View {
                         .frame(width: wing, height: size.height, alignment: .trailing)
                 }
             }
+            .frame(width: islandWidth, height: size.height)
+            .clipShape(NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height)))
             .frame(width: size.width, height: size.height)
+            .animation(reduceMotion ? nil : .spring(response: NotchLockScreenSupport.islandCollapseDuration,
+                                                    dampingFraction: 0.86),
+                       value: model.islandCollapseProgress)
             .padding(.leading, origin.x)
             .padding(.top, origin.y)
             .frame(width: window?.width ?? size.width, height: window?.height ?? size.height, alignment: .topLeading)
             .accessibilityHidden(true)
+    }
+}
+
+/// Draws one padlock and morphs its shackle in place instead of replacing the
+/// locked symbol with a different image.
+private struct NotchLockScreenPadlock: View {
+    let openProgress: CGFloat
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+            let image = Image(systemName: openProgress >= 0.5 ? "lock.open.fill" : "lock.fill")
+                .resizable()
+                .scaledToFit()
+                .frame(width: size.width * 0.62, height: size.height * 0.62)
+                .foregroundStyle(.white)
+            Group {
+                if #available(macOS 15.0, *) {
+                    image.contentTransition(.symbolEffect(.replace.magic(fallback: .replace)))
+                } else {
+                    image.contentTransition(.symbolEffect(.replace))
+                }
+            }
+                .frame(width: size.width, height: size.height)
+        }
     }
 }
 

@@ -109,7 +109,13 @@ final class CameraPreviewService: ObservableObject {
     func show() {
         guard AppFeature.cameraPreview.isAvailable, SessionActivity.shared.isActive else { return }
         if showInNotchIfEnabled() { return }
-        guard !isVisible else { return }
+        showStandalone()
+    }
+
+    @discardableResult
+    func showStandalone() -> Bool {
+        guard AppFeature.cameraPreview.isAvailable, SessionActivity.shared.isActive else { return false }
+        guard !isVisible else { return true }
         hideEmbedded()
         let panel = ensurePanel()
         installMonitors(for: panel)
@@ -122,6 +128,7 @@ final class CameraPreviewService: ObservableObject {
             panel.animator().alphaValue = 1
         }
         beginCapture()
+        return panel.isVisible
     }
 
     @discardableResult

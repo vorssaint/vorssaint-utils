@@ -844,6 +844,8 @@ enum DefaultsKey {
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchAgentsOptInMigrated = "notchAgentsOptInMigrated" // local migration marker; never backed up
     static let notchIdleContent = "notchIdleContent"
+    static let notchIdleContentOrder = "notchIdleContentOrder"
+    static let notchAlwaysReopenLastPage = "notchAlwaysReopenLastPage"
     static let notchHiddenControls = "notchHiddenControls"
     // Travels with the controls so old backups migrate and later choices survive.
     static let notchScratchpadControlHidden = "notchScratchpadControlHidden"
@@ -854,6 +856,7 @@ enum DefaultsKey {
     static let notchHideMenuBarGap = "notchHideMenuBarGap"
     static let notchCustomWidth = "notchCustomWidth"
     static let notchCustomHeight = "notchCustomHeight"
+    static let notchPageHeights = "notchPageHeights"
     // Fits the island to one Mac's camera housing; never backed up.
     static let notchCameraFitWidth = "notchCameraFitWidth"
     static let notchCameraFitHeight = "notchCameraFitHeight"
@@ -950,7 +953,10 @@ enum DefaultsKey {
     static let notchCloseDelay = "notchCloseDelay"
     static let notchReturnHome = "notchReturnHome"
     static let notchHomeModule = "notchHomeModule"
+    static let notchExpiredLastPageModule = "notchExpiredLastPageModule"
     static let notchOpensActivity = "notchOpensActivity"
+    static let notchRememberLastPageFor = "notchRememberLastPageFor"
+    static let notchLastPageClosedAt = "notchLastPageClosedAt"
     static let trashSuggestionPresentation = "trashSuggestionPresentation"
     static let notchHiddenModules = "notchHiddenModules"
     static let notchModuleOrder = "notchModuleOrder"
@@ -958,6 +964,7 @@ enum DefaultsKey {
     static let notchQuickAccessSide = "notchQuickAccessSide"
     static let notchQuickAccessSecond = "notchQuickAccessSecond"
     static let notchQuickAccessThird = "notchQuickAccessThird"
+    static let notchCustomShortcuts = "notchCustomShortcuts"
     static let notchVolume = "notchVolume"
     static let notchInputSource = "notchInputSource"
     static let notchMicrophone = "notchMicrophone"
@@ -983,7 +990,8 @@ enum DefaultsKey {
     static let notchMascotSide = "notchMascotSide" // NotchMascotSide.rawValue, beside the camera
     static let notchMascotVisitFrequency = "notchMascotVisitFrequency" // NotchMascotVisitFrequency.rawValue
     static let notchMascotHidesWhenIdle = "notchMascotHidesWhenIdle" // hops into the island after a quiet while
-    static let notchCommandBar = "notchCommandBar" // the Command Bar comes out of the island
+    static let notchCommandBar = "notchCommandBar" // legacy companion-page Command Bar toggle
+    static let notchCommandBarFromIsland = "notchCommandBarFromIsland" // the Command Bar opens from the island, independently of the companion
     static let notchCommandBarStyle = "notchCommandBarStyle" // NotchCommandBarStyle.rawValue
     // Legacy inverse preference; the explicit visibility switch supersedes it.
     static let notchHideInCaptures = "notchHideInCaptures"
@@ -1461,6 +1469,8 @@ enum Defaults {
         DefaultsKey.notchMusicShowVolume: false,
         DefaultsKey.notchPreferredPlayer: "",
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
+        DefaultsKey.notchIdleContentOrder: "",
+        DefaultsKey.notchAlwaysReopenLastPage: false,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
         DefaultsKey.notchKeyboardLightControlHidden: false,
@@ -1470,6 +1480,7 @@ enum Defaults {
         DefaultsKey.notchHideMenuBarGap: false,
         DefaultsKey.notchCustomWidth: NotchSize.defaultWidth,
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
+        DefaultsKey.notchPageHeights: [String: Double](),
         DefaultsKey.notchCameraFitWidth: 0.0,
         DefaultsKey.notchCameraFitHeight: 0.0,
         DefaultsKey.notchHapticFeedback: true,
@@ -1557,11 +1568,14 @@ enum Defaults {
         DefaultsKey.notchCloseDelay: NotchSupport.defaultCloseDelay,
         DefaultsKey.notchReturnHome: false,
         DefaultsKey.notchHomeModule: NotchModule.controls.rawValue,
+        DefaultsKey.notchExpiredLastPageModule: NotchModule.controls.rawValue,
         DefaultsKey.notchOpensActivity: true,
+        DefaultsKey.notchRememberLastPageFor: NotchSupport.defaultLastPageWindow,
         DefaultsKey.trashSuggestionPresentation: TrashSuggestionPresentation.notch.rawValue,
         DefaultsKey.notchHiddenModules: "",
         DefaultsKey.notchModuleOrder: "",
         DefaultsKey.notchQuickAccessLayout: Data(),
+        DefaultsKey.notchCustomShortcuts: Data(),
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,
         DefaultsKey.notchMicrophone: true,
@@ -1586,7 +1600,8 @@ enum Defaults {
         DefaultsKey.notchMascotVisitFrequency: NotchMascotVisitFrequency.normal.rawValue,
         DefaultsKey.notchMascotHidesWhenIdle: true,
         DefaultsKey.notchCommandBar: true,
-        DefaultsKey.notchCommandBarStyle: NotchCommandBarStyle.droplet.rawValue,
+        DefaultsKey.notchCommandBarFromIsland: true,
+        DefaultsKey.notchCommandBarStyle: NotchCommandBarStyle.island.rawValue,
         DefaultsKey.notchHideInCaptures: false,
         DefaultsKey.panelControlNotch: true,
         DefaultsKey.radialMenuEnabled: false,

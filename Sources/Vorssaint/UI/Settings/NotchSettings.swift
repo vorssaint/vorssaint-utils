@@ -51,7 +51,10 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchCloseDelay) private var closeDelay = NotchSupport.defaultCloseDelay
     @AppStorage(DefaultsKey.notchReturnHome) private var returnHome = false
     @AppStorage(DefaultsKey.notchHomeModule) private var homeModule = NotchModule.controls.rawValue
+    @AppStorage(DefaultsKey.notchExpiredLastPageModule) private var expiredLastPageModule = NotchModule.controls.rawValue
     @AppStorage(DefaultsKey.notchOpensActivity) private var opensActivity = true
+    @AppStorage(DefaultsKey.notchRememberLastPageFor) private var lastPageWindow = NotchSupport.defaultLastPageWindow
+    @AppStorage(DefaultsKey.notchAlwaysReopenLastPage) private var alwaysReopenLastPage = false
     @AppStorage(DefaultsKey.notchHiddenModules) private var hidden = ""
     @AppStorage(DefaultsKey.notchModuleOrder) private var order = ""
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
@@ -70,6 +73,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var musicShowVolume = false
     @AppStorage(DefaultsKey.notchPreferredPlayer) private var preferredPlayer = NotchPreferredPlayer.automatic
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
+    @AppStorage(DefaultsKey.notchIdleContentOrder) private var idleOrderRaw = ""
     @AppStorage(DefaultsKey.notchLowBatteryTint) private var lowBatteryTint = false
     @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
     @AppStorage(DefaultsKey.notchLowBatteryEarly) private var earlyBatteryWarning = false
@@ -105,6 +109,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
+    @AppStorage(DefaultsKey.notchCustomShortcuts) private var customShortcutsData = Data()
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
     @State private var draggingModule: NotchModule?
@@ -120,7 +125,8 @@ struct NotchSettings: View {
          String(calendarTimeLeft),
          String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled),
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
-         String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
+         String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder,
+         customShortcutsData.base64EncodedString(), size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
@@ -148,15 +154,6 @@ struct NotchSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            HStack(alignment: .center) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(text.title).font(.title2.bold())
-                    Text(text.description).font(.callout).foregroundStyle(.secondary)
-                }
-                Spacer(minLength: 12)
-                Toggle(text.enable, isOn: $enabled).labelsHidden().toggleStyle(.switch)
-                    .disabled(!AppFeature.notch.isAvailable).accessibilityLabel(text.enable)
-            }
             if enabled, AppFeature.notch.isAvailable, !(hover && hideUntilHover && !hiddenShowsActivity), !notch.geometry.isNotched, !permissions.accessibility {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(text.menuBarAccessHint)
@@ -165,8 +162,8 @@ struct NotchSettings: View {
                     PermissionRow(kind: .accessibility)
                 }
             }
-            NotchSettingsTabRow(tab: $tab, language: l10n.language, showsCompanion: features.isAvailable(.notchMascot),
-                                canOpen: enabled) { NotchService.shared.open() }
+            NotchSettingsTabRow(tab: $tab, language: l10n.language,
+                                showsCompanion: features.isAvailable(.notchMascot))
             if tab == .content {
                 GeometryReader { proxy in contentEditor(in: proxy.size) }
             } else if tab == .companion {
@@ -424,6 +421,8 @@ struct NotchSettings: View {
                 }
             }
             Divider()
+            NotchCustomShortcutsSettings()
+            Divider()
             let activities = FeatureStrings.notchActivities(l10n.language)
             SettingsFeatureSwitchRow(symbol: NotchControlItem.keepAwake.symbol, title: activities.keepAwakeActivity,
                                      caption: activities.keepAwakeActivityHint, isOn: $keepAwakeActivity, feature: .keepAwake)
@@ -571,8 +570,10 @@ struct NotchSettings: View {
                         idleChoice(.agents, title: FeatureStrings.notchAgents(l10n.language).restingTitle, symbol: "sparkles",
                                    reason: pageReason(.agents, feature: .notchAgents), fix: pageAction(.agents, feature: .notchAgents))
                     }
+                    idleChoice(.focus, title: NotchIdleContent.focus.title(l10n.language),
+                               symbol: NotchIdleContent.focus.symbol)
                 }
-                if restingChoice == .battery { lowBatteryControls }
+                if idleOrder.contains(.battery) { lowBatteryControls }
                 switchRow("menubar.rectangle", text.coverMenus, caption: text.coverMenusHint, isOn: $coversMenus)
             }
             SettingsCard(title: editor.feedback) {
@@ -708,6 +709,12 @@ struct NotchSettings: View {
                     .pickerStyle(.menu)
                     .labelsHidden()
                 }
+                if !returnHome {
+                    switchRow("arrow.uturn.backward", editor.alwaysReopenLastPage,
+                             isOn: $alwaysReopenLastPage)
+                    lastPageWindowControl
+                        .padding(.leading, settingsRowTextInset)
+                }
                 switchRow("livephoto", editor.openActivity, caption: editor.openActivityHint, isOn: $opensActivity)
             }
             SettingsCard(title: text.display) {
@@ -738,13 +745,6 @@ struct NotchSettings: View {
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
                 destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
-                destination(l10n.s.uninstallerName, symbol: "trash", value: Binding(
-                    get: { TrashSuggestionPresentation.current == .notch },
-                    set: { UserDefaults.standard.set(
-                        $0 ? TrashSuggestionPresentation.notch.rawValue : TrashSuggestionPresentation.window.rawValue,
-                        forKey: DefaultsKey.trashSuggestionPresentation
-                    ) }
-                ))
             }
             SettingsCard(title: editor.privacy) {
                 switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
@@ -787,7 +787,7 @@ struct NotchSettings: View {
                 Spacer()
                 Text(formatted).monospacedDigit().foregroundStyle(.secondary)
             }
-            Slider(value: slider, in: Double(range.lowerBound)...Double(range.upperBound), step: 1) {
+            Slider(value: slider, in: Double(range.lowerBound)...Double(range.upperBound)) {
                 Text(title)
             }.labelsHidden().accessibilityValue(formatted)
         }.padding(.leading, settingsRowTextInset)
@@ -803,9 +803,41 @@ struct NotchSettings: View {
                      range: NotchSupport.closeDelayRange, sanitize: NotchSupport.sanitizedCloseDelay)
     }
 
+    private var lastPageWindowControl: some View {
+        let value = Binding(get: { NotchSupport.sanitizedLastPageWindow(lastPageWindow) },
+                            set: { lastPageWindow = NotchSupport.sanitizedLastPageWindow($0) })
+        let formatted = NotchSupport.lastPageWindowText(value.wrappedValue)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(editor.rememberLastPageFor)
+                Spacer()
+                Text(formatted).monospacedDigit().foregroundStyle(.secondary)
+            }
+            Slider(value: value, in: NotchSupport.lastPageWindowRange) {
+                Text(editor.rememberLastPageFor)
+            }.labelsHidden().accessibilityValue(formatted)
+            Text(editor.rememberLastPageHint).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Picker(editor.afterLastPageExpires, selection: $expiredLastPageModule) {
+                ForEach(NotchSupport.modules()) { module in
+                    Text(module.title(l10n.language)).tag(module.rawValue)
+                }
+                if let saved = NotchModule(rawValue: expiredLastPageModule),
+                   !NotchSupport.modules().contains(saved) {
+                    Text(saved.title(l10n.language)).tag(expiredLastPageModule).disabled(true)
+                }
+            }
+            .pickerStyle(.menu)
+            .accessibilityLabel(editor.afterLastPageExpires)
+        }
+    }
+
     private func delayControl(_ title: String, hint: String, value stored: Binding<Double>,
                               range: ClosedRange<Double>, sanitize: @escaping (Double) -> Double) -> some View {
-        let value = Binding(get: { sanitize(stored.wrappedValue) }, set: { stored.wrappedValue = sanitize($0) })
+        let value = Binding(get: { sanitize(stored.wrappedValue) }, set: {
+            stored.wrappedValue = NotchSupport.steppedDelay(sanitize($0), in: range, step: 0.05,
+                                                              fallback: sanitize(stored.wrappedValue))
+        })
         let formatted = String(format: editor.activationTimeFormat, locale: Locale(identifier: l10n.language.rawValue), value.wrappedValue)
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -813,7 +845,7 @@ struct NotchSettings: View {
                 Spacer()
                 Text(formatted).monospacedDigit().foregroundStyle(.secondary)
             }
-            Slider(value: value, in: range, step: 0.05) {
+            Slider(value: value, in: range) {
                 Text(title)
             }.labelsHidden().accessibilityValue(formatted)
             Text(hint).font(.caption).foregroundStyle(.secondary)
@@ -935,8 +967,12 @@ struct NotchSettings: View {
     /// what it would rest with. A saved battery reading on a Mac without a
     /// battery rests with nothing.
     private var restingChoice: NotchIdleContent {
-        let choice = NotchSupport.idleContent()
+        let choice = idleOrder.first ?? .none
         return choice == .battery && !PowerSampler.hasInternalBattery ? .none : choice
+    }
+
+    private var idleOrder: [NotchIdleContent] {
+        NotchSupport.decodeIdleContentOrder(idleOrderRaw, legacyRaw: idle)
     }
 
     private var restsWithMascot: Bool {
@@ -965,9 +1001,18 @@ struct NotchSettings: View {
     private func idleChoice(_ item: NotchIdleContent, title: String, symbol: String,
                             reason: String? = nil, fix: @escaping () -> Void = {}) -> some View {
         let waits = reason != nil && !NotchSupport.canRest(with: item)
-        let marked = restingChoice == item || (waits && idle == item.rawValue)
+        let rank = idleOrder.firstIndex(of: item)
+        let marked = rank != nil || (waits && idle == item.rawValue)
         return VStack(spacing: 6) {
-            Button { idle = item.rawValue } label: {
+            Button {
+                let updated = NotchSupport.toggledIdleContent(item, in: idleOrder)
+                idleOrderRaw = NotchSupport.encodedIdleContentOrder(updated)
+                idle = updated.first?.rawValue ?? NotchIdleContent.none.rawValue
+                NotchIdleStatusService.shared.synchronize(focusSelected: updated.contains(.focus))
+                if item == .focus, updated.contains(.focus) {
+                    NotchIdleStatusService.shared.requestFocusAuthorization()
+                }
+            } label: {
                 VStack(spacing: 14) {
                     HStack(spacing: 14) {
                         if item == .none, restsWithMascot {
@@ -988,6 +1033,42 @@ struct NotchSettings: View {
                 // under it says why.
                 .accessibilityValue(waits && idle == item.rawValue ? editor.hiddenInIsland : "")
                 .opacity(waits ? 0.45 : 1)
+            if let rank {
+                HStack(spacing: 6) {
+                    Text("\(rank + 1)")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    Button {
+                        let updated = NotchSupport.movingIdleContent(item, by: -1, in: idleOrder)
+                        idleOrderRaw = NotchSupport.encodedIdleContentOrder(updated)
+                        idle = updated.first?.rawValue ?? NotchIdleContent.none.rawValue
+                    } label: {
+                        Image(systemName: "arrow.up")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(rank == 0)
+                    .help("Move up in priority")
+                    .accessibilityLabel("Move \(title) up in priority")
+                    Button {
+                        let updated = NotchSupport.movingIdleContent(item, by: 1, in: idleOrder)
+                        idleOrderRaw = NotchSupport.encodedIdleContentOrder(updated)
+                        idle = updated.first?.rawValue ?? NotchIdleContent.none.rawValue
+                    } label: {
+                        Image(systemName: "arrow.down")
+                    }
+                    .buttonStyle(.borderless)
+                    .disabled(rank == idleOrder.count - 1)
+                    .help("Move down in priority")
+                    .accessibilityLabel("Move \(title) down in priority")
+                }
+            }
+            if item == .focus, NotchIdleStatusService.shared.status.authorization != .authorized {
+                Button("Allow Focus access") {
+                    NotchIdleStatusService.shared.requestFocusAuthorization()
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+            }
             if waits, let reason {
                 Button(reason, action: fix)
                     .buttonStyle(.plain)

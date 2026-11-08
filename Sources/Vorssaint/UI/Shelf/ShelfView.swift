@@ -16,6 +16,7 @@ struct ShelfView: View {
     /// The docked shelf shows the brand mark as a quiet watermark, so it reads
     /// as the app's own tray rather than a plain floating card.
     var brandWatermark: Bool = false
+    var showsMoveToIsland = false
 
     @EnvironmentObject private var shelf: ShelfService
     @ObservedObject private var l10n = L10n.shared
@@ -100,15 +101,24 @@ struct ShelfView: View {
                 Spacer(minLength: 0)
             }
             .contentShape(Rectangle())
-            .overlay(WindowMoveHandle())
+            .overlay(WindowMoveHandle(onDragEnded: { point in
+                if showsMoveToIsland {
+                    NotchService.shared.dockContentIfDropped(.files, at: point)
+                }
+            }, tracksShelfInteraction: true))
 
             if !brandWatermark { pinButton }
+            if showsMoveToIsland { MoveContentToIslandButton(content: .files) }
             closeButton
         }
     }
 
     private var topMoveHandle: some View {
-        WindowMoveHandle(acceptsDrops: true)
+        WindowMoveHandle(acceptsDrops: true, onDragEnded: { point in
+            if showsMoveToIsland {
+                NotchService.shared.dockContentIfDropped(.files, at: point)
+            }
+        }, tracksShelfInteraction: true)
             .frame(width: Self.panelWidth - (brandWatermark ? 58 : 96), height: 55)
     }
 
@@ -256,7 +266,7 @@ struct ShelfView: View {
                         .lineLimit(2)
                 }
             )
-            .overlay(WindowMoveHandle(acceptsDrops: true))
+            .overlay(WindowMoveHandle(acceptsDrops: true, tracksShelfInteraction: true))
     }
 
     private func shareAction() {

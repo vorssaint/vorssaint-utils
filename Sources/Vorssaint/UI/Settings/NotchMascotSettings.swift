@@ -5,12 +5,12 @@ import SwiftUI
 
 /// The companion's own page. It lives at the top in a slice of the island,
 /// bigger than life, and acts out what it does on request; below are how it
-/// looks, how it behaves and whether the Command Bar comes out with it.
+/// looks and how it behaves.
 struct NotchMascotSettings: View {
     /// Shown as a tab of the Dynamic Island page, which keeps its own margins.
     var embedded = false
     @ObservedObject private var l10n = L10n.shared
-    /// Redraws when the island or the Command Bar is installed or removed.
+    /// Redraws when the island is installed or removed.
     @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.notchEnabled) private var islandEnabled = false
     @AppStorage(DefaultsKey.notchSilhouette) private var silhouette = NotchSilhouette.capsule.rawValue
@@ -23,8 +23,6 @@ struct NotchMascotSettings: View {
     @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotPalette.pearl.rawValue
     @AppStorage(DefaultsKey.notchMascotSide) private var side = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchMascotVisitFrequency) private var frequency = NotchMascotVisitFrequency.normal.rawValue
-    @AppStorage(DefaultsKey.notchCommandBar) private var commandBar = true
-    @AppStorage(DefaultsKey.notchCommandBarStyle) private var commandBarStyle = NotchCommandBarStyle.droplet.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var text: NotchMascotStrings { FeatureStrings.notchMascot(l10n.language) }
@@ -52,29 +50,17 @@ struct NotchMascotSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                header
+                Toggle(text.title, isOn: $enabled)
+                    .toggleStyle(.switch)
+                    .modifier(FeaturePrimaryToggleModifier(feature: .notchMascot))
                 if !islandOn { islandNote }
                 NotchMascotStageCard(look: look, side: restingSide, awake: enabled, canGreet: enabled && islandOn,
                                      visits: visits, reactions: reactions, hides: hidesWhenIdle, text: text,
                                      language: l10n.language)
                 appearance
                 behavior
-                commandBarCard
             }
             .padding(embedded ? [.bottom] : .all, 22)
-        }
-    }
-
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(text.title).font(.title2.bold())
-                Text(text.hint).font(.callout).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            Spacer(minLength: 12)
-            Toggle(text.title, isOn: $enabled).labelsHidden().toggleStyle(.switch)
-                .accessibilityLabel(text.title)
         }
     }
 
@@ -222,34 +208,6 @@ struct NotchMascotSettings: View {
             switchRow("theatermasks", text.reactions, caption: text.reactionsHint, isOn: $reactions)
         }
         .animation(animation, value: visits)
-    }
-
-    // MARK: Command Bar
-
-    private var commandBarCard: some View {
-        let available = features.isAvailable(.commandBar)
-        let bar = FeatureStrings.commandBar(l10n.language)
-        return SettingsCard(title: bar.pageTitle) {
-            SettingsFeatureSwitchRow(symbol: "command", title: text.commandBar, caption: text.commandBarHint,
-                                     isOn: $commandBar, feature: .commandBar)
-            if available, commandBar {
-                SettingsRow(symbol: "drop", title: text.opensAs) { EmptyView() }
-                    .transition(.opacity)
-                HStack(spacing: 10) {
-                    ForEach(NotchCommandBarStyle.allCases) { item in
-                        NotchMascotChoiceTile(title: text.commandBarStyle(item),
-                                              selected: (NotchCommandBarStyle(rawValue: commandBarStyle) ?? .droplet) == item) {
-                            commandBarStyle = item.rawValue
-                        } preview: {
-                            NotchCommandBarStyleSample(style: item, look: look)
-                        }
-                    }
-                }
-                .padding(.leading, settingsRowTextInset)
-                .transition(.opacity)
-            }
-        }
-        .animation(animation, value: available && commandBar)
     }
 
     /// An option with its icon, a line about it and a switch, like the rest of Settings.
@@ -783,8 +741,7 @@ private struct NotchMascotSideSample: View {
     }
 }
 
-/// How the Command Bar comes out: a drop falling from the island into a
-/// bar below it, or the bar inside the opened island.
+/// The legacy Companion route: a drop below the island or the bar inside it.
 private struct NotchCommandBarStyleSample: View {
     let style: NotchCommandBarStyle
     let look: NotchMascotLook
@@ -820,7 +777,6 @@ private struct NotchCommandBarStyleSample: View {
             .overlay { field }
     }
 
-    /// The bar's field with the companion as its face.
     private var field: some View {
         HStack(spacing: 4) {
             NotchMascotView(look: look, size: 10, idles: false).frame(width: 10, height: 10)

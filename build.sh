@@ -276,6 +276,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
         Sources/Vorssaint/Core/NotchMascotStrings.swift
         Sources/Vorssaint/Services/Notch/NotchMascotSupport.swift
+        Sources/Vorssaint/Core/NotchCustomShortcutStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchCustomShortcutSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchControlItemStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchPluginRegistry.swift
+        Sources/Vorssaint/Services/Notch/NotchIdleStatusService.swift
+        Sources/Vorssaint/UI/Notch/NotchSurfaceTapGesture.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDropletMotion.swift
         Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift

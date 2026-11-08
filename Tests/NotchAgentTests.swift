@@ -2569,9 +2569,12 @@ enum NotchAgentTests {
                      "a wing is never narrower than the music strip's nor wider than the menus allow")
         var crowded = geometry
         crowded.compactSideRoom = 30
-        suite.expect(crowded.compactAgentGeometry(wing: 57).compactActivityWingWidth == 0
-                        && !crowded.compactAgentGeometry(wing: 57).compactActivityUsesFooter,
-                     "without room beside the camera the strip keeps to the cutout, never below it")
+        let crowdedAgent = crowded.compactAgentGeometry(wing: 57)
+        suite.expect(!crowdedAgent.compactActivityUsesFooter
+                        && crowdedAgent.compactActivitySize.height == crowdedAgent.stripHeight
+                        && crowdedAgent.compactActivitySize.width == crowdedAgent.cameraWidth
+                        && crowdedAgent.compactActivityWingWidth == 0,
+                     "without room beside the camera the collapsed agent strip stays inside the cutout")
     }
 
     /// A Claude session quit or killed mid-turn ends the turn by its process

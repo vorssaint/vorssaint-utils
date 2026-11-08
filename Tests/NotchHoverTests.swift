@@ -99,6 +99,8 @@ enum NotchHoverTests {
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var captureControls: Bool?, notice: NotchNotice?
+        var levelFeedback: NotchNotice?
+        var levelFeedbackWork: DispatchWorkItem?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
@@ -209,6 +211,26 @@ enum NotchHoverTests {
             NSEvent.mouseLocation = CGPoint(x: service.geometry.screen.minX, y: service.geometry.screen.minY)
             service.hover(false)
         }
+        let expandedLevels = fixture()
+        expandedLevels.expanded = true
+        let heldNotice = NotchNotice(event: .watch, title: "Watch", detail: "Connected",
+                                     symbol: "applewatch")
+        expandedLevels.notice = heldNotice
+        expect(expandedLevels.show(volume) && expandedLevels.levelFeedback == volume
+               && expandedLevels.notice == heldNotice,
+               "volume feedback updates independently while the island is open over another notice")
+        DispatchQueue.main.advance(volume.event.duration / 2)
+        let louderVolume = NotchNotice(event: .volume, title: "Volume", detail: "75%",
+                                       symbol: "speaker.wave.2.fill", level: 0.75)
+        expect(expandedLevels.show(louderVolume) && expandedLevels.levelFeedback == louderVolume,
+               "a new expanded level reading replaces the previous reading")
+        DispatchQueue.main.advance(volume.event.duration / 2 + 0.01)
+        expect(expandedLevels.levelFeedback == louderVolume,
+               "a superseded level timer cannot dismiss the latest reading")
+        DispatchQueue.main.advance(volume.event.duration)
+        expect(expandedLevels.levelFeedback == nil && expandedLevels.notice == heldNotice,
+               "expanded level feedback expires without replacing the existing notice")
+
         for physical in [false, true] {
             for reduced in [false, true] {
                 let picker = fixture(physical: physical)

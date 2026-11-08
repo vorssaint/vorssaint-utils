@@ -6,6 +6,24 @@ import Foundation
 import SwiftUI
 
 enum NotchActivityTests {
+    @MainActor
+    private final class PluginFixture: NotchPlugin {
+        let identifier: String
+        let title: String
+        let symbol: String
+        private let action: () -> Void
+
+        init(identifier: String = "example.build-status", title: String = "Build status",
+             symbol: String = "checkmark.circle", action: @escaping () -> Void = {}) {
+            self.identifier = identifier
+            self.title = title
+            self.symbol = symbol
+            self.action = action
+        }
+
+        func perform() { action() }
+    }
+
     static func run(_ suite: TestSuite) {
         timerContracts(suite)
         alertContracts(suite)
@@ -15,13 +33,50 @@ enum NotchActivityTests {
         modePickerContracts(suite)
         rulerContracts(suite)
         compactTimerContracts(suite)
+        hoverEmphasisContracts(suite)
         compactMarginContracts(suite)
         compactDownloadContracts(suite)
         keepAwakeContracts(suite)
         accessoryContracts(suite)
+        pluginRegistryContracts(suite)
         NotchAccessoryConnectionTests.run(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
+    }
+
+    private static func hoverEmphasisContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1470, height: 956)
+        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 200)
+        let resting = roomy.collapsed
+        let emphasized = NotchHoverEmphasis.size(from: resting, geometry: roomy)
+        suite.expect(emphasized.width == resting.width + 8
+                     && emphasized.height == resting.height + 5,
+                     "hover adds only a subtle four-point cushion on either side of the notch")
+
+        let constrained = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 47)
+        suite.expect(NotchHoverEmphasis.size(from: resting, geometry: constrained).width == resting.width + 6,
+                     "hover emphasis uses only the three points left after the existing wing")
+    }
+
+    private static func pluginRegistryContracts(_ suite: TestSuite) {
+        MainActor.assumeIsolated {
+            let registry = NotchPluginRegistry()
+            var performed = false
+            let plugin = PluginFixture { performed = true }
+            suite.expect(registry.register(plugin) && registry.plugins.count == 1,
+                         "the registry accepts a valid notch action")
+            suite.expect(!registry.register(plugin) && registry.plugins.count == 1,
+                         "the registry rejects a duplicate identifier without replacing the original")
+            registry.plugins[0].perform()
+            suite.expect(performed, "registered plugin actions invoke their typed implementation")
+            suite.expect(!registry.register(PluginFixture(identifier: "has space"))
+                         && !registry.register(PluginFixture(title: " \n"))
+                         && !registry.register(PluginFixture(title: String(repeating: "a", count: NotchPluginRegistry.maximumTitleBytes + 1)))
+                         && !registry.register(PluginFixture(symbol: "bad symbol"))
+                         && !registry.register(PluginFixture(symbol: String(repeating: "a", count: NotchPluginRegistry.maximumSymbolBytes + 1)))
+                         && !registry.register(PluginFixture(symbol: "not.a.real.symbol")),
+                         "the registry rejects malformed identifiers, titles, and invalid or unavailable symbols")
+        }
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,
@@ -89,7 +144,7 @@ enum NotchActivityTests {
                                              compactSideRoom: 200)
                 for end in [nil, now.addingTimeInterval(45 * 60), now.addingTimeInterval(26 * 3600)] {
                     let wing = NotchKeepAwakeSupport.stripWing(until: end, now: now, locale: locale, in: original)
-                    let compact = original.compactTimerGeometry(showsDownloads: false, wing: wing)
+                    let compact = original.compactKeepAwakeGeometry(wing: wing)
                     suite.expect(!compact.compactActivityUsesFooter
                                  && compact.compactActivityWingWidth >= min(wing, NotchTimerSupport.stripWingRange.upperBound)
                                  && compact.compactActivityWingWidth >= 42,
@@ -97,6 +152,20 @@ enum NotchActivityTests {
                 }
             }
         }
+        let narrowMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 36)
+            .compactKeepAwakeGeometry(wing: 54)
+        suite.expect(!narrowMenu.compactActivityUsesFooter && narrowMenu.compactActivityWingWidth == 36,
+                     "with room for its cup but not its reading, Keep Awake stays beside and hugs the camera")
+        let fullMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 42)
+            .compactKeepAwakeGeometry(wing: 54)
+        suite.expect(!fullMenu.compactActivityUsesFooter && fullMenu.compactActivityWingWidth == 42,
+                     "a 42-point wing is enough to keep Keep Awake's reading beside the camera")
+        let crowdedMenu = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 20)
+            .compactKeepAwakeGeometry(wing: 54)
+        suite.expect(!crowdedMenu.compactActivityUsesFooter
+                        && crowdedMenu.compactActivitySize.height == crowdedMenu.stripHeight
+                        && crowdedMenu.compactActivityWingWidth == 0,
+                     "Keep Awake never grows below the notch when neither wing can fit its cup")
     }
 
     private static func lowBatteryContracts(_ suite: TestSuite) {
@@ -236,18 +305,36 @@ enum NotchActivityTests {
 
     private static func timerContracts(_ suite: TestSuite) {
         var session = NotchTimerSession()
-        suite.expect(!session.hasSession, "an unused timer has no active session")
+        suite.expect(!session.hasSession && NotchTimerSupport.timerTileSymbol(for: session) == "timer",
+                     "the unused timer button uses the plain timer symbol")
+        suite.expect(NotchTimerSupport.compactMarkSymbol(for: session) == "timer.circle"
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 100) == nil,
+                     "an idle countdown uses the timer circle without a progress value")
         session.start(mode: .timer, minutes: 5, now: 100)
+        suite.expect(NotchTimerSupport.timerTileSymbol(for: session) == "timer"
+                     && NotchTimerSupport.compactMarkSymbol(for: session) == "timer.circle"
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 100) == 1
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 250) == 0.5
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 400) == 0,
+                     "the timer circle drains in step with the remaining countdown")
         suite.expect(session.reading(at: 101.25) == 298.75, "countdown uses an absolute deadline, including fractional elapsed time")
         session.start(mode: .pomodoro, minutes: 25, now: 105)
         suite.expect(session.mode == .timer && session.deadline == 400, "starting twice cannot replace an active timer")
         session.pause(at: 160)
-        suite.expect(session.isPaused && session.reading(at: 10_000) == 240, "paused time stays fixed across sleep")
+        suite.expect(session.isPaused && session.reading(at: 10_000) == 240
+                     && NotchTimerSupport.compactMarkSymbol(for: session) == "pause.circle"
+                     && NotchTimerSupport.timerTileSymbol(for: session) == "pause.fill"
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 10_000) == nil,
+                     "paused time stays fixed across sleep and keeps its pause mark")
         session.resume(at: 10_000)
         suite.expect(session.deadline == 10_240 && session.reading(at: 10_100) == 140, "resume preserves only the remaining duration")
         suite.expect(!session.finishIfDue(at: 10_239.999), "fractional time before the deadline is not complete")
         suite.expect(session.finishIfDue(at: 100_000) && session.completed, "returning from sleep finishes an overdue timer once")
-        suite.expect(!session.finishIfDue(at: 100_001), "repeated callbacks cannot announce the same completion twice")
+        suite.expect(NotchTimerSupport.compactMarkSymbol(for: session) == "checkmark.circle"
+                     && NotchTimerSupport.timerTileSymbol(for: session) == "checkmark"
+                     && NotchTimerSupport.compactMarkVariableValue(for: session, at: 100_001) == nil
+                     && !session.finishIfDue(at: 100_001),
+                     "a finished timer shows its completion mark without a progress value")
         session.cancel()
         suite.expect(!session.hasSession && session.completedFocuses == 0, "cancel discards the entire session")
         session.start(mode: .timer, minutes: 0, now: 0)
@@ -711,6 +798,34 @@ enum NotchActivityTests {
         suite.expect(NotchTimerRulerScale.minute(NotchTimerRulerScale.moving(15, by: 14)) == 14
                && NotchTimerRulerScale.minute(NotchTimerRulerScale.moving(15, by: -14)) == 16,
                "dragging the ruler by one tick changes one minute in the matching direction")
+        let gains = [0.0, 100, 300, 600, 900].map(NotchTimerRulerScale.acceleration(for:))
+        suite.expect(gains.first == 1 && gains.last == NotchTimerRulerScale.maximumAcceleration
+               && zip(gains, gains.dropFirst()).allSatisfy { $0.0 < $0.1 },
+               "the cubic Bézier acceleration starts at one, increases smoothly and reaches its bounded maximum")
+        suite.expect(NotchTimerRulerScale.acceleration(for: .infinity) == 1
+               && NotchTimerRulerScale.acceleration(for: -.infinity) == 1,
+               "invalid or reversed speeds do not produce an unbounded scrubber gain")
+        suite.expect(NotchTimerRulerFeedback.pattern(distance: 0.1, speed: 0) == .alignment
+               && NotchTimerRulerFeedback.pattern(distance: 0.5, speed: 900) == .levelChange
+               && NotchTimerRulerFeedback.pattern(distance: 1, speed: 900) == .generic
+               && NotchTimerRulerFeedback.pattern(distance: 0, speed: 900) == nil,
+               "scrub haptics vary with eased travel distance and pointer speed")
+        let animation = NotchTimerRulerAnimation(from: 15, to: 19, startTime: 2, duration: 0.12)
+        suite.expect(animation.value(at: 2) == 15
+               && animation.value(at: 2.12) == 19
+               && animation.value(at: 2.06) > 15 && animation.value(at: 2.06) < 19,
+               "the ruler's Bezier animation moves continuously from its current value toward the live target")
+        var slowDrag = NotchTimerRulerDrag(x: 0, value: 90, timestamp: 0)
+        let slowValue = slowDrag.move(to: 100, at: 1)
+        var fastDrag = NotchTimerRulerDrag(x: 0, value: 90, timestamp: 0)
+        let fastValue = fastDrag.move(to: 100, at: 0.1)
+        suite.expect(fastValue < slowValue && fastValue >= 1,
+               "a fast drag covers more duration than the same slow movement without exceeding timer limits")
+        let beforeReversal = fastValue
+        let afterReversal = fastDrag.move(to: 99, at: 0.11)
+        suite.expect(afterReversal > beforeReversal
+               && afterReversal - beforeReversal < NotchTimerRulerScale.maximumAcceleration / NotchTimerRulerScale.spacing,
+               "reversing a drag immediately changes direction and releases its prior acceleration")
         for minute in [1, 5, 15, 30, 180] {
             let offset = NotchTimerRulerScale.offset(of: minute, selected: 15)
             suite.expect(NotchTimerRulerScale.minute(NotchTimerRulerScale.moving(15, by: -offset)) == minute,
@@ -773,11 +888,14 @@ enum NotchActivityTests {
                                                 + cover <= compact.compactActivityWingWidth,
                                        "the playing track's cover fits the timer's left wing without touching its curve")
                             } else if notched {
-                                suite.expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0,
-                                       "unavailable menu space retracts timer wings without drawing over adjacent menus")
+                                suite.expect(!compact.compactActivityUsesFooter && compact.compactActivityWingWidth == 0
+                                             && compact.compactActivityCameraGap == compact.cameraWidth,
+                                       "a crowded timer stays inside the camera height and omits unavailable wings")
                                 suite.expect(compact.activationArea(in: compact.compactActivitySize, hasHeader: false,
-                                                             compactActivity: true).size == compact.compactActivitySize,
-                                       "a retracted timer keeps the whole camera region available to open its controls")
+                                                             compactActivity: true)
+                                                == CGRect(x: 0, y: 0, width: compact.cameraWidth,
+                                                          height: compact.cameraHeight),
+                                       "a crowded timer leaves the physical camera clickable without a lower content row")
                             } else {
                                 suite.expect(!compact.compactActivityUsesFooter,
                                        "a simulated timer never falls back below the menu bar")
@@ -788,9 +906,10 @@ enum NotchActivityTests {
                             let positioned = compact.frame(for: compact.compactActivitySize)
                             suite.expect(screen.contains(positioned), "compact timer placement stays within the screen")
                             if notched {
-                                suite.expect(positioned.maxY == screen.maxY && positioned.height == original.cameraHeight
-                                       && compact.compactActivityTopPadding == 0,
-                                       "timer and simultaneous downloads stay beside the camera through menu-space changes")
+                                suite.expect(positioned.maxY == screen.maxY
+                                    && positioned.height == original.cameraHeight
+                                    && compact.compactActivityTopPadding == 0,
+                                    "collapsed timer and downloads stay within the camera height")
                             }
                         }
                     }
