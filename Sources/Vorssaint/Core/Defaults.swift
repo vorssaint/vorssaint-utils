@@ -892,31 +892,23 @@ enum DefaultsKey {
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
     static let notchCalendarChosenCountdowns = "notchCalendarChosenCountdowns"
-    // AI agents: what the island reads from Claude Code, Codex, OpenCode and GitHub Copilot, and shows.
+    // AI agents: what the island reads from Claude Code and the Claude app, and shows.
     static let notchAgentsEnabled = "notchAgentsEnabled"
-    static let notchAgentsClaude = "notchAgentsClaude"
-    static let notchAgentsCodex = "notchAgentsCodex"
-    /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
-    static let notchAgentsCodexProfiles = "notchAgentsCodexProfiles"
     /// The Claude Code profiles, `CLAUDE_CONFIG_DIR` folders, each signed in
     /// to one seat of a Claude plan, whose limits show side by side.
     static let notchAgentsClaudeSeats = "notchAgentsClaudeSeats"
     /// The organization's name on the seats' card, as the person writes it.
     static let notchAgentsClaudeOrgLabel = "notchAgentsClaudeOrgLabel"
     /// The accounts whose limits the island, or the lock screen, leaves out:
-    /// `claude`, `claudeAPI` and `codex` here, comma-separated, and the
-    /// Claude seats' and Codex homes' profile ids in the `Profiles` pair.
+    /// `claude` and `claudeAPI` here, comma-separated, and the Claude seats'
+    /// profile ids in the `Profiles` pair.
     static let notchAgentsIslandHiddenAccounts = "notchAgentsIslandHiddenAccounts"
     static let notchAgentsLockHiddenAccounts = "notchAgentsLockHiddenAccounts"
     static let notchAgentsIslandHiddenProfiles = "notchAgentsIslandHiddenProfiles"
     static let notchAgentsLockHiddenProfiles = "notchAgentsLockHiddenProfiles"
-    static let notchAgentsOpenCode = "notchAgentsOpenCode"
-    static let notchAgentsCopilot = "notchAgentsCopilot"
-    /// Folders holding Claude Code and Codex logs synced from other
-    /// computers, one path a line, whose usage counts with this Mac's.
+    /// Folders holding Claude Code logs synced from other computers, one
+    /// path a line, whose usage counts with this Mac's.
     static let notchAgentsSyncedFolders = "notchAgentsSyncedFolders"
-    static let notchAgentsCardOrder = "notchAgentsCardOrder"
-    static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
     static let notchAgentsLimitDisplay = "notchAgentsLimitDisplay"
     static let notchAgentsLimitFocus = "notchAgentsLimitFocus"
@@ -1552,20 +1544,13 @@ enum Defaults {
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: false,
-        DefaultsKey.notchAgentsClaude: true,
-        DefaultsKey.notchAgentsCodex: true,
-        DefaultsKey.notchAgentsCodexProfiles: "",
         DefaultsKey.notchAgentsClaudeSeats: "",
         DefaultsKey.notchAgentsClaudeOrgLabel: "",
         DefaultsKey.notchAgentsIslandHiddenAccounts: "",
         DefaultsKey.notchAgentsLockHiddenAccounts: "",
         DefaultsKey.notchAgentsIslandHiddenProfiles: "",
         DefaultsKey.notchAgentsLockHiddenProfiles: "",
-        DefaultsKey.notchAgentsOpenCode: true,
-        DefaultsKey.notchAgentsCopilot: true,
         DefaultsKey.notchAgentsSyncedFolders: "",
-        DefaultsKey.notchAgentsCardOrder: "",
-        DefaultsKey.notchAgentsHiddenCards: NotchAgentSupport.defaultHiddenCards,
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
         DefaultsKey.notchAgentsLimitDisplay: NotchAgentLimitDisplay.remaining.rawValue,
         DefaultsKey.notchAgentsLimitFocus: NotchAgentLimitFocus.mostUsed.rawValue,
@@ -2130,6 +2115,7 @@ enum Defaults {
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
         migrateRestingWindows(in: defaults)
+        removeRetiredAgentSettings(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -2403,6 +2389,16 @@ enum Defaults {
         }
         defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingSession)
         defaults.removeObject(forKey: DefaultsKey.notchAgentsRestingWeekly)
+    }
+
+    /// The AI page reads only Claude and lays out its cards one way, so the
+    /// other agents' switches and accounts, Claude's own switch and the
+    /// cards' order and hidden set are gone.
+    static func removeRetiredAgentSettings(in defaults: UserDefaults) {
+        for key in ["notchAgentsClaude", "notchAgentsCodex", "notchAgentsCodexProfiles", "notchAgentsOpenCode",
+                    "notchAgentsCopilot", "notchAgentsCardOrder", "notchAgentsHiddenCards"] {
+            defaults.removeObject(forKey: key)
+        }
     }
 
     /// Linear scrolling reached development builds installed, before new

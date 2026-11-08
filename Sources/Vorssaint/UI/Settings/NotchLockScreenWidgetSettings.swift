@@ -108,7 +108,6 @@ struct NotchLockScreenWidgetSettings: View {
         case .calendar: return FeatureStrings.notchCalendar(l10n.language).title
         case .nowPlaying: return FeatureStrings.radialMenu(l10n.language).mediaNowPlaying
         case .claude: return AgentProvider.claude.displayName
-        case .codex: return AgentProvider.codex.displayName
         case .lifetime: return text.lifetimeSpending
         case .agents: return cards.agentsAtWork
         case .streak: return cards.streak

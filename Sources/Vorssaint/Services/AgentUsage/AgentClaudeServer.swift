@@ -38,7 +38,7 @@ enum AgentClaudeServer {
     /// While a limit is on screen, on the AI page or the resting island, a
     /// reading this old is asked again.
     static let freshness: TimeInterval = 60
-    /// Otherwise Claude Code starts at most this often, as the Codex check does.
+    /// Otherwise Claude Code starts at most this often.
     static let backgroundFreshness: TimeInterval = 5 * 60
     static let retryAfter: TimeInterval = 5 * 60
     /// Only the person can install, update or sign in to Claude Code.
@@ -108,12 +108,24 @@ enum AgentClaudeServer {
         .map(\.path)
     }
 
-    /// The PATH a check gives Claude Code: `path`, the one the app gives
-    /// Codex, then the version managers' folders. A Claude Code that runs on
+    /// The PATH a check gives Claude Code: `path`, the one `launchEnvironment`
+    /// gives it, then the version managers' folders. A Claude Code that runs on
     /// Node, as one in `~/.claude/local` does, finds one there, while the
     /// tools the system has still come from the system.
     static func searchPath(after path: String, home: URL) -> String {
         ([path] + toolFolders(home: home)).joined(separator: ":")
+    }
+
+    /// An app opened from Finder has only the system folders on its PATH,
+    /// and a tool installed with npm needs `node`, which sits beside it or
+    /// in Homebrew's folders.
+    static func launchEnvironment(for executable: URL,
+                                  base: [String: String] = ProcessInfo.processInfo.environment) -> [String: String] {
+        var environment = base
+        let folders = [executable.deletingLastPathComponent().path, "/opt/homebrew/bin", "/usr/local/bin",
+                       base["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"]
+        environment["PATH"] = folders.joined(separator: ":")
+        return environment
     }
 
     static func executable(home: URL, searchPath: String? = nil) -> URL? {

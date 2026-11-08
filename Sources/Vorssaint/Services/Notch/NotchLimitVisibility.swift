@@ -19,17 +19,15 @@ enum NotchLimitPlace: CaseIterable {
 }
 
 /// An account that reports limits: the usual Claude account, the API key
-/// that pays for Claude Code elsewhere, Codex's usual home, or a Claude seat
-/// or added Codex home by its profile's id.
+/// that pays for Claude Code elsewhere, or a Claude seat by its profile's id.
 enum NotchLimitAccount: Hashable {
-    case claude, claudeAPI, codex
+    case claude, claudeAPI
     case profile(String)
 
     fileprivate var name: String? {
         switch self {
         case .claude: return "claude"
         case .claudeAPI: return "claudeAPI"
-        case .codex: return "codex"
         case .profile: return nil
         }
     }
@@ -83,7 +81,6 @@ enum NotchLimitVisibility {
         } else if !shows(.claude, in: place, defaults: defaults) {
             shown.limits[.claude] = nil
         }
-        if !shows(.codex, in: place, defaults: defaults) { shown.limits[.codex] = nil }
         return shown
     }
 
@@ -97,9 +94,9 @@ enum NotchLimitVisibility {
 }
 
 extension NotchLockScreenWidgets {
-    /// The lock screen's widgets less Claude's and Codex's when the person
-    /// turned off every account they would show, so the rail closes up as
-    /// if they were hidden here.
+    /// The lock screen's widgets less Claude's when the person turned off
+    /// every account it would show, so the rail closes up as if it were
+    /// hidden here.
     func leavingOutHiddenLimits(_ defaults: UserDefaults = .standard) -> Self {
         var result = self
         let seats = ClaudeSeatProfile.decode(defaults.string(forKey: DefaultsKey.notchAgentsClaudeSeats) ?? "")
@@ -107,7 +104,6 @@ extension NotchLockScreenWidgets {
             ? NotchLimitVisibility.shows(.claude, in: .lockScreen, defaults: defaults)
             : seats.contains { NotchLimitVisibility.shows(.profile($0.id), in: .lockScreen, defaults: defaults) }
         if !claude { result.hidden.insert(.claude) }
-        if !NotchLimitVisibility.shows(.codex, in: .lockScreen, defaults: defaults) { result.hidden.insert(.codex) }
         return result
     }
 }

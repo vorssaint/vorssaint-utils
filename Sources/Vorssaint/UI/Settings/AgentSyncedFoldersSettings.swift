@@ -4,8 +4,8 @@
 import AppKit
 import SwiftUI
 
-/// Folders where another computer's Claude Code and Codex logs are synced,
-/// whose usage the AI page counts with this Mac's.
+/// Folders where another computer's Claude Code logs are synced, whose usage
+/// the AI page counts with this Mac's.
 struct AgentSyncedFoldersSettings: View {
     @AppStorage(DefaultsKey.notchAgentsSyncedFolders) private var saved = ""
     @ObservedObject private var l10n = L10n.shared

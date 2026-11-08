@@ -41,10 +41,7 @@ enum NotchLimitVisibilityTests {
                                 seat(two, email: "shikhar@caratos.co.in", used: 96),
                                 seat(three, email: "hello@caratos.co.in", used: 31)]
         snapshot.limits[.claude] = limits(64)
-        snapshot.limits[.codex] = AgentLimits(provider: .codex, windows: [AgentLimitWindow(
-            id: "codex.primary", kind: .session, minutes: 300, scope: nil, usedPercent: 20, resetsAt: nil)],
-            observedAt: now, source: .account)
-        snapshot.seen = [.claude, .codex]
+        snapshot.seen = [.claude]
         return snapshot
     }
 
@@ -55,10 +52,10 @@ enum NotchLimitVisibilityTests {
                      "every visibility preference is registered, everything shown")
         suite.expect(SettingsBackupSupport.machineStateKeys.isSuperset(of: keys.suffix(2))
                         && SettingsBackupSupport.machineStateKeys.isDisjoint(with: keys.prefix(2)),
-                     "profile ids stay on this Mac, the Claude API and Codex choices go with a backup")
+                     "profile ids stay on this Mac, the Claude and Claude API choices go with a backup")
         let store = defaults()
         suite.expect(NotchLimitPlace.allCases.allSatisfy { place in
-            [NotchLimitAccount.claude, .claudeAPI, .codex, .profile(one)].allSatisfy {
+            [NotchLimitAccount.claude, .claudeAPI, .profile(one)].allSatisfy {
                 NotchLimitVisibility.shows($0, in: place, defaults: store)
             }
         }, "everything shows until the person turns it off")
@@ -81,51 +78,42 @@ enum NotchLimitVisibilityTests {
 
     private static func page(_ suite: TestSuite) {
         let snapshot = snapshot()
-        func tiles(_ store: UserDefaults, api: Bool = true, accounts: [String] = []) -> [NotchAgentTile] {
-            NotchAgentSupport.pageTiles(snapshot, providers: [.claude, .codex], codexAccounts: accounts,
-                                        claudeUsesAPI: api, defaults: store)
+        let width: CGFloat = 600
+        func layout(_ store: UserDefaults, api: Bool = true) -> NotchAgentPageLayout {
+            NotchAgentSupport.pageLayout(snapshot, width: width, claudeUsesAPI: api, defaults: store)
+        }
+        func expected(seats: Int?, api: Bool) -> NotchAgentPageLayout {
+            NotchAgentSupport.pageLayout(width: width, claudeSeats: seats, claudeUsesAPI: api, live: [])
         }
         let store = defaults()
-        let all = tiles(store)
-        suite.expect(all.first?.seatCount == 3 && all.first?.seatsShowAPI == true,
-                     "with every account on, the seats' card shows all three seats and the API key's figures")
-        suite.expect(all == NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(in: store, claudeSeats: true),
-                                                    providers: [.claude, .codex], claudeUsesAPI: true, claudeSeats: 3),
-                     "the page's tiles are the layout's, so the page and its height agree")
+        suite.expect(layout(store) == expected(seats: 3, api: true)
+                        && layout(store).limits == NotchAgentSupport.seatsCardHeight(3, width: width, api: true),
+                     "with every account on, the seats' card holds all three seats and the API key's figures")
+        suite.expect(layout(store).square == (width - NotchAgentSupport.spacing) / 2
+                        && layout(store).total == layout(store).limits + layout(store).square + layout(store).activity
+                            + NotchAgentSupport.spacing * 2,
+                     "Trend and Spending are two squares that share a row, and the page adds its three rows")
         NotchLimitVisibility.set(.profile(two), in: .island, shown: false, defaults: store)
-        suite.expect(tiles(store).first?.seatCount == 2
+        suite.expect(layout(store) == expected(seats: 2, api: true)
                         && NotchLimitVisibility.seats(snapshot, in: .island, defaults: store).map(\.id) == [one, three],
                      "a hidden seat leaves the card, the others keep their order")
         NotchLimitVisibility.set(.profile(one), in: .island, shown: false, defaults: store)
         NotchLimitVisibility.set(.profile(three), in: .island, shown: false, defaults: store)
-        suite.expect(tiles(store).first?.seatCount == 0 && tiles(store).first?.claudeSeats == true,
+        suite.expect(layout(store) == expected(seats: 0, api: true),
                      "with no seat on, the API key's figures keep the card's header")
         NotchLimitVisibility.set(.claudeAPI, in: .island, shown: false, defaults: store)
-        let bare = tiles(store)
-        suite.expect(!bare.contains { $0.provider == .claude }
-                        && NotchAgentSupport.rows(bare, width: 600).first?.map(\.provider) == [.codex, nil],
-                     "with nothing of Claude's on the card goes, and Codex pairs with the next card")
-        NotchLimitVisibility.set(.codex, in: .island, shown: false, defaults: store)
-        suite.expect(!tiles(store).contains { $0.card == .limits }, "a hidden Codex leaves no limits card")
-        let homes = defaults()
-        NotchLimitVisibility.set(.profile("work"), in: .island, shown: false, defaults: homes)
-        suite.expect(tiles(homes, accounts: ["personal", "work"]).compactMap(\.accountID) == ["personal"]
-                        && !tiles(homes, accounts: ["work"]).contains { $0.provider == .codex && $0.card == .limits },
-                     "an added Codex home the island leaves out has no card, and none shown leaves Codex out")
+        suite.expect(layout(store) == expected(seats: 0, api: false), "a hidden API key leaves the seats' header")
 
         var plain = AgentUsageSnapshot(loaded: true, now: now)
         plain.seen = [.claude]
         let usual = defaults()
-        func plainTiles() -> [NotchAgentTile] {
-            NotchAgentSupport.pageTiles(plain, providers: [.claude], codexAccounts: [], claudeUsesAPI: true, defaults: usual)
+        func plainLayout() -> NotchAgentPageLayout {
+            NotchAgentSupport.pageLayout(plain, width: width, claudeUsesAPI: true, defaults: usual)
         }
-        suite.expect(plainTiles().first?.splitsBilling == true, "without seats the split card stays as it is")
+        suite.expect(plainLayout().limits == NotchAgentSupport.splitHeight, "without seats the split card stays as it is")
         NotchLimitVisibility.set(.claudeAPI, in: .island, shown: false, defaults: usual)
-        suite.expect(plainTiles().first.map { !$0.splitsBilling && !$0.claudeAPI } == true,
+        suite.expect(plainLayout().limits == NotchAgentSupport.sessionCardHeight,
                      "hiding the API key leaves the plan's own card")
-        NotchLimitVisibility.set(.claudeAPI, in: .island, shown: true, defaults: usual)
-        NotchLimitVisibility.set(.claude, in: .island, shown: false, defaults: usual)
-        suite.expect(plainTiles().filter { $0.card == .limits }.map(\.claudeAPI) == [true], "hiding the plan leaves the API key's half card")
     }
 
     private static func lockScreen(_ suite: TestSuite) {
@@ -139,11 +127,9 @@ enum NotchLimitVisibilityTests {
         suite.expect(widgets.leavingOutHiddenLimits(store).shown(in: .ai).contains(.claude),
                      "one seat left on keeps Claude's widget")
         NotchLimitVisibility.set(.profile(two), in: .lockScreen, shown: false, defaults: store)
-        NotchLimitVisibility.set(.codex, in: .lockScreen, shown: false, defaults: store)
         let left = widgets.leavingOutHiddenLimits(store)
-        suite.expect(!left.shown(in: .ai).contains(.claude) && !left.shown(in: .ai).contains(.codex)
-                        && left.order == widgets.order,
-                     "with no seat on Claude's widget drops out, Codex's too, and the order is kept")
+        suite.expect(!left.shown(in: .ai).contains(.claude) && left.order == widgets.order,
+                     "with no seat on Claude's widget drops out, and the order is kept")
         let snapshot = snapshot()
         let lock = defaults()
         NotchLimitVisibility.set(.profile(one), in: .lockScreen, shown: false, defaults: lock)

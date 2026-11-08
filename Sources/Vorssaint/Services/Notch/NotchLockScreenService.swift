@@ -196,10 +196,10 @@ final class NotchLockScreenService {
             gpuTemperature: widgets.contains(.gpu), fanSpeed: widgets.contains(.cpu))
     }
 
-    /// Claude's and Codex's cards count as the AI page shown, so their limits
-    /// refresh as they do in the open island.
+    /// Claude's card counts as the AI page shown, so its limits refresh as
+    /// they do in the open island.
     private static func showsLimits(_ gates: NotchLockScreenModel.Gates) -> Bool {
-        gates.widgets.contains(.claude) || gates.widgets.contains(.codex)
+        gates.widgets.contains(.claude)
     }
 
     private func startSources(_ gates: NotchLockScreenModel.Gates) {
@@ -211,7 +211,6 @@ final class NotchLockScreenService {
         }
         if gates.agents || gates.page { AgentUsageService.shared.syncWithPreferences() }
         if Self.showsLimits(gates) { AgentUsageService.shared.pageDidAppear() }
-        if gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidAppear() }
         if gates.mac { SystemMonitor.shared.setLockScreenNeeds(Self.macNeeds(gates.widgets)) }
     }
 
@@ -219,7 +218,6 @@ final class NotchLockScreenService {
         // Before the island returns on unlocking, so an AI page it opens on
         // reports itself shown after the lock screen's rail has left.
         if space != nil, Self.showsLimits(model.gates) { AgentUsageService.shared.pageDidDisappear() }
-        if space != nil, model.gates.widgets.contains(.codex) { CodexProfileLimitsService.shared.pageDidDisappear() }
         // The island takes the monitor back with its own needs as it returns.
         if space != nil, model.gates.mac { SystemMonitor.shared.setLockScreenNeeds(.none) }
         if stopsSources, !scene.isEmpty {
