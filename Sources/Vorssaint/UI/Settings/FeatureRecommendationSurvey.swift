@@ -680,13 +680,11 @@ struct FeatureRecommendationSurvey: View {
         if #available(macOS 26.0, *), let lastDecision {
             if lastDecision == .interested {
                 Image(systemName: "checkmark.circle.fill")
-                    .symbolEffect(.drawOn, options: .nonRepeating,
-                                  isActive: lastDecision == .interested)
+                    .symbolEffect(.bounce, value: lastDecision == .interested)
                     .foregroundStyle(.green)
             } else {
                 Image(systemName: "xmark.circle.fill")
-                    .symbolEffect(.drawOff, options: .nonRepeating,
-                                  isActive: lastDecision == .notForMe)
+                    .symbolEffect(.bounce, value: lastDecision == .notForMe)
                     .foregroundStyle(.red)
             }
         }
