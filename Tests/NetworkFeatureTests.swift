@@ -143,17 +143,17 @@ enum NetworkFeatureTests {
 
         let nettopCSV = """
         time,,bytes_in,bytes_out,
-        08:31:45.865507,Codex (Service).78844,78288,477660,
-        08:31:45.865507,codex.78880,3154372,13193590,
+        08:31:45.865507,Chat (Service).78844,78288,477660,
+        08:31:45.865507,chat.78880,3154372,13193590,
         time,,bytes_in,bytes_out,
-        08:31:46.871245,Codex (Service).78844,416,98,
-        08:31:46.871246,codex.78880,16245,20641,
+        08:31:46.871245,Chat (Service).78844,416,98,
+        08:31:46.871246,chat.78880,16245,20641,
         08:31:46.871247,launchd.1,0,0,
         """
         let nettopRows = NetworkProcessSupport.parseNettopCSV(nettopCSV)
         suite.expect(nettopRows.count == 2,
                "nettop parser keeps only active rows from the final delta section")
-        suite.expect(nettopRows.first?.name == "Codex (Service)" && nettopRows.first?.pid == 78844,
+        suite.expect(nettopRows.first?.name == "Chat (Service)" && nettopRows.first?.pid == 78844,
                "nettop parser extracts process names containing spaces")
         suite.expectClose(nettopRows.last?.bytesIn ?? -1, 16_245, "nettop parser reads numeric bytes in")
         suite.expectClose(nettopRows.last?.bytesOut ?? -1, 20_641, "nettop parser reads numeric bytes out")
@@ -161,9 +161,9 @@ enum NetworkFeatureTests {
         var nettopStream = NetworkProcessDeltaStreamParser()
         let streamLines = [
             "time,,bytes_in,bytes_out,",
-            "08:31:45.865507,Codex.78844,78288,477660,",
+            "08:31:45.865507,Chat.78844,78288,477660,",
             "time,,bytes_in,bytes_out,",
-            "08:31:46.871245,Codex.78844,416,98,",
+            "08:31:46.871245,Chat.78844,416,98,",
             "08:31:46.871247,launchd.1,0,0,",
             "time,,bytes_in,bytes_out,",
         ]
