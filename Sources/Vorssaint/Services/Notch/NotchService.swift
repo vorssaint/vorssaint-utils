@@ -1156,6 +1156,7 @@ final class NotchService: ObservableObject {
         // A watch keeps reading while the island is away, as on the lock
         // screen, and says so with a notification if it cannot show itself.
         NotchWatchService.shared.syncWithPreferences()
+        NotchFullscreenMenuBarService.shared.syncWithPreferences()
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
@@ -1269,6 +1270,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        NotchFullscreenMenuBarService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -3650,7 +3652,10 @@ final class NotchService: ObservableObject {
         let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
         let bySpace = enabled
             && SpaceWindowBridge.topology()?.isFullscreen(on: displayID, separateSpaces: NSScreen.screensHaveSeparateSpaces) == true
-        let hidden = bySpace || (enabled && NotchAppFullscreen.coveredDisplays().contains(displayID))
+        // Full-screen video that lets the menu bar hide takes the island
+        // with it, whatever the option above.
+        let byVideo = fullscreenVideoDisplay == displayID
+        let hidden = bySpace || byVideo || (enabled && NotchAppFullscreen.coveredDisplays().contains(displayID))
         hiddenByFullscreenSpace = bySpace
         guard hidden != hiddenInFullscreen else { return }
         hiddenInFullscreen = hidden
@@ -3673,10 +3678,21 @@ final class NotchService: ObservableObject {
         if AppFeature.brightness.isAvailable { BrightnessService.shared.syncWithPreferences() }
     }
 
+    /// The notched display while full-screen video lets the menu bar hide
+    /// there (Menu bar in full screen); nil otherwise.
+    private var fullscreenVideoDisplay: CGDirectDisplayID?
+
+    func setFullscreenVideoDisplay(_ displayID: CGDirectDisplayID?) {
+        guard displayID != fullscreenVideoDisplay else { return }
+        fullscreenVideoDisplay = displayID
+        fullscreenEnvironmentDidChange()
+    }
+
     private func fullscreenEnvironmentDidChange() {
-        // Only the opt-in option depends on Spaces and the active app.
+        // Only the opt-in options depend on Spaces, the active app and video.
         guard running, !suspended,
               hiddenInFullscreen || UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
+                || fullscreenVideoDisplay != nil
         else { return }
         let wasHidden = hiddenInFullscreen
         let wasBySpace = hiddenByFullscreenSpace

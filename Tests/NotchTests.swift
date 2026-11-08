@@ -1789,6 +1789,7 @@ enum NotchTests {
         NotchScreenRefreshContract.run(suite)
         NotchMirrorContract.run(suite)
         NotchFullscreenTests.run(suite)
+        NotchFullscreenMenuBarTests.run(suite)
         NotchDestinationContract.run(suite)
         NotchMusicVisibilityTests.run(suite)
         NotchEqualizerTests.run { suite.expect($0, $1) }

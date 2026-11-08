@@ -1315,6 +1315,7 @@ def main():
           + declaration(notch, "    var acceptsSystemFeedback: Bool {")
           + declaration(notch, "    private func updateFullscreenVisibility(").replace("private func", "func", 1)
           + declaration(notch, "    private func fullscreenEnvironmentDidChange()").replace("private func", "func", 1)
+          + declaration(notch, "    func setFullscreenVideoDisplay(")
           + "}\nfinal class PreciseVolumeRollerService: VolumeState {\n"
           + "static let shared = PreciseVolumeRollerService()\n"
           + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    func syncWithPreferences()")

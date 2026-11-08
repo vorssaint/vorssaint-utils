@@ -67,6 +67,7 @@ enum NotchFullscreenTests {
         var notice: Bool? = true
         var collapses = 0, cancellations = 0, screenUpdates = 0, consumerSyncs = 0, refreshes = 0, departures = 0
         var hiddenByFullscreenSpace = false, revealingFromAppFullscreen = false
+        var fullscreenVideoDisplay: CGDirectDisplayID?
         var refreshAnimations: [Bool] = [], refreshReveals: [Bool] = []
         func cancelCaptureControls() { cancellations += 1 }
         func endDeparture() { departures += 1 }
@@ -166,10 +167,35 @@ enum NotchFullscreenTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchHoverInFullscreen] as? Bool == false
                      && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchHoverInFullscreen),
                      "fullscreen hover is a separate opt-in included in settings backup")
+        fullscreenVideoChecks(topology, suite)
         appFullscreenChecks(topology, suite)
         fullscreenMotionChecks(topology, suite)
         appFullscreenWindowChecks(suite)
         volumeLifecycleChecks(topology, suite)
+    }
+
+    /// Menu bar in full screen lets the bar hide for full-screen video on
+    /// the notched display; the island hides there with it.
+    private static func fullscreenVideoChecks(_ topology: Topology, _ suite: TestSuite) {
+        UserDefaults.standard.enabled = false
+        SpaceWindowBridge.value = topology
+        let service = Service()
+        service.screenUpdate = { [weak service] in service?.updateFullscreenVisibility(displayID: 2) }
+        service.setFullscreenVideoDisplay(2)
+        suite.expect(service.hiddenInFullscreen && service.collapses == 1 && service.refreshes == 1,
+                     "full-screen video that hides the menu bar hides the island, with the option off")
+        suite.expect(service.refreshAnimations == [true],
+                     "video starts inside a full-screen Space with no slide, so the island eases away")
+        service.setFullscreenVideoDisplay(2)
+        suite.expect(service.screenUpdates == 1, "the same video display changes nothing")
+        service.setFullscreenVideoDisplay(nil)
+        suite.expect(!service.hiddenInFullscreen && service.refreshes == 2,
+                     "the island returns as the video leaves full screen or the bar comes back")
+        let other = Service()
+        other.setFullscreenVideoDisplay(1)
+        other.updateFullscreenVisibility(displayID: 2)
+        suite.expect(!other.hiddenInFullscreen, "video on another display leaves this island alone")
+        SpaceWindowBridge.value = nil
     }
 
     private static func appFullscreenChecks(_ topology: Topology, _ suite: TestSuite) {

@@ -44,6 +44,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.notchHideInFullscreen) private var hideInFullscreen = false
     @AppStorage(DefaultsKey.notchHoverInFullscreen) private var hoverInFullscreen = false
+    @AppStorage(DefaultsKey.notchFullscreenMenuBarEnabled) private var fullscreenMenuBar = false
     @AppStorage(DefaultsKey.notchHideUntilHover) private var hideUntilHover = false
     @AppStorage(DefaultsKey.notchHiddenShowsActivity) private var hiddenShowsActivity = false
     @AppStorage(DefaultsKey.notchCoversMenus) private var coversMenus = true
@@ -127,13 +128,30 @@ struct NotchSettings: View {
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
          String(hoverExpand), String(hideUntilHover), String(hiddenShowsActivity), String(hideInFullscreen),
-         String(hoverInFullscreen), String(coversMenus),
+         String(hoverInFullscreen), String(fullscreenMenuBar), String(coversMenus),
          display, silhouette, String(hover), hidden, order, String(volume), String(inputSource),
          String(brightness), String(keyboardLight),
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
          String(capture), String(trackChange), captureAction, String(showInCaptures),
          String(returnHome), homeModule, String(opensActivity), String(scratchpad),
          String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
+    }
+
+    /// Only on a Mac with a notched built-in display, the one display it changes.
+    @ViewBuilder private var fullscreenMenuBarRows: some View {
+        if NotchFullscreenMenuBarService.notchedBuiltInScreen() != nil {
+            let menuBar = FeatureStrings.notchFullscreenMenuBar(l10n.language)
+            SettingsFeatureSwitchRow(symbol: AppFeature.notchFullscreenMenuBar.symbolName, title: menuBar.title,
+                                     caption: menuBar.description, isOn: $fullscreenMenuBar,
+                                     feature: .notchFullscreenMenuBar)
+            if fullscreenMenuBar, features.isAvailable(.notchFullscreenMenuBar) {
+                if !permissions.accessibility { PermissionRow(kind: .accessibility) }
+                if NotchFullscreenMenuBarSupport.systemShowsBarInFullscreen() {
+                    Text(menuBar.systemShowsBarHint).font(.caption).foregroundStyle(.secondary)
+                        .padding(.leading, settingsRowTextInset)
+                }
+            }
+        }
     }
 
     private var access: Binding<NotchQuickAccessConfiguration> {
@@ -716,6 +734,7 @@ struct NotchSettings: View {
                     switchRow("cursorarrow", text.hoverInFullscreen, isOn: $hoverInFullscreen)
                         .padding(.leading, settingsRowTextInset)
                 }
+                fullscreenMenuBarRows
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                     // A mode this version no longer offers is treated as automatic, as the island does.
                     choice(text.automatic, symbol: "display.2",

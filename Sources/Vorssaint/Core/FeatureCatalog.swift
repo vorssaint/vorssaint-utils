@@ -31,7 +31,8 @@ enum AppFeature: String, CaseIterable {
          commandBar, screenRecorder, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
-         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
+         notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot,
+         notchFullscreenMenuBar
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
     case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
@@ -119,7 +120,7 @@ extension AppFeature {
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
-             .notchMascot:
+             .notchMascot, .notchFullscreenMenuBar:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
@@ -197,6 +198,7 @@ extension AppFeature {
         case .notchAgents: return "sparkles"
         case .notchWatch: return "eye"
         case .notchMascot: return "face.smiling"
+        case .notchFullscreenMenuBar: return "menubar.rectangle"
         case .notch: return "macbook"
         case .radialMenu: return "circle.grid.cross"
         case .scratchpad: return "note.text"
@@ -272,6 +274,7 @@ extension AppFeature {
         case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
+        case .notchFullscreenMenuBar: return [DefaultsKey.notchFullscreenMenuBarEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
@@ -340,6 +343,9 @@ extension AppFeature {
         case .notchAgents: return []
         // It only draws, and hears of what happens from the island itself.
         case .notchMascot: return []
+        // Only to tell a browser's full-screen window from its full-screen
+        // video; without it any full-screen video hides the bar.
+        case .notchFullscreenMenuBar: return [.accessibility]
         // The bars read the player's own audio output, which macOS gates
         // behind the same permission the mixer and the recorder ask for.
         case .notchLiveEqualizer: return [.audioCapture]
@@ -420,10 +426,11 @@ extension AppFeature {
         features(in: .dynamicIsland).filter { $0 != .notch }
     }
 
-    /// Agents reads local session histories, and the companion changes the
-    /// resting island. Both are separate choices when installing the island.
+    /// Agents reads local session histories, the companion changes the
+    /// resting island and the full-screen menu bar changes the system's own.
+    /// All are separate choices when installing the island.
     static var dynamicIslandInitialExtensions: [AppFeature] {
-        dynamicIslandExtensions.filter { $0 != .notchMascot && $0 != .notchAgents }
+        dynamicIslandExtensions.filter { $0 != .notchMascot && $0 != .notchAgents && $0 != .notchFullscreenMenuBar }
     }
 
     var initialInstallGroup: [AppFeature] {
@@ -489,7 +496,8 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .notchFullscreenMenuBar, .spacesOrder,
+             .quitApps:
             return false
         }
     }
@@ -520,6 +528,8 @@ extension AppFeature {
             case (.notchWatch, .screenRecording):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("watch")
+            case (.notchFullscreenMenuBar, .accessibility):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
             case (.notchNotifications, .accessibility):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
