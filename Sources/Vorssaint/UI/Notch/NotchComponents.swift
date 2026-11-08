@@ -593,10 +593,14 @@ struct NotchSurfaceBackground: View {
     static func shade(openness: Double, contrast: ColorSchemeContrast) -> [Gradient.Stop] {
         (0...64).map { index in
             let t = Double(index) / 64
-            return Gradient.Stop(
-                color: .black.opacity(1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)),
-                location: t)
+            return Gradient.Stop(color: .black.opacity(shadeOpacity(at: t, openness: openness, contrast: contrast)),
+                                 location: t)
         }
+    }
+
+    /// The dimming at `t`, from the island's top at 0 to its lip at 1.
+    static func shadeOpacity(at t: Double, openness: Double, contrast: ColorSchemeContrast) -> Double {
+        1 - openness * (contrast == .increased ? 0.10 : 0.45) * pow(t, 2.5)
     }
 }
 

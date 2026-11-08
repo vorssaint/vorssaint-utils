@@ -73,6 +73,18 @@ struct NotchQuickAccessView: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
 
+    /// A glass button's shade beside the island's top and below its lip. It
+    /// follows the island's, but within a narrower range, smoky enough below
+    /// the island and never so dark beside its top that the lens disappears.
+    static let glassTop = 0.7
+    static let glassBottom = 0.5
+
+    /// A glass button's shade where the island's own is `island`, which runs
+    /// from 1 at its top to 0.55 at the lip of an open island.
+    static func glassShade(island: Double) -> Double {
+        glassBottom + (glassTop - glassBottom) * min(1, max(0, (island - 0.55) / 0.45))
+    }
+
     /// Increase Contrast keeps the buttons solid beside a lip that barely opens.
     private var followsGlass: Bool {
 #if compiler(>=6.2)
@@ -141,6 +153,9 @@ struct NotchQuickAccessView: View {
         } label: {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .medium))
+                // A soft shadow keeps the white glyph clear of a bright
+                // window seen through the glass below the island.
+                .shadow(color: .black.opacity(followsGlass ? 0.35 : 0), radius: 1.5, y: 0.5)
                 .frame(width: NotchQuickAccessLayout.diameter, height: NotchQuickAccessLayout.diameter)
                 // In glass the drop beneath carries the island's shade, which
                 // the window server does not count as the window's own pixels:
@@ -148,8 +163,20 @@ struct NotchQuickAccessView: View {
                 // the app behind, not just the glyph.
                 .background(followsGlass ? Color.black.opacity(0.02) : Color.black, in: Circle())
                 .overlay {
-                    Circle().strokeBorder(.white.opacity(selected || contrast == .increased ? 0.6 : 0.16), lineWidth: 0.75)
-                        .allowsHitTesting(false)
+                    // On glass the lens draws its own edge, so a chosen button
+                    // glows from within instead of adding a ring.
+                    if followsGlass {
+                        if selected {
+                            Circle().fill(RadialGradient(colors: [.white.opacity(0.18), .white.opacity(0.06)],
+                                                         center: .center, startRadius: 0,
+                                                         endRadius: NotchQuickAccessLayout.diameter / 2))
+                                .allowsHitTesting(false)
+                        }
+                    } else {
+                        Circle().strokeBorder(.white.opacity(selected || contrast == .increased ? 0.6 : 0.16),
+                                              lineWidth: 0.75)
+                            .allowsHitTesting(false)
+                    }
                 }
                 .contentShape(Circle())
         }
@@ -165,23 +192,55 @@ struct NotchQuickAccessView: View {
 private struct NotchQuickAccessDrops: View {
     let placements: [NotchQuickAccessPlacement]
     let progress: CGFloat
+    /// Each drop as a lens of clear glass rather than a black fill.
+    var glass = false
+
+    var lenses: Self {
+        var lenses = self
+        lenses.glass = true
+        return lenses
+    }
 
     var body: some View {
         ZStack {
             ForEach(placements) { placement in
-                NotchQuickAccessDrop(progress: progress, index: placement.index, edge: placement.edge,
-                                     top: placement.top, side: placement.side)
-                    .fill(.black)
+                let drop = NotchQuickAccessDrop(progress: progress, index: placement.index, edge: placement.edge,
+                                                top: placement.top, side: placement.side)
+                if glass {
+                    NotchQuickAccessLens(drop: drop)
+                } else {
+                    drop.fill(.black)
+                }
             }
         }
         .allowsHitTesting(false)
     }
 }
 
-/// On glass each drop takes the island's shade at its own height, so it
-/// leaves the island without a seam and buttons below the island are as
-/// translucent as its lip. The island no longer hides what lies beneath its
-/// edge, so a drop still inside it is cut away.
+/// The island's clear glass in a drop's shape, which bends what lies behind
+/// its edge as the island's own glass does. The shade above it sets its tone.
+private struct NotchQuickAccessLens: View {
+    let drop: NotchQuickAccessDrop
+
+    var body: some View {
+#if compiler(>=6.2)
+        if #available(macOS 26, *) {
+            // The island's panel never becomes key, and inactive glass
+            // would turn flat and grey.
+            Color.clear
+                .glassEffect(.clear, in: drop)
+                .environment(\.appearsActive, true)
+                .materialActiveAppearance(.active)
+        }
+#endif
+    }
+}
+
+/// On glass each drop is a lens of the island's glass under the island's
+/// shade at its own height, so it leaves the island without a seam and
+/// buttons below the island are as translucent as its lip. The island no
+/// longer hides what lies beneath its edge, so a drop still inside it is cut
+/// away.
 private struct NotchQuickAccessGlassSurface: ViewModifier {
     @ObservedObject var presentation: NotchBackdropPresentation
     let drops: NotchQuickAccessDrops
@@ -192,10 +251,17 @@ private struct NotchQuickAccessGlassSurface: ViewModifier {
         content
             .background {
                 if presentation.usesGlass {
+                    drops.lenses
                     GeometryReader { proxy in
                         // Past the island the shade keeps the lip's tone,
                         // measured from the top edge as the island's own.
-                        LinearGradient(stops: NotchSurfaceBackground.shade(openness: presentation.openness, contrast: contrast),
+                        LinearGradient(stops: (0...64).map { index in
+                                           let t = Double(index) / 64
+                                           let island = NotchSurfaceBackground.shadeOpacity(
+                                               at: t, openness: presentation.openness, contrast: contrast)
+                                           return Gradient.Stop(color: .black.opacity(NotchQuickAccessView.glassShade(island: island)),
+                                                                location: t)
+                                       },
                                        startPoint: .top,
                                        endPoint: UnitPoint(x: 0.5, y: (island.isEmpty ? 0 : island.boundingRect.maxY)
                                                             / max(1, proxy.size.height)))
