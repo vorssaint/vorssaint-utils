@@ -174,6 +174,22 @@ enum MixerRoutingSupport {
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
+    /// A fader's speaker shows its level by thirds of the fader, as the
+    /// system's volume icons do: one wave in the lowest third, two in the
+    /// middle and three in the top. On an app's fader that reaches into
+    /// boost, the top third is boost.
+    static func speakerWaves(volume: Double, maximum: Double) -> Int {
+        let fraction = maximum > 0 && volume.isFinite ? volume / maximum : 0
+        if fraction < 1.0 / 3 { return 1 }
+        return fraction < 2.0 / 3 ? 2 : 3
+    }
+
+    /// The variable value that lights that many waves of `speaker.wave.3.fill`,
+    /// whose waves come on above 0, a third and two thirds.
+    static func speakerValue(waves: Int) -> Double {
+        waves >= 3 ? 1 : waves == 2 ? 0.5 : 0.25
+    }
+
     /// The whole percent a slider position is shown as. A device can report a
     /// level that is not a number, and converting that to an integer traps, so
     /// it reads as 0% here instead of taking the app down.

@@ -36,6 +36,16 @@ enum MixerFeatureTests {
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
+        suite.expect(MixerRoutingSupport.speakerWaves(volume: 0.5, maximum: 2) == 1
+                     && MixerRoutingSupport.speakerWaves(volume: 1, maximum: 2) == 2
+                     && MixerRoutingSupport.speakerWaves(volume: 1.5, maximum: 2) == 3
+                     && MixerRoutingSupport.speakerWaves(volume: 0.9, maximum: 1) == 3
+                     && MixerRoutingSupport.speakerWaves(volume: .nan, maximum: 2) == 1,
+                     "a fader's speaker gains a wave for each third of the fader its level reaches")
+        suite.expect((1...3).map { MixerRoutingSupport.speakerValue(waves: $0) }
+                         .enumerated().allSatisfy { index, value in
+                             value > Double(index) / 3 && value <= Double(index + 1) / 3 },
+                     "each wave count lights exactly that many waves of the speaker symbol")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 1e300) == 100_000, "a huge finite volume cannot overflow")

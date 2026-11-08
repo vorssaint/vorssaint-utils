@@ -163,7 +163,6 @@ private struct NotchEditablePercent: View {
     @Binding var editingID: String?
     let label: String
     var tint: Color = .secondary
-    var boosting = false
     var width: CGFloat = 40
     var height: CGFloat = 18
     let commit: (Double) -> Void
@@ -172,19 +171,49 @@ private struct NotchEditablePercent: View {
     var body: some View {
         EditableVolumePercent(currentPercent: percent, maximumPercent: maximum, width: width, height: height,
                               editorID: editorID, editingID: $editingID, accessibilityLabel: label) {
-            HStack(spacing: 1) {
-                if boosting {
-                    Image(systemName: "bolt.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(tint)
-                }
-                Text("\(percent)%")
-                    .font(.system(size: height > 18 ? 12 : 10, weight: .medium)).monospacedDigit()
-                    .foregroundStyle(tint)
-                    .contentTransition(.numericText())
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: percent)
-            }
-            .frame(maxWidth: .infinity, minHeight: height)
+            Text("\(percent)%")
+                .font(.system(size: height > 18 ? 12 : 10, weight: .medium)).monospacedDigit()
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
+                .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: percent)
+                // A boost's orange fades in and out with the speaker's.
+                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: tint)
+                .frame(maxWidth: .infinity, minHeight: height)
         } onCommit: { commit($0) }
         .frame(height: height)
+    }
+}
+
+/// A fader's speaker: struck out when muted, otherwise with one, two or three
+/// waves. The waves are one symbol's layers, so on macOS 26 a wave draws in or
+/// out on its own as the level crosses a third, instead of the whole speaker
+/// being swapped; earlier systems dim the waves that are off.
+private struct NotchFaderSpeaker: View {
+    let waves: Int
+    let muted: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.3.fill",
+              variableValue: muted ? nil : MixerRoutingSupport.speakerValue(waves: waves))
+            .modifier(NotchSpeakerDrawsWaves())
+            .contentTransition(.symbolEffect(.automatic))
+            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
+            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+    }
+}
+
+private struct NotchSpeakerDrawsWaves: ViewModifier {
+    func body(content: Content) -> some View {
+#if compiler(>=6.2)
+        if #available(macOS 26, *) {
+            content.symbolVariableValueMode(.draw)
+        } else {
+            content
+        }
+#else
+        content
+#endif
     }
 }
 
@@ -211,11 +240,9 @@ private struct NotchMasterFader: View {
             Button {
                 if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
             } label: {
-                Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                NotchFaderSpeaker(waves: MixerRoutingSupport.speakerWaves(volume: level ?? 0, maximum: 1), muted: muted)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(muted ? Color.red : Color.white)
-                    .contentTransition(.symbolEffect(.replace))
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
                     .frame(width: 32, height: 32)
                     .contentShape(Circle())
             }
@@ -492,6 +519,7 @@ private struct NotchAppFader: View {
     let moveForward: (() -> Void)?
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var strings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
     private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
     private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
@@ -533,7 +561,7 @@ private struct NotchAppFader: View {
                 NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
                                      label: app.name, tint: boosting ? .orange : .secondary,
-                                     boosting: boosting, height: 28) {
+                                     height: 28) {
                     mixer.setVolume($0, for: app)
                 }
                 .frame(maxWidth: .infinity)
@@ -553,9 +581,14 @@ private struct NotchAppFader: View {
                 }
                 .overlay(alignment: .trailing) {
                     Button { mixer.toggleMute(app) } label: {
-                        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        // The speaker matches the boost's orange, as the
+                        // percent beside it does, fading into it.
+                        NotchFaderSpeaker(waves: MixerRoutingSupport.speakerWaves(volume: app.volume,
+                                                                                  maximum: AppVolumeMixer.maxVolume),
+                                          muted: muted)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(muted ? Color.red : Color.secondary)
+                            .foregroundStyle(muted ? Color.red : boosting ? Color.orange : Color.secondary)
+                            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: boosting)
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                     }
