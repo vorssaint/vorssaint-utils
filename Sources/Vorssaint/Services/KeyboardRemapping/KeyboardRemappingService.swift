@@ -258,13 +258,16 @@ final class KeyboardRemappingService: ObservableObject {
             || CGEventSource.keyState(.hidSystemState, key: CGKeyCode(keyCode))
         if type == .keyUp || (isModifierEvent && !isKeyDown) {
             let wasMapped = eventLock.withLock { heldMappings.removeValue(forKey: keyCode) != nil }
-            return wasMapped ? nil : Unmanaged.passUnretained(event)
+            return KeyboardRemappingOutputAction.shouldSuppressKeyUp(hasHeldMapping: wasMapped)
+                ? nil : Unmanaged.passUnretained(event)
         }
+        let isRepeat = type == .keyDown
+            && event.getIntegerValueField(.keyboardEventAutorepeat) != 0
 
         let eventDetails = eventLock.withLock {
-            () -> (KeyboardRemappingRule, GlobalShortcutModifiers, Bool)? in
+            () -> (KeyboardRemappingRule, GlobalShortcutModifiers, Bool, Bool)? in
             guard enabled, !captureInProgress else { return nil }
-            if let held = heldMappings[keyCode] { return (held.0, held.1, false) }
+            if let held = heldMappings[keyCode] { return (held.0, held.1, false, isRepeat) }
             let modifiers = GlobalShortcutModifiers(cgFlags: event.flags)
             guard let rule = KeyboardRemappingConfig.matchingRule(
                 keyCode: keyCode,
@@ -276,24 +279,28 @@ final class KeyboardRemappingService: ObservableObject {
                 ? modifiers.subtracting(KeyboardRemappingRisk.modifierForSourceKeyCode(keyCode) ?? [])
                 : modifiers
             heldMappings[keyCode] = (rule, outputModifiers)
-            return (rule, outputModifiers, true)
+            return (rule, outputModifiers, true, false)
         }
-        guard let (rule, incomingModifiers, isFirstKeyDown) = eventDetails else {
+        guard let (rule, incomingModifiers, isFirstKeyDown, isRepeat) = eventDetails else {
             return Unmanaged.passUnretained(event)
         }
         let succeeded: Bool
-        switch rule.resolvedActionKind {
-        case .keySequence:
-            succeeded = !isFirstKeyDown || post(rule.output, matching: rule, incomingModifiers: incomingModifiers)
+        switch KeyboardRemappingOutputAction.forKeyDown(
+            rule.resolvedActionKind,
+            isInitial: isFirstKeyDown,
+            isRepeat: isRepeat
+        ) {
+        case .sendKeySequence:
+            succeeded = post(rule.output, matching: rule, incomingModifiers: incomingModifiers)
         case .typeText:
-            succeeded = !isFirstKeyDown || post(text: rule.text)
+            succeeded = post(text: rule.text)
         case .openLink:
-            if isFirstKeyDown { open(link: rule.link) }
+            open(link: rule.link)
             succeeded = true
         case .openApp:
-            if isFirstKeyDown { open(appBundleIdentifier: rule.appBundleIdentifier) }
+            open(appBundleIdentifier: rule.appBundleIdentifier)
             succeeded = true
-        case .disabled:
+        case .consume:
             succeeded = true
         }
         if !succeeded {

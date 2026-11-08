@@ -48,21 +48,35 @@ enum KeyboardRemappingActionKind: String, Codable, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+enum KeyboardRemappingOutputAction: Equatable {
+    case consume
+    case sendKeySequence
+    case typeText
+    case openLink
+    case openApp
+
+    static func forKeyDown(_ kind: KeyboardRemappingActionKind,
+                           isInitial: Bool,
+                           isRepeat: Bool) -> Self {
+        guard isInitial || isRepeat else { return .consume }
+        switch kind {
+        case .keySequence: return .sendKeySequence
+        case .typeText: return .typeText
+        case .openLink: return isInitial ? .openLink : .consume
+        case .openApp: return isInitial ? .openApp : .consume
+        case .disabled: return .consume
+        }
+    }
+
+    static func shouldSuppressKeyUp(hasHeldMapping: Bool) -> Bool {
+        hasHeldMapping
+    }
+}
+
 enum KeyboardRemappingRisk: Equatable {
     case modifier
     case letter
     case number
-
-    var warning: String {
-        switch self {
-        case .modifier:
-            "Modifier keys are used by many macOS shortcuts. Remapping one may disrupt common system and app commands."
-        case .letter:
-            "Letter keys are used for everyday typing. Remapping one may make text entry and shortcuts harder to use."
-        case .number:
-            "Number keys are used for everyday typing and shortcuts. Remapping one may make text entry harder to use."
-        }
-    }
 
     static func forSourceKeyCode(_ keyCode: Int64) -> Self? {
         if [54, 55, 56, 57, 58, 59, 60, 61, 62, 63].contains(keyCode) {

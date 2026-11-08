@@ -1156,7 +1156,7 @@ extension AppFeature {
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(language).pageTitle
         case .middleClick: return s.middleClickSection
         case .keyboardDebounce: return s.keyDebounceName
-        case .keyRemapping: return "Remap keys"
+        case .keyRemapping: return FeatureStrings.keyboardRemapping(language)[.pageTitle]
         case .textSnippets: return FeatureStrings.snippets(language).pageTitle
         case .superKey: return FeatureStrings.superKey(language).pageTitle
         case .mouseClickDebounce:

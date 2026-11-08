@@ -10,6 +10,31 @@ enum KeyboardRemappingTests {
                      "failed event-tap creation produces an actionable failure status")
         suite.expect(KeyboardRemappingTapStatus.afterTapCreation(succeeded: true) == .active,
                      "successful event-tap creation produces an active status")
+        for kind in KeyboardRemappingActionKind.allCases {
+            let initial = KeyboardRemappingOutputAction.forKeyDown(kind, isInitial: true, isRepeat: false)
+            suite.expect(initial == (kind == .keySequence ? .sendKeySequence
+                : kind == .typeText ? .typeText
+                : kind == .openLink ? .openLink
+                : kind == .openApp ? .openApp : .consume),
+                "initial key-down routes \(kind.rawValue) to its configured action")
+        }
+        suite.expect(KeyboardRemappingOutputAction.forKeyDown(.keySequence, isInitial: false, isRepeat: true)
+                        == .sendKeySequence
+                     && KeyboardRemappingOutputAction.forKeyDown(.typeText, isInitial: false, isRepeat: true)
+                        == .typeText,
+                     "held key repeats resend key sequences and typed text")
+        suite.expect(KeyboardRemappingOutputAction.forKeyDown(.openLink, isInitial: false, isRepeat: true)
+                        == .consume
+                     && KeyboardRemappingOutputAction.forKeyDown(.openApp, isInitial: false, isRepeat: true)
+                        == .consume
+                     && KeyboardRemappingOutputAction.forKeyDown(.disabled, isInitial: false, isRepeat: true)
+                        == .consume,
+                     "held key repeats do not repeat one-shot app, link, or disabled actions")
+        suite.expect(KeyboardRemappingOutputAction.forKeyDown(.keySequence, isInitial: false, isRepeat: false)
+                        == .consume
+                     && KeyboardRemappingOutputAction.shouldSuppressKeyUp(hasHeldMapping: true)
+                     && !KeyboardRemappingOutputAction.shouldSuppressKeyUp(hasHeldMapping: false),
+                     "non-repeat duplicate downs are ignored and only mapped key releases are swallowed")
 
         let globalRule = KeyboardRemappingRule(
             sourceKeyCode: 0,

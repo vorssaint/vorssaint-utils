@@ -5,6 +5,7 @@ import AppKit
 import SwiftUI
 
 struct KeyboardRemappingSettings: View {
+    @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var remapping = KeyboardRemappingService.shared
     @AppStorage(DefaultsKey.keyboardRemappingEnabled) private var enabled = false
@@ -21,6 +22,10 @@ struct KeyboardRemappingSettings: View {
         case rule(UUID)
     }
 
+    private var strings: KeyboardRemappingStrings {
+        FeatureStrings.keyboardRemapping(l10n.language)
+    }
+
     private var hasEnabledRiskyRules: Bool {
         rules.contains { $0.enabled && $0.isValid && $0.sourceRisk != nil }
     }
@@ -28,7 +33,7 @@ struct KeyboardRemappingSettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Enable system-wide key remapping", isOn: systemEnabledBinding)
+                Toggle(strings[.enabled], isOn: systemEnabledBinding)
                     .toggleStyle(.switch)
                     .onChange(of: enabled) { _, value in
                         remapping.syncWithPreferences()
@@ -42,15 +47,15 @@ struct KeyboardRemappingSettings: View {
                     case .inactive:
                         EmptyView()
                     case .starting:
-                        Label("Starting key remapping…", systemImage: "keyboard")
+                        Label(strings[.starting], systemImage: "keyboard")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     case .active:
-                        Label("Key remapping is active", systemImage: "checkmark.circle.fill")
+                        Label(strings[.active], systemImage: "checkmark.circle.fill")
                             .font(.caption)
                             .foregroundStyle(.green)
                     case .failed:
-                        Label("macOS did not allow the keyboard remapping tap to start. Check Vorssaint’s Accessibility permission, then turn remapping off and on to retry.", systemImage: "exclamationmark.triangle.fill")
+                        Label(strings[.failed], systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
                     }
@@ -59,9 +64,9 @@ struct KeyboardRemappingSettings: View {
 
             Section {
                 if rules.isEmpty {
-                    ContentUnavailableView("No Remapping Rules",
+                    ContentUnavailableView(strings[.emptyTitle],
                                            systemImage: "keyboard",
-                                           description: Text("Add a rule to change or disable a key for all apps or one selected app."))
+                                           description: Text(strings[.emptyDescription]))
                         .frame(maxWidth: .infinity, minHeight: 300)
                         .multilineTextAlignment(.center)
                 }
@@ -71,18 +76,18 @@ struct KeyboardRemappingSettings: View {
                 Button {
                     rules.append(KeyboardRemappingRule())
                 } label: {
-                    Label("Add rule", systemImage: "plus")
+                    Label(strings[.addRule], systemImage: "plus")
                 }
                 .disabled(!enabled || rules.count >= KeyboardRemappingConfig.maximumRules)
             } header: {
-                Text("Rules")
+                Text(strings[.rulesTitle])
             } footer: {
-                Text("Choose what happens when the source key is pressed. An optional bundle identifier limits a rule to that app.")
+                Text(strings[.rulesFooter])
             }
             .disabled(!enabled)
 
             if enabled, rules.contains(where: { $0.enabled && $0.isValid }), !permissions.accessibility {
-                Section("Permission required") {
+                Section(strings[.permissionRequired]) {
                     PermissionRow(kind: .accessibility)
                 }
             }
@@ -108,17 +113,17 @@ struct KeyboardRemappingSettings: View {
             capture.cancel()
         }
         .confirmationDialog(
-            "Enable a commonly used key mapping?",
+            strings[.riskDialogTitle],
             isPresented: Binding(
                 get: { pendingEnable != nil },
                 set: { if !$0 { pendingEnable = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("Enable mapping anyway", role: .destructive) {
+            Button(strings[.enableAnyway], role: .destructive) {
                 confirmPendingEnable()
             }
-            Button("Cancel", role: .cancel) {
+            Button(strings[.cancel], role: .cancel) {
                 pendingEnable = nil
             }
         } message: {
@@ -171,10 +176,12 @@ struct KeyboardRemappingSettings: View {
     private var pendingEnableMessage: String {
         switch pendingEnable {
         case .system:
-            return "One or more enabled rules remap a modifier, letter, or number key. These keys are important for typing and common macOS shortcuts."
+            return strings[.systemRiskWarning]
         case .rule(let id):
-            return rules.first(where: { $0.id == id })?.sourceRisk?.warning
-                ?? "This key is commonly used for typing or macOS shortcuts."
+            guard let risk = rules.first(where: { $0.id == id })?.sourceRisk else {
+                return strings[.genericRiskWarning]
+            }
+            return strings.warning(for: risk)
         case nil:
             return ""
         }
@@ -216,40 +223,42 @@ struct KeyboardRemappingSettings: View {
                     .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(rule.wrappedValue.sourceKeyCode < 0
-                         ? "New key rule"
+                         ? strings[.newRule]
                          : capture.buttonTitle(for: rule.wrappedValue.sourceKeyCode,
                                                modifiers: rule.wrappedValue.sourceModifiers,
-                                               placeholder: "Source key"))
+                                               placeholder: strings[.sourceKey],
+                                               strings: strings))
                         .font(.headline)
-                    Text(rule.wrappedValue.bundleIdentifier.isEmpty ? "All apps" : InstalledApps.name(for: rule.wrappedValue.bundleIdentifier))
+                    Text(rule.wrappedValue.bundleIdentifier.isEmpty ? strings[.allApps] : InstalledApps.name(for: rule.wrappedValue.bundleIdentifier))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                 }
                 Spacer()
-                Toggle("Enable remapping rule",
+                Toggle(strings[.enableRule],
                        isOn: ruleEnabledBinding(for: rule.wrappedValue.id))
                     .labelsHidden()
                     .toggleStyle(.switch)
-                    .accessibilityLabel("Enable remapping rule")
+                    .accessibilityLabel(strings[.enableRule])
                 Button(role: .destructive) {
                     rules.removeAll { $0.id == rule.wrappedValue.id }
                 } label: {
                     Image(systemName: "trash")
                 }
                 .buttonStyle(.borderless)
-                .help("Remove rule")
-                .accessibilityLabel("Remove rule")
+                .help(strings[.removeRule])
+                .accessibilityLabel(strings[.removeRule])
             }
 
             VStack(alignment: .leading, spacing: 12) {
                 VStack(alignment: .leading, spacing: 5) {
-                    Text("WHEN PRESSED")
+                    Text(strings[.whenPressed])
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Button(capture.buttonTitle(for: rule.wrappedValue.sourceKeyCode,
                                                modifiers: rule.wrappedValue.sourceModifiers,
-                                               placeholder: "Record source key")) {
+                                               placeholder: strings[.recordSource],
+                                               strings: strings)) {
                         capture.begin { keyCode, modifiers in
                             let wasEnabled = rule.wrappedValue.enabled
                             let risk = KeyboardRemappingRisk.forSourceKeyCode(keyCode)
@@ -267,7 +276,7 @@ struct KeyboardRemappingSettings: View {
                     .controlSize(.regular)
                     .frame(width: 155, alignment: .leading)
                     if let risk = rule.wrappedValue.sourceRisk {
-                        Label(risk.warning, systemImage: "exclamationmark.triangle.fill")
+                        Label(strings.warning(for: risk), systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
                             .foregroundStyle(.orange)
                             .fixedSize(horizontal: false, vertical: true)
@@ -280,18 +289,18 @@ struct KeyboardRemappingSettings: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     HStack(spacing: 8) {
-                        Text("SEND")
+                        Text(strings[.send])
                             .font(.caption)
                             .foregroundStyle(.secondary)
-                    Picker("Action", selection: Binding(
+                    Picker(strings[.actionPicker], selection: Binding(
                         get: { rule.wrappedValue.resolvedActionKind },
                         set: { rule.wrappedValue.actionKind = $0 }
                     )) {
-                        Text("Send keys").tag(KeyboardRemappingActionKind.keySequence)
-                        Text("Type text").tag(KeyboardRemappingActionKind.typeText)
-                        Text("Open link").tag(KeyboardRemappingActionKind.openLink)
-                        Text("Open app").tag(KeyboardRemappingActionKind.openApp)
-                        Text("Disable shortcut").tag(KeyboardRemappingActionKind.disabled)
+                        Text(strings[.sendKeys]).tag(KeyboardRemappingActionKind.keySequence)
+                        Text(strings[.typeText]).tag(KeyboardRemappingActionKind.typeText)
+                        Text(strings[.openLink]).tag(KeyboardRemappingActionKind.openLink)
+                        Text(strings[.openApp]).tag(KeyboardRemappingActionKind.openApp)
+                        Text(strings[.disableShortcut]).tag(KeyboardRemappingActionKind.disabled)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -309,7 +318,7 @@ struct KeyboardRemappingSettings: View {
                     Image(systemName: "app")
                         .foregroundStyle(.secondary)
                         .frame(width: 20, height: 20)
-                    Text("All apps")
+                    Text(strings[.allApps])
                         .foregroundStyle(.secondary)
                 } else {
                     Image(nsImage: InstalledApps.icon(for: rule.wrappedValue.bundleIdentifier))
@@ -325,7 +334,7 @@ struct KeyboardRemappingSettings: View {
                     }
                 }
                 Spacer(minLength: 4)
-                Button("Choose app…") {
+                Button(strings[.chooseApp]) {
                     appPickerRuleID = rule.wrappedValue.id
                     showingAppPicker = true
                 }
@@ -338,16 +347,16 @@ struct KeyboardRemappingSettings: View {
                             .foregroundStyle(.secondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Apply to all apps")
-                    .accessibilityLabel("Apply to all apps")
+                    .help(strings[.applyAllApps])
+                    .accessibilityLabel(strings[.applyAllApps])
                 }
             }
 
             if capture.isCapturing {
                 HStack(spacing: 8) {
-                    Label("Press a key combination…", systemImage: "keyboard")
+                    Label(strings[.capturePrompt], systemImage: "keyboard")
                     Spacer()
-                    Button("Cancel") { capture.cancel() }
+                    Button(strings[.cancel]) { capture.cancel() }
                         .buttonStyle(.borderless)
                 }
                 .font(.caption)
@@ -363,7 +372,7 @@ struct KeyboardRemappingSettings: View {
         }
         .overlay(alignment: .bottomLeading) {
             if !rule.wrappedValue.hasValidBundleIdentifier {
-                Text("Enter a valid bundle identifier, such as com.apple.Safari.")
+                Text(strings[.invalidBundle])
                     .font(.caption)
                     .foregroundStyle(.red)
                     .padding(.top, 8)
@@ -379,7 +388,7 @@ struct KeyboardRemappingSettings: View {
                 Button {
                     rule.wrappedValue.output.append(KeyboardRemappingChord())
                 } label: {
-                    Label("Add key", systemImage: "plus")
+                    Label(strings[.addKey], systemImage: "plus")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -391,7 +400,8 @@ struct KeyboardRemappingSettings: View {
                             HStack(spacing: 4) {
                                 Button(capture.buttonTitle(for: chord.wrappedValue.keyCode,
                                                            modifiers: chord.wrappedValue.modifiers,
-                                                           placeholder: "Record key")) {
+                                                           placeholder: strings[.recordKey],
+                                                           strings: strings)) {
                                     capture.begin { keyCode, modifiers in
                                         chord.wrappedValue.keyCode = keyCode
                                         chord.wrappedValue.modifierMask = modifiers.rawValue
@@ -407,15 +417,15 @@ struct KeyboardRemappingSettings: View {
                                         Image(systemName: "minus.circle")
                                     }
                                     .buttonStyle(.borderless)
-                                    .help("Remove output key")
-                                    .accessibilityLabel("Remove output key \(index + 1)")
+                                    .help(strings[.removeOutputKey])
+                                    .accessibilityLabel("\(strings[.removeOutputKey]) \(index + 1)")
                                 }
                             }
                         }
                         Button {
                             rule.wrappedValue.output.append(KeyboardRemappingChord())
                         } label: {
-                            Label("Add key", systemImage: "plus")
+                            Label(strings[.addKey], systemImage: "plus")
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -425,7 +435,7 @@ struct KeyboardRemappingSettings: View {
                 .scrollIndicators(.visible)
             }
         case .typeText:
-            TextField("Text to type", text: rule.text, axis: .vertical)
+            TextField(strings[.textField], text: rule.text, axis: .vertical)
                 .textFieldStyle(.roundedBorder)
                 .lineLimit(1...3)
                 .frame(maxWidth: 300)
@@ -436,7 +446,7 @@ struct KeyboardRemappingSettings: View {
         case .openApp:
             HStack(spacing: 8) {
                 if rule.wrappedValue.appBundleIdentifier.isEmpty {
-                    Text("Choose an app")
+                    Text(strings[.chooseAnApp])
                         .foregroundStyle(.secondary)
                 } else {
                     Image(nsImage: InstalledApps.icon(for: rule.wrappedValue.appBundleIdentifier))
@@ -445,7 +455,7 @@ struct KeyboardRemappingSettings: View {
                     Text(InstalledApps.name(for: rule.wrappedValue.appBundleIdentifier))
                         .lineLimit(1)
                 }
-                Button("Choose…") {
+                Button(strings[.chooseEllipsis]) {
                     appPickerRuleID = rule.wrappedValue.id
                     choosingActionApp = true
                     showingAppPicker = true
@@ -453,7 +463,7 @@ struct KeyboardRemappingSettings: View {
                 .controlSize(.small)
             }
         case .disabled:
-            Label("This shortcut does nothing", systemImage: "slash.circle")
+            Label(strings[.disabledDescription], systemImage: "slash.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -515,8 +525,9 @@ private final class KeyboardRemappingCapture: ObservableObject {
 
     func buttonTitle(for keyCode: Int64,
                      modifiers: GlobalShortcutModifiers,
-                     placeholder: String) -> String {
-        if isCapturing { return "Press a key…" }
+                     placeholder: String,
+                     strings: KeyboardRemappingStrings) -> String {
+        if isCapturing { return strings[.captureButton] }
         guard (0..<128).contains(keyCode) else { return placeholder }
         return GlobalShortcut(keyCode: keyCode, modifiers: modifiers).displayString
     }
