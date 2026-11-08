@@ -51,6 +51,27 @@ enum AppManagementFeatureTests {
                         for: "com.example.editor", installedBundleIDs: ["COM.EXAMPLE.EDITOR"])
                      && !TrashSuggestionSupport.shouldSuggestCleanup(for: nil, installedBundleIDs: []),
                      "cleanup is suggested only when no installed copy with the same bundle id remains")
+        let reusedTrashApp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-trash-path-reuse-\(UUID().uuidString).app")
+        let reusedInfo = reusedTrashApp.appendingPathComponent("Contents/Info.plist")
+        func writeTrashBundleID(_ bundleID: String) {
+            try? FileManager.default.createDirectory(at: reusedInfo.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            if let data = try? PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": bundleID], format: .xml, options: 0) {
+                try? data.write(to: reusedInfo, options: .atomic)
+            }
+        }
+        writeTrashBundleID("com.vendor.first")
+        let firstTrashBundleID = TrashSuggestionSupport.bundleIdentifierOnDisk(at: reusedTrashApp)
+        writeTrashBundleID("com.vendor.second")
+        let reusedTrashBundleID = TrashSuggestionSupport.bundleIdentifierOnDisk(at: reusedTrashApp)
+        suite.expect(firstTrashBundleID == "com.vendor.first"
+                     && reusedTrashBundleID == "com.vendor.second"
+                     && TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: reusedTrashBundleID, installedBundleIDs: ["com.vendor.first"]),
+                     "reusing a Trash path reads the replacement app's current Info.plist identifier")
+        try? FileManager.default.removeItem(at: reusedTrashApp)
         let currentTrashApps = [URL(fileURLWithPath: "/Users/test/.Trash/Example.app"),
                                 URL(fileURLWithPath: "/Users/test/.Trash/Other.app")]
         let knownTrashApps = Set([currentTrashApps[0].path])

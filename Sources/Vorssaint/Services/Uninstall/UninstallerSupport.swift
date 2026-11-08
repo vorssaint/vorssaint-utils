@@ -36,6 +36,14 @@ enum TrashSuggestionNotchAvailability: Equatable {
 }
 
 enum TrashSuggestionSupport {
+    static func bundleIdentifierOnDisk(at appURL: URL) -> String? {
+        let infoURL = UninstallerSupport.infoPlistURL(in: appURL)
+        guard let data = try? Data(contentsOf: infoURL),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil),
+              let dictionary = plist as? [String: Any] else { return nil }
+        return UninstallerSupport.verifiedBundleID(dictionary["CFBundleIdentifier"] as? String)
+    }
+
     static func monitoringState(enabled: Bool, hasFullDiskAccess: Bool,
                                 streamStarted: Bool) -> TrashSuggestionMonitoringState {
         guard enabled else { return .disabled }

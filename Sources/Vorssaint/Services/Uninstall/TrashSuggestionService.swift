@@ -137,7 +137,7 @@ final class TrashSuggestionService: ObservableObject {
         for appURL in newApps {
             guard UninstallerSupport.selection(for: appURL) != nil,
                   TrashSuggestionSupport.shouldSuggestCleanup(
-                    for: Bundle(url: appURL)?.bundleIdentifier,
+                    for: TrashSuggestionSupport.bundleIdentifierOnDisk(at: appURL),
                     installedBundleIDs: installedBundleIDs) else { continue }
             presentSuggestion(for: appURL)
         }
