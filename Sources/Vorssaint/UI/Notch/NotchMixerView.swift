@@ -184,25 +184,25 @@ private struct NotchEditablePercent: View {
     }
 }
 
-/// A fader's speaker: struck out when muted, otherwise `speaker.wave.3.fill`
-/// with each wave faded on its own, so moving between thirds of the fader
-/// fades just the wave that changes.
+/// A fader's speaker: `speaker.wave.3.fill` with each wave faded on its own,
+/// so moving between thirds of the fader fades just the wave that changes.
+/// Muted, the waves fade out and the struck-out speaker fades in over the
+/// same spot: both symbols start their speaker at the same place from the
+/// left, and the frame stays the width of all three waves, so nothing moves.
 private struct NotchFaderSpeaker: View {
     let waves: Int
     let muted: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ZStack {
-            if muted {
-                Image(systemName: "speaker.slash.fill")
-            } else {
-                ForEach(1...3, id: \.self) { wave in
-                    Image(systemName: "speaker.wave.3.fill")
-                        .mask { NotchSpeakerWaveZone(wave: wave) }
-                        .opacity(MixerRoutingSupport.speakerWaveOpacity(wave, third: waves))
-                }
+        ZStack(alignment: .leading) {
+            ForEach(1...3, id: \.self) { wave in
+                Image(systemName: "speaker.wave.3.fill")
+                    .mask { NotchSpeakerWaveZone(wave: wave) }
+                    .opacity(muted ? 0 : MixerRoutingSupport.speakerWaveOpacity(wave, third: waves))
             }
+            Image(systemName: "speaker.slash.fill")
+                .opacity(muted ? 1 : 0)
         }
         .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
         .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
