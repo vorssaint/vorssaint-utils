@@ -39,6 +39,39 @@ enum NotchCustomShortcutTests {
         defaults.set(NotchCustomShortcutSupport.encoded([valid]), forKey: DefaultsKey.notchCustomShortcuts)
         suite.expect(NotchCustomShortcutSupport.stored(in: defaults) == clean,
                      "custom shortcuts round-trip through their preferences")
+        let sizingDomain = "com.vorssaint.tests.notch-shortcut-sizing-\(UUID().uuidString)"
+        let sizingDefaults = UserDefaults(suiteName: sizingDomain)!
+        defer { sizingDefaults.removePersistentDomain(forName: sizingDomain) }
+        let controlsHeight: (Int) -> CGFloat = { count in
+            NotchLayout.controls(hasCards: false, shortcutCount: count, width: 304, height: 260).height
+        }
+        sizingDefaults.set(NotchCustomShortcutSupport.encoded([
+            NotchCustomShortcut(name: "Tools", shortcutName: "Tools", symbol: "bolt.fill",
+                                destinations: [.tools]),
+            NotchCustomShortcut(name: "Shortcuts", shortcutName: "Shortcuts", symbol: "bolt.fill",
+                                destinations: [.shortcutsPage]),
+            NotchCustomShortcut(name: "Island", shortcutName: "Island", symbol: "bolt.fill",
+                                destinations: [.islandButtons]),
+        ]), forKey: DefaultsKey.notchCustomShortcuts)
+        let withoutControlsShortcuts = NotchCustomShortcutSupport.controlsCount(in: sizingDefaults)
+        suite.expect(withoutControlsShortcuts == 0 && controlsHeight(withoutControlsShortcuts) == 0,
+                     "shortcuts assigned to Tools, Shortcuts, or island buttons reserve no Controls rail height")
+        sizingDefaults.set(NotchCustomShortcutSupport.encoded([
+            NotchCustomShortcut(name: "Tools", shortcutName: "Tools", symbol: "bolt.fill",
+                                destinations: [.tools]),
+            NotchCustomShortcut(name: "Controls", shortcutName: "Controls", symbol: "bolt.fill",
+                                destinations: [.controls]),
+        ]), forKey: DefaultsKey.notchCustomShortcuts)
+        let withControlsShortcuts = NotchCustomShortcutSupport.controlsCount(in: sizingDefaults)
+        suite.expect(withControlsShortcuts == 1 && controlsHeight(withControlsShortcuts) > 0,
+                     "a shortcut assigned to Controls contributes its rail row to page sizing")
+        for path in ["Sources/Vorssaint/Services/Notch/NotchService.swift",
+                     "Sources/Vorssaint/UI/Notch/NotchView.swift"] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            suite.expect(source.contains("NotchCustomShortcutSupport.controlsCount()")
+                         && !source.contains("NotchCustomShortcutSupport.stored().count"),
+                         "the Controls page size in \(path) counts only its assigned shortcuts")
+        }
         let legacyData = Data("""
         [{"id":"\(valid.id.uuidString)","name":"Morning Focus","shortcutName":"Start Focus","symbol":"bolt.fill"}]
         """.utf8)

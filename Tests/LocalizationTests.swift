@@ -116,6 +116,26 @@ enum LocalizationTests {
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
         for (language, strings) in languages {
+            let activities = FeatureStrings.notchActivities(language)
+            let englishActivities = FeatureStrings.notchActivities(.enUS)
+            let focusStatus = [
+                activities.focusStatusPermissionName,
+                activities.focusStatusPermissionExplanation,
+                activities.focusStatusOn,
+                activities.focusStatusOff,
+            ]
+            suite.expect(focusStatus.allSatisfy { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty },
+                         "Focus Status permission and state labels are present in \(language.rawValue)")
+            if language != .enUS {
+                let englishFocusStatus = [
+                    englishActivities.focusStatusPermissionName,
+                    englishActivities.focusStatusPermissionExplanation,
+                    englishActivities.focusStatusOn,
+                    englishActivities.focusStatusOff,
+                ]
+                suite.expect(zip(focusStatus, englishFocusStatus).allSatisfy { $0 != $1 },
+                             "Focus Status permission and state labels are translated in \(language.rawValue)")
+            }
             suite.expect(!strings.zoomControlNote.isEmpty,
                          "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")
             suite.expect(!strings.uninstallerTrashDetectionTitle.isEmpty

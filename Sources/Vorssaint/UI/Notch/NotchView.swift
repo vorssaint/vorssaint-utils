@@ -523,7 +523,7 @@ struct NotchView: View {
         case .controls:
             let items = NotchSupport.controls()
             let shortcuts = items.filter { $0 != .music && !$0.isLevel }.count
-                + NotchCustomShortcutSupport.stored().count
+                + NotchCustomShortcutSupport.controlsCount()
             let levels = items.filter(\.isLevel).count
             let band = NotchBand(geometry: service.expandedGeometry, contentWidth: size.width)
             size.height = max(size.height, NotchLayout.controls(
@@ -716,6 +716,7 @@ enum NotchRestingBattery {
 /// through on its visits.
 struct NotchRestingStrip: View {
     @ObservedObject var service: NotchService
+    @ObservedObject private var l10n = L10n.shared
     /// Another display's strip, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var music = NotchMusicService.shared
@@ -725,6 +726,7 @@ struct NotchRestingStrip: View {
     @AppStorage(DefaultsKey.notchLowBatteryEarlyThreshold) private var earlyBatteryThreshold = NotchSupport.defaultEarlyBatteryThreshold
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    private var activityText: NotchActivityStrings { FeatureStrings.notchActivities(l10n.language) }
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
 
     private var batteryTint: Color {
@@ -774,7 +776,7 @@ struct NotchRestingStrip: View {
                             HStack(spacing: 4) {
                                 Image(systemName: service.idleContent.symbol)
                                     .font(.system(size: 12))
-                                Text(service.idleStatus.focusActive ? "On" : "Off")
+                                Text(service.idleStatus.focusActive ? activityText.focusStatusOn : activityText.focusStatusOff)
                                     .font(.system(size: 9, weight: .medium))
                                     .lineLimit(1)
                             }

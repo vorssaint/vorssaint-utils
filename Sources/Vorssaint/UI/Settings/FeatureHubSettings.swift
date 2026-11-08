@@ -1571,7 +1571,7 @@ extension AppPermission {
         case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permName
         case .appManagement: return FeatureStrings.settingsCategories(L10n.shared.language).appManagement
-        case .focusStatus: return "Focus Status"
+        case .focusStatus: return FeatureStrings.notchActivities(L10n.shared.language).focusStatusPermissionName
         }
     }
 
@@ -1590,7 +1590,7 @@ extension AppPermission {
         case .calendar: return FeatureStrings.notchCalendar(L10n.shared.language).permission
         case .camera: return FeatureStrings.cameraPreview(L10n.shared.language).permExplain
         case .appManagement: return hub.explainAppManagement
-        case .focusStatus: return "Allows the Dynamic Island to show whether a Focus is currently on."
+        case .focusStatus: return FeatureStrings.notchActivities(L10n.shared.language).focusStatusPermissionExplanation
         }
     }
 }

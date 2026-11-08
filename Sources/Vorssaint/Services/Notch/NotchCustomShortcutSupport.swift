@@ -102,6 +102,10 @@ enum NotchCustomShortcutSupport {
         stored(in: defaults).first { $0.id == id }
     }
 
+    static func controlsCount(in defaults: UserDefaults = .standard) -> Int {
+        stored(in: defaults).filter { $0.destinations.contains(.controls) }.count
+    }
+
     static func commandArguments(for name: String) -> [String] {
         ["run", name]
     }
