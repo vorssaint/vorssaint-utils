@@ -300,23 +300,15 @@ enum SuperKeySupport {
         }
     }
 
-    /// How long a lock state this feature wrote stays its own. A raw source key
-    /// that arrives inside the window carries the change the feature just made;
-    /// after it, the raw key belongs to a keyboard that is not mapped yet.
-    static let capsLockWriteWindow: TimeInterval = 0.25
-
-    /// Whether a raw source key should put Caps Lock back off. The lock needs
-    /// putting back only while it is on and this feature did not just turn it
-    /// on: an unmapped keyboard's Caps Lock key flips the lock, and so does the
-    /// solo tap that turns capitals on, but the tap's flip is the one the user
-    /// asked for (#3745).
-    static func rawSourceResetsCapsLock(currentlyOn: Bool,
-                                        lastWriteOn: Bool?,
-                                        lastWriteAge: TimeInterval?) -> Bool {
-        guard currentlyOn else { return false }
-        guard let lastWriteOn, let lastWriteAge, lastWriteAge <= capsLockWriteWindow
-        else { return true }
-        return lastWriteOn != currentlyOn
+    /// A missing UserKeyMapping is normal on a newly connected keyboard.
+    /// Preserve foreign Caps Lock rules and any table whose sources cannot be read.
+    static func hasNativeCapsLock(in mapping: Any?) -> Bool {
+        guard let mapping else { return true }
+        guard let entries = mapping as? [[String: Any]] else { return false }
+        return entries.allSatisfy { entry in
+            guard let source = entry["HIDKeyboardModifierMappingSrc"] as? NSNumber else { return false }
+            return source.uint64Value != SuperKeySource.capsLock.usage
+        }
     }
 
     static func nextInputSourceID(currentID: String?, enabledIDs: [String]) -> String? {
