@@ -250,6 +250,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
+                                                     s.switcherIgnoreHoverSelection,
                                                      FeatureStrings.switcherShortcuts(language).allWindows,
                                                      s.switcherWindowlessApps,
                                                      s.switcherShowShortcutHints, s.switcherMaxColumns,
@@ -282,6 +283,7 @@ enum SettingsDirectory {
                                       featureKeywords: [
                                         (.windowLayout, [s.dockClickCycleWindows,
                                                          FeatureStrings.windowLayout(language).edgeSnapEnable,
+                                                         WindowEdgeSnapRestoreStrings.localized(language).title,
                                                          FeatureStrings.windowLayout(language).gestureEnable,
                                                          FeatureStrings.windowLayout(language).gestureResize,
                                                          FeatureStrings.windowLayoutIgnoredApps(language).listTitle]),
