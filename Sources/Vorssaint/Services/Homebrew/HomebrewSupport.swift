@@ -92,12 +92,16 @@ struct HomebrewCaskRecord: Hashable {
     }
 }
 
+enum HomebrewOwnershipError: Error {
+    case unavailable
+}
+
 enum HomebrewOwnershipSupport {
     /// Resolves a package only when its catalog points at this exact app. A
     /// same-named copy elsewhere must never make an unrelated package eligible
     /// for a destructive command.
     static func packageManagingApplication(atPath rawPath: String,
-                                           installed: [HomebrewCaskRecord]) -> HomebrewPackage? {
+                                           installed: [HomebrewCaskRecord]) -> Result<HomebrewPackage?, HomebrewOwnershipError> {
         let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
         let exact = installed.filter { record in
             record.appPaths.contains {
@@ -105,9 +109,16 @@ enum HomebrewOwnershipSupport {
             }
         }
         if exact.count == 1 {
-            return package(from: exact[0])
+            return .success(package(from: exact[0]))
         }
-        return nil
+        let name = URL(fileURLWithPath: path).lastPathComponent
+        guard exact.isEmpty,
+              !installed.contains(where: { $0.appPaths.isEmpty && $0.appFileNames.contains(name) }) else {
+            // A missing target or multiple owners cannot authorize either a
+            // package command or ordinary removal of a possibly managed app.
+            return .failure(.unavailable)
+        }
+        return .success(nil)
     }
 
     private static func package(from record: HomebrewCaskRecord) -> HomebrewPackage {
@@ -795,14 +806,20 @@ enum HomebrewParser {
 
     /// Installed casks with the app bundles they install, so a package token
     /// can be traced back to the app on disk.
-    static func parseInstalledCaskRecords(_ output: String) -> [HomebrewCaskRecord] {
+    static func parseInstalledCaskRecords(_ output: String) throws -> [HomebrewCaskRecord] {
         for json in [output] + balancedJSONObjects(in: output) {
             let data = Data(json.utf8)
             guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let casks = root["casks"] as? [[String: Any]] else { continue }
-            return casks.compactMap(parseCaskRecord)
+            guard casks.allSatisfy({ ($0["installed"] as? String)?.isEmpty == false
+                && $0["artifacts"] is [[String: Any]] }) else {
+                throw HomebrewOwnershipError.unavailable
+            }
+            let records = casks.compactMap(parseCaskRecord)
+            guard records.count == casks.count else { throw HomebrewOwnershipError.unavailable }
+            return records
         }
-        return []
+        throw HomebrewOwnershipError.unavailable
     }
 
     private static func parseCaskRecord(_ item: [String: Any]) -> HomebrewCaskRecord? {

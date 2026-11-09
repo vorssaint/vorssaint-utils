@@ -247,13 +247,13 @@ enum SmoothScrollRoutingTests {
                      "native Control-wheel zoom cancels the previous glide and passes through")
 
         defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
-        defaults.set(true, forKey: DefaultsKey.verticalZoomEnabled)
-        defaults.set(ScrollZoomModifier.control.rawValue, forKey: DefaultsKey.verticalZoomModifier)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.control.rawValue, forKey: DefaultsKey.pinchZoomModifier)
         _ = tick(ignored, wheel())
         let pendingZoom = wheel(flags: .maskControl)
         suite.expect(tick(ignored, pendingZoom) === pendingZoom && !ignored.engine.isActive
                         && Inverter.shared.zoomRequests == 1,
-                     "an unresolved configured Zoom tick stays raw and cancels the previous glide")
+                     "a declined configured Pinch tick stays raw and cancels the previous glide")
         Inverter.shared.consumesZoom = true
         suite.expect(tick(ignored, wheel(flags: .maskControl)) == nil && !ignored.engine.isActive,
                      "a handled Zoom tick is consumed without starting a glide")
@@ -261,7 +261,7 @@ enum SmoothScrollRoutingTests {
         Inverter.shared.consumesZoom = false
         Target.shared.isOwn = true
         defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
-        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.verticalZoomModifier)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.pinchZoomModifier)
         defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
         defaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
         let ownZoom = Service()

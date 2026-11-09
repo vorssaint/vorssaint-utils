@@ -50,7 +50,7 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// succeed. Keyboard light state is read when Quick toggles opens or one of
 /// its global shortcuts is pressed.
 /// While display control is on, the standing resources are one screen change
-/// observer and a pair of wake observers, and no timers; everything else
+/// observer and sleep/wake observers, and no standing timers; everything else
 /// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
@@ -130,6 +130,9 @@ final class BrightnessService: ObservableObject {
     private var rebuildDebounce: DispatchWorkItem?
     private var wakeObservers: [NSObjectProtocol] = []
     private var wakeRebuild: DispatchWorkItem?
+    /// Sleep and the wake settle window can temporarily report no displays.
+    /// Main thread only; that gap must never be treated as an unplug.
+    private var displayPowerIsSuspended = false
     /// How long displays are given to finish coming back before they are
     /// spoken to again. A monitor still bringing its connection up answers
     /// nothing, and taking that silence at face value would move it off the
@@ -193,7 +196,7 @@ final class BrightnessService: ObservableObject {
     /// waiting to be added to the step that read commits. An entry existing at
     /// all means a read is in flight for that display. Main thread only, like
     /// the key presses that fill it (issue #370).
-    private var ddcPendingSteps: [CGDirectDisplayID: Double] = [:]
+    private var ddcPendingSteps: [CGDirectDisplayID: (request: UUID, delta: Double)] = [:]
     private var drainScheduled = false
     /// Session memory for write-only monitors, so their slider does not jump
     /// back to a placeholder between panel openings. Each value remembers
@@ -615,7 +618,7 @@ final class BrightnessService: ObservableObject {
     /// page appears, so the sliders match changes made elsewhere (brightness
     /// keys, System Settings, the monitor's own buttons).
     func refresh(force: Bool = false) {
-        guard running else { return }
+        guard running, !displayPowerIsSuspended else { return }
         let topology = Self.currentTopology()
         let previousDisplays = displays
         stateLock.lock()
@@ -961,6 +964,7 @@ final class BrightnessService: ObservableObject {
     }
 
     private func restoreDeferredDisplays(retryFailures: Bool = false) {
+        guard !displayPowerIsSuspended else { return }
         for id in deferredRestoration.candidates(lidClosed: Self.lidClosed(),
                                                  retryFailures: retryFailures) {
             guard restoreDisplay(id) == .success else { continue }
@@ -1534,7 +1538,8 @@ final class BrightnessService: ObservableObject {
                       delta: Double,
                       showOSD: Bool) {
         focusKeyDisplay(displayID)
-        let cached = displays.first(where: { $0.id == displayID })?.brightness
+        let display = displays.first(where: { $0.id == displayID })
+        let cached = display?.brightness
         if method == .system {
             guard let current = currentSystemBrightness(for: displayID, fallback: cached) else { return }
             commitStep(from: current, delta: delta, to: displayID, method: method, showOSD: showOSD)
@@ -1544,6 +1549,13 @@ final class BrightnessService: ObservableObject {
         let known = levelKnownAt[displayID]
         let route = routes[displayID]
         stateLock.unlock()
+        // A route can change before its new slider scale reaches the main
+        // thread. Wait for that publication instead of stepping the old scale.
+        guard route?.method == method, display?.method == method else { return }
+        // The preference changes before the queued rebuild replaces DDC.
+        // Keys in that gap must not start another hardware-scale step.
+        if route?.method == .ddc, let pathKey = route?.ddcPathKey,
+           forcedSoftwarePaths().contains(pathKey) { return }
         let fresh = BrightnessSupport.trustsRememberedLevel(lastKnownAt: known, now: Date(),
                                                             window: Self.levelTrustWindow)
         // Gamma dimming is this app's own doing, so the remembered value is
@@ -1559,11 +1571,13 @@ final class BrightnessService: ObservableObject {
         // that read is about to commit. Starting a second read instead would
         // begin from the same value the first press has not written yet, and
         // two taps would move the monitor a single step.
-        if ddcPendingSteps[displayID] != nil {
-            ddcPendingSteps[displayID, default: 0] += delta
+        if var pending = ddcPendingSteps[displayID] {
+            pending.delta += delta
+            ddcPendingSteps[displayID] = pending
             return
         }
-        ddcPendingSteps[displayID] = 0
+        let request = UUID()
+        ddcPendingSteps[displayID] = (request, 0)
         // Reading a monitor takes long enough to be felt, so it happens off
         // the main thread and the step follows the answer.
         workQueue.async { [weak self] in
@@ -1574,7 +1588,8 @@ final class BrightnessService: ObservableObject {
                 // answer before the step is queued, so an external adjustment
                 // cannot make a necessary write look like a duplicate.
                 self.stateLock.lock()
-                if self.routes[displayID]?.ddcPathKey == route.ddcPathKey,
+                if self.routes[displayID]?.method == route.method,
+                   self.routes[displayID]?.ddcPathKey == route.ddcPathKey,
                    self.routes[displayID]?.extendedDimming == route.extendedDimming {
                     self.routes[displayID]?.lastDDCValue = value
                 }
@@ -1585,7 +1600,8 @@ final class BrightnessService: ObservableObject {
                     self.rememberWriteOnlyDDCPath(route.ddcPathKey)
                 }
                 self.stateLock.lock()
-                if self.routes[displayID]?.ddcPathKey == route.ddcPathKey {
+                if self.routes[displayID]?.method == route.method,
+                   self.routes[displayID]?.ddcPathKey == route.ddcPathKey {
                     self.routes[displayID]?.ddcReadable = false
                     self.routes[displayID]?.lastDDCValue = nil
                 }
@@ -1593,11 +1609,16 @@ final class BrightnessService: ObservableObject {
                 Self.log.log("ddc reads stopped answering for display \(displayID); future steps will write only")
             }
             DispatchQueue.main.async {
-                let queued = self.ddcPendingSteps.removeValue(forKey: displayID) ?? 0
+                // A dimming choice cancels the old read even before the
+                // rebuild runs. Its late reply must not consume a newer read.
+                guard self.ddcPendingSteps[displayID]?.request == request,
+                      let pending = self.ddcPendingSteps.removeValue(forKey: displayID) else { return }
+                let queued = pending.delta
                 var current = cached
                 self.stateLock.lock()
                 let superseded = self.levelKnownAt[displayID] != known
-                let routeChanged = self.routes[displayID]?.ddcPathKey != route.ddcPathKey
+                let routeChanged = self.routes[displayID]?.method != route.method
+                    || self.routes[displayID]?.ddcPathKey != route.ddcPathKey
                     || self.routes[displayID]?.extendedDimming != route.extendedDimming
                 self.stateLock.unlock()
                 guard !routeChanged else { return }
@@ -1791,21 +1812,30 @@ final class BrightnessService: ObservableObject {
     /// window from the first event: resetting it for every notification made
     /// a newly connected display wait behind the whole storm.
     private func screensChanged() {
-        guard running, rebuildDebounce == nil else { return }
+        guard running, !displayPowerIsSuspended, rebuildDebounce == nil else { return }
         let work = DispatchWorkItem { [weak self] in
-            guard let self, self.running else { return }
+            guard let self else { return }
             self.rebuildDebounce = nil
+            guard self.running, !self.displayPowerIsSuspended else { return }
+            // Discovery may already have cached an active monitor before
+            // this notification settles. Enforce the choice independently
+            // of whether the cached topology still looks different.
+            let reapplied = self.reapplyManagedDisplayDisables()
             let topology = Self.currentTopology()
             self.stateLock.lock()
             let changed = topology.online != self.knownTopology
                 || topology.active != self.knownActiveTopology
                 || topology.mirrorSources != self.knownMirrorSources
             self.stateLock.unlock()
-            if changed {
+            if changed || reapplied {
                 Self.log.log("topology changed to \(topology.online.sorted().map(String.init).joined(separator: ","), privacy: .public); rebuilding")
                 let drawable = Self.drawableDisplayIDs(online: topology.online,
                                                        active: topology.active)
-                if !self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) {
+                // Closing the lid is allowed to leave no drawable displays.
+                // It is not a request to bring an intentionally disabled
+                // external monitor back onto this Mac's input.
+                if Self.lidClosed() == true
+                    || !self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) {
                     self.refresh()
                 }
             }
@@ -1819,6 +1849,7 @@ final class BrightnessService: ObservableObject {
     /// is no UI left to reverse the choice, so restore one display that this
     /// process disabled and leave every unrelated display configuration alone.
     private func restoreManagedDisplayIfHeadless(drawableDisplayIDs: Set<CGDirectDisplayID>) -> Bool {
+        guard running, !displayPowerIsSuspended, Self.lidClosed() != true else { return false }
         stateLock.lock()
         let candidates = BrightnessSupport.headlessRecoveryCandidates(
             drawableDisplayIDs: drawableDisplayIDs,
@@ -1834,41 +1865,67 @@ final class BrightnessService: ObservableObject {
         // reach the panel before the transaction blocks it.
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            var restored: CGDirectDisplayID?
-            var failure: DisplayControlFailure = .closedLid
-            for id in candidates {
-                if self.discardReplacedDisplay(id) {
-                    failure = .failed
-                    continue
-                }
-                let result: BrightnessSupport.DisplayConfigurationResult = self.canRestoreDisplay(id)
-                    ? Self.configureDisplay(id, enabled: true) : .failed
-                self.deferredRestoration.recordHeadless(id, result: result)
-                self.syncLidObserver()
-                if result == .success { self.displayControlFailure = nil }
-                if result == .success {
-                    restored = id
-                    break
-                }
-                if result == .failed { failure = .failed }
+            guard self.running, !self.displayPowerIsSuspended, Self.lidClosed() != true else {
+                self.pendingDisplayIDs.subtract(candidates)
+                return
             }
-            if let restored {
-                self.deferredRestoration.cancelHeadless()
-                self.syncLidObserver()
-                self.stateLock.lock()
-                self.managedDisabledIDs.remove(restored)
-                self.managedDisabledDisplays.removeValue(forKey: restored)
-                self.stateLock.unlock()
-                Self.forgetDisplaySwitchedOff(restored)
-                Self.log.log("restored display \(restored) after the active display set became empty")
-            } else {
-                Self.log.error("could not restore a display after the active display set became empty")
+            let topology = Self.currentTopology()
+            guard Self.drawableDisplayIDs(online: topology.online, active: topology.active).isEmpty else {
+                self.pendingDisplayIDs.subtract(candidates)
+                self.refresh(force: true)
+                return
             }
-            self.pendingDisplayIDs.subtract(candidates)
-            self.displayControlFailure = restored == nil ? failure : nil
-            self.refresh(force: true)
+            self.stateLock.lock()
+            let stillDisabled = candidates.filter { self.managedDisabledIDs.contains($0) }
+            self.stateLock.unlock()
+            defer { self.pendingDisplayIDs.subtract(candidates) }
+            guard !stillDisabled.isEmpty else { return }
+            self.performHeadlessDisplayRestoration(candidates: stillDisabled)
         }
         return true
+    }
+
+    /// Main-thread transactions after the automatic recovery policy has
+    /// checked the current power state and topology. Explicit restoration
+    /// still shares the closed-lid/deferred bookkeeping with this path.
+    private func performHeadlessDisplayRestoration(candidates: [CGDirectDisplayID]) {
+        defer { pendingDisplayIDs.subtract(candidates) }
+        var restored: CGDirectDisplayID?
+        var failure: DisplayControlFailure = .closedLid
+        for id in candidates {
+            stateLock.lock()
+            let stillDisabled = managedDisabledIDs.contains(id)
+            stateLock.unlock()
+            guard stillDisabled else { continue }
+            if discardReplacedDisplay(id) {
+                failure = .failed
+                continue
+            }
+            let result: BrightnessSupport.DisplayConfigurationResult = canRestoreDisplay(id)
+                ? Self.configureDisplay(id, enabled: true) : .failed
+            deferredRestoration.recordHeadless(id, result: result)
+            syncLidObserver()
+            if result == .success { displayControlFailure = nil }
+            if result == .success {
+                restored = id
+                break
+            }
+            if result == .failed { failure = .failed }
+        }
+        if let restored {
+            deferredRestoration.cancelHeadless()
+            syncLidObserver()
+            stateLock.lock()
+            managedDisabledIDs.remove(restored)
+            managedDisabledDisplays.removeValue(forKey: restored)
+            stateLock.unlock()
+            Self.forgetDisplaySwitchedOff(restored)
+            Self.log.log("restored display \(restored) after the active display set became empty")
+        } else {
+            Self.log.error("could not restore a display after the active display set became empty")
+        }
+        displayControlFailure = restored == nil ? failure : nil
+        refresh(force: true)
     }
 
     // MARK: - Waking up
@@ -1890,6 +1947,12 @@ final class BrightnessService: ObservableObject {
                 self?.displaysWokeUp()
             }
         }
+        wakeObservers += [NSWorkspace.willSleepNotification,
+                          NSWorkspace.screensDidSleepNotification].map { name in
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                self?.displaysWillSleep()
+            }
+        }
     }
 
     private func removeWakeObservers() {
@@ -1898,6 +1961,19 @@ final class BrightnessService: ObservableObject {
         wakeObservers = []
         wakeRebuild?.cancel()
         wakeRebuild = nil
+        displayPowerIsSuspended = false
+    }
+
+    private func displaysWillSleep() {
+        displayPowerIsSuspended = true
+        wakeRebuild?.cancel()
+        wakeRebuild = nil
+        rebuildDebounce?.cancel()
+        rebuildDebounce = nil
+        stateLock.lock()
+        rebuildGeneration += 1
+        rebuildingTopology = nil
+        stateLock.unlock()
     }
 
     /// One wake arrives as both notifications, and the screens usually wake a
@@ -1905,16 +1981,61 @@ final class BrightnessService: ObservableObject {
     /// into a single pass that waits for the connections to settle.
     private func displaysWokeUp() {
         guard running || !deferredRestoration.ids.isEmpty else { return }
+        displayPowerIsSuspended = true
+        rebuildDebounce?.cancel()
+        rebuildDebounce = nil
         wakeRebuild?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.running || !self.deferredRestoration.ids.isEmpty else { return }
+            self.wakeRebuild = nil
+            self.displayPowerIsSuspended = false
             self.restoreDeferredDisplays(retryFailures: true)
             guard self.running else { return }
+            _ = self.reapplyManagedDisplayDisables()
             Self.log.log("woke from sleep; rebuilding display routes")
+            let topology = Self.currentTopology()
+            let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
+            if self.restoreManagedDisplayIfHeadless(drawableDisplayIDs: drawable) { return }
             self.refresh(force: true)
         }
         wakeRebuild = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.wakeSettleDelay, execute: work)
+    }
+
+    /// macOS may re-enable an app-only disabled display after sleep or a
+    /// connection change. Keep the person's choice until an explicit enable
+    /// or safety recovery retires it. Unknown identities are safe to enable
+    /// during recovery, but must never be automatically switched off.
+    private func reapplyManagedDisplayDisables() -> Bool {
+        guard running, !displayPowerIsSuspended else { return false }
+        var reapplied = false
+        stateLock.lock()
+        let disabled = managedDisabledDisplays
+        stateLock.unlock()
+        for (id, display) in disabled.sorted(by: { $0.key < $1.key }) {
+            guard !deferredRestoration.ids.contains(id), !pendingDisplayIDs.contains(id) else { continue }
+            if !display.isBuiltIn {
+                guard let original = display.restorationFingerprint,
+                      Self.restorationDisplayFingerprint(id) == original else { continue }
+            }
+            // Re-read before every transaction: the previous disable or a
+            // cable removal may have changed which displays remain usable.
+            let topology = Self.currentTopology()
+            let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
+            guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable, target: id) else { continue }
+            let result = Self.configureDisplay(id, enabled: false)
+            guard result == .success else {
+                Self.log.error("could not reapply disabled state for display \(id); keeping the saved choice")
+                continue
+            }
+            stateLock.lock()
+            knownActiveTopology.remove(id)
+            pendingLevels.removeValue(forKey: id)
+            stateLock.unlock()
+            reapplied = true
+            Self.log.log("reapplied disabled state for display \(id) after a connection change")
+        }
+        return reapplied
     }
 
     // MARK: - Rebuild (work queue)
@@ -2540,6 +2661,7 @@ final class BrightnessService: ObservableObject {
         }
         stateLock.unlock()
         guard let pathKey else { return }
+        ddcPendingSteps.removeValue(forKey: id)
         let defaults = UserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessExtendedDimmingPaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(
@@ -2568,8 +2690,12 @@ final class BrightnessService: ObservableObject {
     func setSoftwareDimmingPreferred(_ preferred: Bool, for id: CGDirectDisplayID) {
         stateLock.lock()
         let pathKey = routes[id]?.ddcPathKey
+        if pathKey != nil {
+            pendingLevels.removeValue(forKey: id)
+        }
         stateLock.unlock()
         guard let pathKey else { return }
+        ddcPendingSteps.removeValue(forKey: id)
         let defaults = UserDefaults.standard
         let stored = defaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths) ?? []
         let updated = BrightnessSupport.updatedWriteOnlyDDCPaths(

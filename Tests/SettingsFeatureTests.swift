@@ -28,10 +28,10 @@ enum SettingsFeatureTests {
                 .flatMap(\.items).first { $0.page == .mouse }!
             let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
                 .filter { $0.1 == .scrollZoom }.map(\.0)
-            suite.expect(zoomKeywords == [strings.zoomSection, strings.verticalZoom,
+            suite.expect(zoomKeywords == [strings.zoomSection,
                                            strings.pinchZoom],
                          "settings discovery includes every Zoom row in \(language.rawValue)")
-            for query in [strings.verticalZoom, strings.pinchZoom] {
+            for query in [strings.zoomSection, strings.pinchZoom] {
                 suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: mouse.keywords),
                              "search finds a localized Zoom option on the Mouse page")
             }
@@ -370,8 +370,10 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),
                "the clipboard history layout travels with the settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
-                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight),
-               "the clipboard window size stays on the display where it was chosen")
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowX)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowY),
+               "the clipboard window geometry stays on the display where it was chosen")
         suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
                "the apps that pause window layout travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
@@ -442,6 +444,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
+                && !backupKeys.contains(DefaultsKey.micMuteSavedControls)
                 && !backupKeys.contains(DefaultsKey.micMuteMutedDevices)
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)

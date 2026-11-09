@@ -66,6 +66,9 @@ struct RecorderEditorView: View {
             BrandMark(width: 24, tint: Color(white: 0.92))
             Text(strings.editorTitle)
                 .font(.system(size: 13, weight: .semibold))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(-1)
             Button {
                 RecentCaptureService.shared.showHistoryWindow()
             } label: {
@@ -91,7 +94,11 @@ struct RecorderEditorView: View {
 
             Spacer(minLength: 10)
             if let url = model.lastExportedURL, !model.isExporting {
-                finishedFileChip(url)
+                ViewThatFits(in: .horizontal) {
+                    finishedFileChip(url).fixedSize()
+                    Color.clear.frame(width: 0, height: 0)
+                }
+                .layoutPriority(-1)
             }
             if model.isExporting {
                 exportProgressChip
@@ -110,54 +117,44 @@ struct RecorderEditorView: View {
                 .buttonStyle(RecorderToolbarButtonStyle())
                 .disabled(model.isExporting)
                 .screenshotSafeHelp("⌥⌘C")
-                HStack(spacing: 0) {
-                    Button(action: controller.copyVideo) {
-                        Label(strings.copyButton, systemImage: "doc.on.doc")
-                    }
-                    .buttonStyle(RecorderToolbarSplitPartStyle())
-                    .screenshotSafeHelp("⌘C")
-                    Menu {
-                        Button(strings.copyGIFButton, action: controller.copyGIF)
-                    } label: {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 8, weight: .semibold))
-                    }
-                    .menuStyle(.button)
-                    .menuIndicator(.hidden)
-                    .buttonStyle(RecorderToolbarSplitPartStyle(compact: true))
-                    .screenshotSafeHelp(strings.copyGIFButton)
-                    .accessibilityLabel(strings.copyGIFButton)
+                .accessibilityLabel(strings.copyAndDeleteButton)
+                Button(action: controller.copySelected) {
+                    Label(strings.copyButton, systemImage: "doc.on.doc")
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-                        .allowsHitTesting(false)
-                }
+                .buttonStyle(RecorderToolbarButtonStyle())
                 .disabled(model.isExporting)
+                .screenshotSafeHelp("⌘C")
+                .accessibilityLabel(strings.copyButton)
             }
+            .fixedSize()
+            .layoutPriority(1)
 
             if sharingEnabled {
                 shareMenu
+                    .layoutPriority(1)
             }
 
+            RecorderExportFormatControl(model: model)
+                .layoutPriority(1)
+
             Menu {
-                Button(strings.saveVideoButton, action: controller.saveVideo)
+                Button(strings.saveButton, action: controller.save)
                     .keyboardShortcut("s", modifiers: .command)
-                Button(strings.saveAsButton, action: controller.saveVideoAs)
+                Button(strings.saveAsButton, action: controller.saveAs)
                     .keyboardShortcut("s", modifiers: [.command, .shift])
-                Button(strings.saveGIFButton, action: controller.saveGIF)
                 Divider()
                 Button(strings.folderLabel + "…", action: controller.chooseSaveFolder)
             } label: {
-                Label(strings.saveVideoButton, systemImage: "square.and.arrow.down")
+                Label(strings.saveButton, systemImage: "square.and.arrow.down")
             } primaryAction: {
-                controller.saveVideo()
+                controller.save()
             }
             .menuStyle(.button)
             .buttonStyle(.borderedProminent)
             .disabled(model.isExporting)
             .screenshotSafeHelp("⌘S")
+            .fixedSize()
+            .layoutPriority(1)
         }
         .padding(.leading, 76)
         .padding(.trailing, 14)
@@ -417,7 +414,10 @@ struct RecorderEditorView: View {
                 Label(strings.addTextButton, systemImage: "textformat")
                     .font(.system(size: 12, weight: .medium))
             }
+            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
+            .screenshotSafeHelp(strings.addTextButton)
+            .accessibilityLabel(strings.addTextButton)
             .foregroundStyle(Color(white: 0.8))
 
             Button {
@@ -426,7 +426,10 @@ struct RecorderEditorView: View {
                 Label(strings.addImageButton, systemImage: "photo")
                     .font(.system(size: 12, weight: .medium))
             }
+            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
+            .screenshotSafeHelp(strings.addImageButton)
+            .accessibilityLabel(strings.addImageButton)
             .foregroundStyle(Color(white: 0.8))
 
             Button {
@@ -435,7 +438,10 @@ struct RecorderEditorView: View {
                 Label(strings.addBlurButton, systemImage: "aqi.medium")
                     .font(.system(size: 12, weight: .medium))
             }
+            .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
+            .screenshotSafeHelp(strings.addBlurButton)
+            .accessibilityLabel(strings.addBlurButton)
             .foregroundStyle(Color(white: 0.8))
 
             if let selection = model.cutSelection {
@@ -457,48 +463,11 @@ struct RecorderEditorView: View {
             Spacer()
 
             RecorderExportSpeedControl(model: model)
-
-            Menu {
-                Picker(strings.qualityLabel, selection: qualityBinding) {
-                    Text(strings.qualitySmall).tag(RecorderSupport.Quality.small.rawValue)
-                    Text(strings.qualityBalanced).tag(RecorderSupport.Quality.balanced.rawValue)
-                    Text(strings.qualityHigh).tag(RecorderSupport.Quality.high.rawValue)
-                }
-                .pickerStyle(.inline)
-            } label: {
-                Label(qualityTitle + "  " + outputSizeLabel, systemImage: "slider.horizontal.3")
-                    .font(.system(size: 12, weight: .medium))
+            if model.document.resolvedExportFormat == .gif {
+                RecorderGIFFrameRateControl(model: model)
             }
-            .menuStyle(.borderlessButton)
-            .fixedSize()
-            .screenshotSafeHelp(strings.qualityLabel)
+            RecorderExportSizeControl(model: model)
         }
-    }
-
-    private var qualityBinding: Binding<String> {
-        Binding(get: { model.document.quality },
-                set: { value in
-                    var next = model.document
-                    next.quality = value
-                    model.document = next
-                })
-    }
-
-    private var qualityTitle: String {
-        switch model.document.resolvedQuality {
-        case .small: return strings.qualitySmall
-        case .balanced: return strings.qualityBalanced
-        case .high: return strings.qualityHigh
-        }
-    }
-
-    /// What this preset actually produces for THIS recording. A file size
-    /// would be a guess, because a bitrate is a ceiling and screen content
-    /// undershoots it hard; the resolution is a fact.
-    private var outputSizeLabel: String {
-        let size = model.exportSize
-        guard size.width > 0 else { return "" }
-        return "\(Int(size.width)) × \(Int(size.height))"
     }
 
     private var timeLabel: String {
@@ -525,19 +494,29 @@ struct RecorderEditorView: View {
     /// first, so the words never wrap letter by letter.
     private var exportProgressChip: some View {
         HStack(spacing: 8) {
-            if model.exportPhase == .uploading {
-                ProgressView()
-                    .controlSize(.small)
-                    .frame(width: 20)
-            } else {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    if model.exportPhase == .uploading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(width: 20)
+                    } else {
+                        ProgressView(value: model.exportProgress)
+                            .progressViewStyle(.linear)
+                            .frame(minWidth: 24, idealWidth: 110, maxWidth: 110)
+                    }
+                    Text(exportProgressLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color(white: 0.8))
+                        .fixedSize()
+                }
+                .fixedSize()
                 ProgressView(value: model.exportProgress)
                     .progressViewStyle(.linear)
-                    .frame(minWidth: 24, idealWidth: 110, maxWidth: 110)
+                    .frame(width: 24)
+                    .accessibilityLabel(exportProgressLabel)
             }
-            Text(exportProgressLabel)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color(white: 0.8))
-                .fixedSize()
+            .layoutPriority(-1)
             Button(strings.cancelButton) { model.cancelExport() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 11))
@@ -763,23 +742,6 @@ private struct RecorderToolbarButtonStyle: ButtonStyle {
                                   lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
-/// Two independently clickable parts inside the same recorder-toolbar shell.
-/// The primary copy action and its menu keep separate hit targets without
-/// giving up the toolbar's pressed fill, typography or dimensions.
-private struct RecorderToolbarSplitPartStyle: ButtonStyle {
-    var compact = false
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(Color.primary)
-            .padding(.horizontal, compact ? 0 : 10)
-            .frame(width: compact ? 30 : nil, height: 30)
-            .background(Color.white.opacity(configuration.isPressed ? 0.11 : 0.055))
-            .contentShape(Rectangle())
     }
 }
 

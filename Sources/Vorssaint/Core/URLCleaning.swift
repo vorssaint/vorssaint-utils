@@ -329,10 +329,10 @@ enum URLCleaning {
     // MARK: - Automatic rewrite
 
     /// Whether the clipboard can be rewritten with a cleaned link without
-    /// losing anything the user copied. The rewrite keeps only the text and
-    /// the URL, so it is allowed when every type on the pasteboard is text, a
-    /// link, or an app's private note about the copy, and refused when the
-    /// pasteboard also carries content of its own: a picture, a file or a
+    /// losing anything the user copied. The rewrite keeps the text, the URL
+    /// and a supported link preview. Other types must be text, a link, or an
+    /// app's private note about the copy. Refuse a pasteboard that also carries
+    /// content of its own: a picture, a file or a
     /// promise to deliver one, a document. A link next to such content is only
     /// its textual fallback (a browser's "Copy Image" also carries the image
     /// URL as text). A copy an app marked concealed or transient is not an
@@ -364,6 +364,9 @@ enum URLCleaning {
 
     private static func typeSurvivesRewrite(_ rawValue: String) -> Bool {
         if plainPasteboardTypes.contains(rawValue) { return true }
+        // Safari's preview is declared data, not text or a URL. Its navigation
+        // addresses are rewritten separately before the copy is replaced.
+        if rawValue == "com.apple.linkpresentation.metadata" { return true }
         if untouchablePasteboardTypes.contains(rawValue) || filePasteboardTypes.contains(rawValue) {
             return false
         }

@@ -63,12 +63,7 @@ enum RepositoryFeatureTests {
     /// Runs the production `pollPasteboard` against a pasteboard the test
     /// fills, recording what would be written back.
     enum URLCleanerPollHost {
-        struct Kind: Equatable {
-            let rawValue: String
-            static let string = Kind(rawValue: "public.utf8-plain-text")
-            static let html = Kind(rawValue: "public.html")
-            static let source = Kind(rawValue: "org.nspasteboard.source")
-        }
+        typealias Kind = AppKit.NSPasteboard.PasteboardType
         final class Pasteboard {
             static let general = Pasteboard()
             var changeCount = 1
@@ -79,11 +74,16 @@ enum RepositoryFeatureTests {
             var copiedDuringRead = false
             var source: String?
             var onRead: ((Kind) -> Void)?
+            var metadata: Data?
             var pasteboardItems: [Int]? { Array(repeating: 0, count: items) }
             func string(forType type: Kind) -> String? {
                 if copiedDuringRead { changeCount += 1 }
                 onRead?(type)
                 return type == .string ? text : type == .html ? html : type == .source ? source : nil
+            }
+            func data(forType type: Kind) -> Data? {
+                onRead?(type)
+                return metadata
             }
         }
         typealias NSPasteboard = Pasteboard
@@ -97,7 +97,8 @@ enum RepositoryFeatureTests {
         static var written: [String] = []
         static var writtenSources: [String?] = []
         static var writtenRemote: [Bool] = []
-        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false) -> Int {
+        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false,
+                                     linkMetadata: Data? = nil) -> Int {
             written.append(urlString)
             writtenSources.append(source)
             writtenRemote.append(remote)
@@ -606,6 +607,9 @@ enum RepositoryFeatureTests {
             "org.chromium.web-custom-data", "com.apple.WebKit.custom-pasteboard-data",
             "dyn.ah62d4rv4gu8y6y4grf0gn5xbrzw1gydcr7u1e3cytf2gn",
         ]), "a browser's or a messaging app's private notes about the copy do not block the rewrite")
+        suite.expect(URLCleaning.canRewritePasteboard(types: [
+            "public.utf8-plain-text", "public.url", "com.apple.linkpresentation.metadata",
+        ]), "Safari's rich-link metadata can be rewritten with the link")
         suite.expect(!URLCleaning.canRewritePasteboard(types: [
             "public.utf8-plain-text", "public.url", "public.tiff", "public.png",
         ]), "a copied picture with its source link as text is left alone")
@@ -750,10 +754,12 @@ enum RepositoryFeatureTests {
 
         // Delayed providers can answer after the cleaner was turned off or
         // another app copied. The final source read must not reopen that race.
-        for scenario in ["copy during source", "cancel during source", "cancel during HTML"] {
+        for scenario in ["copy during source", "cancel during source", "cancel during HTML",
+                         "copy during metadata", "cancel during metadata"] {
             let pasteboard = URLCleanerPollHost.Pasteboard.general
             let token = URLCleanerPollHost.PollToken()
-            pasteboard.types = chromiumTypes.map(URLCleanerPollHost.Kind.init(rawValue:))
+            pasteboard.types = (chromiumTypes + [URLCleanerLinkMetadata.pasteboardType.rawValue])
+                .map(URLCleanerPollHost.Kind.init(rawValue:))
             pasteboard.items = 1
             pasteboard.text = pollLink
             pasteboard.html = titledCopy
@@ -762,6 +768,12 @@ enum RepositoryFeatureTests {
                 if scenario == "copy during source", kind == .source { pasteboard.changeCount += 1 }
                 if scenario == "cancel during source", kind == .source { token.isCancelled = true }
                 if scenario == "cancel during HTML", kind == .html { token.isCancelled = true }
+                if scenario == "copy during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    pasteboard.changeCount += 1
+                }
+                if scenario == "cancel during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    token.isCancelled = true
+                }
             }
             URLCleanerPollHost.written = []
             _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: token)

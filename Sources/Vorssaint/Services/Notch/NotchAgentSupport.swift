@@ -56,7 +56,7 @@ struct NotchAgentTile: Identifiable, Equatable {
     let card: NotchAgentCard
     /// The account a limits card belongs to.
     let provider: AgentProvider?
-    /// An added Codex home's card; nil for the one the logs feed.
+    /// An explicitly chosen account's card; nil for the default reading.
     var accountID: String? = nil
     /// The Resets card beside added Codex homes, which says whose resets they are.
     var namesDefaultAccount = false
@@ -294,10 +294,13 @@ enum NotchAgentSupport {
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = []) -> [NotchAgentTile] {
+                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
+                if provider == .claude, let claudeAccount {
+                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                }
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
             }

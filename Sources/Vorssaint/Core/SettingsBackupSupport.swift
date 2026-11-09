@@ -132,9 +132,10 @@ enum SettingsBackupSupport {
     static let machineStateKeys: Set<String> = [
         DefaultsKey.displaysSwitchedOff,
         DefaultsKey.displaysSwitchedOffFingerprints,
-        // Codex homes are folders on this Mac whose sign-in the cards use,
+        // Agent profiles are folders on this Mac whose sign-in the cards use,
         // never settings to bring to another one.
         DefaultsKey.notchAgentsCodexProfiles,
+        DefaultsKey.notchAgentsClaudeProfile,
         DefaultsKey.dockPreviewRestoreAutohide,
         // The Space arrangement setting to put back, and a Dock restart still
         // owed, belong to this Mac's Dock.
@@ -147,6 +148,7 @@ enum SettingsBackupSupport {
         // Levels and device ids belong to the microphones of one Mac.
         DefaultsKey.micMuteSavedVolumes,
         DefaultsKey.micMuteSavedChannelVolumes,
+        DefaultsKey.micMuteSavedControls,
         DefaultsKey.micMuteMutedDevices,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
@@ -198,6 +200,8 @@ enum SettingsBackupSupport {
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.clipboardHistoryWindowWidth,
         DefaultsKey.clipboardHistoryWindowHeight,
+        DefaultsKey.clipboardHistoryWindowX,
+        DefaultsKey.clipboardHistoryWindowY,
         // The last magnifier level is session history; its remembered/default
         // policy remains portable, but another Mac need not inherit the value.
         DefaultsKey.screenshotLoupeLastZoom,
@@ -216,6 +220,7 @@ enum SettingsBackupSupport {
         // Restoring it would skip the one-time recheck of the cache above on
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
+        DefaultsKey.brightnessDDCReadChecksumRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
         // A fit measured against one Mac's camera housing would misfit another's.

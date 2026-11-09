@@ -227,7 +227,16 @@ struct UninstallerView: View {
     }
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 12) {
+            MixedStateCheckbox(
+                title: l10n.s.uninstallerSelectAll,
+                isOn: uninstaller.bulkSelection == .all,
+                isMixed: uninstaller.bulkSelection == .some,
+                isEnabled: !uninstaller.isRemoving && !uninstaller.items.isEmpty,
+                fontSize: 12
+            ) {
+                uninstaller.setAllIncluded(uninstaller.bulkSelection.nextInclude)
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(String(format: l10n.s.uninstallerSelectedFormat,
                             uninstaller.items.filter(\.include).count, uninstaller.items.count))
@@ -247,7 +256,7 @@ struct UninstallerView: View {
             }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
-                .disabled(!uninstaller.items.contains(where: \.include)
+                .disabled(!uninstaller.canRemoveSelected
                           || (uninstaller.selectedHomebrewPackage != nil && homebrew.isBusy))
         }
         .padding(16)
@@ -259,7 +268,11 @@ struct UninstallerView: View {
 
     @ViewBuilder
     private var homebrewStatus: some View {
-        if let package = uninstaller.selectedHomebrewPackage {
+        if uninstaller.homebrewCheckFailed {
+            UninstallerHomebrewFailureNote(onRetry: uninstaller.retryHomebrewCheck)
+                .padding(12)
+            Divider()
+        } else if let package = uninstaller.selectedHomebrewPackage {
             if let status = homebrew.operationStatus,
                status.action == .uninstall,
                status.package?.id == package.id {
@@ -352,5 +365,24 @@ struct UninstallerView: View {
 
     private static func byteString(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+/// The same failed-check state in Settings, the panel and Command Bar.
+struct UninstallerHomebrewFailureNote: View {
+    @ObservedObject private var l10n = L10n.shared
+    let onRetry: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(l10n.s.uninstallerHomebrewCheckFailed, systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .fixedSize(horizontal: false, vertical: true)
+            Button(l10n.s.homebrewRefresh, action: onRetry)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .font(.caption)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

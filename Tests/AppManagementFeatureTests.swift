@@ -1031,6 +1031,8 @@ enum AppManagementFeatureTests {
             encoding: .utf8)) ?? ""
         let removeSelectedBody = sourceBody(of: appUninstallerSource, from: "func removeSelected()",
                                             to: "func removeSelectedWithHomebrew(")
+        suite.expect(removeSelectedBody.contains("guard canRemoveSelected, selectedHomebrewPackage == nil else { return }"),
+               "ordinary removal enforces the tested verification gate and cannot bypass a managed package")
         suite.expect(removeSelectedBody.contains("let knownApplications = mayClaimSharedData"),
                "a removal builds the known-application roster only when it may claim shared data")
         let finishHomebrewBody = sourceBody(of: appUninstallerSource,
