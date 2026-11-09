@@ -16,9 +16,14 @@ let package = Package(
             name: "VMStatisticsCompat",
             path: "Sources/VMStatisticsCompat"
         ),
+        .target(
+            name: "RecorderGIFCodec",
+            path: "Sources/RecorderGIFCodec",
+            sources: ["RecorderGIFCodec.c", "vendor/cgif/cgif_raw.c"]
+        ),
         .executableTarget(
             name: "Vorssaint",
-            dependencies: ["VMStatisticsCompat", "HIDEventSystem"],
+            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "RecorderGIFCodec"],
             path: "Sources/Vorssaint"
         )
     ]
