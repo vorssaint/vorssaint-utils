@@ -204,19 +204,28 @@ enum CleanerEligibilityTests {
         let other = home.deletingLastPathComponent()
             .appendingPathComponent("another-user/Library/Application Support/Battle.net", isDirectory: true)
         try manager.createDirectory(at: other, withIntermediateDirectories: true)
+        let shared = URL(fileURLWithPath: systemLibrary, isDirectory: true)
+            .appendingPathComponent("Application Support/Battle.net", isDirectory: true)
+        try manager.createDirectory(at: shared, withIntermediateDirectories: true)
+        let battlePath = battle.resolvingSymlinksInPath().path
+        let sharedPath = shared.resolvingSymlinksInPath().path
+        let otherPath = other.resolvingSymlinksInPath().path
         let before = scanLeftovers(installed: [])
-        suite.expect(!before.contains { $0.url.path == other.path } && !canRemove(Item(url: other, detail: "Battle.net")),
+        suite.expect(!before.contains { $0.url.resolvingSymlinksInPath().path == otherPath }
+                     && !canRemove(Item(url: other, detail: "Battle.net")),
                      "another user's support directory is outside the scan and removal roots")
-        guard let row = before.first(where: { $0.url.path == battle.path }) else {
-            suite.expect(false, "a domain directory without an installed owner is offered for review")
+        guard let row = before.first(where: { $0.url.resolvingSymlinksInPath().path == battlePath }),
+              let sharedRow = before.first(where: { $0.url.resolvingSymlinksInPath().path == sharedPath }) else {
+            suite.expect(false, "unowned support directories in both libraries are offered for review")
             return
         }
-        suite.expect(row.detail == "Battle.net" && !row.recommended && canRemove(row),
-                     "an uninstalled app's domain directory is an optional leftover")
+        suite.expect([row, sharedRow].allSatisfy { $0.detail == "Battle.net" && !$0.recommended && canRemove($0) },
+                     "an uninstalled app's domain directories are optional leftovers")
         let installed: Set<String> = ["net.battle.app", "com.maker"]
         let found = scanLeftovers(installed: installed)
-        suite.expect(!found.contains { $0.url.path == battle.path } && !canRemove(row, installed: installed),
-                     "an installed Battle.net is protected at scan and after a stale selection")
+        suite.expect(!found.contains { $0.url.lastPathComponent == "Battle.net" }
+                     && !canRemove(row, installed: installed) && !canRemove(sharedRow, installed: installed),
+                     "an installed Battle.net is protected in both libraries at scan and after a stale selection")
         suite.expect(Set(found.map { $0.url.lastPathComponent }) == ["Battle.net.plist", "maker.com"]
                      && found.allSatisfy { canRemove($0, installed: installed) },
                      "only the raw name of a support directory establishes reverse ownership")

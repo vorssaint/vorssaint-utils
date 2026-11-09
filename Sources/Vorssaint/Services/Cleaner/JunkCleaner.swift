@@ -381,8 +381,11 @@ final class JunkCleaner: ObservableObject {
 
     private static func hasLivingLeftoverOwner(_ owner: String, at url: URL, installed: Set<String>) -> Bool {
         if hasLivingOwner(owner, installed: installed) { return true }
-        let support = URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support", isDirectory: true)
-        guard CleanerSupport.isDirectChild(url, of: support),
+        let isSupportEntry = [NSHomeDirectory() + "/Library", systemLibrary].contains { library in
+            let support = URL(fileURLWithPath: library + "/Application Support", isDirectory: true)
+            return CleanerSupport.isDirectChild(url, of: support)
+        }
+        guard isSupportEntry,
               CleanerSupport.isOwnedSupportDomain(url.lastPathComponent, byInstalled: installed) else { return false }
         // A confirmed file remains eligible. Keep the entry if its type cannot be read.
         return (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != false
