@@ -134,6 +134,10 @@ struct FeatureRecommendationSurvey: View {
                 }
                 Spacer()
                 if detailTopic != nil {
+                    Button(FeatureSurveyFlow.hasRemainingDetails(after: currentStep, answers: answers)
+                           ? survey.text(.skipRemainingDetails) : survey.text(.skipDetails),
+                           action: skipDetails)
+                        .buttonStyle(.bordered)
                     Button(survey.text(.continue), action: goForward)
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
@@ -153,7 +157,6 @@ struct FeatureRecommendationSurvey: View {
                             decide(.interested)
                         } label: {
                             Label(survey.text(.interested), systemImage: "checkmark.circle.fill")
-                                .foregroundStyle(.green)
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
@@ -468,6 +471,13 @@ struct FeatureRecommendationSurvey: View {
         }
         withAnimation(stepAnimation) {
             show(previous)
+        }
+    }
+
+    private func skipDetails() {
+        guard let next = FeatureSurveyFlow.nextQuestion(after: currentStep, answers: answers) else { return }
+        withAnimation(stepAnimation) {
+            show(next)
         }
     }
 

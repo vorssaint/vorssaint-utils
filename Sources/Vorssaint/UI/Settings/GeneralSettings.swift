@@ -102,9 +102,11 @@ struct GeneralSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
 #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 Divider()
+                    .padding(.vertical, 8)
                 SettingsRow(symbol: "capsule.on.rectangle.liquid.glass",
                             title: appearanceStrings.liquidGlass,
                             caption: text.liquidGlassCaption) { EmptyView() }

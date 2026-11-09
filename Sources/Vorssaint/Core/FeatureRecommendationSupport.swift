@@ -379,9 +379,6 @@ enum FeatureSurveyFlow {
         let essentialsOnly = answers.activities == [.everydayMix]
         if !essentialsOnly {
             steps.append(.question(.appCategories))
-            for category in orderedCategories(in: answers) {
-                steps.append(.topic(.appCategory(category)))
-            }
             steps.append(.question(.routines))
         }
         if shouldAskCaptureFollowUp(answers) {
@@ -403,13 +400,6 @@ enum FeatureSurveyFlow {
         let ordered = answers.activityPriority.filter(selected.contains)
         return ordered + FeatureSurveyActivity.allCases.filter {
             selected.contains($0) && !ordered.contains($0)
-        }
-    }
-
-    private static func orderedCategories(in answers: FeatureRecommendationAnswers) -> [FeatureSurveyAppCategory] {
-        let ordered = answers.appCategoryPriority.filter(answers.appCategories.contains)
-        return ordered + FeatureSurveyAppCategory.allCases.filter {
-            answers.appCategories.contains($0) && !ordered.contains($0)
         }
     }
 
@@ -454,6 +444,25 @@ enum FeatureSurveyFlow {
         let steps = steps(for: answers)
         guard let index = steps.firstIndex(of: step), index > 0 else { return nil }
         return steps[index - 1]
+    }
+
+    static func nextQuestion(after step: FeatureSurveyStep,
+                             answers: FeatureRecommendationAnswers) -> FeatureSurveyStep? {
+        let steps = steps(for: answers)
+        guard let index = steps.firstIndex(of: step) else { return nil }
+        return steps.dropFirst(index + 1).first { next in
+            if case .question = next { return true }
+            return false
+        }
+    }
+
+    static func hasRemainingDetails(after step: FeatureSurveyStep,
+                                    answers: FeatureRecommendationAnswers) -> Bool {
+        let steps = steps(for: answers)
+        guard let index = steps.firstIndex(of: step),
+              let next = steps.dropFirst(index + 1).first else { return false }
+        if case .topic = next { return true }
+        return false
     }
 }
 
@@ -525,7 +534,6 @@ enum FeatureRecommendationEngine {
         let selectedTopics = Set(answers.activities
             .filter { $0 != .everydayMix }
             .map(FeatureSurveyTopic.activity))
-            .union(answers.appCategories.map(FeatureSurveyTopic.appCategory))
         for (topic, taskIDs) in answers.selectedTasks where selectedTopics.contains(topic) {
             for choice in topic.detailChoices where taskIDs.contains(choice.id) {
                 for feature in choice.features {

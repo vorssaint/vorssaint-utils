@@ -15,12 +15,19 @@ enum FeatureRecommendationsTests {
                      "the survey is available once every activity and app-use path maps to useful features")
         suite.expect(FeatureRecommendationStrings.localized(.enUS)
                         .activityTitle(.softwareDevelopment) == "Software development"
+                     && FeatureRecommendationStrings.localized(.enUS).text(.skipDetails) == "Skip details"
+                     && FeatureRecommendationStrings.localized(.enUS).text(.skipRemainingDetails)
+                        == "Skip remaining details"
+                     && !FeatureRecommendationStrings.localized(.enUS)
+                        .text(.categoriesSubtitle).contains("follow-up")
                      && FeatureSurveyActivity.softwareDevelopment.detailChoices.count >= 2
                      && FeatureSurveyActivity.allCases
                         .filter { $0 != .everydayMix }
                         .allSatisfy { $0.detailChoices.count >= 2 }
-                     && FeatureSurveyAppCategory.allCases.allSatisfy { !$0.detailChoices.isEmpty },
-                     "every activity and app category opens a follow-up page with actionable multi-select choices")
+                     && FeatureSurveyAppCategory.allCases.allSatisfy {
+                         $0.features.count >= FeatureRecommendationEngine.minimumFeaturesPerActivity
+                     },
+                     "activities offer actionable detail choices while app categories remain broad recommendation signals")
 
         for (language, _) in LocalizationTests.languages {
             let strings = FeatureRecommendationStrings.localized(language)
@@ -70,13 +77,11 @@ enum FeatureRecommendationsTests {
             .topic(.activity(.softwareDevelopment)),
             .topic(.activity(.photosAndCreative)),
             .question(.appCategories),
-            .topic(.appCategory(.developmentAndLearning)),
-            .topic(.appCategory(.photosAndVideo)),
             .question(.routines),
             .question(.captureNextStep),
             .question(.flashcards),
             .question(.review),
-        ], "each selected activity and app category gets a sequential detail step in selection order")
+        ], "selected activities get sequential detail steps while app categories do not repeat those follow-ups")
         suite.expect(FeatureSurveyFlow.nextStep(after: .question(.activities), answers: multiActivityAnswers)
                         == .topic(.activity(.softwareDevelopment))
                      && FeatureSurveyFlow.nextStep(
@@ -84,8 +89,18 @@ enum FeatureRecommendationsTests {
                         == .topic(.activity(.photosAndCreative))
                      && FeatureSurveyFlow.previousStep(
                         before: .topic(.activity(.photosAndCreative)), answers: multiActivityAnswers)
-                        == .topic(.activity(.softwareDevelopment)),
-                     "survey navigation advances and reverses through selected detail pages one at a time")
+                        == .topic(.activity(.softwareDevelopment))
+                     && FeatureSurveyFlow.hasRemainingDetails(
+                        after: .topic(.activity(.softwareDevelopment)), answers: multiActivityAnswers)
+                     && !FeatureSurveyFlow.hasRemainingDetails(
+                        after: .topic(.activity(.photosAndCreative)), answers: multiActivityAnswers)
+                     && FeatureSurveyFlow.nextQuestion(
+                        after: .topic(.activity(.softwareDevelopment)), answers: multiActivityAnswers)
+                        == .question(.appCategories)
+                     && FeatureSurveyFlow.nextQuestion(
+                        after: .topic(.activity(.photosAndCreative)), answers: multiActivityAnswers)
+                        == .question(.appCategories),
+                     "activity details can be skipped while normal continue and back navigation remain available")
         var deselectedPathAnswers = multiActivityAnswers
         deselectedPathAnswers.activities.remove(.softwareDevelopment)
         deselectedPathAnswers.activityPriority.removeAll { $0 == .softwareDevelopment }
@@ -111,6 +126,10 @@ enum FeatureRecommendationsTests {
                      && !surveySource.contains("openTopic(option.id)")
                      && !surveySource.contains("goForward()\n            }"),
                      "selecting a survey tile only updates its selection and never advances the page")
+        let interestedLabel = "Label(survey.text(.interested), systemImage: \"checkmark.circle.fill\")"
+        suite.expect(surveySource.contains(interestedLabel)
+                     && !surveySource.contains(interestedLabel + "\n                                .foregroundStyle(.green)"),
+                     "the interested button keeps its label readable against its green tint")
         suite.expect(surveySource.contains("@Environment(\\.accessibilityReduceMotion)")
                      && surveySource.contains("withAnimation(reduceMotion ? nil : .spring")
                      && surveySource.contains(".keyboardShortcut(.defaultAction)"),
@@ -226,15 +245,19 @@ enum FeatureRecommendationsTests {
                 appCategories: [.notesAndDocuments],
                 selectedTasks: [
                     .activity(.softwareDevelopment): ["dev-repeat"],
-                        .appCategory(.notesAndDocuments): ["quick-notes"]
+                    .appCategory(.notesAndDocuments): ["quick-notes"]
                 ]),
             context: FeatureRecommendationContext(installed: [], enabled: [],
-                                                  eligible: [.commandBar, .scratchpad, .notchCalendar],
+                                                  eligible: [.commandBar, .scratchpad, .shelf, .finderRename],
                                                   hasBattery: true))
         suite.expect(taskPathsRecommendation.first == .commandBar
                          && taskPathsRecommendation.contains(.scratchpad)
-                         && taskPathsRecommendation.contains(.notchCalendar),
-                     "multi-select tasks across separate activity and app pages all contribute to ranking")
+                         && taskPathsRecommendation.contains(.shelf)
+                         && taskPathsRecommendation.contains(.finderRename)
+                         && !FeatureSurveyFlow.steps(for: FeatureRecommendationAnswers(
+                            appCategories: [.notesAndDocuments]))
+                            .contains(.topic(.appCategory(.notesAndDocuments))),
+                     "app categories contribute broad feature signals without duplicate follow-up tasks")
         let developmentFirst = FeatureRecommendationEngine.recommend(
             FeatureRecommendationAnswers(
                 activities: [.softwareDevelopment, .photosAndCreative],
