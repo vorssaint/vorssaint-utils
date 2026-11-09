@@ -67,6 +67,11 @@ enum KeepAwakeLidSleepContract {
     static var calls = 0
     static var closes = 0
     static var policy: Bool? = true
+    /// What the production external-display check reads; nil models a
+    /// display list that could not be read.
+    static var externalDisplay: Bool? = false
+    static var assertionReleases = 0
+    static func IOPMAssertionRelease(_ id: Int) { assertionReleases += 1 }
     static var assertions: [[String: Any]]? = []
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
@@ -118,7 +123,8 @@ enum KeepAwakeLidSleepContract {
         Sudoers.configured = true; Sudoers.installCompletions = []
         Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
         AdminShell.completions = []; AdminShell.prompts = 0; AdminShell.syncResult = false
-        Shell.status = 0; Shell.output = nil
+        Shell.status = 0; Shell.output = nil; Shell.commands = []
+        externalDisplay = false; assertionReleases = 0
         Thread.waits = 0; Thread.onWait = nil; onSleep = nil
         return Service()
     }

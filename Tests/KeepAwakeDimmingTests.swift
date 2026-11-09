@@ -139,5 +139,62 @@ enum KeepAwakeDimmingTests {
         expect(C.LidDisplayDimmer.written == [0, 0.6] && exhausted.savedDisplayBrightness == nil
                && C.DimmingObserver.destroyedPorts == 1,
                "the lid actually opening finishes the owed restore and only then releases the observer")
+
+        // Zero brightness only turns off the backlight. With the built-in
+        // panel as the only display, closing the lid also lets the display
+        // really sleep: a held display-sleep assertion is released for the
+        // length of the dim and the sleep is requested at once.
+        func displaySleepRequests() -> Int {
+            C.Shell.commands.filter { $0 == ["/usr/bin/pmset", "displaysleepnow"] }.count
+        }
+        let sleeping = armed()
+        sleeping.hasDisplayAssertion = true
+        C.BrightnessService.lid = true
+        C.DimmingObserver.callback?()
+        C.drain()
+        expect(displaySleepRequests() == 1 && C.assertionReleases == 1
+               && !sleeping.hasDisplayAssertion && sleeping.displayAssertionSuspendedForDimming,
+               "closing the lid with only the built-in panel releases the display assertion and sleeps the display")
+        C.BrightnessService.lid = false
+        C.DimmingObserver.callback?()
+        C.drain()
+        expect(sleeping.assertionsHeld && !sleeping.displayAssertionSuspendedForDimming
+               && C.LidDisplayDimmer.written == [0, 0.6],
+               "opening the lid puts the display assertion back and restores the brightness")
+
+        let allowed = armed()
+        C.BrightnessService.lid = true
+        C.DimmingObserver.callback?()
+        C.drain()
+        expect(displaySleepRequests() == 1 && C.assertionReleases == 0
+               && !allowed.displayAssertionSuspendedForDimming,
+               "a session that already lets the display sleep still asks for it, with no assertion to give back")
+        C.BrightnessService.lid = false
+        C.DimmingObserver.callback?()
+        C.drain()
+        expect(!allowed.assertionsHeld, "opening the lid does not add an assertion the session never held")
+
+        for reading in [true, nil] as [Bool?] {
+            let external = armed()
+            external.hasDisplayAssertion = true
+            C.externalDisplay = reading
+            C.BrightnessService.lid = true
+            C.DimmingObserver.callback?()
+            C.drain()
+            expect(displaySleepRequests() == 0 && C.assertionReleases == 0 && external.hasDisplayAssertion
+                   && C.LidDisplayDimmer.written == [0],
+                   "an external display, or an unreadable display list, keeps every display awake and only dims the panel")
+        }
+
+        let ended = armed()
+        ended.hasDisplayAssertion = true
+        C.BrightnessService.lid = true
+        C.DimmingObserver.callback?()
+        C.drain()
+        ended.isActive = false
+        ended.clamshellActive = false
+        expect(!ended.assertionsHeld && !ended.displayAssertionSuspendedForDimming
+               && C.LidDisplayDimmer.written == [0, 0.6],
+               "a session that ended while dimmed restores brightness without taking an assertion back")
     }
 }
