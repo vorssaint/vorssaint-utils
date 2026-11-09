@@ -5,23 +5,13 @@ import Foundation
 
 /// Reads Claude Code session logs. A prompt opens a turn, a reply keeps it
 /// going and records its usage, and an interruption, a local command's
-/// output or a turn-ending tool result closes the turn again. A slash command
-/// runs in the client, so the line that records it opens no turn.
+/// output or a turn-ending tool result closes the turn again.
 struct ClaudeReader: AgentHarnessReader {
     var provider: AgentProvider { .claude }
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         if AgentLogParser.contains(line, #""type":"assistant""#) { return claudeAssistant(line, state: &state, now: now) }
         guard AgentLogParser.contains(line, #""type":"user""#) else { return [] }
-        // A slash command runs in the client and asks the model nothing, so
-        // the line recording it never opens a turn. `/clear` writes no output
-        // entry either: a turn opened here would count until the next reply.
-        if AgentLogParser.contains(line, "<command-"), let json = AgentLogParser.object(line),
-           json["type"] as? String == "user", json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
-           messageTexts(json).contains(where: { $0.hasPrefix("<command-name>") || $0.hasPrefix("<command-message>") }) {
-            adopt(json, into: &state)
-            return []
-        }
         // A local command prints its output without asking the model anything.
         // An output that arrives while a turn is open closes it again. Only
         // the person's own text counts: a tool result can quote the same words.
@@ -38,6 +28,14 @@ struct ClaudeReader: AgentHarnessReader {
             let open = state.turnOpen
             state.turnOpen = false
             return open ? [.turnEnded(AgentLogParser.timestamp(json["timestamp"]) ?? now, completed: true, duration: nil)] : []
+        }
+        // /clear resets the context and may have no reply. A project command
+        // uses the same tags and starts work as soon as the user invokes it.
+        if AgentLogParser.contains(line, "<command-name>"), let json = AgentLogParser.object(line),
+           json["type"] as? String == "user", json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
+           messageTexts(json, singleBlock: true).contains(where: isLocalCommand) {
+            adopt(json, into: &state)
+            return []
         }
         // Tool results arrive inside a turn and can be large; while a turn is
         // open, the line only has to say that work goes on.
@@ -78,6 +76,8 @@ struct ClaudeReader: AgentHarnessReader {
         let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
         var entries: [AgentLogEntry] = []
         let model = AgentLogParser.native(message["model"] as? String ?? "")
+        let id = message["id"] as? String ?? ""
+        let request = json["requestId"] as? String ?? ""
         if let usage = message["usage"] as? [String: Any], !model.isEmpty, !model.hasPrefix("<") {
             state.model = model
             var billable = AgentBillable()
@@ -91,8 +91,6 @@ struct ClaudeReader: AgentHarnessReader {
             billable.fast = usage["speed"] as? String == "fast"
             billable.domestic = usage["inference_geo"] as? String == "us"
             billable.webSearches = AgentLogParser.int((usage["server_tool_use"] as? [String: Any])?["web_search_requests"])
-            let id = message["id"] as? String ?? ""
-            let request = json["requestId"] as? String ?? ""
             let key = id.isEmpty && request.isEmpty
                 ? "claude:\(state.session):\(date.timeIntervalSince1970)" : "claude:\(id):\(request)"
             let priced = AgentPricing.cost(billable, model: model)
@@ -102,11 +100,12 @@ struct ClaudeReader: AgentHarnessReader {
         }
         // A subagent's own ending is not the end of the turn it serves.
         guard json["isSidechain"] as? Bool != true else { return entries }
-        // Claude Code writes a local command's output on a line whose outer
-        // type varies, sometimes a reply. It asks the model nothing, so it
-        // never opens a turn.
-        if messageTexts(json).contains(where: { $0.hasPrefix("<local-command-std") }) { return entries }
-        switch message["stop_reason"] as? String {
+        // A client can write bare local output with the assistant role. A
+        // model reply can quote the same output and still start or end work.
+        let stop = message["stop_reason"] as? String
+        if stop == nil, request.isEmpty, model == "<synthetic>" || (model.isEmpty && id.isEmpty),
+           messageTexts(json, singleBlock: true).contains(where: isLocalOutput) { return entries }
+        switch stop {
         case "end_turn", "stop_sequence", "max_tokens", "refusal":
             // An error written in place of a reply, like a spent limit, stops
             // the turn without finishing it.
@@ -134,11 +133,36 @@ struct ClaudeReader: AgentHarnessReader {
         }
     }
 
-    /// The person's own text in a message, never what a tool result quotes.
-    private func messageTexts(_ json: [String: Any]) -> [String] {
+    private func isLocalCommand(_ text: String) -> Bool {
+        guard text.hasPrefix("<command-") else { return false }
+        // Arguments can contain other command names, including on a new line.
+        var header = text[...]
+        if let args = text.range(of: "<command-args>") {
+            guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("</command-args>") else { return false }
+            header = text[..<args.lowerBound]
+        }
+        let fields = header.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
+        let names = fields.filter { !$0.isEmpty && !($0.hasPrefix("<command-message>") && $0.hasSuffix("</command-message>")) }
+        guard names.count == 1, let name = names.first else { return false }
+        switch name {
+        case "<command-name>/clear</command-name>", "<command-name>/reset</command-name>",
+             "<command-name>/new</command-name>", "<command-name>/model</command-name>": return true
+        default: return false
+        }
+    }
+
+    private func isLocalOutput(_ text: String) -> Bool {
+        let output = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (output.hasPrefix("<local-command-stdout>") && output.hasSuffix("</local-command-stdout>"))
+            || (output.hasPrefix("<local-command-stderr>") && output.hasSuffix("</local-command-stderr>"))
+    }
+
+    /// Direct text only. A command occupies the whole message, while an
+    /// interruption may be one of several blocks.
+    private func messageTexts(_ json: [String: Any], singleBlock: Bool = false) -> [String] {
         let content = (json["message"] as? [String: Any])?["content"]
         if let text = content as? String { return [text] }
-        guard let blocks = content as? [[String: Any]] else { return [] }
+        guard let blocks = content as? [[String: Any]], !singleBlock || blocks.count == 1 else { return [] }
         return blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
     }
 
