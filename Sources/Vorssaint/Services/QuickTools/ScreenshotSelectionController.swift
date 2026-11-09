@@ -22,6 +22,7 @@ final class ScreenshotSelectionController {
         let scale: CGFloat
         /// The captured area in Cocoa global coordinates.
         let anchorRect: CGRect
+        var sourceFormat: MediaImageFormat = .png
     }
 
     /// What the caller wants out of the same gesture. The screenshot tool
