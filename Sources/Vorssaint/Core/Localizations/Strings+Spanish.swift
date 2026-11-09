@@ -359,6 +359,8 @@ extension Strings {
         uninstallerCommandBarCaption: "Elige y desinstala apps en la Barra de Comandos.",
         uninstallerWatchTrashToggle: "Ofrecer limpieza al mover una app a la Papelera",
         uninstallerWatchTrashCaption: "Abre el Desinstalador cuando eliminas una app en el Finder. Requiere Acceso total al disco.",
+        uninstallerConfirmTrashCleanup: "Si has movido esta app a la papelera para desinstalarla, confirma para mover también los datos seleccionados. Si la app se está actualizando, cancela para conservar sus datos.",
+        uninstallerTrashUnavailable: "La limpieza requiere mover la última copia instalada desde una carpeta Aplicaciones a la papelera. Los datos se conservan si la app sigue instalada o se está actualizando.",
         uninstallerCommandBarFinderTitle: "Desinstalar la app seleccionada en Finder",
         uninstallerSelectionUnavailable: "Selecciona en Finder una app que se pueda desinstalar o elige otra de la lista.",
         uninstallerRefusedNotApp: "Solo se pueden desinstalar apps.",

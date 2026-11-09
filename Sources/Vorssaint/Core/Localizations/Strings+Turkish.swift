@@ -359,6 +359,8 @@ extension Strings {
         uninstallerCommandBarCaption: "Komut Çubuğunda uygulama seçin ve kaldırın.",
         uninstallerWatchTrashToggle: "Bir uygulama Çöp Sepeti’ne taşınınca temizlik öner",
         uninstallerWatchTrashCaption: "Finder’da bir uygulamayı sildiğinde Kaldırıcı’yı açar. Tam Disk Erişimi gerekir.",
+        uninstallerConfirmTrashCleanup: "Bu uygulamayı kaldırmak için Çöp Sepeti’ne taşıdıysanız seçili verileri de taşımak için onaylayın. Uygulama güncelleniyorsa verileri korumak için iptal edin.",
+        uninstallerTrashUnavailable: "Temizlik için yüklü son kopyanın Uygulamalar klasöründen Çöp Sepeti’ne taşınması gerekir. Uygulama hâlâ yüklüyse veya güncelleniyorsa veriler korunur.",
         uninstallerCommandBarFinderTitle: "Finder’da seçili uygulamayı kaldır",
         uninstallerSelectionUnavailable: "Finder’da kaldırılabilen bir uygulama seçin veya listeden başka bir uygulama seçin.",
         uninstallerRefusedNotApp: "Yalnızca uygulamalar kaldırılabilir.",

@@ -359,6 +359,8 @@ extension Strings {
         uninstallerCommandBarCaption: "コマンドバーでアプリを選択してアンインストールできます。",
         uninstallerWatchTrashToggle: "アプリをゴミ箱に入れたときにクリーンアップを提案",
         uninstallerWatchTrashCaption: "Finderでアプリを削除するとアンインストーラが開きます。フルディスクアクセスが必要です。",
+        uninstallerConfirmTrashCleanup: "アンインストールするためにこのアプリをゴミ箱に入れた場合は、確定すると選択したデータもゴミ箱に移動します。アプリのアップデート中はキャンセルしてデータを保持してください。",
+        uninstallerTrashUnavailable: "クリーンアップするには、最後のインストール済みコピーを「アプリケーション」フォルダからゴミ箱に移動してください。アプリがまだインストールされている場合やアップデート中はデータが保持されます。",
         uninstallerCommandBarFinderTitle: "Finderで選択したアプリをアンインストール",
         uninstallerSelectionUnavailable: "Finderで削除できるアプリを選択するか、リストから別のアプリを選んでください。",
         uninstallerRefusedNotApp: "アンインストールできるのはアプリだけです。",

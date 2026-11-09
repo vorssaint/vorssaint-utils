@@ -128,7 +128,7 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 
 **Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access.
 
-**What uses it.** The uninstaller, for a deeper scan. If you turn on the cleanup offer for apps moved to the Trash, it also reads your Trash, only to notice an app arriving there.
+**What uses it.** The uninstaller, for a deeper scan. The optional Finder cleanup offer watches for an app moving from an Applications folder into your local Trash. You choose the data to remove and confirm that you intended to uninstall the app. Cancel if an updater moved it.
 
 **If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders, and the cleanup offer for trashed apps stays off.
 

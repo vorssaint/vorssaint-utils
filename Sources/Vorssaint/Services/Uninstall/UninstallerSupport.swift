@@ -20,11 +20,17 @@ enum UninstallerSupport {
     /// An app the uninstaller has agreed to take: its verified bundle
     /// identifier, its standardized path, and the identities that later
     /// prove the bundle on disk is still the one that was selected.
-    struct Selection {
+    struct Selection: Equatable {
         let bundleID: String
         let url: URL
         let identity: FileIdentity
         let infoIdentity: FileIdentity
+
+        var isCurrent: Bool {
+            url == url.resolvingSymlinksInPath()
+                && applicationIdentityMatches(url, appIdentity: identity, infoIdentity: infoIdentity)
+                && bundleIdentifier(of: url) == bundleID
+        }
     }
 
     /// Why the uninstaller turned an app down. A refused drop springs back,
@@ -45,6 +51,7 @@ enum UninstallerSupport {
         case link
         /// No Info.plist or bundle identifier that says which app it is.
         case unidentified
+        case unverifiedTrashMove
     }
 
     /// An app the uninstaller turned down, named the way the drop zone says it.
@@ -61,6 +68,7 @@ enum UninstallerSupport {
             case .thisApp: return String(format: strings.uninstallerRefusedSelfFormat, strings.tabAdvanced)
             case .link: return String(format: strings.uninstallerRefusedLinkFormat, name)
             case .unidentified: return String(format: strings.uninstallerRefusedUnidentifiedFormat, name)
+            case .unverifiedTrashMove: return strings.uninstallerTrashUnavailable
             }
         }
     }
@@ -301,28 +309,6 @@ enum UninstallerSupport {
         Set(apps.lazy.filter { !$0.isSystem && selection(for: $0.url) != nil }.map(\.id))
     }
 
-    /// What shows an installed app is still the bundle whose IDs were read:
-    /// the bundle folder and its Info.plist as files, and when that
-    /// Info.plist last changed. An update replaces the bundle or rewrites
-    /// its Info.plist, so any of the three changes with it.
-    struct BundleSnapshot: Hashable {
-        let bundle: FileIdentity
-        let info: FileIdentity
-        let infoModifiedSeconds: Int
-        let infoModifiedNanoseconds: Int
-    }
-
-    static func bundleSnapshot(of appURL: URL) -> BundleSnapshot? {
-        var info = stat()
-        guard let bundle = fileIdentity(at: appURL),
-              lstat(infoPlistURL(in: appURL).path, &info) == 0 else { return nil }
-        return BundleSnapshot(
-            bundle: bundle,
-            info: FileIdentity(device: UInt64(info.st_dev), inode: UInt64(info.st_ino)),
-            infoModifiedSeconds: info.st_mtimespec.tv_sec,
-            infoModifiedNanoseconds: info.st_mtimespec.tv_nsec)
-    }
-
     static func fileIdentity(at url: URL) -> FileIdentity? {
         var info = stat()
         guard lstat(url.path, &info) == 0 else { return nil }
@@ -396,7 +382,7 @@ enum UninstallerSupport {
             URL(fileURLWithPath: "/Applications", isDirectory: true),
             home.appendingPathComponent("Applications", isDirectory: true),
         ].map { $0.resolvingSymlinksInPath().standardizedFileURL.path }
-        return roots.contains { path.hasPrefix($0 + "/") } || isInTrash(url, home: home)
+        return roots.contains { path.hasPrefix($0 + "/") }
     }
 
     // MARK: - Trash
@@ -407,39 +393,66 @@ enum UninstallerSupport {
         home.appendingPathComponent(".Trash", isDirectory: true)
     }
 
-    /// An item sitting directly in the Trash, the way Finder leaves an app
-    /// that was just deleted. Such an app was usually the installed copy, so
-    /// it may claim shared data; the exclusivity checks still keep anything
-    /// another installed copy owns.
+    /// Only direct children of the local Trash participate in a cleanup offer.
     static func isInTrash(_ url: URL, home: URL) -> Bool {
         let parent = url.resolvingSymlinksInPath().standardizedFileURL.deletingLastPathComponent().path
         let trash = trashURL(home: home).resolvingSymlinksInPath().standardizedFileURL.path
         return parent == trash
     }
 
-    /// App bundles directly in the Trash. Unreadable (no Full Disk Access)
-    /// reads as empty, so nothing is ever suggested without access.
-    static func trashedApps(in trash: URL, fileManager: FileManager = .default) -> [URL] {
-        let entries = (try? fileManager.contentsOfDirectory(
-            at: trash, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
-        return entries.filter { url in
-            url.pathExtension.caseInsensitiveCompare("app") == .orderedSame
-                && (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+    /// A witnessed rename from a real installation. A Trash path alone also
+    /// describes discarded downloads and old versions left by an updater.
+    struct TrashMove: Equatable {
+        let originalURL: URL
+        let selection: Selection
+
+        init?(from original: URL, to trashed: URL, inode: UInt64, home: URL) {
+            guard original.pathExtension.lowercased() == "app",
+                  trashed.pathExtension.lowercased() == "app",
+                  !original.pathComponents.dropLast().contains(where: { $0.lowercased().hasSuffix(".app") }),
+                  !original.pathComponents.contains(where: { $0.hasPrefix(".") }),
+                  applicationIsInTrustedInstallRoot(original, home: home),
+                  isInTrash(trashed, home: home),
+                  isConfirmedAbsent(at: original),
+                  let selected = UninstallerSupport.selection(for: trashed),
+                  selected.identity.inode == inode,
+                  fileIdentity(at: original.deletingLastPathComponent())?.device == selected.identity.device
+            else { return nil }
+            originalURL = original.standardizedFileURL
+            selection = selected
+        }
+
+        var isCurrent: Bool {
+            isConfirmedAbsent(at: originalURL) && selection.isCurrent
+        }
+
+        func isLastCopy(registered: [URL], running: Bool, home: URL) -> Bool {
+            guard !running, isCurrent else { return false }
+            return registered.allSatisfy { url in
+                if isInTrash(url, home: home) || isConfirmedAbsent(at: url) { return true }
+                // Launch Services can still associate a reused path with its old ID.
+                guard let actual = bundleIdentifier(of: url) else { return false }
+                return actual.caseInsensitiveCompare(selection.bundleID) != .orderedSame
+            }
         }
     }
 
-    /// The apps in `current` that were not there at the last look.
-    static func newlyTrashedApps(current: [URL], known: Set<String>) -> [URL] {
-        current.filter { !known.contains($0.standardizedFileURL.path) }
-    }
+    /// FSEvents reports both sides of a rename with the same file ID. Only
+    /// pair consecutive records. Two separate moves via Downloads, a lost
+    /// event or an update replacing the original path grant no ownership.
+    struct TrashRenames {
+        private var source: (id: UInt64, inode: UInt64, url: URL)?
 
-    /// A trashed app is worth a cleanup offer only when it was the last copy:
-    /// an updater that trashes the old version, or a spare copy thrown away,
-    /// leaves the app installed and its data in use.
-    static func trashedAppWasLastCopy(otherCopies: [URL], home: URL,
-                                      fileExists: (String) -> Bool) -> Bool {
-        !otherCopies.contains { copy in
-            !isInTrash(copy, home: home) && fileExists(copy.standardizedFileURL.path)
+        mutating func accept(_ url: URL, inode: UInt64, eventID: UInt64, home: URL) -> TrashMove? {
+            let previous = source
+            source = nil
+            guard inode != 0, url.pathExtension.lowercased() == "app" else { return nil }
+            if applicationIsInTrustedInstallRoot(url, home: home) {
+                source = (eventID, inode, url)
+                return nil
+            }
+            guard let previous, previous.id &+ 1 == eventID, previous.inode == inode else { return nil }
+            return TrashMove(from: previous.url, to: url, inode: inode, home: home)
         }
     }
 

@@ -1735,10 +1735,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// Opens the Uninstaller already reviewing `appURL`. When `select` says
     /// no, a removal already running is still worth showing; anything else
     /// the Uninstaller refused stays closed rather than opening on nothing.
-    func openUninstaller(for appURL: URL) {
+    func openUninstaller(for appURL: URL, trashMove: UninstallerSupport.TrashMove? = nil) {
         let uninstaller = AppUninstaller.shared
         guard AppFeature.uninstaller.isAvailable,
-              uninstaller.select(appURL: appURL) || uninstaller.isRemoving else { return }
+              uninstaller.select(appURL: appURL, trashMove: trashMove) || (trashMove == nil && uninstaller.isRemoving)
+        else { return }
         SettingsRouter.shared.page = .uninstaller
         openSettingsWindow()
     }

@@ -2,20 +2,16 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import CoreServices
 
-/// Opens the Uninstaller on an app the moment it lands in the Trash, so
-/// deleting an app in Finder offers to clean up what it left behind. Opt-in,
-/// and it needs Full Disk Access: the Trash cannot be read without it, and
-/// the scan it hands over would be shallow anyway.
-///
+/// Offers to review an app moved from an Applications folder to the local Trash.
 /// Builds on the approach first proposed by ilim-cell in #3755.
 final class TrashAppWatcher {
     static let shared = TrashAppWatcher()
 
-    private let trash = UninstallerSupport.trashURL(home: FileManager.default.homeDirectoryForCurrentUser)
-    private var source: DispatchSourceFileSystemObject?
-    private var known = Set<String>()
-    private var pendingCheck: DispatchWorkItem?
+    private let home = FileManager.default.homeDirectoryForCurrentUser
+    private var stream: FSEventStreamRef?
+    private var renames = UninstallerSupport.TrashRenames()
 
     private init() {}
 
@@ -28,70 +24,57 @@ final class TrashAppWatcher {
     }
 
     private func start() {
-        guard source == nil else { return }
-        let descriptor = open(trash.path, O_EVTONLY | O_CLOEXEC)
-        guard descriptor >= 0 else { return }
-        // Whatever is in the Trash already was deleted before we looked.
-        known = Set(UninstallerSupport.trashedApps(in: trash).map(\.standardizedFileURL.path))
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: descriptor, eventMask: [.write, .delete, .rename, .revoke], queue: .main)
-        source.setEventHandler { [weak self] in
-            guard let self, let source = self.source else { return }
-            if source.data.isDisjoint(with: [.delete, .rename, .revoke]) {
-                self.scheduleCheck()
-            } else {
-                // The Trash folder itself went away; watch the new one.
-                self.stop()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) { self.syncWithPreferences() }
+        guard stream == nil else { return }
+        let roots = ["/Applications", home.appendingPathComponent("Applications").path,
+                     UninstallerSupport.trashURL(home: home).path]
+        let flags = FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents
+            | kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagUseExtendedData)
+        let callback: FSEventStreamCallback = { stream, _, count, paths, flags, ids in
+            let watcher = TrashAppWatcher.shared
+            guard stream == watcher.stream,
+                  let records = unsafeBitCast(paths, to: NSArray.self) as? [[String: Any]],
+                  records.count == count else { return }
+            let lost = FSEventStreamEventFlags(kFSEventStreamEventFlagMustScanSubDirs
+                | kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped
+                | kFSEventStreamEventFlagEventIdsWrapped)
+            guard !(0..<count).contains(where: { flags[$0] & lost != 0 }) else {
+                watcher.renames = UninstallerSupport.TrashRenames()
+                return
+            }
+            let rename = FSEventStreamEventFlags(kFSEventStreamEventFlagItemRenamed | kFSEventStreamEventFlagItemIsDir)
+            for index in 0..<count where flags[index] & rename == rename {
+                guard let path = records[index]["path"] as? String,
+                      let inode = records[index]["fileID"] as? NSNumber else { continue }
+                if let move = watcher.renames.accept(URL(fileURLWithPath: path, isDirectory: true),
+                                                     inode: inode.uint64Value, eventID: ids[index], home: watcher.home) {
+                    watcher.offer(move)
+                }
             }
         }
-        source.setCancelHandler { close(descriptor) }
-        source.resume()
-        self.source = source
-        AppUninstaller.prepareInstalledApplications()
+        guard let created = FSEventStreamCreate(nil, callback, nil, roots as CFArray,
+                                                FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
+                                                0.15, flags) else { return }
+        FSEventStreamSetDispatchQueue(created, .main)
+        guard FSEventStreamStart(created) else {
+            FSEventStreamInvalidate(created)
+            FSEventStreamRelease(created)
+            return
+        }
+        stream = created
     }
 
     private func stop() {
-        pendingCheck?.cancel()
-        pendingCheck = nil
-        source?.cancel()
-        source = nil
-        known = []
+        guard let stream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        FSEventStreamRelease(stream)
+        self.stream = nil
+        renames = UninstallerSupport.TrashRenames()
     }
 
-    /// Finder moves an app to the Trash in one rename, but a few writes to
-    /// the folder follow it; look once they settle.
-    private func scheduleCheck() {
-        pendingCheck?.cancel()
-        let work = DispatchWorkItem { [weak self] in self?.check() }
-        pendingCheck = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: work)
-    }
-
-    private func check() {
-        guard source != nil else { return }
-        // Every write to the Trash lands here, the Uninstaller's own removals
-        // included; only app bundles are compared, and its target is skipped.
-        let current = UninstallerSupport.trashedApps(in: trash)
-        let arrived = UninstallerSupport.newlyTrashedApps(current: current, known: known)
-        known = Set(current.map(\.standardizedFileURL.path))
-        // Several apps at once (emptying a folder of apps) get one offer: the
-        // Uninstaller reviews a single app at a time.
-        if let app = arrived.first(where: shouldOffer) {
-            appDelegate()?.openUninstaller(for: app)
-        }
-    }
-
-    private func shouldOffer(_ app: URL) -> Bool {
-        let uninstaller = AppUninstaller.shared
-        guard !uninstaller.isRemoving,
-              let selection = UninstallerSupport.selection(for: app) else { return false }
-        // The Uninstaller trashing its own target lands here too. A fresh
-        // install of the same app later is a different file and is offered.
-        guard !uninstaller.isTarget(selection.identity) else { return false }
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        return UninstallerSupport.trashedAppWasLastCopy(
-            otherCopies: NSWorkspace.shared.urlsForApplications(withBundleIdentifier: selection.bundleID),
-            home: home, fileExists: FileManager.default.fileExists(atPath:))
+    private func offer(_ move: UninstallerSupport.TrashMove) {
+        guard NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder",
+              AppUninstaller.shared.canOfferTrashCleanup(of: move) else { return }
+        appDelegate()?.openUninstaller(for: move.selection.url, trashMove: move)
     }
 }
