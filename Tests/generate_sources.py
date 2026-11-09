@@ -692,6 +692,7 @@ def main():
           + declaration(monitor, "struct SystemMonitorPanelNeeds")
           + "final class Monitor: Fixture {\n"
           + declaration(monitor, "    private struct SamplingPlan").replace("private struct", "struct", 1)
+          + "var widgetsActive = false\n"
           + declaration(monitor, "    private func currentPlan(").replace("private func", "func", 1)
           + "}\n"
           # What the panel and its details ask the monitor for, as shipped.

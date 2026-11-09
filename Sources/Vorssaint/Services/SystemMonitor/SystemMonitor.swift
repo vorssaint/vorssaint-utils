@@ -41,8 +41,16 @@ struct SystemSnapshot {
     /// value is carried over failed reads, and the hot CPU alert has to tell
     /// those repeats apart from fresh readings.
     var cpuUsageReadAt: TimeInterval?
+    /// The busy split behind `cpuUsage`, only while a desktop widget asks for
+    /// it. HOST_CPU_LOAD_INFO supplies all three in the same read.
+    var cpuSystem: Double?         // 0...1
+    var cpuUser: Double?           // 0...1
+    var cpuIdle: Double?           // 0...1
     var cpuCoreUsage: [Double?] = [] // 0...1 per logical core, only while the menu panel shows the CPU row
     var gpuUsage: Double?          // 0...1
+    /// Renderer and tiler utilization published next to the device usage.
+    var gpuRenderer: Double?       // 0...1
+    var gpuTiler: Double?          // 0...1
     var memoryUsed: UInt64?
     var memoryAppUsed: UInt64?
     var memoryTotal: UInt64?
@@ -150,6 +158,7 @@ final class SystemMonitor: ObservableObject {
     private var notchAccessoryMonitoring = false
     private var menuBarActive = false
     private var alertsActive = false
+    private var widgetsActive = false
     private var refreshInFlight = false
     private var pendingRefresh = false
     private var pendingRefreshSuppressesGPU = false
@@ -193,8 +202,13 @@ final class SystemMonitor: ObservableObject {
     private var lastSyncedPlan: SamplingPlan?
     private var lastCPUUsage: Double?
     private var lastCPUUsageReadAt: TimeInterval?
+    private var lastCPUShares: (system: Double, user: Double, idle: Double)?
+    private var previousCPUShareTicks: (user: UInt64, system: UInt64, idle: UInt64, nice: UInt64, time: TimeInterval)?
     private var missedCPUUsageSamples = 0
+    private var missedCPUShareSamples = 0
     private var lastGPUUsage: Double?
+    private var lastGPURenderer: Double?
+    private var lastGPUTiler: Double?
     private var missedGPUUsageSamples = 0
     private var memoryCache: CachedMemoryReading?
     private var cpuTemperatureCache: CachedSensorReading?
@@ -427,6 +441,27 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
+    /// Desktop widgets ask for the same four readings the panel shows. The
+    /// bridge keeps this on only while a widget is actually configured or has
+    /// requested a timeline recently, so a forgotten widget does not keep the
+    /// monitor awake forever.
+    func setWidgetsActive(_ active: Bool) {
+        runOnMain { [weak self] in
+            guard let self else { return }
+            guard active != self.widgetsActive else {
+                if active { self.resyncIfPlanChanged() }
+                return
+            }
+            self.widgetsActive = active
+            if active {
+                self.ensureTimer()
+                self.refresh()
+            } else {
+                self.stopTimerIfIdle()
+            }
+        }
+    }
+
     /// A settings change can swap which metrics are needed without flipping
     /// any activation flag. On a slow wake cadence the newly pinned metric
     /// would sit on its placeholder until the next wake (up to 60 s), so a
@@ -482,7 +517,7 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
+    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive || widgetsActive }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -567,18 +602,24 @@ final class SystemMonitor: ObservableObject {
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
         let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
 
+        // Desktop widgets read the same families, but never force per-core
+        // bars or the menu bar's fast temperature/fan strides.
         plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
+            || widgetsActive
         // Per-core bars live under the panel's CPU row only: a CPU shown in the
         // menu bar or watched by an alert never reads every core.
         plan.needCPUCores = menuPanelNeeds.system
             && defaults.bool(forKey: DefaultsKey.monitorSysCPU)
             && defaults.bool(forKey: DefaultsKey.monitorSysCPUCores)
         plan.needMemory = panelMemory || defaults.bool(forKey: DefaultsKey.menuBarMemory) || alertMemory
+            || widgetsActive
         plan.needNetwork = panelNeedsNetwork || defaults.bool(forKey: DefaultsKey.menuBarNetwork)
+            || widgetsActive
         plan.needDisk = panelNeedsDisk
             || defaults.bool(forKey: DefaultsKey.menuBarDiskUsage)
             || defaults.bool(forKey: DefaultsKey.menuBarDiskActivity)
             || alertDisk
+            || widgetsActive
         plan.needPower = panelNeedsPower || panelBattery
             || defaults.bool(forKey: DefaultsKey.menuBarPower)
             || (hasInternalBattery && defaults.bool(forKey: DefaultsKey.menuBarBattery))
@@ -588,7 +629,7 @@ final class SystemMonitor: ObservableObject {
         plan.needPeripheralBattery = menuPanelNeeds.peripheralBattery || notchAccessoryMonitoring
             || (menuPanelNeeds.powerCard && defaults.bool(forKey: DefaultsKey.monitorPwrPeripherals))
             || defaults.bool(forKey: DefaultsKey.menuBarPeripheralBattery)
-        plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU)
+        plan.needGPUUsage = panelGPU || defaults.bool(forKey: DefaultsKey.menuBarGPU) || widgetsActive
         plan.needGPUUsageMenuBar = defaults.bool(forKey: DefaultsKey.menuBarGPU)
         plan.needCPUTemperature = panelTemps || menuPanelNeeds.cpuTemperature ||
             defaults.bool(forKey: DefaultsKey.menuBarCPUTemperature) || alertCPUTemperature
@@ -744,6 +785,7 @@ final class SystemMonitor: ObservableObject {
         let suppressGPUReadsUntil = self.suppressGPUReadsUntil
         let foregroundSampling = fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible
         let intervalSeconds = self.intervalSeconds
+        let widgetsActive = self.widgetsActive
         // Ticks advance by the timer's cadence so `tick % stride` keeps
         // measuring base intervals; mutated on main only, read by the queue
         // through the captured value.
@@ -798,6 +840,21 @@ final class SystemMonitor: ObservableObject {
                 }
                 next.cpuUsage = self.lastCPUUsage
                 next.cpuUsageReadAt = self.lastCPUUsageReadAt
+                if readsCPU, widgetsActive {
+                    if let shares = self.readCPUUsageShares(now: now) {
+                        self.lastCPUShares = shares
+                        self.missedCPUShareSamples = 0
+                    } else if self.missedCPUShareSamples < 3 {
+                        self.missedCPUShareSamples += 1
+                    } else {
+                        self.lastCPUShares = nil
+                    }
+                }
+                if widgetsActive, let shares = self.lastCPUShares {
+                    next.cpuSystem = shares.system
+                    next.cpuUser = shares.user
+                    next.cpuIdle = shares.idle
+                }
             }
 
             if plan.needMemory {
@@ -878,16 +935,28 @@ final class SystemMonitor: ObservableObject {
                 if shouldSampleGPU {
                     if let rawGPU = Self.readGPUUsage() {
                         self.lastGPUUsage = MetricFormat.stabilizedGPUUsage(previous: self.lastGPUUsage,
-                                                                            current: rawGPU)
+                                                                            current: rawGPU.usage)
+                        if let renderer = rawGPU.renderer {
+                            self.lastGPURenderer = MetricFormat.stabilizedGPUUsage(
+                                previous: self.lastGPURenderer, current: renderer)
+                        }
+                        if let tiler = rawGPU.tiler {
+                            self.lastGPUTiler = MetricFormat.stabilizedGPUUsage(
+                                previous: self.lastGPUTiler, current: tiler)
+                        }
                         self.missedGPUUsageSamples = 0
                         if let gpu = self.lastGPUUsage { self.gpuHistory.push(gpu) }
                     } else if self.missedGPUUsageSamples < 3 {
                         self.missedGPUUsageSamples += 1
                     } else {
                         self.lastGPUUsage = nil
+                        self.lastGPURenderer = nil
+                        self.lastGPUTiler = nil
                     }
                 }
                 next.gpuUsage = self.lastGPUUsage
+                next.gpuRenderer = self.lastGPURenderer
+                next.gpuTiler = self.lastGPUTiler
             }
             // The anti-glitch bridge must span a couple of sampling gaps or it
             // is useless on the slow background cadence (15 s): one bad SMC
@@ -1188,11 +1257,55 @@ final class SystemMonitor: ObservableObject {
         return Double(busy - previous.busy) / Double(total - previous.total)
     }
 
+    /// The same counters split into what the CPU widget draws. This keeps its
+    /// own baseline so the long-standing `readCPUUsage` contract (and its
+    /// focused test) stays untouched; the two reads advance together whenever
+    /// widgets ask for the breakdown.
+    private func readCPUUsageShares(now: TimeInterval)
+        -> (system: Double, user: Double, idle: Double)? {
+        var info = host_cpu_load_info()
+        var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info>.stride / MemoryLayout<integer_t>.stride)
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
+        let kr = withUnsafeMutablePointer(to: &info) { ptr in
+            ptr.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                host_statistics(host, HOST_CPU_LOAD_INFO, $0, &count)
+            }
+        }
+        guard kr == KERN_SUCCESS else { return nil }
+
+        let user = UInt64(info.cpu_ticks.0)
+        let system = UInt64(info.cpu_ticks.1)
+        let idle = UInt64(info.cpu_ticks.2)
+        let nice = UInt64(info.cpu_ticks.3)
+        let total = user + system + idle + nice
+
+        defer { previousCPUShareTicks = (user, system, idle, nice, now) }
+        guard let previous = previousCPUShareTicks,
+              total > previous.user + previous.system + previous.idle + previous.nice else {
+            return nil
+        }
+        guard now - previous.time <= 12.5 else {
+            lastCPUShares = nil
+            return nil
+        }
+        let userDelta = user >= previous.user ? user - previous.user : 0
+        let systemDelta = system >= previous.system ? system - previous.system : 0
+        let idleDelta = idle >= previous.idle ? idle - previous.idle : 0
+        let niceDelta = nice >= previous.nice ? nice - previous.nice : 0
+        let totalDelta = Double(userDelta + systemDelta + idleDelta + niceDelta)
+        guard totalDelta > 0 else { return nil }
+        return (system: Double(systemDelta) / totalDelta,
+                user: Double(userDelta + niceDelta) / totalDelta,
+                idle: Double(idleDelta) / totalDelta)
+    }
+
     // MARK: - GPU usage
 
     /// "Device Utilization %" published by the graphics accelerator
-    /// (AGXAccelerator on Apple Silicon).
-    private static func readGPUUsage() -> Double? {
+    /// (AGXAccelerator on Apple Silicon), with the renderer and tiler shares
+    /// the GPU widget lists underneath it.
+    private static func readGPUUsage() -> (usage: Double, renderer: Double?, tiler: Double?)? {
         var iterator = io_iterator_t()
         guard IOServiceGetMatchingServices(kIOMainPortDefault,
                                            IOServiceMatching("IOAccelerator"),
@@ -1215,7 +1328,9 @@ final class SystemMonitor: ObservableObject {
                   let stats = ref.takeRetainedValue() as? [String: Any],
                   let utilization = stats["Device Utilization %"] as? Int
             else { continue }
-            return Double(utilization) / 100.0
+            let renderer = (stats["Renderer Utilization %"] as? Int).map { Double($0) / 100.0 }
+            let tiler = (stats["Tiler Utilization %"] as? Int).map { Double($0) / 100.0 }
+            return (usage: Double(utilization) / 100.0, renderer: renderer, tiler: tiler)
         }
         return nil
     }

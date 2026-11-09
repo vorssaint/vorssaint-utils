@@ -17,6 +17,13 @@ enum CountAgreement {
     case byWholeNumber
 }
 
+/// The user's chosen interface language. Kept in the localization module so a
+/// WidgetKit extension can use the same catalogs without pulling in the app's
+/// preference table.
+enum LanguagePreference {
+    static let key = "appLanguage"
+}
+
 /// Languages the interface can use. The first launch defaults to the system
 /// language; the onboarding and Settings let the user override it at any time.
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -109,14 +116,15 @@ final class L10n: ObservableObject {
     static let shared = L10n()
 
     @Published var language: AppLanguage {
-        didSet { UserDefaults.standard.set(language.rawValue, forKey: DefaultsKey.language) }
+        didSet { UserDefaults.standard.set(language.rawValue, forKey: LanguagePreference.key) }
     }
 
     var s: Strings { Strings.localized(language) }
 
     private init() {
-        if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
-           let saved = AppLanguage(rawValue: raw) {
+        if let raw = UserDefaults.standard.string(forKey: LanguagePreference.key),
+            let saved = AppLanguage(rawValue: raw)
+        {
             language = saved
         } else {
             language = .systemDefault
@@ -1325,6 +1333,36 @@ struct Strings {
     let spacesOrderCaption: String
     let quitAppsName: String
     let quitAppsCaption: String
+
+    // MARK: Desktop widgets
+    // WidgetKit renders these in the gallery, outside the app's own windows.
+    let widgetCPU: String
+    let widgetGPU: String
+    let widgetRAM: String
+    let widgetDisk: String
+    let widgetNetwork: String
+    let widgetUnited: String
+    let widgetCPUDescription: String
+    let widgetGPUDescription: String
+    let widgetRAMDescription: String
+    let widgetDiskDescription: String
+    let widgetNetworkDescription: String
+    let widgetUnitedDescription: String
+    let widgetMemoryLabel: String
+    let widgetDiskLabel: String
+    let widgetSystem: String
+    let widgetUser: String
+    let widgetUsage: String
+    let widgetRenderer: String
+    let widgetTiler: String
+    let widgetUsed: String
+    let widgetFree: String
+    let widgetPressureLevel: String
+    let widgetDownload: String
+    let widgetUpload: String
+    let widgetStatus: String
+    let widgetInterface: String
+    let widgetIP: String
+    let widgetUp: String
+    let widgetDown: String
 }
-
-
