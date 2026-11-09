@@ -8,19 +8,27 @@ import SwiftUI
 /// header and empty shelf space; tiles stay free to start item drags.
 struct WindowMoveHandle: NSViewRepresentable {
     var acceptsDrops = false
+    var onDragEnded: ((CGPoint) -> Void)? = nil
+    var tracksShelfInteraction = false
 
     func makeNSView(context: Context) -> ShelfPanelMoveView {
         let view = ShelfPanelMoveView()
         view.acceptsDrops = acceptsDrops
+        view.onDragEnded = onDragEnded
+        view.tracksShelfInteraction = tracksShelfInteraction
         return view
     }
 
     func updateNSView(_ nsView: ShelfPanelMoveView, context: Context) {
         nsView.acceptsDrops = acceptsDrops
+        nsView.onDragEnded = onDragEnded
+        nsView.tracksShelfInteraction = tracksShelfInteraction
     }
 }
 
 class ShelfPanelMoveView: NSView {
+    var onDragEnded: ((CGPoint) -> Void)?
+    var tracksShelfInteraction = false
     var acceptsDrops = false {
         didSet { syncDraggedTypes() }
     }
@@ -35,9 +43,12 @@ class ShelfPanelMoveView: NSView {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
     override func mouseDown(with event: NSEvent) {
-        ShelfService.shared.beginInteraction()
-        defer { ShelfService.shared.endInteraction() }
+        if tracksShelfInteraction { ShelfService.shared.beginInteraction() }
+        defer {
+            if tracksShelfInteraction { ShelfService.shared.endInteraction() }
+        }
         window?.performDrag(with: event)
+        onDragEnded?(NSEvent.mouseLocation)
     }
 
     override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {

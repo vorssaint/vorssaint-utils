@@ -138,8 +138,8 @@ enum NotchScreenEdgeClickTests {
         late.hoverEmphasized = true
         guard let pulsed = late.screenEdgeClickArea else { suite.expect(false, "a pulsing island takes edge clicks"); return }
         // Released where only the grown island reaches.
-        late.handleScreenEdgeClick(.leftMouseUp, at: CGPoint(x: pulsed.maxX - 4, y: pulsed.maxY), isNotchWindow: false)
-        suite.expect(pulsed.maxX - 4 > resting.maxX && late.openings == 1,
+        late.handleScreenEdgeClick(.leftMouseUp, at: CGPoint(x: pulsed.maxX - 2, y: pulsed.maxY), isNotchWindow: false)
+        suite.expect(pulsed.maxX - 2 > resting.maxX && late.openings == 1,
                      "a click the hover pulse grows under still opens the island")
         late.removeScreenEdgeClickMonitors()
         let service = Service()

@@ -27,6 +27,7 @@ struct RecentCapturesView: View {
     /// Inside the island the list becomes a rail of cards that fill this
     /// area and continue sideways.
     var notchSize: CGSize? = nil
+    var showsMoveToIsland = false
 
     private var text: RecentCaptureStrings {
         FeatureStrings.recentCaptures(l10n.language)
@@ -62,6 +63,13 @@ struct RecentCapturesView: View {
         HStack(spacing: 8) {
             Label(text.title, systemImage: "clock.arrow.circlepath")
                 .font(.system(size: 12, weight: .semibold))
+                .overlay {
+                    if showsMoveToIsland {
+                        WindowMoveHandle(onDragEnded: { point in
+                            NotchService.shared.dockContentIfDropped(.captures, at: point)
+                        })
+                    }
+                }
             Spacer()
             Button {
                 if inNotch { Self.confirmClearAboveIsland() } else { confirmingClear = true }
@@ -74,6 +82,9 @@ struct RecentCapturesView: View {
             .help(text.clear)
             .accessibilityLabel(text.clear)
             .disabled(visibleEntries.isEmpty)
+            if showsMoveToIsland {
+                MoveContentToIslandButton(content: .captures)
+            }
             if let onClose {
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
@@ -200,7 +211,7 @@ struct RecentCapturesWindowView: View {
     var onClose: () -> Void
 
     var body: some View {
-        RecentCapturesView(onClose: onClose)
+        RecentCapturesView(onClose: onClose, showsMoveToIsland: true)
             .padding(14)
             .frame(width: 440)
             .background(HUDBackdrop(cornerRadius: 18, contrast: .high))

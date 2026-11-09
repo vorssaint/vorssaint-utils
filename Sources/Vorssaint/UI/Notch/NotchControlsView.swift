@@ -6,9 +6,11 @@ import SwiftUI
 
 struct NotchControlsView: View {
     @ObservedObject var service: NotchService
+    @ObservedObject private var plugins = NotchPluginRegistry.shared
     let size: CGSize
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
+    @AppStorage(DefaultsKey.notchCustomShortcuts) private var customShortcutsData = Data()
     @Environment(\.notchBand) private var band
 
     var body: some View {
@@ -20,10 +22,14 @@ struct NotchControlsView: View {
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
         let bandLevels = Array(levels.prefix(inBand))
         let belowLevels = Array(levels.dropFirst(inBand))
-        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
+        let shortcuts = items.filter { !$0.isLevel && $0 != .music }.map(NotchControlTile.control)
+            + NotchCustomShortcutSupport.stored()
+                .filter { $0.destinations.contains(.controls) }.map(NotchControlTile.customShortcut)
+        let pluginRowHeight = plugins.plugins.isEmpty ? 0 : NotchLayout.rowSpacing + NotchLayout.shortcutHeight
         let layout = NotchLayout.controls(hasCards: items.contains(.music), levelRow: !belowLevels.isEmpty,
-                                          shortcutCount: shortcuts.count, width: size.width, height: size.height)
-        if items.isEmpty {
+                                          shortcutCount: shortcuts.count, width: size.width,
+                                          height: max(0, size.height - pluginRowHeight))
+        if items.isEmpty && shortcuts.isEmpty && plugins.plugins.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: FeatureStrings.notch(l10n.language).empty)
         } else {
             VStack(spacing: NotchLayout.rowSpacing) {
@@ -39,6 +45,20 @@ struct NotchControlsView: View {
                               leastSpacing: NotchLayout.shortcutLeastSpacing, rowSpacing: layout.shortcutRowSpacing) { item in
                         shortcut(item)
                     }
+                }
+                if !plugins.plugins.isEmpty {
+                    ScrollView(.horizontal) {
+                        HStack(spacing: NotchLayout.shortcutSpacing) {
+                            ForEach(plugins.plugins, id: \.identifier) { plugin in
+                                NotchActionTile(symbol: plugin.symbol, title: plugin.title) {
+                                    plugin.perform()
+                                }
+                                .frame(width: NotchLayout.shortcutWidth)
+                            }
+                        }
+                    }
+                    .scrollIndicators(.hidden)
+                    .frame(height: NotchLayout.shortcutHeight)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -91,7 +111,19 @@ struct NotchControlsView: View {
         .frame(height: 28)
     }
 
-    @ViewBuilder private func shortcut(_ item: NotchControlItem) -> some View {
+    @ViewBuilder private func shortcut(_ tile: NotchControlTile) -> some View {
+        switch tile {
+        case .customShortcut(let custom):
+            NotchActionTile(symbol: custom.symbol, title: custom.name) {
+                service.perform { NotchCustomShortcutSupport.run(custom) }
+            }
+            .accessibilityIdentifier("notch.shortcut.\(custom.id.uuidString)")
+        case .control(let item):
+            controlShortcut(item)
+        }
+    }
+
+    @ViewBuilder private func controlShortcut(_ item: NotchControlItem) -> some View {
         switch item {
         case .keepAwake: NotchAwakeButton()
         case .microphone: NotchMicButton()
@@ -108,33 +140,20 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.select(.mixer) }
         case .commandBar:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n)) { service.perform { CommandBarService.shared.show() } }
+        case .companion:
+            NotchActionTile(symbol: item.symbol, title: item.title(l10n), active: NotchMascotSupport.isEnabled()) {
+                service.perform {
+                    NotchMascotSupport.toggleFromIsland {
+                        FeatureRuntime.shared.setAvailable([.notchMascot], true)
+                    }
+                    service.syncWithPreferences()
+                }
+            }
         case .scratchpad:
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
-        }
-    }
-}
-
-extension NotchControlItem {
-    func title(_ l10n: L10n) -> String {
-        switch self {
-        case .volume: return FeatureStrings.notch(l10n.language).volume
-        case .brightness: return FeatureStrings.notch(l10n.language).brightness
-        case .keyboardLight: return FeatureStrings.brightness(l10n.language).keyboardLight
-        case .keepAwake: return l10n.s.keepAwakeTitle
-        case .microphone: return l10n.s.micMuteName
-        case .screenshot: return FeatureStrings.recentCaptures(l10n.language).screenshot
-        case .recording: return FeatureStrings.recorder(l10n.language).pageTitle
-        case .speedTest: return l10n.s.speedTestRun
-        case .panel: return FeatureStrings.notch(l10n.language).panel
-        case .mixer: return l10n.s.mixerSection
-        case .commandBar: return FeatureStrings.commandBar(l10n.language).pageTitle
-        case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
-        case .music: return NotchModule.music.title(l10n.language)
-        case .timer: return NotchModule.timer.title(l10n.language)
-        case .calendar: return NotchModule.calendar.title(l10n.language)
         }
     }
 }
@@ -411,6 +430,7 @@ enum NotchTileAccent {
 /// clock, takes the first line and leaves the title one line below it.
 struct NotchActionTile: View {
     let symbol: String
+    var symbolVariableValue: Double?
     let title: String
     var reading: String?
     /// A timer's reading rolls down toward zero; a stopwatch's rolls up.
@@ -425,7 +445,8 @@ struct NotchActionTile: View {
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                Image(systemName: symbol).font(.system(size: 17, weight: .medium))
+                Image(systemName: symbol, variableValue: symbolVariableValue)
+                    .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(active ? accent.glyph : .white.opacity(0.85))
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 40, height: 40)
@@ -503,7 +524,7 @@ private struct NotchTimerTile: View {
         let session = timer.session
         let active = session.hasSession
         return NotchActionTile(
-            symbol: active ? symbol(session) : NotchControlItem.timer.symbol,
+            symbol: NotchTimerSupport.timerTileSymbol(for: session),
             title: active ? FeatureStrings.notchActivities(l10n.language).phase(session.phase)
                 : NotchControlItem.timer.title(l10n),
             reading: active ? NotchTimerSupport.clockText(for: session, at: timer.now) : nil,
@@ -514,12 +535,6 @@ private struct NotchTimerTile: View {
             active: active, accent: .timer) { service.select(.timer) }
     }
 
-    /// The compact strip's marks, without the circle the tile already draws.
-    private func symbol(_ session: NotchTimerSession) -> String {
-        if session.completed { return "checkmark" }
-        if session.isPaused { return "pause.fill" }
-        return session.countsUp ? "stopwatch" : "timer"
-    }
 }
 
 /// The next appointment's start and title, so the week's agenda is a click

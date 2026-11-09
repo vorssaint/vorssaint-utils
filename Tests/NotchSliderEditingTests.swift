@@ -58,6 +58,10 @@ enum NotchSliderEditingTests {
                      && !NotchSliderEasing.eases(enabled: true, onScreen: true, reduceMotion: false, tracking: true)
                      && !NotchSliderEasing.eases(enabled: false, onScreen: true, reduceMotion: false, tracking: false),
                "only a level slider on screen, not dragged and without reduced motion eases; a page that opens starts at its level")
+        suite.expect(NotchLevelFeedbackMotion.duration == 0.20
+                     && NotchLevelFeedbackMotion.animates(reduceMotion: false)
+                     && !NotchLevelFeedbackMotion.animates(reduceMotion: true),
+               "expanded level feedback uses the closed indicator's easing unless Reduce Motion is enabled")
 
         let range = 0.0...1.0
         var wheel = SliderScroll()

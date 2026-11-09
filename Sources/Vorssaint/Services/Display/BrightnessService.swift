@@ -1252,7 +1252,7 @@ final class BrightnessService: ObservableObject {
             let service = Unmanaged<BrightnessService>.fromOpaque(userInfo).takeUnretainedValue()
             return service.handleKeyEvent(type: type, event: event)
         }
-        guard let tap = CGEvent.tapCreate(tap: .cgSessionEventTap,
+        guard let tap = CGEvent.tapCreate(tap: NotchSupport.systemIndicatorEventTapLocation,
                                           place: .headInsertEventTap,
                                           options: .defaultTap,
                                           eventsOfInterest: CGEventMask(1 << systemDefined.rawValue),

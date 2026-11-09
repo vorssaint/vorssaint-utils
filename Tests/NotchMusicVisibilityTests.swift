@@ -60,6 +60,7 @@ enum NotchMusicVisibilityTests {
         var compactActivityPickerLayout = NotchActivityPickerLayout(
             count: 2, labelWidth: 80, stripSize: CGSize(width: 300, height: 32), screenWidth: 1440)
         var hiddenInFullscreen = false
+        var idleStatus = NotchIdleStatus()
         var running = true
         var suspended = false
         var expanded = false
@@ -157,6 +158,18 @@ enum NotchMusicVisibilityTests {
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
+        let closedIsland = service.geometry.restingSize(showsContent: false)
+        defaults.set(NotchIdleContent.focus.rawValue, forKey: DefaultsKey.notchIdleContent)
+        service.idleStatus.focusActive = true
+        service.syncVisibleConsumers()
+        suite.expect(service.idleContent == .focus && service.compactActivity == nil
+                     && service.surfaceSize == service.geometry.restingSize(showsContent: true),
+                     "an active Focus mode occupies the chosen resting island")
+        service.idleStatus.focusActive = false
+        suite.expect(service.idleContent == .none && service.surfaceSize == closedIsland,
+                     "the Focus resting indicator leaves when Focus mode ends")
+        defaults.set(NotchIdleContent.music.rawValue, forKey: DefaultsKey.notchIdleContent)
+        service.syncVisibleConsumers()
 
         let devices = Service()
         devices.modules = [.system]
@@ -417,8 +430,8 @@ enum NotchMusicVisibilityTests {
         suite.expect(service.compactActivity == .downloads, "a download outranks a running Keep Awake session")
         service.hasDownloadActivity = false
         suite.expect(service.compactActivity == .keepAwake
-                     && service.compactActivityGeometry == service.geometry.compactTimerGeometry(
-                        showsDownloads: false, wing: service.keepAwakeStripWing)
+                     && service.compactActivityGeometry == service.geometry.compactKeepAwakeGeometry(
+                        wing: service.keepAwakeStripWing)
                      && service.surfaceSize == service.compactActivityGeometry.compactActivitySize,
                      "a running Keep Awake session takes the timer's wings in the closed island")
         service.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1470, height: 956), safeAreaTop: 32,

@@ -72,6 +72,8 @@
 	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
 	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
+	<key>NSFocusStatusUsageDescription</key>
+	<string>Vorssaint shows whether a Focus is active in the Dynamic Island. Focus status stays on this Mac.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSRemovableVolumesUsageDescription</key>

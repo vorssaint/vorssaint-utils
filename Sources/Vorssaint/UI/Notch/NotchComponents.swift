@@ -167,6 +167,99 @@ struct NotchIconButton: View {
     }
 }
 
+/// A page's own pull handle sits beside its controls in the island's top row.
+/// A press opens the matching window; pulling down gives it the same resisted
+/// tear-off motion as the Scratchpad.
+struct NotchContentTransferHandle: View {
+    @ObservedObject private var service = NotchService.shared
+    @ObservedObject private var camera = CameraPreviewService.shared
+    @ObservedObject private var fileTools = NotchFileToolsService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var translation = CGSize.zero
+    @State private var gestureDragged = false
+    @State private var thresholdWasReached = false
+    @State private var resistanceFeedbackSent = false
+
+    var body: some View {
+        let _ = camera.isEmbeddedPresented
+        let _ = fileTools.mediaPresented
+        let _ = shelfEnabled
+        if service.standaloneTransferContent != nil {
+            Image(systemName: "arrow.down.to.line")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.55))
+                .frame(width: 44, height: 44)
+                .background(.white.opacity(0),
+                            in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .offset(NotchContentTransferSupport.resistedOffset(for: translation))
+                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.62),
+                           value: translation)
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            guard hypot(value.translation.width, value.translation.height) > 4 else { return }
+                            translation = value.translation
+                            gestureDragged = true
+                            if value.translation.height >= NotchContentTransferSupport.resistanceFeedbackDistance,
+                               !resistanceFeedbackSent, !thresholdWasReached {
+                                resistanceFeedbackSent = true
+                                service.provideHapticFeedback(pattern: .alignment)
+                            } else if value.translation.height < NotchContentTransferSupport.resistanceFeedbackDistance {
+                                resistanceFeedbackSent = false
+                            }
+                            if NotchContentTransferSupport.shouldTearOff(translation: value.translation),
+                               !thresholdWasReached {
+                                thresholdWasReached = true
+                                service.provideHapticFeedback(pattern: .levelChange)
+                            }
+                        }
+                        .onEnded { value in
+                            let tearOff = NotchContentTransferSupport.shouldTearOff(translation: value.translation)
+                            let wasTap = !gestureDragged
+                            translation = .zero
+                            gestureDragged = false
+                            thresholdWasReached = false
+                            resistanceFeedbackSent = false
+                            if tearOff {
+                                service.moveSelectedContentToWindow(providesFeedback: false)
+                            } else if wasTap {
+                                service.moveSelectedContentToWindow()
+                            }
+                        }
+                )
+                .help(FeatureStrings.scratchpad(l10n.language).moveToWindow)
+                .accessibilityLabel(FeatureStrings.scratchpad(l10n.language).moveToWindow)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { service.moveSelectedContentToWindow() }
+                .accessibilityIdentifier("notch.contentTransfer")
+        }
+    }
+}
+
+/// One return action shared by the standalone counterparts of island pages.
+struct MoveContentToIslandButton: View {
+    let content: NotchTransferContent
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        Button {
+            NotchService.shared.moveContentIntoIsland(content)
+        } label: {
+            Image(systemName: "arrow.up.to.line")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(FeatureStrings.scratchpad(l10n.language).moveToIsland)
+        .accessibilityLabel(FeatureStrings.scratchpad(l10n.language).moveToIsland)
+        .accessibilityIdentifier("window.moveContentToIsland.\(content.rawValue)")
+    }
+}
+
 /// The island's way to its sections, in its top row or on a page that
 /// lays out its own top, while nothing floating beside the island offers it.
 struct NotchSectionsButton: View {
@@ -312,7 +405,7 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
     // are created, including a target well outside the current viewport.
     private var targetColumn: Int? {
         guard let scrollTarget, let index = items.firstIndex(where: { $0.id == scrollTarget }) else { return nil }
-        return index / max(1, rows) * max(1, rows)
+        return index / max(1, rows)
     }
 
     var body: some View {
@@ -322,27 +415,22 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
                 ForEach(rowStarts, id: \.self) { start in row(start, cell: cell, gap: gap) }
             }
         } else {
-            ScrollViewReader { proxy in
-                // Legacy scroll bars would take a row's worth of height; the
-                // column cut at the edge is the cue that more follows.
-                ScrollView(.horizontal) {
-                    LazyHStack(alignment: .top, spacing: spacing) {
-                        ForEach(starts, id: \.self) { start in column(start).frame(width: itemWidth).id(start) }
-                    }
-                    .contentShape(Rectangle())
+            // Legacy scroll bars would take a row's worth of height; the
+            // column cut at the edge is the cue that more follows.
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: spacing) {
+                    ForEach(starts, id: \.self) { column($0).frame(width: itemWidth) }
                 }
-                .scrollIndicators(.never)
-                .notchScrollEdgeFade(.horizontal)
-                .onAppear {
-                    if let targetColumn { proxy.scrollTo(targetColumn, anchor: .center) }
-                }
-                .onChange(of: targetColumn) { _, target in
-                    guard let target else { return }
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.16)) {
-                        proxy.scrollTo(target, anchor: .center)
-                    }
-                }
+                .contentShape(Rectangle())
             }
+            .background {
+                ScrollPosition(targetColumn: targetColumn, columnWidth: itemWidth, spacing: spacing,
+                               columns: starts.count)
+                    .frame(width: 0, height: 0)
+                    .allowsHitTesting(false)
+            }
+            .scrollIndicators(.never)
+            .notchScrollEdgeFade(.horizontal)
         }
     }
 
@@ -360,6 +448,39 @@ struct NotchRail<Item: Identifiable, Content: View>: View {
             ForEach(items[start..<min(items.count, start + max(1, rows))]) { item in
                 content(item)
             }
+        }
+    }
+
+    private struct ScrollPosition: NSViewRepresentable {
+        let targetColumn: Int?
+        let columnWidth: CGFloat
+        let spacing: CGFloat
+        let columns: Int
+
+        func makeNSView(context: Context) -> NSView { NSView(frame: .zero) }
+
+        func updateNSView(_ view: NSView, context: Context) {
+            guard let targetColumn, targetColumn >= 0 else { return }
+            func scroll() {
+                guard let root = view.window?.contentView else { return }
+                let expectedWidth = CGFloat(columns) * columnWidth + CGFloat(max(0, columns - 1)) * spacing
+                func scrollViews(in view: NSView) -> [NSScrollView] {
+                    let current = (view as? NSScrollView).map { [$0] } ?? []
+                    return current + view.subviews.flatMap(scrollViews)
+                }
+                guard let scrollView = scrollViews(in: root).first(where: {
+                    guard let documentView = $0.documentView else { return false }
+                    return abs(documentView.bounds.width - expectedWidth) < 2
+                }), let documentView = scrollView.documentView else { return }
+                let clipView = scrollView.contentView
+                let maximum = max(0, documentView.bounds.width - clipView.bounds.width)
+                let columnCenter = CGFloat(targetColumn) * (columnWidth + spacing) + columnWidth / 2
+                let x = min(maximum, max(0, columnCenter - clipView.bounds.width / 2))
+                guard abs(clipView.bounds.origin.x - x) > 0.5 else { return }
+                clipView.scroll(to: CGPoint(x: x, y: clipView.bounds.origin.y))
+                scrollView.reflectScrolledClipView(clipView)
+            }
+            DispatchQueue.main.async(execute: scroll)
         }
     }
 }

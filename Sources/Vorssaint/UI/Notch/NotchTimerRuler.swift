@@ -30,6 +30,7 @@ struct NotchTimerRuler: NSViewRepresentable {
     func updateNSView(_ control: NotchTimerRulerControl, context: Context) {
         context.coordinator.parent = self
         control.durationLocale = locale
+        control.reduceMotion = context.environment.accessibilityReduceMotion
         control.synchronize(minutes: minutes)
         control.isEnabled = context.environment.isEnabled
         control.increasedContrast = context.environment.colorSchemeContrast == .increased
@@ -44,7 +45,9 @@ struct NotchTimerRuler: NSViewRepresentable {
         @objc func changed(_ sender: NSSlider) {
             guard parent.minutes != sender.integerValue else { return }
             parent.minutes = sender.integerValue
-            NotchService.shared.provideHapticFeedback()
+            let pattern = (sender as? NotchTimerRulerControl)?.pendingScrubFeedback ?? .alignment
+            (sender as? NotchTimerRulerControl)?.pendingScrubFeedback = nil
+            NotchService.shared.provideHapticFeedback(pattern: pattern)
         }
     }
 }
@@ -52,15 +55,26 @@ struct NotchTimerRuler: NSViewRepresentable {
 final class NotchTimerRulerControl: NSSlider {
     var increasedContrast = false
     var durationLocale = Locale.current
-    private var drag: (x: CGFloat, value: Double)?
+    var reduceMotion = false
+    private var drag: NotchTimerRulerDrag?
     private var didDrag = false
     private var showsKeyboardFocus = false
     private var scrollValue: Double?
+    private var scrollTimestamp: TimeInterval?
+    private var scrollVelocity = 0.0
+    var pendingScrubFeedback: NSHapticFeedbackManager.FeedbackPattern?
+    private var animation: NotchTimerRulerAnimation?
+    private var animationTimer: Timer?
     override var isFlipped: Bool { true }
     override var acceptsFirstResponder: Bool { isEnabled }
 
     private var selectionX: CGFloat {
-        bounds.minX + CGFloat(NotchTimerRulerScale.selectionX(selected: integerValue, width: Double(bounds.width)))
+        bounds.minX + CGFloat(NotchTimerRulerScale.selectionX(selected: displayedValue,
+                                                               width: Double(bounds.width)))
+    }
+
+    private var displayedValue: Double {
+        animation?.value(at: ProcessInfo.processInfo.systemUptime) ?? doubleValue
     }
 
     func synchronize(minutes: Int) {
@@ -69,6 +83,12 @@ final class NotchTimerRulerControl: NSSlider {
         integerValue = bounded
         drag = nil
         scrollValue = nil
+        scrollTimestamp = nil
+        scrollVelocity = 0
+        pendingScrubFeedback = nil
+        animation = nil
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -76,40 +96,70 @@ final class NotchTimerRulerControl: NSSlider {
         window?.makeFirstResponder(self)
         showsKeyboardFocus = false
         needsDisplay = true
-        drag = (convert(event.locationInWindow, from: nil).x, doubleValue)
+        drag = NotchTimerRulerDrag(
+            x: Double(convert(event.locationInWindow, from: nil).x),
+            value: doubleValue,
+            timestamp: event.timestamp
+        )
         scrollValue = nil
+        scrollTimestamp = nil
+        scrollVelocity = 0
+        pendingScrubFeedback = nil
         didDrag = false
     }
 
     override func mouseDragged(with event: NSEvent) {
-        guard isEnabled, let previous = drag else { return }
+        guard isEnabled, var current = drag else { return }
         let x = convert(event.locationInWindow, from: nil).x
-        let value = NotchTimerRulerScale.moving(previous.value, by: Double(x - previous.x))
-        drag = (x, value)
+        let previous = current.value
+        let value = current.move(to: Double(x), at: event.timestamp)
+        drag = current
         didDrag = true
-        select(value)
+        pendingScrubFeedback = NotchTimerRulerFeedback.pattern(distance: abs(value - previous), speed: current.speed)
+        select(value, animated: true)
     }
 
     override func mouseUp(with event: NSEvent) {
         guard isEnabled, drag != nil else { drag = nil; return }
         if !didDrag {
+            let visibleValue = displayedValue
             let offset = convert(event.locationInWindow, from: nil).x - selectionX
-            select(NotchTimerRulerScale.moving(doubleValue, by: -Double(offset)))
+            select(NotchTimerRulerScale.moving(visibleValue, by: -Double(offset)))
         }
         drag = nil
     }
 
     override func scrollWheel(with event: NSEvent) {
         guard isEnabled, drag == nil else { return }
-        if event.phase.contains(.began) { scrollValue = nil }
+        if event.phase.contains(.began) {
+            scrollValue = nil
+            scrollTimestamp = event.timestamp
+            scrollVelocity = 0
+        }
         let delta = abs(event.scrollingDeltaX) > abs(event.scrollingDeltaY)
             ? event.scrollingDeltaX : event.scrollingDeltaY
         let points = Double(delta) * (event.hasPreciseScrollingDeltas ? 1 : NotchTimerRulerScale.spacing)
-        let value = NotchTimerRulerScale.moving(scrollValue ?? doubleValue, by: points)
+        let previous = scrollValue ?? doubleValue
+        let value = NotchTimerRulerScale.moving(previous, by: points)
+        let elapsed = event.timestamp - (scrollTimestamp ?? event.timestamp)
+        if event.hasPreciseScrollingDeltas, elapsed > 0, elapsed.isFinite {
+            let instantaneousSpeed = abs(Double(delta)) / elapsed
+            let response = 1 - exp(-elapsed / NotchTimerRulerScale.velocitySmoothingDuration)
+            scrollVelocity += (instantaneousSpeed - scrollVelocity) * response
+        } else {
+            scrollVelocity = 0
+        }
+        scrollTimestamp = event.timestamp
         scrollValue = value
-        select(value)
+        pendingScrubFeedback = NotchTimerRulerFeedback.pattern(distance: abs(value - previous),
+                                                                speed: scrollVelocity)
+        select(value, animated: true)
         if !event.hasPreciseScrollingDeltas || event.phase.contains(.ended) || event.phase.contains(.cancelled)
-            || event.momentumPhase.contains(.ended) { scrollValue = nil }
+            || event.momentumPhase.contains(.ended) {
+            scrollValue = nil
+            scrollTimestamp = nil
+            scrollVelocity = 0
+        }
     }
 
     override func keyDown(with event: NSEvent) {
@@ -117,6 +167,9 @@ final class NotchTimerRulerControl: NSSlider {
             super.keyDown(with: event); return
         }
         scrollValue = nil
+        scrollTimestamp = nil
+        scrollVelocity = 0
+        pendingScrubFeedback = nil
         showsKeyboardFocus = true
         needsDisplay = true
         switch event.keyCode {
@@ -148,14 +201,45 @@ final class NotchTimerRulerControl: NSSlider {
         return true
     }
 
-    private func select(_ value: Double) {
-        guard isEnabled else { return }
+    private func select(_ value: Double, animated: Bool = false) {
+        guard isEnabled else { pendingScrubFeedback = nil; return }
         let minute = NotchTimerRulerScale.minute(value)
-        guard integerValue != minute else { return }
+        guard integerValue != minute else { pendingScrubFeedback = nil; return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let from = displayedValue
         integerValue = minute
+        if animated, !reduceMotion {
+            animation = NotchTimerRulerAnimation(from: from, to: Double(minute), startTime: now, duration: 0.12)
+            scheduleAnimationRedraw()
+        } else {
+            animation = nil
+            animationTimer?.invalidate()
+            animationTimer = nil
+        }
         setAccessibilityValueDescription(NotchTimerSupport.compactText(Double(minute) * 60, locale: durationLocale))
         needsDisplay = true
         sendAction(action, to: target)
+    }
+
+    private func scheduleAnimationRedraw() {
+        guard animationTimer == nil else { return }
+        let timer = Timer(timeInterval: 1 / 60, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            guard let animation = self.animation else {
+                self.animationTimer?.invalidate()
+                self.animationTimer = nil
+                return
+            }
+            self.needsDisplay = true
+            if animation.isComplete(at: ProcessInfo.processInfo.systemUptime) {
+                self.animation = nil
+                self.animationTimer?.invalidate()
+                self.animationTimer = nil
+                self.needsDisplay = true
+            }
+        }
+        animationTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -165,7 +249,7 @@ final class NotchTimerRulerControl: NSSlider {
         let scale = bounds.height / NotchLayout.timerRulerHeight
         let selectionX = self.selectionX
         for minute in 1...180 {
-            let x = selectionX + CGFloat(NotchTimerRulerScale.offset(of: minute, selected: integerValue))
+            let x = selectionX + CGFloat(NotchTimerRulerScale.offset(of: minute, selected: displayedValue))
             guard x >= bounds.minX - 16, x <= bounds.maxX + 16 else { continue }
             let fade = minute == integerValue ? 1 : min(1, max(0, min(x - bounds.minX, bounds.maxX - x) / edgeFade))
             let strength = minute <= integerValue ? 1.0 : increasedContrast ? 0.65 : 0.35
@@ -179,11 +263,7 @@ final class NotchTimerRulerControl: NSSlider {
                 title.draw(at: NSPoint(x: x - title.size().width / 2, y: 0))
             }
         }
-        let pointer = NSBezierPath()
-        pointer.move(to: NSPoint(x: selectionX, y: 70 * scale))
-        pointer.line(to: NSPoint(x: selectionX + 6, y: 80 * scale))
-        pointer.line(to: NSPoint(x: selectionX - 6, y: 80 * scale))
-        pointer.close()
+        let pointer = roundedPointerPath(at: selectionX, scale: scale)
         NSColor.systemOrange.withAlphaComponent(isEnabled ? 1 : 0.4).setFill()
         pointer.fill()
         if window?.firstResponder === self, showsKeyboardFocus {
@@ -192,6 +272,39 @@ final class NotchTimerRulerControl: NSSlider {
             focus.lineWidth = 1
             focus.stroke()
         }
+    }
+
+    private func roundedPointerPath(at x: CGFloat, scale: CGFloat) -> NSBezierPath {
+        let vertices = [
+            CGPoint(x: x, y: 70 * scale),
+            CGPoint(x: x - 6, y: 80 * scale),
+            CGPoint(x: x + 6, y: 80 * scale)
+        ]
+        let radius = 2.5 * scale
+
+        func cornerPoint(_ vertex: CGPoint, toward neighbor: CGPoint) -> CGPoint {
+            let dx = neighbor.x - vertex.x
+            let dy = neighbor.y - vertex.y
+            let length = hypot(dx, dy)
+            guard length > 0 else { return vertex }
+            let distance = min(radius, length / 2)
+            return CGPoint(x: vertex.x + dx / length * distance,
+                           y: vertex.y + dy / length * distance)
+        }
+
+        let path = NSBezierPath()
+        path.move(to: cornerPoint(vertices[0], toward: vertices[2]))
+        for index in vertices.indices {
+            let vertex = vertices[index]
+            let previous = vertices[(index + vertices.count - 1) % vertices.count]
+            let next = vertices[(index + 1) % vertices.count]
+            path.line(to: cornerPoint(vertex, toward: previous))
+            let outgoing = cornerPoint(vertex, toward: next)
+            path.curve(to: outgoing, controlPoint1: vertex, controlPoint2: vertex)
+            path.line(to: cornerPoint(next, toward: vertex))
+        }
+        path.close()
+        return path
     }
 
     override func becomeFirstResponder() -> Bool {
@@ -205,5 +318,9 @@ final class NotchTimerRulerControl: NSSlider {
         let accepted = super.resignFirstResponder()
         needsDisplay = true
         return accepted
+    }
+
+    deinit {
+        animationTimer?.invalidate()
     }
 }

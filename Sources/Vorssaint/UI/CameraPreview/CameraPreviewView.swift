@@ -74,12 +74,26 @@ struct CameraPreviewView: View {
 
     @ViewBuilder
     private var controls: some View {
-        if showsMenu {
-            // A camera name too long for the image leaves the picker its
-            // icon, so it is never cut off at the image's edges.
-            ViewThatFits(in: .horizontal) {
-                cameraMenu(showsName: true)
-                cameraMenu(showsName: false)
+        if showsCameraMenu && hovering {
+            HStack(spacing: 6) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 10, weight: .semibold))
+                    .frame(width: 20, height: 24)
+                    .overlay {
+                        WindowMoveHandle(onDragEnded: { point in
+                            NotchService.shared.dockContentIfDropped(.camera, at: point)
+                        })
+                    }
+                    .accessibilityHidden(true)
+                MoveContentToIslandButton(content: .camera)
+                if showsMenu {
+                    // A camera name too long for the image leaves the picker its
+                    // icon, so it is never cut off at the image's edges.
+                    ViewThatFits(in: .horizontal) {
+                        cameraMenu(showsName: true)
+                        cameraMenu(showsName: false)
+                    }
+                }
             }
             .transition(.opacity)
             .padding([.horizontal, .bottom], 10)

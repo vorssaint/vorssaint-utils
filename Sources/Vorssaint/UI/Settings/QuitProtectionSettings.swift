@@ -94,6 +94,7 @@ struct QuitProtectionSettings: View {
         Section(shortcut.symbol) {
             Toggle(strings.enabled, isOn: enabled)
                 .onChange(of: enabled.wrappedValue) { _, _ in service.syncWithPreferences() }
+                .modifier(FeaturePrimaryToggleModifier(feature: .quitWindowProtection))
             Text(strings.enabledCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)

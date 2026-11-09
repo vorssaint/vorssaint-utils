@@ -8,7 +8,10 @@ struct CommandBarSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CommandBarService.shared
     @ObservedObject private var secureInput = SecureInputMonitor.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
+    @AppStorage(DefaultsKey.notchCommandBarFromIsland) private var opensFromIsland = false
+    @AppStorage(DefaultsKey.notchCommandBarStyle) private var islandStyle = NotchCommandBarStyle.island.rawValue
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
     @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
@@ -27,6 +30,7 @@ struct CommandBarSettings: View {
     @State private var showsAppShortcuts = false
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
+    private var islandText: NotchMascotStrings { FeatureStrings.notchMascot(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
     /// language; saying them twice would only mean two things to keep.
     private var common: SnippetFeatureStrings { FeatureStrings.snippets(l10n.language) }
@@ -43,18 +47,11 @@ struct CommandBarSettings: View {
     var body: some View {
         Form {
             Section {
-                // One choice, open it or recenter it, so one row. Neither
-                // carries an icon: a ⌘ glyph in front of "Open the bar now"
-                // reads as the shortcut that opens it, which it is not.
-                HStack(spacing: 10) {
-                    Button(text.openButton) {
-                        CommandBarService.shared.show()
-                    }
-                    Button(text.resetPositionButton) {
-                        CommandBarService.shared.resetPanelPosition()
-                    }
-                    .disabled(!service.hasCustomPosition)
+                // The hero owns the action that opens the bar.
+                Button(text.resetPositionButton) {
+                    CommandBarService.shared.resetPanelPosition()
                 }
+                .disabled(!service.hasCustomPosition)
                 // One row for the whole explanation. As separate rows the form
                 // drew a divider between every sentence, cutting one paragraph
                 // about one feature into four cards that looked like settings.
@@ -104,6 +101,22 @@ struct CommandBarSettings: View {
                     }
                 ShortcutPreferenceRow(role: .commandBar, isEnabled: shortcutEnabled) {
                     CommandBarService.shared.syncWithPreferences()
+                }
+                if features.isAvailable(.notch) {
+                    Toggle(islandText.commandBarFromIsland, isOn: $opensFromIsland)
+                    Text(islandText.commandBarHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if opensFromIsland {
+                        Picker(islandText.opensAs, selection: Binding(
+                            get: { NotchCommandBarStyle(rawValue: islandStyle) ?? .droplet },
+                            set: { islandStyle = $0.rawValue })) {
+                            ForEach(NotchCommandBarStyle.allCases) { style in
+                                Text(islandText.commandBarStyle(style)).tag(style)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
                 }
                 if shortcutEnabled, service.shortcutRegistrationFailed {
                     Text(l10n.s.shortcutUnavailable)

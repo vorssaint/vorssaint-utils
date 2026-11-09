@@ -38,11 +38,13 @@ enum NotchGestureTests {
         var time = 1.0
         func feed(_ x: Double = 0, _ y: Double = 0, began: Bool = false,
                   ended: Bool = false, momentum: Bool = false, precise: Bool = true, phased: Bool = true,
-                  vertical: Bool = true, horizontal: Bool = true, expanded: Bool = false) -> NotchGestureSupport.Action? {
+                  vertical: Bool = true, horizontal: Bool = true, pageNavigation: Bool = false,
+                  expanded: Bool = false) -> NotchGestureSupport.Action? {
             time += 0.01
             return gesture.handle(x: x, y: y, timestamp: time, began: began, ended: ended,
                                   momentum: momentum, precise: precise, hasPhase: phased, allowVertical: vertical,
-                                  allowHorizontal: horizontal, expanded: expanded)
+                                  allowHorizontal: horizontal, allowPageNavigation: pageNavigation,
+                                  expanded: expanded)
         }
         suite.expect(feed(0, 5, began: true) == nil && feed(0, 10) == nil && feed(0, 10) == .open,
                "small vertical movement accumulates into one intentional opening")
@@ -136,6 +138,22 @@ enum NotchGestureTests {
         suite.expect(feed(0, -24, precise: false, phased: false, expanded: true) == .close,
                "wheel sequences expire from their timestamps without a background timer")
         suite.expect(feed(-45, 0, began: true) == .nextTrack, "a phased gesture can begin after a wheel sequence")
+        suite.expect(feed(-45, 0, began: true, pageNavigation: true, expanded: true) == .nextPage
+               && feed(45, 0, began: true, pageNavigation: true, expanded: true) == .previousPage
+               && feed(-45, 0, began: true, expanded: true) == .nextTrack,
+               "horizontal swipes navigate open pages while the music surface keeps track skipping")
+        suite.expect(NotchGestureSupport.adjacentPage(current: .music, modules: [.controls, .music, .timer],
+                                                       forward: true) == .timer
+               && NotchGestureSupport.adjacentPage(current: .music, modules: [.controls, .music, .timer],
+                                                    forward: false) == .controls
+               && NotchGestureSupport.adjacentPage(current: .controls, modules: [.controls, .music],
+                                                    forward: false) == nil
+               && NotchGestureSupport.adjacentPage(current: .watch, modules: [.controls, .music],
+                                                    forward: true) == nil,
+               "page swipes follow the enabled order and stop at either edge without wrapping")
+        suite.expect(feed(-20, 0, began: true, pageNavigation: true, expanded: true) == nil
+               && feed(-20, 0, expanded: true) == .nextPage,
+               "a phased page swipe keeps the eligibility of the surface where it began")
         time += 5
         suite.expect(feed(-100, 0) == nil,
                "holding fingers still does not unlock a second track change in the same phased gesture")

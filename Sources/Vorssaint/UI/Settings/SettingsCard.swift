@@ -3,9 +3,177 @@
 
 import SwiftUI
 
-/// One rounded group of related controls on a redesigned Settings page, with
-/// an optional heading. The same card the Dynamic Island page draws, so the
-/// pages read as one design.
+private struct SettingsFocusedFeatureKey: EnvironmentKey {
+    static let defaultValue: AppFeature? = nil
+}
+
+extension EnvironmentValues {
+    var settingsFocusedFeature: AppFeature? {
+        get { self[SettingsFocusedFeatureKey.self] }
+        set { self[SettingsFocusedFeatureKey.self] = newValue }
+    }
+}
+
+struct FeaturePrimaryToggleModifier: ViewModifier {
+    @Environment(\.settingsFocusedFeature) private var focusedFeature
+    let feature: AppFeature
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if focusedFeature != feature || feature.primaryEnabledKeys.isEmpty {
+            content
+        }
+    }
+}
+
+struct SettingsIconTile: View {
+    let symbol: String
+    var size: CGFloat = 24
+    var accentGroup: FeatureGroup? = nil
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var usesBlackTileColor: Bool {
+        ["dock.rectangle", "dock.arrow.down.rectangle", "macbook", "heart.fill"].contains(symbol)
+    }
+
+    private var color: Color {
+        switch (accentGroup, symbol) {
+        case (.energyDisplay, "bolt.fill"), (.energyDisplay, "moon.zzz.fill"),
+             (.energyDisplay, "sun.max.fill"):
+            return .orange
+        case (.windowsDock, "rectangle.on.rectangle"),
+             (.windowsDock, "rectangle.3.group"),
+             (.windowsDock, "rectangle.split.3x1"):
+            return .purple
+        case (.mouseKeyboard, "rectangle.and.hand.point.up.left"):
+            return .blue
+        case (.mouseKeyboard, "cursorarrow.rays"):
+            return .green
+        case (.clipboardFiles, "finder"),
+             (.clipboardFiles, "doc.on.clipboard"),
+             (.clipboardFiles, "doc.plaintext"),
+             (.clipboardFiles, "tray.full"),
+             (.clipboardFiles, "externaldrive.badge.plus"):
+            return .teal
+        case (_, "arrow.down.app"):
+            return .green
+        case (_, "dock.rectangle"), (_, "dock.arrow.down.rectangle"), (_, "macbook"):
+            return .black
+        case (_, "camera.viewfinder"), (_, "screenshot"):
+            return .gray
+        case (_, "note.text"):
+            return .yellow
+        case (_, "record.circle"), (_, "trash"), (_, "xmark.octagon"), (_, "xmark.app"),
+             (_, "xmark.circle"), (_, "heart.fill"):
+            return .red
+        case (_, "web.camera"):
+            return .green
+        default:
+            return .accentColor
+        }
+    }
+
+    var body: some View {
+        symbolImage
+            .frame(width: size, height: size)
+            .background {
+                if colorScheme == .dark {
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .fill(.black)
+                } else {
+                    RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
+                        .fill(tileBackground(color))
+                }
+            }
+            .shadow(color: color.opacity(0.18), radius: 1.5, y: 1)
+            .accessibilityHidden(true)
+    }
+
+    private func tileBackground(_ color: Color) -> LinearGradient {
+        LinearGradient(colors: [color.opacity(0.76), color, color.opacity(0.88)],
+                       startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
+
+    @ViewBuilder
+    private var symbolImage: some View {
+        let symbolSize = symbol == AppFeature.middleClick.symbolName ? size * 0.62 : size * 0.5
+        if colorScheme == .dark {
+            Image(systemName: symbol)
+                .font(.system(size: symbolSize, weight: .semibold))
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(symbol == "heart.fill" ? color : (usesBlackTileColor ? .white : color))
+        } else if symbol == "note.text", accentGroup == nil {
+            Image(systemName: symbol)
+                .font(.system(size: symbolSize, weight: .semibold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.black, .black.opacity(0.68), .black.opacity(0.38))
+        } else {
+            Image(systemName: symbol)
+                .font(.system(size: symbolSize, weight: .semibold))
+                .symbolRenderingMode(.palette)
+                .foregroundStyle(.white, .white.opacity(0.76), .white.opacity(0.52))
+        }
+    }
+}
+
+struct SettingsFeatureHeader<Accessory: View>: View {
+    let symbol: String
+    let title: String
+    let description: String?
+    var accentGroup: FeatureGroup? = nil
+    let accessory: Accessory
+    var surface = true
+
+    init(symbol: String, title: String, description: String?, accentGroup: FeatureGroup? = nil,
+         surface: Bool = true,
+         @ViewBuilder accessory: () -> Accessory) {
+        self.symbol = symbol
+        self.title = title
+        self.description = description
+        self.accentGroup = accentGroup
+        self.surface = surface
+        self.accessory = accessory()
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            SettingsIconTile(symbol: symbol, size: 36, accentGroup: accentGroup)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.title3.weight(.semibold))
+                if let description, !description.isEmpty {
+                    Text(description)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 12)
+            accessory
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background {
+            if surface {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.quaternary.opacity(0.35))
+            }
+        }
+    }
+}
+
+extension SettingsFeatureHeader where Accessory == EmptyView {
+    init(symbol: String, title: String, description: String? = nil,
+         accentGroup: FeatureGroup? = nil, surface: Bool = true) {
+        self.init(symbol: symbol, title: title, description: description,
+                  accentGroup: accentGroup, surface: surface) {
+            EmptyView()
+        }
+    }
+}
+
+/// One grouped surface of related controls, matching the inset sections in
+/// macOS System Settings.
 struct SettingsCard<Content: View>: View {
     let title: String?
     let content: Content
@@ -16,23 +184,29 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 13) {
+        VStack(alignment: .leading, spacing: 8) {
             if let title {
-                Text(title).font(.headline)
+                Text(title)
+                    .font(.headline)
             }
-            content
+            VStack(alignment: .leading, spacing: 0) {
+                content
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(.quaternary.opacity(0.35),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
-/// Where a row's text column starts, so follow-up controls can line up with it.
+/// Setting labels and continuation controls align after the reserved icon slot.
 let settingsRowTextInset: CGFloat = 26 + 12
 
-/// Icon, title, one line of explanation and the control on the right. A nil
-/// symbol shows the app's own menu bar glyph, for rows about that icon.
+/// A plain setting label and optional explanation, with its control at the
+/// trailing edge, like rows in macOS System Settings.
 struct SettingsRow<Accessory: View>: View {
     let symbol: String?
     let title: String
@@ -51,49 +225,43 @@ struct SettingsRow<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            iconTile
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(title)
-                    if let badge {
-                        Text(badge)
-                            .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
-                            .accessibilityHidden(true)
-                    }
-                }
-                if let caption {
-                    Text(caption)
-                        .font(.caption)
+            Group {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Color.clear
                 }
             }
+            .frame(width: 26, height: 20)
+            label
             Spacer(minLength: 12)
             accessory
         }
+        .padding(.vertical, 7)
     }
 
-    @ViewBuilder
-    private var iconTile: some View {
-        if let symbol {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 26, height: 26)
-                .background(Color.accentColor.opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-        } else {
-            // The menu bar draws the glyph white on a dark bar; the badge keeps
-            // that pairing so it reads as the same icon in both appearances.
-            MenuBarGlyph()
-                .frame(width: 17, height: 13)
-                .frame(width: 26, height: 26)
-                .background(Color.black.opacity(0.82),
-                            in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+    private var label: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Text(title)
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(Color.accentColor))
+                        .accessibilityHidden(true)
+                }
+            }
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
@@ -118,7 +286,10 @@ struct SettingsFeatureSwitchRow: View {
         let usable = installed && enabled
         VStack(alignment: .leading, spacing: 6) {
             SettingsRow(symbol: symbol, title: title, caption: usable ? caption : nil) {
-                Toggle(title, isOn: usable ? $isOn : .constant(false)).labelsHidden().toggleStyle(.switch)
+                Toggle(title, isOn: usable ? $isOn : .constant(false))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .modifier(FeaturePrimaryToggleModifier(feature: feature))
             }
             .disabled(!usable)
             .saturation(usable ? 1 : 0)

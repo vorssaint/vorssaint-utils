@@ -243,26 +243,6 @@ struct NotchMascotReactionGate {
     }
 }
 
-/// How the Command Bar comes out of the island.
-enum NotchCommandBarStyle: String, CaseIterable, Identifiable {
-    /// A drop falls from the island's lower edge and opens into the bar.
-    case droplet
-    /// The bar opens inside the open island.
-    case island
-
-    var id: String { rawValue }
-}
-
-/// Where the Command Bar shows when it opens.
-enum CommandBarPresentation: Equatable {
-    /// Its own window, as it always has.
-    case window
-    /// A window below the island, reached by a falling drop.
-    case droplet
-    /// Inside the open island.
-    case island
-}
-
 enum NotchMascotEye: Equatable {
     case open, closed, happy, heart, sleepy, wide, squint
     /// The lid slants down toward the other eye.
@@ -1235,6 +1215,16 @@ enum NotchMascotSupport {
             && defaults.bool(forKey: DefaultsKey.notchMascotEnabled)
     }
 
+    static func toggleFromIsland(in defaults: UserDefaults = .standard,
+                                 install: (() -> Void)? = nil) {
+        guard AppFeature.notchMascot.isAvailable(in: defaults) else {
+            install?()
+            return
+        }
+        defaults.set(!defaults.bool(forKey: DefaultsKey.notchMascotEnabled),
+                     forKey: DefaultsKey.notchMascotEnabled)
+    }
+
     static func visits(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchMascotVisits)
     }
@@ -1266,12 +1256,13 @@ enum NotchMascotSupport {
             palette: NotchMascotPalette(rawValue: defaults.string(forKey: DefaultsKey.notchMascotPalette) ?? "") ?? .pearl)
     }
 
-    /// How the Command Bar comes out of the island, or nil when it opens in
-    /// its own window as it always has.
+    /// The legacy Companion setting remains a separate way to route the
+    /// Command Bar through the island for people who already use it.
     static func commandBarStyle(in defaults: UserDefaults = .standard) -> NotchCommandBarStyle? {
         guard isEnabled(in: defaults), AppFeature.commandBar.isAvailable(in: defaults),
               defaults.bool(forKey: DefaultsKey.notchCommandBar) else { return nil }
-        return NotchCommandBarStyle(rawValue: defaults.string(forKey: DefaultsKey.notchCommandBarStyle) ?? "") ?? .droplet
+        return NotchCommandBarStyle(
+            rawValue: defaults.string(forKey: DefaultsKey.notchCommandBarStyle) ?? "") ?? .droplet
     }
 
     /// What the bar's face shows for what is typed. Results get a hop of

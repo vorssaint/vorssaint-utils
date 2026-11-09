@@ -112,7 +112,9 @@ struct NotchNoticeView: View {
             // A level's mark keeps its place while a shorter reading leaves
             // room it holds for the widest.
             .frame(maxWidth: .infinity, alignment: notice.readsFromEnds || notice.level != nil ? .leading : .trailing)
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: notice.detail)
+            .animation(NotchLevelFeedbackMotion.animates(reduceMotion: reduceMotion)
+                       ? .smooth(duration: NotchLevelFeedbackMotion.duration) : nil,
+                       value: notice.detail)
             .transaction { $0.disablesAnimations = false }
         }
     }
@@ -128,7 +130,9 @@ struct NotchNoticeView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
         } else if let level = notice.level {
             NotchMeter(value: level, height: 5, tint: tint)
-                .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
+                .animation(NotchLevelFeedbackMotion.animates(reduceMotion: reduceMotion)
+                           ? .smooth(duration: NotchLevelFeedbackMotion.duration) : nil,
+                           value: level)
                 .transaction { $0.disablesAnimations = false }
         } else {
             Text(notice.detail)
@@ -155,6 +159,7 @@ struct NotchExpandedLevelView: View {
     /// The percentage after the meter. A side too narrow for it, as across
     /// from the player's cover, keeps the glyph and a meter long enough to read.
     var showsDetail = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 8) {
@@ -162,10 +167,17 @@ struct NotchExpandedLevelView: View {
                 .frame(width: 18)
             NotchMeter(value: notice.level ?? 0, height: 5, tint: .white)
                 .frame(maxWidth: 96)
+                .animation(NotchLevelFeedbackMotion.animates(reduceMotion: reduceMotion)
+                           ? .smooth(duration: NotchLevelFeedbackMotion.duration) : nil,
+                           value: notice.level)
             if showsDetail {
                 Text(notice.detail)
                     .monospacedDigit()
                     .fixedSize()
+                    .contentTransition(.numericText())
+                    .animation(NotchLevelFeedbackMotion.animates(reduceMotion: reduceMotion)
+                               ? .smooth(duration: NotchLevelFeedbackMotion.duration) : nil,
+                               value: notice.detail)
             }
         }
         .font(.system(size: 11, weight: .medium))

@@ -18,6 +18,19 @@ enum NotchLockScreenSupport {
     /// at this level is drawn over the lock screen; the same window without
     /// it, even at the shielding window level, stays behind it.
     static let spaceLevel: Int32 = 400
+    static let padlockTransitionDuration: TimeInterval = 0.30
+    static let islandCollapseDelay: TimeInterval = 0.30
+    static let islandCollapseDuration: TimeInterval = 0.40
+    static let panelFadeInDuration: TimeInterval = 0.30
+    static let panelFadeOutDuration: TimeInterval = 0.20
+
+    static func islandFadeDelay(reduceMotion: Bool) -> TimeInterval {
+        padlockTransitionDuration + (reduceMotion ? 0 : islandCollapseDelay)
+    }
+
+    static func lockedState(from session: [String: Any]?) -> Bool? {
+        session?["CGSSessionScreenIsLocked"] as? Bool
+    }
 
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLockScreen)
@@ -124,16 +137,24 @@ enum NotchLockScreenLayout {
     /// music strip's wings so the island keeps its size as the Mac locks. It
     /// is the camera's exact fitted height, as the closed strips keep it: a
     /// half point more would show as a dark line under the housing.
-    static func islandSurface(in screen: CGRect, cameraWidth: CGFloat, cameraHeight: CGFloat, wing: CGFloat) -> CGRect? {
+    static func islandSurface(in screen: CGRect, cameraWidth: CGFloat, cameraHeight: CGFloat, wing: CGFloat,
+                              cameraCenterX: CGFloat? = nil) -> CGRect? {
         guard [screen.width, screen.height, cameraWidth, cameraHeight, wing].allSatisfy({ $0.isFinite && $0 > 0 }) else { return nil }
         let width = min(screen.width - 24, cameraWidth + wing * 2)
         guard width > cameraWidth else { return nil }
         // Centred on the camera to the half point: a notch only comes on Retina displays.
-        return CGRect(x: screen.midX - width / 2, y: screen.maxY - cameraHeight, width: width, height: cameraHeight)
+        let centre = cameraCenterX.flatMap { $0.isFinite ? $0 : nil } ?? screen.midX
+        return CGRect(x: centre - width / 2, y: screen.maxY - cameraHeight, width: width, height: cameraHeight)
     }
 
     /// The island's window. The lock screen's windows land on whole points,
     /// so it grows out to them around the island, which keeps its own size
     /// at the top of the window and leaves the extra room clear.
     static func islandFrame(around surface: CGRect) -> CGRect { surface.integral }
+
+    /// The island contracts around its camera as the lock screen gives way.
+    static func islandWidth(cameraWidth: CGFloat, expandedWidth: CGFloat, collapseProgress: CGFloat) -> CGFloat {
+        let progress = min(1, max(0, collapseProgress))
+        return expandedWidth + (cameraWidth - expandedWidth) * progress
+    }
 }

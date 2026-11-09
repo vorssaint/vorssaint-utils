@@ -38,6 +38,8 @@ enum NotchCompactTests {
         var selected = NotchModule.controls
         var musicShowsVolume = false
         var notice: NotchNotice?
+        var levelFeedback: NotchNotice?
+        var expanded = false
         var showingSections = false
         var modules: [NotchModule] = [.controls, .music]
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -49,6 +51,7 @@ enum NotchCompactTests {
             return result
         }
         func perform(_ action: () -> Void) { action() }
+        func provideHapticFeedback() {}
     }
     final class NotchTimerService {
         static let shared = NotchTimerService()
@@ -81,6 +84,8 @@ enum NotchCompactTests {
         func performFind(_ action: NSTextFinder.Action, in editor: NSTextView? = nil) {}
         func hideFindBar(in editor: NSTextView) {}
         func togglePreview() { isPreviewing.toggle() }
+        func moveIntoIsland() {}
+        func dockIntoIslandIfDropped(at point: CGPoint) {}
         func show(allowsIsland: Bool = true) {}
         func exportText(suggestedName: String, from window: NSWindow? = nil) {}
     }
@@ -142,10 +147,12 @@ enum NotchCompactTests {
         var body: some View { Color.clear }
     }
     struct Music { var playback: Bool? = true }
+    struct PluginSet { var plugins: [String] = [] }
     struct Page {
         var music = Music()
         var showsDetail = false
         var service = NotchService()
+        var plugins = PluginSet()
         var controls: [NotchControlItem] = [.music, .volume, .brightness, .timer]
         var timerMode = NotchTimerMode.timer
         var brightnessSlider = true

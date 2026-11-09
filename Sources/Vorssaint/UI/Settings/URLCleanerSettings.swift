@@ -32,12 +32,11 @@ struct URLCleanerSettings: View {
         Form {
             Section {
                 Toggle(l10n.s.urlCleanerEnable, isOn: $enabled)
+                    .toggleStyle(.switch)
                     .onChange(of: enabled) { _, _ in
                         URLCleanerService.shared.syncWithPreferences()
                     }
-                Text(l10n.s.urlCleanerEnableCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .modifier(FeaturePrimaryToggleModifier(feature: .urlCleaner))
                 Text(l10n.s.urlCleanerLocalNote)
                     .font(.caption2)
                     .foregroundStyle(.tertiary)

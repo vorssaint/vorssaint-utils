@@ -165,6 +165,14 @@ final class ScratchpadService: NSObject, ObservableObject, NSWindowDelegate {
         modalInteractionActive = false
     }
 
+    func moveIntoIsland() {
+        NotchService.shared.moveScratchpadIntoIsland()
+    }
+
+    func dockIntoIslandIfDropped(at point: CGPoint) {
+        NotchService.shared.dockScratchpadIfDropped(at: point)
+    }
+
     // MARK: - Document
 
     @discardableResult

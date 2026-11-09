@@ -14,6 +14,71 @@ import VMStatisticsCompat
 enum AppManagementFeatureTests {
     static func run(_ suite: TestSuite) {
         let registeredDefaults = Defaults.registeredDefaults
+        suite.expect(registeredDefaults[DefaultsKey.trashSuggestionPresentation] as? String
+                    == TrashSuggestionPresentation.notch.rawValue,
+                    "Trash suggestions default to the Dynamic Island")
+        suite.expect(registeredDefaults[DefaultsKey.uninstallerTrashDetectionEnabled] as? Bool == false,
+                     "Trash monitoring is opt-in")
+        suite.expect(TrashSuggestionSupport.monitoringState(enabled: false, hasFullDiskAccess: false,
+                                                            streamStarted: false) == .disabled
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: false,
+                                                               streamStarted: false) == .requiresFullDiskAccess
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: true,
+                                                               streamStarted: false) == .failed
+                     && TrashSuggestionSupport.monitoringState(enabled: true, hasFullDiskAccess: true,
+                                                               streamStarted: true) == .monitoring,
+                     "Trash monitoring reports disabled, permission, startup failure and active states")
+        suite.expect(TrashSuggestionSupport.notchAvailability(
+                    expanded: true, peeking: false, occupied: false,
+                    acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: true, occupied: false,
+                        acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: false, occupied: false,
+                        acceptsSystemFeedback: false, routeEnabled: true) == .unavailable
+                     && TrashSuggestionSupport.notchAvailability(
+                        expanded: false, peeking: false, occupied: false,
+                        acceptsSystemFeedback: true, routeEnabled: true) == .available,
+                     "Trash notices wait for a busy island and fall back when it cannot present")
+        suite.expect(TrashSuggestionSupport.notchAvailability(
+                    expanded: false, peeking: false, occupied: true,
+                    acceptsSystemFeedback: true, routeEnabled: true) == .deferUntilAvailable,
+                     "Trash notices do not interrupt an island notice or capture in progress")
+        suite.expect(TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: "com.example.editor", installedBundleIDs: [])
+                     && !TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: "com.example.editor", installedBundleIDs: ["COM.EXAMPLE.EDITOR"])
+                     && !TrashSuggestionSupport.shouldSuggestCleanup(for: nil, installedBundleIDs: []),
+                     "cleanup is suggested only when no installed copy with the same bundle id remains")
+        let reusedTrashApp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-trash-path-reuse-\(UUID().uuidString).app")
+        let reusedInfo = reusedTrashApp.appendingPathComponent("Contents/Info.plist")
+        func writeTrashBundleID(_ bundleID: String) {
+            try? FileManager.default.createDirectory(at: reusedInfo.deletingLastPathComponent(),
+                                                     withIntermediateDirectories: true)
+            if let data = try? PropertyListSerialization.data(
+                fromPropertyList: ["CFBundleIdentifier": bundleID], format: .xml, options: 0) {
+                try? data.write(to: reusedInfo, options: .atomic)
+            }
+        }
+        writeTrashBundleID("com.vendor.first")
+        let firstTrashBundleID = TrashSuggestionSupport.bundleIdentifierOnDisk(at: reusedTrashApp)
+        writeTrashBundleID("com.vendor.second")
+        let reusedTrashBundleID = TrashSuggestionSupport.bundleIdentifierOnDisk(at: reusedTrashApp)
+        suite.expect(firstTrashBundleID == "com.vendor.first"
+                     && reusedTrashBundleID == "com.vendor.second"
+                     && TrashSuggestionSupport.shouldSuggestCleanup(
+                        for: reusedTrashBundleID, installedBundleIDs: ["com.vendor.first"]),
+                     "reusing a Trash path reads the replacement app's current Info.plist identifier")
+        try? FileManager.default.removeItem(at: reusedTrashApp)
+        let currentTrashApps = [URL(fileURLWithPath: "/Users/test/.Trash/Example.app"),
+                                URL(fileURLWithPath: "/Users/test/.Trash/Other.app")]
+        let knownTrashApps = Set([currentTrashApps[0].path])
+        suite.expect(TrashSuggestionSupport.newlyTrashedApps(current: currentTrashApps,
+                                                              knownPaths: knownTrashApps)
+                    == [currentTrashApps[1]],
+                    "Trash suggestions ignore apps already observed")
         suite.expect(registeredDefaults[DefaultsKey.extraBrightnessEnabled] as? Bool == false,
                "extra brightness is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.extraBrightnessLevel] as? Int == 100,
@@ -474,6 +539,25 @@ enum AppManagementFeatureTests {
         suite.expect(editorSelection?.bundleID == "com.vendor.editor"
                && editorSelection?.url == editorApp.standardizedFileURL,
                "a complete third party app bundle is accepted with its standardized path")
+        let reusedApp = selectionBundle("Reused.app", bundleID: "com.vendor.first")
+        let firstReusedSelection = UninstallerSupport.selection(for: reusedApp)
+        _ = Bundle(url: reusedApp)?.bundleIdentifier
+        let parkedApp = selectionFixture.appendingPathComponent("Reused Old.app", isDirectory: true)
+        try? FileManager.default.moveItem(at: reusedApp, to: parkedApp)
+        let replacementApp = selectionBundle("Reused.app", bundleID: "com.vendor.second")
+        let replacementSelection = UninstallerSupport.selection(for: replacementApp)
+        suite.expect(firstReusedSelection?.bundleID == "com.vendor.first"
+               && replacementSelection?.bundleID == "com.vendor.second"
+               && UninstallerSupport.bundleIdentifier(of: replacementApp) == "com.vendor.second",
+               "a replacement bundle at a previously read path uses its current on-disk identifier")
+        let replacementSnapshot = UninstallerSupport.bundleSnapshot(of: replacementApp)
+        suite.expect(replacementSnapshot != nil
+               && UninstallerSupport.bundleSnapshot(of: replacementApp) == replacementSnapshot,
+               "an unchanged bundle retains its cache snapshot")
+        try? Data(contentsOf: replacementApp.appendingPathComponent("Contents/Info.plist"))
+            .write(to: replacementApp.appendingPathComponent("Contents/Info.plist"), options: .atomic)
+        suite.expect(UninstallerSupport.bundleSnapshot(of: replacementApp) != replacementSnapshot,
+               "rewriting a bundle's Info.plist invalidates its cache snapshot")
         let appleEditorApp = selectionBundle("AppleEditor.app", bundleID: "com.apple.editor")
         suite.expect(UninstallerSupport.selection(for: appleEditorApp) == nil,
                "an Apple bundle identifier is refused before it can claim uninstall paths")
@@ -710,8 +794,20 @@ enum AppManagementFeatureTests {
                 home: URL(fileURLWithPath: "/Users/test"))
             && !UninstallerSupport.applicationIsInTrustedInstallRoot(
                 URL(fileURLWithPath: "/Users/test/Downloads/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && !UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Archive/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"),
+                home: URL(fileURLWithPath: "/Users/test"))
+            && !UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash/Archive/Editor.app"),
                 home: URL(fileURLWithPath: "/Users/test")),
-               "embedded helpers belong to the selected app while unregistered download copies never own shared data")
+               "embedded helpers and direct Trash apps can claim shared data, but downloads and nested Trash apps cannot")
         let uninstallCandidateIDs: Set<String> = ["com.vendor.editor", "com.vendor.editor.helper"]
         suite.expect(UninstallerSupport.exclusiveBundleIDs(
                    uninstallCandidateIDs,
