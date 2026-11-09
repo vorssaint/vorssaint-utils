@@ -35,6 +35,7 @@ More reliable window switching, audio, notifications and display controls, with 
 - Window dragging and resizing find the target when an app's child controls cannot be identified through Accessibility, with bounded queries to limit delays from unresponsive apps. Thanks to @carlhuareforge.
 - Mic Mute also uses input volume and reapplies supported mute controls when another app changes them, while preserving each microphone's previous channel settings for restoration. Device and app limitations still apply. Thanks to @samueljim.
 - Volume mixer smooths volume changes and applies mute immediately across interruptions in captured audio. Thanks to @Chubi01.
+- Per-app volume and mute stay active when overlapping mixer checks confirm the audio format is still valid.
 - Brightness controls correctly validate DDC replies and refresh previously cached monitor ranges. Thanks to @nikigan.
 - Recording previews and exports reuse GPU rendering resources to reduce memory growth, while preserving the orientation of imported videos. Thanks to @Zekuath and @zepeng-jin.
 - Dynamic Island hides over an app's own full screen on every display and refreshes its visibility after temporary overlays or leaving full screen. Thanks to @sugar-king.
