@@ -276,6 +276,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchWatchSupport.swift
         Sources/Vorssaint/Core/NotchMascotStrings.swift
         Sources/Vorssaint/Services/Notch/NotchMascotSupport.swift
+        Sources/Vorssaint/Core/NotchCustomShortcutStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchCustomShortcutSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchControlItemStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchPluginRegistry.swift
+        Sources/Vorssaint/Services/Notch/NotchIdleStatusService.swift
+        Sources/Vorssaint/UI/Notch/NotchSurfaceTapGesture.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDropletMotion.swift
         Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
@@ -332,6 +338,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
+        Sources/Vorssaint/Core/FeatureRecommendationSupport.swift
+        Sources/Vorssaint/Core/FeatureRecommendationStrings.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift
         Sources/Vorssaint/Core/MixerScreenSharingStrings.swift
@@ -522,6 +530,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift
+        Sources/Vorssaint/Services/KeyboardRemapping/KeyboardRemappingSupport.swift
+        Sources/Vorssaint/Core/KeyboardRemappingStrings.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeyMappingGuard.swift
         Sources/Vorssaint/Core/SuperKeyStrings.swift

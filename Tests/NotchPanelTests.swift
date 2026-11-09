@@ -9,6 +9,7 @@ import SwiftUI
 /// fully transparent panel in off screen, since a sheet brings its parent in.
 enum NotchPanelTests {
     static func run(expect: (Bool, String) -> Void) {
+        trace("notch-panel", "started")
         let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         expect(panel.accessibilitySubrole() == .unknown,
@@ -16,6 +17,8 @@ enum NotchPanelTests {
                + "instead of listing a ghost window of this app on the current space")
         expect(panel.accessibilityRole() == .window && panel.isAccessibilityElement(),
                "the island stays an accessible window for assistive technology")
+        expect(!panel.isMovableByWindowBackground,
+               "holding the island cannot move its rectangular window frame")
         panel.collectionBehavior = NotchPanel.overlayCollectionBehavior
         expect(panel.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary])
                && panel.collectionBehavior.intersection([.managed, .stationary, .transient]) == .stationary,
@@ -23,8 +26,65 @@ enum NotchPanelTests {
         expect(NotchPanel.fullscreenLevel.rawValue > NSWindow.Level.normal.rawValue
                && NotchPanel.fullscreenLevel.rawValue < NSWindow.Level.mainMenu.rawValue,
                "the simulated full-screen cutout stays over app content but yields to the revealed menu bar")
+        trace("notch-panel.surface-button-routing", "started")
+        surfaceButtonRouting(expect: expect)
+        trace("notch-panel.surface-button-routing", "finished")
+        trace("notch-panel.sheet-contracts", "started")
         sheetContracts(expect: expect)
+        trace("notch-panel.sheet-contracts", "finished")
+        trace("notch-panel.active-glass", "started")
         activeGlass(expect: expect)
+        trace("notch-panel.active-glass", "finished")
+        trace("notch-panel.side-fade-removed", "started")
+        sideFadeRemoved(expect: expect)
+        trace("notch-panel.side-fade-removed", "finished")
+        trace("notch-panel", "finished")
+    }
+
+    private static func trace(_ name: String, _ state: String) {
+        FileHandle.standardError.write(Data("\(name) \(state)\n".utf8))
+    }
+
+    private static func sideFadeRemoved(expect: (Bool, String) -> Void) {
+        let source = try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchWindowHost.swift",
+                                 encoding: .utf8)
+        expect(source?.contains("private let silhouette = CAShapeLayer()") == true
+               && source?.contains("silhouette.mask") == false
+               && source?.contains("menuBarFade") == false,
+               "the island silhouette stays fully opaque at its left and right edges")
+    }
+
+    private static func surfaceButtonRouting(expect: (Bool, String) -> Void) {
+        final class Counter { var clicks = 0 }
+        let counter = Counter()
+        let panel = NSPanel(contentRect: CGRect(x: -4000, y: -4000, width: 120, height: 40),
+                            styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        defer { panel.close() }
+        panel.contentView = NSHostingView(rootView: AnyView(
+            ZStack {
+                Button { counter.clicks += 1 } label: {
+                    Text("Activity").frame(width: 120, height: 40)
+                }
+            }
+            .frame(width: 120, height: 40)
+            .contentShape(Rectangle())
+            .modifier(NotchSurfaceTapGesture())
+        ))
+        panel.orderFrontRegardless()
+        panel.contentView?.layoutSubtreeIfNeeded()
+        let location = CGPoint(x: 60, y: 20)
+        let down = NSEvent.mouseEvent(with: .leftMouseDown, location: location, modifierFlags: [],
+                                      timestamp: 0, windowNumber: panel.windowNumber, context: nil,
+                                      eventNumber: 1, clickCount: 1, pressure: 1)
+        let up = NSEvent.mouseEvent(with: .leftMouseUp, location: location, modifierFlags: [],
+                                    timestamp: 0.1, windowNumber: panel.windowNumber, context: nil,
+                                    eventNumber: 1, clickCount: 1, pressure: 0)
+        if let down { panel.sendEvent(down) }
+        if let up { panel.sendEvent(up) }
+        RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        expect(down != nil && up != nil && counter.clicks == 1,
+               "a child activity button still receives its click when the empty surface keeps taps in the island")
     }
 
     /// Liquid Glass draws a dull stand-in in a window that looks inactive. The

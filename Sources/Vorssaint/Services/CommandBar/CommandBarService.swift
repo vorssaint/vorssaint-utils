@@ -440,7 +440,7 @@ final class CommandBarService: ObservableObject {
     private func claimKeyboard(with panel: NSPanel) {
         CommandBarDroplet.shared.cancel()
         dropSource = nil
-        let style = NotchMascotSupport.commandBarStyle()
+        let style = NotchCommandBarSupport.style() ?? NotchMascotSupport.commandBarStyle()
         if style == .island, let host = NotchService.shared.presentCommandBar() {
             islandHost = host
             presentation = .island
@@ -476,7 +476,7 @@ final class CommandBarService: ObservableObject {
             hang(panel, below: island)
             focusField(in: panel)
             // Still unseen: what is typed while the drop falls lands in the field.
-            CommandBarDroplet.shared.drop(from: island, into: panel.frame, look: NotchMascotSupport.look()) {
+            CommandBarDroplet.shared.drop(from: island, into: panel.frame) {
                 [weak self, weak panel] fade in
                 guard let self, let panel, self.presentation == .droplet, panel.isVisible else { return }
                 // Landed, the bar takes the drop's place as is. Typed into
@@ -590,7 +590,7 @@ final class CommandBarService: ObservableObject {
         awaitsAnswers = false
         pendingKeys = []
         if let dropped {
-            CommandBarDroplet.shared.retract(from: dropped, look: NotchMascotSupport.look(), mood: farewell)
+            CommandBarDroplet.shared.retract(from: dropped)
         }
         if presented == .island { NotchService.shared.dismissCommandBar() }
         // Leaving mid-review through this path (global shortcut, outside

@@ -6,9 +6,12 @@ import AppKit
 /// Handles side buttons before the hosted SwiftUI controls can consume them.
 class SettingsWindow: NSWindow {
     var router = SettingsRouter.shared
+    var settingsUndoManager: UndoManager?
     // The app supplies capture state without making the window own a global input service.
     var isMouseButtonCaptureActive: () -> Bool = { false }
     private var navigationButtons: Set<Int> = []
+
+    override var undoManager: UndoManager? { settingsUndoManager ?? super.undoManager }
 
     static func navigationMenu(language: AppLanguage) -> NSMenu {
         let strings = SettingsNavigationStrings.localized(language)

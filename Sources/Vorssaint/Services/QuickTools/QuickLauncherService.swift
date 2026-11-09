@@ -13,7 +13,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
     // (a case added later joins a saved order at the end).
     case keepAwake, cleaner, toggles, micMute, screenOCR, colorPicker, clipboard, windowLayout,
          cleaning, homebrew, media, urlCleaner, uninstaller, screenshot, screenRecorder,
-         cameraPreview, scratchpad
+         cameraPreview, scratchpad, shortcuts
 
     var id: String { rawValue }
 
@@ -38,6 +38,7 @@ enum QuickLauncherItem: String, PanelOrderItem, Identifiable {
         case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
+        case .shortcuts: return .quickLauncher
         }
     }
 }
@@ -113,7 +114,15 @@ final class QuickLauncherService: ObservableObject {
 
     private var orderedItems: [QuickLauncherItem] {
         PanelLayout.itemOrder(QuickLauncherItem.self, key: DefaultsKey.quickLauncherItemOrder)
-            .filter { $0.feature.isAvailable }
+            .filter(isAvailable)
+    }
+
+    private func isAvailable(_ item: QuickLauncherItem) -> Bool {
+        guard item.feature.isAvailable else { return false }
+        if item == .shortcuts {
+            return NotchCustomShortcutSupport.stored().contains { $0.destinations.contains(.shortcutsPage) }
+        }
+        return true
     }
 
     var itemOrderBinding: Binding<[QuickLauncherItem]> {
@@ -153,8 +162,14 @@ final class QuickLauncherService: ObservableObject {
 
     func show() {
         if NotchService.shared.openQuickPanel() { return }
+        showStandalone()
+    }
+
+    @discardableResult
+    func showStandalone(preservingState: Bool = false) -> Bool {
+        guard AppFeature.quickLauncher.isAvailable else { return false }
         let panel = ensurePanel()
-        prepareForPresentation()
+        if !preservingState { prepareForPresentation() }
         position(panel)
         installMonitors(for: panel)
         panel.alphaValue = 0
@@ -164,11 +179,18 @@ final class QuickLauncherService: ObservableObject {
             context.duration = 0.13
             panel.animator().alphaValue = 1
         }
+        return panel.isVisible
+    }
+
+    func hideForTransfer() {
+        removeMonitors()
+        panel?.orderOut(nil)
     }
 
     /// Both destinations start with usable keyboard navigation. A utility that
     /// is still installed keeps its working state when the island is reopened.
-    func prepareForPresentation() {
+    func prepareForPresentation(preservingState: Bool = false) {
+        guard !preservingState else { return }
         refreshAvailability()
         presentationID = UUID()
         isEditing = false
@@ -178,8 +200,8 @@ final class QuickLauncherService: ObservableObject {
     }
 
     func refreshAvailability() {
-        if let activeUtility, !activeUtility.feature.isAvailable { self.activeUtility = nil }
-        if let editingOptionsItem, !editingOptionsItem.feature.isAvailable { self.editingOptionsItem = nil }
+        if let activeUtility, !isAvailable(activeUtility) { self.activeUtility = nil }
+        if let editingOptionsItem, !isAvailable(editingOptionsItem) { self.editingOptionsItem = nil }
         clampSelection()
     }
 
@@ -269,7 +291,7 @@ final class QuickLauncherService: ObservableObject {
     }
 
     func run(_ item: QuickLauncherItem) {
-        guard !isEditing, item.feature.isAvailable else { return }
+        guard !isEditing, isAvailable(item) else { return }
         switch item {
         case .keepAwake:
             KeepAwakeManager.shared.toggle()
@@ -318,7 +340,7 @@ final class QuickLauncherService: ObservableObject {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 CleaningModeManager.shared.activate()
             }
-        case .windowLayout, .homebrew, .media, .urlCleaner, .uninstaller, .cleaner, .toggles:
+        case .windowLayout, .homebrew, .media, .urlCleaner, .uninstaller, .cleaner, .toggles, .shortcuts:
             activeUtility = item
         }
     }

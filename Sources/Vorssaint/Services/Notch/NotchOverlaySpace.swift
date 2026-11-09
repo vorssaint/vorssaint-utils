@@ -64,14 +64,21 @@ final class NotchOverlaySpace {
     private var windows = Set<Int>()
     private var closed = false
 
-    init?(absoluteLevel: Int32? = nil) {
-        guard let bridge = Self.bridge else { return nil }
+    init?(absoluteLevel: Int32? = nil, onFailure: ((String) -> Void)? = nil) {
+        guard let bridge = Self.bridge else {
+            onFailure?("CoreGraphics Space API is unavailable")
+            return nil
+        }
         // Any flag but 1 makes Finder draw the desktop icons in this Space.
         let space = bridge.create(bridge.connection, 1, nil)
-        guard space != 0 else { return nil }
+        guard space != 0 else {
+            onFailure?("CoreGraphics could not create the overlay Space")
+            return nil
+        }
         if let absoluteLevel {
             guard let setLevel = bridge.setLevel, setLevel(bridge.connection, space, absoluteLevel) == 0 else {
                 bridge.destroy(bridge.connection, space)
+                onFailure?("CoreGraphics could not set the overlay Space level")
                 return nil
             }
         }

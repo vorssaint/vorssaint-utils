@@ -43,7 +43,8 @@ enum NotchMenuBarSpace {
         // the selected display before status items can further constrain it.
         return NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                    barHeight: geometry.menuBarHeight,
-                                                   menuItems: menuItems, statusItems: statusItems)
+                                                   menuItems: menuItems, statusItems: statusItems,
+                                                   cameraCenterX: geometry.cameraCenterX)
     }
 
     private static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {

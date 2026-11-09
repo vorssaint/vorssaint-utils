@@ -3,6 +3,75 @@
 
 import SwiftUI
 
+private struct NotchTimerProgressArc: Shape {
+    var progress: Double
+
+    var animatableData: Double {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        let value = progress.isFinite ? min(1, max(0, progress)) : 0
+        guard value > 0 else { return Path() }
+        let diameter = min(rect.width, rect.height)
+        let circle = CGRect(x: rect.midX - diameter / 2, y: rect.midY - diameter / 2,
+                            width: diameter, height: diameter)
+        guard value < 1 else { return Path(ellipseIn: circle) }
+
+        var path = Path()
+        path.addArc(center: CGPoint(x: circle.midX, y: circle.midY), radius: diameter / 2,
+                    startAngle: .degrees(-90), endAngle: .degrees(-90 + 360 * value), clockwise: false)
+        return path
+    }
+}
+
+struct NotchTimerMark: View {
+    @ObservedObject private var timer = NotchTimerService.shared
+    let size: CGFloat
+    let tint: Color
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        if timer.session.isRunning && !timer.session.countsUp {
+            TimelineView(.periodic(from: Date(timeIntervalSinceNow: NotchTimerSupport.tickScheduleOffset(
+                for: timer.session, at: timer.now)), by: 1)) { _ in
+                mark(at: timer.now)
+            }
+        } else {
+            mark(at: timer.now)
+        }
+    }
+
+    @ViewBuilder
+    private func mark(at now: TimeInterval) -> some View {
+        let session = timer.session
+        if session.isRunning, !session.countsUp,
+           let progress = NotchTimerSupport.compactMarkVariableValue(for: session, at: now) {
+            let lineWidth = max(1, size * 0.09)
+            ZStack {
+                Circle()
+                    .stroke(tint.opacity(0.28), lineWidth: lineWidth)
+                    .padding(lineWidth / 2)
+                NotchTimerProgressArc(progress: progress)
+                    .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .padding(lineWidth / 2)
+                Image(systemName: "timer")
+                    .font(.system(size: size * 0.62, weight: .medium))
+            }
+            .frame(width: size, height: size)
+            .foregroundStyle(tint)
+            .animation(reduceMotion ? nil : .linear(duration: 1), value: progress)
+            .accessibilityHidden(true)
+        } else {
+            Image(systemName: NotchTimerSupport.compactMarkSymbol(for: session))
+                .font(.system(size: size, weight: .medium))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+        }
+    }
+}
+
 /// The clock keeps the right of the camera. The left shows the timer's mark,
 /// or its explicitly chosen companion: a download, working agents, the next
 /// event's clock or the music playing, each opening its own page. The wings
@@ -47,10 +116,7 @@ struct NotchTimerStrip: View {
                         if let companion {
                             NotchCompanionMark(companion: companion, geometry: geometry)
                         } else {
-                            Image(systemName: timer.session.completed ? "checkmark.circle"
-                                  : timer.session.isPaused ? "pause.circle" : timer.session.countsUp ? "stopwatch" : "timer")
-                                .font(.system(size: iconSize, weight: .medium))
-                                .foregroundStyle(.orange)
+                            NotchTimerMark(size: iconSize, tint: .orange)
                         }
                     }
                 }

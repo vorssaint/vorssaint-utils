@@ -2,6 +2,62 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreGraphics
+
+enum NotchContentTransferSupport {
+    static let tearOffThreshold: CGFloat = 68
+    static let tearOffDirectionRatio: CGFloat = 0.75
+    static let resistanceFeedbackDistance: CGFloat = 30
+
+    static func standaloneContent(
+        for module: NotchModule,
+        captureContentActive: Bool,
+        captureWindowAvailable: Bool,
+        choosingFileDropDestination: Bool,
+        fileMediaPresented: Bool,
+        filesWindowAvailable: Bool,
+        cameraEmbeddedPresented: Bool
+    ) -> NotchTransferContent? {
+        guard let content = NotchTransferContent(rawValue: module.rawValue) else { return nil }
+        switch content {
+        case .captures where captureContentActive || !captureWindowAvailable: return nil
+        case .files where choosingFileDropDestination || fileMediaPresented || !filesWindowAvailable: return nil
+        case .camera where !cameraEmbeddedPresented: return nil
+        default: return content
+        }
+    }
+
+    static func shouldTearOff(translation: CGSize) -> Bool {
+        translation.width.isFinite && translation.height.isFinite
+            && translation.height >= tearOffThreshold
+            && translation.height * tearOffDirectionRatio >= abs(translation.width)
+    }
+
+    static func resistedOffset(for translation: CGSize) -> CGSize {
+        func resist(_ distance: CGFloat, sensitivity: CGFloat) -> CGFloat {
+            guard distance.isFinite else { return 0 }
+            let magnitude = abs(distance)
+            let resisted = min(36, magnitude / (1 + magnitude / 48) * sensitivity)
+            return distance < 0 ? -resisted : resisted
+        }
+        return CGSize(width: resist(translation.width, sensitivity: 0.72),
+                      height: resist(translation.height, sensitivity: 0.9))
+    }
+
+    static func shouldDock(at point: CGPoint, screen: CGRect, cameraWidth: CGFloat) -> Bool {
+        guard screen.width > 0, screen.height > 0,
+              point.x.isFinite, point.y.isFinite,
+              screen.minX.isFinite, screen.maxX.isFinite,
+              screen.minY.isFinite, screen.maxY.isFinite else { return false }
+        let targetWidth = max(220, cameraWidth.isFinite ? cameraWidth + 48 : 220)
+        let targetHeight: CGFloat = 84
+        return abs(point.x - screen.midX) <= targetWidth / 2
+            && point.y >= screen.maxY - targetHeight
+            && point.y <= screen.maxY
+    }
+}
+
+typealias ScratchpadTransferSupport = NotchContentTransferSupport
 
 /// How long each scratchpad keeps text that nobody edits. The check runs only
 /// when the panel opens, against the stored edit dates, so the feature needs

@@ -22,12 +22,23 @@ enum FeatureHubLayoutTests {
         enum Tab { case features, permissions }
         @ObservedObject var features = FeatureRuntime.shared
         @State var tab = Tab.features
+        @State var searchQuery = ""
         @State var confirmingPreset: FeaturePreset?
+        @State var confirmingUninstallAll = false
+        @State var confirmingNeverUsedUninstall = false
         var neverUsed: [AppFeature] { features.offersNeverUsed ? [.notch] : [] }
         let recentlyUninstalled: [AppFeature] = []
         let hub = FeatureStrings.hub(.enUS)
+        let l10n = L10n.shared
+        var hasSearchQuery: Bool { !searchQuery.isEmpty }
+        var hasCatalogFilter: Bool { hasSearchQuery }
+        var matchingFeatures: Set<AppFeature> { Set(AppFeature.allCases) }
         var body: some View { content }
         func presetName(_ preset: FeaturePreset) -> String { "Preset" }
+        func uninstallNeverUsed() {}
+        var featureSearchField: some View { TextField("Search features", text: $searchQuery) }
+        var catalogControls: some View { EmptyView() }
+        var recommendationCard: some View { Text("Recommendations").frame(height: 90) }
         var summaryCard: some View { Text("Installed features").frame(height: 90) }
         @ViewBuilder var neverUsedCard: some View {
             if features.offersNeverUsed { Text("Never used").frame(height: 120) }

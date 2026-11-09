@@ -463,8 +463,8 @@ enum NotchScreenRefreshContract {
                "an external display keeps the idle island visible when menu coverage is enabled")
         idleSimulated.compactActivity = true
         idleSimulated.syncMenuSpaceMonitoring()
-        suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
-               "compact activity on a simulated cutout covers the menus")
+        suite.expect(idleSimulated.geometry.compactSideRoom == nil,
+               "compact activity waits for a measured safe menu-bar area instead of covering unknown items")
 
         let roomsBeforeFocusChange = idleSimulated.appliedRooms
         NSWorkspace.shared.frontmostApplication = Bundle.main
@@ -472,8 +472,8 @@ enum NotchScreenRefreshContract {
         NSWorkspace.shared.frontmostApplication = RunningApplication(bundleIdentifier: "com.example.editor")
         idleSimulated.applicationDidActivate()
         suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == roomsBeforeFocusChange
-               && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
-               "the external island remains visible when focus moves between Settings and another app")
+               && idleSimulated.geometry.compactSideRoom == nil,
+               "unknown menu-bar space stays clear when focus moves between Settings and another app")
         let readsBeforePolicyChange = idleSimulated.reads
         idleSimulated.accessibilityGranted = true
         idleSimulated.coversMenus = false

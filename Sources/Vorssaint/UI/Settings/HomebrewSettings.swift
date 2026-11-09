@@ -18,10 +18,6 @@ struct HomebrewSettings: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            pageHeader
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-            Divider()
             Group {
                 if homebrew.brewPath == nil {
                     missingState
@@ -59,14 +55,6 @@ struct HomebrewSettings: View {
                 Text(confirmationBody(for: pendingAction))
             }
         }
-    }
-
-    private var pageHeader: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Label(l10n.s.homebrewName, systemImage: "shippingbox")
-                .font(.system(size: 14, weight: .semibold))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var content: some View {

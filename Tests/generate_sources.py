@@ -252,11 +252,22 @@ def main():
           + "}\n")
     cleaner_view = "Sources/Vorssaint/UI/Cleaner/CleanerView.swift"
     feature_hub = "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift"
-    write("FeatureHubLayout.swift", "import AppKit\nimport SwiftUI\nextension FeatureHubLayoutTests.Page {\n"
-          + "".join(declaration(feature_hub, prefix).replace("    private var", "    var", 1)
-                    for prefix in ["    private var content:", "    private var restartCard:"])
+    settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
+    hub_layout_members = []
+    for prefix in ["    private var content:", "    private var featureHubHeader:",
+                   "    private var featureCatalog:", "    private var restartCard:"]:
+        member = declaration(feature_hub, prefix).replace("    private var", "    var", 1)
+        if prefix == "    private var featureCatalog:":
+            member = member.replace("    var featureCatalog:", "    @ViewBuilder\n    var featureCatalog:", 1)
+        hub_layout_members.append(member)
+    write("FeatureHubLayout.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration(settings_card, "struct SettingsIconTile:")
+          + declaration(settings_card, "struct SettingsFeatureHeader<")
+          + declaration(settings_card, "extension SettingsFeatureHeader where Accessory == EmptyView")
+          + "extension FeatureHubLayoutTests.Page {\n"
+          + "".join(hub_layout_members)
           + "}\nextension FeatureHubLayoutTests {\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsCard.swift", "struct SettingsCard<")
+          + declaration(settings_card, "struct SettingsCard<")
           + "}\n"
           + declaration(feature_hub, "private struct FeatureHubScrollAnchor:"))
     write("CleanerLayout.swift", "import SwiftUI\nextension CleanerLayoutTests.Results {\n"
@@ -1468,6 +1479,9 @@ def main():
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
+    music_visibility = music_visibility.replace(
+        "focusActive: idleStatus.focusActive)",
+        "focusActive: idleStatus.focusActive, in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("UserDefaults.standard", "ReviewDefaults.current!")
     music_visibility = music_visibility.replace("calendar: hasCalendarActivity", "calendar: false")
     music_visibility = music_visibility.replace("playback?.isPlaying == true)",
@@ -1483,7 +1497,10 @@ def main():
     music_visibility = music_visibility.replace("AppFeature.connectedDevices.isAvailable",
                                                 "AppFeature.connectedDevices.isAvailable(in: ReviewDefaults.current)")
     write("NotchMusicVisibility.swift", "import Foundation\nextension NotchMusicVisibilityTests {\n"
+          + "enum PreciseVolumeRollerService { static let shared = Roller(); struct Roller { "
+            "func syncWithPreferences() {} } }\n"
           + "final class Service: State {\nfunc resignPanelKey() { panel?.resignKey() }\n"
+          + "func clearLevelFeedback() {}\n"
           + music_visibility + "}\n}\n")
     write("NotchScreenEdgeClicks.swift", "import AppKit\nextension NotchScreenEdgeClickTests {\nfinal class Service: State {\n"
           + "func open() { openings += 1; expanded = true; syncScreenEdgeClicks() }\n"
@@ -1654,6 +1671,7 @@ def main():
           + declaration(metric_view, "    var detailKind:") + "}\n"
           + "final class Service: State {\n"
           + "func syncWithPreferences() { presentationSyncs += 1; refreshModules(); syncVisibleConsumers(); NotchTimerService.shared.syncWithPreferences() }\n"
+          + "func clearLevelFeedback() {}\n"
           + availability_declaration(notch, "    private func metricIsAvailable(")
           + declaration(notch, "    private func refreshModules(")
               .replace("NotchSupport.modules()", "NotchSupport.modules(in: ReviewDefaults.current)")
@@ -1744,6 +1762,8 @@ def main():
           + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
           + "final class FeatureRuntime: ObservableObject {\nstatic let shared = FeatureRuntime()\nvar installed = true\n"
           + "func isAvailable(_ feature: AppFeature) -> Bool { installed }\n}\n"
+          + "struct FeaturePrimaryToggleModifier: ViewModifier {\nlet feature: AppFeature\n"
+          + "func body(content: Content) -> some View { content }\n}\n"
           + declaration(settings_card, "struct SettingsCard<")
           + declaration(settings_card, "struct SettingsRow<")
           + feature_row
@@ -1958,12 +1978,17 @@ def main():
           + declaration(service, "enum QuickLauncherItem:")
           + "final class Launcher {\nvar isEditing = false\nvar activeUtility: QuickLauncherItem?\n"
           + "var editingOptionsItem: QuickLauncherItem?\nvar selectedIndex: Int?\nvar keyboardIndex: Int?\nvar presentationID = UUID()\n"
+          + "var shortcutsPageEnabled = false\n"
           + "var candidates: [QuickLauncherItem] = QuickLauncherItem.allCases\n"
           + "var visibleItems: [QuickLauncherItem] { candidates.filter { $0.feature.isAvailable(in: ReviewDefaults.current) } }\n"
           + 'func hide() { events.append("hide") }\n'
           + availability_declaration(service, "    func run(_ item: QuickLauncherItem)")
-          + declaration(service, "    func prepareForPresentation()")
+              .replace("item.feature.isAvailable(in: ReviewDefaults.current)", "isAvailable(item)")
+          + declaration(service, "    func prepareForPresentation(")
           + availability_declaration(service, "    func refreshAvailability()")
+          + availability_declaration(service, "    private func isAvailable(_ item:")
+              .replace("NotchCustomShortcutSupport.stored().contains { $0.destinations.contains(.shortcutsPage) }",
+                       "shortcutsPageEnabled")
           + declaration(service, "    private func clampSelection()")
           + declaration(service, "    func activateSelection()")
           + declaration(service, "    func activate(at index:")

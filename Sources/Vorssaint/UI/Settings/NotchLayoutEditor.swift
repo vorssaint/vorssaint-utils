@@ -157,7 +157,7 @@ struct NotchLayoutEditor: View {
         if layout == .custom { return previewGeometry.customHeight }
         let items = NotchSupport.controls()
         return previewGeometry.expandedSize(module: .controls,
-            shortcutCount: items.filter { !$0.isLevel && $0 != .music }.count,
+            shortcutCount: items.filter { !$0.isLevel && $0 != .music }.count + NotchCustomShortcutSupport.stored().count,
             sliderCount: items.filter(\.isLevel).count,
             controlsHaveMusic: items.contains(.music)).height
     }
@@ -266,7 +266,8 @@ struct NotchLayoutEditor: View {
     private var islandPreview: some View {
         let items = NotchSupport.controls()
         let levels = items.filter(\.isLevel)
-        let shortcuts = items.filter { !$0.isLevel && $0 != .music }
+        let shortcuts = items.filter { !$0.isLevel && $0 != .music }.map(NotchControlTile.control)
+            + NotchCustomShortcutSupport.stored().map(NotchControlTile.customShortcut)
         let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
@@ -297,7 +298,7 @@ struct NotchLayoutEditor: View {
                     NotchBandLevels(band: band, levels: bandLevels, side: .trailing) { levelRow($0) }
                 }
                 VStack(spacing: NotchLayout.rowSpacing) {
-                    if items.isEmpty {
+                    if items.isEmpty && shortcuts.isEmpty {
                         NotchEmptyView(symbol: NotchModule.controls.symbol, message: text.empty)
                     } else {
                         if controls.levelRow > 0 { NotchLevelRow(levels: belowLevels) { levelRow($0) } }
@@ -376,16 +377,23 @@ struct NotchActionChooser: View {
             TextField(editor.findAction, text: $query).textFieldStyle(.roundedBorder).focused($searching)
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    if !NotchQuickAction.optionalActions.contains(where: { matchesQuery($0) }) {
+                    if !availableActions.contains(where: { matchesQuery($0) }) {
                         Text(FeatureStrings.clipboard(l10n.language).noResults)
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
                     }
                     group(editor.sectionActions, actions: [.explore, .settings] + NotchModule.allCases.map(NotchQuickAction.module))
-                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control))
+                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control)
+                            + NotchCustomShortcutSupport.stored()
+                                .filter { $0.destinations.contains(.islandButtons) }.map { .shortcut($0.id) })
                 }.padding(2)
             }.frame(height: 200)
         }.padding(title.isEmpty ? 0 : 16).frame(width: title.isEmpty ? nil : 340)
             .onAppear { searching = !title.isEmpty }
+    }
+
+    private var availableActions: [NotchQuickAction] {
+        NotchQuickAction.optionalActions + NotchCustomShortcutSupport.stored()
+            .filter { $0.destinations.contains(.islandButtons) }.map { .shortcut($0.id) }
     }
 
     private func matchesQuery(_ action: NotchQuickAction) -> Bool {

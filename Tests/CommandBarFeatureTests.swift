@@ -3233,6 +3233,10 @@ enum CommandBarDropletContract {
         }
         let droplet = code("Sources/Vorssaint/UI/CommandBar/CommandBarDroplet.swift")
         let view = code("Sources/Vorssaint/UI/CommandBar/CommandBarView.swift")
+        let searchBar = body(view, "private var searchBar: some View {")
+        suite.expect(searchBar.contains("BrandMark(width: 22, tint: markTint)")
+                     && !searchBar.contains("CommandBarMascot("),
+                     "the Vorssaint mark remains visible in every Command Bar presentation")
 
         let typing = view.components(separatedBy: ".onChange(of: service.query) { _, query in").dropFirst().first ?? ""
         suite.expect((typing.components(separatedBy: "}").first ?? "")
@@ -3259,22 +3263,20 @@ enum CommandBarDropletContract {
         suite.expect(hurry.contains("guard falling, let fall, let reveal else { return }")
                      && hurry.contains("generation += 1") && hurry.contains("stage.removeAnimation(forKey: \"reveal\")")
                      && hurry.contains("fall.motion.remainder(from:") && hurry.contains("reveal(length)")
-                     && hurry.contains("fadeOut(current, duration: length)") && hurry.contains("CATransaction.flush()")
-                     && hurry.contains("mascot.root.opacity = 0"),
-                     "typing as the drop falls shows the bar at once and plays the rest of the fall under it")
+                     && hurry.contains("fadeOut(current, duration: length)") && hurry.contains("CATransaction.flush()"),
+                     "typing as the drop falls shows the bar at once and plays the rest of its fall under it")
 
-        let retract = body(droplet, "func retract(from bar: CGRect, look: NotchMascotLook, mood: NotchMascotMood) {")
-        let rewindCall = retract.range(of: "if falling, !Self.reducesMotion, rewind(homecoming: mood) { return }")
+        let retract = body(droplet, "func retract(from bar: CGRect) {")
+        let rewindCall = retract.range(of: "if falling, !Self.reducesMotion, rewind() { return }")
         let cancelCall = retract.range(of: "cancel()")
         suite.expect(rewindCall != nil && cancelCall != nil && rewindCall!.lowerBound < cancelCall!.lowerBound,
                      "closing a drop that still falls rewinds it before anything cancels it")
 
-        let rewind = body(droplet, "private func rewind(homecoming mood: NotchMascotMood) -> Bool {")
+        let rewind = body(droplet, "private func rewind() -> Bool {")
         suite.expect(rewind.contains("generation += 1") && rewind.contains("stage.removeAnimation(forKey: \"reveal\")")
                      && rewind.contains("fall.motion.rewound(from:")
-                     && rewind.contains("self.panel?.orderOut(nil)")
-                     && rewind.contains("NotchService.shared.setMascotInBar(false, homecoming: mood)"),
-                     "a rewound drop never shows the bar, rises as motion of its own and brings the companion home")
+                     && rewind.contains("self.panel?.orderOut(nil)"),
+                     "a rewound drop never shows the bar and rises as motion of its own")
         // Played backward through the layer's clock, Core Animation drops the
         // fill before the first frame and the bar's shape flashes. The way
         // back is a motion of its own instead.

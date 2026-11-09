@@ -235,6 +235,9 @@ struct NotchCapsuleRestingView: View {
                     if music.playback?.isPlaying == true {
                         NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10, tint: music.artworkTint?.color ?? .white)
                     }
+                case .focus:
+                    Image(systemName: service.idleContent.symbol).font(.system(size: CapsuleLayout.symbolSize))
+                        .capsuleCentred(service.idleContent.symbol, weight: .regular)
                 case .none:
                     EmptyView()
                 }
@@ -361,8 +364,9 @@ struct NotchCapsuleTimerStrip: View {
         if let companion {
             NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
         } else {
-            NotchCapsuleSymbol(name: timer.session.completed ? "checkmark.circle" : timer.session.isPaused ? "pause.circle"
-                               : timer.session.countsUp ? "stopwatch" : "timer", tint: .orange)
+            NotchTimerMark(size: CapsuleLayout.symbolSize, tint: .orange)
+                .frame(width: CapsuleLayout.symbolWidth)
+                .capsuleCentred(NotchTimerSupport.compactMarkSymbol(for: timer.session))
         }
     }
 

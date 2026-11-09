@@ -4,6 +4,39 @@
 import CryptoKit
 import Foundation
 
+/// How the Command Bar opens from the Dynamic Island.
+enum NotchCommandBarStyle: String, CaseIterable, Identifiable, Hashable {
+    /// A drop falls from the island's lower edge and opens into the bar.
+    case droplet
+    /// The bar opens inside the island.
+    case island
+
+    var id: String { rawValue }
+}
+
+/// Where the Command Bar shows when it opens.
+enum CommandBarPresentation: Equatable {
+    /// Its own window, as it always has.
+    case window
+    /// A window below the island, reached by a falling drop.
+    case droplet
+    /// Inside the open island.
+    case island
+}
+
+enum NotchCommandBarSupport {
+    /// The selected presentation is independent of the Companion feature.
+    /// When the island or Command Bar is unavailable, the caller keeps its
+    /// standalone window instead.
+    static func style(in defaults: UserDefaults = .standard) -> NotchCommandBarStyle? {
+        guard NotchSupport.isEnabled(in: defaults),
+              AppFeature.commandBar.isAvailable(in: defaults),
+              defaults.bool(forKey: DefaultsKey.notchCommandBarFromIsland) else { return nil }
+        return NotchCommandBarStyle(
+            rawValue: defaults.string(forKey: DefaultsKey.notchCommandBarStyle) ?? "") ?? .droplet
+    }
+}
+
 enum CommandBarClipboardAccess {
     static func canUseHistory(captureEnabled: Bool, hasSavedItems: Bool) -> Bool {
         captureEnabled || hasSavedItems

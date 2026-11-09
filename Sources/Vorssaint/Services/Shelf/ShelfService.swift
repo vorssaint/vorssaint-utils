@@ -2523,6 +2523,13 @@ final class ShelfService: ObservableObject {
         guard AppFeature.shelf.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return }
         if NotchService.shared.openShelf() { return }
+        summonStandalone()
+    }
+
+    @discardableResult
+    func summonStandalone() -> Bool {
+        guard AppFeature.shelf.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled) else { return false }
         let panel = ensurePanel()
         cancelAutoHide()
         position(panel)
@@ -2531,6 +2538,7 @@ final class ShelfService: ObservableObject {
         updatePointerInsidePanel()
         scheduleAutoHideIfIdle()
         scheduleDockedSync()
+        return panel.isVisible
     }
 
     func hide() {
@@ -2756,7 +2764,7 @@ final class ShelfService: ObservableObject {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: ShelfView().environmentObject(self))
+        let host = NSHostingController(rootView: ShelfView(showsMoveToIsland: true).environmentObject(self))
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

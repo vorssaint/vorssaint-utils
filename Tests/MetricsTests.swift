@@ -136,6 +136,7 @@ struct MetricsTests {
             ("agents", { NotchAgentTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
+                FeatureRecommendationsTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
             }),
             ("shortcut-clearing", { ShortcutClearingTests.run(suite) }),
@@ -166,6 +167,7 @@ struct MetricsTests {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
                 ScreenshotToolShortcutTests.run(suite)
+                KeyboardRemappingTests.run(suite)
             }),
             ("storage", {
                 RecentCaptureStoreTests.run(suite)

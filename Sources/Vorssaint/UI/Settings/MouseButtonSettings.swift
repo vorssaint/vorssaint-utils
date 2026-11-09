@@ -47,6 +47,7 @@ struct MouseButtonShortcutsSection: View {
                             permissions.requestAccessibility()
                         }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .mouseButtonShortcuts))
             }
             if enabled {
                 VStack(alignment: .leading, spacing: 10) {

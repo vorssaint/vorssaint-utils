@@ -108,6 +108,7 @@ enum QuickLauncherContract {
             (.uninstaller, .uninstaller, nil, nil),
             (.cleaner, .cleaner, nil, nil),
             (.toggles, .quickToggles, nil, nil),
+            (.shortcuts, .quickLauncher, nil, nil),
         ]
         suite.expect(Set(cases.map { $0.0 }) == Set(QuickLauncherItem.allCases),
                      "every launcher tile has an activation contract")
@@ -115,6 +116,7 @@ enum QuickLauncherContract {
             events.removeAll()
             DispatchQueue.main.jobs.removeAll()
             let launcher = Launcher()
+            if item == .shortcuts { launcher.shortcutsPageEnabled = true }
             launcher.run(item)
             suite.expect(item.feature == feature, "\(item) follows its own feature switch")
             if let delay, let action {

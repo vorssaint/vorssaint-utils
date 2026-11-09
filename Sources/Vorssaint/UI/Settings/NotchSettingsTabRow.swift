@@ -7,28 +7,20 @@ enum NotchSettingsTab: CaseIterable {
     case layout, content, activity, behavior, companion
 }
 
-/// The Dynamic Island page's tabs, with the button that opens the island.
-/// Four tab names can need more room than the narrowest window leaves the
-/// page in longer languages, and a page wider than its column is centered and
-/// cut on both sides, under the sidebar. The segments give way to a menu
-/// whenever they don't fit beside the button.
+/// The Dynamic Island page's tabs. Four tab names can need more room than the
+/// narrowest window leaves the page in longer languages, and a page wider than
+/// its column is centered and cut on both sides, under the sidebar. The
+/// segments give way to a menu whenever they don't fit.
 struct NotchSettingsTabRow: View {
     @Binding var tab: NotchSettingsTab
     let language: AppLanguage
     /// The companion's tab, once it is installed.
     var showsCompanion = false
-    let canOpen: Bool
-    let open: () -> Void
 
     var body: some View {
-        let text = FeatureStrings.notch(language)
-        HStack {
-            ViewThatFits(in: .horizontal) {
-                picker.pickerStyle(.segmented)
-                picker.pickerStyle(.menu)
-            }
-            Button(action: open) { Image(systemName: "arrow.up.forward.app") }
-                .buttonStyle(.bordered).disabled(!canOpen).help(text.open).accessibilityLabel(text.open)
+        ViewThatFits(in: .horizontal) {
+            picker.pickerStyle(.segmented)
+            picker.pickerStyle(.menu)
         }
     }
 

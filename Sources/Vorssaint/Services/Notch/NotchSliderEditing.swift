@@ -21,6 +21,12 @@ struct NotchSliderEditing {
     }
 }
 
+enum NotchLevelFeedbackMotion {
+    static let duration: Double = 0.20
+
+    static func animates(reduceMotion: Bool) -> Bool { !reduceMotion }
+}
+
 /// A level that moves outside the slider, from a key or another surface,
 /// eases to its new place instead of jumping there, starting from wherever
 /// the bar is drawn.
