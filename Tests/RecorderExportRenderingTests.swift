@@ -536,7 +536,7 @@ enum RecorderExportRenderingTests {
         var document = RecorderEditDocument()
         document.showsPointer = false
         document.zoomEnabled = false
-        document.quality = RecorderSupport.Quality.small.rawValue
+        document.gifSize = RecorderSupport.GIFSize.small.rawValue
         document.blurs = [RecorderBlurRegion(start: 0, end: 2.5, rect: CGRect(x: 0.5, y: 0, width: 0.5, height: 1))]
         let movie = folder.appendingPathComponent("edges.mp4")
         let failure = await RecorderExporter().export(take: edgeTake, document: document, output: .video,

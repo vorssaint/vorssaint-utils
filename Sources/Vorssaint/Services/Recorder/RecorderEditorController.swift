@@ -95,6 +95,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
                 quality: RecorderSupport.sanitizedQuality(
                     defaults.string(forKey: DefaultsKey.recorderQuality)).rawValue,
                 keepsSystemAudio: defaults.bool(forKey: DefaultsKey.recorderSystemAudio),
+                gifSize: RecorderSupport.sanitizedGIFSize(
+                    defaults.string(forKey: DefaultsKey.recorderGIFSize)).rawValue,
                 gifFrameRate: RecorderSupport.sanitizedGIFFrameRate(
                     defaults.integer(forKey: DefaultsKey.recorderGIFFrameRate)),
                 zoomEnabled: defaults.bool(forKey: DefaultsKey.recorderAutomaticZoom))
