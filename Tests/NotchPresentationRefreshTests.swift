@@ -163,6 +163,7 @@ enum NotchPresentationRefreshContract {
         func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
+        var revealingFromAppFullscreen = false
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -177,6 +178,7 @@ enum NotchPresentationRefreshContract {
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
+        var captureDismiss: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
         var captureClosesOnCollapse = false
         var routesCaptures = true
@@ -277,6 +279,7 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var mirrorHeldForArrival: CGDirectDisplayID?
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -510,6 +513,15 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
+        let relocatingCapture = Service()
+        relocatingCapture.captureControls = CaptureOptions()
+        relocatingCapture.captureSelectionInProgress = true
+        relocatingCapture.mirrorHeldForArrival = 2
+        relocatingCapture.panel?.isVisible = false
+        relocatingCapture.refreshPresentation(animated: false)
+        suite.expect(relocatingCapture.windowHost?.hideAnimations == [false]
+                     && relocatingCapture.panel?.isVisible == false && !relocatingCapture.edgeClicksEnabled,
+                     "selection during a relocation hides through the host, so a pending arrival cannot reveal controls")
         let countdown = Service()
         countdown.expanded = false
         countdown.compactActivityIsVisible = true
@@ -724,6 +736,14 @@ enum NotchPresentationRefreshContract {
                "closing an expanded island without safe menu space animates its withdrawal")
         suite.expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
+        simulated.expanded = true
+        simulated.revealingFromAppFullscreen = true
+        simulated.refreshPresentation()
+        suite.expect(simulated.windowHost?.revealFromHidden == true,
+               "an app's own full screen ending reveals the withdrawn island from the screen edge")
+        simulated.revealingFromAppFullscreen = false
+        simulated.expanded = false
+        simulated.refreshPresentation()
 
         UserDefaults.standard.hides = true
         for isPhysical in [false, true] {

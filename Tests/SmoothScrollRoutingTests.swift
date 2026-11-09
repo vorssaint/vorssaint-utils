@@ -19,6 +19,12 @@ enum SmoothScrollRoutingTests {
     final class Inverter {
         static let shared = Inverter()
         var isRunning = true
+        var consumesZoom = false
+        var zoomRequests = 0
+        func consumeZoom(_ event: CGEvent, direction: ScrollDirectionPreferences) -> Bool {
+            zoomRequests += 1
+            return consumesZoom
+        }
     }
     final class Switcher {
         static let shared = Switcher()
@@ -26,7 +32,8 @@ enum SmoothScrollRoutingTests {
     }
     final class Target {
         static let shared = Target()
-        func contains(_ point: CGPoint) -> Bool { false }
+        var isOwn = false
+        func contains(_ point: CGPoint) -> Bool { isOwn }
     }
     final class Session {
         static let shared = Session()
@@ -85,6 +92,8 @@ enum SmoothScrollRoutingTests {
             defaults.removePersistentDomain(forName: domain)
             Exceptions.shared.scopes = []
             HIDStage.shared.passes = true
+            Inverter.shared.consumesZoom = false
+            Inverter.shared.zoomRequests = 0
             posted = []
         }
         let a = CGPoint(x: 120, y: 240), b = CGPoint(x: 900, y: 600)
@@ -236,6 +245,31 @@ enum SmoothScrollRoutingTests {
         let zoom = wheel(flags: .maskControl)
         suite.expect(tick(ignored, zoom) === zoom && !ignored.engine.isActive,
                      "native Control-wheel zoom cancels the previous glide and passes through")
+
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.control.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        _ = tick(ignored, wheel())
+        let pendingZoom = wheel(flags: .maskControl)
+        suite.expect(tick(ignored, pendingZoom) === pendingZoom && !ignored.engine.isActive
+                        && Inverter.shared.zoomRequests == 1,
+                     "a declined configured Pinch tick stays raw and cancels the previous glide")
+        Inverter.shared.consumesZoom = true
+        suite.expect(tick(ignored, wheel(flags: .maskControl)) == nil && !ignored.engine.isActive,
+                     "a handled Zoom tick is consumed without starting a glide")
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        Inverter.shared.consumesZoom = false
+        Target.shared.isOwn = true
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(ScrollZoomModifier.option.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
+        let ownZoom = Service()
+        suite.expect(tick(ownZoom, wheel(flags: .maskAlternate)) == nil && ownZoom.engine.remainingVertical < 0,
+                     "a declined zoom on our panel still takes the normal inverted smooth-scroll path")
+        Target.shared.isOwn = false
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.scrollInverterEnabled)
         _ = tick(ignored, wheel())
         let trackpad = wheel()
         trackpad.setIntegerValueField(.scrollWheelEventIsContinuous, value: 1)

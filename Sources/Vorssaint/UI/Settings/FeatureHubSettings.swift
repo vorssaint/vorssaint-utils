@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The Features hub. Install or uninstall each feature, grouped in plain
@@ -53,16 +54,12 @@ struct FeatureHubSettings: View {
     }
 
     private var content: some View {
-        // The lazy stack has to be the scroll view's own content (issue
-        // #2270). Nested in a plain stack, it resized that stack each time a
-        // card came into view: scrolling stalled for up to a second, and the
-        // layout could keep redoing itself until Settings froze.
+        // These few cards contain many variable-height rows. Measure them
+        // eagerly so scrolling cannot re-estimate distant cards and re-anchor
+        // the viewport in the lazy layout loop reported in #2311 and #2642.
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 20) {
-                // Keep one header child in the lazy stack. Inserting or
-                // removing the restart notice as an offscreen lazy child
-                // invalidates its visible range: the page jumps or goes
-                // blank until the next scroll event.
+            VStack(alignment: .leading, spacing: 20) {
+                // Keep the header's identity stable when the notice changes.
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 5) {
                         Text(hub.pageTitle).font(.title2.bold())
@@ -81,14 +78,16 @@ struct FeatureHubSettings: View {
                     if features.needsRestartToUnload {
                         restartCard
                     }
-                }
-                if tab == .features {
-                    // The never-used offer comes and goes with installs too,
-                    // so it shares one stable child with the summary.
-                    VStack(alignment: .leading, spacing: 20) {
-                        summaryCard
-                        neverUsedCard
+                    if tab == .features {
+                        VStack(alignment: .leading, spacing: 20) {
+                            summaryCard
+                            neverUsedCard
+                        }
                     }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background { FeatureHubScrollAnchor() }
+                if tab == .features {
                     dynamicIslandCard
                     presetsCard
                     ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
@@ -111,6 +110,12 @@ struct FeatureHubSettings: View {
             .frame(maxWidth: .infinity)
             .padding(22)
         }
+        // Include the scroll view's document height in this transaction;
+        // animating that height would constrain an immediate notice adjustment
+        // against the old bottom limit for the duration of the animation.
+        .animation(nil, value: features.needsRestartToUnload)
+        .animation(nil, value: neverUsed)
+        .animation(nil, value: recentlyUninstalled)
         .alert(confirmingPreset.map { presetName($0) } ?? "",
                isPresented: Binding(get: { confirmingPreset != nil },
                                     set: { if !$0 { confirmingPreset = nil } }),
@@ -368,7 +373,7 @@ struct FeatureHubSettings: View {
         .id(FeatureGroup.dynamicIsland)
     }
 
-    /// Groups start open; LazyVStack builds distant groups as they enter view.
+    /// Groups start open and are measured before scrolling begins.
     /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
         let members = AppFeature.features(in: group)
@@ -439,6 +444,138 @@ struct FeatureHubSettings: View {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        }
+    }
+}
+
+/// A notice above the viewport can change height without moving the row the
+/// user is working on. SwiftUI's ID-based position only keeps an entire card
+/// visible; cards taller than the viewport need the exact pixel offset.
+private struct FeatureHubScrollAnchor: NSViewRepresentable {
+    func makeNSView(context: Context) -> AnchorView { AnchorView() }
+    func updateNSView(_ view: AnchorView, context: Context) { view.schedule() }
+    static func dismantleNSView(_ view: AnchorView, coordinator: ()) { view.stop() }
+
+    final class AnchorView: NSView {
+        private struct Geometry {
+            let prefixBottom: CGFloat
+            let documentSize: NSSize
+            let viewport: NSRect
+        }
+        private weak var scroll: NSScrollView?
+        private var observer: NSObjectProtocol?
+        private var documentObserver: NSObjectProtocol?
+        private var geometry: Geometry?
+        private var adjustment: DispatchWorkItem?
+        private var restoring = false
+
+        deinit {
+            adjustment?.cancel()
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+        override func viewDidMoveToSuperview() {
+            super.viewDidMoveToSuperview()
+            schedule()
+        }
+        override func setFrameSize(_ newSize: NSSize) {
+            super.setFrameSize(newSize)
+            schedule()
+        }
+
+        func schedule() {
+            guard adjustment == nil else { return }
+            let work = DispatchWorkItem { [weak self] in self?.restore() }
+            adjustment = work
+            DispatchQueue.main.async(execute: work)
+        }
+
+        private func readGeometry() -> Geometry? {
+            guard let scroll, let document = scroll.documentView else { return nil }
+            return Geometry(prefixBottom: convert(bounds, to: document).maxY,
+                            documentSize: document.frame.size,
+                            viewport: scroll.contentView.bounds)
+        }
+
+        private func scrolled() {
+            guard !restoring, let current = readGeometry() else { return }
+            if let previous = geometry,
+               previous.documentSize != current.documentSize
+                || previous.prefixBottom != current.prefixBottom {
+                // A shrinking document can clamp the clip before the notice
+                // view is resized. Keep the earlier snapshot until layout ends.
+                schedule()
+                return
+            }
+            geometry = current
+        }
+
+        private func restore() {
+            guard let enclosing = enclosingScrollView,
+                  let document = enclosing.documentView else { stop(); return }
+            if scroll !== enclosing {
+                if let observer { NotificationCenter.default.removeObserver(observer) }
+                if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+                scroll = enclosing
+                geometry = nil
+                enclosing.contentView.postsBoundsChangedNotifications = true
+                observer = NotificationCenter.default.addObserver(
+                    forName: NSView.boundsDidChangeNotification,
+                    object: enclosing.contentView, queue: .main
+                ) { [weak self] _ in self?.scrolled() }
+                document.postsFrameChangedNotifications = true
+                documentObserver = NotificationCenter.default.addObserver(
+                    forName: NSView.frameDidChangeNotification,
+                    object: document, queue: .main
+                ) { [weak self] _ in self?.schedule() }
+            }
+            var waitingForDocument = false
+            defer {
+                if !waitingForDocument { geometry = readGeometry() }
+                adjustment = nil
+            }
+            enclosing.layoutSubtreeIfNeeded()
+            guard let previous = geometry, let current = readGeometry(),
+                  previous.viewport.minY >= previous.prefixBottom,
+                  previous.viewport.size == current.viewport.size,
+                  previous.documentSize.width == current.documentSize.width else { return }
+            let clip = enclosing.contentView
+            let expected = clip.constrainBoundsRect(previous.viewport)
+            // Keep an intentional scroll or navigation performed after the
+            // snapshot, while accepting the document's automatic bottom clamp.
+            guard abs(current.viewport.minY - expected.minY) < 0.5,
+                  abs(current.viewport.minX - expected.minX) < 0.5 else { return }
+            let delta = current.prefixBottom - previous.prefixBottom
+            guard abs(delta) > 0.01 else { return }
+            var target = previous.viewport
+            target.origin.y += delta
+            let constrained = clip.constrainBoundsRect(target)
+            if delta > 0,
+               current.documentSize.height == previous.documentSize.height,
+               target.minY > constrained.minY + 0.5 {
+                // The prefix can resize before SwiftUI grows its document.
+                // Keep the snapshot until that frame change permits the new
+                // offset, instead of losing it against the old bottom limit.
+                waitingForDocument = true
+                return
+            }
+            restoring = true
+            clip.scroll(to: constrained.origin)
+            enclosing.reflectScrolledClipView(clip)
+            restoring = false
+        }
+
+        func stop() {
+            adjustment?.cancel()
+            adjustment = nil
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            observer = nil
+            if let documentObserver { NotificationCenter.default.removeObserver(documentObserver) }
+            documentObserver = nil
+            geometry = nil
+            scroll = nil
         }
     }
 }
@@ -762,9 +899,8 @@ struct PermissionsPortalSections: View {
             }
             DispatchQueue.global(qos: .userInitiated).async {
                 let finder = Permissions.automationStatus(for: .finder)
-                let terminal = Permissions.automationStatus(for: .terminal)
                 DispatchQueue.main.async {
-                    automation = [.finder: finder, .terminal: terminal]
+                    automation = [.finder: finder]
                 }
             }
         }
@@ -795,7 +931,6 @@ struct PermissionsPortalSections: View {
             case .unknown: return .unknown
             }
         case .automationFinder: return automationStatus(.finder)
-        case .automationTerminal: return automationStatus(.terminal)
         case .automationPlayback: return .unknown
         case .audioCapture:
             // No public check exists for system audio capture; the mixer
@@ -943,7 +1078,7 @@ private struct PermissionPortalRow: View {
             || Permissions.shared.calendarAccess == .writeOnly
         case .camera: return Permissions.shared.camera == .undetermined
         case .microphone: return Permissions.shared.microphone == .undetermined
-        case .filesAndFolders, .automationFinder, .automationTerminal, .automationPlayback, .audioCapture,
+        case .filesAndFolders, .automationFinder, .automationPlayback, .audioCapture,
              .appManagement: return false
         }
     }
@@ -961,7 +1096,7 @@ private struct PermissionPortalRow: View {
         case .calendar: Permissions.shared.requestCalendar()
         case .camera: Permissions.shared.requestCamera()
         case .microphone: Permissions.shared.requestMicrophone()
-        case .filesAndFolders, .automationFinder, .automationTerminal, .automationPlayback, .audioCapture,
+        case .filesAndFolders, .automationFinder, .automationPlayback, .audioCapture,
              .appManagement:
             break
         }
@@ -974,7 +1109,7 @@ private struct PermissionPortalRow: View {
         case .fullDiskAccess: Permissions.shared.openFullDiskAccessSettings()
         case .filesAndFolders: Permissions.shared.openFilesAndFoldersSettings()
         case .notifications: Permissions.shared.openNotificationSettings()
-        case .automationFinder, .automationTerminal, .automationPlayback: Permissions.shared.openAutomationSettings()
+        case .automationFinder, .automationPlayback: Permissions.shared.openAutomationSettings()
         case .audioCapture: Permissions.shared.openAudioCaptureSettings()
         case .microphone: Permissions.shared.openMicrophoneSettings()
         case .calendar: Permissions.shared.openCalendarSettings()
@@ -999,87 +1134,90 @@ extension AppFeature {
 
     /// Titles reuse the strings users already see across the app; only names
     /// with no clean existing form live in the hub strings.
-    func hubTitle(_ s: Strings, hub: FeatureHubStrings) -> String {
+    func hubTitle(_ s: Strings, hub: FeatureHubStrings,
+                  language: AppLanguage = L10n.shared.language) -> String {
         switch self {
         case .switcher: return s.switcherSection
         case .dockPreview: return s.dockPreviewName
         case .dockClick: return hub.titleDockClick
         case .windowMaximizer: return s.windowMaximizeName
-        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
+        case .windowLayout: return FeatureStrings.windowLayout(language).title
         case .autoQuit: return s.autoQuitName
         case .spacesOrder: return s.spacesOrderName
-        case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).name
+        case .quitWindowProtection: return FeatureStrings.quitProtection(language).name
         case .scrollInverter: return s.invertMouseScroll
         case .scrollHorizontal: return s.scrollHorizontalName
+        case .scrollZoom: return s.zoomSection
         case .focusFollowsMouse: return s.focusFollowsMouseName
         case .smoothScroll: return s.smoothScrollName
         case .linearScroll: return s.linearScrollName
         case .mouseAcceleration: return s.mouseAccelerationName
         case .mouseNavigation: return hub.titleMouseNavigation
-        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).pageTitle
+        case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(language).pageTitle
         case .middleClick: return s.middleClickSection
         case .keyboardDebounce: return s.keyDebounceName
-        case .textSnippets: return FeatureStrings.snippets(L10n.shared.language).pageTitle
-        case .superKey: return FeatureStrings.superKey(L10n.shared.language).pageTitle
+        case .textSnippets: return FeatureStrings.snippets(language).pageTitle
+        case .superKey: return FeatureStrings.superKey(language).pageTitle
         case .mouseClickDebounce:
-            return FeatureStrings.mouseClickDebounce(L10n.shared.language).title
-        case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
+            return FeatureStrings.mouseClickDebounce(language).title
+        case .clipboardHistory: return FeatureStrings.clipboard(language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
-        case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
+        case .finderRename: return FeatureStrings.finderRename(language).hubTitle
         case .shelf: return s.shelfName
         case .urlCleaner: return s.urlCleanerName
         case .diskImageInstaller:
-            return FeatureStrings.diskImageInstaller(L10n.shared.language).title
+            return FeatureStrings.diskImageInstaller(language).title
         case .mixer: return s.mixerSection
         case .soundOutputSwitcher: return s.soundOutputSwitcherTitle
         case .audioPriority: return hub.titleAudioPriority
         case .micMute: return s.micMuteName
         case .musicBlock: return hub.titleMusicBlock
         case .keepAwake: return s.keepAwakeTitle
-        case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
+        case .brightness: return FeatureStrings.brightness(language).pageTitle
         case .extraBrightness: return s.extraBrightnessName
-        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).pageTitle
+        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(language).pageTitle
         case .quickLauncher: return s.launcherName
-        case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
+        case .quickToggles: return FeatureStrings.quickToggles(language).pageTitle
+        case .quitApps: return s.quitAppsName
         case .colorPicker: return s.colorPickerName
         case .screenOCR: return s.ocrName
-        case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).pageTitle
-        case .screenRecorder: return FeatureStrings.recorder(L10n.shared.language).pageTitle
-        case .cameraPreview: return FeatureStrings.cameraPreview(L10n.shared.language).pageTitle
-        case .wallpaper: return FeatureStrings.wallpaper(L10n.shared.language).pageTitle
-        case .notchGestures: return FeatureStrings.notchGestures(L10n.shared.language).title
-        case .notchTimer: return FeatureStrings.notchActivities(L10n.shared.language).timer
-        case .notchAccessories: return FeatureStrings.notchActivities(L10n.shared.language).accessories
-        case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).title
-        case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyrics
-        case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queue
-        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizer
-        case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsTitle
-        case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).title
-        case .notchAgents: return FeatureStrings.notchAgents(L10n.shared.language).title
-        case .notchWatch: return FeatureStrings.notchWatch(L10n.shared.language).title
-        case .notchMascot: return FeatureStrings.notchMascot(L10n.shared.language).title
-        case .notch: return FeatureStrings.notch(L10n.shared.language).title
-        case .radialMenu: return FeatureStrings.radialMenu(L10n.shared.language).pageTitle
-        case .scratchpad: return FeatureStrings.scratchpad(L10n.shared.language).pageTitle
-        case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).pageTitle
+        case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .screenRecorder: return FeatureStrings.recorder(language).pageTitle
+        case .cameraPreview: return FeatureStrings.cameraPreview(language).pageTitle
+        case .wallpaper: return FeatureStrings.wallpaper(language).pageTitle
+        case .notchGestures: return FeatureStrings.notchGestures(language).title
+        case .notchTimer: return FeatureStrings.notchActivities(language).timer
+        case .notchAccessories: return FeatureStrings.notchActivities(language).accessories
+        case .notchNotifications: return FeatureStrings.notchNotifications(language).title
+        case .notchLyrics: return FeatureStrings.notchMusicExtras(language).lyrics
+        case .notchQueue: return FeatureStrings.notchMusicExtras(language).queue
+        case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(language).liveEqualizer
+        case .notchDownloads: return FeatureStrings.notchFiles(language).downloadsTitle
+        case .notchCalendar: return FeatureStrings.notchCalendar(language).title
+        case .notchAgents: return FeatureStrings.notchAgents(language).title
+        case .notchWatch: return FeatureStrings.notchWatch(language).title
+        case .notchMascot: return FeatureStrings.notchMascot(language).title
+        case .notch: return FeatureStrings.notch(language).title
+        case .radialMenu: return FeatureStrings.radialMenu(language).pageTitle
+        case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
+        case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
-        case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
-        case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
+        case .killProcess: return FeatureStrings.killProcess(language).pageTitle
+        case .portManager: return FeatureStrings.portManager(language).title
         case .homebrew: return s.homebrewName
-        case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
+        case .appUpdates: return FeatureStrings.appUpdates(language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
         case .monitorGPU: return s.monitorShowGPU
         case .monitorMemory: return s.monitorShowMemory
         case .monitorNetwork: return s.monitorShowNetwork
         case .monitorDisk: return s.diskSection
         case .monitorPower: return s.powerSection
-        case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
-        case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).title
+        case .connectedDevices: return FeatureStrings.connectedDevices(language).title
+        case .fanControl: return FeatureStrings.fanControl(language).title
         }
     }
 
@@ -1095,6 +1233,7 @@ extension AppFeature {
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
+        case .scrollZoom: return L10n.shared.s.pinchZoom
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .linearScroll: return L10n.shared.s.linearScrollCaption
@@ -1126,6 +1265,7 @@ extension AppFeature {
         case .bluetoothSleep: return FeatureStrings.bluetoothSleep(L10n.shared.language).hubDescription
         case .quickLauncher: return hub.descQuickLauncher
         case .quickToggles: return FeatureStrings.quickToggles(L10n.shared.language).hubDescription
+        case .quitApps: return L10n.shared.s.quitAppsCaption
         case .colorPicker: return hub.descColorPicker
         case .screenOCR: return hub.descScreenOCR
         case .screenshot: return FeatureStrings.screenshot(L10n.shared.language).hubDescription
@@ -1183,7 +1323,6 @@ extension AppPermission {
         case .filesAndFolders: return hub.permFilesAndFolders
         case .notifications: return hub.permNotifications
         case .automationFinder: return hub.permAutomationFinder
-        case .automationTerminal: return hub.permAutomationTerminal
         case .automationPlayback: return FeatureStrings.notchMusicExtras(L10n.shared.language).automationPermission
         case .audioCapture: return hub.permAudioCapture
         case .microphone: return FeatureStrings.recorder(L10n.shared.language).microphonePermissionName
@@ -1201,7 +1340,6 @@ extension AppPermission {
         case .filesAndFolders: return hub.explainFilesAndFolders
         case .notifications: return hub.explainNotifications
         case .automationFinder: return hub.explainAutomationFinder
-        case .automationTerminal: return hub.explainAutomationTerminal
         case .automationPlayback: return FeatureStrings.notchMusicExtras(L10n.shared.language).automationExplanation
         case .audioCapture: return hub.explainAudioCapture
         case .microphone:
