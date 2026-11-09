@@ -316,7 +316,8 @@ final class KeepAwakeManager: ObservableObject {
 
     private func saveManualSession() {
         // The default duration can change while this preset or end time is running.
-        var record: [String: Any] = ["end": endDate?.timeIntervalSinceReferenceDate ?? 0]
+        let end = endDate?.timeIntervalSinceReferenceDate ?? 0.0
+        var record: [String: Any] = ["end": end]
         if let sessionMinutes { record["minutes"] = sessionMinutes }
         UserDefaults.standard.set(record, forKey: DefaultsKey.keepAwakeSessionEnd)
     }
