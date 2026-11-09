@@ -112,6 +112,8 @@ struct NotchControlsView: View {
             NotchActionTile(symbol: item.symbol, title: item.title(l10n), action: service.openScratchpad)
         case .timer: NotchTimerTile(service: service)
         case .calendar: NotchCalendarTile(service: service)
+        case .teleprompter:
+            NotchTeleprompterTile(service: service)
         case .volume, .brightness, .keyboardLight, .music: EmptyView()
         }
     }
@@ -135,6 +137,7 @@ extension NotchControlItem {
         case .music: return NotchModule.music.title(l10n.language)
         case .timer: return NotchModule.timer.title(l10n.language)
         case .calendar: return NotchModule.calendar.title(l10n.language)
+        case .teleprompter: return FeatureStrings.teleprompter(l10n.language).title
         }
     }
 }
@@ -387,7 +390,7 @@ private struct NotchKeyboardLightControls: View {
 /// person has to notice, so they carry their own colour instead of the neutral
 /// selection fill. A timer keeps the orange it has across the island.
 enum NotchTileAccent {
-    case selection, alert, awake, timer
+    case selection, alert, awake, timer, teleprompter
 
     var fill: Color {
         switch self {
@@ -395,13 +398,14 @@ enum NotchTileAccent {
         case .alert: return .red
         case .awake: return .yellow
         case .timer: return .orange
+        case .teleprompter: return .indigo
         }
     }
 
     var glyph: Color {
         switch self {
         case .selection, .awake, .timer: return .black
-        case .alert: return .white
+        case .alert, .teleprompter: return .white
         }
     }
 }
@@ -519,6 +523,24 @@ private struct NotchTimerTile: View {
         if session.completed { return "checkmark" }
         if session.isPaused { return "pause.fill" }
         return session.countsUp ? "stopwatch" : "timer"
+    }
+}
+
+/// The teleprompter tile mirrors the live reading state and opens its controls.
+private struct NotchTeleprompterTile: View {
+    let service: NotchService
+    @ObservedObject private var prompter = TeleprompterService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchActionTile(
+            symbol: prompter.isRunning ? (prompter.isPaused ? "play.fill" : "pause.fill")
+                : NotchControlItem.teleprompter.symbol,
+            title: FeatureStrings.teleprompter(l10n.language).title,
+            reading: prompter.isRunning && prompter.showElapsedTime ? prompter.formattedElapsedTime : nil,
+            active: prompter.isRunning,
+            accent: .teleprompter
+        ) { service.select(.teleprompter) }
     }
 }
 

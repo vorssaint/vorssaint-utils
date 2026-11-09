@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch, teleprompter
     var id: String { rawValue }
 
     var symbol: String {
@@ -31,6 +31,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
         case .watch: return "eye"
+        case .teleprompter: return AppFeature.teleprompter.symbolName
         }
     }
 
@@ -53,6 +54,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return "p"
         case .agents: return "g"
         case .watch: return "o"
+        case .teleprompter: return "e"
         }
     }
 
@@ -76,6 +78,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
+        case .teleprompter: return AppFeature.teleprompter.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
                     .monitorDisk, .monitorPower, .fanControl, .connectedDevices].contains { (feature: AppFeature) in
@@ -340,6 +343,8 @@ enum NotchLayout {
     static let musicMinimumExtraHeight: CGFloat = 88
     /// The ruler and its clock read at the player's width.
     static let timerContentWidth: CGFloat = 344
+    static let teleprompterContentWidth: CGFloat = 400
+    static let teleprompterPageListHeight: CGFloat = 156
     static let timerRowSpacing: CGFloat = 8
     /// The Pomodoro's breaks and sessions as one line of readouts under the ruler.
     static let timerSettingsRowHeight: CGFloat = 28
@@ -554,6 +559,7 @@ enum NotchLayout {
         switch module {
         case .music: return musicContentWidth
         case .timer: return timerContentWidth
+        case .teleprompter: return teleprompterContentWidth
         case .controls:
             let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
             guard shortcuts <= railCapacity(width: width, itemWidth: shortcutWidth, spacing: shortcutSpacing) else { return nil }
@@ -824,13 +830,14 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, teleprompter, watch, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
     func title(_ language: AppLanguage) -> String {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
+        case .teleprompter: return FeatureStrings.teleprompter(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents: return FeatureStrings.notchAgents(language).title
@@ -844,6 +851,7 @@ enum NotchCompactActivity: String, Identifiable {
     var module: NotchModule {
         switch self {
         case .timer: return .timer
+        case .teleprompter: return .teleprompter
         case .watch: return .watch
         case .downloads: return .downloads
         case .agents: return .agents
@@ -1141,6 +1149,12 @@ enum NotchCapsuleLayout {
                        maximum: Maximum.activity, geometry: geometry)
     }
 
+    /// A running teleprompter keeps its elapsed reading beside a play/pause mark.
+    static func teleprompterSurface(geometry: NotchGeometry) -> CGSize {
+        let content = symbolWidth + spacing + width("00:00", font: readingFont)
+        return surface(content: content, maximum: Maximum.activity, geometry: geometry)
+    }
+
     /// An event beside what shares the capsule with it: that activity's
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
@@ -1285,7 +1299,7 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad, teleprompter
     static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
@@ -1316,6 +1330,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchModule.music.symbol
         case .timer: return NotchModule.timer.symbol
         case .calendar: return NotchModule.calendar.symbol
+        case .teleprompter: return NotchModule.teleprompter.symbol
         }
     }
 
@@ -1335,6 +1350,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return .page(.music, feature: nil)
         case .timer: return .page(.timer, feature: .notchTimer)
         case .calendar: return .page(.calendar, feature: .notchCalendar)
+        case .teleprompter: return .page(.teleprompter, feature: .teleprompter)
         }
     }
 
@@ -1355,6 +1371,7 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .music: return NotchSupport.modules(in: defaults).contains(.music)
         case .timer: return NotchSupport.modules(in: defaults).contains(.timer)
         case .calendar: return NotchSupport.modules(in: defaults).contains(.calendar)
+        case .teleprompter: return AppFeature.teleprompter.isAvailable(in: defaults)
         }
     }
 }
@@ -1791,18 +1808,21 @@ enum NotchSupport {
 
     /// Automatic order until the user chooses one of the live activities.
     static func compactActivity(timer: Bool, downloads: Bool, agents: Bool = false,
-                                calendar: Bool = false, music: Bool, keepAwake: Bool = false) -> NotchCompactActivity? {
+                                calendar: Bool = false, music: Bool, keepAwake: Bool = false,
+                                teleprompter: Bool = false) -> NotchCompactActivity? {
         compactActivities(timer: timer, downloads: downloads, agents: agents,
-                          calendar: calendar, music: music, keepAwake: keepAwake).first
+                          calendar: calendar, music: music, keepAwake: keepAwake,
+                          teleprompter: teleprompter).first
     }
 
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
     static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+                                  calendar: Bool, music: Bool, keepAwake: Bool = false,
+                                  teleprompter: Bool = false) -> [NotchCompactActivity] {
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (teleprompter, .teleprompter), (watch, .watch), (downloads, .downloads), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
@@ -2249,9 +2269,9 @@ struct NotchGeometry: Equatable {
     /// manual fit and outline clearance, rather than just the hardware inset.
     let cameraHeight: CGFloat
     let isNotched: Bool
-    let layout: NotchSize
-    let customWidth: CGFloat
-    let customHeight: CGFloat
+    var layout: NotchSize
+    var customWidth: CGFloat
+    var customHeight: CGFloat
     let menuBarHeight: CGFloat
     /// Nil hangs the island from the top edge. A capsule floats this far
     /// inside the menu bar, above and below its strips.
@@ -2790,13 +2810,25 @@ struct NotchGeometry: Equatable {
             case .agents:
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
+            case .teleprompter:
+                let compactHeight = NotchLayout.timer(mode: .timer, hasSession: true, height: budget)
+                let isRunning = UserDefaults.standard.bool(forKey: DefaultsKey.teleprompterIsRunning)
+                contentHeight = min(budget, isRunning
+                                    ? budget
+                                    : max(compactHeight, NotchLayout.teleprompterPageListHeight))
             // Lists and previews fill the chosen content budget.
             case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }
         }
         var preferredHeight = headerTopInset + headerChromeHeight + contentHeight
-        if layout == .custom { preferredHeight = min(preferredHeight, customHeight) }
+        if module == .teleprompter && layout == .custom {
+            // Teleprompter sizing controls the full outer island, so use its
+            // requested height rather than expanding only the content area.
+            preferredHeight = customHeight
+        } else if layout == .custom {
+            preferredHeight = min(preferredHeight, customHeight)
+        }
         return CGSize(width: expandedWidth,
                       height: min(preferredHeight, screen.height - 48 - quickAccessBottomInset))
     }

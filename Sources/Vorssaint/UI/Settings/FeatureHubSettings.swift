@@ -1218,6 +1218,7 @@ extension AppFeature {
         case .monitorPower: return s.powerSection
         case .connectedDevices: return FeatureStrings.connectedDevices(language).title
         case .fanControl: return FeatureStrings.fanControl(language).title
+        case .teleprompter: return FeatureStrings.teleprompter(language).title
         }
     }
 
@@ -1310,6 +1311,7 @@ extension AppFeature {
         case .monitorPower: return hub.descMonitorPower
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).hubDescription
         case .fanControl: return FeatureStrings.fanControl(L10n.shared.language).hubDescription
+        case .teleprompter: return FeatureStrings.teleprompter(L10n.shared.language).hubDescription
         }
     }
 }
