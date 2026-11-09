@@ -3,6 +3,22 @@
 
 import SwiftUI
 
+struct UninstallerHomebrewLastLog: View {
+    @ObservedObject private var uninstaller = AppUninstaller.shared
+    @ObservedObject private var homebrew = HomebrewManager.shared
+    let compact: Bool
+
+    var body: some View {
+        let showingPackage = uninstaller.phase == .results && !uninstaller.homebrewCheckFailed
+            ? uninstaller.selectedHomebrewPackage?.id : nil
+        if let status = homebrew.uninstallerLastLog(showingPackageID: showingPackage) {
+            HomebrewOperationOutputView(homebrew: homebrew, output: .lastLog(status), compact: compact)
+                .id(status.startedAt)
+                .padding(compact ? 8 : 12)
+        }
+    }
+}
+
 /// The uninstaller, embedded as a Settings page: drop an app (or pick one),
 /// review the leftover files it found with their sizes, then move the selected
 /// ones to the Trash and see the space recovered.
@@ -15,25 +31,27 @@ struct UninstallerView: View {
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
-    @State private var showHomebrewDetails = false
 
     var body: some View {
-        content
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onAppear { uninstaller.clearRefusal() }
-            .onDisappear { uninstaller.clearRefusal() }
-            .alert(l10n.s.homebrewConfirmUninstallTitle,
-                   isPresented: Binding(get: { pendingHomebrewRemoval != nil },
-                                        set: { if !$0 { pendingHomebrewRemoval = nil } }),
-                   presenting: pendingHomebrewRemoval) { confirmation in
-                Button(l10n.s.uninstallerCancel, role: .cancel) {}
-                Button(l10n.s.homebrewUninstall, role: .destructive) {
-                    pendingHomebrewRemoval = nil
-                    uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
-                }
-            } message: { confirmation in
-                Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, confirmation.package.displayName))
+        VStack(spacing: 0) {
+            content
+            UninstallerHomebrewLastLog(compact: false)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { uninstaller.clearRefusal() }
+        .onDisappear { uninstaller.clearRefusal() }
+        .alert(l10n.s.homebrewConfirmUninstallTitle,
+               isPresented: Binding(get: { pendingHomebrewRemoval != nil },
+                                    set: { if !$0 { pendingHomebrewRemoval = nil } }),
+               presenting: pendingHomebrewRemoval) { confirmation in
+            Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            Button(l10n.s.homebrewUninstall, role: .destructive) {
+                pendingHomebrewRemoval = nil
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
             }
+        } message: { confirmation in
+            Text(String(format: l10n.s.homebrewConfirmUninstallBodyFormat, confirmation.package.displayName))
+        }
     }
 
     @ViewBuilder
@@ -276,14 +294,7 @@ struct UninstallerView: View {
             if let status = homebrew.operationStatus,
                status.action == .uninstall,
                status.package?.id == package.id {
-                HomebrewOperationStatusView(status: status,
-                                            log: homebrew.log,
-                                            terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                            compact: false,
-                                            showDetails: $showHomebrewDetails,
-                                            onCancel: homebrew.cancelOperation,
-                                            onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                HomebrewOperationOutputView(homebrew: homebrew, output: .status(status), compact: false)
                     .padding(12)
                 if let tap = homebrew.untrustedTap {
                     HomebrewTrustCard(tap: tap)
