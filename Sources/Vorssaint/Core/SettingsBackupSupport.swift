@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import CryptoKit
 import Foundation
 
 /// The portable part of the app's settings: what a backup file carries and
@@ -226,10 +225,6 @@ enum SettingsBackupSupport {
         // A fit measured against one Mac's camera housing would misfit another's.
         DefaultsKey.notchCameraFitWidth,
         DefaultsKey.notchCameraFitHeight,
-        // Each Mac chooses whether it writes the settings file; the digest
-        // describes this Mac's copy of it.
-        DefaultsKey.settingsFileSaveOnQuit,
-        DefaultsKey.settingsFileLastSeenDigest,
     ]
 
     /// The file's content: an envelope with the format version, the app
@@ -295,8 +290,7 @@ enum SettingsBackupSupport {
         return result
     }
 
-    /// An optional settings file the app applies at launch, and writes on quit
-    /// only when asked to (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
+    /// An optional settings file the app reads at launch (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
     /// `~/.config` in its place when the variable is unset, empty or relative,
     /// as the XDG spec asks. The Developer build reads its own folder.
     static func configFileURL(environment: [String: String],
@@ -315,31 +309,33 @@ enum SettingsBackupSupport {
             .appendingPathComponent("settings.plist")
     }
 
-    /// Identifies one version of the settings file, so the app can tell
-    /// whether anything else changed it since the app last read or wrote it.
-    static func digest(of data: Data) -> String {
-        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-    }
-
-    /// Launch applies the file only when it changed since the app last saw it.
-    /// A quit whose write failed leaves the file as it was seen, so the newer
-    /// preferences are kept instead of being replaced by the stale file.
-    static func appliesConfigFile(digest: String, lastSeen: String?) -> Bool {
-        digest != lastSeen
-    }
-
-    /// Quit writes only over the version the app last saw (or where there is
-    /// none yet). A file edited or merged while the app ran is left for the
-    /// next launch to apply, never overwritten.
-    static func overwritesConfigFile(digest: String?, lastSeen: String?) -> Bool {
-        guard let digest else { return true }
-        return digest == lastSeen
-    }
-
     /// Every cleanup, diagnostic and backup mode is a `--` flag, and none of
     /// them should take on the file's settings; only a plain launch does.
     static func appliesConfigFile(arguments: [String]) -> Bool {
         !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// These keys have no registered type for the ordinary backup validator
+    /// to inspect. A damaged declaration must leave the local choice intact.
+    static func configOverrides(from settings: [String: Any]) -> [String: Any] {
+        let availability = AppFeature.availabilityDefaults
+        var values = settings.filter { key, value in
+            if availability[key] != nil { return isBoolean(value) }
+            switch key {
+            case DefaultsKey.textSnippets:
+                guard let data = value as? Data else { return false }
+                return (try? JSONDecoder().decode([TextSnippet].self, from: data)) != nil
+            case DefaultsKey.appVolumes:
+                guard let levels = value as? [String: Any] else { return false }
+                let validUnit = settings[DefaultsKey.appVolumesArePositions].map(isBoolean) ?? true
+                return validUnit && levels.values.allSatisfy(isNumber)
+            default: return true
+            }
+        }
+        if values[DefaultsKey.appVolumes] == nil {
+            values.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        }
+        return values
     }
 
     /// The portable form leaves out media logos, which name files on one Mac.
@@ -347,13 +343,16 @@ enum SettingsBackupSupport {
     /// value stays, so applying the file where it was exported keeps the logo.
     static func keepingLocalMediaLogos(_ settings: [String: Any],
                                        local: [String: Any]) -> [String: Any] {
-        let portableLocal = portableMediaSettings(local)
         var result = settings
-        for key in [DefaultsKey.mediaImageWatermarkKind, DefaultsKey.mediaImageProfiles] {
-            // Both may be absent: profiles that are all logos have no portable form.
-            guard let localValue = local[key],
-                  settings[key] as? NSObject == portableLocal[key] as? NSObject else { continue }
-            result[key] = localValue
+        let kindKey = DefaultsKey.mediaImageWatermarkKind
+        let text = local[DefaultsKey.mediaImageWatermarkText] as? String ?? ""
+        if let raw = local[kindKey] as? String, let kind = MediaImageWatermarkKind(rawValue: raw),
+           settings[kindKey] as? String == kind.withoutLogo(text: text).rawValue {
+            result[kindKey] = raw
+        }
+        let profilesKey = DefaultsKey.mediaImageProfiles
+        if let portable = settings[profilesKey] as? String, let saved = local[profilesKey] as? String {
+            result[profilesKey] = MediaSupport.restoringProfileLogos(portable, local: saved)
         }
         return result
     }
@@ -498,16 +497,9 @@ enum SettingsBackupSupport {
         guard let kind = settings[DefaultsKey.mediaImageWatermarkKind] as? String else {
             return settings
         }
-        let hasText = ((settings[DefaultsKey.mediaImageWatermarkText] as? String) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        switch MediaImageWatermarkKind.sanitized(kind) {
-        case .logo:
-            settings[DefaultsKey.mediaImageWatermarkKind] = MediaImageWatermarkKind.off.rawValue
-        case .textAndLogo:
-            settings[DefaultsKey.mediaImageWatermarkKind] = hasText
-                ? MediaImageWatermarkKind.text.rawValue : MediaImageWatermarkKind.off.rawValue
-        case .off, .text:
-            break
+        if let known = MediaImageWatermarkKind(rawValue: kind) {
+            let text = settings[DefaultsKey.mediaImageWatermarkText] as? String ?? ""
+            settings[DefaultsKey.mediaImageWatermarkKind] = known.withoutLogo(text: text).rawValue
         }
         return settings
     }

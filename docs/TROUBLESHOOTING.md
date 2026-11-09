@@ -77,29 +77,30 @@ starting a multiplexer or a slow prompt:
 
 ## Keeping settings in your dotfiles
 
-Vorssaint can keep its settings in `~/.config/vorssaint/settings.plist`, or
-in `$XDG_CONFIG_HOME/vorssaint/` when that is an absolute path. The Developer
-build uses `vorssaint-dev/` instead. The file holds the same settings as a
-backup and is applied the same way.
+At each normal launch, Vorssaint reads `~/.config/vorssaint/settings.plist`.
+An absolute `XDG_CONFIG_HOME` selects the parent of `vorssaint/`. The Developer
+build uses `vorssaint-dev/`. Git, Stow or Home Manager can own the file,
+including a symlink to a read-only target. Edits made during a session take
+effect the next time you launch the app.
 
-- **At launch**, the app applies the file if it changed since the app last
-  read or wrote it, for example after you pull or merge your dotfiles.
-- **On quit**, with Save settings to … when quitting turned on in Settings
-  under Advanced, the app writes the file once. It skips the write if the file
-  changed while the app was open, so your edit is applied at the next launch
-  instead of being lost. A read-only file, such as a Nix link, is never
-  written.
-
-Without the option, create or update the file with an export:
+Create a starting file by exporting your current settings. Backups include
+your text snippets, so review the contents before sharing one.
 
 ```sh
 /Applications/Vorssaint.app/Contents/MacOS/Vorssaint --export-settings ~/.config/vorssaint/settings.plist
 ```
 
-A file that is not a valid backup is ignored and never overwritten.
-Uninstalling leaves the file in place. Apps opened from Finder do not see
-`XDG_CONFIG_HOME` from `~/.zshrc`; set it with
-`launchctl setenv XDG_CONFIG_HOME "$HOME/.config"` and reopen Vorssaint.
+Keep the backup version and the `settings` dictionary. You can trim the
+dictionary to just the settings you want to manage. Omitted preferences and
+snippets stay local, and the app only reads this file during normal use.
+An explicit export replaces its destination with a complete snapshot.
+Export to a separate path to review changes to a hand-maintained file.
+The Import button and `--import-settings FILE` still perform a full restore.
+Quit the app before importing from a script.
+
+Apps opened from Finder inherit the login environment. To choose a custom
+folder, set it with `launchctl setenv XDG_CONFIG_HOME "$HOME/my-config"` and
+reopen Vorssaint.
 
 ## Resetting permissions
 

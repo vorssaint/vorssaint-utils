@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Darwin
 import UniformTypeIdentifiers
 
 /// Settings backup: writes the exportable preferences to a plist and brings
@@ -23,8 +24,7 @@ enum SettingsBackup {
     }
 
     /// Writes the backup file; false when it could not be saved.
-    static func write(to url: URL) -> Bool {
-        let defaults = UserDefaults.standard
+    static func write(to url: URL, from defaults: UserDefaults = .standard) -> Bool {
         // object(forKey:) sees through to registered defaults, so the file is
         // a complete snapshot: importing it reproduces this exact setup even
         // where the user never touched a control.
@@ -35,7 +35,40 @@ enum SettingsBackup {
             let data = try PropertyListSerialization.data(fromPropertyList: payload,
                                                           format: .xml,
                                                           options: 0)
-            try data.write(to: url, options: .atomic)
+            let manager = FileManager.default
+            let target = url.resolvingSymlinksInPath()
+            // attributesOfItem sees a dangling link, too. Never replace the link
+            // itself, a read-only Nix target, or a non-regular destination.
+            let exists: Bool
+            do {
+                _ = try manager.attributesOfItem(atPath: url.path)
+                exists = true
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+                exists = false
+            }
+            if exists {
+                let attributes = try manager.attributesOfItem(atPath: target.path)
+                guard attributes[.type] as? FileAttributeType == .typeRegular,
+                      manager.isWritableFile(atPath: target.path) else { return false }
+            }
+            let directory = target.deletingLastPathComponent()
+            try manager.createDirectory(at: directory,
+                                        withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+            // mkstemp creates a 0600 file on the destination volume before any
+            // snippet bytes are written, including in a shared dotfiles folder.
+            var template = Array(directory.appendingPathComponent(".vorssaint-XXXXXX").path.utf8CString)
+            let descriptor = mkstemp(&template)
+            guard descriptor >= 0 else { return false }
+            let staged = URL(fileURLWithPath: String(cString: template))
+            defer { try? manager.removeItem(at: staged) }
+            let file = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
+            try file.write(contentsOf: data)
+            try file.close()
+            if exists {
+                _ = try manager.replaceItemAt(target, withItemAt: staged)
+            } else {
+                try MediaSupport.installStagedOutput(staged, at: target, replacingExisting: false)
+            }
             return true
         } catch {
             return false
@@ -61,13 +94,18 @@ enum SettingsBackup {
                 url.stopAccessingSecurityScopedResource()
             }
         }
+        func read(_ item: URL) -> Data? {
+            let target = item.resolvingSymlinksInPath()
+            guard (try? target.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else { return nil }
+            return try? Data(contentsOf: target)
+        }
         var coordinatedData: Data?
         let coordinator = NSFileCoordinator()
         var error: NSError?
         coordinator.coordinate(readingItemAt: url, options: .withoutChanges, error: &error) { readURL in
-            coordinatedData = try? Data(contentsOf: readURL)
+            coordinatedData = read(readURL)
         }
-        guard let data = coordinatedData ?? (try? Data(contentsOf: url)),
+        guard let data = coordinatedData ?? read(url),
               let payload = try? PropertyListSerialization.propertyList(from: data,
                                                                         options: [],
                                                                         format: nil) as? [String: Any]
@@ -82,10 +120,10 @@ enum SettingsBackup {
         FeatureRuntime.shared.relaunchApp()
     }
 
-    /// Clears the exportable keys (unset ones fall back to their registered
-    /// defaults) and writes the file's values.
-    static func apply(settings: [String: Any]) {
-        let defaults = UserDefaults.standard
+    /// A backup replaces exportable preferences. A declarative file only
+    /// changes the keys it supplies.
+    static func apply(settings: [String: Any], replacingMissing: Bool = true,
+                      in defaults: Foundation.UserDefaults = UserDefaults.standard) {
         let localRecorderPresets = defaults.data(forKey: DefaultsKey.recorderEditorPresets)
         let localWatermark = defaults.string(forKey: DefaultsKey.screenshotWatermarkStyle)
         let localWatermarkPresets = defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets)
@@ -103,31 +141,42 @@ enum SettingsBackup {
             }
         let windowLayoutPaths = SettingsBackupSupport.pathIdentities(
             in: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [])
-        for key in SettingsBackupSupport.keysToClear(whenImporting: settings) {
-            defaults.removeObject(forKey: key)
+        if replacingMissing {
+            for key in SettingsBackupSupport.keysToClear(whenImporting: settings) {
+                defaults.removeObject(forKey: key)
+            }
+        } else if settings[DefaultsKey.appVolumes] != nil && settings[DefaultsKey.appVolumesArePositions] == nil {
+            // Portable volume values are gains. Let the normal migration convert
+            // just the values supplied by this file, even on an upgraded Mac.
+            defaults.removeObject(forKey: DefaultsKey.appVolumesArePositions)
         }
         for (key, value) in settings {
             defaults.set(value, forKey: key)
         }
-        if let shared = SettingsBackupSupport.sharedSwitcherPauseList(in: settings) {
+        if let shared = SettingsBackupSupport.sharedSwitcherPauseList(in: settings),
+           replacingMissing || defaults.object(forKey: DefaultsKey.switcherPreviewExcludedApps) == nil {
             defaults.set(shared, forKey: DefaultsKey.switcherPreviewExcludedApps)
         }
         if let restored = settings[DefaultsKey.recorderEditorPresets] as? Data {
             defaults.set(SettingsBackupSupport.preservingLocalPresetImages(
                 restored: restored, local: localRecorderPresets), forKey: DefaultsKey.recorderEditorPresets)
         }
-        defaults.set(SettingsBackupSupport.restoredScreenshotWatermark(
-            restored: settings[DefaultsKey.screenshotWatermarkStyle] as? String,
-            local: localWatermark), forKey: DefaultsKey.screenshotWatermarkStyle)
-        defaults.set(SettingsBackupSupport.restoredScreenshotWatermarkPresets(
-            restored: settings[DefaultsKey.screenshotWatermarkPresets] as? String,
-            local: localWatermarkPresets), forKey: DefaultsKey.screenshotWatermarkPresets)
-        for (key, paths) in carried where !paths.isEmpty {
+        if replacingMissing || settings[DefaultsKey.screenshotWatermarkStyle] != nil {
+            defaults.set(SettingsBackupSupport.restoredScreenshotWatermark(
+                restored: settings[DefaultsKey.screenshotWatermarkStyle] as? String,
+                local: localWatermark), forKey: DefaultsKey.screenshotWatermarkStyle)
+        }
+        if replacingMissing || settings[DefaultsKey.screenshotWatermarkPresets] != nil {
+            defaults.set(SettingsBackupSupport.restoredScreenshotWatermarkPresets(
+                restored: settings[DefaultsKey.screenshotWatermarkPresets] as? String,
+                local: localWatermarkPresets), forKey: DefaultsKey.screenshotWatermarkPresets)
+        }
+        for (key, paths) in carried where !paths.isEmpty && (replacingMissing || settings[key] != nil) {
             defaults.set(SettingsBackupSupport.restoredExceptionList(
                 restored: defaults.stringArray(forKey: key) ?? [],
                 carried: paths), forKey: key)
         }
-        if !windowLayoutPaths.isEmpty {
+        if !windowLayoutPaths.isEmpty && (replacingMissing || settings[DefaultsKey.windowLayoutIgnoredApps] != nil) {
             defaults.set(SettingsBackupSupport.restoredExceptionList(
                 restored: defaults.stringArray(forKey: DefaultsKey.windowLayoutIgnoredApps) ?? [],
                 carried: windowLayoutPaths), forKey: DefaultsKey.windowLayoutIgnoredApps)
@@ -151,11 +200,9 @@ enum SettingsBackup {
             // A running app keeps the settings it already loaded and saves some
             // of them again, over the imported ones. The Import button
             // relaunches for the same reason.
-            let pid = ProcessInfo.processInfo.processIdentifier
-            let running = NSRunningApplication.runningApplications(
-                withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
-                .contains { $0.processIdentifier != pid }
-            guard !running else { failCommand("quit the app before importing settings") }
+            if anotherInstanceIsRunning(Bundle.main.bundleIdentifier ?? "") {
+                failCommand("quit the app before importing settings")
+            }
             guard let settings = readSettings(at: URL(fileURLWithPath: path)) else {
                 failCommand("\(path) is not a valid Vorssaint backup")
             }
@@ -181,64 +228,33 @@ enum SettingsBackup {
             isDeveloperBuild: AppInfo.isDeveloperBuild)
     }
 
-    /// Applies the settings file when it changed since the app last read or
-    /// wrote it and differs from the preferences. Runs before the defaults are
-    /// registered and migrated, so the file's values go through the same
-    /// migrations as an imported backup after its relaunch.
-    static func applyConfigFileAtLaunch() {
-        // The bare binary (`--selftest` builds) has no preferences of the app's.
-        guard Bundle.main.bundleIdentifier != nil,
-              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments),
-              let data = try? Data(contentsOf: configFileURL),
-              let settings = readSettings(at: configFileURL) else { return }
-        let defaults = UserDefaults.standard
-        let digest = SettingsBackupSupport.digest(of: data)
-        guard SettingsBackupSupport.appliesConfigFile(
-                digest: digest,
-                lastSeen: defaults.string(forKey: DefaultsKey.settingsFileLastSeenDigest)) else { return }
-        defaults.set(digest, forKey: DefaultsKey.settingsFileLastSeenDigest)
+    /// A normal app launch overlays only the declared keys, before migrations.
+    /// The plist is owned by the user or their dotfiles manager.
+    static func applyConfigFileAtLaunch(arguments: [String] = CommandLine.arguments,
+                                        bundleID: String? = Bundle.main.bundleIdentifier,
+                                        url: URL = configFileURL,
+                                        defaults: UserDefaults = .standard,
+                                        running: (String) -> Bool = anotherInstanceIsRunning) -> Set<String> {
+        guard let bundleID, SettingsBackupSupport.appliesConfigFile(arguments: arguments),
+              FileManager.default.fileExists(atPath: url.path), !running(bundleID),
+              let imported = readSettings(at: url) else { return [] }
+        let settings = SettingsBackupSupport.configOverrides(from: imported)
+        guard !settings.isEmpty else { return [] }
         let availability = AppFeature.availabilityDefaults
-        // Nothing is registered yet, so fall back to the registered values an
-        // export writes; otherwise every launch would look like a change.
-        let current = SettingsBackupSupport.payload(appVersion: AppInfo.version) {
-            defaults.object(forKey: $0) ?? Defaults.registeredDefaults[$0] ?? availability[$0]
-        }
-        guard NSDictionary(dictionary: settings)
-                != NSDictionary(dictionary: SettingsBackupSupport.sanitizedSettings(from: current) ?? [:])
-        else { return }
+        let managedFeatures = Set(settings.keys.filter { availability[$0] != nil })
         let local = defaults.dictionaryRepresentation()
-        apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local))
+        let current = SettingsBackupSupport.payload(appVersion: AppInfo.version) { local[$0] }
+        let portable = current[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+        if settings.contains(where: { portable[$0.key] as? NSObject != $0.value as? NSObject }) {
+            apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local),
+                  replacingMissing: false, in: defaults)
+        }
+        return managedFeatures
     }
 
-    /// With Save on quit turned on, writes the settings file as the app quits,
-    /// once per session rather than on every change, so a versioned dotfile
-    /// sees one change to merge. Uninstalling clears the choice with the rest
-    /// of the preferences, so it never writes over the file.
-    static func startSavingConfigFileOnQuit() {
-        guard Bundle.main.bundleIdentifier != nil,
-              SettingsBackupSupport.appliesConfigFile(arguments: CommandLine.arguments) else { return }
-        NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification,
-                                               object: nil, queue: .main) { _ in
-            saveConfigFile()
-        }
-    }
-
-    private static func saveConfigFile() {
-        let defaults = UserDefaults.standard
-        guard defaults.bool(forKey: DefaultsKey.settingsFileSaveOnQuit) else { return }
-        // Follow a symlink so a dotfiles link stays a link.
-        let url = configFileURL.resolvingSymlinksInPath()
-        let lastSeen = defaults.string(forKey: DefaultsKey.settingsFileLastSeenDigest)
-        let existing = (try? Data(contentsOf: url)).map(SettingsBackupSupport.digest(of:))
-        guard SettingsBackupSupport.overwritesConfigFile(digest: existing, lastSeen: lastSeen) else { return }
-        // An atomic write replaces the file through its folder, so a file the
-        // user made read-only would be replaced without this check.
-        if existing != nil {
-            guard FileManager.default.isWritableFile(atPath: url.path) else { return }
-        }
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
-                                                 withIntermediateDirectories: true)
-        guard write(to: url), let written = try? Data(contentsOf: url) else { return }
-        defaults.set(SettingsBackupSupport.digest(of: written), forKey: DefaultsKey.settingsFileLastSeenDigest)
+    static func anotherInstanceIsRunning(_ bundleID: String) -> Bool {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .contains { $0.processIdentifier != pid }
     }
 }

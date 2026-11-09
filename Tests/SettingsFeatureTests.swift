@@ -738,6 +738,7 @@ enum SettingsFeatureTests {
                "a backup with a string-encoded format version restores correctly")
 
         // MARK: Settings file (issue #497)
+        SettingsFileTests.run(suite)
         let configHome = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
         let configPath: ([String: String], Bool) -> String = {
             SettingsBackupSupport.configFileURL(environment: $0, home: configHome, isDeveloperBuild: $1).path
@@ -773,28 +774,6 @@ enum SettingsFeatureTests {
                     local: localLogo)[DefaultsKey.mediaImageWatermarkKind] as? String
                 == MediaImageWatermarkKind.text.rawValue,
                "a watermark the file chose itself still wins over the local logo")
-        let seen = SettingsBackupSupport.digest(of: Data("seen".utf8))
-        let merged = SettingsBackupSupport.digest(of: Data("merged".utf8))
-        suite.expect(seen != merged && seen == SettingsBackupSupport.digest(of: Data("seen".utf8)),
-               "the settings file digest changes with its content and only then")
-        suite.expect(!SettingsBackupSupport.appliesConfigFile(digest: seen, lastSeen: seen),
-               "a file left as last seen, such as after a failed write, does not replace newer preferences")
-        suite.expect(SettingsBackupSupport.appliesConfigFile(digest: merged, lastSeen: seen)
-                && SettingsBackupSupport.appliesConfigFile(digest: seen, lastSeen: nil),
-               "a file changed outside the app, or never seen, is applied at launch")
-        suite.expect(SettingsBackupSupport.overwritesConfigFile(digest: seen, lastSeen: seen)
-                && SettingsBackupSupport.overwritesConfigFile(digest: nil, lastSeen: seen),
-               "quit writes over the file it last saw, or creates a missing one")
-        suite.expect(!SettingsBackupSupport.overwritesConfigFile(digest: merged, lastSeen: seen)
-                && !SettingsBackupSupport.overwritesConfigFile(digest: seen, lastSeen: nil),
-               "quit never overwrites a file edited, merged or unreadable since the app saw it")
-        suite.expect(SettingsBackupSupport.machineStateKeys.isSuperset(of: [
-                    DefaultsKey.settingsFileSaveOnQuit, DefaultsKey.settingsFileLastSeenDigest]),
-               "whether a Mac writes the settings file never travels in a backup")
-        suite.expect(AppLanguage.allCases.allSatisfy {
-                    FeatureStrings.backup($0).saveOnQuitFormat.components(separatedBy: "%@").count == 2
-                }, "every language names the settings file path exactly once")
-
         // A backup file can be edited by hand, and a value of the wrong shape
         // would reach code that trusts its own settings.
         let wrongShapes: [String: Any] = [

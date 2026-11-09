@@ -18,7 +18,6 @@ struct AdvancedSettings: View {
     @State private var importFailed = false
     @State private var pendingImport: [String: Any]?
     @State private var showImportConfirm = false
-    @AppStorage(DefaultsKey.settingsFileSaveOnQuit) private var saveSettingsFileOnQuit = false
 
     private var backup: BackupFeatureStrings {
         FeatureStrings.backup(l10n.language)
@@ -67,9 +66,6 @@ struct AdvancedSettings: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
-                Toggle(String(format: backup.saveOnQuitFormat,
-                              (SettingsBackup.configFileURL.path as NSString).abbreviatingWithTildeInPath),
-                       isOn: $saveSettingsFileOnQuit)
             }
 
             Section(l10n.s.advancedResetSection) {
