@@ -183,6 +183,15 @@ enum SettingsFeatureTests {
         }
 
         let monitor = FeatureSettingsDestination(.monitor)
+        let displays = FeatureStrings.brightness(.enUS)
+        for (enabled, speakers) in [(false, true), (true, false), (true, true)] {
+            defaults.set(enabled, forKey: DefaultsKey.brightnessControlEnabled)
+            defaults.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            verify(displays.volumeToggle, opens: AppFeature.brightness.settingsDestination,
+                   commandID: "settings.feature.brightness", shown: enabled)
+            verify(displays.volumeKeysToggle, opens: AppFeature.brightness.settingsDestination,
+                   commandID: "settings.feature.brightness", shown: enabled && speakers)
+        }
         let colors = FeatureStrings.menuBarAppearance(.enUS)
         for bars in [false, true, false] {
             defaults.set(bars ? "bars" : "values", forKey: DefaultsKey.menuBarMetricAppearance)
