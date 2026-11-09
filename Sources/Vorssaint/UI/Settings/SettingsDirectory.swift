@@ -424,6 +424,12 @@ enum SettingsDirectory {
                                         .screenCaptureFeatureKeywords(s, language: language)),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
+                SettingsDirectoryItem(page: .keyRemapping,
+                                      title: FeatureStrings.keyboardRemapping(language)[.pageTitle],
+                                      icon: "keyboard.badge.ellipsis",
+                                      featureKeywords: [
+                                        (.keyRemapping, ["key remapping", "remap keys", "key mapping"]),
+                                      ]),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
                                       icon: superKeySource.systemImage,

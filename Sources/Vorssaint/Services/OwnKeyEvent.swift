@@ -15,6 +15,7 @@ import Darwin
 enum OwnKeyEvent {
     static let quitProtectionMarker: Int64 = 0x5652535341494E54 // "VRSSAINT"
     static let textSnippetMarker: Int64 = 0x564F5253 // "VORS"
+    static let keyboardRemappingMarker: Int64 = 0x4B455952454D4150 // "KEYREMAP"
 
     private static let ownProcessID = Int64(getpid())
 
@@ -22,6 +23,7 @@ enum OwnKeyEvent {
         sourceProcessID == ownProcessID
             || userData == quitProtectionMarker
             || userData == textSnippetMarker
+            || userData == keyboardRemappingMarker
     }
 
     static func isPosted(_ event: CGEvent) -> Bool {

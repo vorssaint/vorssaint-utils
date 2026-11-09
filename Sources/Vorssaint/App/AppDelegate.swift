@@ -174,6 +174,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
+        TrashSuggestionService.shared.start()
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
@@ -190,11 +191,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 FeatureRuntime.shared.sync([
                     .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .switcher,
                     .dockPreview, .finderCutPaste, .finderRename, .autoQuit, .dockClick,
-                    .middleClick, .windowMaximizer, .keyboardDebounce, .windowLayout,
+                    .middleClick, .windowMaximizer, .keyboardDebounce, .keyRemapping, .windowLayout,
                     .textSnippets, .brightness, .radialMenu, .mouseButtonShortcuts,
                     .mouseClickDebounce, .superKey, .quitWindowProtection, .mixer, .musicBlock, .notch,
                 ])
             }
+            .store(in: &cancellables)
+
+        Permissions.shared.$fullDiskAccess
+            .removeDuplicates()
+            .receive(on: DispatchQueue.main)
+            .sink { _ in TrashSuggestionService.shared.refreshPermissionState() }
             .store(in: &cancellables)
 
         Permissions.shared.$screenRecording
@@ -314,6 +321,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
+        TrashSuggestionService.shared.stop()
         CommandBarService.shared.restoreBorrowedInputSource()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
@@ -328,6 +336,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         WindowMaximizer.shared.stop()
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
+        KeyboardRemappingService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
         TextSnippetService.shared.suspend()
         // Takes the Super key mapping back out before the process goes away.
@@ -1722,6 +1731,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuOpenUninstaller() {
         SettingsRouter.shared.page = .uninstaller
+        openSettingsWindow()
+    }
+
+    func openUninstaller(for appURL: URL) {
+        guard AppFeature.uninstaller.isAvailable else { return }
+        SettingsRouter.shared.page = .uninstaller
+        AppUninstaller.shared.select(appURL: appURL)
         openSettingsWindow()
     }
 

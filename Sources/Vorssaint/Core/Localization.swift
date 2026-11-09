@@ -527,6 +527,10 @@ struct Strings {
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
     let uninstallerCommandBarFinderTitle: String
+    let uninstallerTrashDetectionTitle: String
+    let uninstallerTrashDetectionCaption: String
+    let uninstallerTrashDetectionNeedsFDA: String
+    let uninstallerTrashDetectionFailed: String
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
     let uninstallerRefusedSystemFormat: String        // + app name
@@ -1684,6 +1688,10 @@ extension Strings {
         uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
         uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
         uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
+        uninstallerTrashDetectionTitle: "Sugerir limpeza de apps movidos para o Lixo",
+        uninstallerTrashDetectionCaption: "Observar o Lixo e oferecer a análise dos arquivos restantes depois que você mover um app para lá.",
+        uninstallerTrashDetectionNeedsFDA: "O Acesso Total ao Disco é necessário para observar o Lixo. Conceda a permissão nos Ajustes do Sistema e volte ao app.",
+        uninstallerTrashDetectionFailed: "Não foi possível iniciar a observação do Lixo. Desative e ative esta opção para tentar novamente.",
         uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
         uninstallerRefusedNotApp: "Só é possível desinstalar apps.",
         uninstallerRefusedSystemFormat: "%@ não pode ser desinstalado porque faz parte do macOS.",
@@ -2805,6 +2813,10 @@ extension Strings {
         uninstallerCommandBarToggle: "Show in Command Bar",
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
+        uninstallerTrashDetectionTitle: "Suggest cleanup for apps moved to Trash",
+        uninstallerTrashDetectionCaption: "Watch the Trash and offer to review leftover files for apps you move there.",
+        uninstallerTrashDetectionNeedsFDA: "Full Disk Access is required to watch the Trash. Grant access in System Settings, then return to the app.",
+        uninstallerTrashDetectionFailed: "Could not start Trash monitoring. Turn this setting off and on to try again.",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
         uninstallerRefusedNotApp: "Only apps can be uninstalled.",
         uninstallerRefusedSystemFormat: "%@ can’t be uninstalled because it’s part of macOS.",
