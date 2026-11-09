@@ -1139,9 +1139,12 @@ enum RecorderExportRenderingTests {
         document.showsPointer = false
         document.zoomEnabled = false
         let destination = folder.appendingPathComponent("damaged.gif")
+        document.gifScalePercent = 100
         // 2 s of red, green, blue and white at 60 fps, sampled at 12 fps:
         // GIF frame i shows source frame 5i.
-        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        // Qualify for sequential decoding so a stopped reader has to retry
+        // through the generator before it can recover the later pictures.
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true, width: 512, height: 512)
         try await zeroFrames(Array(0...29) + Array(60...64) + Array(110...119), in: take.videoURL)
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: take.videoURL))
         generator.requestedTimeToleranceBefore = .zero
@@ -1176,7 +1179,7 @@ enum RecorderExportRenderingTests {
 
         let previous = Data("previous gif".utf8)
         try previous.write(to: destination)
-        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true, width: 512, height: 512)
         try await zeroFrames(Array(0...119), in: take.videoURL)
         let nothing = await RecorderExporter().export(take: take, document: document, output: .gif,
                                                       to: destination, progress: { _ in })

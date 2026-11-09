@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import AVFoundation
 import CoreGraphics
 import Foundation
@@ -8,8 +9,8 @@ import ImageIO
 import Metal
 
 /// End-to-end GIF exports at sizes that qualify for the GPU encoder. Every
-/// fixture is 640x480 or larger, BT.709 H.264, so a Mac with Metal takes the
-/// fast path; without Metal the same pictures must come from the fallback.
+/// timing fixture is BT.709 H.264. Imports with alpha or non-square pixels
+/// exercise the fallback alongside a regular recording on the fast path.
 /// Each source frame carries its own number in a binary strip along the
 /// bottom, so a GIF frame names the source frame it shows.
 enum RecorderFastGIFExportTests {
@@ -42,6 +43,7 @@ enum RecorderFastGIFExportTests {
         try await variableFrameRate(suite, folder: folder)
         try await editedTimeline(suite, folder: folder)
         try await orientation(suite, folder: folder)
+        try await importedFormats(suite, folder: folder)
         try await cancellation(suite, folder: folder)
     }
 
@@ -49,8 +51,8 @@ enum RecorderFastGIFExportTests {
 
     private static func eligibility(_ suite: TestSuite) {
         func format(_ codec: CMVideoCodecType, transfer: CFString? = nil,
-                    primaries: CFString? = nil) -> CMFormatDescription? {
-            var extensions: [CFString: Any] = [:]
+                    primaries: CFString? = nil, extra: [CFString: Any] = [:]) -> CMFormatDescription? {
+            var extensions = extra
             if let transfer { extensions[kCMFormatDescriptionExtension_TransferFunction] = transfer }
             if let primaries { extensions[kCMFormatDescriptionExtension_ColorPrimaries] = primaries }
             var description: CMFormatDescription?
@@ -77,6 +79,11 @@ enum RecorderFastGIFExportTests {
         let rejected: [(String, [CMFormatDescription?])] = [
             ("no format", []),
             ("untagged HEVC, possibly HDR", [format(hevc)]),
+            ("HEVC with a separate alpha plane", [format(hevc, transfer: bt709,
+                extra: [kCMFormatDescriptionExtension_ContainsAlphaChannel: true])]),
+            ("cropped H.264 raster", [format(h264, extra: [kCMFormatDescriptionExtension_CleanAperture: [
+                kCMFormatDescriptionKey_CleanApertureWidth: 320, kCMFormatDescriptionKey_CleanApertureHeight: 240,
+                kCMFormatDescriptionKey_CleanApertureHorizontalOffset: 0, kCMFormatDescriptionKey_CleanApertureVerticalOffset: 0]])]),
             ("PQ HEVC", [format(hevc, transfer: kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ)]),
             ("HLG HEVC", [format(hevc, transfer: kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG)]),
             ("Display P3 H.264", [format(h264, transfer: bt709,
@@ -315,6 +322,82 @@ enum RecorderFastGIFExportTests {
         }
     }
 
+    /// Import the same two-panel drawing with three actual sample descriptions.
+    /// Check the exported and copied bytes, including after scaling and a cut.
+    private static func importedFormats(_ suite: TestSuite, folder: URL) async throws {
+        let pasteboard = NSPasteboard.withUniqueName()
+        defer { pasteboard.releaseGlobally() }
+        let cases: [(String, AVVideoCodecType, Int)] = [
+            ("sdr", .h264, 1), ("alpha", .hevcWithAlpha, 1), ("anamorphic", .h264, 2),
+        ]
+        for (name, codec, aspect) in cases {
+            let take = try makeTake(in: folder, named: name)
+            let alpha = codec == .hevcWithAlpha
+            try await writeMovie(to: take.videoURL, times: (0..<12).map { CMTime(value: Int64($0), timescale: 12) },
+                                 end: CMTime(value: 1, timescale: 1), codec: codec, pixelAspect: aspect) { context, _ in
+                let full = CGRect(x: 0, y: 0, width: width, height: height)
+                if alpha {
+                    context.clear(full)
+                } else {
+                    context.setFillColor(named("G"))
+                    context.fill(full)
+                }
+                context.setFillColor(named("R"))
+                context.fill(CGRect(x: width / 2, y: 0, width: width / 2, height: height))
+            }
+            let video = try await AVURLAsset(url: take.videoURL).loadTracks(withMediaType: .video)[0]
+            let formats = try await video.load(.formatDescriptions)
+            suite.expect(RecorderExporter.supportsFastGIF(formats) == (!alpha && aspect == 1),
+                         "\(name) selects the encoder for its actual sample description")
+            if alpha {
+                let characteristics = try await video.load(.mediaCharacteristics)
+                suite.expect(characteristics.contains(.containsAlphaChannel)
+                    && formats.first.map { CMFormatDescriptionGetMediaSubType($0) } == kCMVideoCodecType_HEVC,
+                    "the transparent HEVC fixture carries alpha under the regular HEVC subtype")
+            }
+            for (percent, cut) in [(100, false), (75, false), (75, true)] {
+                var document = plainDocument()
+                document.gifScalePercent = percent
+                if cut { document.cuts = [.init(start: 0.25, end: 0.5)] }
+                let gif = take.folder.appendingPathComponent("\(percent)-\(cut).gif")
+                let failure = await RecorderExporter().export(take: take, document: document, output: .gif,
+                                                            to: gif, progress: { _ in })
+                guard failure == nil, let source = CGImageSourceCreateWithURL(gif as CFURL, nil) else {
+                    suite.expect(false, "\(name) at \(percent)% exports, cut \(cut), failure \(String(describing: failure))")
+                    continue
+                }
+                let count = CGImageSourceGetCount(source)
+                suite.expect(count == (cut ? 9 : 12), "\(name) keeps its frame count with cut \(cut)")
+                for index in [0, count - 1] {
+                    guard index >= 0, let frame = CGImageSourceCreateImageAtIndex(source, index, nil) else {
+                        suite.expect(false, "\(name) decodes frame \(index)")
+                        continue
+                    }
+                    let image = bitmap(frame)
+                    suite.expect(image.width == width * aspect * percent / 100 && image.height == height * percent / 100,
+                                 "\(name) keeps its presentation dimensions at \(percent)%")
+                    let middle = image.width * (image.height / 2)
+                    let left = (middle + image.width / 4) * 4
+                    let right = (middle + image.width * 3 / 4) * 4
+                    let bytes = image.bytes
+                    let leftOK = alpha ? bytes[left + 3] == 0 : bytes[left + 1] > 180 && bytes[left + 3] == 255
+                    suite.expect(leftOK && bytes[right] > 180 && bytes[right + 1] < 70 && bytes[right + 3] == 255,
+                                 "\(name) preserves the left panel and fills the right at \(percent)%, cut \(cut)")
+                }
+                let data = try Data(contentsOf: gif)
+                if name == "sdr", percent == 100, MTLCreateSystemDefaultDevice() != nil {
+                    let first = try RecorderGIFWriter.chunk(from: data).frames.first
+                    suite.expect(first?.disposal == 1 && first?.transparency == 1 && first?.transparentIndex == 255,
+                                 "an ordinary opaque export actually uses the indexed Metal/cgif writer")
+                }
+                suite.expect(RecorderGIFClipboard.publish(fileURL: gif, to: pasteboard)
+                    && pasteboard.data(forType: RecorderGIFClipboard.pasteboardType) == data
+                    && pasteboard.string(forType: .fileURL) == gif.absoluteString,
+                    "\(name) copy publishes the same animation as Save as GIF")
+            }
+        }
+    }
+
     // MARK: - Cancellation
 
     /// Cancelling once a batch is already in flight publishes nothing and
@@ -404,17 +487,25 @@ enum RecorderFastGIFExportTests {
     /// writer's own buffers, and stamps the given timestamps exactly.
     private static func writeMovie(to url: URL, times: [CMTime], end: CMTime,
                                    transform: CGAffineTransform = .identity,
+                                   codec: AVVideoCodecType = .h264, pixelAspect: Int = 1,
                                    draw: @escaping (CGContext, Int) -> Void) async throws {
         try? FileManager.default.removeItem(at: url)
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        var settings: [String: Any] = [
+            AVVideoCodecKey: codec, AVVideoWidthKey: width, AVVideoHeightKey: height,
             AVVideoColorPropertiesKey: [
                 AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
                 AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
                 AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
             ],
-        ])
+        ]
+        if pixelAspect != 1 {
+            settings[AVVideoPixelAspectRatioKey] = [
+                AVVideoPixelAspectRatioHorizontalSpacingKey: pixelAspect,
+                AVVideoPixelAspectRatioVerticalSpacingKey: 1,
+            ]
+        }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.transform = transform
         let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
             sourcePixelBufferAttributes: [
@@ -471,7 +562,7 @@ enum RecorderFastGIFExportTests {
                         height: height, bitsPerComponent: 8,
                         bytesPerRow: CVPixelBufferGetBytesPerRow(pixel),
                         space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                        bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+                        bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
                             | CGBitmapInfo.byteOrder32Little.rawValue) {
                     context.translateBy(x: 0, y: CGFloat(height))
                     context.scaleBy(x: 1, y: -1)

@@ -554,8 +554,7 @@ final class RecorderExporter {
                            document: RecorderEditDocument,
                            sourceSize: CGSize,
                            to destination: URL,
-                           progress: @escaping (Double) -> Void,
-                           useFastEncoding: Bool = true) async -> Failure? {
+                           progress: @escaping (Double) -> Void) async -> Failure? {
         let fps = document.resolvedGIFFrameRate
         let duration = CMTimeGetSeconds((try? await asset.load(.duration)) ?? .zero)
         // The GIF is the same finished video, sampled: the trim and the cuts
@@ -591,54 +590,27 @@ final class RecorderExporter {
         let scaleOnly = composer != nil && RecorderComposer.makePlan(
             document: document, track: track, sourceSize: sourceSize,
             frameRate: RecorderSupport.sanitizedFrameRate(frameRate), duration: duration) == nil
-        let resizeContext = scaleOnly ? CIContext() : nil
         // GIF dimensions are independent of the video bitrate and size preset.
         let canvas = composer?.canvasSize
             ?? RecorderSupport.gifOutputSize(source: RecorderSupport.evenSize(sourceSize),
                 scalePercent: document.resolvedGIFScalePercent)
 
-        guard let workspace = try? RecorderGIFWorkspace() else { return .writeFailed }
-        defer { workspace.discard() }
-        guard let writer = try? RecorderGIFWriter(url: workspace.fileURL, fps: fps)
-        else { return .writeFailed }
         let formats = (try? await videoTrack.load(.formatDescriptions)) ?? []
-        let cancellation = cancelled
-        var fastWriter = useFastEncoding && canvas.width * canvas.height >= 512 * 512
+        let characteristics = try? await videoTrack.load(.mediaCharacteristics)
+        let canReadDirectly = characteristics?.contains(.containsAlphaChannel) == false
             && Self.supportsFastGIF(formats)
-            ? RecorderFastGIFWriter(writer: writer, size: canvas, sourceSize: sourceSize,
-                                    isCancelled: { cancellation.isCancelled }) : nil
-
+        // Decode imports with special geometry or alpha at presentation size
+        // before applying edits. A raw raster can be narrower than the plan,
+        // and AV video composition flattens transparent input over black.
+        let renderAfterDecode = composer != nil && (scaleOnly || !canReadDirectly)
+        let renderContext = renderAfterDecode ? CIContext(options: [.cacheIntermediates: false]) : nil
         let generator = AVAssetImageGenerator(asset: timeline)
         defer { generator.cancelAllCGImageGeneration() }
         generator.appliesPreferredTrackTransform = true
         generator.requestedTimeToleranceBefore = .zero
         generator.requestedTimeToleranceAfter = .zero
-        generator.maximumSize = composer == nil ? canvas : .zero
-        // Decode in one pass. Keep only the source frame covering the next
-        // GIF timestamp and one look-ahead sample, not every decoded frame.
-        let reader = try? AVAssetReader(asset: timeline)
-        let frames = AVAssetReaderTrackOutput(track: timelineVideo,
-            outputSettings: [kCVPixelBufferPixelFormatTypeKey as String:
-                fastWriter == nil ? kCVPixelFormatType_32BGRA : kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange])
-        frames.alwaysCopiesSampleData = false
-        var readsSequentially = false
-        if let reader, reader.canAdd(frames) {
-            reader.add(frames)
-            readsSequentially = reader.startReading()
-        }
-        defer { reader?.cancelReading() }
-        let naturalSize = (try? await timelineVideo.load(.naturalSize)) ?? sourceSize
-        let geometry = RecorderSupport.videoGeometry(
-            naturalSize: naturalSize,
-            preferredTransform: (try? await timelineVideo.load(.preferredTransform)) ?? .identity)
-        // Track transforms use a top-left origin; Core Image uses bottom-left.
-        let imageTransform = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: naturalSize.height)
-            .concatenating(geometry.transform)
-            .concatenating(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: geometry.size.height))
-        let imageContext = CIContext(options: [.cacheIntermediates: false])
-        var currentSample: CMSampleBuffer?
-        var nextSample: CMSampleBuffer?
-        if let composer, !scaleOnly {
+        generator.maximumSize = composer == nil ? canvas : (renderAfterDecode ? sourceSize : .zero)
+        if let composer, !renderAfterDecode {
             guard let composition = await RecorderComposer.videoComposition(
                 track: timelineVideo,
                 asset: timeline,
@@ -653,109 +625,64 @@ final class RecorderExporter {
         }
 
         let frameProgress = ProgressThrottle(progress)
-        var reportedProgress = 0.0
-        do {
-            // A frame that does not decode, as in a damaged stretch of an
-            // imported movie, repeats the one before it, and frames before
-            // the first that decodes take that one, so the animation keeps
-            // its length. Only a timeline without a single frame fails, and
-            // then the existing destination stays.
-            var previous: CGImage?
-            var previousFast: CIImage?
-            var missing = 0
-            for index in 0..<frameCount {
-                if cancelled.isCancelled { return .cancelled }
-                let seconds = min(outputDuration, Double(index) / Double(fps))
-                let time = CMTime(seconds: seconds, preferredTimescale: 600)
-                var decoded: CGImage?
-                var renderedFast: CIImage?
-                if readsSequentially {
-                    decoded = autoreleasepool {
-                        if nextSample == nil { nextSample = frames.copyNextSampleBuffer() }
-                        while let sample = nextSample,
-                              CMTimeCompare(CMSampleBufferGetPresentationTimeStamp(sample), time) <= 0 {
-                            currentSample = sample
-                            nextSample = frames.copyNextSampleBuffer()
-                            if cancelled.isCancelled { return nil }
+        let canUseFastEncoder = canvas.width * canvas.height >= 512 * 512 && canReadDirectly
+
+        func write(useFastEncoder: Bool) async throws -> Failure? {
+            if cancelled.isCancelled { return .cancelled }
+            let workspace = try RecorderGIFWorkspace()
+            defer { workspace.discard() }
+            let writer = try RecorderGIFWriter(url: workspace.fileURL, fps: fps)
+            if useFastEncoder, let fast = RecorderFastGIFWriter(writer: writer, size: canvas,
+                    isCancelled: { [cancelled] in cancelled.isCancelled }) {
+                try await writeFastGIFFrames(fast, timeline: timeline, track: timelineVideo,
+                    composer: composer, canvas: canvas, timing: document.exportTiming,
+                    fps: fps, frameCount: frameCount, progress: frameProgress)
+            } else {
+                // Use the generator as well as ImageIO on fallback. It applies
+                // display geometry, preserves alpha and recovers individual
+                // images after damaged stretches that stop a sequential reader.
+                var previous: CGImage?
+                var missing = 0
+                for index in 0..<frameCount {
+                    if cancelled.isCancelled { return .cancelled }
+                    let seconds = Double(index) / Double(fps)
+                    let time = CMTime(seconds: seconds, preferredTimescale: 600)
+                    let decoded = try? await generator.image(at: time).image
+                    if let frame = decoded ?? previous {
+                        for outputIndex in (index - missing)...index {
+                            if cancelled.isCancelled { return .cancelled }
+                            if let renderContext, let composer {
+                                let editTime = document.exportTiming.sourceTime(forOutputTime: Double(outputIndex) / Double(fps))
+                                let rendered = composer.render(CIImage(cgImage: frame), at: editTime)
+                                guard let picture = renderContext.createCGImage(rendered, from: CGRect(origin: .zero, size: canvas))
+                                else { return .readFailed }
+                                try writer.append(picture)
+                            } else {
+                                try writer.append(frame)
+                            }
                         }
-                        guard reader?.status != .failed,
-                              let sample = currentSample,
-                              CMTimeCompare(CMTimeAdd(CMSampleBufferGetPresentationTimeStamp(sample),
-                                                      CMSampleBufferGetDuration(sample)), time) > 0,
-                              let pixel = CMSampleBufferGetImageBuffer(sample) else { return nil }
-                        let source = CIImage(cvPixelBuffer: pixel).transformed(by: imageTransform)
-                        let rendered: CIImage
-                        if let composer {
-                            rendered = composer.render(source, at: document.exportTiming
-                                .sourceTime(forOutputTime: seconds))
-                        } else {
-                            rendered = source.transformed(by: CGAffineTransform(
-                                scaleX: canvas.width / geometry.size.width,
-                                y: canvas.height / geometry.size.height))
-                        }
-                        if fastWriter != nil {
-                            renderedFast = rendered
-                            return nil
-                        }
-                        return imageContext.createCGImage(rendered, from: CGRect(origin: .zero, size: canvas))
-                    }
-                    if decoded == nil && renderedFast == nil {
-                        // A damaged stretch can stop a reader. Individual
-                        // requests can still recover later pictures, retaining
-                        // the existing repeat-previous-frame behavior below.
-                        readsSequentially = false
-                        reader?.cancelReading()
-                    }
-                }
-                if cancelled.isCancelled { return .cancelled }
-                if decoded == nil && renderedFast == nil {
-                    decoded = try? await generator.image(at: time).image
-                    if let image = decoded, let resizeContext, let composer {
-                        decoded = resizeContext.createCGImage(
-                            composer.render(CIImage(cgImage: image), at: seconds),
-                            from: CGRect(origin: .zero, size: canvas))
-                    }
-                }
-                if cancelled.isCancelled { return .cancelled }
-                if let fastWriter {
-                    if let frame = renderedFast ?? decoded.map({ CIImage(cgImage: $0) }) ?? previousFast {
-                        for _ in 0...missing { try fastWriter.append(frame) }
                         missing = 0
-                        previousFast = frame
+                        previous = frame
                     } else { missing += 1 }
-                } else if let frame = decoded ?? previous {
-                    for _ in 0...missing { try writer.append(frame) }
-                    missing = 0
-                    previous = frame
-                } else {
-                    missing += 1
+                    frameProgress.report(min(0.99, Double(index + 1) / Double(frameCount)))
                 }
-                reportedProgress = min(0.99, Double(index + 1) / Double(frameCount))
-                frameProgress.report(reportedProgress)
+                guard previous != nil else { return .readFailed }
+                if cancelled.isCancelled { return .cancelled }
+                try writer.finish()
             }
-            guard previous != nil || previousFast != nil else { return .readFailed }
             if cancelled.isCancelled { return .cancelled }
-            if let fastWriter { try fastWriter.finish() } else { try writer.finish() }
-            if cancelled.isCancelled { return .cancelled }
-            // Copy the completed file to the destination volume before the
-            // entry point's atomic replacement. Both scratch and this staged
-            // sibling are removed on error or cancellation.
             try FileManager.default.copyItem(at: workspace.fileURL, to: destination)
-        } catch RecorderFastGIFWriter.Failure.unavailable {
-            // No partial fast output is published. Restart with the established
-            // encoder for transparent edits, GPU failures or unsupported data.
-            fastWriter = nil
-            reader?.cancelReading()
-            currentSample = nil
-            nextSample = nil
-            workspace.discard()
-            if cancelled.isCancelled { return .cancelled }
-            return await exportGIF(asset: asset, videoTrack: videoTrack, pointerURL: pointerURL,
-                document: document, sourceSize: sourceSize, to: destination,
-                progress: { value in
-                    if value == 1 { progress(1) }
-                    else { frameProgress.report(max(reportedProgress, value)) }
-                }, useFastEncoding: false)
+            return nil
+        }
+
+        do {
+            do {
+                if let failure = try await write(useFastEncoder: canUseFastEncoder) { return failure }
+            } catch RecorderFastGIFWriter.Failure.unavailable {
+                // The first attempt has released its workspace, decoder and
+                // buffers. The same throttle ignores lower progress on retry.
+                if let failure = try await write(useFastEncoder: false) { return failure }
+            }
         } catch RecorderFastGIFWriter.Failure.cancelled {
             return .cancelled
         } catch {
@@ -765,11 +692,75 @@ final class RecorderExporter {
         return nil
     }
 
+    private func writeFastGIFFrames(_ writer: RecorderFastGIFWriter, timeline: AVAsset, track: AVAssetTrack,
+                                    composer: RecorderComposer?, canvas: CGSize, timing: RecorderExportTiming,
+                                    fps: Int, frameCount: Int, progress: ProgressThrottle) async throws {
+        guard let reader = try? AVAssetReader(asset: timeline),
+              let naturalSize = try? await track.load(.naturalSize),
+              let transform = try? await track.load(.preferredTransform)
+        else { throw RecorderFastGIFWriter.Failure.unavailable }
+        let frames = AVAssetReaderTrackOutput(track: track, outputSettings: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
+        ])
+        frames.alwaysCopiesSampleData = false
+        guard reader.canAdd(frames) else { throw RecorderFastGIFWriter.Failure.unavailable }
+        reader.add(frames)
+        guard reader.startReading() else { throw RecorderFastGIFWriter.Failure.unavailable }
+        defer { reader.cancelReading() }
+
+        let geometry = RecorderSupport.videoGeometry(naturalSize: naturalSize, preferredTransform: transform)
+        // Track transforms use a top-left origin; Core Image uses bottom-left.
+        let imageTransform = CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: naturalSize.height)
+            .concatenating(geometry.transform)
+            .concatenating(CGAffineTransform(a: 1, b: 0, c: 0, d: -1, tx: 0, ty: geometry.size.height))
+        var currentSample: CMSampleBuffer?
+        var nextSample = frames.copyNextSampleBuffer()
+        for index in 0..<frameCount {
+            let seconds = Double(index) / Double(fps)
+            let time = CMTime(seconds: seconds, preferredTimescale: 600)
+            try autoreleasepool {
+                if cancelled.isCancelled { throw RecorderFastGIFWriter.Failure.cancelled }
+                while let sample = nextSample, CMSampleBufferGetPresentationTimeStamp(sample) <= time {
+                    currentSample = sample
+                    nextSample = frames.copyNextSampleBuffer()
+                    if cancelled.isCancelled { throw RecorderFastGIFWriter.Failure.cancelled }
+                }
+                guard reader.status != .failed, let sample = currentSample,
+                      CMTimeAdd(CMSampleBufferGetPresentationTimeStamp(sample),
+                                CMSampleBufferGetDuration(sample)) > time,
+                      let pixel = CMSampleBufferGetImageBuffer(sample),
+                      CGSize(width: CVPixelBufferGetWidth(pixel), height: CVPixelBufferGetHeight(pixel)) == naturalSize
+                else { throw RecorderFastGIFWriter.Failure.unavailable }
+                let source = CIImage(cvPixelBuffer: pixel).transformed(by: imageTransform)
+                let rendered = composer?.render(source, at: timing.sourceTime(forOutputTime: seconds))
+                    ?? source.transformed(by: CGAffineTransform(scaleX: canvas.width / geometry.size.width,
+                                                               y: canvas.height / geometry.size.height))
+                let sourceBytes = CVPixelBufferGetDataSize(pixel)
+                guard sourceBytes > 0 else { throw RecorderFastGIFWriter.Failure.unavailable }
+                try writer.append(rendered, sourceBytes: sourceBytes)
+            }
+            progress.report(min(0.99, Double(index + 1) / Double(frameCount)))
+        }
+        try writer.finish()
+    }
+
     static func supportsFastGIF(_ formats: [CMFormatDescription]) -> Bool {
         !formats.isEmpty && formats.allSatisfy { format in
             let codec = CMFormatDescriptionGetMediaSubType(format)
             guard codec == kCMVideoCodecType_H264 || codec == kCMVideoCodecType_HEVC else { return false }
             let extensions = CMFormatDescriptionGetExtensions(format).map { $0 as NSDictionary } ?? [:]
+            // HEVC with alpha also identifies itself as hvc1. NV12 drops the
+            // alpha plane before any shader could inspect it.
+            guard (extensions[kCMFormatDescriptionExtension_ContainsAlphaChannel] as? NSNumber)?.boolValue != true,
+                  extensions[kCMFormatDescriptionExtension_AlphaChannelMode] == nil else { return false }
+            let dimensions = CMVideoFormatDescriptionGetDimensions(format)
+            let encoded = CGSize(width: Int(dimensions.width), height: Int(dimensions.height))
+            // The generator applies clean aperture and pixel aspect ratio.
+            // A direct pixel buffer only has the encoded raster.
+            guard CMVideoFormatDescriptionGetPresentationDimensions(format, usePixelAspectRatio: true,
+                      useCleanAperture: false) == encoded,
+                  CMVideoFormatDescriptionGetCleanAperture(format, originIsAtTopLeft: true)
+                    == CGRect(origin: .zero, size: encoded) else { return false }
             let transfer = extensions[kCMFormatDescriptionExtension_TransferFunction] as? String
             let primaries = extensions[kCMFormatDescriptionExtension_ColorPrimaries] as? String
             // Unknown HEVC can be untagged HDR. Do not force it through 8-bit NV12.

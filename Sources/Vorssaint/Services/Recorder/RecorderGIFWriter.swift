@@ -87,7 +87,7 @@ final class RecorderGIFWriter {
     }
 
     /// Indexed, opaque frames from the fast encoder. Their delta transparency
-    /// retains the previous picture; each batch starts with a full picture.
+    /// retains the previous picture; a palette change starts a full picture.
     func appendEncodedFrames(_ chunks: [Chunk]) throws {
         guard !closed, pending.isEmpty, held == nil else { throw Failure.closed }
         usesEncodedFrames = true

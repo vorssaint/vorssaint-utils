@@ -79,7 +79,7 @@ enum RecorderFastGIFWriterTests {
                 .cropped(to: CGRect(x: position, y: 8, width: 8, height: 8))
             let image = sprite.composited(over: background)
             reference.append(rgba(image, width: 64, height: 32))
-            try fast.append(image)
+            try fast.append(image, sourceBytes: 0)
         }
         try fast.finish()
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else {
@@ -103,7 +103,8 @@ enum RecorderFastGIFWriterTests {
         let alphaSink = try RecorderGIFWriter(url: folder.appendingPathComponent("alpha.gif"), fps: 12)
         guard let alpha = RecorderFastGIFWriter(writer: alphaSink, size: rect.size,
                                                 isCancelled: { false }) else { return }
-        try alpha.append(CIImage(color: CIColor(red: 1, green: 0, blue: 0, alpha: 0.5)).cropped(to: rect))
+        try alpha.append(CIImage(color: CIColor(red: 1, green: 0, blue: 0, alpha: 0.5)).cropped(to: rect),
+                         sourceBytes: 0)
         do {
             try alpha.finish()
             suite.expect(false, "transparent pixels must request the existing encoder")
@@ -113,7 +114,7 @@ enum RecorderFastGIFWriterTests {
         let cancelled = try RecorderGIFWriter(url: folder.appendingPathComponent("cancelled.gif"), fps: 12)
         if let fast = RecorderFastGIFWriter(writer: cancelled, size: rect.size, isCancelled: { true }) {
             do {
-                try fast.append(background)
+                try fast.append(background, sourceBytes: 0)
                 suite.expect(false, "cancelled GPU encoding must stop")
             } catch RecorderFastGIFWriter.Failure.cancelled {
                 suite.expect(true, "cancelled GPU encoding stops before submitting work")
@@ -123,7 +124,7 @@ enum RecorderFastGIFWriterTests {
         let batchSink = try RecorderGIFWriter(url: folder.appendingPathComponent("cancelled-batch.gif"), fps: 12)
         if let batch = RecorderFastGIFWriter(writer: batchSink, size: rect.size,
                                              isCancelled: { flag.value }) {
-            for _ in 0..<batch.framesPerBatch { try batch.append(background) }
+            for _ in 0..<batch.framesPerBatch { try batch.append(background, sourceBytes: 0) }
             flag.cancel()
             do {
                 try batch.finish()
@@ -132,19 +133,66 @@ enum RecorderFastGIFWriterTests {
                 suite.expect(true, "a submitted compression batch honors cancellation before finalizing")
             }
         }
-        // An 8K recording exported at 25% keeps each pending frame's decoded
-        // source alive, so the batch is bounded by those bytes as well.
-        let scaled = RecorderFastGIFWriter(writer: cancelled, size: CGSize(width: 1_920, height: 1_080),
-            sourceSize: CGSize(width: 7_680, height: 4_320), isCancelled: { false })
-        let native = RecorderFastGIFWriter(writer: cancelled, size: CGSize(width: 1_920, height: 1_080),
-            isCancelled: { false })
-        if let scaled, let native {
-            suite.expect(scaled.framesPerBatch == 8 && native.framesPerBatch == 16,
-                         "large decoded sources shrink the GPU batch, got \(scaled.framesPerBatch) and \(native.framesPerBatch)")
-        }
+        try sparseColor(suite, folder: folder)
+        try retainedBytes(suite, folder: folder)
         suite.expect(RecorderFastGIFWriter(writer: cancelled,
             size: CGSize(width: CGFloat.infinity, height: 32), isCancelled: { false }) == nil,
                      "invalid GPU canvases request fallback")
+    }
+
+    private static func sparseColor(_ suite: TestSuite, folder: URL) throws {
+        let url = folder.appendingPathComponent("thin-line.gif")
+        let sink = try RecorderGIFWriter(url: url, fps: 12)
+        let rect = CGRect(x: 0, y: 0, width: 2048, height: 128)
+        guard let fast = RecorderFastGIFWriter(writer: sink, size: rect.size, isCancelled: { false }) else {
+            suite.expect(false, "thin-line fixture initializes the Metal writer")
+            return
+        }
+        let image = CIImage(color: .red).cropped(to: CGRect(x: 256, y: 0, width: 1, height: 128))
+            .composited(over: CIImage(color: .white).cropped(to: rect))
+        for _ in 0...fast.framesPerBatch { try fast.append(image, sourceBytes: 0) }
+        try fast.finish()
+        let chunk = try RecorderGIFWriter.chunk(from: Data(contentsOf: url))
+        suite.expect(chunk.frames.count == fast.framesPerBatch + 1
+            && chunk.frames.dropFirst().allSatisfy { $0.width == 1 && $0.height == 1 },
+            "an unchanged detailed picture stays a delta across GPU batch boundaries")
+        guard let gif = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let last = CGImageSourceCreateImageAtIndex(gif, fast.framesPerBatch, nil) else {
+            suite.expect(false, "thin-line GIF decodes")
+            return
+        }
+        let row = rgba(CIImage(cgImage: last), width: 2048, height: 1)
+        suite.expect(Array(row[(255 * 4)..<(258 * 4)]) == [255, 255, 255, 255, 255, 0, 0, 255, 255, 255, 255, 255],
+                     "a single red column stays red on white after palette sampling and delta compression")
+    }
+
+    private static func retainedBytes(_ suite: TestSuite, folder: URL) throws {
+        var buffer: CVPixelBuffer?
+        let attributes = [kCVPixelBufferBytesPerRowAlignmentKey: 4096] as CFDictionary
+        guard CVPixelBufferCreate(nil, 64, 32, kCVPixelFormatType_32BGRA, attributes, &buffer) == kCVReturnSuccess,
+              let buffer, CVPixelBufferLockBaseAddress(buffer, []) == kCVReturnSuccess else {
+            suite.expect(false, "padded source buffer allocates")
+            return
+        }
+        let bytes = CVPixelBufferGetDataSize(buffer)
+        memset(CVPixelBufferGetBaseAddress(buffer)!, 255, CVPixelBufferGetBytesPerRow(buffer) * 32)
+        CVPixelBufferUnlockBaseAddress(buffer, [])
+        suite.expect(bytes > 64 * 32 * 4, "the source fixture includes actual row padding")
+        let url = folder.appendingPathComponent("padded-source.gif")
+        let sink = try RecorderGIFWriter(url: url, fps: 12)
+        let rect = CGRect(x: 0, y: 0, width: 64, height: 32)
+        guard let fast = RecorderFastGIFWriter(writer: sink, size: rect.size, sourceByteLimit: bytes + bytes / 2,
+                                               isCancelled: { false }) else {
+            suite.expect(false, "padded source initializes the Metal writer")
+            return
+        }
+        for _ in 0..<3 { try fast.append(CIImage(cvPixelBuffer: buffer), sourceBytes: bytes) }
+        // The third append drains the first one-frame batch before finish.
+        let size = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+        suite.expect(size > 0, "padded sources flush at the byte limit before reaching the frame count limit")
+        try fast.finish()
+        let frames = try RecorderGIFWriter.chunk(from: Data(contentsOf: url)).frames
+        suite.expect(frames.count == 3, "flushing small source batches retains every frame")
     }
 
     private static func rgba(_ image: CIImage, width: Int, height: Int) -> [UInt8] {
