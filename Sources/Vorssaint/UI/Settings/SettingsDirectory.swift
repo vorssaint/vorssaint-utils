@@ -235,7 +235,7 @@ enum SettingsDirectory {
                                                               s.focusFollowsMouseWaitForStop]),
                                         (.smoothScroll, [s.smoothScrollName]),
                                         (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
-                                        (.mouseAcceleration, [s.mouseAccelerationName]),
+                                        (.mouseAcceleration, [s.mouseAccelerationName, s.mousePointerSpeedLabel]),
                                         (.mouseNavigation, [s.mouseNavigationEnable]),
                                         (.mouseButtonShortcuts,
                                          [FeatureStrings.mouseButtons(language).pageTitle,
