@@ -12,6 +12,8 @@ struct DockSettings: View {
     @ObservedObject private var dockPreview = DockPreviewService.shared
     @AppStorage(DefaultsKey.dockPreviewEnabled) private var dockPreviewEnabled = false
     @AppStorage(DefaultsKey.dockPreviewCurrentSpaceOnly) private var dockPreviewCurrentSpaceOnly = false
+    @AppStorage(DefaultsKey.dockPreviewPanelPlacement)
+    private var dockPreviewPanelPlacement = DockPreviewPanelPlacement.defaultAlignment.rawValue
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var dockPreviewBackgroundOpacity = 1.0
     @AppStorage(DefaultsKey.liquidGlassEnabled) private var liquidGlassEnabled = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -84,6 +86,20 @@ struct DockSettings: View {
                     }
             }
             if dockPreviewEnabled {
+                SettingsRow(symbol: "rectangle.center.inset.filled",
+                            title: "Preview Alignment",
+                            caption: "Controls how the Dock Preview is positioned when an app has multiple windows") {
+                    Picker("Preview Alignment", selection: $dockPreviewPanelPlacement) {
+                        Text("Default").tag(DockPreviewPanelPlacement.defaultAlignment.rawValue)
+                        Text("Relative").tag(DockPreviewPanelPlacement.relativeAlignment.rawValue)
+                    }
+                    .pickerStyle(.menu)
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                .onChange(of: dockPreviewPanelPlacement) { _, _ in
+                    dockPreview.panelPlacementDidChange()
+                }
                 SettingsRow(symbol: "rectangle.3.group", title: l10n.s.switcherCurrentSpaceOnly,
                             caption: l10n.s.dockPreviewCurrentSpaceOnlyCaption) {
                     Toggle(l10n.s.switcherCurrentSpaceOnly, isOn: $dockPreviewCurrentSpaceOnly)

@@ -57,6 +57,10 @@ final class DockPreviewService: ObservableObject {
     /// ghost icon region at the screen edge).
     private var hasEnteredPanel = false
     private var activePanelFrame: CGRect?
+    private var activePanelOpeningFrame: CGRect?
+    private var activePanelDockwardSlide: CGFloat = 0
+    private var activePanelCardScroll: CGFloat = 0
+    private var activePanelMaximumCardScroll: CGFloat?
     private var activeCorridor: HoverCorridor?
     private var activeIconFrame: CGRect?
     private var activeDockPreferences: DockPreviewPreferences?
@@ -801,6 +805,10 @@ final class DockPreviewService: ObservableObject {
         currentSessionPID = nil
         isPinned = false
         activePanelFrame = nil
+        activePanelOpeningFrame = nil
+        activePanelDockwardSlide = 0
+        activePanelCardScroll = 0
+        activePanelMaximumCardScroll = nil
         activeCorridor = nil
         activeIconFrame = nil
         activeDockPreferences = nil
@@ -938,8 +946,13 @@ final class DockPreviewService: ObservableObject {
                                                   panelSize: size,
                                                   screenVisibleFrame: screenVisibleFrame,
                                                   orientation: hit.preferences.orientation,
+                                                  placement: currentPanelPlacement,
                                                   gap: gap)
         activePanelFrame = frame
+        activePanelOpeningFrame = frame
+        activePanelDockwardSlide = 0
+        activePanelCardScroll = 0
+        activePanelMaximumCardScroll = nil
         activeCorridor = DockPreviewSupport.hoverCorridor(
             iconFrame: hit.iconFrame,
             panelFrame: frame,
@@ -972,6 +985,7 @@ final class DockPreviewService: ObservableObject {
                                                   panelSize: size,
                                                   screenVisibleFrame: screenVisibleFrame,
                                                   orientation: preferences.orientation,
+                                                  placement: currentPanelPlacement,
                                                   gap: gap)
         // The Dock's work area can expand after it hides. Keep the panel's
         // Dock-facing edge where it opened, while still fitting the screen.
@@ -981,6 +995,13 @@ final class DockPreviewService: ObservableObject {
         case .right: frame.origin.x = panel.frame.maxX - frame.width
         }
         frame = clampedPanelFrame(frame)
+        activePanelOpeningFrame = frame
+        activePanelMaximumCardScroll = nil
+        frame = DockPreviewSupport.panelFrameAfterDockwardSlide(
+            openingFrame: frame,
+            distance: activePanelDockwardSlide,
+            screenVisibleFrame: screenVisibleFrame
+        )
         activePanelFrame = frame
         activeCorridor = DockPreviewSupport.hoverCorridor(
             iconFrame: iconFrame,
@@ -989,6 +1010,176 @@ final class DockPreviewService: ObservableObject {
         )
         panel.setFrame(frame, display: true, animate: true)
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
+    }
+
+    /// First expands a bottom-Dock panel left; after it reaches the screen edge,
+    /// the same scroll input moves the cards inside the fixed right edge.
+    func handlePanelScrollWheel(_ event: NSEvent) -> Bool {
+        guard orientation == .bottom,
+              let panel,
+              panel.isVisible,
+              let openingFrame = activePanelOpeningFrame,
+              let iconFrame = activeIconFrame,
+              let cgEvent = event.cgEvent else { return false }
+
+        let pointer = NSEvent.mouseLocation
+        let pointerIsOverPanel = panel.frame.insetBy(dx: -DockPreviewSupport.panelStayMargin,
+                                                      dy: -DockPreviewSupport.panelStayMargin)
+            .contains(pointer)
+        let pointerIsInDockCorridor = activeCorridor?.contains(pointer) == true
+        guard pointerIsOverPanel || pointerIsInDockCorridor else { return false }
+
+        let isContinuous = cgEvent.getIntegerValueField(.scrollWheelEventIsContinuous) != 0
+        let horizontal = isContinuous ? event.scrollingDeltaX : event.deltaX * 30
+        let verticalWheel = isContinuous ? 0 : event.deltaY * 30
+        let scrollDelta = abs(horizontal) > 0.25 ? horizontal : verticalWheel
+        guard abs(scrollDelta) > 0.25 else { return false }
+
+        let visibleFrame = visibleFrameForScreen(containing: iconFrame)
+        let maximumSlide = max(0, openingFrame.minX - visibleFrame.minX
+                               - DockPreviewSupport.edgePadding)
+        // Negative scroll moves the row left and is first consumed by growing
+        // the panel. Reverse scroll returns the cards, then shrinks the panel.
+        let slideDelta = -scrollDelta
+
+        if slideDelta > 0,
+           let maximumCardScroll = activePanelMaximumCardScroll,
+           activePanelCardScroll >= maximumCardScroll - 0.5 {
+            return true
+        }
+
+        if slideDelta < 0, activePanelCardScroll <= 0.25 {
+            let nextSlide = min(maximumSlide, max(0, activePanelDockwardSlide + slideDelta))
+            guard abs(nextSlide - activePanelDockwardSlide) > 0.25 else { return false }
+            activePanelDockwardSlide = nextSlide
+            activePanelCardScroll = 0
+            let frame = panelFrameForCurrentScrollState(openingFrame: openingFrame,
+                                                        screenVisibleFrame: visibleFrame)
+            updateActivePanelFrame(frame, panel: panel, iconFrame: iconFrame)
+            return true
+        }
+
+        if activePanelDockwardSlide < maximumSlide, slideDelta > 0 {
+            // Let AppKit apply trackpad acceleration, then transfer its actual
+            // clip-view offset into panel expansion.
+            DispatchQueue.main.async { [weak self] in
+                self?.advancePanelUsingScrollView()
+            }
+            return false
+        }
+
+        advancePanelRightEdge(by: slideDelta)
+        return true
+    }
+
+    private func advancePanelUsingScrollView() {
+        guard let panel,
+              panel.isVisible,
+              let iconFrame = activeIconFrame,
+              let scrollView = horizontalScrollView(in: panel.contentViewController?.view)
+        else { return }
+
+        let visibleFrame = visibleFrameForScreen(containing: iconFrame)
+        let openingMinX = activePanelOpeningFrame?.minX ?? panel.frame.minX
+        let maximumSlide = max(0, openingMinX - visibleFrame.minX - DockPreviewSupport.edgePadding)
+        let availableSlide = max(0, maximumSlide - activePanelDockwardSlide)
+        let currentOffset = max(0, scrollView.contentView.bounds.origin.x)
+        guard currentOffset > 0.25, availableSlide > 0 else { return }
+
+        let consumed = min(currentOffset, availableSlide)
+        activePanelDockwardSlide += consumed
+        var clipOrigin = scrollView.contentView.bounds.origin
+        clipOrigin.x = currentOffset - consumed
+        scrollView.contentView.scroll(to: clipOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        activePanelCardScroll = clipOrigin.x
+        syncPanelFrameToScrollView()
+    }
+
+    private func advancePanelRightEdge(by delta: CGFloat) {
+        guard let panel,
+              panel.isVisible,
+              let scrollView = horizontalScrollView(in: panel.contentViewController?.view),
+              let documentView = scrollView.documentView else { return }
+
+        let currentOffset = max(0, scrollView.contentView.bounds.origin.x)
+        let naturalMaximumOffset = max(0, documentView.bounds.width - scrollView.contentView.bounds.width)
+        let maximumOffset = activePanelMaximumCardScroll ?? naturalMaximumOffset
+        let nextOffset = min(maximumOffset, max(0, currentOffset + delta))
+        var clipOrigin = scrollView.contentView.bounds.origin
+        clipOrigin.x = nextOffset
+        scrollView.contentView.scroll(to: clipOrigin)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        activePanelCardScroll = nextOffset
+        syncPanelFrameToScrollView()
+    }
+
+    private func syncPanelFrameToScrollView() {
+        guard orientation == .bottom,
+              let panel,
+              panel.isVisible,
+              let openingFrame = activePanelOpeningFrame,
+              let iconFrame = activeIconFrame,
+              let scrollView = horizontalScrollView(in: panel.contentViewController?.view),
+              let documentView = scrollView.documentView else { return }
+
+        let visibleFrame = visibleFrameForScreen(containing: iconFrame)
+        // The scroll document includes the row's trailing panelPadding, so
+        // align its end with the panel edge to leave exactly that inset after
+        // the last card.
+        let documentRightTarget = panel.frame.maxX
+        let actualOffset = max(0, scrollView.contentView.bounds.origin.x)
+        let documentEndInWindow = documentView.convert(
+            CGPoint(x: documentView.bounds.maxX, y: documentView.bounds.midY),
+            to: nil
+        )
+        let documentEndOnScreen = panel.convertPoint(toScreen: documentEndInWindow).x
+
+        if activePanelMaximumCardScroll == nil, actualOffset > 0.25 {
+            activePanelMaximumCardScroll = max(0, actualOffset + documentEndOnScreen - documentRightTarget)
+        }
+
+        let cardOffset = min(actualOffset, activePanelMaximumCardScroll ?? actualOffset)
+        if cardOffset < actualOffset - 0.25 {
+            var clipOrigin = scrollView.contentView.bounds.origin
+            clipOrigin.x = cardOffset
+            scrollView.contentView.scroll(to: clipOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+        activePanelCardScroll = cardOffset
+
+        let frame = panelFrameForCurrentScrollState(openingFrame: openingFrame,
+                                                    screenVisibleFrame: visibleFrame)
+        updateActivePanelFrame(frame, panel: panel, iconFrame: iconFrame)
+    }
+
+    private func panelFrameForCurrentScrollState(openingFrame: CGRect,
+                                                screenVisibleFrame: CGRect) -> CGRect {
+        DockPreviewSupport.panelFrameAfterDockwardSlide(
+            openingFrame: openingFrame,
+            distance: activePanelDockwardSlide,
+            screenVisibleFrame: screenVisibleFrame
+        )
+    }
+
+    private func horizontalScrollView(in view: NSView?) -> NSScrollView? {
+        guard let view else { return nil }
+        if let scrollView = view as? NSScrollView { return scrollView }
+        for child in view.subviews {
+            if let scrollView = horizontalScrollView(in: child) { return scrollView }
+        }
+        return nil
+    }
+
+    private func updateActivePanelFrame(_ frame: CGRect,
+                                        panel: NSPanel,
+                                        iconFrame: CGRect) {
+        guard frame != panel.frame else { return }
+        activePanelFrame = frame
+        activeCorridor = DockPreviewSupport.hoverCorridor(iconFrame: iconFrame,
+                                                          panelFrame: frame,
+                                                          orientation: orientation)
+        panel.setFrame(frame, display: true, animate: false)
     }
 
     private func beginDockAutohideHold() {
@@ -1341,6 +1532,24 @@ final class DockPreviewService: ObservableObject {
             magnification: boolValue(domain["magnification"]),
             magnifiedTileSize: doubleValue(domain["largesize"])
         )
+    }
+
+    private var currentPanelPlacement: DockPreviewPanelPlacement {
+        DockPreviewPanelPlacement.sanitized(
+            UserDefaults.standard.string(forKey: DefaultsKey.dockPreviewPanelPlacement)
+        )
+    }
+
+    func panelPlacementDidChange() {
+        activePanelDockwardSlide = 0
+        activePanelCardScroll = 0
+        activePanelMaximumCardScroll = nil
+        if orientation == .bottom,
+           let scrollView = panel.flatMap({ horizontalScrollView(in: $0.contentViewController?.view) }) {
+            scrollView.contentView.scroll(to: .zero)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+        resizePanelForCurrentWindows()
     }
 
     private func boolValue(_ value: Any?) -> Bool? {
