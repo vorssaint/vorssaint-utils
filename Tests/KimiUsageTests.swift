@@ -88,5 +88,6 @@ enum KimiUsageTests {
                          "Kimi failures have distinct explanations in \(language.rawValue)")
         }
         KimiCLIAuthTests.run(suite)
+        KimiReaderTests.run(suite)
     }
 }
