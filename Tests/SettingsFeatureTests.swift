@@ -22,31 +22,60 @@ enum SettingsFeatureTests {
         }
     }
 
-    static func run(_ suite: TestSuite) {
+    /// Boundaries of the production command closures and the island view.
+    enum SearchCommands {
+        static let router = SettingsRouter()
+
+        static func openSettings(at destination: FeatureSettingsDestination, targetFeature: AppFeature?,
+                                 sidebarFeature: AppFeature?) {
+            router.request(destination, targetFeature: targetFeature, sidebarFeature: sidebarFeature)
+        }
+    }
+
+    final class IslandSettings {
+        let router: SettingsRouter
+        var tab = NotchSettingsTab.layout
+        var selectedModule = NotchModule.controls
+
+        init(router: SettingsRouter) { self.router = router }
+    }
+
+    private static func search(_ suite: TestSuite) {
+        let domain = "settings.search.tests." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.setPersistentDomain([
+            DefaultsKey.notchIdleContent: NotchIdleContent.battery.rawValue,
+            DefaultsKey.notchLowBatteryTint: true, DefaultsKey.notchLowBatteryEarly: true,
+            DefaultsKey.notchLyricsEnabled: true, DefaultsKey.notchShelf: true,
+            DefaultsKey.notchClipboardWindow: true, DefaultsKey.monitorAlertDisk: true,
+            DefaultsKey.monitorAlertBattery: true, DefaultsKey.monitorAlertBatteryTemperature: true,
+        ], forName: domain)
+
+        func state(battery: Bool = true) -> SettingsSearchState {
+            SettingsSearchState(defaults: defaults, hardware: .init(
+                battery: battery, notchedDisplay: true, plainDisplay: false,
+                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true))
+        }
         for (language, strings) in LocalizationTests.languages {
-            let mouse = SettingsDirectory.sections(strings, language: language, hasInternalBattery: true)
+            let mouse = SettingsDirectory.sections(strings, language: language, state: state())
                 .flatMap(\.items).first { $0.page == .mouse }!
-            let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
-                .filter { $0.1 == .scrollZoom }.map(\.0)
+            let zoomKeywords = mouse.terms.filter { $0.feature == .scrollZoom }.flatMap(\.titles)
             suite.expect(zoomKeywords == [strings.zoomSection,
                                            strings.pinchZoom],
                          "settings discovery includes every Zoom row in \(language.rawValue)")
             for query in [strings.zoomSection, strings.pinchZoom] {
-                suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: mouse.keywords),
+                suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: zoomKeywords),
                              "search finds a localized Zoom option on the Mouse page")
             }
             let sidebar = SettingsSidebarSupport.items(page: .mouse, title: mouse.title, icon: mouse.icon,
-                preferredFeatures: mouse.keywordFeatures.compactMap { $0 }, includePage: false,
+                preferredFeatures: mouse.terms.compactMap(\.feature), includePage: false,
                 isAvailable: { _ in true }, featureTitle: { $0.rawValue })
             suite.expect(sidebar.prefix(3).map(\.id) == [.feature(.scrollInverter), .feature(.scrollHorizontal), .feature(.scrollZoom)],
                          "the sidebar places Zoom beside scrolling in \(language.rawValue)")
         }
         func directory(battery: Bool) -> [SettingsSearchItem] {
-            SettingsDirectory.sections(.enUS, language: .enUS, hasInternalBattery: battery).flatMap(\.items).map {
-                SettingsSearchItem(id: .page($0.page), destination: FeatureSettingsDestination($0.page),
-                                   title: $0.title, icon: $0.icon,
-                                   keywords: $0.keywords, keywordFeatures: $0.keywordFeatures)
-            }
+            SettingsDirectory.searchItems(.enUS, language: .enUS, state: state(battery: battery))
         }
         let alerts = FeatureStrings.monitorAlerts(.enUS)
         for query in ["storage", "low storage", "free space", "warn"] {
@@ -115,6 +144,89 @@ enum SettingsFeatureTests {
                      "searching \"jiggle\" offers the Keep Awake pointer movement")
         suite.expect(pages(of: Strings.enUS.monitorIntervalLabel, query: "interval").contains(.monitor),
                      "searching \"interval\" offers the Monitor update interval")
+        func verify(_ label: String, query: String? = nil, opens destination: FeatureSettingsDestination,
+                    commandID: String, shown: Bool = true, without missing: Set<AppFeature> = [],
+                    language: AppLanguage = .enUS) {
+            let strings = Strings.localized(language)
+            let items = SettingsDirectory.searchItems(strings, language: language, state: state())
+            let available = { (feature: AppFeature) in !missing.contains(feature) }
+            let query = query ?? label
+            let suggestions = SettingsSearchSupport.groupedMatchingItems(query: query, items: items, isAvailable: available)
+                .flatMap(\.suggestions).filter { $0.title == label }
+            let routes = suggestions.map { SettingsSearchSupport.route(for: $0, isAvailable: available).destination }
+            suite.expect(routes.contains(destination) == shown, "Settings visibility and route for \(query) (shown: \(shown))")
+
+            var actions = [CommandBarEntry(id: "action.openSettings", title: "Open Settings",
+                                           subtitle: "", icon: .symbol("gearshape"), run: { _ in
+                SearchCommands.router.request(FeatureSettingsDestination(.general))
+            })]
+            let entries = SearchCommands.settingsEntries(items, language: language, settingsTitle: strings.settingsTitle,
+                                                        actions: &actions, isAvailable: available) + actions
+            suite.expect(Set(entries.map(\.id)).count == entries.count, "each settings command has one stable id")
+            let command = entries.first {
+                $0.id == commandID && CommandBarSearch.matches(title: $0.title, keywords: $0.keywords, query: query)
+            }
+            suite.expect((command != nil) == shown, "command bar visibility for \(query) (shown: \(shown))")
+            if shown, let command {
+                SearchCommands.router.request(FeatureSettingsDestination(.about))
+                command.run(nil)
+                suite.expect(SearchCommands.router.destination == destination, "running \(command.id) opens \(destination)")
+                if let location = destination.notchLocation {
+                    let island = IslandSettings(router: SearchCommands.router)
+                    island.revealDestination()
+                    suite.expect(island.tab == location.tab, "the island reveals the requested tab")
+                    if case .module(let module) = location {
+                        suite.expect(island.selectedModule == module, "the island reveals \(module) inside Content")
+                    }
+                }
+            }
+        }
+
+        let monitor = FeatureSettingsDestination(.monitor)
+        let colors = FeatureStrings.menuBarAppearance(.enUS)
+        for bars in [false, true, false] {
+            defaults.set(bars ? "bars" : "values", forKey: DefaultsKey.menuBarMetricAppearance)
+            verify(colors.normalColor, opens: monitor, commandID: "settings.monitor", shown: bars)
+            verify(Strings.enUS.monitorCombineTemperatures, opens: monitor, commandID: "settings.monitor", shown: !bars)
+        }
+
+        let monitorAlerts = FeatureSettingsDestination(.monitor, sectionAnchor: .monitorAlerts)
+        let alertID = "settings.setting.monitorAlerts"
+        verify(alerts.disk, query: "ssd", opens: monitorAlerts, commandID: alertID)
+        verify(alerts.disk, query: "ssd", opens: monitorAlerts, commandID: alertID, shown: false, without: [.monitorDisk])
+        verify(alerts.diskThreshold, opens: monitorAlerts, commandID: alertID)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertDisk)
+        verify(alerts.diskThreshold, opens: monitorAlerts, commandID: alertID, shown: false)
+        verify(alerts.disk, opens: monitorAlerts, commandID: alertID)
+
+        let musicDestination = FeatureSettingsDestination(notch: .module(.music))
+        verify(music.online, opens: musicDestination, commandID: "settings.feature.notchLyrics")
+        defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
+        verify(music.online, opens: musicDestination, commandID: "settings.feature.notchLyrics", shown: false)
+        verify(music.enableLyrics, opens: musicDestination, commandID: "settings.notch.content.music", without: [.notchLyrics])
+        for language in [AppLanguage.ptBR, .enUS] {
+            let lead = FeatureStrings.notchCalendar(language).countdownLead
+            let destination = FeatureSettingsDestination(notch: .module(.calendar))
+            verify(lead, opens: destination, commandID: "settings.feature.notchCalendar", language: language)
+            verify(lead, opens: destination, commandID: "settings.feature.notchCalendar", shown: false,
+                   without: [.notchCalendar], language: language)
+        }
+        verify(Strings.enUS.hotkeyToggle, opens: FeatureSettingsDestination(.general), commandID: "action.openSettings")
+        verify(Strings.enUS.hotkeyToggle, opens: FeatureSettingsDestination(.general), commandID: "action.openSettings",
+               shown: false, without: [.keepAwake])
+        suite.expect(pages(of: Strings.enUS.hotkeyToggle) == [.general],
+                     "the Keep Awake switch in General does not lead to Shortcuts")
+        let keys = FeatureStrings.brightness(.enUS).keyboardBrightnessShortcuts
+        let keyDestination = FeatureSettingsDestination(.shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
+        verify(keys, opens: keyDestination, commandID: "settings.setting.keyboardBrightnessShortcuts")
+        verify(keys, opens: keyDestination, commandID: "settings.setting.keyboardBrightnessShortcuts",
+               shown: false, without: [.brightness])
+        suite.expect(pages(of: keys, without: [.brightness]).isEmpty,
+                     "a missing utility has a Features row but its shortcut control has none")
+    }
+
+    static func run(_ suite: TestSuite) {
+        search(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }

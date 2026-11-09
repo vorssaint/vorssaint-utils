@@ -3,30 +3,71 @@
 
 import Foundation
 
+/// Only values that change which controls exist belong in the search cache key.
+struct SettingsSearchState: Equatable {
+    struct Hardware: Equatable {
+        let battery, notchedDisplay, plainDisplay, keyboardLight, bluetoothSleep, brightnessOSD: Bool
+    }
+
+    let hardware: Hardware
+    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows: Bool
+    private let switches: Set<String>
+
+    init(defaults: UserDefaults, hardware: Hardware) {
+        self.hardware = hardware
+        bars = defaults.string(forKey: DefaultsKey.menuBarMetricAppearance) == "bars"
+        batteryRest = defaults.string(forKey: DefaultsKey.notchIdleContent) == NotchIdleContent.battery.rawValue
+        capsule = defaults.string(forKey: DefaultsKey.notchSilhouette) != NotchSilhouette.notch.rawValue
+        customSize = defaults.string(forKey: DefaultsKey.notchSize) == NotchSize.custom.rawValue
+        minimalMascot = (NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "")
+            ?? .minimal) == .minimal
+        groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
+            ?? WindowSwitchMinimizedPlacement.normal.rawValue) != WindowSwitchMinimizedPlacement.normal.rawValue
+        switches = Set([
+            DefaultsKey.clamshellPreferred, DefaultsKey.keepAwakeMouseJiggleEnabled, DefaultsKey.brightnessControlEnabled,
+            DefaultsKey.bluetoothSleepEnabled, DefaultsKey.dockPreviewEnabled, DefaultsKey.switcherSimpleMode,
+            DefaultsKey.switcherIconRowMode, DefaultsKey.notchLyricsEnabled, DefaultsKey.notchShelf,
+            DefaultsKey.notchClipboardWindow, DefaultsKey.notchLowBatteryTint, DefaultsKey.notchLowBatteryEarly,
+            DefaultsKey.notchHideInFullscreen, DefaultsKey.notchHoverInFullscreen, DefaultsKey.notchOpenOnHover,
+            DefaultsKey.notchHideUntilHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchAgentsClaude,
+            DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsLimitAlert,
+            DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
+            DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
+            DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
+        ].filter { defaults.bool(forKey: $0) })
+    }
+
+    func on(_ key: String) -> Bool { switches.contains(key) }
+}
+
+extension SettingsSearchState {
+    static var current: Self {
+        Self(defaults: .standard, hardware: Hardware(
+            battery: PowerSampler.hasInternalBattery, notchedDisplay: NotchSupport.hasNotchedDisplay,
+            plainDisplay: NotchSupport.hasDisplayWithoutNotch, keyboardLight: BrightnessService.keyboardLightIsSupported,
+            bluetoothSleep: BluetoothSleepService.isSupported,
+            brightnessOSD: AppFeature.brightness.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
+                && BrightnessService.shared.brightnessOSDSupported))
+    }
+}
+
 /// One Settings page as the sidebar and the command bar present it.
 struct SettingsDirectoryItem: Identifiable {
     let page: SettingsPage
     let title: String
     let icon: String
-    /// Labels of options living inside the page, so a search finds a page by
-    /// what it contains, in the user's language.
-    var keywords: [String] = []
-    /// The feature each keyword's control needs, so search offers it only
-    /// while the page shows it. `nil` means the page always shows it.
-    var keywordFeatures: [AppFeature?] = []
+    let terms: [SettingsSearchTerms]
     var id: SettingsPage { page }
 
     init(page: SettingsPage, title: String, icon: String,
          keywords: [String] = [],
-         featureKeywords: [(feature: AppFeature, titles: [String])] = []) {
+         featureKeywords: [(feature: AppFeature, titles: [String])] = [],
+         terms: [SettingsSearchTerms] = []) {
         self.page = page
         self.title = title
         self.icon = icon
-        self.keywords = keywords + featureKeywords.flatMap(\.titles)
-        keywordFeatures = Array(repeating: nil, count: keywords.count)
-            + featureKeywords.flatMap { entry in
-                Array(repeating: Optional(entry.feature), count: entry.titles.count)
-            }
+        self.terms = [SettingsSearchTerms(keywords)]
+            + featureKeywords.map { SettingsSearchTerms($0.titles, feature: $0.feature) } + terms
     }
 }
 
@@ -48,12 +89,12 @@ enum SettingsDirectory {
         let hub = FeatureStrings.hub(language)
         let grouped: [SettingsSidebarSection] = sections(
             s, language: language, superKeySource: superKeySource,
-            hasInternalBattery: PowerSampler.hasInternalBattery
+            state: .current
         ).enumerated().compactMap { index, section -> SettingsSidebarSection? in
                 let items = section.items.flatMap { pageItem -> [SettingsSidebarItem] in
                     var rows = SettingsSidebarSupport.items(
                         page: pageItem.page, title: pageItem.title, icon: pageItem.icon,
-                        preferredFeatures: pageItem.keywordFeatures.compactMap { $0 },
+                        preferredFeatures: pageItem.terms.compactMap(\.feature),
                         includePage: !toolOnlyPages.contains(pageItem.page),
                         isAvailable: isAvailable) { feature in
                             if feature == .clipboardHistory {
@@ -138,16 +179,16 @@ enum SettingsDirectory {
     /// Destination-aware rows for focused Settings and Command Bar search.
     static func searchItems(_ s: Strings,
                             language: AppLanguage,
-                            superKeySource: SuperKeySource = SuperKeyService.shared.source) -> [SettingsSearchItem] {
+                             superKeySource: SuperKeySource = SuperKeyService.shared.source,
+                             state: SettingsSearchState = .current) -> [SettingsSearchItem] {
         let pageItems = sections(s, language: language, superKeySource: superKeySource,
-                                 hasInternalBattery: PowerSampler.hasInternalBattery)
+                                 state: state)
             .flatMap(\.items).map { item in
                 SettingsSearchItem(id: .page(item.page),
                                    destination: FeatureSettingsDestination(item.page),
                                    title: item.title,
                                    icon: item.icon,
-                                   keywords: item.keywords,
-                                   keywordFeatures: item.keywordFeatures)
+                                   terms: item.terms)
             }
         let hub = FeatureStrings.hub(language)
         let featureItems = SettingsSearchSupport.featureItems(language: language) { feature in
@@ -162,22 +203,38 @@ enum SettingsDirectory {
             title: s.menuBarSection, icon: "menubar.rectangle",
             keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle,
                        FeatureStrings.generalSettings(language).iconMissingTitle, "SF Symbols"]))
-        if BrightnessService.keyboardLightIsSupported {
+        let alerts = FeatureStrings.monitorAlerts(language)
+        items.append(SettingsSearchItem(
+            id: .setting(.monitorAlerts), destination: FeatureSettingsDestination(.monitor, sectionAnchor: .monitorAlerts),
+            title: alerts.section, icon: "bell", keywords: [alerts.cooldown], terms: [
+                .init([alerts.cpu, alerts.cpuTemperature], feature: .monitorCPU),
+                .init([alerts.cpuThreshold], feature: .monitorCPU, when: state.on(DefaultsKey.monitorAlertCPU)),
+                .init([alerts.cpuTemperatureThreshold], feature: .monitorCPU, when: state.on(DefaultsKey.monitorAlertCPUTemperature)),
+                .init([alerts.memory], feature: .monitorMemory),
+                .init([alerts.disk], feature: .monitorDisk),
+                .init([alerts.diskThreshold], feature: .monitorDisk, when: state.on(DefaultsKey.monitorAlertDisk)),
+                .init([alerts.battery, alerts.batteryTemperature], feature: .monitorPower, when: state.hardware.battery),
+                .init([alerts.batteryThreshold], feature: .monitorPower,
+                      when: state.hardware.battery && state.on(DefaultsKey.monitorAlertBattery)),
+                .init([alerts.batteryTemperatureThreshold], feature: .monitorPower,
+                      when: state.hardware.battery && state.on(DefaultsKey.monitorAlertBatteryTemperature)),
+            ]))
+        if state.hardware.keyboardLight {
             items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
         }
         return items
     }
 
-    /// The caller says whether this Mac has a battery, as its battery
-    /// settings show only then.
     static func sections(_ s: Strings,
                          language: AppLanguage,
                          superKeySource: SuperKeySource = SuperKeyService.shared.source,
-                         hasInternalBattery: Bool)
+                         state: SettingsSearchState)
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         let quitProtection = FeatureStrings.quitProtection(language)
-        let monitorAlerts = FeatureStrings.monitorAlerts(language)
+        let brightness = FeatureStrings.brightness(language)
+        let bluetooth = FeatureStrings.bluetoothSleep(language)
+        let barStyle = FeatureStrings.menuBarAppearance(language)
         let previews = FeatureStrings.windowPreviewExclusions(language)
         let notch = FeatureStrings.notch(language)
         let notchEditor = FeatureStrings.notchEditor(language)
@@ -188,9 +245,67 @@ enum SettingsDirectory {
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
-            liquidGlass = [FeatureStrings.appearance(language).liquidGlass]
+            liquidGlass = [FeatureStrings.appearance(language).liquidGlass,
+                           FeatureStrings.generalSettings(language).liquidGlassOtherWindows]
         }
 #endif
+        let mascot = FeatureStrings.notchMascot(language)
+        let activities = FeatureStrings.notchActivities(language)
+        let lockScreen = FeatureStrings.notchLockScreen(language)
+        let hover = state.on(DefaultsKey.notchOpenOnHover)
+        let hideFullscreen = state.on(DefaultsKey.notchHideInFullscreen)
+        let hoverDelay = hover || (hideFullscreen && state.on(DefaultsKey.notchHoverInFullscreen))
+        let batteryRest = state.hardware.battery && state.batteryRest
+        let tintedBattery = batteryRest && state.on(DefaultsKey.notchLowBatteryTint)
+        let islandTerms: [SettingsSearchTerms] = [
+            .init([notchEditor.layout, notch.size, notch.translucentBackground, notch.showOutline], notch: .layout),
+            .init([notch.width, notch.maximumHeight], notch: .layout, when: state.customSize),
+            .init([notch.cameraFit, notch.hideMenuBarGap, notch.width, notch.height],
+                  notch: .layout, when: state.hardware.notchedDisplay),
+            .init([notch.withoutNotch], notch: .layout, when: state.hardware.plainDisplay),
+            .init([notch.capsuleFit, notch.width, notch.height, notch.fromTop],
+                  notch: .layout, when: state.hardware.plainDisplay && state.capsule),
+            .init([activities.keepAwakeActivity], notch: .module(.controls)),
+            .init([notch.playingMusic, notchMusic.includeOtherPlayers, notchMusic.showVolume, notchMusic.preferredPlayer,
+                   notchMusic.enableLyrics, notchMusic.browserCovers, notchMusic.enableQueue, notchMusic.liveEqualizer,
+                   "music"], notch: .module(.music)),
+            .init([notchMusic.online], feature: .notchLyrics, notch: .module(.music), when: state.on(DefaultsKey.notchLyricsEnabled)),
+            .init([notchCalendar.countdown, notchCalendar.countdownLead, notchCalendar.timeLeft, notchCalendar.weekNumbers],
+                  feature: .notchCalendar, notch: .module(.calendar)),
+            .init([FeatureStrings.notchNotifications(language).hideSystemBanner], feature: .notchNotifications, notch: .module(.notifications)),
+            .init([activities.soundEnabled, activities.hideTimerCountdown], feature: .notchTimer, notch: .module(.timer)),
+            .init([notch.dragReveal], feature: .shelf, notch: .module(.files), when: state.on(DefaultsKey.notchShelf)),
+            .init([notch.clipboardActivity, "clipboard"], feature: .clipboardHistory, notch: .module(.clipboard)),
+            .init([FeatureStrings.notchClipboardSize(language).entrySize], feature: .clipboardHistory,
+                  notch: .module(.clipboard), when: state.on(DefaultsKey.notchClipboardWindow)),
+            .init(["camera"], feature: .cameraPreview, notch: .module(.camera)),
+            .init([notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens", notchAgents.resetsCard,
+                   notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
+                   notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
+            .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
+            .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
+            .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
+            .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,
+                  notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
+            .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
+                   notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
+            .init([notchLowBattery.title], feature: .monitorPower, notch: .activity, when: batteryRest),
+            .init([notchLowBattery.threshold, notchLowBattery.early, notchLowBattery.menuBar],
+                  feature: .monitorPower, notch: .activity, when: tintedBattery),
+            .init([notchLowBattery.earlyThreshold], feature: .monitorPower, notch: .activity,
+                  when: tintedBattery && state.on(DefaultsKey.notchLowBatteryEarly)),
+            .init([notchEditor.behavior, notchEditor.opening, s.quickToolShortcutToggle,
+                   FeatureStrings.notchGestures(language).title, notch.hapticFeedback, notchEditor.reopening,
+                   notchEditor.openActivity, notch.display, notch.hideInFullscreen, notchEditor.destinations,
+                   notch.panel, notch.tools, notch.files, notch.captures, notchEditor.privacy, notch.showInCaptures,
+                   notchEditor.hideMenuBarIcon], notch: .behavior),
+            .init([notchEditor.hiddenShowsActivity], notch: .behavior, when: hover && state.on(DefaultsKey.notchHideUntilHover)),
+            .init([notchEditor.activationTime], notch: .behavior, when: hoverDelay),
+            .init([notchEditor.closeTime], notch: .behavior, when: hoverDelay && state.on(DefaultsKey.notchHoverExpands)),
+            .init([notch.hoverInFullscreen], notch: .behavior, when: hideFullscreen),
+        ] + [AppFeature.screenshot, .screenRecorder, .screenOCR, .colorPicker].map {
+            SettingsSearchTerms([notch.captureActivity], feature: $0, notch: .module(.captures))
+        }
         return [
             (categories.essentials, [
                 SettingsDirectoryItem(page: .general, title: s.tabGeneral, icon: "gearshape",
@@ -205,7 +320,7 @@ enum SettingsDirectory {
                                         (.mixer, [s.mixerSection]),
                                         (.soundOutputSwitcher, [s.soundOutputSwitcherTitle]),
                                         (.audioPriority, [s.audioPrioritySection]),
-                                        (.keepAwake, [s.globalHotkeySection]),
+                                        (.keepAwake, [s.globalHotkeySection, s.hotkeyToggle]),
                                        ]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.
@@ -230,43 +345,37 @@ enum SettingsDirectory {
                                                       FeatureStrings.keepAwakeDisplaySleep(language)
                                                         .allowDisplaySleep,
                                                       s.keepAwakeOptions, s.keepAwakeAutoStart,
-                                                      s.keepAwakeRightClickToggle, s.keepAwakeMouseJiggle,
-                                                      s.dimScreenOnLidCloseTitle]
-                                                     + (hasInternalBattery ? [s.batteryDisableBelow] : [])),
-                                        (.brightness, [FeatureStrings.brightness(language).pageTitle,
-                                                       FeatureStrings.brightness(language).osdToggle,
-                                                       FeatureStrings.brightness(language).keyStep,
-                                                       FeatureStrings.brightness(language).keyStepHalf,
-                                                       FeatureStrings.brightness(language).keyStepQuarter,
-                                                       FeatureStrings.brightness(language).enable,
-                                                       FeatureStrings.brightness(language).keysToggle,
-                                                       FeatureStrings.brightness(language)
-                                                        .displayBrightnessShortcuts]),
+                                                      s.keepAwakeRightClickToggle, s.keepAwakeMouseJiggle]),
+                                        (.brightness, [brightness.pageTitle, brightness.enable]),
                                         (.extraBrightness, [s.extraBrightnessName]),
-                                        (.bluetoothSleep, [FeatureStrings.bluetoothSleep(language).pageTitle,
-                                                           FeatureStrings.bluetoothSleep(language).enable,
-                                                           FeatureStrings.bluetoothSleep(language).restoreToggle]),
+                                        (.bluetoothSleep, [bluetooth.pageTitle]),
+                                       ], terms: [
+                                        .init([s.dimScreenOnLidCloseTitle], feature: .keepAwake,
+                                              when: state.on(DefaultsKey.clamshellPreferred)),
+                                        .init([s.keepAwakeMouseJiggleInterval], feature: .keepAwake,
+                                              when: state.on(DefaultsKey.keepAwakeMouseJiggleEnabled)),
+                                        .init([s.batteryDisableBelow], feature: .keepAwake, when: state.hardware.battery),
+                                        .init([brightness.keyStep, brightness.keyStepHalf, brightness.keyStepQuarter,
+                                               brightness.keysToggle, brightness.displayBrightnessShortcuts],
+                                              feature: .brightness, when: state.on(DefaultsKey.brightnessControlEnabled)),
+                                        .init([brightness.osdToggle], feature: .brightness,
+                                              when: state.hardware.brightnessOSD && state.on(DefaultsKey.brightnessControlEnabled)),
+                                        .init([bluetooth.enable], feature: .bluetoothSleep, when: state.hardware.bluetoothSleep),
+                                        .init([bluetooth.restoreToggle], feature: .bluetoothSleep,
+                                              when: state.hardware.bluetoothSleep && state.on(DefaultsKey.bluetoothSleepEnabled)),
                                        ]),
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
-                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle,
-                                                  monitorAlerts.section, monitorAlerts.cooldown,
-                                                  FeatureStrings.menuBarAppearance(language).label,
-                                                  s.monitorCombineTemperatures, s.monitorSeparateMenuBarMetrics,
-                                                  s.monitorIntervalLabel, s.temperatures,
-                                                  GraphScaleStrings.localized(language).title],
+                                       keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle, barStyle.label,
+                                                  barStyle.bars, barStyle.values, s.monitorSeparateMenuBarMetrics,
+                                                  s.monitorIntervalLabel, s.temperatures, GraphScaleStrings.localized(language).title],
                                        featureKeywords: [
-                                        (.monitorCPU, [monitorAlerts.cpu, monitorAlerts.cpuThreshold,
-                                                       monitorAlerts.cpuTemperature,
-                                                       monitorAlerts.cpuTemperatureThreshold]),
-                                        (.monitorMemory, [s.monitorMemoryPressureDot, monitorAlerts.memory,
-                                                          s.monitorMemoryMetricLabel]),
-                                        (.monitorDisk, [monitorAlerts.disk, monitorAlerts.diskThreshold]),
-                                        (.monitorPower, hasInternalBattery
-                                            ? [monitorAlerts.battery, monitorAlerts.batteryThreshold,
-                                               monitorAlerts.batteryTemperature,
-                                               monitorAlerts.batteryTemperatureThreshold] : []),
+                                        (.monitorMemory, [s.monitorMemoryPressureDot, s.monitorMemoryMetricLabel]),
                                         (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
+                                       ], terms: [
+                                        .init([s.monitorCombineTemperatures], when: !state.bars),
+                                        .init([barStyle.customize, barStyle.normalColor, barStyle.mediumColor, barStyle.highColor,
+                                               barStyle.mediumFrom, barStyle.highFrom], when: state.bars),
                                        ]),
             ]),
             (categories.windowsControls, [
@@ -305,7 +414,7 @@ enum SettingsDirectory {
                                                      s.switcherIgnoreHoverSelection,
                                                      FeatureStrings.switcherShortcuts(language).allWindows,
                                                      s.switcherWindowlessApps,
-                                                     s.switcherShowShortcutHints, s.switcherMaxColumns,
+                                                     s.switcherMaxColumns,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
                                                      FeatureStrings.switcherAppRules(language)
                                                         .showWithoutWindows,
@@ -315,28 +424,30 @@ enum SettingsDirectory {
                                                      s.switcherAppearanceDelay, s.switcherSearchPin,
                                                      s.switcherMergeTabs, s.switcherShowFullscreenWindows,
                                                      s.switcherMinimizedPlacementLabel,
-                                                     s.switcherTreatHiddenAppsLikeMinimized,
                                                      s.switcherScreenPlacementLabel, s.switcherCurrentDisplayOnly,
                                                      s.switcherCurrentSpaceOnly,
                                                      previews.sectionTitle, s.minimalWindowPreviews,
                                                      previews.listTitle]),
+                                       ], terms: [
+                                        .init([s.switcherTreatHiddenAppsLikeMinimized], feature: .switcher,
+                                              when: state.groupsMinimizedWindows),
+                                        .init([s.switcherShowShortcutHints], feature: .switcher,
+                                              when: state.on(DefaultsKey.switcherSimpleMode) || state.on(DefaultsKey.switcherIconRowMode)),
                                        ]),
                 SettingsDirectoryItem(page: .dock, title: FeatureStrings.settingsPages(language).dockTitle,
                                        icon: "dock.rectangle",
                                        featureKeywords: [
-                                        (.dockPreview, [s.dockPreviewName, s.dockPreviewEnable,
-                                                        s.dockPreviewOpenDelay,
-                                                        s.dockPreviewBackgroundOpacity,
-                                                        s.dockPreviewQuitAppOnClose,
-                                                        s.dockPreviewKeepDockVisible,
-                                                        s.dockPreviewOrderByCreation,
-                                                        s.switcherCurrentSpaceOnly,
-                                                        previews.sectionTitle, s.minimalWindowPreviews,
-                                                        previews.listTitle]),
+                                        (.dockPreview, [s.dockPreviewName, s.dockPreviewEnable, previews.sectionTitle,
+                                                        s.minimalWindowPreviews, previews.listTitle]),
                                         (.dockClick, [FeatureStrings.hub(language).titleDockClick,
                                                       s.dockClickMinimize, s.dockClickHide,
                                                       s.dockClickCycleWindows]),
                                         (.spacesOrder, [s.spacesOrderName]),
+                                       ], terms: [
+                                        .init([s.dockPreviewOpenDelay, s.dockPreviewBackgroundOpacity,
+                                               s.dockPreviewQuitAppOnClose, s.dockPreviewKeepDockVisible,
+                                               s.dockPreviewOrderByCreation, s.switcherCurrentSpaceOnly], feature: .dockPreview,
+                                              when: state.on(DefaultsKey.dockPreviewEnabled)),
                                        ]),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
@@ -431,63 +542,15 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .notch,
                                       title: notch.title,
                                       icon: "macbook",
-                                      keywords: [notch.description,
-                                                 notchEditor.hideMenuBarIcon,
-                                                 FeatureStrings.notchActivities(language).keepAwakeActivity,
-                                                 "notch", "camera", "music", "clipboard",
-                                                 notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens",
-                                                 notchAgents.resetsCard,
-                                                 FeatureStrings.notchLockScreen(language).title,
-                                                 FeatureStrings.notchLockScreen(language).sounds,
-                                                 FeatureStrings.notchLockScreen(language).show,
-                                                 notch.size, notch.translucentBackground, notch.showOutline,
-                                                 notch.playingMusic, notchMusic.includeOtherPlayers,
-                                                 notchMusic.showVolume, notchMusic.preferredPlayer,
-                                                 notchMusic.enableLyrics, notchMusic.browserCovers,
-                                                 notchMusic.enableQueue,
-                                                 notch.files,
-                                                 notchEditor.resting, notch.coverMenus, notchEditor.feedback,
-                                                 notchEditor.opening, notchEditor.hiddenShowsActivity,
-                                                 s.quickToolShortcutToggle, notch.hapticFeedback,
-                                                 notchEditor.reopening, notchEditor.openActivity,
-                                                 notch.display, notch.hideInFullscreen, notch.hoverInFullscreen,
-                                                 notchEditor.destinations, notch.panel, notch.tools, notch.captures,
-                                                 notchEditor.privacy, notch.showInCaptures]
-                                          // The fit card only appears with a camera housing to fit.
-                                          + (NotchSupport.hasNotchedDisplay ? [notch.cameraFit, notch.hideMenuBarGap] : [])
-                                          + (NotchSupport.hasDisplayWithoutNotch
-                                             ? [notch.withoutNotch, notch.capsuleFit] : []),
-                                      featureKeywords: [
-                                        (.notchCalendar, [notchCalendar.countdown, notchCalendar.countdownLead,
-                                                          notchCalendar.timeLeft, notchCalendar.weekNumbers]),
-                                        (.notchNotifications,
-                                         [FeatureStrings.notchNotifications(language).hideSystemBanner]),
-                                        (.notchTimer, [FeatureStrings.notchActivities(language).soundEnabled,
-                                                       FeatureStrings.notchActivities(language).hideTimerCountdown]),
-                                        (.notchLyrics, [notchMusic.online]),
-                                        (.shelf, [notch.dragReveal]),
-                                        (.clipboardHistory, [notch.clipboardActivity,
-                                                             FeatureStrings.notchClipboardSize(language).entrySize]),
-                                        // The captures section shows while any capture tool is on.
-                                        (.screenshot, [notch.captureActivity]),
-                                        (.screenRecorder, [notch.captureActivity]),
-                                        (.screenOCR, [notch.captureActivity]),
-                                        (.colorPicker, [notch.captureActivity]),
-                                        // The low battery colors belong to the battery resting choice, which needs Power.
-                                        (.monitorPower, hasInternalBattery
-                                            ? [notchLowBattery.title, notchLowBattery.early, notchLowBattery.menuBar]
-                                            : []),
-                                        (.notchAgents, [notchAgents.limitsAs, notchAgents.limitFocus,
-                                                        notchAgents.liveActivity, notchAgents.readout,
-                                                        notchAgents.finishAlert, notchAgents.finishAfter,
-                                                        notchAgents.limitAlert, notchAgents.limitAt,
-                                                        notchAgents.budget, notchAgents.priceUpdates,
-                                                        FeatureStrings.claudeAccount(language).title]),
+                                      keywords: [notch.description, "notch"], terms: islandTerms),
+                SettingsDirectoryItem(page: .notchMascot, title: mascot.title,
+                                      icon: AppFeature.notchMascot.symbolName, keywords: mascot.searchKeywords,
+                                      terms: [
+                                        .init([mascot.shape], when: state.minimalMascot),
+                                        .init([mascot.side], when: state.hardware.notchedDisplay || !state.capsule),
+                                        .init([mascot.frequency], when: state.on(DefaultsKey.notchMascotVisits)),
+                                        .init([mascot.opensAs], feature: .commandBar, when: state.on(DefaultsKey.notchCommandBar)),
                                       ]),
-                SettingsDirectoryItem(page: .notchMascot,
-                                      title: FeatureStrings.notchMascot(language).title,
-                                      icon: AppFeature.notchMascot.symbolName,
-                                      keywords: FeatureStrings.notchMascot(language).searchKeywords),
                 SettingsDirectoryItem(page: .commandBar,
                                       title: FeatureStrings.commandBar(language).pageTitle,
                                       icon: "command",
@@ -547,8 +610,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.radialMenu(language).mouseTriggerRequirement]),
             ]),
             (categories.app, [
-                SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
-                                      keywords: [s.hotkeyToggle]),
+                SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command"),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
                                       keywords: [s.reviewIntro, s.reviewHighlights]),

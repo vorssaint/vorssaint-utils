@@ -920,12 +920,20 @@ def main():
     # The raw wheel tap runs as shipped: linear scrolling's cap, carry and
     # write-back, then the direction change. Only the services it asks and
     # the defaults it reads are fixtures.
+    directory = "Sources/Vorssaint/UI/Settings/SettingsDirectory.swift"
     write("ZoomSettingsDirectory.swift", "import Foundation\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "struct SettingsDirectoryItem:")
+          + declaration(directory, "struct SettingsSearchState:")
+          + declaration(directory, "struct SettingsDirectoryItem:")
           + "enum SettingsDirectory {\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "    static func sections(")
-              .replace("SuperKeyService.shared.source", ".capsLock")
-              .replace("$0.hubTitle(s, hub: FeatureStrings.hub(language))", "$0.rawValue")
+          + declaration(directory, "    static func sections(").replace("SuperKeyService.shared.source", ".capsLock")
+          + declaration(directory, "    static func searchItems(").replace("SuperKeyService.shared.source", ".capsLock")
+              .replace("state: SettingsSearchState = .current", "state: SettingsSearchState")
+          + "}\nextension SettingsFeatureTests.SearchCommands {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift", "    private static func settingsEntries(")
+              .replace("private static func", "static func", 1)
+          + "}\nextension SettingsFeatureTests.IslandSettings {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift", "    private func revealDestination()")
+              .replace("private func", "func", 1)
           + "}\n")
     wheel_tap = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func handle(type:",
                             scope="final class ScrollInverter:")
