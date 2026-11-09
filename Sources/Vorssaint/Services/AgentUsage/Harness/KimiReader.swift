@@ -16,8 +16,18 @@ struct KimiReader: AgentHarnessReader {
         // `created_at` instead and opens nothing.
         guard let date = AgentLogParser.seconds(object.value("time")) else { return [] }
         if type == "agent.turn.started" {
+            state.turnOpen = true
             return [.turnBegan(date)]
         }
+        if type == "turn.ended" {
+            // A completed turn is worth a notice; a cancelled one closes the
+            // timer without reporting a finished task.
+            state.turnOpen = false
+            let duration = (object.value("durationMs") as? NSNumber).map { $0.doubleValue / 1000 }
+            return [.turnEnded(date, completed: object.string("reason") == "completed", duration: duration)]
+        }
+        // The records a turn leaves behind after it ends must not reopen it.
+        guard state.turnOpen else { return [] }
         if type == "llm.request" {
             let model = object.string("model") ?? object.string("modelAlias") ?? ""
             guard !model.isEmpty else { return [.turnActive(date)] }

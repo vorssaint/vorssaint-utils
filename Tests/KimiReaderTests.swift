@@ -28,6 +28,18 @@ enum KimiReaderTests {
         suite.expect(reader.parse(step, state: &state, now: now) == [.turnActive(now)],
                      "Kimi's loop activity keeps the turn alive")
 
+        let completed = Data(#"{"type":"turn.ended","agentId":"main","turnId":0,"reason":"completed","durationMs":300000,"time":\#(ms)}"#.utf8)
+        suite.expect(reader.parse(completed, state: &state, now: now) == [.turnEnded(now, completed: true, duration: 300)],
+                     "a completed Kimi turn closes and reports a finished task")
+
+        let leftover = Data(#"{"type":"token_counting.turn_recorded","agentId":"main","time":\#(ms)}"#.utf8)
+        suite.expect(reader.parse(leftover, state: &state, now: now).isEmpty,
+                     "records left after a turn ends do not reopen it")
+
+        let cancelled = Data(#"{"type":"turn.ended","agentId":"main","turnId":1,"reason":"cancelled","durationMs":120000,"time":\#(ms)}"#.utf8)
+        suite.expect(reader.parse(cancelled, state: &state, now: now) == [.turnEnded(now, completed: false, duration: 120)],
+                     "a cancelled Kimi turn closes without a finished notice")
+
         let untimed = Data(#"{"type":"config.update","agentId":"main","thinkingEffort":"high"}"#.utf8)
         suite.expect(reader.parse(untimed, state: &state, now: now).isEmpty,
                      "an untimed Kimi record is not activity")
