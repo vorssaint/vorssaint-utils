@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "build/generated-tests"
 
 
-def declaration(path, prefix, scope=None):
+def declaration(path, prefix, scope=None, *, closing="}"):
     lines = (ROOT / path).read_text().splitlines(keepends=True)
     lower, upper = 0, len(lines)
     if scope is not None:
@@ -30,7 +30,7 @@ def declaration(path, prefix, scope=None):
         raise ValueError(f"Expected one declaration {prefix!r} in {path}")
     start = starts[0]
     indent = prefix[:len(prefix) - len(prefix.lstrip())]
-    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + "}")
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + closing)
     body = "".join(lines[start:end + 1])
     return f'#sourceLocation(file: {json.dumps(path)}, line: {start + 1})\n{body}\n#sourceLocation()\n'
 
@@ -97,6 +97,14 @@ def main():
           + "\n".join(line for line in declaration(
               "Sources/Vorssaint/main.swift", "if let command = SettingsBackupSupport.command(")
               .splitlines() if not line.startswith("#sourceLocation")) + "\n"
+          + "}\n}\n")
+    backup = "Sources/Vorssaint/Services/SettingsBackup.swift"
+    write("SettingsFileContract.swift", "import AppKit\nimport Darwin\n"
+          + "extension SettingsFileTests {\nenum Backup {\n"
+          + "".join(declaration(backup, prefix) for prefix in [
+              "    static func write(to ", "    static func readSettings(at ",
+              "    static func apply(settings:", "    static var configFileURL:",
+              "    static func applyConfigFileAtLaunch(", "    static func anotherInstanceIsRunning("])
           + "}\n}\n")
     slider_area = "Sources/Vorssaint/UI/SliderScrollArea.swift"
     slider_control = "Sources/Vorssaint/UI/Notch/NotchLevelSlider.swift"
@@ -418,6 +426,16 @@ def main():
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
+          + "}\n}\n")
+    write("DisplaySpeakerService.swift", "import CoreAudio\nimport CoreGraphics\nimport Foundation\n"
+          + "extension DisplaySpeakerVolumeTests {\n"
+          + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private struct AudioRoute", "    private struct PendingAudio", "    private enum DDCProbe"])
+          + "final class Service: Fixture {\nstatic var shared = Service()\n"
+          + "".join(declaration(brightness, prefix).replace("private func", "func", 1) for prefix in [
+              "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
+              "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
+              "    func monitorSpeakerOutput(", "    private func probeAudio("])
           + "}\n}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"
@@ -852,6 +870,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
+    write("AppUpdatesOperationLog.swift", "extension HomebrewOperationLogRetentionTests.Updates {\n"
+          + declaration("Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
+                        "    private var operationLog:").replace("private var", "var", 1)
+          + "}\n")
     write("HomebrewOwnership.swift", "import Foundation\n"
           + "extension HomebrewOwnershipTests.Manager {\n"
           + declaration(homebrew, "    func packageManagingApplication(")
@@ -920,12 +942,20 @@ def main():
     # The raw wheel tap runs as shipped: linear scrolling's cap, carry and
     # write-back, then the direction change. Only the services it asks and
     # the defaults it reads are fixtures.
+    directory = "Sources/Vorssaint/UI/Settings/SettingsDirectory.swift"
     write("ZoomSettingsDirectory.swift", "import Foundation\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "struct SettingsDirectoryItem:")
+          + declaration(directory, "struct SettingsSearchState:")
+          + declaration(directory, "struct SettingsDirectoryItem:")
           + "enum SettingsDirectory {\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "    static func sections(")
-              .replace("SuperKeyService.shared.source", ".capsLock")
-              .replace("$0.hubTitle(s, hub: FeatureStrings.hub(language))", "$0.rawValue")
+          + declaration(directory, "    static func sections(").replace("SuperKeyService.shared.source", ".capsLock")
+          + declaration(directory, "    static func searchItems(").replace("SuperKeyService.shared.source", ".capsLock")
+              .replace("state: SettingsSearchState = .current", "state: SettingsSearchState")
+          + "}\nextension SettingsFeatureTests.SearchCommands {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift", "    private static func settingsEntries(")
+              .replace("private static func", "static func", 1)
+          + "}\nextension SettingsFeatureTests.IslandSettings {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift", "    private func revealDestination()")
+              .replace("private func", "func", 1)
           + "}\n")
     wheel_tap = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func handle(type:",
                             scope="final class ScrollInverter:")
@@ -965,6 +995,7 @@ def main():
                          .replace("if let proxy {", "if proxy != nil {")
           + "}\n")
     smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
+    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     write("ScrollZoomFocus.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension ScrollZoomFocusTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowActivator.swift", "    static func focusWindow(")
@@ -976,7 +1007,10 @@ def main():
     if smooth_post.count("event.postToPid(target.processID)") != 1:
         raise ValueError("Expected one targeted smooth-scroll post")
     write("SmoothScrollRouting.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
-          + "extension SmoothScrollRoutingTests.Service {\n"
+          + "extension SmoothScrollRoutingTests.Capture {\n"
+          + declaration(selection, "    static func steppedLoupeNeedsRawWheel(")
+          + declaration(selection, "    static func isActiveLoupeWindow(")
+          + "}\nextension SmoothScrollRoutingTests.Service {\n"
           + smooth_handler
           + declaration(smooth, "    private func stopGlide()").replace("private func", "func", 1)
           + declaration(smooth, "    private func emitFrame(at timestamp:").replace("private func", "func", 1)
@@ -1080,6 +1114,11 @@ def main():
           + "let value = Float32(volume); Hardware.queries.append(value)\n"
           + "if let quantizes = Hardware.quantizes { return quantizes(value).map(Double.init) }; return Double(value)\n}\n"
           + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
+          + "private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }\n"
+          + "private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }\n"
+          + "var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil { didSet { republishSystemOutput() } }\n"
+          + "var outputIsMonitorSpeakers: Bool { monitorOutput != nil }\n"
+          + "typealias BrightnessService = DisplaySpeakerVolumeTests.Service\n"
           + "var outputControlListenerDevice: AudioObjectID?\n"
           + "var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []\n"
           + "var outputControlRefreshGeneration = 0\n"
@@ -1103,7 +1142,8 @@ def main():
           + "removeOutputControlListeners(); outputControlListenerDevice = device; applyOutputControls(volume: volume, muted: muted)\n}\n"
           + "func readSnapshot(volume: Double?, muted: Bool?) { applyOutputControls(volume: volume, muted: muted) }\n"
           + "".join(declaration(mixer, prefix) for prefix in [
-              "    func requestOutputAdjustment(", "    private func enqueueOutputAdjustment(", "    private func removeOutputControlListeners(",
+              "    func requestOutputAdjustment(", "    private func enqueueOutputAdjustment(",
+              "    private func republishSystemOutput(", "    private func removeOutputControlListeners(",
               "    func requestOutputStep(", "    func requestOutputMuteToggle(",
               "    private func enqueueOutputKey(", "    private func readOutputForQueuedKeys(",
               "    private func settleQueuedOutputSteps(",
@@ -1130,8 +1170,10 @@ def main():
           + "}\n")
     write("NotchVolumeRouting.swift", "import Foundation\nimport CoreGraphics\n"
           + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
-          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
-                        "    private func routeNotchVolume(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
+                        "    private static func applyMonitorVolumeKey("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
@@ -1140,10 +1182,14 @@ def main():
           + "}\n}\n")
     cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
     write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
+          + declaration(cleaner, "    private static let leftoverRoots:", closing="]")
+          + declaration(cleaner, "    private static func isDirectLeftoverRootChild(")
+          + declaration(cleaner, "    private static func hasLivingOwner(")
+          + declaration(cleaner, "    private static func hasLivingLeftoverOwner(")
           + "".join(declaration(cleaner, "    private static func " + name)
                     .replace("private static func", "static func", 1)
-                    for name in ["appendLeftovers(", "scanCaches(", "scanLogs(",
-                                 "directorySize(", "fileSize(", "sorted(",
+                    for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
+                                 "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
                                  "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
@@ -1347,10 +1393,10 @@ def main():
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func bindVolumeEvents(", "    private func volumeChanged(",
-              "    func showCurrentVolume(",
               "    func noteOwnLevelAdjustment(", "    private func ownsLevelAdjustment(",
               "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
+          + declaration(notch, "    func showCurrentVolume(").replace("    func", "    @discardableResult func", 1)
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
@@ -1987,7 +2033,8 @@ def main():
     write("MenuPanelSectionGates.swift", "import Foundation\n\nextension MenuPanelSectionGateContract {\n"
           + declaration("Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift", "enum PanelSectionID:")
           + "".join(declaration(menu_panel, prefix).replace("private enum", "enum", 1)
-                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:"])
+                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:",
+                                   "private enum ControlCategory:"])
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "enum QuickToggleAction:")
           + "}\n")
 
@@ -2083,7 +2130,6 @@ def main():
                                    "    private var spotlightDimValue:"])
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
           + "}\n}\n")
-    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
         "    private func adoptCapturePolicy(",

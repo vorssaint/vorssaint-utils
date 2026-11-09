@@ -2256,15 +2256,14 @@ final class NotchService: ObservableObject {
     func cancelCaptureControls() { captureControlsCancel?() }
 
     func openSettings() {
-        collapse()
-        SettingsRouter.shared.request(FeatureSettingsDestination(.notch))
-        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        openSettings(showing: nil)
     }
 
-    /// Opens the Dynamic Island settings on one section's options.
-    func openSettings(showing module: NotchModule) {
-        SettingsRouter.shared.notchModule = module
-        openSettings()
+    func openSettings(showing module: NotchModule?) {
+        collapse()
+        let destination = module.map { FeatureSettingsDestination(notch: .module($0)) }
+        SettingsRouter.shared.request(destination ?? FeatureSettingsDestination(.notch))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     func perform(_ action: @escaping () -> Void) {
@@ -4320,10 +4319,12 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func showCurrentVolume() {
+    /// Shows the output's current level. False when there is no level to show.
+    @discardableResult
+    func showCurrentVolume() -> Bool {
         let mixer = AppVolumeMixer.shared
-        guard let volume = mixer.systemOutputVolume else { return }
-        showVolume(volume, muted: mixer.systemOutputMuted)
+        guard let volume = mixer.systemOutputVolume else { return false }
+        return showVolume(volume, muted: mixer.systemOutputMuted)
     }
 
     /// The island's own output and keyboard light controls already show the

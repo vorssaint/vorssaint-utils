@@ -58,6 +58,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case soundOutputSwitcher
     case keyboardBrightnessShortcuts
     case fanControl
+    case monitorAlerts
     case windowMaximizer
 
     var page: SettingsPage {
@@ -79,8 +80,41 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
-        case .fanControl: return .monitor
+        case .fanControl, .monitorAlerts: return .monitor
         case .windowMaximizer: return .windowLayout
+        }
+    }
+}
+
+enum NotchSettingsLocation: Hashable {
+    case layout, activity, behavior
+    case module(NotchModule)
+
+    var tab: NotchSettingsTab {
+        switch self {
+        case .layout: return .layout
+        case .activity: return .activity
+        case .behavior: return .behavior
+        case .module: return .content
+        }
+    }
+
+    var id: String {
+        switch self {
+        case .layout: return "layout"
+        case .activity: return "activity"
+        case .behavior: return "behavior"
+        case .module(let module): return "content." + module.rawValue
+        }
+    }
+
+    func title(_ language: AppLanguage) -> String {
+        let editor = FeatureStrings.notchEditor(language)
+        switch self {
+        case .layout: return editor.layout
+        case .activity: return editor.activity
+        case .behavior: return editor.behavior
+        case .module(let module): return module.title(language)
         }
     }
 }
@@ -90,10 +124,18 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
 struct FeatureSettingsDestination: Hashable {
     let page: SettingsPage
     let sectionAnchor: SettingsSectionAnchor?
+    let notchLocation: NotchSettingsLocation?
 
     init(_ page: SettingsPage, sectionAnchor: SettingsSectionAnchor? = nil) {
         self.page = page
         self.sectionAnchor = sectionAnchor
+        self.notchLocation = nil
+    }
+
+    init(notch location: NotchSettingsLocation) {
+        page = .notch
+        sectionAnchor = nil
+        notchLocation = location
     }
 
     var hasValidSectionAnchor: Bool {
@@ -164,9 +206,6 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
-    /// One-shot hint for the Dynamic Island page, so a section of the island
-    /// can open its own options. Consumed and cleared on arrival.
-    @Published var notchModule: NotchModule?
     /// One-shot hint for the Dynamic Island page to show the companion's tab,
     /// where its settings live. Consumed and cleared on arrival.
     @Published var notchCompanion = false
@@ -242,7 +281,6 @@ final class SettingsRouter: ObservableObject {
         historyIndex = index
         isTraversingHistory = true
         cleanerTool = nil
-        notchModule = nil
         let entry = history[index]
         request(entry.destination, sidebarFeature: entry.sidebarFeature)
         isTraversingHistory = false
@@ -378,7 +416,17 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .wallpaper:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .wallpaper)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch: return FeatureSettingsDestination(.notch)
+        case .notch: return FeatureSettingsDestination(.notch)
+        case .notchCalendar: return FeatureSettingsDestination(notch: .module(.calendar))
+        case .notchNotifications: return FeatureSettingsDestination(notch: .module(.notifications))
+        case .notchGestures: return FeatureSettingsDestination(notch: .behavior)
+        case .notchTimer: return FeatureSettingsDestination(notch: .module(.timer))
+        case .notchAccessories: return FeatureSettingsDestination(notch: .activity)
+        case .notchLyrics, .notchQueue, .notchLiveEqualizer:
+            return FeatureSettingsDestination(notch: .module(.music))
+        case .notchDownloads: return FeatureSettingsDestination(notch: .module(.downloads))
+        case .notchAgents: return FeatureSettingsDestination(notch: .module(.agents))
+        case .notchWatch: return FeatureSettingsDestination(notch: .module(.watch))
         case .notchMascot: return FeatureSettingsDestination(.notchMascot)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:

@@ -425,6 +425,8 @@ extension Strings {
         homebrewOpenTerminal: "Terminali aç",
         homebrewCancelOperation: "İptal",
         homebrewClearLog: "Günlüğü temizle",
+        homebrewLastLogView: "Son günlüğü göster",
+        homebrewLastLogHide: "Son günlüğü gizle",
         homebrewLogTitle: "Günlük",
         homebrewVersion: "Sürüm",
         homebrewDescription: "Tür",

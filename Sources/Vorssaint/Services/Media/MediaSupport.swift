@@ -188,6 +188,14 @@ enum MediaImageWatermarkKind: String, CaseIterable, Codable, Identifiable {
     static func sanitized(_ value: String) -> MediaImageWatermarkKind {
         MediaImageWatermarkKind(rawValue: value) ?? .off
     }
+
+    func withoutLogo(text: String) -> Self {
+        switch self {
+        case .logo: return .off
+        case .textAndLogo: return text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .off : .text
+        case .off, .text: return self
+        }
+    }
 }
 
 enum MediaImageWatermarkPosition: String, CaseIterable, Codable, Identifiable {
@@ -771,20 +779,37 @@ enum MediaSupport {
         }
         for index in profiles.indices {
             var watermark = profiles[index].options.watermark
+            watermark.kind = watermark.kind.withoutLogo(text: watermark.text)
             watermark.logoPath = ""
-            switch watermark.kind {
-            case .logo:
-                watermark.kind = .off
-            case .textAndLogo:
-                watermark.kind = watermark.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ? .off : .text
-            case .off, .text:
-                break
-            }
             profiles[index].options.watermark = watermark
         }
         guard let portableData = try? JSONEncoder().encode(profiles) else { return nil }
         return String(data: portableData, encoding: .utf8)
+    }
+
+    /// Only the matching profile on this Mac can supply a logo. A rename,
+    /// reorder or new profile in the portable file does not change its identity.
+    static func restoringProfileLogos(_ portable: String, local: String) -> String {
+        let decoder = JSONDecoder()
+        guard var profiles = try? decoder.decode([MediaImageProfile].self, from: Data(portable.utf8)),
+              let saved = try? decoder.decode([MediaImageProfile].self, from: Data(local.utf8)) else {
+            return portable
+        }
+        let byID = Dictionary(grouping: saved, by: \.id)
+        let incomingIDs = Dictionary(grouping: profiles, by: \.id)
+        var restored = false
+        for index in profiles.indices {
+            let id = profiles[index].id
+            guard !id.isEmpty, incomingIDs[id]?.count == 1, let matches = byID[id], matches.count == 1,
+                  let original = matches.first?.options.watermark, original.usesLogo,
+                  profiles[index].options.watermark.kind == original.kind.withoutLogo(text: original.text)
+            else { continue }
+            profiles[index].options.watermark.kind = original.kind
+            profiles[index].options.watermark.logoPath = original.logoPath
+            restored = true
+        }
+        guard restored, let data = try? JSONEncoder().encode(profiles) else { return portable }
+        return String(decoding: data, as: UTF8.self)
     }
 
     static func integralImageSize(width: CGFloat, height: CGFloat) -> CGSize {
