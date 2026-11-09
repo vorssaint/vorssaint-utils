@@ -291,6 +291,24 @@ enum HomebrewCompletedOperationCleanup {
     }
 }
 
+enum HomebrewOperationOutput: Equatable {
+    case status(HomebrewOperationStatus)
+    case lastLog(HomebrewOperationStatus)
+
+    // Keep the tail, where brew prints its final result. A cut must not split
+    // a UTF-8 scalar, and the omission mark counts towards the same limit.
+    static let byteLimit = 256 * 1024
+
+    static func retainedText(_ text: String) -> String {
+        let bytes = text.utf8
+        guard bytes.count > byteLimit else { return text }
+        let mark = "…\n"
+        let tail = bytes.suffix(byteLimit - mark.utf8.count)
+            .drop(while: { $0 & 0xc0 == 0x80 })
+        return mark + String(decoding: tail, as: UTF8.self)
+    }
+}
+
 struct HomebrewOperationStatus: Equatable {
     var action: HomebrewOperation.Action
     var package: HomebrewPackage?
@@ -300,6 +318,7 @@ struct HomebrewOperationStatus: Equatable {
     var startedAt: Date
     var finishedAt: Date?
     var lastActivity: String?
+    var fromUninstaller = false
 
     var isActive: Bool {
         result == .running

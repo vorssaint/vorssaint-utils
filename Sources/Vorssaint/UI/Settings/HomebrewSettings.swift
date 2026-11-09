@@ -13,8 +13,6 @@ struct HomebrewSettings: View {
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
-    @State private var showOperationDetails = false
-    @State private var isShowingLastLog = false
     @State private var expandedPackageIDs: Set<String> = []
 
     var body: some View {
@@ -25,7 +23,10 @@ struct HomebrewSettings: View {
             Divider()
             Group {
                 if homebrew.brewPath == nil {
-                    missingState
+                    VStack(spacing: 0) {
+                        missingState
+                        operationLog
+                    }
                 } else {
                     content
                 }
@@ -41,10 +42,6 @@ struct HomebrewSettings: View {
         .onChange(of: query) { _, _ in resetContextSelection() }
         .onChange(of: searchKind) { _, _ in resetContextSelection() }
         .onChange(of: installedFilter) { _, _ in clearSelectionIfHidden() }
-        .onChange(of: homebrew.operationStatus?.targetID) { _, _ in
-            showOperationDetails = false
-            isShowingLastLog = false
-        }
         .confirmationDialog(confirmationTitle,
                             isPresented: confirmationPresented,
                             titleVisibility: .visible) {
@@ -532,15 +529,7 @@ struct HomebrewSettings: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if homebrew.operationStatus != nil {
-                Divider()
-                operationLog
-                    .padding(12)
-            } else if !homebrew.log.isEmpty {
-                Divider()
-                lastLogFooter
-                    .padding(12)
-            }
+            operationLog
         }
     }
 
@@ -615,51 +604,10 @@ struct HomebrewSettings: View {
 
     @ViewBuilder
     private var operationLog: some View {
-        if let status = homebrew.operationStatus {
-            HomebrewOperationStatusView(status: status,
-                                        log: homebrew.log,
-                                        terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                        compact: false,
-                                        showDetails: $showOperationDetails,
-                                        onCancel: homebrew.cancelOperation,
-                                        onClear: homebrew.clearLog,
-                                        onOpenTerminal: homebrew.openTerminalFallback)
-        }
-    }
-
-    /// The technical log of the last finished run outlives the status card
-    /// (issue #566): this footer brings it back up instead of leaving the
-    /// output dangling unseen after the card hides itself.
-    @ViewBuilder
-    private var lastLogFooter: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Button {
-                isShowingLastLog.toggle()
-            } label: {
-                Label(isShowingLastLog ? l10n.s.homebrewLastLogHide : l10n.s.homebrewLastLogView,
-                      systemImage: "doc.text")
-                    .font(.caption)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            if isShowingLastLog {
-                ScrollView {
-                    Text(homebrew.log)
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxHeight: 140)
-                HStack(spacing: 8) {
-                    Button(l10n.s.homebrewClearLog) {
-                        isShowingLastLog = false
-                        homebrew.clearLog()
-                    }
-                    .controlSize(.small)
-                    Spacer(minLength: 0)
-                }
-            }
+        if let output = homebrew.operationOutput {
+            Divider()
+            HomebrewOperationOutputView(homebrew: homebrew, output: output, compact: false)
+                .padding(12)
         }
     }
 
@@ -855,13 +803,11 @@ struct HomebrewSettings: View {
 
     private func resetContextSelection() {
         pendingAction = nil
-        showOperationDetails = false
         homebrew.clearSelection()
     }
 
     private func clearSelectionIfHidden() {
         pendingAction = nil
-        showOperationDetails = false
         guard let selected = homebrew.selectedPackage else { return }
         let isVisible = (homebrew.searchResults + filteredInstalled).contains { $0.id == selected.id }
         if !isVisible {
