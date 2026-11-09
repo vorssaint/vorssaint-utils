@@ -225,6 +225,16 @@ enum SettingsFeatureTests {
                shown: false, without: [.keepAwake])
         suite.expect(pages(of: Strings.enUS.hotkeyToggle) == [.general],
                      "the Keep Awake switch in General does not lead to Shortcuts")
+        let speakers = FeatureStrings.brightness(.enUS)
+        defaults.set(true, forKey: DefaultsKey.brightnessControlEnabled)
+        defaults.set(true, forKey: DefaultsKey.displayVolumeEnabled)
+        for enabled in [false, true, false] {
+            defaults.set(enabled, forKey: DefaultsKey.displayVolumeKeysEnabled)
+            for label in [speakers.speakersStep, speakers.speakersMinimum, speakers.speakersMaximum] {
+                suite.expect(pages(of: label).contains(.energy) == enabled,
+                             "speaker key settings are searchable while the controls are visible")
+            }
+        }
         let keys = FeatureStrings.brightness(.enUS).keyboardBrightnessShortcuts
         let keyDestination = FeatureSettingsDestination(.shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
         verify(keys, opens: keyDestination, commandID: "settings.setting.keyboardBrightnessShortcuts")

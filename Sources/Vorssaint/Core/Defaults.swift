@@ -220,6 +220,9 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    static let ddcVolumeStep = "ddcVolumeStep" // Double percent of the monitor's range per key press
+    static let ddcVolumeMinimum = "ddcVolumeMinimum" // Int percent the volume keys stop at
+    static let ddcVolumeMaximum = "ddcVolumeMaximum" // Int percent the volume keys stop at
     static let brightnessKeyStep = "brightnessKeyStep" // BrightnessSupport.KeyStep raw value
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
@@ -1396,6 +1399,9 @@ enum Defaults {
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.displayVolumeEnabled: false,
         DefaultsKey.displayVolumeKeysEnabled: false,
+        DefaultsKey.ddcVolumeStep: MonitorVolumeKeySettings.defaultStepPercent,
+        DefaultsKey.ddcVolumeMinimum: 0,
+        DefaultsKey.ddcVolumeMaximum: 100,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
