@@ -99,6 +99,7 @@ enum QuickToolHUD {
     static func showScrollingCapture(message: String,
                                      finishTitle: String,
                                      cancelTitle: String,
+                                     avoiding scrollPoint: CGPoint?,
                                      onFinish: @escaping () -> Void,
                                      onCancel: @escaping () -> Void) {
         guard Thread.isMainThread else {
@@ -106,6 +107,7 @@ enum QuickToolHUD {
                 showScrollingCapture(message: message,
                                      finishTitle: finishTitle,
                                      cancelTitle: cancelTitle,
+                                     avoiding: scrollPoint,
                                      onFinish: onFinish,
                                      onCancel: onCancel)
             }
@@ -127,12 +129,8 @@ enum QuickToolHUD {
         let size = host.fittingSize
         let panel = ensureScrollingPanel()
         panel.contentView = host
-        let frame = NSScreen.pointerVisibleFrame
-        panel.setFrame(NSRect(x: frame.midX - size.width / 2,
-                              y: frame.maxY - size.height - 24,
-                              width: size.width,
-                              height: size.height),
-                       display: true)
+        panel.setFrame(ScreenshotSupport.scrollingControlsFrame(
+            size: size, visibleFrame: NSScreen.pointerVisibleFrame, avoiding: scrollPoint), display: true)
         panel.orderFrontRegardless()
         panel.makeKey()
     }

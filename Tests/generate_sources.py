@@ -272,13 +272,9 @@ def main():
                         scope="extension NotchModule: PanelOrderItem {")
           + "}\n")
     write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
-          + "extension ScreenshotScrollingCaptureTests.AutomaticScroller {\n"
+          + "extension ScreenshotScrollingCaptureTests {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotAutomaticScroller.swift",
-                        "    func scroll()").replace("event.postToPid(processID)", "directPosts.append(event)")
-              .replace("event.post(tap:", "record(event, tap:")
-          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotAutomaticScroller.swift",
-                        "    static func scrollEvent(")
-          + "}\nextension ScreenshotScrollingCaptureTests {\n"
+                        "final class ScreenshotAutomaticScroller:").replace("event.post(tap:", "Desktop.record(event, tap:")
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",
                         "enum ScreenshotScrollingCapture {").replace(
                             "    private static func stitch(", "    static func stitch(")
@@ -2084,8 +2080,25 @@ def main():
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
           + "}\n}\n")
     selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
+    capture_service = "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift"
+    def countdown_method(path, prefix):
+        return (declaration(path, prefix)
+                .replace("UserDefaults.standard", "ScreenshotCountdownTests.defaults")
+                .replace("fromShortcut: fromShortcut)", "fromShortcut: fromShortcut, defaults: ScreenshotCountdownTests.defaults)")
+                .replace("ScreenCaptureTool.available()", "ScreenCaptureTool.available(isAvailable: { _ in true })")
+                .replace("DispatchQueue.main.asyncAfter", "Clock.main.asyncAfter"))
+
+    write("ScreenshotCountdown.swift", "import Foundation\nextension ScreenshotCountdownTests {\n"
+          + "final class ScreenCaptureService: ChooserState {\nstatic let shared = ScreenCaptureService()\n"
+          + "".join(countdown_method(capture_service, prefix) for prefix in [
+              "    func capture(initial preferred:", "    func performAfterDelay(",
+              "    private func tickCountdown(", "    func cancelCountdownIfActive()"])
+          + "}\nfinal class ScreenshotService: ScreenshotState {\nstatic let shared = ScreenshotService()\n"
+          + countdown_method(screenshot_service, "    func captureScrolling()")
+          + countdown_method(screenshot_service, "    func captureFullScreen()") + "}\n}\n")
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
+        "    private func toggleScrollingCapture()",
         "    private func adoptCapturePolicy(",
         "    private func applySource(",
         "    private func loadLiveLoupeImages()",
@@ -2104,6 +2117,7 @@ def main():
           + declaration(selection, "    fileprivate func setSelectionInProgress(").replace("fileprivate func", "func", 1)
           + declaration(selection, "    private var activeMode:").replace("private var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + declaration(selection, "    fileprivate var offersScrollingCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var offersFullScreenCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsWindowClick:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    func placeFullScreenControlBelowNotch(")

@@ -32,12 +32,8 @@ final class ScreenshotService: ObservableObject {
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
     private let fullScreenHotkey = QuickToolHotkey(id: 23)
     private let clipboardHotkey = QuickToolHotkey(id: 24)
-    private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
     private var editors: [ScreenshotEditorController] = []
-    private var countdown: DispatchWorkItem?
-    private var countdownRemaining = 0
-    private var countdownMode: CaptureMode = .standard
     private var directCaptureTask: Task<Void, Never>?
     private var autoCopyTask: Task<Void, Never>?
     private var autoCopyGeneration = 0
@@ -50,12 +46,6 @@ final class ScreenshotService: ObservableObject {
     private var scrollingFinishSignal: ScreenshotScrollingCapture.FinishSignal?
     private let scrollingRegionGuide = CaptureRegionGuide()
 
-    private enum CaptureMode {
-        case standard
-        case fullScreen
-        case scrolling
-    }
-
     private var hideVorssaintWindows: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHideVorssaintWindows)
     }
@@ -65,10 +55,9 @@ final class ScreenshotService: ObservableObject {
     /// after a few seconds: back-to-back captures would otherwise photograph
     /// the previous capture's toast.
     private var workflowWindowIDs: Set<CGWindowID> {
-        var ids = session?.protectedWindowIDs ?? []
+        var ids = ScreenCaptureService.shared.protectedWindowIDs
         if NotchSupport.isEnabled() { ids.formUnion(NotchService.shared.protectedWindowIDs) }
         ids.formUnion(preview?.protectedWindowIDs ?? [])
-        ids.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
         if let number = QuickToolHUD.currentWindowNumber, number > 0 {
             ids.insert(CGWindowID(number))
         }
@@ -191,8 +180,7 @@ final class ScreenshotService: ObservableObject {
     /// Hub-off means gone: open editors, pins and a selection in progress
     /// all leave the screen.
     private func teardownSurfaces() {
-        countdown?.cancel()
-        countdown = nil
+        ScreenCaptureService.shared.cancelCountdownIfActive()
         directCaptureTask?.cancel()
         directCaptureTask = nil
         autoCopyTask?.cancel()
@@ -205,8 +193,6 @@ final class ScreenshotService: ObservableObject {
         scrollingFinishSignal = nil
         scrollingRegionGuide.hide()
         QuickToolHUD.dismissScrollingCapture()
-        session?.cancel()
-        session = nil
         invalidateLatestCaptureUploads()
         preview?.close()
         preview = nil
@@ -229,7 +215,7 @@ final class ScreenshotService: ObservableObject {
         ScreenCaptureService.shared.capture(initial: .scrolling)
     }
 
-    var hasActiveScrollingCapture: Bool { scrollingTask != nil }
+    var hasActiveCapture: Bool { scrollingTask != nil || directCaptureTask != nil }
 
     @discardableResult
     func finishScrollingCaptureIfActive() -> Bool {
@@ -240,101 +226,18 @@ final class ScreenshotService: ObservableObject {
     }
 
     func captureFullScreen() {
-        startCapture(.fullScreen)
-    }
-
-    private func startCapture(_ mode: CaptureMode) {
-        // Repeating the same action finishes a long capture at the current
-        // point. It can never open a second selection or capture task.
-        if scrollingTask != nil {
-            QuickToolHUD.markScrollingCaptureFinishing()
-            scrollingFinishSignal?.request()
-            return
-        }
-        // Another feature may already own the capture surface (copying text
-        // off the screen picks an area the same way).
-        guard session == nil, directCaptureTask == nil,
+        let chooser = ScreenCaptureService.shared
+        guard !finishScrollingCaptureIfActive(), !chooser.cancelCountdownIfActive(),
+              directCaptureTask == nil,
               !ScreenshotSelectionController.isSessionOnScreen else { return }
-        if countdown != nil {
-            countdown?.cancel()
-            countdown = nil
-            return
-        }
         guard Permissions.shared.screenRecording else {
             Permissions.shared.requestScreenRecording()
             return
         }
         let delay = ScreenshotSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
-        if delay > 0 {
-            countdownMode = mode
-            countdownRemaining = delay
-            tickCountdown()
-        } else {
-            beginCapture(mode)
-        }
-    }
-
-    private func tickCountdown() {
-        guard countdownRemaining > 0 else {
-            let mode = countdownMode
-            countdown = nil
-            beginCapture(mode)
-            return
-        }
-        QuickToolHUD.showCountdown(countdownRemaining)
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.countdownRemaining -= 1
-            self.tickCountdown()
-        }
-        countdown = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
-    }
-
-    private func beginCapture(_ mode: CaptureMode) {
-        if mode == .fullScreen {
-            beginFullScreenCapture()
-        } else {
-            beginSelection(mode)
-        }
-    }
-
-    private func beginSelection(_ mode: CaptureMode) {
-        guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
-        preview?.close()
-        preview = nil
-        let defaults = UserDefaults.standard
-        let controller = ScreenshotSelectionController(
-            freeze: mode == .scrolling
-                ? false
-                : defaults.bool(forKey: DefaultsKey.screenshotFreeze),
-            includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
-            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
-            hideVorssaintWindows: hideVorssaintWindows,
-            protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
-            purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
-            mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard)
-        session = controller
-        controller.begin { [weak self] outcome in
-            guard let self else { return }
-            self.session = nil
-            switch outcome {
-            case .captured(let capture):
-                self.route(capture)
-            case .region(let region):
-                guard mode == .scrolling else { break }
-                self.captureScrolling(region)
-            case .scrollingRegion(let region):
-                self.captureScrolling(region)
-            case .color:
-                break
-            case .cancelled:
-                break
-            case .failed:
-                QuickToolHUD.show(icon: "camera.viewfinder", message: self.strings.captureFailed)
-            }
+        chooser.performAfterDelay(delay) { [weak self] in
+            self?.beginFullScreenCapture()
         }
     }
 
@@ -391,8 +294,9 @@ final class ScreenshotService: ObservableObject {
             Permissions.shared.requestAccessibility()
             return
         }
+        let hideWindows = hideVorssaintWindows
         let scroller = automatic ? ScreenshotAutomaticScroller(
-            region: region, protectedWindowIDs: protectedWindowIDs) : nil
+            region: region, hideVorssaintWindows: hideWindows, protectedWindowIDs: protectedWindowIDs) : nil
         if automatic, scroller == nil {
             QuickToolHUD.show(icon: "rectangle.stack", message: strings.captureFailed)
             return
@@ -404,11 +308,11 @@ final class ScreenshotService: ObservableObject {
             message: automatic ? strings.scrollingAutoScrollProgressHUD : strings.scrollingCaptureProgressHUD,
             finishTitle: strings.done,
             cancelTitle: strings.cancel,
+            avoiding: automatic ? CGPoint(x: region.anchorRect.midX, y: region.anchorRect.midY) : nil,
             onFinish: { finishSignal.request() },
             onCancel: { [weak self] in self?.scrollingTask?.cancel() })
         // Read after the controls are on screen so their window is protected,
         // and once for the whole run: the picture must not change halfway.
-        let hideWindows = hideVorssaintWindows
         let protectedIDs = protectedWindowIDs
         let captureID = UUID()
         scrollingCaptureID = captureID
@@ -420,7 +324,7 @@ final class ScreenshotService: ObservableObject {
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
                 finishSignal: finishSignal,
-                autoScroll: scroller.map { target in { @MainActor in target.scroll() } },
+                autoScroll: scroller,
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
                 })

@@ -159,7 +159,11 @@ enum ScreenshotSelectionRefreshContract {
         final class Options {
             var offersRepeatLastRegion = false
             var onSelectionProgressChange: ((Bool) -> Void)?
+            var availableTools = ScreenCaptureTool.allCases
+            var onSelect: ((ScreenCaptureTool) -> Void)?
+            func select(_ tool: ScreenCaptureTool) { onSelect?(tool) }
         }
+        let supportsScrollingCapture = true
         var screenCaptureOptions: Options? = Options()
         var capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
         var freeze: Bool
@@ -196,6 +200,7 @@ enum ScreenshotSelectionRefreshContract {
                 panel.overlayView.panel = panel
                 panel.overlayView.windows = panel.windows
             }
+            screenCaptureOptions?.onSelect = { [weak self] tool in self?.select(tool) }
         }
         func select(_ tool: ScreenCaptureTool) {
             activeTool = tool
@@ -249,19 +254,39 @@ enum ScreenshotSelectionRefreshContract {
         defer { Chooser.lastRegion = previousRegion }
         let scrollTool = Chooser(.scrolling)
         expect(scrollTool.activeMode == .geometry && !scrollTool.freeze
-               && scrollTool.scrollingCaptureEnabled && !scrollTool.acceptsWindowClick,
-               "the fifth tool selects a live scrolling area without a window click")
+               && scrollTool.scrollingCaptureEnabled && scrollTool.acceptsWindowClick,
+               "the fifth tool accepts the existing live window and region selection paths")
         let scrollRect = CGRect(x: 5, y: 10, width: 60, height: 70)
         scrollTool.confirmRegion(scrollRect, on: scrollTool.panels[0])
         if case .scrollingRegion(let region) = scrollTool.outcome {
             expect(region.viewRect == scrollRect && region.windowID == nil,
                    "scrolling geometry reaches the stitcher with the selected area")
         } else { expect(false, "scrolling selection routes to stitching rather than recording") }
+        let clicked = Chooser(.scrolling)
+        clicked.confirmWindow(31, frame: scrollRect, on: clicked.panels[0])
+        if case .scrollingRegion(let region) = clicked.outcome {
+            expect(region.windowID == 31 && region.viewRect == scrollRect,
+                   "clicking a window keeps its identity for automatic scrolling")
+        } else { expect(false, "a scrolling window click reaches the stitcher") }
+        let whole = Chooser(.scrolling)
+        whole.confirmSelectionWithKeyboard()
+        if case .scrollingRegion(let region) = whole.outcome {
+            expect(region.windowID == nil && region.viewRect.size == whole.panels[0].screenFrame.size,
+                   "Enter selects a scrolling region covering the display")
+        } else { expect(false, "Enter in the fifth tool reaches the stitcher") }
+        let restricted = Chooser(.screenshot)
+        restricted.screenCaptureOptions?.availableTools = [.screenshot]
+        restricted.toggleScrollingCapture()
+        expect(restricted.scrollingCaptureEnabled && restricted.activeTool == .screenshot
+               && !restricted.acceptsWindowClick, "S still enables region scrolling over a recording")
+        restricted.toggleScrollingCapture()
+        expect(!restricted.scrollingCaptureEnabled && restricted.acceptsWindowClick,
+               "S restores the ordinary screenshot while the recording continues")
         let changing = Chooser(.screenshot)
-        changing.select(.scrolling)
+        changing.toggleScrollingCapture()
         expect(changing.scrollingCaptureEnabled && !changing.freeze,
                "switching to scrolling clears the frozen screenshot source")
-        changing.select(.screenshot)
+        changing.toggleScrollingCapture()
         await drain()
         // Finish the screenshot source refresh before leaving this fixture.
         for index in ScreenshotCaptureEngine.requests.indices {

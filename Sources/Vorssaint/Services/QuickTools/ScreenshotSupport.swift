@@ -384,6 +384,14 @@ enum ScreenshotSupport {
 
     // MARK: - Scrolling capture
 
+    static func scrollingControlsFrame(size: CGSize, visibleFrame: CGRect,
+                                       avoiding scrollPoint: CGPoint?) -> CGRect {
+        var frame = CGRect(x: visibleFrame.midX - size.width / 2, y: visibleFrame.maxY - size.height - 24,
+                           width: size.width, height: size.height)
+        if let scrollPoint, frame.contains(scrollPoint) { frame.origin.y = visibleFrame.minY + 24 }
+        return frame
+    }
+
     /// A failed scroll target must never keep the capture alive forever or
     /// exhaust memory. Reaching a guard keeps the valid portion and explains
     /// why the capture stopped.
@@ -585,39 +593,64 @@ enum ScreenshotSupport {
         }) {
             return .unmatched
         }
-        // An animated banner can supply a perfect overlap while most of the
-        // document stays in place. Compare both explanations over the same
-        // rows. Blank rows support neither, so sparse text still counts.
-        let evidence = scrollingMotionEvidence(previous: previous, current: current,
-                                                advance: best.advance, reversed: best.reversed,
-                                                columns: best.contentColumns)
-        if evidence.stationary > evidence.moving { return .end }
-        guard evidence.moving > 0 else { return .unmatched }
-        return .advanced(overlap: height - best.advance,
-                         direction: best.reversed ? .backward : .forward,
-                         contentColumns: best.contentColumns)
+        return scrollingMotion(previous: best.reversed ? current : previous,
+                               current: best.reversed ? previous : current,
+                               advance: best.advance, columns: best.contentColumns,
+                               direction: best.reversed ? .backward : .forward)
     }
 
-    private static func scrollingMotionEvidence(previous: ScrollingSample,
-                                                current: ScrollingSample,
-                                                advance: Int, reversed: Bool,
-                                                columns: Range<Int>) -> (moving: Int, stationary: Int) {
-        var moving = 0, stationary = 0
-        for row in 0..<(previous.height - advance) {
-            let previousRow = reversed ? row : row + advance
-            let currentRow = reversed ? row + advance : row
+    private static func scrollingMotion(previous: ScrollingSample, current: ScrollingSample,
+                                        advance: Int, columns: Range<Int>,
+                                        direction: ScrollingDirection) -> ScrollingTransition {
+        let overlap = previous.height - advance
+        var firstChange = current.height, lastChange = -1
+        var firstMoving = current.height, lastMoving = -1, moving = 0
+        var stationaryRows = [Int]()
+        var unexplainedChange = false
+        for row in 0..<current.height {
             var aligned = 0, shifted = 0
             for column in columns {
-                let pixel = Int(current.pixels[currentRow * current.width + column])
-                aligned += abs(Int(previous.pixels[currentRow * previous.width + column]) - pixel)
-                shifted += abs(Int(previous.pixels[previousRow * previous.width + column]) - pixel)
+                let index = row * current.width + column
+                let pixel = Int(current.pixels[index])
+                aligned += abs(Int(previous.pixels[index]) - pixel)
+                if row < overlap {
+                    shifted += abs(Int(previous.pixels[index + advance * previous.width]) - pixel)
+                }
             }
             let alignedError = Double(aligned) / Double(columns.count)
+            if alignedError > 1.5 {
+                firstChange = min(firstChange, row)
+                lastChange = row
+            }
+            guard row < overlap else { continue }
             let shiftedError = Double(shifted) / Double(columns.count)
-            if shiftedError <= 8 && alignedError > shiftedError + 1.5 { moving += 1 }
-            if alignedError <= 1.5 && shiftedError > alignedError + 1.5 { stationary += 1 }
+            if shiftedError <= 8 && alignedError > shiftedError + 1.5 {
+                firstMoving = min(firstMoving, row)
+                lastMoving = row
+                moving += 1
+            } else if alignedError <= 1.5 && shiftedError > alignedError + 1.5 {
+                stationaryRows.append(row)
+            } else if alignedError > 1.5 && shiftedError > 8 {
+                unexplainedChange = true
+            }
         }
-        return (moving, stationary)
+        guard moving > 0 else { return .unmatched }
+        if lastChange - firstChange + 1 < current.height / 2 {
+            // A moving banner between stationary document features is not a
+            // wheel advance. On a blank background we cannot identify the
+            // document, but a clipped animation cannot explain every changed
+            // row at the proposed offset. A sparse line sliding intact can.
+            if stationaryRows.count > moving,
+               stationaryRows.contains(firstChange - 1),
+               stationaryRows.contains(lastChange + 1) { return .end }
+            if unexplainedChange || lastChange >= overlap { return .unmatched }
+        }
+        // Fixed headers and footers are outside the moving content. Their
+        // texture must never outvote a few widely spaced lines of real text.
+        let movingRegion = firstMoving...lastMoving
+        guard stationaryRows.lazy.filter({ movingRegion.contains($0) }).count <= moving
+        else { return .unmatched }
+        return .advanced(overlap: overlap, direction: direction, contentColumns: columns)
     }
 
     /// A fixed footer stays at the same viewport rows while the page behind it

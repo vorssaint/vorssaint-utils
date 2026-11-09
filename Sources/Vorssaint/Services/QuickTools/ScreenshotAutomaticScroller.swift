@@ -6,48 +6,40 @@ import CoreGraphics
 
 /// Sends small downward steps to the window selected at capture start. The
 /// target stays fixed even if the pointer moves onto the capture controls.
-final class ScreenshotAutomaticScroller {
+final class ScreenshotAutomaticScroller: ScreenshotScrollingCapture.AutomaticScroller {
     private let windowID: CGWindowID
     private let processID: pid_t
     private let bounds: CGRect
     private let point: CGPoint
     private let step: Int32
 
-    init?(region: RecorderSupport.Region, protectedWindowIDs: Set<CGWindowID>) {
-        let mainHeight = NSScreen.screens.first?.frame.maxY ?? 0
+    init?(region: RecorderSupport.Region, hideVorssaintWindows: Bool,
+          protectedWindowIDs: Set<CGWindowID>) {
+        guard let mainHeight = NSScreen.screens.first?.frame.maxY else { return nil }
         let point = CGPoint(x: region.anchorRect.midX, y: mainHeight - region.anchorRect.midY)
-        guard let windows = CGWindowListCopyWindowInfo(
-            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]],
-              let target = windows.first(where: { entry in
-                  guard let layer = entry[kCGWindowLayer as String] as? Int, layer == 0,
-                        let id = entry[kCGWindowNumber as String] as? CGWindowID,
-                        !protectedWindowIDs.contains(id),
-                        let raw = entry[kCGWindowBounds as String] as? [String: Any],
-                        let rect = CGRect(dictionaryRepresentation: raw as CFDictionary) else { return false }
-                  if let selected = region.windowID {
-                      return entry[kCGWindowNumber as String] as? CGWindowID == selected
-                  }
-                  return rect.contains(point)
-              }),
-              let id = target[kCGWindowNumber as String] as? CGWindowID,
-              let pid = target[kCGWindowOwnerPID as String] as? Int32,
-              let raw = target[kCGWindowBounds as String] as? [String: Any],
-              let rect = CGRect(dictionaryRepresentation: raw as CFDictionary) else { return nil }
+        let pickable = ScreenshotCaptureEngine.pickableWindows(
+            hideVorssaintWindows: hideVorssaintWindows, protectedWindowIDs: protectedWindowIDs)
+        guard let id = WindowServerSupport.receivingWindow(at: point),
+              region.windowID == nil || region.windowID == id,
+              let target = pickable.first(where: { $0.id == id && $0.bounds.contains(point) }),
+              let pid = WindowServerSupport.ownerProcessID(ofWindowID: id) else { return nil }
         windowID = id
         processID = pid
-        bounds = rect
+        bounds = target.bounds
         self.point = point
         step = Int32(min(160, max(1, region.anchorRect.height * 0.15)))
     }
 
+    func isCurrent() -> Bool {
+        guard WindowServerSupport.receivingWindow(at: point) == windowID,
+              let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
+                as? [[String: Any]] else { return false }
+        return WindowServerSupport.ownerProcessID(ofWindowID: windowID, in: info) == processID
+            && WindowServerSupport.frame(ofWindowID: windowID, in: info) == bounds
+    }
+
     func scroll() -> Bool {
-        guard CGPreflightPostEventAccess(),
-              let windows = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
-                as? [[String: Any]],
-              let target = windows.first,
-              target[kCGWindowOwnerPID as String] as? Int32 == processID,
-              let raw = target[kCGWindowBounds as String] as? [String: Any],
-              CGRect(dictionaryRepresentation: raw as CFDictionary) == bounds,
+        guard CGPreflightPostEventAccess(), isCurrent(),
               let event = Self.scrollEvent(processID: processID,
                                            point: point, step: step)
         else { return false }

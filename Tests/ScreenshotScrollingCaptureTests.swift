@@ -3,35 +3,54 @@
 
 import AppKit
 
+private typealias SystemWindowLookup = WindowServerSupport
+
 /// Runs the production capture loop and pixel stitching with an isolated image
 /// source. No screen permissions, global input or application windows are used.
 enum ScreenshotScrollingCaptureTests {
     /// Keep real wheel events, but intercept delivery and window-server reads.
-    final class AutomaticScroller {
-        let windowID: CGWindowID = 31
-        let processID: pid_t = 42
-        let bounds = CGRect(x: -200, y: 100, width: 400, height: 500)
-        let point = CGPoint(x: -150, y: 220)
-        let step: Int32 = 80
-        var access = true
-        var targetPID: pid_t = 42
-        var targetBounds = CGRect(x: -200, y: 100, width: 400, height: 500)
-        var posted: [(CGEvent, CGEventTapLocation)] = []
-        var directPosts: [CGEvent] = []
-
-        func CGPreflightPostEventAccess() -> Bool { access }
-        func CGWindowListCopyWindowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {
-            [[kCGWindowOwnerPID as String: targetPID,
-              kCGWindowBounds as String: targetBounds.dictionaryRepresentation]] as CFArray
+    enum Desktop {
+        static let originalBounds = CGRect(x: -200, y: 100, width: 400, height: 500)
+        static var bounds = originalBounds
+        static var pid: pid_t = 42
+        static var receiver: CGWindowID? = 31
+        static var access = true
+        static var posted: [(CGEvent, CGEventTapLocation)] = []
+        static var windows: [[String: Any]] {
+            [[kCGWindowNumber as String: 31, kCGWindowOwnerPID as String: pid,
+              kCGWindowBounds as String: bounds.dictionaryRepresentation]]
         }
-        func record(_ event: CGEvent, tap: CGEventTapLocation) { posted.append((event, tap)) }
+        static func record(_ event: CGEvent, tap: CGEventTapLocation) { posted.append((event, tap)) }
+    }
+    enum WindowServerSupport {
+        static func receivingWindow(at point: CGPoint) -> CGWindowID? {
+            Desktop.bounds.contains(point) ? Desktop.receiver : nil
+        }
+        static func ownerProcessID(ofWindowID id: CGWindowID) -> pid_t? {
+            SystemWindowLookup.ownerProcessID(ofWindowID: id, in: Desktop.windows)
+        }
+        static func ownerProcessID(ofWindowID id: CGWindowID, in windows: [[String: Any]]) -> pid_t? {
+            SystemWindowLookup.ownerProcessID(ofWindowID: id, in: windows)
+        }
+        static func frame(ofWindowID id: CGWindowID, in windows: [[String: Any]]) -> CGRect? {
+            SystemWindowLookup.frame(ofWindowID: id, in: windows)
+        }
+    }
+    struct NSScreen {
+        static let screens = [NSScreen()]
+        let frame = CGRect(x: 0, y: 0, width: 1280, height: 720)
+    }
+    static func CGPreflightPostEventAccess() -> Bool { Desktop.access }
+    static func CGWindowListCopyWindowInfo(_ options: CGWindowListOption, _ id: CGWindowID) -> CFArray? {
+        Desktop.windows as CFArray
     }
 
     enum RecorderSupport {
         struct Region {
+            var windowID: CGWindowID?
             let displayID: CGDirectDisplayID = 1
             let pixelRect = CGRect(x: 0, y: 0, width: 32, height: 120)
-            let anchorRect = CGRect(x: 10, y: 20, width: 16, height: 60)
+            var anchorRect = CGRect(x: 10, y: 20, width: 16, height: 60)
             let scale: CGFloat = 2
         }
     }
@@ -43,6 +62,14 @@ enum ScreenshotScrollingCaptureTests {
         }
     }
     @MainActor enum ScreenshotCaptureEngine {
+        nonisolated static func pickableWindows(hideVorssaintWindows: Bool,
+                                                protectedWindowIDs: Set<CGWindowID>)
+            -> [(id: CGWindowID, bounds: CGRect)] {
+            ScreenshotCapturePolicy.canPickWindow(31,
+                isOwnWindow: Desktop.pid == ProcessInfo.processInfo.processIdentifier,
+                hideVorssaintWindows: hideVorssaintWindows, protectedWindowIDs: protectedWindowIDs)
+                ? [(31, Desktop.bounds)] : []
+        }
         static var source: Source!
         static var preparations = 0
         static func prepareDisplayRegion(displayID: CGDirectDisplayID, pixelRect: CGRect,
@@ -51,33 +78,36 @@ enum ScreenshotScrollingCaptureTests {
             preparations += 1
             return source
         }
-        final class Source {
+        final class Source: ScreenshotScrollingCapture.AutomaticScroller {
             let images: [CGImage?]
             let finish: ScreenshotScrollingCapture.FinishSignal
             var calls = 0
             var automaticIndex: Int?
             var scrolls = 0
             var animateBeforeFirstScroll = false
+            var targetIsCurrent = true
+            var onRead: ((Int) async -> Void)?
             init(_ images: [CGImage?], finish: ScreenshotScrollingCapture.FinishSignal,
                  automatic: Bool = false) {
                 self.images = images
                 self.finish = finish
                 automaticIndex = automatic ? 0 : nil
             }
+            func isCurrent() -> Bool { targetIsCurrent }
             func scroll() -> Bool {
                 scrolls += 1
                 automaticIndex = min((automaticIndex ?? 0) + 1, images.count - 1)
                 return true
             }
             func image() async -> CGImage? {
+                calls += 1
+                await onRead?(calls)
                 if animateBeforeFirstScroll, scrolls == 0 {
-                    calls += 1
                     return ScreenshotScrollingCaptureTests.stationaryPage(
                         animationOffset: calls.isMultiple(of: 2) ? 0 : 12)
                 }
                 if let automaticIndex { return images[automaticIndex] }
-                let index = min(calls, images.count - 1)
-                calls += 1
+                let index = min(calls - 1, images.count - 1)
                 if calls >= images.count { finish.request() }
                 return images[index]
             }
@@ -131,13 +161,15 @@ enum ScreenshotScrollingCaptureTests {
     }
 
     /// The document does not move. Only an animated banner changes rows.
-    static func stationaryPage(animationOffset: Int) -> CGImage {
+    static func stationaryPage(animationOffset: Int, blankBackground: Bool = false,
+                               bannerRows: Range<Int> = 30..<66) -> CGImage {
         let width = 32, height = 120
         let document = frame(offset: 0, seed: 91)
         let animation = frame(offset: animationOffset, seed: 91)
-        var bytes = Array(document.dataProvider!.data! as Data)
+        var bytes = blankBackground ? [UInt8](repeating: 255, count: width * height)
+            : Array(document.dataProvider!.data! as Data)
         let animated = Array(animation.dataProvider!.data! as Data)
-        for row in 30..<66 {
+        for row in bannerRows {
             bytes.replaceSubrange(row * width..<(row + 1) * width,
                                   with: animated[row * width..<(row + 1) * width])
         }
@@ -157,6 +189,23 @@ enum ScreenshotScrollingCaptureTests {
         // A transparent bottom row and right column, as a padded region capture.
         context.draw(image, in: CGRect(x: 0, y: 1, width: image.width, height: image.height))
         return context.makeImage()!
+    }
+
+    static func sparsePage(offset: Int, height: Int = 120) -> CGImage {
+        let width = 32
+        var bytes = [UInt8](repeating: 255, count: width * height)
+        for row in 0..<height {
+            let documentRow = row < 20 ? row : row + offset
+            guard row < 20 || [26, 49, 74, 97, 117, 141].contains(documentRow) else { continue }
+            for column in 0..<width {
+                bytes[row * width + column] = UInt8((documentRow * 17 + column * 31) % 181)
+            }
+        }
+        return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8,
+                       bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                       provider: CGDataProvider(data: Data(bytes) as CFData)!, decode: nil,
+                       shouldInterpolate: false, intent: .defaultIntent)!
     }
 
     static func pixels(_ image: CGImage) -> [UInt8] {
@@ -253,7 +302,7 @@ enum ScreenshotScrollingCaptureTests {
             suite.expect(capture.image.height == 120,
                          "a stationary page with an animated banner never adds empty capture rows")
         } else { suite.expect(false, "stationary content remains a complete single viewport") }
-        if let event = AutomaticScroller.scrollEvent(
+        if let event = ScreenshotAutomaticScroller.scrollEvent(
             processID: 42, point: CGPoint(x: -150, y: 220), step: 80) {
             suite.expect(event.location == CGPoint(x: -150, y: 220),
                          "automatic scroll retains the selected point: \(event.location)")
@@ -271,18 +320,53 @@ enum ScreenshotScrollingCaptureTests {
                              "automatic scroll field \(field.rawValue): got \(actual), expected \(expected)")
             }
         } else { suite.expect(false, "an automatic downward scroll event can be prepared without posting it") }
-        let delivery = AutomaticScroller()
-        suite.expect(delivery.scroll() && delivery.posted.count == 1
-                     && delivery.posted.first?.1 == .cgSessionEventTap && delivery.directPosts.isEmpty,
-                     "automatic scrolling enters the session stream so macOS routes it to a window")
-        delivery.posted = []
-        delivery.access = false
-        suite.expect(!delivery.scroll() && delivery.posted.isEmpty,
+        let targetRect = CGRect(x: -170, y: 460, width: 40, height: 80)
+        let screen = CGRect(x: -800, y: 40, width: 800, height: 600)
+        let controlsSize = CGSize(width: 320, height: 70)
+        let usual = ScreenshotSupport.scrollingControlsFrame(size: controlsSize, visibleFrame: screen, avoiding: nil)
+        let underControls = CGPoint(x: usual.midX, y: usual.midY)
+        let moved = ScreenshotSupport.scrollingControlsFrame(
+            size: controlsSize, visibleFrame: screen, avoiding: underControls)
+        suite.expect(screen.contains(moved) && !moved.contains(underControls)
+                     && ScreenshotSupport.scrollingControlsFrame(size: controlsSize, visibleFrame: screen,
+                                                                avoiding: .zero) == usual,
+                     "capture controls move only when they would intercept the automatic wheel")
+        func scroller(window: CGWindowID? = nil, hide: Bool = true, protected: Set<CGWindowID> = [])
+            -> ScreenshotAutomaticScroller? {
+            ScreenshotAutomaticScroller(region: .init(windowID: window, anchorRect: targetRect),
+                                        hideVorssaintWindows: hide, protectedWindowIDs: protected)
+        }
+        Desktop.bounds = Desktop.originalBounds
+        Desktop.pid = 42
+        Desktop.receiver = 31
+        Desktop.access = true
+        Desktop.posted = []
+        guard let delivery = scroller(window: 31) else {
+            suite.expect(false, "the picked window can receive automatic scrolls on a secondary display")
+            return
+        }
+        suite.expect(scroller() != nil && scroller(window: 32) == nil && delivery.scroll()
+                     && Desktop.posted.count == 1 && Desktop.posted.first?.1 == .cgSessionEventTap
+                     && Desktop.posted.first?.0.location == CGPoint(x: -150, y: 220),
+                     "dragged and clicked targets scroll only the receiving window at the selected point")
+        Desktop.posted = []
+        Desktop.access = false
+        suite.expect(!delivery.scroll() && Desktop.posted.isEmpty,
                      "automatic scrolling stops when input permission is lost")
-        delivery.access = true
-        delivery.targetBounds.origin.x += 1
-        suite.expect(!delivery.scroll() && delivery.posted.isEmpty,
+        Desktop.access = true
+        Desktop.bounds.origin.x += 1
+        suite.expect(!delivery.scroll() && Desktop.posted.isEmpty,
                      "automatic scrolling stops when its selected window moves")
+        Desktop.bounds = Desktop.originalBounds
+        Desktop.receiver = 32
+        suite.expect(scroller() == nil && !delivery.scroll() && Desktop.posted.isEmpty,
+                     "an overlapping window in the same process cannot take the selected window's scroll")
+        Desktop.receiver = 31
+        Desktop.pid = ProcessInfo.processInfo.processIdentifier
+        suite.expect(!delivery.scroll() && Desktop.posted.isEmpty && scroller() == nil
+                     && scroller(hide: false, protected: [31]) == nil && scroller(hide: false) != nil,
+                     "replaced, hidden and protected windows get no events; a visible app window is eligible")
+        Desktop.pid = 42
         var automatic = ScreenshotScrollingCapture.AutoScrollState()
         suite.expect(automatic.next(now: 0, height: 120, settled: false) == .wait
                      && automatic.next(now: 0.25, height: 120, settled: true) == .scroll
@@ -316,7 +400,7 @@ enum ScreenshotScrollingCaptureTests {
             let result = await ScreenshotScrollingCapture.capture(
                 region: region, includePointer: false, hideVorssaintWindows: true,
                 protectedWindowIDs: [], finishSignal: signal,
-                autoScroll: { source.scroll() }, onProgress: { heights.append($0) })
+                autoScroll: source, onProgress: { heights.append($0) })
             if case .success(let capture) = result {
                 suite.expect(capture.image.height == (alreadyAtBottom ? 120 : 192)
                              && heights == (alreadyAtBottom ? [120] : [120, 162, 192])
@@ -333,7 +417,7 @@ enum ScreenshotScrollingCaptureTests {
         let animatedResult = await ScreenshotScrollingCapture.capture(
             region: region, includePointer: false, hideVorssaintWindows: true,
             protectedWindowIDs: [], finishSignal: animatedSignal,
-            autoScroll: { animatedSource.scroll() }, onProgress: { _ in })
+            autoScroll: animatedSource, onProgress: { _ in })
         if case .success(let capture) = animatedResult {
             suite.expect(capture.image.height == 120 && animatedSource.scrolls == 3,
                          "an animated starting viewport still scrolls and finishes without false pixel growth")
@@ -341,12 +425,76 @@ enum ScreenshotScrollingCaptureTests {
         let stopSignal = ScreenshotScrollingCapture.FinishSignal()
         let stopSource = ScreenshotCaptureEngine.Source([frame(offset: 0)], finish: stopSignal, automatic: true)
         ScreenshotCaptureEngine.source = stopSource
-        var sent = 0
+        stopSource.onRead = { call in
+            if call == 2 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                stopSignal.request()
+            }
+        }
         _ = await ScreenshotScrollingCapture.capture(
             region: region, includePointer: false, hideVorssaintWindows: true,
             protectedWindowIDs: [], finishSignal: stopSignal,
-            autoScroll: { sent += 1; stopSignal.request(); return true }, onProgress: { _ in })
-        suite.expect(sent == 1, "Done immediately stops sending automatic scroll events")
+            autoScroll: stopSource, onProgress: { _ in })
+        suite.expect(stopSource.scrolls == 0, "Done during frame acquisition prevents the next scheduled wheel event")
+
+        let cancelSignal = ScreenshotScrollingCapture.FinishSignal()
+        let cancelSource = ScreenshotCaptureEngine.Source([frame(offset: 0)], finish: cancelSignal, automatic: true)
+        cancelSource.onRead = { call in
+            if call == 2 { withUnsafeCurrentTask { $0?.cancel() } }
+        }
+        ScreenshotCaptureEngine.source = cancelSource
+        let cancelTask = Task {
+            await ScreenshotScrollingCapture.capture(
+                region: region, includePointer: false, hideVorssaintWindows: true,
+                protectedWindowIDs: [], finishSignal: cancelSignal, autoScroll: cancelSource, onProgress: { _ in })
+        }
+        if case .cancelled = await cancelTask.value {
+            suite.expect(cancelSource.scrolls == 0, "Cancel during frame acquisition sends no further wheel event")
+        } else { suite.expect(false, "Cancel during capture discards the in-flight image") }
+
+        let coveredSignal = ScreenshotScrollingCapture.FinishSignal()
+        let coveredSource = ScreenshotCaptureEngine.Source(
+            [frame(offset: 0), frame(offset: 42)], finish: coveredSignal, automatic: true)
+        coveredSource.onRead = { [weak coveredSource] _ in
+            if coveredSource?.scrolls == 1 { coveredSource?.targetIsCurrent = false }
+        }
+        ScreenshotCaptureEngine.source = coveredSource
+        let covered = await ScreenshotScrollingCapture.capture(
+            region: region, includePointer: false, hideVorssaintWindows: true,
+            protectedWindowIDs: [], finishSignal: coveredSignal,
+            autoScroll: coveredSource, onProgress: { _ in })
+        if case .partial(let capture) = covered {
+            suite.expect(coveredSource.scrolls == 1 && pixels(capture.image) == pixels(frame(offset: 0)),
+                         "a target covered during frame acquisition never contributes pixels or another event")
+        } else { suite.expect(false, "losing the input window preserves only previously verified frames") }
+
+        let bannerSignal = ScreenshotScrollingCapture.FinishSignal()
+        let bannerSource = ScreenshotCaptureEngine.Source(
+            [0, 6, 12].map { stationaryPage(animationOffset: $0, blankBackground: true, bannerRows: 6..<42) },
+            finish: bannerSignal, automatic: true)
+        ScreenshotCaptureEngine.source = bannerSource
+        let banner = await ScreenshotScrollingCapture.capture(
+            region: region, includePointer: false, hideVorssaintWindows: true,
+            protectedWindowIDs: [], finishSignal: bannerSignal, autoScroll: bannerSource, onProgress: { _ in })
+        if case .partial(let capture) = banner {
+            suite.expect(capture.image.height == 120 && bannerSource.scrolls == 1,
+                         "an ambiguous moving banner on white cannot fabricate height or skip another viewport")
+        } else { suite.expect(false, "a clipped animation on blank paper cannot establish a page seam") }
+
+        let sparseSignal = ScreenshotScrollingCapture.FinishSignal()
+        let sparseFrames = [0, 12, 24, 36].map { sparsePage(offset: $0) }
+        let sparseSource = ScreenshotCaptureEngine.Source(sparseFrames, finish: sparseSignal, automatic: true)
+        ScreenshotCaptureEngine.source = sparseSource
+        var sparseHeights: [Int] = []
+        let sparseResult = await ScreenshotScrollingCapture.capture(
+            region: region, includePointer: false, hideVorssaintWindows: true,
+            protectedWindowIDs: [], finishSignal: sparseSignal, autoScroll: sparseSource,
+            onProgress: { sparseHeights.append($0) })
+        if case .success(let capture) = sparseResult {
+            suite.expect(sparseHeights == [120, 132, 144, 156]
+                         && pixels(capture.image) == pixels(sparsePage(offset: 0, height: 156)),
+                         "a fixed header cannot finish a moving sparse page early or hide any document row")
+        } else { suite.expect(false, "automatic capture reaches the end of the sparse document") }
         let terminal = terminalDocument()
         let terminalFrames = stride(from: 0, through: 120, by: 15).map { line in
             terminal.cropping(to: CGRect(x: 0, y: line * 28,
