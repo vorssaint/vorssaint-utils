@@ -174,6 +174,32 @@ enum AppUpdatesContract {
         suite.expect(Service().onlineResult(candidates: [unknownVersion], catalog: [entry()], operatingSystemVersion: "15.7").checkedPaths.isEmpty,
                      "an unknown installed version cannot prove catalog coverage")
 
+        var templateApp = AppUpdatesSupport.InstalledApp(name: app.name, bundleID: app.bundleID, path: app.path,
+                                                         version: "1.0", isFromAppStore: false, buildVersion: "1")
+        templateApp.updateFeed = .init(url: URL(string: url)!, format: .manifest)
+        let template = Service().onlineResult(candidates: [templateApp], catalog: [entry()], operatingSystemVersion: "15.7")
+        suite.expect(template.available && template.items.isEmpty && template.checkedPaths.isEmpty
+                     && template.uncomparableApps == [templateApp] && template.answeredPaths == [templateApp.path],
+                     "a catalog match with an uncomparable version reaches the service named, not as a row")
+        ResponseProtocol.reset([url: .init(status: 404)])
+        let missingTemplateFeed = publisher([templateApp], suite: suite)
+            .resolvingCatalogFallback(answeredBy: template, candidates: [templateApp])
+        suite.expect(missingTemplateFeed.available && missingTemplateFeed.uncheckedApps.isEmpty,
+                     "a missing feed answered by an uncomparable catalog match is not also reported as unchecked")
+        suite.expect(template.uncomparableAppNames(coveredBy: missingTemplateFeed) == [templateApp.name],
+                     "an app the catalog could not compare is named when its feed did not answer")
+        ResponseProtocol.reset([url: .init(body: manifest)])
+        let answeredTemplateFeed = publisher([templateApp], suite: suite)
+            .resolvingCatalogFallback(answeredBy: template, candidates: [templateApp])
+        suite.expect(answeredTemplateFeed.checkedPaths == [templateApp.path]
+                     && template.uncomparableAppNames(coveredBy: answeredTemplateFeed).isEmpty,
+                     "an app its own feed compared is not also named as not compared")
+        let serviceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/AppUpdates/AppUpdatesService.swift",
+                                         encoding: .utf8)) ?? ""
+        suite.expect(serviceSource.contains("feedResult.resolvingCatalogFallback(\n                    answeredBy: onlineResult, candidates: onlineCandidates)")
+                     && serviceSource.contains("uncomparableAppNames: onlineResult.uncomparableAppNames(coveredBy: resolvedFeed),"),
+                     "a scan hands both catalog answers to the feeds and names only apps no feed compared")
+
         var shared = app
         shared.updateFeed = .init(url: URL(string: url)!, format: .manifest)
         let renamed = AppUpdatesSupport.InstalledApp(name: "Other Copy", bundleID: app.bundleID,

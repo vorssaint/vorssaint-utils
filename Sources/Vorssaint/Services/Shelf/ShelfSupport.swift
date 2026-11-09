@@ -234,8 +234,21 @@ enum ShelfInteractionSupport {
 
     /// A pinned item is dragged out again and again, so a destination must
     /// never be offered a move: it would take the file away from the Shelf.
-    static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool) -> Bool {
-        removeAfterDrop && !dragIncludesPinned
+    /// Package contents belong to their owning app and must stay in place too.
+    static func offersMoveOutside(removeAfterDrop: Bool, dragIncludesPinned: Bool,
+                                  dragIncludesPackageContent: Bool) -> Bool {
+        removeAfterDrop && !dragIncludesPinned && !dragIncludesPackageContent
+    }
+
+    /// Only ancestors count: a whole package or a symlink itself can move.
+    /// Resolve the parent so a directory symlink cannot hide package contents.
+    static func isInsidePackage(_ url: URL, isPackage: (URL) -> Bool) -> Bool {
+        var directory = url.standardizedFileURL.deletingLastPathComponent().resolvingSymlinksInPath()
+        while directory.path != "/", !directory.path.isEmpty {
+            if isPackage(directory) { return true }
+            directory = directory.deletingLastPathComponent()
+        }
+        return false
     }
 
     /// The picture a tile menu can open in the screenshot editor. The editor

@@ -95,11 +95,13 @@ struct NotchClipboardPastePress: Equatable {
     let serial: Int
     let index: Int
 
-    /// The digit row by physical key, so every layout keeps the shortcut.
+    /// The digit row by physical key, so every layout keeps the shortcut,
+    /// and the numeric keypad's digits.
     static func index(keyCode: UInt16, commandOnly: Bool) -> Int? {
         guard commandOnly else { return nil }
         let digitKeys: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
-        return digitKeys.firstIndex(of: keyCode)
+        let keypadKeys: [UInt16] = [83, 84, 85, 86, 87, 88, 89, 91, 92]
+        return digitKeys.firstIndex(of: keyCode) ?? keypadKeys.firstIndex(of: keyCode)
     }
 }
 
@@ -194,12 +196,14 @@ struct NotchCapsuleFit: Equatable {
 enum NotchPageTop: Equatable {
     /// Its controls on either side of the camera, or its first row.
     case row
-    /// Nothing for the row: beside a camera the row stays empty, and
-    /// elsewhere the page starts at the top.
+    /// Nothing of its own for the row: beside a camera the row holds only
+    /// the island's own buttons, and elsewhere the page starts at the top
+    /// unless the row has to lead to the sections.
     case none
     /// The page starts at the top of the row and lays out its leading side
     /// itself, as the player's cover does beside the camera. Only the
-    /// trailing side shows controls the page hands the row.
+    /// trailing side shows controls the page hands the row, and then the way
+    /// to the sections when nothing floating offers it.
     case wrapsCamera
 }
 
@@ -217,6 +221,9 @@ extension NotchModule {
 struct NotchBand: Equatable {
     /// Room every control keeps from the camera.
     static let cameraClearance: CGFloat = 8
+    /// The island's way to its sections: a 28-point button and the row's
+    /// spacing after it.
+    static let sectionsButtonRoom: CGFloat = 28 + 6
 
     /// The row wraps a physical camera, half of it on either side.
     var besideCamera = false
@@ -224,6 +231,15 @@ struct NotchBand: Equatable {
     /// Each side's width beside the camera, past the clearance; without a
     /// camera, the whole row.
     var side: CGFloat = 0
+    /// The island's way to its sections leads the row, before the page's
+    /// own controls.
+    var sectionsButton = false
+    /// On a page that lays out its leading side itself, as the player does
+    /// across from its cover, the row ends with it after the page's own
+    /// controls where they fit together.
+    var trailingSectionsButton = false
+    /// Where the row does not hold it, such a page shows it itself.
+    var pageSectionsButton = false
 
     init() {}
 
@@ -232,7 +248,13 @@ struct NotchBand: Equatable {
         height = geometry.headerRowHeight
         side = besideCamera
             ? max(0, (contentWidth - geometry.headerCameraGap) / 2 - Self.cameraClearance) : max(0, contentWidth)
+        sectionsButton = geometry.rowShowsSectionsButton
+        trailingSectionsButton = geometry.sectionsButtonEndsRow && besideCamera && side >= geometry.trailingSectionsRoom
+        pageSectionsButton = geometry.sectionsButtonEndsRow && !trailingSectionsButton
     }
+
+    /// What the leading side leaves the page's own controls.
+    var leadingRoom: CGFloat { max(0, side - (sectionsButton ? Self.sectionsButtonRoom : 0)) }
 }
 
 /// Shared measurements keep the window's content budget and its SwiftUI
@@ -264,6 +286,14 @@ enum NotchLayout {
     static let shortcutHeight: CGFloat = 74
     static let shortcutWidth: CGFloat = 76
     static let shortcutSpacing: CGFloat = 8
+    /// Tiles that would just miss the island's width close their gaps, down
+    /// to none, before their rail scrolls: each tile's own margin keeps them
+    /// apart, and the narrowest island holds four across.
+    static let shortcutLeastSpacing: CGFloat = 0
+    /// A rail a few points short of its next row closes its rows only this
+    /// far: a title on two lines then sits as near the circle under it as
+    /// its own circle above, never nearer.
+    static let shortcutLeastRowSpacing: CGFloat = 6
     static let systemCardHeight: CGFloat = 72
     static let systemCardWidth: CGFloat = 128
     /// Leave room for the card's hover scale, including a single full-width card.
@@ -271,6 +301,10 @@ enum NotchLayout {
     static let toolHeight: CGFloat = 72
     static let toolWidth: CGFloat = 76
     static let toolSpacing: CGFloat = 6
+    /// Tools that would just miss the island's width close their gaps, down
+    /// to none, before their rail scrolls, so the narrowest island holds
+    /// four across, as the home page's shortcuts do.
+    static let toolLeastSpacing: CGFloat = 0
     /// Three rows fit the gallery's page; two still fill a compact strip.
     static let sectionTileHeight: CGFloat = 86
     static let sectionTileWidth: CGFloat = 92
@@ -484,6 +518,27 @@ enum NotchLayout {
         CGFloat(columns) * itemWidth + CGFloat(max(0, columns - 1)) * spacing <= width
     }
 
+    /// The room between the columns of a rail that fits: its own spacing,
+    /// or what is left where that would just miss the width, down to
+    /// `least`, so the rail closes its gaps before it scrolls. Nil once
+    /// the columns would not fit even then.
+    static func railGap(columns: Int, itemWidth: CGFloat, spacing: CGFloat, least: CGFloat, width: CGFloat) -> CGFloat? {
+        if railFits(columns: columns, itemWidth: itemWidth, spacing: spacing, width: width) { return spacing }
+        guard columns > 1, railFits(columns: columns, itemWidth: itemWidth, spacing: least, width: width) else { return nil }
+        return (width - CGFloat(columns) * itemWidth) / CGFloat(columns - 1)
+    }
+
+    /// A tool's title spans its cell, where a shortcut's label keeps a
+    /// margin, so where the rail closes its gaps each title gives up half
+    /// of the closed gap on either side: neighbouring titles stay as far
+    /// apart as the rail's spacing keeps them elsewhere. Zero where the
+    /// rail keeps its gaps or scrolls.
+    static func toolTitleInset(count: Int, rows: Int, width: CGFloat) -> CGFloat {
+        let gap = railGap(columns: railColumns(count: count, rows: rows), itemWidth: toolWidth, spacing: toolSpacing,
+                          least: toolLeastSpacing, width: width)
+        return max(0, toolSpacing - (gap ?? toolSpacing)) / 2
+    }
+
     /// Square artwork, its gap, the three compact transport buttons under the
     /// title, and horizontal padding. Track titles truncate within the
     /// remaining space; a wider card moves the transport beside them.
@@ -509,19 +564,30 @@ enum NotchLayout {
         }
     }
 
-    /// How many of the home page's levels the island's top row holds. A full
-    /// row holds them all. Beside a camera they sit one on each side only
+    /// How many of the home page's levels the island's top row holds, each
+    /// at least at its narrowest after the sections button. A full row
+    /// holds them all. Beside a camera they sit one on each side only
     /// while they split evenly; three would leave one side with two and
-    /// nothing under the other, so they share a row below the camera's.
+    /// nothing under the other, so they share a row below the camera's,
+    /// as they do where the button leaves the first one too little.
     static func bandLevelCount(_ levels: Int, band: NotchBand) -> Int {
         let count = max(0, levels)
-        return !band.besideCamera || count <= 2 ? count : 0
+        guard band.besideCamera else {
+            // The trailing end keeps the row's spacing before the island's marks.
+            let held = CGFloat(count) * bandLevelMinimumWidth + CGFloat(max(0, count - 1)) * bandLevelSpacing
+            return held + bandLevelSpacing <= band.leadingRoom ? count : 0
+        }
+        return count <= 2 && band.leadingRoom >= bandLevelMinimumWidth ? count : 0
     }
 
     /// A level reading at the trailing end of the home page's full row,
     /// where the levels make room for it.
     static let homeReadingWidth: CGFloat = 220
     static let homeReadingMinimumWidth: CGFloat = 160
+    /// The narrowest side a level reading names its percentage in: the
+    /// least a page's row keeps beside a camera. Across from the player's
+    /// cover a side has less, and the reading keeps its glyph and a meter.
+    static let levelReadingDetailWidth: CGFloat = 92
 
     /// How wide that reading is while every level keeps its narrowest; nil
     /// when the row is too narrow for both, and the reading covers the
@@ -535,22 +601,33 @@ enum NotchLayout {
 
     /// The home page: the levels a camera's row has no room for, the
     /// player's card and a rail of shortcuts. A tight budget shortens the
-    /// card before it drops a row.
+    /// card, then closes the rows of a rail that would scroll, before it
+    /// drops a row.
     static func controls(hasCards: Bool, levelRow: Bool = false, shortcutCount: Int,
                          width: CGFloat, height: CGFloat) -> NotchControlsLayout {
         let levels = levelRow ? levelRowHeight : 0
         guard hasCards || shortcutCount > 0 else { return NotchControlsLayout(levelRow: levels, cardRow: 0, shortcutRows: 0) }
         let budget = height - (levels > 0 ? levels + rowSpacing : 0)
-        var rows = 0
+        var rows = 0, rowGap = shortcutSpacing
         if shortcutCount > 0 {
             let remaining = hasCards ? budget - minimumCardHeight - rowSpacing : budget
             rows = railRows(count: shortcutCount,
                             perRow: railCapacity(width: width, itemWidth: shortcutWidth, spacing: shortcutSpacing),
                             rowHeight: shortcutHeight, spacing: shortcutSpacing, height: remaining)
+            // A rail that would scroll sideways closes its rows as it closes
+            // its columns, to take the row it is a few points short of; one
+            // that fits keeps its rows and gaps.
+            if railGap(columns: railColumns(count: shortcutCount, rows: rows), itemWidth: shortcutWidth,
+                       spacing: shortcutSpacing, least: shortcutLeastSpacing, width: width) == nil,
+               let gap = railGap(columns: rows + 1, itemWidth: shortcutHeight, spacing: shortcutSpacing,
+                                 least: shortcutLeastRowSpacing, width: remaining) {
+                rows += 1
+                rowGap = gap
+            }
         }
-        let rail = rows > 0 ? railHeight(rows: rows, rowHeight: shortcutHeight, spacing: shortcutSpacing) + rowSpacing : 0
+        let rail = rows > 0 ? railHeight(rows: rows, rowHeight: shortcutHeight, spacing: rowGap) + rowSpacing : 0
         let cardRow = hasCards ? min(cardHeight, max(minimumCardHeight, budget - rail)) : 0
-        return NotchControlsLayout(levelRow: levels, cardRow: cardRow, shortcutRows: rows)
+        return NotchControlsLayout(levelRow: levels, cardRow: cardRow, shortcutRows: rows, shortcutRowSpacing: rowGap)
     }
 
     /// The modes and Start are in the island's top row, so setup is the
@@ -582,10 +659,11 @@ enum NotchLayout {
         max(musicArtworkSize, band > 0 ? band + musicCameraClearance + musicTitleHeight : 0)
     }
     /// The whole player, the same in every preset; with nothing playing it
-    /// has no timeline.
-    static func musicPlayerHeight(band: CGFloat, playing: Bool = true) -> CGFloat {
+    /// has no timeline. The optional volume row keeps its full control height.
+    static func musicPlayerHeight(band: CGFloat, playing: Bool = true, showVolume: Bool = false) -> CGFloat {
         musicHeadHeight(band: band) + musicHeadSpacing
             + (playing ? musicTimelineHeight + rowSpacing : 0) + musicTransportHeight + musicBottomRoom
+            + (showVolume ? rowSpacing + levelRowHeight : 0)
     }
 
     /// How the music page divides its height between the player and an open
@@ -620,10 +698,11 @@ struct NotchControlsLayout: Equatable {
     var levelRow: CGFloat = 0
     let cardRow: CGFloat
     let shortcutRows: Int
+    var shortcutRowSpacing = NotchLayout.shortcutSpacing
 
     var height: CGFloat {
         let rail = shortcutRows > 0
-            ? NotchLayout.railHeight(rows: shortcutRows, rowHeight: NotchLayout.shortcutHeight, spacing: NotchLayout.shortcutSpacing) : 0
+            ? NotchLayout.railHeight(rows: shortcutRows, rowHeight: NotchLayout.shortcutHeight, spacing: shortcutRowSpacing) : 0
         let rows = [levelRow, cardRow, rail].filter { $0 > 0 }
         return rows.reduce(0, +) + CGFloat(max(0, rows.count - 1)) * NotchLayout.rowSpacing
     }
@@ -1029,19 +1108,22 @@ enum NotchCapsuleLayout {
     /// or an event: a download's arrow and percentage, the working agents,
     /// the cover or the event's dot and countdown.
     static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
-                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+                               geometry: NotchGeometry, language: AppLanguage,
+                               calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
-        case .calendar: return calendarClockWidth
+        case .calendar: return calendarClockWidth(leadTime: calendarLeadTime)
         default: return symbolWidth
         }
     }
 
     /// An event's dot and its countdown at its widest, as a pair shows it.
-    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+    static func calendarClockWidth(leadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
+        calendarDotSide + markSpacing + width(NotchCalendarSupport.countdownShape(leadTime: leadTime), font: readingFont)
+    }
 
     /// Between a mark and the reading beside it; an event's countdown is a
     /// group of its own, so a pair with one keeps two clocks apart.
@@ -1050,9 +1132,10 @@ enum NotchCapsuleLayout {
     /// A timer's reading beside its mark, measured by its shape, so the
     /// capsule only moves when a character comes or goes.
     static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
-                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage,
+                             calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
-                                  geometry: geometry, language: language)
+                                  geometry: geometry, language: language, calendarLeadTime: calendarLeadTime)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -1062,10 +1145,11 @@ enum NotchCapsuleLayout {
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
-                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                                    geometry: NotchGeometry, language: AppLanguage,
+                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -1098,9 +1182,11 @@ enum NotchCapsuleLayout {
 
     /// An event's color and title, then its countdown at its widest and the
     /// time it starts or ends.
-    static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
+    static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
+                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
-            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+            + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
+            + markSpacing + width(time, font: smallFont)
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
     }
 
@@ -1652,13 +1738,21 @@ enum NotchSupport {
     }
 
     /// What a key does on the clipboard page, whose search field keeps the
-    /// focus while hidden. Up, Down and Return drive the list. A typed letter
-    /// shows the field and goes on to it, so its editor and any input method
+    /// focus while hidden. Up/Down, Control-P/N and Return drive the list.
+    /// A typed letter shows the field and goes on to it, so its editor and any input method
     /// get every key, and so does every key while an input method composes.
-    /// Keys held with Command, Control or Option belong to their own shortcuts,
-    /// and Shift with the arrows or Return to the field, which selects with them.
+    /// Other Command, Control or Option keys belong to their own shortcuts;
+    /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                              composing: Bool) -> NotchClipboardKey? {
+        let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if !composing, shortcutModifiers == .control {
+            switch characters.lowercased() {
+            case "n": return .move(backwards: false)
+            case "p": return .move(backwards: true)
+            default: break
+            }
+        }
         guard modifiers.isDisjoint(with: [.command, .control, .option]) else { return nil }
         guard !composing else { return .reveal }
         switch keyCode {
@@ -1790,6 +1884,10 @@ enum NotchSupport {
         isPlaying && watchesMusicActivity(in: defaults)
     }
 
+    static func showsMusicVolume(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchMusicShowVolume) && AppFeature.mixer.isAvailable(in: defaults)
+    }
+
     static func showsInCaptures(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchShowInCaptures) as? Bool ?? true
     }
@@ -1851,10 +1949,21 @@ enum NotchSupport {
         return batteryWarning(percent: percent, externalConnected: externalConnected, in: defaults)
     }
 
-    /// The closed island stays out of sight until the pointer reaches it, and
-    /// shows no notices while it waits.
+    /// The closed island stays out of sight until the pointer reaches it.
+    /// Unless set to show activity, it shows no notices while it waits.
     static func hidesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: DefaultsKey.notchHideUntilHover) && defaults.bool(forKey: DefaultsKey.notchOpenOnHover)
+    }
+
+    /// Hidden until hover, the island can still come into sight for as long
+    /// as an activity runs or a notice shows, and then it takes notices.
+    static func hiddenShowsActivity(in defaults: UserDefaults = .standard) -> Bool {
+        hidesUntilHover(in: defaults) && defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
+    }
+
+    /// Hidden until hover and out of sight for everything until then.
+    static func hidesNoticesUntilHover(in defaults: UserDefaults = .standard) -> Bool {
+        hidesUntilHover(in: defaults) && !defaults.bool(forKey: DefaultsKey.notchHiddenShowsActivity)
     }
 
     static func idleContent(in defaults: UserDefaults = .standard) -> NotchIdleContent {
@@ -2064,6 +2173,19 @@ enum NotchSupport {
         case .pointer, .all: return pointer.flatMap { builtIn.indices.contains($0) ? $0 : nil } ?? fallback
         }
     }
+
+    /// Whether the island can rest on a display without a notch, where the
+    /// shape chosen for those displays shows. The pointer can take it to any
+    /// display; otherwise the chosen display decides, and one with a camera,
+    /// or a built-in screen closed under its lid, keeps it off all of them.
+    static func reachesDisplayWithoutNotch(preference: NotchDisplay, builtIn: [Bool], notched: [Bool], main: Int,
+                                           hasLid: Bool = true) -> Bool {
+        guard notched.contains(false) else { return false }
+        if preference == .pointer || preference == .all { return true }
+        guard let index = screenIndex(preference: preference, builtIn: builtIn, notched: notched, main: main,
+                                      hasLid: hasLid) else { return false }
+        return !notched[index]
+    }
 }
 
 /// A hidden menu bar retains only a measurement from the same display and mode.
@@ -2146,9 +2268,16 @@ struct NotchGeometry: Equatable {
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
     var pageTop: NotchPageTop = .row
-    /// The width the open page reads best at, inside the width the person
-    /// chose, which stays the limit; nil takes all of it, as lists do.
+    /// The width the open page reads best at, inside a preset's width,
+    /// which stays the limit; nil takes all of it, as lists do. A width set
+    /// by hand is the island's on every page.
     var pageContentWidth: CGFloat? = nil
+    /// Nothing floating beside the island leads to its sections, so the
+    /// open page's row starts with the island's own button for them.
+    var sectionsButtonInRow = false
+    /// The 28-point controls a page that wraps the camera hands the row,
+    /// as the player's lyrics and queue toggles while a song plays.
+    var pageTrailingControls = 0
     private var allowsActivityFooter = true
     private var minimumCompactWidth: CGFloat = 0
     /// Narrower wings than this are dropped rather than drawn cramped.
@@ -2158,7 +2287,7 @@ struct NotchGeometry: Equatable {
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
          cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
-         hideMenuBarGap: Bool = true, outline: Bool = false, barEdge: CGFloat = 0) {
+         hideMenuBarGap: Bool = false, outline: Bool = false, barEdge: CGFloat = 0) {
         self.screen = screen
         self.layout = layout
         self.customWidth = NotchSize.clamped(customWidth, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth)
@@ -2225,6 +2354,24 @@ struct NotchGeometry: Equatable {
     }
     /// What each side of the camera keeps for the page's row.
     var pageBandSide: CGFloat { pageTop == .wrapsCamera ? NotchLayout.musicBandSide : 100 }
+    /// The sections button leads the row, unless the page lays out its
+    /// leading side itself, as the player does: the row then ends with it.
+    var rowShowsSectionsButton: Bool { sectionsButtonInRow && pageTop != .wrapsCamera }
+    var sectionsButtonEndsRow: Bool { sectionsButtonInRow && pageTop == .wrapsCamera }
+    /// The page's controls and then the button, each control taking the
+    /// button's room.
+    var trailingSectionsRoom: CGFloat { CGFloat(pageTrailingControls) * NotchBand.sectionsButtonRoom + 28 }
+
+    /// The island opened on `module` at rest: the page's top row and the
+    /// width it reads best at, with the sections button where nothing
+    /// floating beside the island offers them.
+    func page(_ module: NotchModule, controls: [NotchControlItem], sectionsButton: Bool) -> NotchGeometry {
+        var result = self
+        result.pageTop = module.pageTop
+        result.pageContentWidth = NotchLayout.naturalContentWidth(module, controls: controls, within: contentWidth)
+        result.sectionsButtonInRow = sectionsButton
+        return result
+    }
     /// A capsule's row keeps clear of its rounded top corners, its 28-point
     /// buttons as far from the top edge as the page is from the bottom. A
     /// page with no row starts as far from the top as it ends from the bottom.
@@ -2234,10 +2381,11 @@ struct NotchGeometry: Equatable {
         return floats ? NotchLayout.bottomInset - (NotchLayout.headerHeight - 28) / 2 : 0
     }
     /// The row beside a camera is there whatever the page, as the camera is;
-    /// elsewhere only a page with something to put in it has one.
+    /// elsewhere only a page with something to put in it has one, or a page
+    /// the row has to lead to the sections from.
     var headerRowHeight: CGFloat {
         if headerCameraGap > 0 { return max(cameraHeight, NotchLayout.headerHeight) }
-        return pageTop == .row ? NotchLayout.headerHeight : 0
+        return pageTop == .row || rowShowsSectionsButton ? NotchLayout.headerHeight : 0
     }
     /// From the top of the island to the top of the page. A page that wraps
     /// the camera starts with the row and lays out its leading side itself.
@@ -2520,10 +2668,19 @@ struct NotchGeometry: Equatable {
     var expanded: CGSize { expandedSize(module: .controls) }
     var expandedWidth: CGFloat {
         let chosen = NotchLayout.preferredWidth(layout, custom: customWidth)
-        // A page with a width of its own takes no more, still wrapping the
-        // camera with its row where the chosen width would have.
-        let preferred = pageContentWidth.map { natural in
-            min(chosen, max(natural, isNotched ? cameraWidth + pageBandSide * 2 : 0) + NotchLayout.horizontalInset * 2)
+        // Under a preset, a page with a width of its own takes no more, still
+        // wrapping the camera with its row where the chosen width would have.
+        // Each side keeps its room for the page's controls past the sections
+        // button, as the camera's sides are as wide as each other. A row that
+        // ends with the button grows only when the page's controls leave it
+        // no room and the chosen width holds both; otherwise the page shows
+        // it. A width set by hand is the island's on every page, so making it
+        // wider makes the player and the home page wider too.
+        var wing = pageBandSide + (rowShowsSectionsButton ? NotchBand.sectionsButtonRoom : 0)
+        let ending = max(wing, trailingSectionsRoom + NotchBand.cameraClearance)
+        if sectionsButtonEndsRow, cameraWidth + ending * 2 + NotchLayout.horizontalInset * 2 <= chosen { wing = ending }
+        let preferred = layout == .custom ? chosen : pageContentWidth.map { natural in
+            min(chosen, max(natural, isNotched ? cameraWidth + wing * 2 : 0) + NotchLayout.horizontalInset * 2)
         } ?? chosen
         return min(max(preferred, cameraWidth + 36), screen.width - 24 - NotchQuickAccessLayout.gutter * 2)
     }
@@ -2560,12 +2717,13 @@ struct NotchGeometry: Equatable {
     }
 
     /// The arrows walk the tiles the way the rail draws them: reading order
-    /// while every column fits, the columns it fills once it scrolls.
+    /// while every column fits, closing its gaps if it must, the columns it
+    /// fills once it scrolls.
     func toolFlow(count: Int) -> QuickToolsSupport.GridFlow {
         let rows = toolRows(count: count)
         let columns = NotchLayout.railColumns(count: count, rows: rows)
-        return NotchLayout.railFits(columns: columns, itemWidth: NotchLayout.toolWidth,
-                                    spacing: NotchLayout.toolSpacing, width: contentWidth)
+        return NotchLayout.railGap(columns: columns, itemWidth: NotchLayout.toolWidth, spacing: NotchLayout.toolSpacing,
+                                   least: NotchLayout.toolLeastSpacing, width: contentWidth) != nil
             ? .rows(columns: columns) : .columns(rows: rows)
     }
 
@@ -2575,6 +2733,7 @@ struct NotchGeometry: Equatable {
     func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
                       detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = true, musicHasContent: Bool = true,
+                      musicShowsVolume: Bool = false,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
@@ -2612,7 +2771,11 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(room, empty ? NotchLayout.emptyHeight : home.height)
             case .music:
                 let player = NotchLayout.musicPlayerHeight(band: musicBandHeight, playing: musicHasContent)
-                contentHeight = min(budget, player) + max(0, musicExtraHeight)
+                // Presets grow for the optional row; a custom height keeps
+                // its limit and the page can scroll to the controls.
+                let volume = musicShowsVolume ? NotchLayout.rowSpacing + NotchLayout.levelRowHeight : 0
+                let room = budget + (layout == .custom ? 0 : volume)
+                contentHeight = min(room, player + volume) + max(0, musicExtraHeight)
             case .system:
                 let cards = max(0, systemCards)
                 contentHeight = min(budget, cards == 0 ? NotchLayout.emptyHeight
@@ -2845,6 +3008,115 @@ enum NotchMotion {
             return (end + (end - start) * CGFloat(swing)).rounded(.up)
         }
         return CGSize(width: side(from.width, to.width, width: true), height: side(from.height, to.height, width: false))
+    }
+}
+
+/// A resize in flight, each side a sum of the island's springs from rest: the
+/// move it began with, and one more from each moment that side's target moved
+/// on the way it was already going. The island then carries on at its speed;
+/// started again from rest it stalled halfway, as the Command Bar's island did
+/// when its rows arrived while it opened. A motion turning back on either side
+/// starts again from where it is drawn, as an interrupted island always has.
+struct NotchMotionTimeline: Equatable {
+    struct Leg: Equatable {
+        var begin: CFTimeInterval
+        var from: CGFloat
+        var to: CGFloat
+    }
+
+    private(set) var width: [Leg]
+    private(set) var height: [Leg]
+    /// When its latest move began, and the size there.
+    private(set) var begin: CFTimeInterval
+    private(set) var start: CGSize
+    /// A width easing without a swing, and how far the centre still sat from
+    /// its new one. A motion with either is never carried on.
+    let steady: Bool
+    let offset: CGFloat
+
+    init(from: CGSize, to: CGSize, begin: CFTimeInterval, steady: Bool = false, offset: CGFloat = 0) {
+        width = [Leg(begin: begin, from: from.width, to: to.width)]
+        height = [Leg(begin: begin, from: from.height, to: to.height)]
+        self.begin = begin
+        start = from
+        self.steady = steady
+        self.offset = offset
+    }
+
+    var target: CGSize { CGSize(width: width.last?.to ?? start.width, height: height.last?.to ?? start.height) }
+
+    func size(at time: CFTimeInterval) -> CGSize {
+        CGSize(width: value(of: width, at: time, width: true), height: value(of: height, at: time, width: false))
+    }
+
+    func offset(at time: CFTimeInterval) -> CGFloat {
+        NotchMotion.offset(at: time - begin, from: start, to: target, start: offset, steady: steady)
+    }
+
+    /// The same motion with its latest move beginning at `time`: Core
+    /// Animation starts a motion when it reaches the screen, not when it is made.
+    func rebased(to time: CFTimeInterval) -> NotchMotionTimeline {
+        func moved(_ legs: [Leg]) -> [Leg] {
+            legs.map { $0.begin == begin ? Leg(begin: time, from: $0.from, to: $0.to) : $0 }
+        }
+        var rebased = self
+        rebased.width = moved(width)
+        rebased.height = moved(height)
+        rebased.begin = time
+        return rebased
+    }
+
+    /// This motion headed for `size` from `time` on, or nil when a side turns
+    /// back, or the motion eases without a swing or moves its centre.
+    func continued(to size: CGSize, at time: CFTimeInterval) -> NotchMotionTimeline? {
+        guard !steady, offset == 0, let width = continued(width, to: size.width, at: time),
+              let height = continued(height, to: size.height, at: time) else { return nil }
+        var next = self
+        next.width = width
+        next.height = height
+        next.begin = time
+        next.start = self.size(at: time)
+        return next
+    }
+
+    /// Sizes at a steady rate from its latest move until every side stays
+    /// within `settledDistance` of its target, ending exactly there.
+    func frames() -> (sizes: [CGSize], keyTimes: [Double], duration: TimeInterval) {
+        let target = target
+        let step = 1.0 / 240
+        var duration = step
+        var time = step
+        while time < 2 {
+            let size = size(at: begin + time)
+            if abs(size.width - target.width) > NotchMotion.settledDistance
+                || abs(size.height - target.height) > NotchMotion.settledDistance {
+                duration = time + step
+            }
+            time += step
+        }
+        let count = max(1, Int((duration * 120).rounded(.up)))
+        let keyTimes = (0...count).map { Double($0) / Double(count) }
+        let sizes = keyTimes.map { $0 == 1 ? target : size(at: begin + duration * $0) }
+        return (sizes, keyTimes, duration)
+    }
+
+    private func value(of legs: [Leg], at time: CFTimeInterval, width: Bool) -> CGFloat {
+        guard let first = legs.first, let last = legs.last else { return 0 }
+        let value = legs.reduce(first.from) { value, leg in
+            guard leg.from != leg.to else { return value }
+            let spring = NotchMotion.spring(from: leg.from, to: leg.to, width: width, steady: steady)
+            return value + (leg.to - leg.from) * CGFloat(spring.progress(at: time - leg.begin))
+        }
+        // Swings that happen to coincide still pass the target no further
+        // than one does, so the display keeps its free margin.
+        return max(0, min(value, max(first.from, last.to) + NotchMotion.overshootLimit))
+    }
+
+    private func continued(_ legs: [Leg], to end: CGFloat, at time: CFTimeInterval) -> [Leg]? {
+        guard let last = legs.last, end != last.to else { return legs }
+        let heading = legs.first { $0.from != $0.to }.map { $0.to - $0.from } ?? 0
+        guard heading == 0 || (end > last.to) == (heading > 0) else { return nil }
+        return legs + [Leg(begin: time, from: last.to, to: end)]
     }
 }
 

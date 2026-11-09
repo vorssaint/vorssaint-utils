@@ -175,6 +175,10 @@ enum QuickLauncherContract {
         let enter = NSEvent(keyCode: UInt16(kVK_Return))
         suite.expect(launcher.handlePanelKey(enter) == nil && events == ["keepAwake.toggle"],
                      "Return activates the first item immediately after presentation")
+        events.removeAll()
+        suite.expect(launcher.handlePanelKey(NSEvent(keyCode: UInt16(kVK_ANSI_Keypad1))) == nil
+                     && events == ["keepAwake.toggle"],
+                     "the numeric keypad's 1 activates the first item like the top row's")
         for item in [QuickLauncherItem.urlCleaner, .homebrew, .uninstaller, .media] {
             launcher.activeUtility = item
             launcher.prepareForPresentation()

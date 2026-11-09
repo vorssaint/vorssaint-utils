@@ -574,3 +574,177 @@ enum AirPlayBacklogContract {
                      "a normal amount of buffered audio is played in full")
     }
 }
+
+/// The AirPlay stream pauses once nothing routed has played for a while, like
+/// a paused player, and never before the mixer has reported anything. Coming
+/// back, only a renderer that played through the pause is replaced, so an app
+/// routed meanwhile keeps the one session its build opened on the speaker.
+enum AirPlayIdleContract {
+    static func run(_ suite: TestSuite) {
+        countdown(suite)
+        resuming(suite)
+        pausing(suite)
+        mixerReport(suite)
+    }
+
+    private static func countdown(_ suite: TestSuite) {
+        var timer = AirPlayIdleTimer()
+        suite.expect(timer.secondsUntilStop(now: 0, rendererStartedAt: nil) == nil,
+                     "nothing reported yet counts as playing")
+
+        timer.update(active: false, now: 100, rendererStartedAt: 50)
+        suite.expect(timer.secondsUntilStop(now: 103, rendererStartedAt: 50) == AirPlayIdleTimer.delay - 3,
+                     "silence counts down from when it started")
+        timer.update(active: false, now: 105, rendererStartedAt: 50)
+        suite.expect(timer.secondsUntilStop(now: 105, rendererStartedAt: 50) == AirPlayIdleTimer.delay - 5,
+                     "repeated silent reports do not restart the countdown")
+        suite.expect(timer.secondsUntilStop(now: 100 + AirPlayIdleTimer.delay + 1, rendererStartedAt: 50) == 0,
+                     "after the delay the stream may stop")
+
+        timer.update(active: true, now: 106, rendererStartedAt: 50)
+        suite.expect(timer.secondsUntilStop(now: 200, rendererStartedAt: 106) == nil, "sound cancels the countdown")
+        timer.update(active: false, now: 300, rendererStartedAt: 106)
+        suite.expect(timer.secondsUntilStop(now: 302, rendererStartedAt: 106) == AirPlayIdleTimer.delay - 2,
+                     "a gap between tracks starts a fresh countdown")
+    }
+
+    /// Back from a pause of at least a second, the renderer that played
+    /// through it is replaced, since the speaker may have paused the session
+    /// it feeds. One started during the silence is fresh already.
+    private static func resuming(_ suite: TestSuite) {
+        let threshold = AirPlayIdleTimer.freshStreamAfter
+        var playing = AirPlayIdleTimer()
+        suite.expect(!playing.update(active: true, now: 0, rendererStartedAt: 0),
+                     "the first report of playback restarts nothing")
+        playing.update(active: false, now: 10, rendererStartedAt: 0)
+        suite.expect(playing.update(active: true, now: 10 + threshold + 2, rendererStartedAt: 0),
+                     "a renderer that played through a pause of a few seconds is replaced by a fresh one")
+        let fresh = 10 + threshold + 2
+        suite.expect(!playing.update(active: true, now: 20, rendererStartedAt: fresh),
+                     "a repeated playing report does not ask again")
+        playing.update(active: false, now: 30, rendererStartedAt: fresh)
+        suite.expect(!playing.update(active: true, now: 30 + threshold / 2, rendererStartedAt: fresh),
+                     "a gap shorter than the threshold keeps the stream running")
+
+        // An app routed to AirPlay while nothing routed played: its build
+        // started the renderer during that silence, and replacing it on the
+        // first sound would open a second session on the speaker.
+        var routed = AirPlayIdleTimer()
+        routed.update(active: false, now: 100, rendererStartedAt: nil)
+        suite.expect(!routed.update(active: true, now: 130, rendererStartedAt: 129),
+                     "a renderer started during the silence, for an app routed meanwhile, is kept when it plays")
+        routed.update(active: false, now: 200, rendererStartedAt: 129)
+        suite.expect(routed.update(active: true, now: 205, rendererStartedAt: 129),
+                     "that renderer is replaced like any other once it played through a pause of its own")
+    }
+
+    /// Silence for the whole delay stops a running renderer. Engines that
+    /// join meanwhile wait for the next sound, which starts a renderer.
+    private static func pausing(_ suite: TestSuite) {
+        let delay = AirPlayIdleTimer.delay
+        var unknown = AirPlayIdleTimer()
+        suite.expect(!unknown.stopsForSilence(now: 1_000, rendererStartedAt: 0),
+                     "nothing is stopped before the mixer has reported anything")
+
+        var idle = AirPlayIdleTimer()
+        idle.update(active: false, now: 100, rendererStartedAt: 50)
+        suite.expect(!idle.stopsForSilence(now: 100 + delay - 1, rendererStartedAt: 50),
+                     "a renderer keeps running while the silence is shorter than the delay")
+        suite.expect(idle.stopsForSilence(now: 100 + delay, rendererStartedAt: 50),
+                     "after the delay of silence the running renderer stops")
+        suite.expect(!idle.update(active: false, now: 100 + delay + 5, rendererStartedAt: nil)
+                        && !idle.startsRendererForNewStream,
+                     "an engine that joins while the stream is paused starts no renderer and does not wake the speaker")
+        suite.expect(idle.update(active: true, now: 100 + delay + 6, rendererStartedAt: nil)
+                        && idle.startsRendererForNewStream,
+                     "the next sound after a pause for silence starts a renderer")
+
+        var unrouted = AirPlayIdleTimer()
+        unrouted.update(active: false, now: 100, rendererStartedAt: nil)
+        suite.expect(!unrouted.stopsForSilence(now: 100 + delay, rendererStartedAt: nil)
+                        && unrouted.startsRendererForNewStream,
+                     "with no renderer running there is nothing to pause, and the next engine starts one")
+
+        // The build of an app routed while nothing routed played starts a
+        // renderer during that silence. Stopped at once, it would open and
+        // close a session on the speaker, and the first play would wait for
+        // a renderer of its own.
+        var routed = AirPlayIdleTimer()
+        routed.update(active: false, now: 100, rendererStartedAt: nil)
+        suite.expect(!routed.stopsForSilence(now: 130, rendererStartedAt: 125)
+                        && routed.secondsUntilStop(now: 130, rendererStartedAt: 125) == delay - 5
+                        && routed.stopsForSilence(now: 125 + delay, rendererStartedAt: 125),
+                     "a renderer started during the silence gets the whole delay before it stops for silence")
+
+        var ended = AirPlayIdleTimer()
+        ended.update(active: false, now: 100, rendererStartedAt: 50)
+        _ = ended.stopsForSilence(now: 100 + delay, rendererStartedAt: 50)
+        ended.lastStreamEnded()
+        suite.expect(ended.startsRendererForNewStream,
+                     "once the last stream ended nothing is paused, and the next engine starts a renderer")
+
+        var stopped = AirPlayIdleTimer()
+        stopped.update(active: false, now: 100, rendererStartedAt: 50)
+        stopped.forgetSilence()
+        suite.expect(!stopped.stopsForSilence(now: 100 + delay, rendererStartedAt: 50),
+                     "once the mixer stops, nothing is stopped until it reports silence again")
+
+        // The backup check wakes up every 1.5 s to notice a speaker that went
+        // away. A paused stream has nothing to hand back, so it stops with
+        // the renderer.
+        func backupCheck(renderer: Bool, mixer: Bool = true, available: Bool = true) -> Bool {
+            AirPlayAvailability.runsBackupCheck(rendererRunning: renderer, mixerActive: mixer, available: available)
+        }
+        suite.expect(backupCheck(renderer: true), "the backup check runs while a renderer streams to the speaker")
+        suite.expect(!backupCheck(renderer: false),
+                     "the backup check stops while the stream is paused for silence and no renderer runs")
+        suite.expect(!backupCheck(renderer: true, mixer: false) && !backupCheck(renderer: true, available: false),
+                     "the backup check stops with the mixer, and never runs where AirPlay is not offered")
+    }
+
+    /// What the mixer reports: an app counts while it plays on AirPlay now,
+    /// not while it is merely open, nor while it plays on the Mac.
+    private static func mixerReport(_ suite: TestSuite) {
+        let sentinel = AirPlayRouteManager.airPlaySentinelUID
+        func row(playing: Bool, selected: String?, effective: String?) -> MixerUniversalRoutingContract.MixerApp {
+            MixerUniversalRoutingContract.MixerApp(
+                id: "com.example.Player", persistenceID: "com.example.Player", ownerPid: 77, name: "Player",
+                audioObjects: [], isPlaying: playing, selectedOutputDeviceUID: selected,
+                effectiveOutputDeviceUID: effective, outputDeviceUnavailable: selected != effective, volume: 1)
+        }
+        func keepsStreamGoing(_ app: MixerUniversalRoutingContract.MixerApp) -> Bool {
+            MixerRoutingSupport.playsOnAirPlay(isPlaying: app.isPlaying,
+                                               effectiveOutputDeviceUID: app.effectiveOutputDeviceUID)
+        }
+        suite.expect(keepsStreamGoing(row(playing: true, selected: sentinel, effective: sentinel)),
+                     "an app playing on AirPlay keeps the stream going")
+        suite.expect(!keepsStreamGoing(row(playing: false, selected: sentinel, effective: sentinel)),
+                     "an app routed to AirPlay that is open but silent lets the stream pause")
+        suite.expect(!keepsStreamGoing(row(playing: true, selected: sentinel, effective: "BuiltInSpeakerDevice"))
+                        && !keepsStreamGoing(row(playing: true, selected: nil, effective: "BuiltInSpeakerDevice"))
+                        && !keepsStreamGoing(row(playing: true, selected: nil, effective: nil)),
+                     "an app playing on the Mac lets the stream pause, even one set to AirPlay with no speaker picked")
+
+        // Read as source text because the mixer lives in a file the test
+        // target does not compile: every reconcile reports through the check
+        // above whether any routed app plays, and only while AirPlay is
+        // listed, so a Vorssaint that never offers AirPlay never creates the
+        // manager.
+        let mixerCode = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/Audio/AppVolumeMixer.swift",
+            encoding: .utf8)) ?? ""
+        let reconcile = mixerCode.range(of: "private func reconcileEngines(with apps: [MixerApp]) {")
+            .flatMap { start in
+                mixerCode.range(of: "\n    }\n", range: start.upperBound..<mixerCode.endIndex)
+                    .map { String(mixerCode[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        let listedReport = reconcile.range(of: "if AirPlayRouteManager.isListed {")
+            .flatMap { start in
+                reconcile.range(of: "\n        }\n", range: start.upperBound..<reconcile.endIndex)
+                    .map { String(reconcile[start.upperBound..<$0.lowerBound]) }
+            } ?? ""
+        suite.expect(listedReport.contains("routedAudioChanged(active: apps.contains")
+                        && listedReport.contains("MixerRoutingSupport.playsOnAirPlay("),
+                     "every mixer reconcile tells AirPlay whether a routed app plays, only while AirPlay is listed")
+    }
+}

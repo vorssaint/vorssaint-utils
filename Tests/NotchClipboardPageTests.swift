@@ -125,31 +125,88 @@ enum NotchClipboardPageTests {
         suite.expect(list.scrolls.count == 1 && list.scrolls.first?.id == pinned.id && list.scrolls.first?.anchor == nil,
                      "a highlight that moves brings its clipboard entry into view the least the list can")
 
+        func key(_ code: UInt16, _ characters: String, _ modifiers: NSEvent.ModifierFlags = [],
+                 unmodified: String? = nil) -> NSEvent {
+            NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+                             windowNumber: 0, context: nil, characters: characters,
+                             charactersIgnoringModifiers: unmodified ?? characters, isARepeat: false, keyCode: code)!
+        }
         let keys = Page()
         keys.entries = [first, second]
         keys.highlightedID = first.id
-        suite.expect(!keys.handleKey(keyCode: 0, characters: "a", modifiers: [], composing: false, editing: true)
+        suite.expect(!keys.handleKey(key(0, "a"), composing: false, editing: true)
                      && keys.searchOpen && keys.query.isEmpty,
                      "a letter typed on the clipboard page shows the hidden search field and goes on to it")
-        suite.expect(!keys.handleKey(keyCode: 36, characters: "\r", modifiers: [], composing: true, editing: true)
+        suite.expect(!keys.handleKey(key(36, "\r"), composing: true, editing: true)
                      && keys.activated.isEmpty,
                      "Return while an input method composes in the clipboard search stays the input method's")
-        suite.expect(keys.handleKey(keyCode: 125, characters: "\u{F701}", modifiers: [], composing: false, editing: true)
+        suite.expect(keys.handleKey(key(125, "\u{F701}"), composing: false, editing: true)
                      && keys.highlightedID == second.id && keys.keysMoved
-                     && keys.handleKey(keyCode: 36, characters: "\r", modifiers: [], composing: false, editing: true)
+                     && keys.handleKey(key(36, "\r"), composing: false, editing: true)
                      && keys.activated == [second.id],
                      "Down and Return in the focused clipboard search move to and paste the next entry")
-        suite.expect(!keys.handleKey(keyCode: 126, characters: "\u{F700}", modifiers: [.shift, .numericPad, .function],
+        suite.expect(!keys.handleKey(key(126, "\u{F700}", [.shift, .numericPad, .function]),
                                      composing: false, editing: true)
-                     && !keys.handleKey(keyCode: 36, characters: "\r", modifiers: .shift, composing: false, editing: true)
+                     && !keys.handleKey(key(36, "\r", .shift), composing: false, editing: true)
                      && keys.highlightedID == second.id && keys.activated == [second.id],
                      "Shift with an arrow or Return stays the clipboard search field's, which selects with it")
         keys.query = "note"
         keys.closeSearch()
         suite.expect(keys.query.isEmpty && !keys.searchOpen && keys.searching,
                      "closing the clipboard search empties and hides it, keeping the field focused for the next key")
+
+        // Real Control events carry control characters. The letters come from
+        // the active layout, so these deliberately use other physical keys.
+        let next = key(0, "\u{e}", .control, unmodified: "n")
+        let previous = key(2, "\u{10}", [.control, .capsLock], unmodified: "P")
+        for searchOpen in [false, true] {
+            let navigation = Page()
+            navigation.entries = [first, second]
+            navigation.highlightedID = first.id
+            navigation.searching = true
+            navigation.searchOpen = searchOpen
+            navigation.query = searchOpen ? "note" : ""
+            let query = navigation.query
+            suite.expect(navigation.handleKey(next, composing: false, editing: true)
+                         && navigation.highlightedID == second.id && navigation.keysMoved
+                         && navigation.handleKey(previous, composing: false, editing: true)
+                         && navigation.highlightedID == first.id,
+                         "Control-N/P move through the clipboard with the search hidden or open")
+            suite.expect(navigation.handleKey(previous, composing: false, editing: true)
+                         && navigation.highlightedID == first.id
+                         && navigation.handleKey(next, composing: false, editing: true)
+                         && navigation.handleKey(next, composing: false, editing: true)
+                         && navigation.highlightedID == second.id,
+                         "Control-N/P stop at the ends of the clipboard list, like the arrows")
+            suite.expect(navigation.query == query && navigation.searchOpen == searchOpen && navigation.searching
+                         && navigation.activated.isEmpty,
+                         "Control navigation neither edits nor reveals the search and never pastes on its own")
+            navigation.keysMoved = false
+            suite.expect(!navigation.handleKey(next, composing: true, editing: true)
+                         && !navigation.handleKey(previous, composing: true, editing: true)
+                         && navigation.highlightedID == second.id && !navigation.keysMoved,
+                         "a composing input method keeps Control-N/P without moving the highlight")
+            for modifiers: NSEvent.ModifierFlags in [[.control, .shift], [.control, .option], [.control, .command]] {
+                suite.expect(!navigation.handleKey(key(2, "\u{10}", modifiers, unmodified: "p"),
+                                                  composing: false, editing: true)
+                             && navigation.highlightedID == second.id && !navigation.keysMoved,
+                             "an extra modifier leaves Control-P with its existing shortcut")
+            }
+            suite.expect(!navigation.handleKey(key(0, "\u{1}", .control, unmodified: "a"),
+                                              composing: false, editing: true)
+                         && navigation.query == query && navigation.searchOpen == searchOpen,
+                         "unrelated Control shortcuts keep editing the search without changing its visibility")
+            suite.expect(navigation.handleKey(key(36, "\r"), composing: false, editing: true)
+                         && navigation.activated == [second.id],
+                         "Return pastes the entry selected by Control navigation")
+        }
+        let empty = Page()
+        suite.expect(!empty.handleKey(next, composing: false, editing: true)
+                     && !empty.handleKey(previous, composing: false, editing: true)
+                     && empty.highlightedID == nil && !empty.keysMoved && !empty.searchOpen,
+                     "an empty clipboard does not consume Control navigation or reveal the search")
         let unfocused = Page()
-        suite.expect(!unfocused.handleKey(keyCode: 0, characters: "a", modifiers: [], composing: false, editing: false)
+        suite.expect(!unfocused.handleKey(key(0, "a"), composing: false, editing: false)
                      && unfocused.searchOpen && unfocused.searching,
                      "typing after the focus left the clipboard search brings the focus back to it")
         unfocused.searching = false

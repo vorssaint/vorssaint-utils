@@ -99,8 +99,9 @@ struct NotchIslandPreview: View {
 
     /// The island as it opens on this section: the page, and its top row
     /// with what the page puts there, around the camera where the island has
-    /// one. The row's own way to the sections leads it when nothing floats
-    /// beside the island for that.
+    /// one. The row's own way to the sections leads it, or ends it where the
+    /// page lays out its leading side itself, when nothing floats beside the
+    /// island for that.
     private func island(size: CGSize, geometry: NotchGeometry) -> some View {
         let content = geometry.contentSize(for: size)
         let band = NotchBand(geometry: geometry, contentWidth: content.width)
@@ -113,16 +114,12 @@ struct NotchIslandPreview: View {
                 if geometry.headerRowHeight > 0 {
                     NotchBandRow(band: band) {
                         if !wraps {
-                            if !NotchQuickAccessConfiguration.current().actions.contains(.explore) {
-                                Image(systemName: "square.grid.2x2")
-                                    .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.55))
-                                    .frame(width: 28, height: 28)
-                            }
+                            if band.sectionsButton { NotchSectionsButton(action: {}) }
                             items.leading
                         }
                     } trailing: {
                         items.trailing
+                        if band.trailingSectionsButton { NotchSectionsButton(action: {}) }
                     }
                 }
             }

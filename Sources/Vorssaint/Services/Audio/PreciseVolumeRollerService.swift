@@ -177,13 +177,17 @@ final class PreciseVolumeRollerService: ObservableObject {
         // CoreAudio can wait for a reconnecting device. Never hold the event
         // tap's reply while reading or writing the audio driver.
         DispatchQueue.main.async { [weak self] in
-            let completion: (Bool) -> Void = { applied in
+            let completion: (AppVolumeMixer.OutputKeyResult) -> Void = { result in
+                let applied = result == .applied
                 if let self, self.feedback?.step == step {
                     // The forwarded native press plays its own feedback.
                     if applied { self.feedback?.applied = true; self.playFeedbackIfReady() }
                     else { self.feedback = nil }
                 }
-                if !applied, let fallback {
+                if result == .fallback, let fallback {
+                    if precise, key.rollerDirection != nil {
+                        fallback.flags.formUnion([.maskAlternate, .maskShift])
+                    }
                     fallback.setIntegerValueField(.eventSourceUserData, value: PreciseVolumeKeyEvents.postedMarker)
                     fallback.post(tap: .cgSessionEventTap)
                     Self.postForwardedRelease(code)
@@ -193,22 +197,22 @@ final class PreciseVolumeRollerService: ObservableObject {
             // shows the result once it has been applied. A native fallback
             // publishes its state through the listeners.
             if key == .mute {
-                mixer.requestOutputMuteToggle { applied in
-                    if applied, mixer.systemOutputMuted == true, self?.feedback?.step == step {
+                mixer.requestOutputMuteToggle { result in
+                    if result == .applied, mixer.systemOutputMuted == true, self?.feedback?.step == step {
                         self?.feedback = nil
                     }
-                    completion(applied)
-                    if applied { NotchService.shared.showCurrentVolume() }
+                    completion(result)
+                    if result == .applied { NotchService.shared.showCurrentVolume() }
                 }
             } else if mixer.systemOutputVolume != nil {
                 let direction = key == .volumeUp ? 1 : -1
                 mixer.requestOutputStep(level: {
                     NotchSupport.volumeLevel(current: $0, direction: direction, fine: fine)
-                }, completion: { applied in
-                    completion(applied)
-                    if applied { NotchService.shared.showCurrentVolume() }
+                }, completion: { result in
+                    completion(result)
+                    if result == .applied { NotchService.shared.showCurrentVolume() }
                 })
-            } else { completion(false) }
+            } else { completion(.fallback) }
         }
         return true
     }

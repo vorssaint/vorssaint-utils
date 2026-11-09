@@ -3,6 +3,7 @@
 
 import Accelerate
 import CoreGraphics
+import CoreMedia
 import Foundation
 
 /// Lets cancellation win while an asynchronous capture start is suspended.
@@ -322,6 +323,25 @@ enum RecorderSupport {
         return trusted
     }
 
+    /// How long an app's tap gets after its pipeline starts before the
+    /// stream's sound counts against it.
+    static let appTapSettling = CMTime(value: 1, timescale: 2)
+
+    /// Whether sound the stream heard at `time`, on the host clock, counts
+    /// against the tap. A tap of the whole Mac answers for all of it. An
+    /// app's tap is built when the app first plays and made again as its
+    /// processes change, so the stream can hear the app before the tap can:
+    /// only sound from more than `appTapSettling` after `pipelineStart`, the
+    /// host time its current pipeline started, counts, and none while it has
+    /// no pipeline (0).
+    static func streamSoundCountsAgainstTap(at time: CMTime,
+                                            hearsOneApp: Bool,
+                                            pipelineStart: UInt64) -> Bool {
+        guard hearsOneApp else { return true }
+        guard pipelineStart != 0, time.isNumeric else { return false }
+        return time > CMClockMakeHostTimeFromSystemUnits(pipelineStart) + appTapSettling
+    }
+
     /// The one app a recording hears: the owner of the recorded window, so
     /// the sound follows the picture. Nothing for a display or an area, and
     /// nothing for a window of this app, which plays the volume mixer's
@@ -362,27 +382,23 @@ enum RecorderSupport {
 
     // MARK: - Quality
 
-    /// Three named outcomes instead of a codec form. Screen content is
-    /// low-entropy, so the encoder undershoots these ceilings hard, and the
-    /// ceiling only caps the busy moments. Only Small trades pixels for size:
-    /// a recording is mostly text, and a picture written at two thirds and
-    /// stretched back over the same display reads as blurry next to the
-    /// system recorder, which keeps every pixel. Balanced keeps them too and
-    /// saves on bits instead, which flat screen content barely misses.
+    enum ExportFormat: String, Codable, CaseIterable {
+        case video, gif
+    }
+
+    /// Video presets set bitrate ceilings; Small also halves the dimensions.
     enum Quality: String, CaseIterable {
         case small, balanced, high
 
         var outputScale: CGFloat {
             switch self {
             case .small: return 0.5
-            case .balanced, .high: return 1
+            case .balanced: return 1
+            case .high: return 1
             }
         }
 
-        /// Bits per pixel per frame. Small and High come from measurements on
-        /// real screen content; Balanced sits between them now that it writes
-        /// the full picture, where each pixel carries less detail than in a
-        /// scaled-down one.
+        /// Video bits per pixel per frame, applied after spatial scaling.
         var bitsPerPixel: Double {
             switch self {
             case .small: return 0.05
@@ -760,7 +776,7 @@ enum RecorderSupport {
     static let gifFrameRates = [8, 12, 15]
 
     static func sanitizedGIFFrameRate(_ raw: Int) -> Int {
-        gifFrameRates.contains(raw) ? raw : 12
+        (1...50).contains(raw) ? raw : 12
     }
 
     static func gifFrameCount(duration: Double, fps: Int) -> Int {
@@ -768,6 +784,16 @@ enum RecorderSupport {
         let count = (duration * Double(fps)).rounded(.down)
         guard count.isFinite, count < Double(Int.max) else { return 0 }
         return max(1, Int(count))
+    }
+
+    /// Raise both axes uniformly when the requested scale is too small for
+    /// the GIF encoder, preserving the source aspect before even rounding.
+    static func gifOutputSize(source: CGSize, scalePercent: Int) -> CGSize {
+        let requested = CGFloat(min(100, max(1, scalePercent))) / 100
+        let shortest = min(source.width, source.height)
+        guard shortest.isFinite, shortest > 0 else { return evenSize(source) }
+        let scale = min(1, max(requested, minimumSide / shortest))
+        return evenSize(CGSize(width: source.width * scale, height: source.height * scale))
     }
 
     static func gifOutputSize(source: CGSize, size: GIFSize) -> CGSize {

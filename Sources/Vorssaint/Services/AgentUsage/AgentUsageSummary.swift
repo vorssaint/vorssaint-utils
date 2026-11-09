@@ -442,9 +442,28 @@ enum AgentLimitSupport {
         guard threshold > 0 else { return [] }
         return current.windows.filter { window in
             guard window.usedPercent >= threshold else { return false }
-            guard let before = previous?.windows.first(where: { $0.id == window.id }) else { return false }
-            if let was = before.resetsAt, let now = window.resetsAt, now.timeIntervalSince(was) > 60 { return true }
-            return before.usedPercent < threshold
+            guard let previous, let before = previous.windows.first(where: { $0.id == window.id }) else { return false }
+            return before.usedPercent < threshold || renewed(before, to: window, observedAt: current.observedAt)
+                || current.source == .account && began(window, after: previous.observedAt)
         }
+    }
+
+    /// Whether the account's exact renewal places the start of `window`
+    /// after `time`. Read after a gap, a session the reading before never saw
+    /// is a new one, however late that reading placed the old one's end.
+    private static func began(_ window: AgentLimitWindow, after time: Date) -> Bool {
+        guard let minutes = window.minutes, let resets = window.resetsAt else { return false }
+        return resets.addingTimeInterval(-TimeInterval(minutes) * 60) > time
+    }
+
+    /// Whether `window`, read at `observedAt`, comes after the one `before`
+    /// saw: its usage fell, as a renewal or a reset used early leaves it, or
+    /// its renewal moved on once the old one went by. A renewal that only
+    /// moves before then is the same window read another way, as the Claude
+    /// app's latest possible end is the account's exact one minutes later.
+    static func renewed(_ before: AgentLimitWindow, to window: AgentLimitWindow, observedAt: Date) -> Bool {
+        if window.usedPercent + 1 < before.usedPercent { return true }
+        guard let was = before.resetsAt, let resets = window.resetsAt else { return false }
+        return resets.timeIntervalSince(was) > 60 && observedAt >= was
     }
 }

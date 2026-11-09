@@ -136,20 +136,22 @@ struct NotchLayoutEditor: View {
     private static let previewScale: CGFloat = 0.5
     private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
-    /// The width this setting gives the island, which the preview shows so
-    /// the slider moves it: lists and grids take all of it, while a page
-    /// with a size of its own, such as the player, takes less.
-    private var actualWidth: CGFloat {
-        NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
-    }
-    /// The island around a camera, or as a capsule while it floats in its
-    /// display's menu bar.
+    /// The width the island opens the home page at, which the preview
+    /// shows: a width set by hand, so the slider moves it, or under a preset
+    /// the page's own, as the island takes no more.
+    private var actualWidth: CGFloat { previewGeometry.expandedWidth }
+    /// The home page around a camera, or as a capsule while the island
+    /// floats in its display's menu bar, with the sections button in its
+    /// row when nothing floats for it.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
-        return NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080), safeAreaTop: floats ? 0 : 32,
-                             cameraWidth: floats ? 0 : 210, layout: layout,
-                             menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
-                             customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+                                     safeAreaTop: floats ? 0 : 32,
+                                     cameraWidth: floats ? 0 : 210, layout: layout,
+                                     menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
+                                     customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+        return geometry.page(.controls, controls: NotchSupport.controls(),
+                             sectionsButton: !configuration.actions.contains(.explore))
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }
@@ -284,7 +286,7 @@ struct NotchLayoutEditor: View {
                 // The top row, around the camera, holds the levels, after the
                 // sections button when nothing floats for that.
                 NotchBandRow(band: band) {
-                    if !configuration.actions.contains(.explore) {
+                    if band.sectionsButton {
                         Image(systemName: "square.grid.2x2")
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(.white.opacity(0.55))
@@ -303,7 +305,8 @@ struct NotchLayoutEditor: View {
                         if controls.shortcutRows > 0 {
                             NotchRail(items: shortcuts, rows: controls.shortcutRows, itemWidth: NotchLayout.shortcutWidth,
                                       width: contentWidth, spacing: NotchLayout.shortcutSpacing,
-                                      rowSpacing: NotchLayout.shortcutSpacing) { item in
+                                      leastSpacing: NotchLayout.shortcutLeastSpacing,
+                                      rowSpacing: controls.shortcutRowSpacing) { item in
                                 NotchActionTile(symbol: item.symbol, title: item.title(l10n)) {}
                             }
                         }

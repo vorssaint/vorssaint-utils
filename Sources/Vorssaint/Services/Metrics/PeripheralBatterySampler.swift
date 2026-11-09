@@ -30,6 +30,10 @@ final class PeripheralBatterySampler {
     private var bluetoothBatteryRead: (request: BoundedProcessCancellation, reader: PeripheralBluetoothReading)?
     private let fastCacheInterval: TimeInterval = 15
     private let bluetoothCacheInterval: TimeInterval = 300
+    /// Called on the Bluetooth queue after a refresh stores new devices, so
+    /// the owner can read them now instead of at its next sampling stride.
+    /// Set once before sampling starts.
+    var onBluetoothRefresh: (() -> Void)?
 
     init(bluetoothQueue: DispatchQueue = DispatchQueue(label: "com.vorssaint.peripheral-battery.bluetooth", qos: .utility),
          readFast: @escaping () -> [PeripheralBatteryDevice] = PeripheralBatterySampler.readFastDevices,
@@ -57,6 +61,12 @@ final class PeripheralBatterySampler {
         if oldRequest != nil {
             bluetoothStartedAt = -.greatestFiniteMagnitude
             bluetoothFinishedAt = -.greatestFiniteMagnitude
+        }
+        // Devices read before a pause longer than the refresh interval may
+        // have been disconnected or recharged since. The refresh that the
+        // first sample starts brings back the ones still connected.
+        if enabled, currentTime() - bluetoothObservedAt >= bluetoothCacheInterval {
+            cachedBluetoothDevices = []
         }
         if let oldRequest {
             bluetoothQueue.async { [weak self] in
@@ -138,13 +148,15 @@ final class PeripheralBatterySampler {
     private func finishBluetoothRefresh(with devices: [PeripheralBatteryDevice],
                                         request: BoundedProcessCancellation, observedAt: TimeInterval) {
         lock.lock()
-        defer { lock.unlock() }
-        guard enabled, self.request === request, !request.isCancelled else { return }
+        guard enabled, self.request === request, !request.isCancelled else { lock.unlock(); return }
         cachedBluetoothDevices = devices
         bluetoothObservedAt = observedAt
         bluetoothFinishedAt = currentTime()
         self.request = nil
         cachedAt = -.greatestFiniteMagnitude
+        let onRefresh = onBluetoothRefresh
+        lock.unlock()
+        onRefresh?()
     }
 
     private static func readBluetoothSystemProfilerData(cancellation: BoundedProcessCancellation) -> Data {

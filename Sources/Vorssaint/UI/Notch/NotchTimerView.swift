@@ -32,10 +32,12 @@ struct NotchTimerView: View {
             if service.session.hasSession { phaseReading }
             else if band.besideCamera { modeMenu }
             else {
-                // A full row keeps the three words where they fit beside Start.
+                // A full row keeps the three words where they fit beside Start,
+                // and the menu's whole name otherwise: the island's marks
+                // after Start give way first.
                 ViewThatFits(in: .horizontal) {
                     modePicker
-                    modeMenu
+                    modeMenu.fixedSize()
                 }
             }
         } trailing: {
@@ -97,18 +99,27 @@ struct NotchTimerView: View {
     /// menu named by the current one.
     private var modeMenu: some View {
         let current = title(for: mode)
+        let named = !band.besideCamera
+            || NotchTimerSupport.ModePicker.menuNamesFit(NotchTimerMode.allCases.map(title(for:)), in: band.leadingRoom)
         return NotchMenuButton(title: text.timer, items: NotchTimerMode.allCases.map { candidate in
             NotchMenuItem(title: title(for: candidate), checked: candidate == mode) {
                 NotchService.shared.selectTimerMode(candidate)
             }
         }) {
             HStack(spacing: NotchTimerSupport.ModePicker.menuSpacing) {
-                // Beside a wide camera a long name narrows a little rather
-                // than losing its last letters.
-                Text(current)
-                    .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(NotchTimerSupport.ModePicker.menuMinimumScale)
+                if named {
+                    // Beside a wide camera a long name narrows a little rather
+                    // than losing its last letters.
+                    Text(current)
+                        .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(NotchTimerSupport.ModePicker.menuMinimumScale)
+                } else {
+                    // Past the sections button a side can be too narrow for
+                    // a long name; the mode's glyph names it instead.
+                    Image(systemName: NotchTimerSupport.ModePicker.symbol(for: mode))
+                        .font(.system(size: NotchTimerSupport.ModePicker.labelSize, weight: .medium))
+                }
                 Image(systemName: "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
             }

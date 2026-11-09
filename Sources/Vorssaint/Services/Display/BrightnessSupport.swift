@@ -26,6 +26,11 @@ enum BrightnessSupport {
     struct DisplayTopology: Equatable {
         let online: Set<UInt32>
         let active: Set<UInt32>
+        /// Each mirroring display and the display it mirrors. Entering or
+        /// leaving a mirror set keeps `active` the same (see
+        /// `participatingDisplayIDs`), yet it reconfigures the displays and
+        /// resets their gamma, so it still needs a rebuild.
+        var mirrorSources: [UInt32: UInt32] = [:]
     }
 
     /// Opening the panel while a display scan is already running should use
@@ -117,12 +122,14 @@ enum BrightnessSupport {
     }
 
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
-    /// checksum seed covers the destination address, and the sub-address only
-    /// participates for multi-byte payloads (single-byte requests omit it).
+    /// checksum seed covers the destination and source addresses for every
+    /// packet, as DDC/CI specifies. Monitors that check it ignore a read
+    /// request without the source address and replay their previous reply,
+    /// so the luminance read never lands and the range is never learned.
     static func packet(payload: [UInt8]) -> [UInt8] {
         var bytes: [UInt8] = [UInt8(0x80 | (payload.count + 1)), UInt8(payload.count)]
         bytes.append(contentsOf: payload)
-        let seed = UInt8(chipAddress << 1) ^ (payload.count == 1 ? 0 : UInt8(dataAddress))
+        let seed = UInt8(chipAddress << 1) ^ UInt8(dataAddress)
         bytes.append(bytes.reduce(seed) { $0 ^ $1 })
         return bytes
     }
@@ -269,6 +276,17 @@ enum BrightnessSupport {
     /// remain after the transaction.
     static func canDisableDisplay(drawableDisplayIDs: Set<UInt32>, target: UInt32) -> Bool {
         drawableDisplayIDs.contains(target) && drawableDisplayIDs.count > 1
+    }
+
+    /// The active list names only the source of a hardware mirror set, yet the
+    /// display mirroring it is lit and has a backlight of its own: a MacBook
+    /// panel mirroring a monitor is still a panel someone looks at. A display
+    /// counts once the source it mirrors is active.
+    static func participatingDisplayIDs(activeDisplayIDs: Set<UInt32>,
+                                        mirrorSources: [UInt32: UInt32]) -> Set<UInt32> {
+        activeDisplayIDs.union(mirrorSources.compactMap { mirror, source in
+            activeDisplayIDs.contains(source) ? mirror : nil
+        })
     }
 
     /// Active display lists can include virtual devices with no picture a

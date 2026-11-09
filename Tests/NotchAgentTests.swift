@@ -20,11 +20,13 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
+        NotchAgentLimitReadingTests.run(suite)
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
@@ -34,7 +36,11 @@ enum NotchAgentTests {
         AgentUsageArchiveSaveTests.run(suite)
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
+        AgentClaudeServerTests.run(suite)
+        ClaudeAccountProfileTests.run(suite)
+        CodexAccountLimitsTests.run(suite)
         preferences(suite)
+        limitUse(suite)
         agentDefaults(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
@@ -445,8 +451,21 @@ enum NotchAgentTests {
         suite.expect(feed(line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#)).isEmpty
                         && store.live.isEmpty, "an interrupted turn ends without a notice")
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
+        suite.expect(store.live.isEmpty, "changing model starts no work while waiting for local output")
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        _ = feed(claudeUser(#"<command-name>/clear</command-name>"#))
+        suite.expect(store.live.isEmpty, "a command that asks nothing, like /clear, never starts a turn")
+        let invoked = "2026-09-21T23:44:00.000Z"
+        _ = feed(claudeUser(#"<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args><command-name>/clear</command-name></command-args>"#, time: invoked))
+        _ = feed(claudeUser("Review the change", time: invoked, meta: true))
+        suite.expect(store.live.first?.started == AgentTimestamp.parse(invoked),
+                     "a skill starts work at invocation, before its first model reply")
+        let skillReply = line(#"{"type":"assistant","timestamp":"2026-09-21T23:44:05.000Z","requestId":"req_skill","message":{"id":"msg_skill","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"<local-command-stdout>example</local-command-stdout>"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}}"#)
+        let skillFinished = feed(skillReply)
+        suite.expect(skillFinished == [.finished(provider: .claude, duration: 5, cost: store.records.last?.cost ?? 0,
+                                                 tokens: 5, project: "app")] && store.live.isEmpty && !state.turnOpen,
+                     "a one-reply skill quoting local output reports its full duration and usage, then stops the timer")
         _ = feed(claudeUser())
         _ = feed(claudeAssistant(id: "msg_5", request: "req_5", stop: "tool_use", time: "2026-09-21T23:40:10.000Z"))
         let structured = feed(line(#"{"type":"user","timestamp":"2026-09-21T23:40:15.000Z","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Structured output provided successfully"}]},"toolUseResult":"Structured output provided successfully","toolEndsTurn":true}"#))
@@ -2349,14 +2368,21 @@ enum NotchAgentTests {
         let reading = AgentLimits(provider: .codex, windows: [window(40, resetsIn: 100, id: "a"), window(60, resetsIn: 50, id: "b")],
                                   observedAt: now, source: .sessionLog)
         suite.expect(AgentLimitSupport.binding(reading, now: now)?.id == "b", "the most spent window binds")
-        func limits(_ used: Double, resets: TimeInterval) -> AgentLimits {
-            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now, source: .sessionLog)
+        func limits(_ used: Double, resets: TimeInterval, observed: TimeInterval = 0) -> AgentLimits {
+            AgentLimits(provider: .codex, windows: [window(used, resetsIn: resets)], observedAt: now.addingTimeInterval(observed),
+                        source: .sessionLog)
         }
         suite.expect(AgentLimitSupport.crossings(previous: limits(70, resets: 100), current: limits(85, resets: 100), threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 100), threshold: 80).isEmpty
-                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000), threshold: 80).count == 1
+                        && AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(85, resets: 9000, observed: 200),
+                                                       threshold: 80).count == 1
                         && AgentLimitSupport.crossings(previous: nil, current: limits(99, resets: 100), threshold: 80).isEmpty,
                      "a warning comes once per crossing, again after a renewal, never for the first reading")
+        suite.expect(AgentLimitSupport.crossings(previous: limits(85, resets: 100), current: limits(90, resets: 520, observed: 50),
+                                                 threshold: 80).isEmpty
+                        && AgentLimitSupport.crossings(previous: limits(95, resets: 100), current: limits(85, resets: 100, observed: 50),
+                                                       threshold: 80).count == 1,
+                     "a later renewal read before the old one goes by is the same window, and usage that fell is a new one")
     }
 
     // MARK: Reading files
@@ -2455,6 +2481,25 @@ enum NotchAgentTests {
         suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
                         && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
                      "only elapsed and expiring-limit readouts require clock-driven updates")
+        for provider in AgentProvider.allCases {
+            for focus in NotchAgentLimitFocus.allCases {
+                let empty = AgentUsageSnapshot()
+                let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
+                let used = focus == .session ? 0.32 : 0.57
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
+                                == AgentFormat.percent(used),
+                             "\(provider.rawValue) settings preview illustrates the selected \(focus.rawValue) limit without account data")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, focus: focus, now: now)
+                                == AgentFormat.percent(1 - used),
+                             "settings limit preview respects remaining versus used")
+                suite.expect(empty.live.isEmpty && empty.limits.isEmpty,
+                             "preview examples never populate the real usage snapshot")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .elapsed, display: .remaining, now: now) == "12:34"
+                                && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == AgentFormat.cost(4.56)
+                                && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == AgentFormat.tokens(20_000),
+                             "settings preview still illustrates time, cost and written tokens")
+            }
+        }
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -2481,6 +2526,13 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        suite.expect(NotchAgentSupport.limitShare(window, display: .remaining, text: .enUS)
+                        == "\(AgentFormat.percent(0.21)) left"
+                        && NotchAgentSupport.limitShare(window, display: .used, text: .enUS)
+                            == "\(AgentFormat.percent(0.79)) used",
+                     "a limit on the card says whether its share is left or used")
+        suite.expect(NotchAgentSupport.stripSampleSnapshot(limited, provider: .codex, focus: .weekly, now: now) == limited,
+                     "settings preview preserves an active provider's real allowance")
         let both = AgentLimits(provider: .claude, windows: [
             AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 22,
                              resetsAt: now.addingTimeInterval(3_600)),
@@ -2628,9 +2680,9 @@ enum NotchAgentTests {
         suite.expect(lines == ["{\"c\":3}"], "a rewritten file is read from its start")
         suite.expect(!AgentLogCursor(path: "/x/s1/subagents/agent-1.jsonl", provider: .claude).tracksTurns
                         && AgentLogCursor(path: "/x/s1.jsonl", provider: .claude).tracksTurns
-                        && !AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
+                        && AgentLogCursor(path: "/x/rollout-2026-09-21T08-17-14-a_b.jsonl", provider: .codex).tracksTurns
                         && AgentLogCursor(path: "/x/session-state/id/events.jsonl", provider: .copilot).tracksTurns,
-                     "subagents and side threads never own a turn")
+                     "Claude subagents are excluded while Codex filename suffixes do not determine thread identity")
         suite.expect(AgentLogRoot.all(home: folder).contains {
             $0.provider == .copilot && $0.url.path == folder.appending(path: ".copilot/session-state").path
         }, "GitHub Copilot session event logs are a discovered local root")
@@ -2874,6 +2926,95 @@ enum NotchAgentTests {
             ("2026-09-23T14:20:00Z", "o", ["fh": 6, "sd": 42])])) ?? []
         suite.expect(AgentClaudeAppUsage.limits(from: renewed, now: now)?.windows.last?.resetsAt == at("2026-09-23T20:00:00Z"),
                      "a week renews seven days after the last drop, on the hour, counting only the same account")
+        let weeks: [(String, String?, [String: Any])] = [
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])]
+        let banked = AgentClaudeAppUsage.samples(from: history(weeks)) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: banked, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-03T12:00:00Z"),
+                     "a reset used mid-week empties the week without moving its renewal")
+        // Drops whose spans only touch at a reading do not share a moment.
+        let touching = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:55:00Z", "o", ["sd": 100]), ("2026-09-19T12:00:00Z", "o", ["sd": 0]),
+            ("2026-09-26T12:00:00Z", "o", ["sd": 100]), ("2026-09-26T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: touching, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-08T08:53:00Z"),
+                     "drops whose spans only touch at a reading confirm no schedule, so the last drop stands")
+        let wideConfirmed = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T01:00:00Z", "o", ["sd": 100]), ("2026-09-26T13:00:00Z", "o", ["sd": 0]),
+            ("2026-10-01T08:48:00Z", "o", ["sd": 100]), ("2026-10-01T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-01T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: wideConfirmed, now: at("2026-10-01T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-03T12:00:00Z"),
+                     "a confirmed drop renews inside what its confirming drops allow, not at the start of its own span")
+        let afterDays = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-10-03T12:00:00Z", "o", ["sd": 100]), ("2026-10-04T13:00:00Z", "o", ["sd": 0]),
+            ("2026-10-04T14:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: afterDays, now: at("2026-10-04T14:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a drop read only after days without readings does not move a schedule two drops already confirm")
+        let movedWeeks: [(String, String?, [String: Any])] = [
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-30T10:35:00Z", "o", ["sd": 60]), ("2026-09-30T10:40:00Z", "o", ["sd": 5]),
+            ("2026-10-03T11:55:00Z", "o", ["sd": 40]), ("2026-10-03T12:05:00Z", "o", ["fh": 5, "sd": 41])]
+        let moved = AgentClaudeAppUsage.samples(from: history(movedWeeks)) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: moved, now: at("2026-10-03T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-07T10:40:00Z"),
+                     "a schedule whose renewal went by in plain sight without a drop has moved, so the last drop stands")
+        // The Mac was off for the first renewal the old schedule places; the next one shows the move.
+        let away = AgentClaudeAppUsage.samples(from: history(Array(movedWeeks.prefix(6)) + [
+            ("2026-10-02T20:00:00Z", "o", ["sd": 30]),
+            ("2026-10-10T11:55:00Z", "o", ["sd": 50]), ("2026-10-10T12:05:00Z", "o", ["fh": 5, "sd": 51])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: away, now: at("2026-10-10T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-14T10:40:00Z"),
+                     "a renewal seen going by without a drop moves the schedule even after an earlier one went unseen")
+        // A reading without the week between the two hides the drop from the history, not the renewal.
+        let gapped = AgentClaudeAppUsage.samples(from: history(Array(movedWeeks.dropLast()) + [
+            ("2026-10-03T12:05:00Z", "o", ["fh": 5]), ("2026-10-03T12:10:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: gapped, now: at("2026-10-03T12:15:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal read across a reading without the week still counts as seen")
+        let late = AgentClaudeAppUsage.samples(from: history(movedWeeks + [
+            ("2026-10-03T12:25:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: late, now: at("2026-10-03T12:30:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal first read within the hour after its time keeps the schedule")
+        // Emptying a week that was barely used reads as no drop at all.
+        let light = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:56:00Z", "o", ["sd": 100]), ("2026-09-19T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:56:00Z", "o", ["sd": 100]), ("2026-09-26T12:01:00Z", "o", ["sd": 0]),
+            ("2026-09-30T10:35:00Z", "o", ["sd": 60]), ("2026-09-30T10:40:00Z", "o", ["sd": 0]),
+            ("2026-10-03T11:55:00Z", "o", ["sd": 1]), ("2026-10-03T12:05:00Z", "o", ["fh": 5, "sd": 0])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: light, now: at("2026-10-03T12:10:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a renewal a barely used week could not show does not move a confirmed schedule")
+        // The newer partner alone would allow 11:00; the older one narrows the renewal to 12:00.
+        let partners = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T11:57:00Z", "o", ["sd": 100]), ("2026-09-19T12:02:00Z", "o", ["sd": 0]),
+            ("2026-09-26T10:40:00Z", "o", ["sd": 100]), ("2026-09-26T12:10:00Z", "o", ["sd": 0]),
+            ("2026-10-03T10:30:00Z", "o", ["sd": 100]), ("2026-10-03T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-07T08:48:00Z", "o", ["sd": 100]), ("2026-10-07T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-07T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: partners, now: at("2026-10-07T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "a drop several partners confirm renews where all of them agree")
+        let disagreeing = AgentClaudeAppUsage.samples(from: history([
+            ("2026-09-19T08:30:00Z", "o", ["sd": 70]), ("2026-09-19T08:40:00Z", "o", ["sd": 0]),
+            ("2026-09-26T11:57:00Z", "o", ["sd": 100]), ("2026-09-26T12:02:00Z", "o", ["sd": 0]),
+            ("2026-10-03T08:00:00Z", "o", ["sd": 100]), ("2026-10-03T12:05:00Z", "o", ["sd": 0]),
+            ("2026-10-07T08:48:00Z", "o", ["sd": 100]), ("2026-10-07T08:53:00Z", "o", ["sd": 0]),
+            ("2026-10-07T10:00:00Z", "o", ["fh": 5, "sd": 4])])) ?? []
+        suite.expect(AgentClaudeAppUsage.limits(from: disagreeing, now: at("2026-10-07T10:05:00Z"))?.windows.last?.resetsAt
+                        == at("2026-10-10T12:00:00Z"),
+                     "partners that disagree leave the newest of them to place the renewal")
         let later = AgentClaudeAppUsage.limits(from: samples, now: at("2026-09-23T20:30:00Z"))
         suite.expect(later?.windows.map(\.kind) == [.weekly] && AgentClaudeAppUsage.limits(from: samples, now: at("2026-10-01T15:00:00Z")) == nil,
                      "an old reading drops the session it can no longer speak for, and a week-old file is ignored")
@@ -2959,6 +3100,33 @@ enum NotchAgentTests {
         }
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchAgentsOptInMigrated),
                      "the local migration marker never travels in settings backups")
+    }
+
+    /// Only what the person shows or is alerted about asks for the limits.
+    private static func limitUse(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-agent-limits"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
+        func used(page: Bool) -> Bool { NotchAgentSupport.limitsInUse(pageShown: page, in: defaults) }
+        let alerts = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLimitAlert)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let unused = !used(page: false) && !used(page: true)
+        defaults.set("", forKey: DefaultsKey.notchAgentsHiddenCards)
+        let card = !used(page: false) && used(page: true)
+        defaults.set("limits", forKey: DefaultsKey.notchAgentsHiddenCards)
+        defaults.set(NotchAgentReadout.limit.rawValue, forKey: DefaultsKey.notchAgentsReadout)
+        let readout = used(page: false)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsLiveActivity)
+        let liveOff = !used(page: false)
+        defaults.set(NotchIdleContent.agents.rawValue, forKey: DefaultsKey.notchIdleContent)
+        suite.expect(alerts && unused && card && readout && liveOff && used(page: false),
+                     "limits are in use for their alerts, a live limit reading, the resting island or the page's Limits card, and only then")
     }
 
     private static func preferences(_ suite: TestSuite) {

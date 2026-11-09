@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 enum QuitProtectionShortcut: String, CaseIterable, Identifiable {
@@ -79,16 +80,84 @@ enum QuitProtectionSupport {
     }
 
     static func usesNativeQuitRequest(for shortcut: QuitProtectionShortcut,
-                                      bundleIdentifier: String? = nil) -> Bool {
+                                      bundleIdentifier: String? = nil,
+                                      confirmedWithExtraModifier: Bool = false) -> Bool {
         guard shortcut == .quit else { return false }
-        if let bundleIdentifier, requiresSyntheticQuit(bundleIdentifier: bundleIdentifier) {
+        guard let bundleIdentifier else { return true }
+        if requiresSyntheticQuit(bundleIdentifier: bundleIdentifier) {
             return false
+        }
+        // These send each held key on its own, not the flags of the replayed
+        // press, so with the extra modifier still down the other computer
+        // would get ⇧⌘Q or ⌃⌘Q. Quitting the app itself does less harm.
+        if keyForwardingBundleIdentifiers.contains(bundleIdentifier) {
+            return confirmedWithExtraModifier
         }
         return true
     }
 
     static func requiresSyntheticQuit(bundleIdentifier: String) -> Bool {
         bundleIdentifier == "com.valvesoftware.steam"
+    }
+
+    /// Remote screens and virtual machines pass ⌘Q on to the computer they
+    /// show, which quits its own app. Terminating one of them instead quits
+    /// the local window onto that computer.
+    static let keyForwardingBundleIdentifiers: Set<String> = [
+        // Remote screens
+        "com.apple.ScreenSharing",
+        "com.apple.RemoteDesktop",
+        "com.microsoft.rdc.macos",
+        "com.p5sys.jump.mac.viewer",
+        "com.p5sys.jump.mac.viewer.web",
+        "com.edovia.screens.5",
+        "com.realvnc.rvncconnect",
+        "com.realvnc.vncviewer",
+        "com.teamviewer.TeamViewer",
+        "com.philandro.anydesk",
+        "com.carriez.rustdesk",
+        "com.splashtop.stb.macosx",
+        "com.splashtop.stp.macosx",
+        "com.2X.Client.Mac",
+        "com.lemonmojo.RoyalTSX.App",
+        "com.devolutions.remotedesktopmanager",
+        "com.citrix.receiver.icaviewer.mac",
+        "com.omnissa.horizon.client.mac",
+        "com.vmware.horizon",
+        "tv.parsec.www",
+        "com.moonlight-stream.Moonlight",
+        // Virtual machines
+        "com.parallels.desktop.console",
+        "com.parallels.desktop.appstore",
+        "com.vmware.fusion",
+        "com.utmapp.UTM",
+        "org.virtualbox.app.VirtualBoxVM",
+        "codes.rambo.VirtualBuddy",
+    ]
+
+    /// The WindowServer rows for macOS's own app switcher, forward and back.
+    static let nativeAppSwitcherIDs: Set<Int32> = [
+        SwitcherNativeSymbolicHotKey.commandTab.rawValue,
+        SwitcherNativeSymbolicHotKey.commandShiftTab.rawValue,
+    ]
+
+    /// Whether a key down opens or steps macOS's own app switcher. The rows
+    /// are the WindowServer's, so a remapped switcher key is followed and one
+    /// switched off, as the App Switcher's take-over does while it owns ⌘Tab,
+    /// is not. `nil` rows mean the private calls are gone, and only the
+    /// factory ⌘Tab, forward or back, is assumed.
+    static func opensNativeSwitcher(keyCode: Int64,
+                                    flags: CGEventFlags,
+                                    entries: [LiveSystemShortcut]?) -> Bool {
+        let pressed = GlobalShortcut(keyCode: keyCode, modifiers: GlobalShortcutModifiers(cgFlags: flags))
+        guard let entries else {
+            return keyCode == 48
+                && !pressed.modifiers.contains(.control) && !pressed.modifiers.contains(.option)
+        }
+        return entries.contains {
+            nativeAppSwitcherIDs.contains($0.id) && $0.enabled && $0.shortcut == pressed
+                && (!$0.requiresFunctionKey || flags.contains(.maskSecondaryFn))
+        }
     }
 
     static func scopeAllows(_ scope: QuitProtectionScope,

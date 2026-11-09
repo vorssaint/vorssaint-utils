@@ -1181,15 +1181,15 @@ final class DockPreviewService: ObservableObject {
               let dockPID = dockProcessID()
         else { return nil }
 
-        var rawElement: AXUIElement?
-        // Resolve only after finding a visible Dock, and reuse the answer
-        // when a pass-through overlay made the ownership check ask first.
-        func hitElement() -> AXUIElement? {
-            if let rawElement { return rawElement }
+        // Asked only when a pass-through overlay covers the Dock, since only
+        // the system-wide element can tell whose it is. Its answer is reused
+        // when it turns out to be the Dock's.
+        var overlayHit: AXUIElement?
+        func systemWideHitProcessID() -> pid_t? {
             guard AXUIElementCopyElementAtPosition(AXUIElementCreateSystemWide(),
                                                    Float(axPoint.x), Float(axPoint.y),
-                                                   &rawElement) == .success else { return nil }
-            return rawElement
+                                                   &overlayHit) == .success else { return nil }
+            return overlayHit.flatMap { pid(of: $0) }
         }
 
         guard DockClickSupport.dockOwnsPoint(
@@ -1198,8 +1198,8 @@ final class DockPreviewService: ObservableObject {
             dockProcessID: dockPID,
             dockLayer: Int(CGWindowLevelForKey(.dockWindow)),
             ownProcessID: getpid(),
-            accessibilityHitProcessID: { hitElement().flatMap { self.pid(of: $0) } }
-        ), let element = hitElement() else { return nil }
+            accessibilityHitProcessID: systemWideHitProcessID
+        ), let element = overlayHit ?? dockElement(at: axPoint, dockPID: dockPID) else { return nil }
 
         // Resolving by bundle comes first, for the whole chain. Only a tile
         // names a process, while the labels below read the same across the
@@ -1227,6 +1227,20 @@ final class DockPreviewService: ObservableObject {
             return DockHit(app: app, iconFrame: frame, preferences: preferences)
         }
         return nil
+    }
+
+    /// The Dock element under the pointer, asked of the Dock alone. The
+    /// system-wide element would ask whichever app owns the window there, and
+    /// the Dock strip's ownership margin reaches over the windows beside it,
+    /// so a hung app next to the Dock stalled the main thread on every move
+    /// until Accessibility gave up on it (issue #3208).
+    private func dockElement(at axPoint: CGPoint, dockPID: pid_t) -> AXUIElement? {
+        let dock = AXUIElementCreateApplication(dockPID)
+        AXUIElementSetMessagingTimeout(dock, DockPreviewSupport.dockHitTimeout)
+        var element: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(dock, Float(axPoint.x), Float(axPoint.y),
+                                               &element) == .success else { return nil }
+        return element
     }
 
     /// Last resort for a Dock element whose chain named no bundle at all, or
