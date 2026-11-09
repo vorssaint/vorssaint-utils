@@ -4,8 +4,8 @@
 import CoreGraphics
 import Foundation
 
-/// Modifier-held mouse scroll speed (issue #521): sole-modifier matching,
-/// delta-field scaling, horizontal/zoom priority, and catalog contracts.
+/// Modifier-held mouse scroll speed (issue #521): preferences, shortcut
+/// matching and catalog contracts. Both wheel taps have separate routing tests.
 enum ScrollSpeedTests {
     static func run(_ suite: TestSuite) {
         suite.expect(ScrollWheelSupport.sanitizedSpeedMultiplier(0)
@@ -39,7 +39,7 @@ enum ScrollSpeedTests {
             boolFor: { _ in true },
             stringFor: { _ in ScrollHorizontalModifier.option.rawValue },
             intFor: { _ in 4 })
-        suite.expect(!disabled.isEnabled && disabled.modifier == nil,
+        suite.expect(disabled.modifier == nil,
                      "uninstalling the feature stands speed down even when its switch is on")
 
         let prefs = ScrollSpeedPreferences(
@@ -48,101 +48,54 @@ enum ScrollSpeedTests {
             stringFor: { $0 == DefaultsKey.scrollSpeedModifier
                 ? ScrollHorizontalModifier.option.rawValue : nil },
             intFor: { $0 == DefaultsKey.scrollSpeedMultiplier ? 4 : 0 })
-        suite.expect(prefs.isEnabled && prefs.modifier == .option && prefs.multiplier == 4,
+        suite.expect(prefs.modifier == .option && prefs.multiplier == 4,
                      "installed speed preferences resolve the chosen modifier and factor")
 
-        for continuous in [false, true] {
-            let event = wheel(continuous: continuous, flags: .maskAlternate,
-                              line: 2, point: 20, fixed: 2.5)
-            suite.expect(prefs.factor(for: event, horizontalModifier: .shift, targetsOwnWindow: false) == 4,
-                         "Option alone multiplies either wheel representation")
-            suite.expect(ScrollWheelSupport.applyScrollSpeed(
-                to: event, isContinuous: continuous, preferences: prefs,
-                horizontalModifier: .shift),
-                         "applyScrollSpeed reports success for a matching tick")
-            suite.expect(event.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 8
-                && event.flags.isEmpty,
-                "speed multiplies the line delta and consumes the modifier")
-            if continuous {
-                suite.expect(event.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 80
-                    && event.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) == 10,
-                    "continuous wheels also scale point and fixed-point fields")
-            }
+        for modifier in ScrollHorizontalModifier.allCases {
+            let event = wheel(flags: modifier.flag)
+            let claim = prefs.matchingModifier(for: event, horizontalModifier: nil,
+                                               isExcepted: false, targetsOwnWindow: false)
+            suite.expect(claim == (modifier == .option ? .option : nil),
+                         "speed claims only its own modifier")
         }
 
-        let fraction = wheel(continuous: false, flags: .maskAlternate, line: 0, point: 0, fixed: 0.25)
-        suite.expect(ScrollWheelSupport.applyScrollSpeed(
-            to: fraction, isContinuous: false, preferences: prefs, horizontalModifier: nil)
-            && fraction.getDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1) == 1,
-            "sub-line high-resolution ticks keep scaled precision")
-
-        let ownWindow = wheel(flags: .maskAlternate)
-        suite.expect(prefs.factor(for: ownWindow, horizontalModifier: nil, targetsOwnWindow: true) == nil
-            && !ScrollWheelSupport.applyScrollSpeed(
-                to: ownWindow, isContinuous: false, preferences: prefs,
-                horizontalModifier: nil, targetsOwnWindow: true)
-            && ownWindow.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 1
-            && ownWindow.flags == .maskAlternate,
-            "Vorssaint's own windows keep their wheel gestures")
-
-        let shared = wheel(flags: .maskAlternate)
-        suite.expect(prefs.factor(for: shared, horizontalModifier: .option, targetsOwnWindow: false) == nil
-            && !ScrollWheelSupport.applyScrollSpeed(
-                to: shared, isContinuous: false, preferences: prefs,
-                horizontalModifier: .option)
-            && shared.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 1
-            && shared.flags == .maskAlternate,
-            "horizontal redirection with the same modifier wins over speed")
-
-        for other in ScrollHorizontalModifier.allCases where other != .option {
-            let event = wheel(flags: other.flag)
-            suite.expect(prefs.factor(for: event, horizontalModifier: nil, targetsOwnWindow: false) == nil,
-                         "\(other.rawValue) alone does not trigger an Option speed shortcut")
+        var exceptionChecks = 0, windowChecks = 0
+        func excepted() -> Bool { exceptionChecks += 1; return false }
+        func ownWindow() -> Bool { windowChecks += 1; return false }
+        for event in [wheel(flags: []), wheel(flags: [.maskAlternate, .maskShift]),
+                      wheel(flags: .maskAlternate, line: 0, point: 0, fixed: 0)] {
+            suite.expect(prefs.matchingModifier(for: event, horizontalModifier: nil,
+                                isExcepted: excepted(), targetsOwnWindow: ownWindow()) == nil,
+                         "plain, multi-modifier and empty ticks keep their flags")
         }
-        let combo = wheel(flags: [.maskAlternate, .maskShift])
-        suite.expect(prefs.factor(for: combo, horizontalModifier: nil, targetsOwnWindow: false) == nil,
-                     "multi-modifier combinations leave speed alone")
-        let plain = wheel(flags: [])
-        suite.expect(prefs.factor(for: plain, horizontalModifier: nil, targetsOwnWindow: false) == nil,
-                     "unmodified scrolling stays at normal speed")
-
-        let bothAxes = wheel(continuous: true, flags: .maskAlternate, line: 1, point: 10, fixed: 1)
-        bothAxes.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: -2)
-        bothAxes.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: -20)
-        bothAxes.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -2)
-        ScrollWheelSupport.scaleScrollDeltas(bothAxes, factor: 3, isContinuous: true)
-        suite.expect(bothAxes.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 3
-            && bothAxes.getIntegerValueField(.scrollWheelEventDeltaAxis2) == -6
-            && bothAxes.getIntegerValueField(.scrollWheelEventPointDeltaAxis2) == -60,
-            "speed scales vertical and horizontal axes together")
-
-        let trackpad = ScrollWheelEventTraits(isContinuous: true, momentumPhase: 1,
-                                              scrollPhase: 0, scrollCount: 0)
-        suite.expect(!ScrollWheelSupport.isMouseWheel(trackpad, secondsSinceLastGesturePhase: nil),
-                     "momentum events stay classified as touch and never reach speed")
+        let vertical = wheel(flags: .maskAlternate)
+        suite.expect(disabled.matchingModifier(for: vertical, horizontalModifier: nil,
+                         isExcepted: excepted(), targetsOwnWindow: ownWindow()) == nil
+                     && prefs.matchingModifier(for: vertical, horizontalModifier: .option,
+                         isExcepted: excepted(), targetsOwnWindow: ownWindow()) == nil
+                     && exceptionChecks == 0 && windowChecks == 0,
+                     "uninstalled speed, nonmatching ticks and real horizontal shortcuts skip all speed target lookups")
+        suite.expect(prefs.matchingModifier(for: vertical, horizontalModifier: nil,
+                         isExcepted: true, targetsOwnWindow: ownWindow()) == nil && windowChecks == 0,
+                     "an excepted speed tick needs no second window lookup")
+        let invalidKeys: [String?] = [nil, "unknown"]
+        for stored in invalidKeys {
+            let recovered = ScrollSpeedPreferences(isAvailable: true, boolFor: { _ in true },
+                                                  stringFor: { _ in stored }, intFor: { _ in 3 })
+            suite.expect(recovered.modifier == .option, "missing or unknown speed keys use the displayed Option default")
+        }
 
         let runtime = (try? String(contentsOfFile: "Sources/Vorssaint/App/FeatureRuntime.swift",
                                    encoding: .utf8)) ?? ""
         suite.expect(runtime.contains(
             ".scrollSpeed: { ScrollInverter.shared.syncWithPreferences() }"),
-                     "installing or removing scroll speed re-syncs the shared wheel tap")
-        let inverter = (try? String(contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
-                                    encoding: .utf8)) ?? ""
-        suite.expect(inverter.contains("applyScrollSpeed(")
-            && inverter.contains("scrollSpeedWanted"),
-                     "the raw wheel path multiplies deltas and can keep the tap alive alone")
-        let smooth = (try? String(contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
-                                  encoding: .utf8)) ?? ""
-        suite.expect(smooth.contains("speedScale")
-            && smooth.contains("ScrollSpeedPreferences"),
-                     "smooth scrolling folds the same multiplier into the glide budget")
+                     "changing speed availability re-syncs the shared wheel tap")
     }
 
-    private static func wheel(continuous: Bool = false, flags: CGEventFlags,
-                              line: Int64 = 1, point: Int64 = 10, fixed: Double = 1) -> CGEvent {
+    private static func wheel(flags: CGEventFlags, line: Int64 = 1,
+                              point: Int64 = 10, fixed: Double = 1) -> CGEvent {
         let event = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 2,
                             wheel1: 0, wheel2: 0, wheel3: 0)!
-        event.setIntegerValueField(.scrollWheelEventIsContinuous, value: continuous ? 1 : 0)
         event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: line)
         event.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis1, value: fixed)
         event.setIntegerValueField(.scrollWheelEventPointDeltaAxis1, value: point)

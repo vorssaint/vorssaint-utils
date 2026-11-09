@@ -3875,6 +3875,8 @@ enum PointerInputFeatureTests {
             .dropFirst().first?.components(separatedBy: "Permissions.shared.$screenRecording").first ?? ""
         suite.expect(accessibilitySink.contains(".quitWindowProtection"),
                "granting Accessibility starts quit protection without a relaunch")
+        suite.expect(accessibilitySink.contains(".scrollSpeed"),
+               "an Accessibility change re-syncs speed when it is the only installed wheel feature")
         let smoothSchedulerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
             encoding: .utf8)) ?? ""

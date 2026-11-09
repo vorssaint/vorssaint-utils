@@ -225,7 +225,7 @@ struct MouseSettings: View {
                         }
                 }
                 if horizontalScrollEnabled {
-                    modifierKeys
+                    modifierKeys($horizontalScrollModifier)
                         .padding(.leading, settingsRowTextInset)
                 }
             }
@@ -258,7 +258,7 @@ struct MouseSettings: View {
     }
 
     /// The key to hold, as keycaps: one glance says which key, no menu.
-    private var modifierKeys: some View {
+    private func modifierKeys(_ selection: Binding<ScrollHorizontalModifier>) -> some View {
         let modifierStrings = FeatureStrings.quitProtection(l10n.language)
         let choices: [(ScrollHorizontalModifier, String, String)] = [
             (.shift, "⇧", modifierStrings.shiftKey),
@@ -271,9 +271,9 @@ struct MouseSettings: View {
                 .font(.subheadline.weight(.medium))
             HStack(spacing: 8) {
                 ForEach(choices, id: \.0) { modifier, glyph, name in
-                    let selected = horizontalScrollModifier == modifier
+                    let selected = selection.wrappedValue == modifier
                     Button {
-                        horizontalScrollModifier = modifier
+                        selection.wrappedValue = modifier
                     } label: {
                         HStack(spacing: 6) {
                             Text(glyph)
@@ -453,7 +453,10 @@ struct MouseSettings: View {
             }
             if scrollSpeedEnabled {
                 VStack(alignment: .leading, spacing: 10) {
-                    scrollSpeedModifierKeys
+                    modifierKeys($scrollSpeedModifier)
+                        .onChange(of: scrollSpeedModifier) { _, _ in
+                            ScrollInverter.shared.syncWithPreferences()
+                        }
                     sliderRow(l10n.s.scrollSpeedMultiplierLabel,
                               value: scrollSpeedMultiplierBinding,
                               range: Double(ScrollWheelSupport.speedMultiplierRange.lowerBound)
@@ -463,51 +466,6 @@ struct MouseSettings: View {
                     MouseExceptionsList(scope: .scrollSpeed)
                 }
                 .padding(.leading, settingsRowTextInset)
-            }
-        }
-    }
-
-    /// Same keycap row as horizontal scrolling, bound to the speed modifier.
-    private var scrollSpeedModifierKeys: some View {
-        let modifierStrings = FeatureStrings.quitProtection(l10n.language)
-        let choices: [(ScrollHorizontalModifier, String, String)] = [
-            (.shift, "⇧", modifierStrings.shiftKey),
-            (.option, "⌥", modifierStrings.optionKey),
-            (.control, "⌃", modifierStrings.controlKey),
-            (.command, "⌘", l10n.s.scrollHorizontalCommandKey),
-        ]
-        return VStack(alignment: .leading, spacing: 8) {
-            Text(l10n.s.scrollHorizontalModifierLabel)
-                .font(.subheadline.weight(.medium))
-            HStack(spacing: 8) {
-                ForEach(choices, id: \.0) { modifier, glyph, name in
-                    let selected = scrollSpeedModifier == modifier
-                    Button {
-                        scrollSpeedModifier = modifier
-                        ScrollInverter.shared.syncWithPreferences()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(glyph)
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                            Text(name)
-                                .font(.system(size: 11, weight: .medium))
-                        }
-                        .foregroundStyle(selected ? Color.accentColor : .primary)
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06),
-                                    in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14),
-                                              lineWidth: 1)
-                        }
-                        .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(name)
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                }
             }
         }
     }

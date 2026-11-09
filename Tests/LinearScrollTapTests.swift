@@ -20,8 +20,14 @@ enum LinearScrollTapTests {
     final class Target {
         static let shared = Target()
         var isOwn = false
+        var enabled = false
         let clickThroughWindowIDs = Set<CGWindowID>()
         func contains(_ point: CGPoint) -> Bool { isOwn }
+        func setEnabled(_ enabled: Bool) { self.enabled = enabled }
+    }
+    final class Permissions {
+        static let shared = Permissions()
+        var accessibility = false
     }
     final class Session {
         static let shared = Session()
@@ -44,6 +50,7 @@ enum LinearScrollTapTests {
     }
     final class Inverter {
         typealias UserDefaults = StandardDefaults
+        typealias Permissions = LinearScrollTapTests.Permissions
         typealias MouseAppExceptions = Exceptions
         typealias ScrollWheelTarget = Target
         typealias SessionActivity = Session
@@ -61,6 +68,13 @@ enum LinearScrollTapTests {
         var zoomState = ScrollZoomGestureState()
         var pinchPosts = 0
         var pinchEvents: [(phase: Int64, point: CGPoint?)] = []
+        var isRunning = false
+        func start() { isRunning = true; zoomState.start() }
+        func stop() {
+            isRunning = false
+            Target.shared.setEnabled(false)
+            _ = zoomState.stop()
+        }
         func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
             pinchEvents.append((phase, point))
             if phase == 2 { pinchPosts += 1 }
@@ -70,13 +84,17 @@ enum LinearScrollTapTests {
     static func run(_ suite: TestSuite) {
         let name = "com.vorssaint.tests.linear-scroll-tap.\(UUID().uuidString)"
         let defaults = Foundation.UserDefaults(suiteName: name)!
+        let previousDefaults = StandardDefaults.standard
         StandardDefaults.standard = defaults
         defer {
             defaults.removePersistentDomain(forName: name)
+            StandardDefaults.standard = previousDefaults
             Exceptions.shared.excepted = []
             HIDStage.shared.passes = true
             Switcher.shared.scrollNavigationActive = false
             Target.shared.isOwn = false
+            Target.shared.enabled = false
+            Permissions.shared.accessibility = false
         }
         func configure(linear: Bool = true, installed: Bool = true, lines: Int = 3,
                        invert: Bool = false, invertHorizontal: Bool = false, inverterInstalled: Bool = true,
@@ -329,6 +347,82 @@ enum LinearScrollTapTests {
                      "trackpad gestures stay unscaled while the speed modifier is held")
         suite.expect(continuousMouseSpeed?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 160,
                      "continuous mouse wheels still multiply under the speed modifier")
+        let subline = deliver(wheel(line: 0, fixed: 0.125, point: 0, flags: .maskAlternate))
+        suite.expect(subline.map(verticalFixed) == 0.5 && subline.map(verticalLine) == 0
+                        && subline?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 0,
+                     "a fixed-point-only wheel tick keeps its scaled fraction without inventing pixels or lines")
+        for sign: Int64 in [-1, 1] {
+            let large = deliver(wheel(line: sign * 20_000, fixed: Double(sign), point: sign * 1_000_000_000,
+                                      flags: .maskAlternate))
+            suite.expect(large.map(verticalLine) == Int64(sign > 0 ? Int16.max : Int16.min)
+                            && large?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1)
+                                == Int64(sign > 0 ? Int32.max : Int32.min),
+                         "scaling a large input saturates the Quartz integer fields without reversing direction")
+        }
+
+        for continuous in [false, true] {
+            configure(linear: false, invertHorizontal: true, sidewaysKey: .option, speedKey: .option)
+            let diagonal = wheel(continuous: continuous, line: 1, fixed: 0.125, point: 1,
+                                 flags: [.maskAlternate, .maskAlphaShift])
+            diagonal.setIntegerValueField(.scrollWheelEventDeltaAxis2, value: -2)
+            diagonal.setDoubleValueField(.scrollWheelEventFixedPtDeltaAxis2, value: -0.5)
+            diagonal.setIntegerValueField(.scrollWheelEventPointDeltaAxis2, value: -5)
+            let scaled = deliver(diagonal)
+            suite.expect(scaled.map { ScrollWheelAxisDelta($0, axis: .vertical) }
+                            == ScrollWheelAxisDelta(line: 3, point: 3, fixedPoint: 0.375)
+                            && scaled.map { ScrollWheelAxisDelta($0, axis: .horizontal) }
+                            == ScrollWheelAxisDelta(line: 6, point: 15, fixedPoint: 1.5)
+                            && scaled?.flags == .maskAlphaShift,
+                         "a diagonal wheel scales each precise field, inverts the selected axis and keeps other flags")
+        }
+
+        configure(linear: false, sidewaysKey: .control, speedKey: .control)
+        defaults.set(true, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.pinchZoomEnabled)
+        defaults.set(ScrollZoomModifier.control.rawValue, forKey: DefaultsKey.pinchZoomModifier)
+        let pinching = Inverter()
+        _ = pinching.zoomState.update(ScrollDirectionPreferences(defaults: defaults).zoom)
+        pinching.zoomState.start()
+        suite.expect(deliver(wheel(line: 1, fixed: 1, point: 10, flags: .maskControl), through: pinching) == nil
+                        && pinching.pinchPosts == 1, "Pinch wins when all three actions share Control")
+        Exceptions.shared.excepted = [.scrollDirection]
+        let onlySpeed = deliver(wheel(line: 1, fixed: 0.125, point: 1, flags: .maskControl))
+        suite.expect(onlySpeed?.flags.isEmpty == true && onlySpeed?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 3,
+                     "a direction-only exception leaves Control speed available with both competing actions excepted")
+        Exceptions.shared.excepted.insert(.scrollSpeed)
+        let allExcepted = deliver(wheel(line: 1, fixed: 0.125, point: 1, flags: .maskControl))
+        suite.expect(allExcepted?.flags == .maskControl && allExcepted?.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 1,
+                     "an exception for speed as well leaves the original Control-wheel available to the app")
+        defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
+        defaults.set(false, forKey: DefaultsKey.pinchZoomEnabled)
+
+        configure(lines: 1, speedKey: .option)
+        for boostFirst in [true, false] {
+            let inverter = Inverter()
+            let first = deliver(wheel(line: 0, fixed: 0.5, point: 5, flags: boostFirst ? .maskAlternate : []),
+                                through: inverter)
+            let second = deliver(wheel(line: 0, fixed: 0.5, point: 5, flags: boostFirst ? [] : .maskAlternate),
+                                 through: inverter)
+            suite.expect(first.map(verticalLine) == (boostFirst ? 1 : nil)
+                            && second.map(verticalLine) == (boostFirst ? 1 : 2)
+                            && inverter.linearCarryVertical == 0,
+                         "each half-notch carries the speed of its own tick through a modifier change")
+        }
+
+        configure(linear: false, installed: false, inverterInstalled: false, speedKey: .option)
+        let lifecycle = Inverter()
+        lifecycle.syncWithPreferences()
+        suite.expect(!lifecycle.isRunning && !Target.shared.enabled, "speed alone waits for Accessibility")
+        Permissions.shared.accessibility = true
+        lifecycle.syncWithPreferences()
+        suite.expect(lifecycle.isRunning && Target.shared.enabled, "the accessibility grant arms speed and protects own windows")
+        Permissions.shared.accessibility = false
+        lifecycle.syncWithPreferences()
+        suite.expect(!lifecycle.isRunning && !Target.shared.enabled, "revocation releases the speed-only wheel tap")
+        Permissions.shared.accessibility = true
+        defaults.set(false, forKey: AppFeature.scrollSpeed.availabilityKey)
+        lifecycle.syncWithPreferences()
+        suite.expect(!lifecycle.isRunning && !Target.shared.enabled, "an old enabled switch cannot rearm an uninstalled feature")
     }
 
     private static func verticalLine(_ event: CGEvent) -> Int64 {
