@@ -8,9 +8,12 @@ import os
 /// DDC read, a scripted system pipeline and manually drained queues. No
 /// monitor is read or written.
 enum BrightnessStepTests {
+    typealias UserDefaults = SoftwareDimmingRouteContract.UserDefaults
+
     final class Queue {
         var jobs: [() -> Void] = []
         func async(execute work: @escaping () -> Void) { jobs.append(work) }
+        func drainNext() { if !jobs.isEmpty { jobs.removeFirst()() } }
         func drain() { while !jobs.isEmpty { jobs.removeFirst()() } }
     }
     enum DispatchQueue { static let main = Queue() }
@@ -46,9 +49,10 @@ enum BrightnessStepTests {
     static var displayAsleep = false
     static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { displayAsleep ? 1 : 0 }
     struct BrightnessDisplay {
-        enum Method: Equatable { case system, ddc, gamma }
+        enum Method: Equatable { case system, ddc, software }
         let id: UInt32
         var brightness: Double
+        var method: Method = .ddc
     }
 
     class Fixture {
@@ -58,7 +62,9 @@ enum BrightnessStepTests {
         let workQueue = Queue()
         var displays: [BrightnessDisplay] = []
         var levelKnownAt: [UInt32: Date] = [:]
-        var ddcPendingSteps: [UInt32: Double] = [:]
+        var ddcPendingSteps: [UInt32: (request: UUID, delta: Double)] = [:]
+        var pendingLevels: [UInt32: Double] = [:]
+        var lastApplied: [UInt32: Double] = [:]
         var focusedDisplayID: UInt32?
         func focusKeyDisplay(_ id: UInt32) { focusedDisplayID = id }
         var reply: (current: UInt16, maximum: UInt16) = (0, 100)
@@ -66,15 +72,18 @@ enum BrightnessStepTests {
         var committed: [Double] = []
         var dimmedDisplays = Set<UInt32>()
         var writes: [UInt16] = []
+        var refreshes = 0
+        func refresh(force: Bool = false) { refreshes += 1 }
         func applySoftwareDim(_ id: UInt32, value: Double) -> Bool { true }
         func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8]) -> Bool {
             writes.append(UInt16(packet[3]) << 8 | UInt16(packet[4]))
             return true
         }
         func currentSystemBrightness(for id: UInt32, fallback: Double?) -> Double? { fallback }
-        func commitStep(from current: Double, delta: Double, to displayID: UInt32,
-                        method: BrightnessDisplay.Method, showOSD: Bool) {
-            committed.append(current + delta)
+        func setBrightness(_ value: Double, for displayID: UInt32,
+                           showOSD: Bool = false, smooth: Bool = false) {
+            committed.append(value)
+            pendingLevels[displayID] = value
         }
         func ddcProbeLuminance(for id: UInt32, service: CFTypeRef) -> DDCProbe {
             .replied(current: reply.current, maximum: reply.maximum)
@@ -84,6 +93,7 @@ enum BrightnessStepTests {
     }
 
     static func run(_ suite: TestSuite) {
+        UserDefaults.standard = UserDefaults.Store()
         let service = Service()
         service.routes[2] = Route(method: .ddc, service: "monitor" as CFString, maximum: 100,
                                           ddcReadable: true, ddcPathKey: "path")
@@ -145,6 +155,8 @@ enum BrightnessStepTests {
         suite.expect(written && service.writes == [50],
                      "a physical monitor adjustment cannot suppress a step back to the app's previous value")
 
+        dimmingRouteChanges(suite)
+
         // A key step on a system display eases by the change from the level
         // the system reports. Everything else writes the level itself, once,
         // so a change the system refuses or ignores is never added twice
@@ -185,5 +197,129 @@ enum BrightnessStepTests {
         BrightnessBridge.setBrightnessSmooth = smoothCall
         suite.expect(missing.written && missing.calls == ["set 0.5625"],
                      "a system without the easing call gets the level directly")
+    }
+
+    private static func dimmingRouteChanges(_ suite: TestSuite) {
+        func readableService() -> Service {
+            UserDefaults.standard = UserDefaults.Store()
+            let service = Service()
+            service.routes[2] = Route(method: .ddc, service: "monitor" as CFString, maximum: 100,
+                                     ddcReadable: true, ddcPathKey: "path")
+            service.displays = [BrightnessDisplay(id: 2, brightness: 0.5)]
+            service.lastApplied[2] = 0.5
+            service.reply = (50, 100)
+            return service
+        }
+        let delta = BrightnessSupport.brightnessKeyStep
+
+        let ordinary = readableService()
+        ordinary.step(2, method: .ddc, delta: -delta, showOSD: false)
+        ordinary.step(2, method: .ddc, delta: -delta, showOSD: false)
+        suite.expect(ordinary.workQueue.jobs.count == 1,
+                     "ordinary repeats still share one DDC read")
+        ordinary.workQueue.drain()
+        DispatchQueue.main.drain()
+        suite.expect(ordinary.committed == [0.5 - 2 * delta] && ordinary.ddcPendingSteps.isEmpty,
+                     "a valid DDC reply keeps every queued key step")
+        ordinary.displays[0].brightness = 0.5 - 2 * delta
+        ordinary.levelKnownAt[2] = Date()
+        ordinary.step(2, method: .ddc, delta: delta, showOSD: false)
+        suite.expect(ordinary.committed.last == 0.5 - delta && ordinary.workQueue.jobs.isEmpty,
+                     "a fresh DDC level still steps immediately without another read")
+
+        // The step and preference setter are extracted from production.
+        // Script route publication before or after the read's main-thread
+        // completion, with the software choice made while the reply is pending.
+        for readFinished in [false, true] {
+            for rebuilt in [false, true] {
+                let late = readableService()
+                late.step(2, method: .ddc, delta: -delta, showOSD: false)
+                if readFinished { late.workQueue.drain() }
+                late.pendingLevels[2] = 0.25
+                late.setSoftwareDimmingPreferred(true, for: 2)
+                suite.expect(late.pendingLevels[2] == nil && late.ddcPendingSteps[2] == nil,
+                             "choosing software discards old-scale writes and the pending DDC step")
+                if !readFinished { late.workQueue.drain() }
+                if rebuilt {
+                    late.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+                    late.displays[0].method = .software
+                    late.displays[0].brightness = 1
+                }
+                DispatchQueue.main.drain()
+                suite.expect(late.committed.isEmpty && late.pendingLevels.isEmpty
+                             && late.displays[0].brightness == (rebuilt ? 1 : 0.5),
+                             "a late DDC reply never dims the picture, before or after the software rebuild")
+            }
+        }
+
+        let transition = readableService()
+        transition.setSoftwareDimmingPreferred(true, for: 2)
+        transition.step(2, method: .ddc, delta: -delta, showOSD: false)
+        suite.expect(transition.workQueue.jobs.isEmpty && transition.committed.isEmpty,
+                     "keys cannot start another DDC step while the software rebuild is queued")
+        transition.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+        transition.step(2, method: .ddc, delta: -delta, showOSD: false)
+        transition.step(2, method: .software, delta: -delta, showOSD: false)
+        suite.expect(transition.committed.isEmpty,
+                     "neither an old key route nor an old published slider scale is applied to a new route")
+        transition.displays[0].method = .software
+        transition.displays[0].brightness = 1
+        transition.step(2, method: .software, delta: -delta, showOSD: false)
+        suite.expect(transition.committed == [1 - delta] && transition.workQueue.jobs.isEmpty,
+                     "software brightness keys work normally once the new scale is published")
+
+        let replacedRoute = readableService()
+        replacedRoute.step(2, method: .ddc, delta: -delta, showOSD: false)
+        replacedRoute.workQueue.drain()
+        replacedRoute.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+        DispatchQueue.main.drain()
+        suite.expect(replacedRoute.committed.isEmpty,
+                     "an automatic route change rejects a DDC reply even on the same connection")
+
+        let replacement = readableService()
+        replacement.step(2, method: .ddc, delta: -delta, showOSD: false)
+        replacement.workQueue.drain()
+        replacement.setSoftwareDimmingPreferred(true, for: 2)
+        replacement.setSoftwareDimmingPreferred(false, for: 2)
+        replacement.step(2, method: .ddc, delta: delta, showOSD: false)
+        let newRequest = replacement.ddcPendingSteps[2]?.request
+        DispatchQueue.main.drainNext()
+        suite.expect(newRequest != nil && replacement.ddcPendingSteps[2]?.request == newRequest
+                     && replacement.committed.isEmpty,
+                     "a canceled reply cannot consume a newer DDC request after switching back")
+        replacement.workQueue.drain()
+        DispatchQueue.main.drain()
+        suite.expect(replacement.committed == [0.5 + delta] && replacement.ddcPendingSteps.isEmpty,
+                     "the new DDC reply applies only the new key step")
+
+        let separate = readableService()
+        separate.routes[3] = Route(method: .ddc, service: "other monitor" as CFString, maximum: 100,
+                                  ddcReadable: true, ddcPathKey: "other-path")
+        separate.displays.append(BrightnessDisplay(id: 3, brightness: 0.5))
+        separate.step(2, method: .ddc, delta: -delta, showOSD: false)
+        separate.step(3, method: .ddc, delta: delta, showOSD: false)
+        separate.workQueue.drain()
+        separate.setSoftwareDimmingPreferred(true, for: 2)
+        DispatchQueue.main.drain()
+        suite.expect(separate.pendingLevels[2] == nil && separate.pendingLevels[3] == 0.5 + delta,
+                     "changing one monitor's mode preserves another monitor's pending key step")
+
+        let extended = readableService()
+        extended.step(2, method: .ddc, delta: -delta, showOSD: false)
+        extended.workQueue.drain()
+        extended.setExtendedDimmingPreferred(true, for: 2)
+        DispatchQueue.main.drain()
+        suite.expect(extended.committed.isEmpty,
+                     "the neighboring extra-dimming choice also discards a read in the old slider scale")
+
+        let unkeyed = readableService()
+        unkeyed.routes[2]?.ddcPathKey = nil
+        unkeyed.step(2, method: .ddc, delta: -delta, showOSD: false)
+        unkeyed.setSoftwareDimmingPreferred(true, for: 2)
+        unkeyed.workQueue.drain()
+        DispatchQueue.main.drain()
+        suite.expect(unkeyed.committed == [0.5 - delta] && unkeyed.refreshes == 0,
+                     "an unavailable dimming choice leaves a legitimate unkeyed DDC step intact")
+        UserDefaults.standard = UserDefaults.Store()
     }
 }
