@@ -30,6 +30,7 @@ extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
         case .enUS: return .enUS
+        case .pl: return .pl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -70,6 +71,29 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Show the installed app in Finder",
         installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
+    )
+
+    static let pl = DiskImageInstallerStrings(
+        title: "Instalator obrazu dysku",
+        hubDescription: "Zainstaluj pojedynczą aplikację na obrazie dysku i wyczyść pobieranie",
+        useUserApplications: "Zainstaluj w folderze Aplikacje w folderze domowym",
+        applicationsFolder: "folderu Aplikacje",
+        userApplicationsFolder: "folder Aplikacje w folderze domowym",
+        promptTitle: "Zainstalować tę aplikację?",
+        promptBodyFormat: "%@ zostanie skopiowany do %@, a obraz dysku zostanie wysunięty.",
+        installButton: "Zainstaluj",
+        installedTitle: "Aplikacja zainstalowana",
+        installedBodyFormat: "%@ jest gotowy w %@. Obraz dysku został wyrzucony, a jego pobranie przeniesiono do Kosza.",
+        installedKeepingMountBodyFormat: "%@ jest zainstalowany w %@, ale nie można wysunąć obrazu dysku. Jego pobieranie zostało zachowane.",
+        installedKeepingDownloadBodyFormat: "%@ jest zainstalowany w %@ i obraz dysku został wyrzucony, ale jego pobranego pliku nie można było przenieść do Kosza.",
+        failedTitle: "Nie można zainstalować",
+        failedBody: "Nic nie zostało zmienione. Nadal możesz przeciągnąć aplikację do aplikacji.",
+        verificationFailedBody: "Ten komputer Mac nie mógł zweryfikować aplikacji, więc nic nie zostało zainstalowane.",
+        alreadyInstalledBodyFormat: "%@ jest już w aplikacjach.",
+        trashDownloadOption: "Przenieś pobrany plik do Kosza",
+        revealAppOption: "Pokaż zainstalowaną aplikację w Finder",
+        installedKeptDownloadBodyFormat: "%@ jest gotowy w %@. Obraz dysku został wyrzucony, a jego pobranie zostało zachowane.",
+        installingFormat: "Instalowanie %@…"
     )
 
     static let ptBR = DiskImageInstallerStrings(

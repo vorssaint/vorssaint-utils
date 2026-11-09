@@ -41,6 +41,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "Don’t show what’s new before updating",
                 showPreviewToggle: "Show what’s new before updating",
                 showPreviewCaption: "What changed in your features still appears after each update.")
+        case .pl:
+            return WhatsNewStrings(
+                updatedFromFormat: "Zaktualizowano z wersji %@",
+                newFeatures: "Nowe funkcje",
+                yourFeatures: "Twoje funkcje",
+                notInstalled: "Niezainstalowane",
+                kindNew: "Nowe",
+                kindChanged: "Zmienione",
+                kindFixed: "Naprawione",
+                updated: "Zaktualizowano",
+                chooseFeatureHint: "Wybierz funkcję, aby zobaczyć jej zmiany.",
+                skipPreviewCheckbox: "Nie pokazuj nowości przed aktualizacją",
+                showPreviewToggle: "Pokazuj nowości przed aktualizacją",
+                showPreviewCaption: "Zmiany w Twoich funkcjach nadal pojawiają się po każdej aktualizacji.")
         case .ptBR:
             return WhatsNewStrings(
                 updatedFromFormat: "Atualizado da versão %@",

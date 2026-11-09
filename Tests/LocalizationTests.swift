@@ -6,7 +6,7 @@ import Foundation
 enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
-        (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
+        (.sk, .sk), (.pl, .pl), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
     ]
 
@@ -24,6 +24,18 @@ enum LocalizationTests {
                      "\(name): translated fields match the English schema")
         let empty = values.filter { $0.value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.keys.sorted()
         suite.expect(empty.isEmpty, "\(name): missing text in \(empty.joined(separator: ", "))")
+        if name.hasSuffix("/pl") {
+            let template = try! NSRegularExpression(pattern: #"\{\{[^}]+\}\}"#)
+            func variables(_ text: String) -> [String] {
+                let string = text as NSString
+                return template.matches(in: text, range: NSRange(location: 0, length: string.length))
+                    .map { string.substring(with: $0.range) }
+            }
+            for (field, original) in base where !variables(original).isEmpty {
+                suite.expect(variables(values[field] ?? "") == variables(original),
+                             "\(name).\(field): snippet variables retain their executable spelling")
+            }
+        }
         let dashes = values.filter { $0.value.contains("\u{2014}") }.keys.sorted()
         suite.expect(dashes.isEmpty, "\(name): em-dash in \(dashes.joined(separator: ", "))")
         for (field, original) in base {
@@ -56,6 +68,11 @@ enum LocalizationTests {
 
     static func run(_ suite: TestSuite) {
         formattingChecks(suite)
+        suite.expect(AppLanguage(rawValue: "pl") == .pl && AppLanguage.pl.displayName == "Polski",
+                     "Polish is selectable and survives a saved language preference")
+        let polishLocale = AppLanguage.pl.formattingLocale(system: Locale(identifier: "pl_PL"))
+        suite.expect(polishLocale.language.languageCode?.identifier == "pl",
+                     "Polish uses Polish date and time vocabulary")
         suite.expect(Set(languages.map { $0.0 }) == Set(AppLanguage.allCases)
                      && languages.count == AppLanguage.allCases.count,
                      "the base strings cover each app language exactly once")
