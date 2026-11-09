@@ -39,6 +39,7 @@ final class RecorderGIFWriter {
     private var headerWritten = false
     private var emitted = 0
     private var closed = false
+    private var usesEncodedFrames = false
 
     init(url: URL, fps: Int, framesPerChunk: Int = RecorderGIFWriter.framesPerChunk) throws {
         guard (1...100).contains(fps), framesPerChunk > 0 else { throw Failure.invalidFrame }
@@ -55,7 +56,7 @@ final class RecorderGIFWriter {
     deinit { try? file.close() }
 
     func append(_ image: CGImage) throws {
-        guard !closed else { throw Failure.closed }
+        guard !closed, !usesEncodedFrames else { throw Failure.closed }
         if let canvas {
             guard canvas.width == image.width, canvas.height == image.height else {
                 throw Failure.invalidFrame
@@ -76,13 +77,41 @@ final class RecorderGIFWriter {
     func finish() throws {
         guard !closed else { throw Failure.closed }
         try flush()
-        guard let last = held else { throw Failure.empty }
-        try emit(last.picture)
+        guard held != nil || emitted > 0 else { throw Failure.empty }
+        if let last = held { try emit(last.picture) }
         held = nil
         try file.write(contentsOf: Data([0x3B]))
         try file.synchronize()
         try file.close()
         closed = true
+    }
+
+    /// Indexed, opaque frames from the fast encoder. Their delta transparency
+    /// retains the previous picture; a palette change starts a full picture.
+    func appendEncodedFrames(_ chunks: [Chunk]) throws {
+        guard !closed, pending.isEmpty, held == nil else { throw Failure.closed }
+        usesEncodedFrames = true
+        for chunk in chunks {
+            guard (1...65535).contains(chunk.width), (1...65535).contains(chunk.height),
+                  chunk.frames.count == 1, let frame = chunk.frames.first,
+                  frame.disposal == 1 else { throw Failure.invalidFrame }
+            if let canvas {
+                guard chunk.width == canvas.width, chunk.height == canvas.height
+                else { throw Failure.invalidFrame }
+            } else {
+                guard frame.covers(width: chunk.width, height: chunk.height)
+                else { throw Failure.invalidFrame }
+                canvas = (chunk.width, chunk.height)
+            }
+            if !headerWritten { try writeHeader(chunk) }
+            try emit(picture(for: frame, in: chunk))
+        }
+    }
+
+    static func palette(for thumbnails: [CGImage]) throws -> Data {
+        guard !thumbnails.isEmpty, let palette = try encode(thumbnails).globalTable
+        else { throw Failure.invalidFrame }
+        return palette
     }
 
     private func flush() throws {

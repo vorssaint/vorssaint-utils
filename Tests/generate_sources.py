@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "build/generated-tests"
 
 
-def declaration(path, prefix, scope=None):
+def declaration(path, prefix, scope=None, *, closing="}"):
     lines = (ROOT / path).read_text().splitlines(keepends=True)
     lower, upper = 0, len(lines)
     if scope is not None:
@@ -30,7 +30,7 @@ def declaration(path, prefix, scope=None):
         raise ValueError(f"Expected one declaration {prefix!r} in {path}")
     start = starts[0]
     indent = prefix[:len(prefix) - len(prefix.lstrip())]
-    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + "}")
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + closing)
     body = "".join(lines[start:end + 1])
     return f'#sourceLocation(file: {json.dumps(path)}, line: {start + 1})\n{body}\n#sourceLocation()\n'
 
@@ -97,6 +97,14 @@ def main():
           + "\n".join(line for line in declaration(
               "Sources/Vorssaint/main.swift", "if let command = SettingsBackupSupport.command(")
               .splitlines() if not line.startswith("#sourceLocation")) + "\n"
+          + "}\n}\n")
+    backup = "Sources/Vorssaint/Services/SettingsBackup.swift"
+    write("SettingsFileContract.swift", "import AppKit\nimport Darwin\n"
+          + "extension SettingsFileTests {\nenum Backup {\n"
+          + "".join(declaration(backup, prefix) for prefix in [
+              "    static func write(to ", "    static func readSettings(at ",
+              "    static func apply(settings:", "    static var configFileURL:",
+              "    static func applyConfigFileAtLaunch(", "    static func anotherInstanceIsRunning("])
           + "}\n}\n")
     slider_area = "Sources/Vorssaint/UI/SliderScrollArea.swift"
     slider_control = "Sources/Vorssaint/UI/Notch/NotchLevelSlider.swift"
@@ -1193,10 +1201,14 @@ def main():
           + "}\n}\n")
     cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
     write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
+          + declaration(cleaner, "    private static let leftoverRoots:", closing="]")
+          + declaration(cleaner, "    private static func isDirectLeftoverRootChild(")
+          + declaration(cleaner, "    private static func hasLivingOwner(")
+          + declaration(cleaner, "    private static func hasLivingLeftoverOwner(")
           + "".join(declaration(cleaner, "    private static func " + name)
                     .replace("private static func", "static func", 1)
-                    for name in ["appendLeftovers(", "scanCaches(", "scanLogs(",
-                                 "directorySize(", "fileSize(", "sorted(",
+                    for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
+                                 "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
                                  "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
@@ -2040,7 +2052,8 @@ def main():
     write("MenuPanelSectionGates.swift", "import Foundation\n\nextension MenuPanelSectionGateContract {\n"
           + declaration("Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift", "enum PanelSectionID:")
           + "".join(declaration(menu_panel, prefix).replace("private enum", "enum", 1)
-                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:"])
+                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:",
+                                   "private enum ControlCategory:"])
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "enum QuickToggleAction:")
           + "}\n")
 

@@ -22,6 +22,7 @@ More reliable window switching, audio, notifications and display controls, with 
 - Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
+- Save as GIF and Copy as GIF export faster and use less memory, decoding the recording in order and encoding on the GPU when supported, with the existing encoder as a fallback.
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
 - The window switcher keeps its opening shortcuts working during secure input, including All windows and quick modifier releases. Q/W remain unavailable in this mode and are blocked while the switcher owns the selection. Thanks to @phatina.
 - Focus follows mouse recovers keyboard focus when the usual no-raise activation fails, while preserving window order when Bring the window to the front is off. Thanks to @jerome-queck.
