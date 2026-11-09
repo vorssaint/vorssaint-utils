@@ -713,12 +713,14 @@ enum SettingsFeatureTests {
                "a file without the version envelope is rejected")
         let tampered: [String: Any] = [
             SettingsBackupSupport.formatVersionKey: 1,
-            SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true] as [String: Any],
+            SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true,
+                                                DefaultsKey.keepAwakeSessionEnd: ["end": 0.0, "minutes": 0]] as [String: Any],
         ]
         let filteredImport = SettingsBackupSupport.sanitizedSettings(from: tampered)
         suite.expect(filteredImport?["evilKey"] == nil
+                && filteredImport?[DefaultsKey.keepAwakeSessionEnd] == nil
                 && filteredImport?[DefaultsKey.autoQuitEnabled] as? Bool == true,
-               "unknown keys are dropped on import")
+               "unknown keys and live Keep Awake sessions are dropped on import")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),

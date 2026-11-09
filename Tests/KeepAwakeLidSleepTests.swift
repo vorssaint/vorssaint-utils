@@ -113,7 +113,9 @@ enum KeepAwakeLidSleepContract {
         for queue in [DispatchQueue.main, DispatchQueue.background, DispatchQueue.native] {
             queue.pending.removeAll(); queue.immediate.removeAll()
         }
-        UserDefaults.standard.values.removeAll(); UserDefaults.standard.doubles.removeAll()
+        UserDefaults.standard.values.removeAll()
+        AppFeature.keepAwake.isAvailable = true
+        SystemInfo.battery = nil
         Sudoers.calls = []; Sudoers.results = [true]; Sudoers.disabled = false
         Sudoers.configured = true; Sudoers.installCompletions = []
         Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
