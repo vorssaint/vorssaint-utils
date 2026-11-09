@@ -144,7 +144,10 @@ enum KeepAwakeLidSleepTests {
         expect(!allowed(true, [], external: true),
                "closed-display mode with an external monitor is never forced to sleep")
         expect(!allowed(true, [], external: nil),
-               "an unreadable display list never authorizes forced sleep")
+               "on external power an unreadable display list never authorizes forced sleep")
+        expect(!allowed(true, [connection], external: nil, power: false)
+               && !allowed(true, nil, external: nil, power: false),
+               "the battery cutoff still checks live lid protections when the display list is unreadable")
         expect(allowed(true, [], external: true, power: false),
                "a monitor on battery is not closed-display mode, so the battery cutoff still sleeps")
         expect(!allowed(true, [], external: true, power: nil),
