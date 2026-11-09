@@ -959,6 +959,7 @@ def main():
                          .replace("if let proxy {", "if proxy != nil {")
           + "}\n")
     smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
+    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     write("ScrollZoomFocus.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension ScrollZoomFocusTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowActivator.swift", "    static func focusWindow(")
@@ -970,7 +971,10 @@ def main():
     if smooth_post.count("event.postToPid(target.processID)") != 1:
         raise ValueError("Expected one targeted smooth-scroll post")
     write("SmoothScrollRouting.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
-          + "extension SmoothScrollRoutingTests.Service {\n"
+          + "extension SmoothScrollRoutingTests.Capture {\n"
+          + declaration(selection, "    static func steppedLoupeNeedsRawWheel(")
+          + declaration(selection, "    static func isActiveLoupeWindow(")
+          + "}\nextension SmoothScrollRoutingTests.Service {\n"
           + smooth_handler
           + declaration(smooth, "    private func stopGlide()").replace("private func", "func", 1)
           + declaration(smooth, "    private func emitFrame(at timestamp:").replace("private func", "func", 1)
@@ -2077,7 +2081,6 @@ def main():
                                    "    private var spotlightDimValue:"])
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
           + "}\n}\n")
-    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
         "    private func adoptCapturePolicy(",

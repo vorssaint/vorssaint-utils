@@ -165,6 +165,11 @@ final class ScreenshotSelectionController {
             optionPressed: optionPressed)
     }
 
+    static func isActiveLoupeWindow(_ windowNumber: Int) -> Bool {
+        guard let session = activeSession, session.loupeEnabled else { return false }
+        return session.panels.contains { $0.windowNumber == windowNumber }
+    }
+
     private let strings = FeatureStrings.screenshot(L10n.shared.language)
     /// Named at the head of the hint bar so the surface never leaves the
     /// person guessing what the area they are about to pick is for.
