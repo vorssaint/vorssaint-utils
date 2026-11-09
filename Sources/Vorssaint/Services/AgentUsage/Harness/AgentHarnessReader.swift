@@ -19,14 +19,21 @@ extension AgentHarnessReader {
     var readsFullHistoryFirst: Bool { false }
 }
 
+private struct EmptyAgentReader: AgentHarnessReader {
+    let provider: AgentProvider
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
+}
+
 extension AgentProvider {
-    /// The reader that parses this provider's logs.
+    /// The reader that parses this provider's logs. Kimi has no local log:
+    /// its limits come from the account API, so this reader is never discovered.
     var reader: any AgentHarnessReader {
         switch self {
         case .claude: ClaudeReader()
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .kimi: EmptyAgentReader(provider: .kimi)
         }
     }
 }

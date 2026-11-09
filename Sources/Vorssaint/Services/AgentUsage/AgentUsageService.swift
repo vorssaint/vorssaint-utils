@@ -12,7 +12,8 @@ import Network
 /// memory and in the app's private folder so the next launch reads only what
 /// the agents wrote meanwhile. OpenCode's stay in memory only, and its
 /// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
+/// limits through its own CLI, including use on other machines. Kimi Code's
+/// limits come from its account API through `KimiUsageService`. The public
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
@@ -99,6 +100,7 @@ final class AgentUsageService: ObservableObject {
     /// The last snapshot handed over, to tell when time alone changes it.
     private var published = AgentUsageSnapshot()
     private var claudePlan: AgentPlan?
+    private var kimiPlan: AgentPlan?
     /// The organization Claude Code signs in to, when its profile says.
     private var claudeOrganization: String?
     private var claudeIdentity: ClaudeAccountProfile.Identity?
@@ -123,6 +125,7 @@ final class AgentUsageService: ObservableObject {
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
+        KimiUsageService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
         let profile = ClaudeAccountProfile.selected()
@@ -147,6 +150,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        KimiUsageService.shared.refresh()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -154,6 +158,7 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
+        KimiUsageService.shared.pause()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -185,7 +190,10 @@ final class AgentUsageService: ObservableObject {
     }
 
     func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
-        if pausingAccounts { CodexProfileLimitsService.shared.pause() }
+        if pausingAccounts {
+            CodexProfileLimitsService.shared.pause()
+            KimiUsageService.shared.pause()
+        }
         pageVisible = false
         // A first read still going stops at its next chunk, so the wait
         // below is short.
@@ -226,6 +234,7 @@ final class AgentUsageService: ObservableObject {
             warned.removeAll()
             budgetDay = nil
             claudePlan = nil
+            kimiPlan = nil
             claudeOrganization = nil
             claudeIdentity = nil
             claudeProfileModified = nil
@@ -249,9 +258,33 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    func noteKimiAccount(_ reading: KimiUsageReading) {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0, enabled.contains(.kimi) else { return }
+            kimiPlan = reading.plan
+            store.updateLimits(reading.limits)
+            checkLimits()
+            schedulePublish()
+        }
+    }
+
+    func clearKimiAccount() {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            kimiPlan = nil
+            store.clearLimits(.kimi)
+            previousLimits[.kimi] = nil
+            warned = warned.filter { $0.value.provider != .kimi }
+            schedulePublish()
+        }
+    }
+
     /// Reads local fallbacks immediately and asks Claude for fresh account
     /// limits. A Settings preview reads too, without counting as the page.
     func pageDidAppear(preview: Bool = false) {
+        KimiUsageService.shared.pageDidAppear(preview: preview)
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
@@ -265,6 +298,7 @@ final class AgentUsageService: ObservableObject {
     }
 
     func pageDidDisappear() {
+        KimiUsageService.shared.pageDidDisappear()
         pageVisible = false
     }
 
@@ -306,6 +340,9 @@ final class AgentUsageService: ObservableObject {
                 (store, cursors) = (resumed.store, resumed.cursors)
                 // What the resume took back leaves the disk at the next save.
                 if resumed.unchanged { savedMark = progressMark }
+            }
+            if !KimiCLIAuth.hasCredential(region: KimiRegion.stored()) {
+                store.clearLimits(.kimi)
             }
             for file in files {
                 // A stop while reading leaves the rest for the next start.
@@ -579,6 +616,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        KimiUsageService.shared.refresh()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -620,6 +658,7 @@ final class AgentUsageService: ObservableObject {
         let limits: [AgentProvider: AgentLimits]
         let codexPlan: String?
         let claudePlan: AgentPlan?
+        let kimiPlan: AgentPlan?
         let claudeOrganization: String?
         let claudeIdentity: ClaudeAccountProfile.Identity?
         let claudeApp: [AgentClaudeAppUsage.Sample]
@@ -628,8 +667,8 @@ final class AgentUsageService: ObservableObject {
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
-               claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeIdentity: claudeIdentity,
-               claudeApp: claudeAppSamples)
+               claudePlan: claudePlan, kimiPlan: kimiPlan, claudeOrganization: claudeOrganization,
+               claudeIdentity: claudeIdentity, claudeApp: claudeAppSamples)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -638,6 +677,7 @@ final class AgentUsageService: ObservableObject {
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
+        if let kimiPlan { plans[.kimi] = kimiPlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next

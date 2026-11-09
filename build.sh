@@ -286,6 +286,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchAgentStrings.swift
         Sources/Vorssaint/Core/CodexAccountStrings.swift
         Sources/Vorssaint/Core/ClaudeAccountStrings.swift
+        Sources/Vorssaint/Core/KimiAccountStrings.swift
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
@@ -293,6 +294,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
+        Sources/Vorssaint/Services/AgentUsage/KimiUsage.swift
+        Sources/Vorssaint/Services/AgentUsage/KimiCLIAuth.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/AgentHarnessReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/ClaudeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift

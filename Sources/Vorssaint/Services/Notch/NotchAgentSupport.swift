@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .kimi: return DefaultsKey.notchAgentsKimi
         }
     }
 
@@ -300,6 +301,9 @@ enum NotchAgentSupport {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
                 if provider == .claude, let claudeAccount {
                     return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                }
+                if provider == .kimi {
+                    return [NotchAgentTile(card: .limits, provider: provider, accountID: "cli")]
                 }
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }

@@ -4292,6 +4292,7 @@ final class NotchService: ObservableObject {
             switch window.kind {
             case .session: return text.session
             case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+            case .monthly: return window.scope.map { "\(text.month) · \($0)" } ?? text.month
             case .other: return window.minutes.map { AgentFormat.duration(TimeInterval($0) * 60, locale: locale, units: 1) }
                 ?? text.readoutLimit
             }

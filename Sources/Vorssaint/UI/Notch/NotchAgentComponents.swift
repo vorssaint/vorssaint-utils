@@ -12,6 +12,7 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .kimi: return Color(red: 0.36, green: 0.56, blue: 0.96)
         }
     }
 }
@@ -332,8 +333,8 @@ struct NotchAgentHeatmap: View {
 
 /// Each agent's own mark, taken from its maker's app on this Mac: the
 /// monochrome image the app shows in the menu bar, or else the app's icon.
-/// None of that artwork ships with Vorssaint, so a Mac without the app
-/// keeps a symbol. Looked up once; the strip redraws every second.
+/// Kimi's mark ships with Vorssaint; the others need their app installed, so
+/// a Mac without it keeps a symbol. Looked up once; the strip redraws every second.
 enum AgentMarks {
     enum Mark {
         /// Drawn in the agent's color, like the symbol it replaces.
@@ -351,6 +352,7 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
+        if let mark = bundledMark(for: provider) { return mark }
         for identifier in provider.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             if let bundle = Bundle(url: url) {
@@ -365,6 +367,17 @@ enum AgentMarks {
         }
         return nil
     }
+
+    /// Kimi ships its mark with the app; the other agents read the artwork
+    /// from their own installed apps.
+    private static func bundledMark(for provider: AgentProvider) -> Mark? {
+        guard provider == .kimi,
+              let url = Bundle.main.url(forResource: "kimi-mark", withExtension: "svg", subdirectory: "Images"),
+              let image = NSImage(contentsOf: url)
+        else { return nil }
+        image.isTemplate = true
+        return .template(image)
+    }
 }
 
 private extension AgentProvider {
@@ -375,6 +388,7 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        case .kimi: return []
         }
     }
 
@@ -388,8 +402,7 @@ private extension AgentProvider {
         case .claude: return ["TrayIconTemplate"]
         case .codex: return ["chatgptTemplate"]
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
-        case .opencode: return []
-        case .copilot: return []
+        case .opencode, .copilot, .kimi: return []
         }
     }
 }

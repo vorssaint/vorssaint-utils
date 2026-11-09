@@ -3,10 +3,10 @@
 
 import Foundation
 
-/// The coding agents whose session logs the island reads. Their names are
-/// product names and stay untranslated.
+/// The coding agents whose usage or account limits the island reads. Their
+/// names are product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, kimi
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .kimi: return "Kimi"
         }
     }
 
@@ -25,10 +26,11 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .kimi: return "moon.stars"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the provider has an account allowance the island can show.
     var reportsLimits: Bool { self != .copilot }
 }
 
@@ -99,7 +101,7 @@ struct AgentUsageRecord: Equatable {
 /// A usage allowance and how much of it is spent, as the provider reports it.
 struct AgentLimitWindow: Equatable, Identifiable {
     enum Kind: String {
-        case session, weekly, other
+        case session, weekly, monthly, other
     }
 
     let id: String
