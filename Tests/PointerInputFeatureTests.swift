@@ -1632,6 +1632,95 @@ enum PointerInputFeatureTests {
 
         MiddleClickTrackpadContract.run(suite)
 
+        // MARK: Magic Mouse tap to click (issue #653)
+
+        // Frames shaped like the ones a Magic Mouse 2 reported: a left tap
+        // lands at x 0.23 and lifts after about 0.08 s without moving.
+        func magicMouseTouch(_ frames: [(count: Int, position: (x: Float, y: Float)?, at: TimeInterval)])
+            -> MagicMouseTouch? {
+            var tracker = MagicMouseTapTracker()
+            var finished: MagicMouseTouch?
+            for frame in frames {
+                if let touch = tracker.frame(count: frame.count, position: frame.position, now: frame.at) {
+                    finished = touch
+                }
+            }
+            return finished
+        }
+        let leftTap = magicMouseTouch([(1, (0.23, 0.67), 10.00), (1, (0.231, 0.668), 10.04),
+                                       (1, (0.232, 0.669), 10.07), (0, nil, 10.09)])
+        suite.expect(leftTap.map { $0.x == 0.23 && abs($0.duration - 0.09) < 0.0001 && $0.maxMovement < 0.003 } == true,
+                     "a one-finger touch is handed back with where it landed, how long it lasted and how far it moved")
+        suite.expect(magicMouseTouch([(1, (0.30, 0.60), 1.0), (1, (0.30, 0.66), 1.05), (0, nil, 1.12)])
+                        .map { abs($0.maxMovement - 0.06) < 0.0001 } == true,
+                     "vertical travel counts as movement, so a short scroll stroke is not a still tap")
+        suite.expect(magicMouseTouch([(1, (0.26, 0.76), 2.0), (2, (0.26, 0.76), 2.01), (1, (0.26, 0.76), 2.05),
+                                      (0, nil, 2.09)]) == nil,
+                     "a second finger landing during the touch means a grip, not a tap")
+        suite.expect(magicMouseTouch([(2, (0.49, 0.69), 3.0), (1, (0.49, 0.69), 3.05), (0, nil, 3.1)]) == nil,
+                     "a touch that starts with two fingers never becomes a tap when one lifts")
+        suite.expect(magicMouseTouch([(1, (0.23, 0.67), 4.0), (1, nil, 4.03), (0, nil, 4.06)]) == nil,
+                     "an unreadable contact record drops the touch instead of guessing a side")
+        var reused = MagicMouseTapTracker()
+        _ = reused.frame(count: 2, position: (0.5, 0.5), now: 5.0)
+        _ = reused.frame(count: 0, position: nil, now: 5.1)
+        _ = reused.frame(count: 1, position: (0.75, 0.74), now: 6.0)
+        suite.expect(reused.frame(count: 0, position: nil, now: 6.08)?.x == 0.75,
+                     "an emptied surface starts the next touch fresh after a rejected one")
+
+        let rightTap = MagicMouseTouch(duration: 0.08, maxMovement: 0.006, x: 0.75)
+        let left = MagicMouseTouch(duration: 0.08, maxMovement: 0.006, x: 0.23)
+        func tapButton(_ touch: MagicMouseTouch, pressed: Bool = false, travel: CGFloat = 0,
+                    mode: MagicMouseButtonMode = .twoButton) -> MagicMouseTapButton? {
+            MagicMouseTapSupport.button(for: touch, pressedDuring: pressed, pointerTravel: travel, mode: mode)
+        }
+        suite.expect(tapButton(left) == .primary && tapButton(rightTap) == .secondary,
+                     "a tap clicks the side it lands on, as pressing that side would")
+        suite.expect(tapButton(left, mode: .twoButtonSwapped) == .secondary
+                        && tapButton(rightTap, mode: .twoButtonSwapped) == .primary,
+                     "a left-handed mouse setting swaps the sides for taps as it does for presses")
+        suite.expect(tapButton(left, mode: .oneButton) == .primary && tapButton(rightTap, mode: .oneButton) == .primary,
+                     "with Secondary click off, both sides make a primary click")
+        suite.expect(MagicMouseButtonMode(preference: "TwoButtonSwapped") == .twoButtonSwapped
+                        && MagicMouseButtonMode(preference: "OneButton") == .oneButton
+                        && MagicMouseButtonMode(preference: "TwoButton") == .twoButton
+                        && MagicMouseButtonMode(preference: nil) == .twoButton,
+                     "the System Settings value maps to its mode, with two buttons when none was saved")
+        suite.expect(tapButton(left, pressed: true) == nil,
+                     "a physical press inside the touch is that press, never an extra tap click")
+        suite.expect(tapButton(MagicMouseTouch(duration: 0.72, maxMovement: 0.02, x: 0.78)) == nil
+                        && tapButton(MagicMouseTouch(duration: 0.26, maxMovement: 0, x: 0.2)) == nil,
+                     "a finger kept down longer than a tap rests or presses instead of clicking")
+        suite.expect(tapButton(MagicMouseTouch(duration: 0.12, maxMovement: 0.05, x: 0.3)) == nil,
+                     "a short scroll stroke moves too far to count as a tap")
+        suite.expect(tapButton(left, travel: 7) == nil && tapButton(left, travel: 6) == .primary,
+                     "the pointer moving during the touch means the mouse was picked up or slid")
+        suite.expect(tapButton(MagicMouseTouch(duration: 0, maxMovement: 0, x: 0.2)) == nil,
+                     "a touch without duration is no tap")
+        suite.expect(MagicMouseTapSupport.pressedDuring(touchDuration: 0.1, secondsSinceLastPress: 0.05)
+                        && !MagicMouseTapSupport.pressedDuring(touchDuration: 0.1, secondsSinceLastPress: 0.4),
+                     "only a press that began after the finger landed belongs to the touch")
+        suite.expect(MagicMouseTapSupport.familyIDs.contains(112),
+                     "the family a Magic Mouse 2 reports is recognized")
+
+        let origin = CGPoint(x: 400, y: 300)
+        let first = MagicMouseClickRecord(button: .primary, uptime: 20, location: origin, clickState: 1)
+        func tapClickState(_ button: MagicMouseTapButton, at uptime: TimeInterval, _ location: CGPoint,
+                        after previous: MagicMouseClickRecord?) -> Int64 {
+            MagicMouseTapSupport.clickState(button: button, uptime: uptime, location: location,
+                                            previous: previous, doubleClickInterval: 0.5)
+        }
+        suite.expect(tapClickState(.primary, at: 20.3, CGPoint(x: 402, y: 301), after: first) == 2
+                        && tapClickState(.primary, at: 20.5, origin,
+                                      after: MagicMouseClickRecord(button: .primary, uptime: 20.2,
+                                                                   location: origin, clickState: 2)) == 3,
+                     "taps in quick succession at one spot make a double and a triple click")
+        suite.expect(tapClickState(.primary, at: 20.6, origin, after: first) == 1
+                        && tapClickState(.primary, at: 20.3, CGPoint(x: 410, y: 300), after: first) == 1
+                        && tapClickState(.secondary, at: 20.3, origin, after: first) == 1
+                        && tapClickState(.primary, at: 20.3, origin, after: nil) == 1,
+                     "a slow tap, a tap elsewhere or with the other button starts a new click")
+
         // MARK: Middle click tap (issue #161)
 
         suite.expect(Defaults.sanitizedMiddleClickTapFingers(3) == 3
@@ -4206,7 +4295,9 @@ enum MiddleClickTrackpadContract {
     static let middleClickContactCallback = "contact"
     enum Multitouch {
         static var devices: CFArray?
+        static var families: [UnsafeMutableRawPointer: Int32] = [:]
         static func deviceList() -> CFArray? { devices }
+        static func familyID(_ device: UnsafeMutableRawPointer) -> Int32? { families[device] }
         static func register(_ device: UnsafeMutableRawPointer, _ callback: String?) {}
         static func start(_ device: UnsafeMutableRawPointer) {}
         static func stop(_ device: UnsafeMutableRawPointer) {}
@@ -4289,6 +4380,9 @@ enum MiddleClickTrackpadContract {
         var fingerCount = 0
         var lastFrameUptime: TimeInterval = 0
         var fingerCountSince: TimeInterval = 0
+        var magicMouseDevices: Set<UnsafeMutableRawPointer> = []
+        var magicMouseTracker = MagicMouseTapTracker()
+        var magicMousePointerAtStart: CGPoint?
         func releaseHeldMiddleButton() {}
         func resetTapCandidateLocked() {}
     }
@@ -4341,6 +4435,24 @@ enum MiddleClickTrackpadContract {
             unavailable.stop()
         }
         IO.reset()
+
+        let trackpad = NSObject()
+        let magicMouse = NSObject()
+        let unknown = NSObject()
+        Multitouch.devices = [trackpad, magicMouse, unknown] as CFArray
+        Multitouch.families = [
+            Unmanaged.passUnretained(trackpad).toOpaque(): 98,
+            Unmanaged.passUnretained(magicMouse).toOpaque(): 112,
+        ]
+        let mixed = Service()
+        mixed.startMultitouch()
+        suite.expect(mixed.magicMouseDevices == [Unmanaged.passUnretained(magicMouse).toOpaque()],
+                     "only a Magic Mouse family feeds the tap to click; a trackpad or an unreadable family never does")
+        mixed.stop()
+        suite.expect(mixed.magicMouseDevices.isEmpty && !mixed.magicMouseTracker.isTracking,
+                     "stopping forgets the Magic Mouse devices and any touch in progress")
+        Multitouch.devices = nil
+        Multitouch.families = [:]
 
         let panel = Panel()
         panel.middleClick.touchDeviceMissing = true

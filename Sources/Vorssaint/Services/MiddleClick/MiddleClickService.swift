@@ -16,7 +16,9 @@ import IOKit
 /// utility uses it), loaded via dlopen/dlsym so a macOS that changes it
 /// degrades to the feature simply staying off. Requires Accessibility for
 /// the event tap. The same tap recognizer also opens the radial menu from a
-/// four-finger tap, so the service runs for either feature.
+/// four-finger tap, and the same contact stream turns a one-finger tap on a
+/// Magic Mouse into a click (issue #653), so the service runs for any of the
+/// three features.
 final class MiddleClickService: ObservableObject {
     static let shared = MiddleClickService()
 
@@ -93,6 +95,16 @@ final class MiddleClickService: ObservableObject {
     private var tapSawButton = false
     private var tapPositionUnavailable = false
 
+    // Magic Mouse tap to click (issue #653), all under `stateLock`. Only
+    // frames from a device whose family is a Magic Mouse reach the tracker.
+    private var magicMouseTapOn = false
+    private var magicMouseDevices: Set<UnsafeMutableRawPointer> = []
+    private var magicMouseTracker = MagicMouseTapTracker()
+    private var magicMousePointerAtStart: CGPoint?
+    /// The last synthesized tap click, main thread only, so a second tap can
+    /// make a double click.
+    private var lastMagicMouseClick: MagicMouseClickRecord?
+
     private init() {
         // Multitouch callbacks and the filter tap belong only to the login
         // session on screen. A switched-away process must own neither.
@@ -113,15 +125,19 @@ final class MiddleClickService: ObservableObject {
                 && RadialMenuSupport.decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
                                                     defaults: defaults).contains(where: \.trackpadTap),
             middleClickTapFingers: tap)
+        let magicMouseTap = Self.magicMouseTapWanted(defaults)
         tapStateLock.withLock { middleClickOn = enabled }
         stateLock.lock()
         tapFingers = tap
         radialMenuTapFingers = radialMenuTap
         resetTapCandidateLocked()
+        magicMouseTapOn = magicMouseTap
+        magicMouseTracker.reset()
+        magicMousePointerAtStart = nil
         stateLock.unlock()
         refreshDragGestureConflict()
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: enabled || radialMenuTap > 0,
+            featureWanted: enabled || radialMenuTap > 0 || magicMouseTap,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
@@ -129,6 +145,14 @@ final class MiddleClickService: ObservableObject {
         } else {
             stop()
         }
+    }
+
+    /// Magic Mouse taps need the feature, its switch, and a framework that can
+    /// tell a Magic Mouse from a trackpad.
+    private static func magicMouseTapWanted(_ defaults: UserDefaults) -> Bool {
+        AppFeature.magicMouseTap.isAvailable
+            && defaults.bool(forKey: DefaultsKey.magicMouseTapEnabled)
+            && Multitouch.canIdentifyFamily
     }
 
     /// Re-reads the conflicting system gesture; Settings calls this when the
@@ -249,6 +273,8 @@ final class MiddleClickService: ObservableObject {
         lastFrameUptime = 0
         fingerCountSince = 0
         resetTapCandidateLocked()
+        magicMouseTracker.reset()
+        magicMousePointerAtStart = nil
         stateLock.unlock()
         isRunning = false
         touchDeviceMissing = false
@@ -270,10 +296,20 @@ final class MiddleClickService: ObservableObject {
         }
         touchDeviceMissing = false
         deviceList = list
+        var mice: Set<UnsafeMutableRawPointer> = []
         for index in 0..<CFArrayGetCount(list) {
             guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
-            Multitouch.register(UnsafeMutableRawPointer(mutating: device), middleClickContactCallback)
-            Multitouch.start(UnsafeMutableRawPointer(mutating: device))
+            let pointer = UnsafeMutableRawPointer(mutating: device)
+            if let family = Multitouch.familyID(pointer), MagicMouseTapSupport.familyIDs.contains(family) {
+                mice.insert(pointer)
+            }
+            Multitouch.register(pointer, middleClickContactCallback)
+            Multitouch.start(pointer)
+        }
+        stateLock.withLock {
+            magicMouseDevices = mice
+            magicMouseTracker.reset()
+            magicMousePointerAtStart = nil
         }
     }
 
@@ -285,6 +321,7 @@ final class MiddleClickService: ObservableObject {
             Multitouch.register(UnsafeMutableRawPointer(mutating: device), nil)
         }
         deviceList = nil
+        stateLock.withLock { magicMouseDevices = [] }
     }
 
     private func installObservers() {
@@ -356,11 +393,16 @@ final class MiddleClickService: ObservableObject {
 
     // MARK: - Contact frames (multitouch callback thread)
 
-    fileprivate func contactFrame(fingerCount count: Int,
+    fileprivate func contactFrame(device: UnsafeMutableRawPointer?,
+                                  fingerCount count: Int,
                                   touches: UnsafeMutableRawPointer?) {
         let now = ProcessInfo.processInfo.systemUptime
         var firedFingers: Int?
+        var magicMouseEvent: MagicMouseFrameEvent?
         stateLock.lock()
+        if magicMouseTapOn, let device, magicMouseDevices.contains(device) {
+            magicMouseEvent = trackMagicMouseLocked(count: count, touches: touches, now: now)
+        }
         if count != fingerCount { fingerCountSince = now }
         fingerCount = count
         lastFrameUptime = now
@@ -372,6 +414,9 @@ final class MiddleClickService: ObservableObject {
         }
         let radialMenuFingers = radialMenuTapFingers
         stateLock.unlock()
+        if let magicMouseEvent {
+            handleMagicMouse(magicMouseEvent)
+        }
         if let firedFingers {
             if firedFingers == radialMenuFingers {
                 DispatchQueue.main.async { RadialMenuService.shared.toggleFromTrackpad() }
@@ -440,6 +485,112 @@ final class MiddleClickService: ObservableObject {
         return nil
     }
 
+    /// What a Magic Mouse frame asks of the code outside `stateLock`.
+    private enum MagicMouseFrameEvent {
+        case touchBegan
+        case touchEnded(MagicMouseTouch, pointerAtStart: CGPoint?)
+    }
+
+    /// A Magic Mouse frame, under `stateLock`. It also keeps feeding the
+    /// trackpad recognizers above, as it always has. Nothing here talks to
+    /// the window server; the caller does that once the lock is released.
+    private func trackMagicMouseLocked(count: Int,
+                                       touches: UnsafeMutableRawPointer?,
+                                       now: TimeInterval) -> MagicMouseFrameEvent? {
+        let wasTracking = magicMouseTracker.isTracking
+        let position = count == 1 ? Multitouch.touchGeometry(touches: touches, count: 1)?.center : nil
+        let touch = magicMouseTracker.frame(count: count, position: position, now: now)
+        if !wasTracking, magicMouseTracker.isTracking {
+            magicMousePointerAtStart = nil
+            return .touchBegan
+        }
+        guard let touch else { return nil }
+        defer { magicMousePointerAtStart = nil }
+        return .touchEnded(touch, pointerAtStart: magicMousePointerAtStart)
+    }
+
+    /// The pointer is read only when a touch lands and when it ends, never per
+    /// frame, and a tap is judged before anything is sent to the main thread.
+    private func handleMagicMouse(_ event: MagicMouseFrameEvent) {
+        switch event {
+        case .touchBegan:
+            let location = CGEvent(source: nil)?.location
+            stateLock.withLock {
+                if magicMouseTracker.isTracking { magicMousePointerAtStart = location }
+            }
+        case let .touchEnded(touch, pointerAtStart):
+            guard touch.duration <= MagicMouseTapSupport.maxDuration,
+                  let pointerAtStart, let pointerAtEnd = CGEvent(source: nil)?.location else { return }
+            let travel = max(abs(pointerAtEnd.x - pointerAtStart.x), abs(pointerAtEnd.y - pointerAtStart.y))
+            let sinceLastPress = min(
+                CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .leftMouseDown),
+                CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .rightMouseDown)
+            )
+            let pressed = MagicMouseTapSupport.pressedDuring(touchDuration: touch.duration,
+                                                             secondsSinceLastPress: sinceLastPress)
+            DispatchQueue.main.async { [weak self] in
+                self?.postMagicMouseTap(touch, pressedDuring: pressed, pointerTravel: travel)
+            }
+        }
+    }
+
+    /// Turns a judged Magic Mouse tap into the click pressing that side would
+    /// make, on the main thread. The button setting is read here, so a change
+    /// in System Settings applies from the next tap.
+    private func postMagicMouseTap(_ touch: MagicMouseTouch, pressedDuring: Bool, pointerTravel: CGFloat) {
+        guard tapStateLock.withLock({ tap }) != nil,
+              stateLock.withLock({ magicMouseTapOn }) else { return }
+        let mode = MagicMouseButtonMode(preference: Self.magicMouseButtonModePreference())
+        guard let button = MagicMouseTapSupport.button(for: touch,
+                                                       pressedDuring: pressedDuring,
+                                                       pointerTravel: pointerTravel,
+                                                       mode: mode) else { return }
+        let position = CGEvent(source: nil)?.location ?? .zero
+        let now = ProcessInfo.processInfo.systemUptime
+        let clickState = MagicMouseTapSupport.clickState(button: button,
+                                                         uptime: now,
+                                                         location: position,
+                                                         previous: lastMagicMouseClick,
+                                                         doubleClickInterval: NSEvent.doubleClickInterval)
+        let (downType, upType, mouseButton): (CGEventType, CGEventType, CGMouseButton) = button == .primary
+            ? (.leftMouseDown, .leftMouseUp, .left)
+            : (.rightMouseDown, .rightMouseUp, .right)
+        let source = CGEventSource(stateID: .hidSystemState)
+        guard let down = CGEvent(mouseEventSource: source, mouseType: downType,
+                                 mouseCursorPosition: position, mouseButton: mouseButton),
+              let up = CGEvent(mouseEventSource: source, mouseType: upType,
+                               mouseCursorPosition: position, mouseButton: mouseButton) else { return }
+        down.setIntegerValueField(.mouseEventClickState, value: clickState)
+        up.setIntegerValueField(.mouseEventClickState, value: clickState)
+        down.post(tap: .cghidEventTap)
+        up.post(tap: .cghidEventTap)
+        lastMagicMouseClick = MagicMouseClickRecord(button: button, uptime: now,
+                                                    location: position, clickState: clickState)
+    }
+
+    /// Smart zoom (a one-finger double tap) is on for the Magic Mouse, so a
+    /// double tap there zooms as well as double-clicking; Settings says so.
+    static func magicMouseSmartZoomEnabled() -> Bool {
+        for domain in ["com.apple.AppleMultitouchMouse", "com.apple.driver.AppleBluetoothMultitouch.mouse"] {
+            if let value = CFPreferencesCopyAppValue("MouseOneFingerDoubleTapGesture" as CFString,
+                                                     domain as CFString) as? NSNumber {
+                return value.intValue != 0
+            }
+        }
+        return false
+    }
+
+    /// The Magic Mouse's Secondary click setting, from the domain System
+    /// Settings writes, with the Bluetooth driver's copy as a fallback.
+    private static func magicMouseButtonModePreference() -> String? {
+        for domain in ["com.apple.AppleMultitouchMouse", "com.apple.driver.AppleBluetoothMultitouch.mouse"] {
+            if let value = CFPreferencesCopyAppValue("MouseButtonMode" as CFString, domain as CFString) as? String {
+                return value
+            }
+        }
+        return nil
+    }
+
     private func resetTapCandidateLocked() {
         tapCandidateFingers = 0
         tapStartUptime = nil
@@ -488,7 +639,7 @@ final class MiddleClickService: ObservableObject {
             releaseHeldMiddleButton()
             let enabled = AppFeature.middleClick.isAvailable
                 && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
-                || stateLock.withLock { radialMenuTapFingers > 0 }
+                || stateLock.withLock { radialMenuTapFingers > 0 || magicMouseTapOn }
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: enabled,
                 accessibilityGranted: AXIsProcessTrusted(),
@@ -660,7 +811,7 @@ private func middleClickContactCallback(_ device: UnsafeMutableRawPointer?,
                                         _ count: Int32,
                                         _ timestamp: Double,
                                         _ frame: Int32) -> Int32 {
-    MiddleClickService.shared.contactFrame(fingerCount: Int(count), touches: touches)
+    MiddleClickService.shared.contactFrame(device: device, fingerCount: Int(count), touches: touches)
     return 0
 }
 
@@ -675,6 +826,7 @@ private enum Multitouch {
     private typealias RegisterFn = @convention(c) (UnsafeMutableRawPointer, ContactCallback?) -> Void
     private typealias StartFn = @convention(c) (UnsafeMutableRawPointer, Int32) -> Void
     private typealias StopFn = @convention(c) (UnsafeMutableRawPointer) -> Void
+    private typealias FamilyIDFn = @convention(c) (UnsafeMutableRawPointer, UnsafeMutablePointer<Int32>) -> Int32
 
     private static let handle: UnsafeMutableRawPointer? = dlopen(
         "/System/Library/PrivateFrameworks/MultitouchSupport.framework/MultitouchSupport",
@@ -685,9 +837,22 @@ private enum Multitouch {
     private static let registerFn: RegisterFn? = symbol("MTRegisterContactFrameCallback")
     private static let startFn: StartFn? = symbol("MTDeviceStart")
     private static let stopFn: StopFn? = symbol("MTDeviceStop")
+    private static let familyIDFn: FamilyIDFn? = symbol("MTDeviceGetFamilyID")
 
     static var available: Bool {
         createListFn != nil && registerFn != nil && startFn != nil && stopFn != nil
+    }
+
+    /// Whether devices can be told apart by family; without it no device is
+    /// treated as a Magic Mouse and its taps stay off.
+    static var canIdentifyFamily: Bool { available && familyIDFn != nil }
+
+    /// The device's hardware family, or nil when the framework cannot say.
+    static func familyID(_ device: UnsafeMutableRawPointer) -> Int32? {
+        guard let familyIDFn else { return nil }
+        var family: Int32 = 0
+        guard familyIDFn(device, &family) == 0 else { return nil }
+        return family
     }
 
     static func deviceList() -> CFArray? {

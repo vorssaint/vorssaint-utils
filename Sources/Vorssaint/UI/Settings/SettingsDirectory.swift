@@ -229,6 +229,8 @@ enum SettingsDirectory {
                                                             s.scrollHorizontalModifierLabel]),
                                         (.scrollZoom, [s.zoomSection, s.pinchZoom]),
                                         (.middleClick, [s.middleClickTapPicker]),
+                                        (.magicMouseTap, [FeatureStrings.magicMouseTap(language).title,
+                                                          "Magic Mouse", "tap to click"]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay,
                                                               s.focusFollowsMouseRaise,

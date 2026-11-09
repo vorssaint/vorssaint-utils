@@ -81,6 +81,8 @@ enum ReleaseChangeAliases {
             "back/forward mouse buttons"]
         case .mouseButtonShortcuts: return ["mouse button shortcuts", "button shortcuts"]
         case .middleClick: return ["middle click", "middle-click", "middle clicks"]
+        case .magicMouseTap: return ["magic mouse tap to click", "magic mouse tap", "magic mouse taps",
+            "tap to click on the magic mouse"]
         case .mouseClickDebounce: return ["extra click filter", "extra-click filter", "click filter",
             "mouse debounce", "keyboard and mouse debounce", "worn-button click filtering", "extra clicks"]
         case .keyboardDebounce: return ["keyboard debounce", "key debounce", "debounce",
@@ -182,7 +184,7 @@ enum ReleaseChangeAliases {
 
     private static let mousePage: [AppFeature] = [.scrollInverter, .scrollHorizontal, .focusFollowsMouse,
         .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
-        .mouseClickDebounce]
+        .magicMouseTap, .mouseClickDebounce]
     private static let monitorMetrics: [AppFeature] = [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
         .monitorDisk, .monitorPower]
     private static let monitorPage: [AppFeature] = monitorMetrics + [.connectedDevices, .fanControl]

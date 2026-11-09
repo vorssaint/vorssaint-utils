@@ -41,6 +41,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
     @AppStorage(DefaultsKey.middleClickTapFingers) private var middleClickTapFingers = 0
+    @AppStorage(DefaultsKey.magicMouseTapEnabled) private var magicMouseTapEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceEnabled) private var mouseClickDebounceEnabled = false
     @AppStorage(DefaultsKey.mouseClickDebounceWindowMs) private var mouseClickDebounceWindow =
         Defaults.defaultMouseClickDebounceWindowMs
@@ -48,6 +49,10 @@ struct MouseSettings: View {
 
     private var mouseClickDebounceText: MouseClickDebounceStrings {
         FeatureStrings.mouseClickDebounce(l10n.language)
+    }
+
+    private var magicMouseTapText: MagicMouseTapStrings {
+        FeatureStrings.magicMouseTap(l10n.language)
     }
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
@@ -104,6 +109,10 @@ struct MouseSettings: View {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
+                if AppFeature.magicMouseTap.isAvailable {
+                    magicMouseTapCard
+                        .settingsSectionAnchor(.magicMouseTap, cornerRadius: 16)
+                }
                 if accessibilityNoteVisible {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -125,7 +134,7 @@ struct MouseSettings: View {
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
         [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration,
-         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
+         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick, .magicMouseTap]
             .filter(\.isAvailable)
     }
 
@@ -144,6 +153,7 @@ struct MouseSettings: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
         case .middleClick: return middleClickEnabled
+        case .magicMouseTap: return magicMouseTapEnabled
         default: return false
         }
     }
@@ -556,6 +566,27 @@ struct MouseSettings: View {
         }
     }
 
+    private var magicMouseTapCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "magicmouse", title: magicMouseTapText.title,
+                        caption: magicMouseTapText.caption) {
+                Toggle(magicMouseTapText.title, isOn: $magicMouseTapEnabled)
+                    .labelsHidden()
+                    .onChange(of: magicMouseTapEnabled) { _, enabled in
+                        MiddleClickService.shared.syncWithPreferences()
+                        if enabled { permissions.requestAccessibility() }
+                    }
+            }
+            if magicMouseTapEnabled, MiddleClickService.magicMouseSmartZoomEnabled() {
+                Text(magicMouseTapText.smartZoomNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, settingsRowTextInset)
+            }
+        }
+    }
+
     private func tapChip(_ fingers: Int, title: String, symbol: String) -> some View {
         let selected = middleClickTapFingers == fingers
         return Button {
@@ -602,6 +633,7 @@ struct MouseSettings: View {
                 && AppFeature.mouseButtonShortcuts.isAvailable)
             || (mouseClickDebounceEnabled && AppFeature.mouseClickDebounce.isAvailable)
             || (middleClickEnabled && AppFeature.middleClick.isAvailable)
+            || (magicMouseTapEnabled && AppFeature.magicMouseTap.isAvailable)
         return anyEngaged && !permissions.accessibility
     }
 

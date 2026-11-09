@@ -472,6 +472,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Finder/CutPastePrivilegeSupport.swift
         Sources/Vorssaint/Services/Finder/FinderPasteImageSupport.swift
         Sources/Vorssaint/Services/MiddleClick/MiddleClickSupport.swift
+        Sources/Vorssaint/Services/MiddleClick/MagicMouseTapSupport.swift
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationSupport.swift
         Sources/Vorssaint/Services/MouseNavigation/MouseNavigationKeys.swift
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift
@@ -483,6 +484,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/WindowMaximizerSupport.swift
         Sources/Vorssaint/Core/MouseButtonStrings.swift
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift
+        Sources/Vorssaint/Core/MagicMouseTapStrings.swift
         Sources/Vorssaint/Core/MouseExceptionStrings.swift
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift
         Sources/Vorssaint/Core/ClipboardRetentionStrings.swift
