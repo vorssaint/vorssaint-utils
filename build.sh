@@ -375,6 +375,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CPUCoreStrings.swift
         Sources/Vorssaint/Core/MonitorLayoutStrings.swift
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
+        Sources/Vorssaint/Core/ContinuityStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
         Sources/Vorssaint/Core/FanControlStrings.swift
@@ -610,6 +611,11 @@ if (( TEST )); then
         "${TEST_SOURCES[@]}" "${GIF_CODEC_OBJECTS[@]}" -o build/metrics-tests
     test_status=0
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
+    if (( ${#TEST_ARGS} == 0 )) || [[ " ${TEST_ARGS[*]} " == *" --suite=keep-awake "* ]]; then
+        ./Tests/Continuity/run.sh || test_status=1
+        ./Tests/Continuity/run-hotspot.sh || test_status=1
+        ./Tests/Continuity/run-strings.sh || test_status=1
+    fi
     if (( ${#TEST_ARGS} == 0 )); then
         ./Tests/PreferenceCleanupTests.sh || test_status=1
         ./Tests/UninstallSpacesTests.sh || test_status=1

@@ -2437,6 +2437,8 @@ def main():
         "    private func finishRecovery(",
         "    private var clamshellNeedsRestore:",
         "    private func finishClamshellRestore(",
+        "    func dimForContinuity(",
+        "    func restoreContinuityBrightness(",
         "    private func recoverDimmedDisplayIfNeeded(",
         "    private func syncLidDimmingObserver(",
         "    private func lidStateMayHaveChangedForDimming(",
@@ -2462,7 +2464,7 @@ def main():
           + "var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()\n"
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
-          + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
+          + "var displayRestoreGeneration = 0\nvar continuityDimmingActive = false\nvar lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
           + declaration(keep_awake, "    @Published private(set) var clamshellActive = false {")
                 .replace("@Published private(set) ", "", 1)
           + declaration(keep_awake, "    @Published var clamshellPreferred:").replace("@Published ", "", 1)
