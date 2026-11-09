@@ -31,7 +31,7 @@ extension FeatureStrings {
             clearAll: "Clear All",
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
-            hideSystemBannerHint: "Hide the original while the Dynamic Island shows it. To mirror an app's notifications, keep its desktop alerts on in macOS.")
+            hideSystemBannerHint: "Hide the original while the Dynamic Island shows it. To mirror an app’s notifications, keep its desktop alerts on in macOS.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",
