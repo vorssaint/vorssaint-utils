@@ -1943,42 +1943,42 @@ enum NotchTests {
         cameraFitContracts(suite)
         pageHeightContracts(suite)
         outlineRoomContracts(suite)
-        musicLabelContracts(suite)
-        NotchPanelTests.run { suite.expect($0, $1) }
-        NotchHoverTests.run(suite)
-        NotchScreenEdgeClickTests.run(suite)
-        NotchClickElsewhereTests.run(suite)
-        NotchPresentationRefreshContract.run(suite)
-        NotchScreenRefreshContract.run(suite)
-        NotchMirrorContract.run(suite)
-        NotchFullscreenTests.run(suite)
-        NotchDestinationContract.run(suite)
-        NotchMusicVisibilityTests.run(suite)
-        NotchEqualizerTests.run { suite.expect($0, $1) }
-        WindowVisibilityTests.run { suite.expect($0, $1) }
-        NotchLyricsTimelineTests.run { suite.expect($0, $1) }
-        NotchUpdateTests.run(suite)
-        NotchCaptureKeyboardTests.run(suite)
-        NotchKeyMonitorTests.run(suite)
-        NotchCommandBarHeightTests.run(suite)
-        NotchDownloadProgressTests.run(suite)
-        NotchSliderEditingTests.run(suite)
-        NotchFileToolsTests.run(suite)
-        NotchAudioLevelTests.run { suite.expect($0, $1) }
+        suite.run("notch-music-label-geometry") { musicLabelContracts(suite) }
+        suite.run("notch-panel") { NotchPanelTests.run { suite.expect($0, $1) } }
+        suite.run("notch-hover") { NotchHoverTests.run(suite) }
+        suite.run("notch-screen-edge-click") { NotchScreenEdgeClickTests.run(suite) }
+        suite.run("notch-click-elsewhere") { NotchClickElsewhereTests.run(suite) }
+        suite.run("notch-presentation-refresh") { NotchPresentationRefreshContract.run(suite) }
+        suite.run("notch-screen-refresh") { NotchScreenRefreshContract.run(suite) }
+        suite.run("notch-mirror") { NotchMirrorContract.run(suite) }
+        suite.run("notch-fullscreen") { NotchFullscreenTests.run(suite) }
+        suite.run("notch-destination") { NotchDestinationContract.run(suite) }
+        suite.run("notch-music-visibility") { NotchMusicVisibilityTests.run(suite) }
+        suite.run("notch-equalizer") { NotchEqualizerTests.run { suite.expect($0, $1) } }
+        suite.run("notch-window-visibility") { WindowVisibilityTests.run { suite.expect($0, $1) } }
+        suite.run("notch-lyrics-timeline") { NotchLyricsTimelineTests.run { suite.expect($0, $1) } }
+        suite.run("notch-updates") { NotchUpdateTests.run(suite) }
+        suite.run("notch-capture-keyboard") { NotchCaptureKeyboardTests.run(suite) }
+        suite.run("notch-key-monitor") { NotchKeyMonitorTests.run(suite) }
+        suite.run("notch-command-bar-height") { NotchCommandBarHeightTests.run(suite) }
+        suite.run("notch-download-progress") { NotchDownloadProgressTests.run(suite) }
+        suite.run("notch-slider-editing") { NotchSliderEditingTests.run(suite) }
+        suite.run("notch-file-tools") { NotchFileToolsTests.run(suite) }
+        suite.run("notch-audio-level") { NotchAudioLevelTests.run { suite.expect($0, $1) } }
         calendarContracts(suite)
-        NotchNotificationTests.run(suite)
-        NotchNotificationReaderTests.run(suite)
-        NotchGestureTests.run(suite)
-        NotchSectionPagingTests.run(suite)
-        NotchKeyboardLightTests.run(suite)
-        NotchActivityTests.run(suite)
-        NotchWatchTests.run(suite)
-        NotchMascotTests.run(suite)
-        NotchMascotHidingContract.run(suite)
-        NotchMusicExtrasTests.run(suite)
-        NotchLockScreenTests.run(suite)
-        NowPlayingOpenContract.run(suite)
-        NotchClipboardPageTests.run(suite)
+        suite.run("notch-notifications") { NotchNotificationTests.run(suite) }
+        suite.run("notch-notification-reader") { NotchNotificationReaderTests.run(suite) }
+        suite.run("notch-gestures") { NotchGestureTests.run(suite) }
+        suite.run("notch-section-paging") { NotchSectionPagingTests.run(suite) }
+        suite.run("notch-keyboard-light") { NotchKeyboardLightTests.run(suite) }
+        suite.run("notch-activities") { NotchActivityTests.run(suite) }
+        suite.run("notch-watch") { NotchWatchTests.run(suite) }
+        suite.run("notch-mascot") { NotchMascotTests.run(suite) }
+        suite.run("notch-mascot-hiding") { NotchMascotHidingContract.run(suite) }
+        suite.run("notch-music-extras") { NotchMusicExtrasTests.run(suite) }
+        suite.run("notch-lock-screen") { NotchLockScreenTests.run(suite) }
+        suite.run("notch-now-playing") { NowPlayingOpenContract.run(suite) }
+        suite.run("notch-clipboard-page") { NotchClipboardPageTests.run(suite) }
         for language in AppLanguage.allCases {
             let strings = Mirror(reflecting: FeatureStrings.notchClipboardSize(language)).children.compactMap { $0.value as? String }
             suite.expect(strings.count == 4 && strings.allSatisfy { !$0.isEmpty && !$0.contains("—") },

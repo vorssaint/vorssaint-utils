@@ -9,6 +9,7 @@ import SwiftUI
 /// fully transparent panel in off screen, since a sheet brings its parent in.
 enum NotchPanelTests {
     static func run(expect: (Bool, String) -> Void) {
+        trace("notch-panel", "started")
         let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
                                styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
         expect(panel.accessibilitySubrole() == .unknown,
@@ -25,10 +26,23 @@ enum NotchPanelTests {
         expect(NotchPanel.fullscreenLevel.rawValue > NSWindow.Level.normal.rawValue
                && NotchPanel.fullscreenLevel.rawValue < NSWindow.Level.mainMenu.rawValue,
                "the simulated full-screen cutout stays over app content but yields to the revealed menu bar")
+        trace("notch-panel.surface-button-routing", "started")
         surfaceButtonRouting(expect: expect)
+        trace("notch-panel.surface-button-routing", "finished")
+        trace("notch-panel.sheet-contracts", "started")
         sheetContracts(expect: expect)
+        trace("notch-panel.sheet-contracts", "finished")
+        trace("notch-panel.active-glass", "started")
         activeGlass(expect: expect)
+        trace("notch-panel.active-glass", "finished")
+        trace("notch-panel.side-fade-removed", "started")
         sideFadeRemoved(expect: expect)
+        trace("notch-panel.side-fade-removed", "finished")
+        trace("notch-panel", "finished")
+    }
+
+    private static func trace(_ name: String, _ state: String) {
+        FileHandle.standardError.write(Data("\(name) \(state)\n".utf8))
     }
 
     private static func sideFadeRemoved(expect: (Bool, String) -> Void) {

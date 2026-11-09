@@ -35,14 +35,18 @@ final class TestSuite {
         let before = checks
         let previousFailures = failures.count
         let started = ProcessInfo.processInfo.systemUptime
-        lock.withLock { activeSuite = name }
+        let previousSuite = lock.withLock { () -> String? in
+            let previous = activeSuite
+            activeSuite = name
+            return previous
+        }
         FileHandle.standardError.write(Data("suite started: \(name)\n".utf8))
         body()
         if checks == before { expect(false, "\(name) executed no assertions") }
         let elapsed = ProcessInfo.processInfo.systemUptime - started
         let status = failures.count == previousFailures ? "OK" : "FAILED"
         print("\(name): \(status) (\(checks - before) checks, \(String(format: "%.2f", elapsed))s)")
-        lock.withLock { activeSuite = nil }
+        lock.withLock { activeSuite = previousSuite }
         FileHandle.standardError.write(
             Data("suite finished: \(name) (\(status), \(String(format: "%.2f", elapsed))s)\n".utf8)
         )
