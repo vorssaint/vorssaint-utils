@@ -1160,6 +1160,8 @@ extension AppFeature {
         case .superKey: return FeatureStrings.superKey(language).pageTitle
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(language).title
+        case .autoClicker:
+            return FeatureStrings.autoClicker(language).title
         case .clipboardHistory: return FeatureStrings.clipboard(language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
@@ -1246,6 +1248,8 @@ extension AppFeature {
         case .superKey: return FeatureStrings.superKey(L10n.shared.language).hubDescription
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).caption
+        case .autoClicker:
+            return FeatureStrings.autoClicker(L10n.shared.language).caption
         case .clipboardHistory: return hub.descClipboardHistory
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste

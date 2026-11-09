@@ -76,6 +76,11 @@ enum DefaultsKey {
     static let mouseSpacesGestureFollowsDrag = "mouseSpacesGestureFollowsDrag" // the Space moves with the hand, the way natural scrolling does
     static let mouseClickDebounceEnabled = "mouseClickDebounceEnabled"
     static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
+    static let autoClickerEnabled = "autoClickerEnabled"
+    static let autoClickerShortcut = "autoClickerShortcut"
+    static let autoClickerButton = "autoClickerButton"
+    static let autoClickerIntervalMs = "autoClickerIntervalMs"
+    static let autoClickerRepeatLimit = "autoClickerRepeatLimit"
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -1269,6 +1274,11 @@ enum Defaults {
         DefaultsKey.mouseSpacesGestureFollowsDrag: false,
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
+        DefaultsKey.autoClickerEnabled: false,
+        DefaultsKey.autoClickerShortcut: "control+option+command+c",
+        DefaultsKey.autoClickerButton: "left",
+        DefaultsKey.autoClickerIntervalMs: 100,
+        DefaultsKey.autoClickerRepeatLimit: 0,
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
