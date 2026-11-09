@@ -78,6 +78,7 @@ extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -300,6 +301,74 @@ extension SnippetFeatureStrings {
         soundCaption: "A short system sound plays each time a typed trigger expands.",
         soundPickerLabel: "Sound",
         soundUnavailable: "Sound unavailable"
+    )
+
+    static let nl = SnippetFeatureStrings(
+        pageTitle: "Tekstfragmenten",
+        hubDescription: "Korte afkortingen worden volledige tekst",
+        enable: "Vervang afkortingen tijdens typen",
+        enableCaption: "Typ ergens een afkorting en deze wordt vervangen door de bijbehorende tekst. Alles blijft op deze Mac.",
+        addButton: "Voeg tekstfragment toe",
+        newTitle: "Nieuw tekstfragment",
+        editTitle: "Wijzig tekstfragment",
+        nameLabel: "Naam",
+        namePlaceholder: "Persoonlijk e-mailadres",
+        triggerLabel: "Afkorting",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Tekst",
+        replacementPlaceholder: "mijnemail@example.com",
+        expansionLabel: "Vervang",
+        expansionImmediate: "Direct",
+        expansionDelimiter: "Na spatie, Tab of Return",
+        variablesHint: "Variabelen: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Deze worden bij vervanging omgezet in de datum, tijd en gekopieerde tekst.",
+        emptyList: "Nog geen tekstfragmenten. Voeg het eerste toe.",
+        duplicateTrigger: "Een ander tekstfragment gebruikt deze afkorting al.",
+        triggerTooShort: "De afkorting moet minstens 2 tekens bevatten.",
+        deleteButton: "Verwijder",
+        saveButton: "Bewaar",
+        manageButton: "Beheer tekstfragmenten",
+        ignoreCaseLabel: "Negeer hoofdletters",
+        libraryTitle: "Snelmenu tekstfragmenten",
+        libraryToggle: "Open tekstfragmenten vanuit een menu",
+        libraryCaption: "De sneltoets opent een doorzoekbaar menu. Een tekstfragment kiezen typt het bij je huidige invoegpunt.",
+        librarySearchPlaceholder: "Zoek tekstfragmenten",
+        libraryNoResults: "Geen tekstfragment komt overeen met de zoekopdracht.",
+        libraryEmpty: "Nog niets om te tonen. Voeg tekstfragmenten toe of schakel ‘Toon in het snelmenu’ in voor de meest gebruikte.",
+        libraryFooterHint: "↩ voegt in · esc sluit",
+        folderLabel: "Map",
+        folderPlaceholder: "Werk",
+        showInLibraryLabel: "Toon in het snelmenu",
+        variablesFormatCaption: "Een notatie na een dubbele punt bepaalt de weergave, zoals {{date:yyyy-MM-dd}}. Een deel -tz(...) stelt de tijdzone in, zoals {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Een notatie na een dubbele punt bepaalt de weergave, zoals {{date:yyyy-MM-dd}}, of gebruik de datum/tijd-knop hierboven. Een deel -tz(...) stelt de tijdzone in, zoals {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Voeg datum/tijd in",
+        dateTimeEditButton: "Wijzig datum/tijd",
+        dateTimeTypeLabel: "Type",
+        dateTimeKindDate: "Datum",
+        dateTimeKindTime: "Tijd",
+        dateTimeKindDateTime: "Datum en tijd",
+        dateTimeStyleLabel: "Stijl",
+        dateTimeStyleShort: "Kort",
+        dateTimeStyleMedium: "Normaal",
+        dateTimeStyleLong: "Lang",
+        dateTimeStyleFull: "Volledig",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Aangepast",
+        dateTimeStyleLocaleNote: "Een benoemde stijl bewaart de notatie die de regio van je Mac momenteel gebruikt.",
+        dateTimeTimezoneLabel: "Tijdzone",
+        dateTimeTimezoneDeviceDefault: "Apparaatstandaard",
+        dateTimeTimezoneValid: "Geldige tijdzone",
+        dateTimeTimezoneInvalid: "Onbekende tijdzone",
+        dateTimeTimezoneClear: "Wis tijdzone",
+        dateTimeTimezoneSearchPlaceholder: "Zoek tijdzones",
+        dateTimePatternLabel: "Patroon",
+        dateTimePreviewLabel: "Voorvertoning",
+        dateTimeConfirmInsert: "Voeg in",
+        dateTimeConfirmUpdate: "Werk bij",
+        soundToggle: "Speel een geluid af bij vervangen van een getypte afkorting",
+        soundCaption: "Bij elke vervanging van een getypte afkorting klinkt een kort systeemgeluid.",
+        soundPickerLabel: "Geluid",
+        soundUnavailable: "Geluid niet beschikbaar"
     )
 
     static let ptBR = SnippetFeatureStrings(

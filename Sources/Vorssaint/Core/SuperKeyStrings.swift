@@ -41,6 +41,7 @@ extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -87,6 +88,30 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Another app’s key mapping uses the selected key. Remove it in that app: quitting it is not enough.",
         mappingSystemRefused: "macOS refused the key mapping. Reconnect the keyboard or restart the Mac, then switch this on again.",
         keyboardTapRefused: "macOS would not let Vorssaint watch the keyboard. Turn Vorssaint off and on in System Settings › Privacy & Security › Accessibility, then switch this on again."
+    )
+
+    static let nl = SuperKeyStrings(
+        pageTitle: "Supertoets",
+        hubDescription: "Zet één toets om in een zelfgekozen combinatie van speciale toetsen.",
+        enableToggle: "Gebruik deze toets als supertoets",
+        enableCaption: "Houd deze ingedrukt en druk op een andere toets. Kies hieronder een of meer speciale toetsen.",
+        modifierKeysNote: "Laat deze toets op de standaardactie staan in Systeeminstellingen › Toetsenbord › Speciale toetsen.",
+        sourceKey: "In te drukken toets",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "Rechter %@",
+        holdHint: "Houd ingedrukt",
+        soloSection: "Een losse tik",
+        soloCaption: "Wat een korte tik doet als er geen andere toets wordt ingedrukt.",
+        soloNothing: "Niets",
+        soloCapsLock: "Schakel hoofdletters in en uit",
+        soloEscape: "Druk op Escape",
+        activeNow: "Nu actief",
+        panelCaptionFormat: "%1$@ houdt %2$@ ingedrukt.",
+        manageButton: "Configureer…",
+        soloInputSource: "Wissel invoerbron; houd ingedrukt voor Caps Lock",
+        mappingForeignMapping: "Een toetstoewijzing van een andere app gebruikt de gekozen toets. Verwijder deze in die app: de app stoppen is niet genoeg.",
+        mappingSystemRefused: "macOS heeft de toetstoewijzing geweigerd. Sluit het toetsenbord opnieuw aan of herstart de Mac en schakel dit daarna opnieuw in.",
+        keyboardTapRefused: "macOS liet Vorssaint het toetsenbord niet volgen. Schakel Vorssaint uit en in bij Systeeminstellingen › Privacy en beveiliging › Toegankelijkheid en schakel dit daarna opnieuw in."
     )
 
     static let ptBR = SuperKeyStrings(

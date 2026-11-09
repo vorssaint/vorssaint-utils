@@ -5,7 +5,7 @@ import Foundation
 
 enum LocalizationTests {
     static let languages: [(AppLanguage, Strings)] = [
-        (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
+        (.enUS, .enUS), (.nl, .nl), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
     ]
@@ -26,12 +26,27 @@ enum LocalizationTests {
         suite.expect(empty.isEmpty, "\(name): missing text in \(empty.joined(separator: ", "))")
         let dashes = values.filter { $0.value.contains("\u{2014}") }.keys.sorted()
         suite.expect(dashes.isEmpty, "\(name): em-dash in \(dashes.joined(separator: ", "))")
+        if name.hasSuffix("/nl") {
+            suite.expect(values != base, "\(name): Dutch has its own translated catalog")
+            for (field, text) in values {
+                suite.expect(!text.contains("\"") && !text.contains("'")
+                             && !text.contains("«") && !text.contains("»") && !text.contains("„"),
+                             "\(name).\(field): Dutch uses curved quotation marks and apostrophes")
+                // -tz(...) is literal snippet syntax, not an ellipsis.
+                suite.expect(!text.replacingOccurrences(of: "-tz(...)", with: "").contains("..."),
+                             "\(name).\(field): Dutch uses the ellipsis character")
+            }
+        }
         for (field, original) in base {
             let expected = TestFormat.parse(original)
             guard field.lowercased().contains("format") || expected?.arguments.isEmpty == false else { continue }
             let actual = values[field].flatMap(TestFormat.parse)
             suite.expect(expected != nil && actual?.arguments == expected?.arguments,
                          "\(name).\(field): format arguments retain their positions and types")
+            if name.hasSuffix("/nl") {
+                suite.expect(expected != nil && actual?.tokens == expected?.tokens,
+                             "\(name).\(field): Dutch preserves exact format tokens in source order")
+            }
         }
     }
 
@@ -56,6 +71,15 @@ enum LocalizationTests {
 
     static func run(_ suite: TestSuite) {
         formattingChecks(suite)
+        suite.expect(AppLanguage.nl.rawValue == "nl" && AppLanguage.nl.displayName == "Nederlands",
+                     "Dutch is selectable by its native name and language tag")
+        suite.expect(AppLanguage.nl.countAgreement == .oneAndMany,
+                     "Dutch uses singular only for one")
+        var dutchMonthStyle = Date.FormatStyle.dateTime.month(.wide)
+            .locale(AppLanguage.nl.formattingLocale(system: Locale(identifier: "en_US")))
+        dutchMonthStyle.timeZone = TimeZone(identifier: "UTC")!
+        let dutchMonth = Date(timeIntervalSince1970: 0).formatted(dutchMonthStyle)
+        suite.expect(dutchMonth == "januari", "Dutch date names stay Dutch with a different system region")
         suite.expect(Set(languages.map { $0.0 }) == Set(AppLanguage.allCases)
                      && languages.count == AppLanguage.allCases.count,
                      "the base strings cover each app language exactly once")
@@ -107,6 +131,7 @@ enum LocalizationTests {
 struct TestFormat {
     let arguments: [Int: String]
     let conversions: [String]
+    let tokens: [String]
     private static let token = try! NSRegularExpression(
         pattern: #"%(?:([1-9][0-9]*)\$)?[-+ #0']*[0-9]*(?:\.[0-9]+)?(hh|ll|[hljztLq])?([@diuoxXfFeEgGaAcCsSp])"#)
 
@@ -116,10 +141,12 @@ struct TestFormat {
         var nextArgument = 1
         var arguments: [Int: String] = [:]
         var conversions: [String] = []
+        var tokens: [String] = []
         var usesPositions: Bool?
         while cursor < string.length {
             guard string.character(at: cursor) == 37 else { cursor += 1; continue }
             if cursor + 1 < string.length, string.character(at: cursor + 1) == 37 {
+                tokens.append("%%")
                 cursor += 2
                 continue
             }
@@ -138,9 +165,10 @@ struct TestFormat {
             if let previous = arguments[index], previous != conversion { return nil }
             arguments[index] = conversion
             conversions.append(conversion)
+            tokens.append(string.substring(with: match.range))
             nextArgument += 1
             cursor = NSMaxRange(match.range)
         }
-        return TestFormat(arguments: arguments, conversions: conversions)
+        return TestFormat(arguments: arguments, conversions: conversions, tokens: tokens)
     }
 }

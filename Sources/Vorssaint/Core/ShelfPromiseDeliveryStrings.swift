@@ -19,6 +19,13 @@ struct ShelfPromiseDeliveryStrings {
                 fullTitle: "Shelf is full",
                 fullBody: "The attachment finished saving but there is no room left on the shelf.",
                 okButton: "OK")
+        case .nl:
+            return .init(
+                failedTitle: "Bijlage toevoegen mislukt",
+                failedBody: "Het bestand is niet volledig op de bestandsplank bewaard.",
+                fullTitle: "Bestandsplank is vol",
+                fullBody: "De bijlage is volledig bewaard, maar de bestandsplank heeft geen ruimte meer.",
+                okButton: "OK")
         case .ptBR:
             return .init(
                 failedTitle: "Não foi possível adicionar o anexo",

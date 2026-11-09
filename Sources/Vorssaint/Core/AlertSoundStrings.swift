@@ -66,6 +66,8 @@ enum AlertSoundStrings {
         switch language {
         case .enUS:
             return english
+        case .nl:
+            return dutch
 
         case .ptBR:
             return portugueseBrazil
@@ -118,6 +120,25 @@ enum AlertSoundStrings {
         "Sosumi": "Sonumi",
         "Submarine": "Submerge",
         "Tink": "Boop",
+    ]
+
+    // MARK: - Dutch
+
+    private static let dutch: [String: String] = [
+        "Basso": "Mezzo",
+        "Blow": "Bries",
+        "Bottle": "Kiezel",
+        "Frog": "Sprong",
+        "Funk": "Funky",
+        "Glass": "Kristal",
+        "Hero": "Heldin",
+        "Morse": "Pong",
+        "Ping": "Sonar",
+        "Pop": "Luchtbel",
+        "Purr": "Pluk",
+        "Sosumi": "Sonumi",
+        "Submarine": "Onderzeeër",
+        "Tink": "Tik",
     ]
 
     // MARK: - Portuguese (Brazil)

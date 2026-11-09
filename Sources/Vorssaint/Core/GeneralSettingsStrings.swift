@@ -38,6 +38,7 @@ extension FeatureStrings {
     static func generalSettings(_ language: AppLanguage) -> GeneralSettingsStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -113,6 +114,35 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Screenshots, cleaner, updates and other tools.",
         sectionControls: "Switches for mouse, keyboard and window features.",
         sectionToggles: "One-click actions like dark mode and muting the mic."
+    )
+
+    static let nl = GeneralSettingsStrings(
+        pageDescription: "Hoe Vorssaint start, eruitziet en wat het menubalkpaneel toont.",
+        appearanceCaption: "Geldt voor vensters en panelen van Vorssaint, niet voor de hele Mac.",
+        launchAtLoginCaption: "Opent automatisch telkens wanneer je de Mac aanzet.",
+        liquidGlassCaption: "Doorzichtige, glasachtige panelen.",
+        liquidGlassOtherWindows: "Andere vensters en panelen",
+        panelIntro: "Klik op het Vorssaint-symbool in de menubalk om het paneel te openen. De tabbladen staan in deze volgorde.",
+        panelReorderHint: "Sleep om de volgorde te wijzigen. Schakel uit wat je niet nodig hebt.",
+        menuBarIconTitle: "Menubalksymbool",
+        menuBarIconCaption: "Kies het symbool van Vorssaint in de menubalk.",
+        menuBarIconOther: "Ander symbool",
+        menuBarIconOtherCaption: "Typ de naam van een SF Symbol. Laat dit leeg om het Vorssaint-symbool te gebruiken.",
+        menuBarIconUnknown: "Deze Mac heeft geen symbool met die naam.",
+        menuBarIconReset: "Gebruik het Vorssaint-symbool",
+        iconMissingTitle: "Kun je het symbool niet vinden?",
+        iconMissingCaption: "Een volle menubalk kan het verbergen, vooral op Macs met een inkeping.",
+        sectionKeepAwake: "Houdt je Mac wakker zolang je wilt.",
+        sectionDisplays: "Helderheid van je beeldschermen.",
+        sectionMixer: "Volume per app, elk met een eigen schuifknop.",
+        sectionSystem: "Processor, grafische processor en geheugen in één oogopslag.",
+        sectionNetwork: "Internetsnelheid en welke apps het gebruiken.",
+        sectionDisks: "Vrije ruimte en schijfactiviteit.",
+        sectionPower: "Batterij, opladen en stroomverbruik.",
+        sectionFanControl: "Ventilatorsnelheden en je eigen ventilatorcurve.",
+        sectionUtilities: "Schermafbeeldingen, opruimen, updates en andere hulpmiddelen.",
+        sectionControls: "Schakelaars voor muis-, toetsenbord- en vensterfuncties.",
+        sectionToggles: "Acties met één klik, zoals donkere modus en microfoon uitschakelen."
     )
 
     static let ptBR = GeneralSettingsStrings(

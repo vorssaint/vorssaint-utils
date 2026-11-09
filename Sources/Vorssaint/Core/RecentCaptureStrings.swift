@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func recentCaptures(_ language: AppLanguage) -> RecentCaptureStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -46,6 +47,17 @@ extension RecentCaptureStrings {
         open: "Open",
         remove: "Remove from history",
         clear: "Clear history"
+    )
+
+    static let nl = RecentCaptureStrings(
+        title: "Recente opnamen",
+        empty: "Maak een schermafbeelding of bewaar een opname om deze hier te vinden.",
+        screenshot: "Schermafbeelding",
+        recording: "Opname",
+        restore: "Herstel",
+        open: "Open",
+        remove: "Verwijder uit geschiedenis",
+        clear: "Wis geschiedenis"
     )
 
     static let ptBR = RecentCaptureStrings(

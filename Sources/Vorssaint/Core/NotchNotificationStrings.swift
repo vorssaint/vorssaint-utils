@@ -32,6 +32,18 @@ extension FeatureStrings {
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
             hideSystemBannerHint: "Hide the original while the Dynamic Island shows it.")
+        case .nl: return NotchNotificationStrings(
+            title: "Meldingen",
+            description: "Nieuwe systeemmeldingen in Dynamic Island.",
+            privacy: "Toon alleen nieuwe zichtbare stroken. Berichten blijven in het geheugen en worden gewist als je deze Mac vergrendelt of dit uitschakelt.",
+            empty: "Nieuwe meldingen verschijnen hier",
+            waiting: "Wachten op de systeemmeldingsdienst",
+            open: "Open",
+            dismiss: "Sluit",
+            clearAll: "Wis alles",
+            unavailable: "Deze melding kan deze actie niet meer verwerken.",
+            hideSystemBanner: "Verberg de systeemstrook",
+            hideSystemBannerHint: "Verberg het origineel zolang Dynamic Island de melding toont.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",
