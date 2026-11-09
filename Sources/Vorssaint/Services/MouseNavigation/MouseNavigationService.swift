@@ -346,6 +346,52 @@ final class MouseNavigationService: ObservableObject {
         }
     }
 
+    /// Back or Forward for a trigger that carries no click of its own, such as
+    /// a trackpad gesture. The app in front gets its menu command; one with
+    /// neither command gets the side button a mouse would send, which is how
+    /// browsers that keep both out of their menus navigate. Works whether or
+    /// not the side buttons feature is on. Main thread.
+    func navigate(_ direction: MouseNavigationDirection) {
+        // Asked every time: the answer lands on the next turn of the run
+        // loop, ahead of the search below, so no keyboard change is missed.
+        MouseNavigationKeys.refresh()
+        DispatchQueue.main.async { [weak self] in
+            guard let self, let app = NSWorkspace.shared.frontmostApplication else { return }
+            // Our Settings window navigates on the raw side buttons.
+            let outcome = app.processIdentifier == ProcessInfo.processInfo.processIdentifier
+                ? MenuPressOutcome.missed(.absent)
+                : self.pressMenuItem(shortcuts: MouseNavigationKeys.candidates(for: direction), in: app)
+            switch outcome {
+            case .pressed:
+                return
+            case .pressFailed(let shortcut):
+                self.postCommand(shortcut)
+            case .missed(let miss):
+                let button = MouseNavigationSupport.buttonNumber(for: direction)
+                guard let pointer = CGEvent(source: nil)?.location,
+                      MouseNavigationSupport.sendsSideButton(
+                          miss: miss,
+                          pointerOverApp: Self.receivingProcess(at: pointer) == app.processIdentifier,
+                          buttonClaimed: RadialMenuSupport.claimsMouseButton(button)
+                              || MouseButtonShortcutSupport.claimsButton(button))
+                else { return }
+                self.postSideButton(button, at: pointer)
+            }
+        }
+    }
+
+    /// Posted past this service's own tap, like a click handed back.
+    private func postSideButton(_ button: Int64, at pointer: CGPoint) {
+        guard let down = CGEvent(mouseEventSource: nil, mouseType: .otherMouseDown,
+                                 mouseCursorPosition: pointer, mouseButton: .center),
+              let up = CGEvent(mouseEventSource: nil, mouseType: .otherMouseUp,
+                               mouseCursorPosition: pointer, mouseButton: .center) else { return }
+        down.setIntegerValueField(.mouseEventButtonNumber, value: button)
+        up.setIntegerValueField(.mouseEventButtonNumber, value: button)
+        down.post(tap: .cgSessionEventTap)
+        up.post(tap: .cgSessionEventTap)
+    }
+
     /// Prefer the app's actual menu item. This preserves app-specific
     /// behavior, and the shortcuts looked for are the ones this keyboard
     /// carries. One look through the menus serves all of them. The synthetic

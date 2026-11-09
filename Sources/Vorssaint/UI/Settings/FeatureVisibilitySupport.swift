@@ -33,6 +33,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case mouseNavigation
     case mouseButtonShortcuts
     case middleClick
+    case trackpadGestures
     case mouseClickDebounce
     case switcher
     case dock
@@ -66,7 +67,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
             return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
         case .scrollDirection, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-             .middleClick, .mouseClickDebounce:
+             .middleClick, .trackpadGestures, .mouseClickDebounce:
             return .mouse
         case .switcher: return .switcher
         case .dock, .dockClick, .spacesOrder: return .dock
@@ -312,6 +313,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseButtonShortcuts)
         case .middleClick:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .middleClick)
+        case .trackpadGestures:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .trackpadGestures)
         case .mouseClickDebounce:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseClickDebounce)
         case .keyboardDebounce: return FeatureSettingsDestination(.keyDebounce)
@@ -407,7 +410,7 @@ enum FeatureVisibilitySupport {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-                             .middleClick, .mouseClickDebounce]
+                             .middleClick, .trackpadGestures, .mouseClickDebounce]
         case .switcher: return [.switcher]
         case .dock: return [.dockPreview, .dockClick, .spacesOrder]
         case .windowLayout: return [.windowLayout, .windowMaximizer]
