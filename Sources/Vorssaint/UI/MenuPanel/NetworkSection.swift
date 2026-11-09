@@ -18,6 +18,7 @@ struct NetworkSection: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorNetStatus) private var netStatus = true
     @AppStorage(DefaultsKey.panelNetworkOrder) private var networkOrderRaw = ""
     @AppStorage(DefaultsKey.networkSpeedUnit) private var speedUnit = NetworkSpeedUnit.bytes
     @State private var draggingBlock: Block?
@@ -79,7 +80,7 @@ struct NetworkSection: View {
         }
     }
 
-    private enum Block: String, PanelOrderItem { case speed, apps, totals, addresses, test }
+    private enum Block: String, PanelOrderItem { case speed, status, totals, addresses, test, apps }
 
     private var visibleBlocks: [Block] {
         orderedBlocks.filter(isVisible)
@@ -105,6 +106,7 @@ struct NetworkSection: View {
     private func isVisible(_ block: Block) -> Bool {
         switch block {
         case .speed: return netSpeed
+        case .status: return netStatus
         case .apps: return netApps
         case .totals: return netTotals
         case .addresses: return netAddresses
@@ -119,6 +121,7 @@ struct NetworkSection: View {
         netApps = true
         netTotals = true
         netAddresses = true
+        netStatus = true
         netTest = true
     }
 
@@ -126,6 +129,7 @@ struct NetworkSection: View {
     private func blockContent(_ block: Block, editing: Bool) -> some View {
         switch block {
         case .speed: speedBlock(editing: editing)
+        case .status: NetworkStatusBlock(isVisible: $netStatus, editing: editing)
         case .apps: appUsageBlock(editing: editing)
         case .totals: totalsRow(editing: editing)
         case .addresses: NetworkAddressBlock(service: addresses, isVisible: $netAddresses, editing: editing)
@@ -192,7 +196,10 @@ struct NetworkSection: View {
                     speedUnitToggle
                 }
                 if showGraph, monitor.snapshot.netDownHistory.count >= 2 {
-                    graph
+                    NetworkHistoryGraph(down: monitor.snapshot.netDownHistory,
+                                        up: monitor.snapshot.netUpHistory,
+                                        inBits: speedInBits,
+                                        height: 30)
                 }
             }
         }
@@ -243,23 +250,6 @@ struct NetworkSection: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    /// Download (filled) and upload (line) share one scale so they compare fairly.
-    private var graph: some View {
-        let down = monitor.snapshot.netDownHistory
-        let up = monitor.snapshot.netUpHistory
-        let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
-                                                    inBits: speedInBits)
-        return ZStack {
-            Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
-            Sparkline(values: up,
-                      color: PanelMetricColor.green(for: colorScheme),
-                      maxValue: peak,
-                      fillOpacity: 0.08)
-        }
-        .frame(height: 30)
-        .graphCeilingLabel(MetricFormat.networkRate(peak, inBits: speedInBits))
     }
 
     @ViewBuilder
@@ -402,39 +392,153 @@ struct NetworkSection: View {
     }
 }
 
-/// The local address block. Nothing here leaves the machine.
+/// The interface and address block. Everything but the opt-in public
+/// address is read locally.
 private struct NetworkAddressBlock: View {
     @ObservedObject var service: NetworkAddressService
     @Binding var isVisible: Bool
     var editing: Bool
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.networkPublicIP) private var showPublicIP = false
 
     var body: some View {
         if !isVisible {
             PanelHiddenItemRow(title: l10n.s.networkIPAddresses,
                                systemImage: "network", isVisible: $isVisible)
         } else {
-            HStack(alignment: .top, spacing: 6) {
-                Text(l10n.s.networkLocalIP)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Spacer()
-                // Nothing connected: the value is left out, like the totals block.
-                if !service.localAddresses.isEmpty {
-                    Text(service.localAddresses.joined(separator: "\n"))
-                        .font(.system(size: 10.5, weight: .medium))
-                        .monospacedDigit()
-                        .multilineTextAlignment(.trailing)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
+            let strings = FeatureStrings.networkStatus(l10n.language)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
+                    row(l10n.s.networkLocalIP, service.localAddresses.joined(separator: "\n"))
+                    if editing { PanelInlineHideButton(isVisible: $isVisible) }
                 }
-                if editing { PanelInlineHideButton(isVisible: $isVisible) }
+                if showPublicIP {
+                    row(strings.publicIP, service.publicAddress)
+                }
+                row(strings.interface, service.primaryInterface)
+                row(strings.physicalAddress, service.physicalAddress)
             }
-            // The interfaces are read only while this line is on screen: a
+            // The interfaces are read only while this block is on screen: a
             // hidden block or a collapsed card costs nothing per snapshot.
             .onAppear { service.refreshLocalAddresses() }
             .onReceive(SystemMonitor.shared.$snapshot) { _ in service.refreshLocalAddresses() }
+            .onChange(of: showPublicIP) { _, _ in service.refreshPublicAddress() }
             .onDisappear { service.cancel() }
         }
+    }
+
+    /// Nothing connected: the value is left out, like the totals block.
+    private func row(_ title: String, _ value: String?) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            if let value, !value.isEmpty {
+                Text(value)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+    }
+}
+
+/// Connection health from `NetworkStatusService`. While the internet check is
+/// off, the block says what turning it on sends before offering to.
+private struct NetworkStatusBlock: View {
+    @Binding var isVisible: Bool
+    var editing: Bool
+    @ObservedObject private var service = NetworkStatusService.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.networkConnectivityCheck) private var checkEnabled = false
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var strings: NetworkStatusFeatureStrings { FeatureStrings.networkStatus(l10n.language) }
+
+    var body: some View {
+        if !isVisible {
+            PanelHiddenItemRow(title: strings.title, systemImage: "wifi", isVisible: $isVisible)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Text(strings.title)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    Spacer(minLength: 0)
+                    if editing { PanelInlineHideButton(isVisible: $isVisible) }
+                }
+                if checkEnabled {
+                    historyRow
+                    row(strings.status, state: service.interfaceUp)
+                    row(strings.internet, state: service.internetUp)
+                    row(l10n.s.speedTestLatency, value: milliseconds(service.latencyMs))
+                    row(strings.jitter, value: milliseconds(service.jitterMs))
+                } else {
+                    Text(strings.checkCaption)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(strings.turnOn) {
+                        checkEnabled = true
+                        service.syncWithPreferences()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    /// One square per check, newest on the right. Slots not yet checked stay
+    /// grey, so the row keeps its width while it fills.
+    private var historyRow: some View {
+        let history = service.history
+        let slots = NetworkStatusService.historyLength
+        let unchecked = slots - history.count
+        return HStack(spacing: 1.5) {
+            ForEach(0..<slots, id: \.self) { slot in
+                RoundedRectangle(cornerRadius: 1.5)
+                    .fill(color(slot < unchecked ? nil : history[slot - unchecked]))
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: 9)
+        .help(strings.history)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(strings.history)
+        .accessibilityValue("\(history.filter { $0 }.count)/\(history.count)")
+    }
+
+    private func row(_ title: String, state: Bool?) -> some View {
+        guard let state else { return row(title, value: "–") }
+        return row(title, value: state ? strings.up : strings.down, color: color(state))
+    }
+
+    private func row(_ title: String, value: String, color: Color = .secondary) -> some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(color)
+        }
+    }
+
+    private func color(_ state: Bool?) -> Color {
+        switch state {
+        case true?: return PanelMetricColor.green(for: colorScheme)
+        case false?: return PanelMetricColor.red(for: colorScheme)
+        case nil: return Color.primary.opacity(0.12)
+        }
+    }
+
+    private func milliseconds(_ value: Double?) -> String {
+        value.map { String(format: "%.1f ms", locale: MetricFormat.locale, $0) } ?? "–"
     }
 }

@@ -216,7 +216,10 @@ enum SettingsDirectory {
                                        keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle],
                                        featureKeywords: [
                                         (.monitorMemory, [s.monitorMemoryPressureDot]),
-                                        (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
+                                        (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit,
+                                                           FeatureStrings.networkStatus(language).check,
+                                                           FeatureStrings.networkStatus(language).host,
+                                                           FeatureStrings.networkStatus(language).showPublicIP]),
                                         (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ]),
             ]),

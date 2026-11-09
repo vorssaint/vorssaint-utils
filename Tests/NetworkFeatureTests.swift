@@ -489,5 +489,54 @@ enum NetworkFeatureTests {
         single.push(6)
         suite.expect(single.values == [6], "capacity 1 keeps only newest")
 
+        // MARK: Connection status
+
+        suite.expect(NetworkStatusService.jitter([]) == nil && NetworkStatusService.jitter([12]) == nil,
+               "jitter needs two round trips")
+        suite.expectClose(NetworkStatusService.jitter([10, 14, 11, 11]) ?? -1, 7.0 / 3,
+                    "jitter is the mean change between consecutive round trips")
+
+        let status = NetworkStatusService()
+        for _ in 0..<NetworkStatusService.historyLength { status.record(latency: 20) }
+        status.record(latency: nil)
+        suite.expect(status.history.count == NetworkStatusService.historyLength
+                && status.history.last == false && status.internetUp == false,
+               "connectivity history keeps a fixed window and ends on the newest check")
+        suite.expect(status.latencyMs == nil && status.jitterMs == nil,
+               "a failed check shows no latency or jitter instead of the last good reading")
+        status.record(latency: 30)
+        suite.expect(status.internetUp == true && status.latencyMs == 30, "a check after an outage reads up again")
+        suite.expectClose(status.jitterMs ?? -1, 10.0 / 9,
+                    "jitter after an outage spans the last ten good round trips")
+
+        let cloudflare = NetworkStatusService.probeURL(host: "")
+        suite.expect(cloudflare?.host == "speed.cloudflare.com" && NetworkStatusService.probeURL(host: "  ") == cloudflare,
+               "an empty check host uses the speed test's Cloudflare endpoint")
+        suite.expect(NetworkStatusService.probeURL(host: " 1.1.1.1 ")?.absoluteString == "https://1.1.1.1"
+                && NetworkStatusService.probeURL(host: "example.com")?.absoluteString == "https://example.com",
+               "a bare host or address is checked over HTTPS")
+        suite.expect(NetworkStatusService.probeURL(host: "http://router.local/status")?.absoluteString
+                    == "http://router.local/status",
+               "a full http URL is checked as typed")
+        suite.expect(NetworkStatusService.probeURL(host: "ftp://example.com") == nil
+                && NetworkStatusService.probeURL(host: "not a host") == nil,
+               "an unusable host is reported instead of being guessed at")
+        suite.expect(NetworkStatusService.probeInterval(30) == 30 && NetworkStatusService.probeInterval(0) == 5
+                && NetworkStatusService.probeInterval(7) == 5,
+               "a check interval the picker does not offer falls back to five seconds")
+
+        let registered = Defaults.registeredDefaults
+        suite.expect(registered[DefaultsKey.networkConnectivityCheck] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.networkConnectivityCheck),
+               "the internet check sends nothing until switched on and travels in backups")
+        suite.expect(registered[DefaultsKey.monitorNetStatus] as? Bool == true
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.monitorNetStatus),
+               "the connection status block is shown by default and travels in backups")
+        suite.expect(registered[DefaultsKey.networkPublicIP] as? Bool == false
+                && registered[DefaultsKey.networkConnectivityInterval] as? Int == NetworkStatusService.defaultProbeInterval
+                && registered[DefaultsKey.networkConnectivityHost] as? String == ""
+                && [DefaultsKey.networkPublicIP, DefaultsKey.networkConnectivityInterval, DefaultsKey.networkConnectivityHost]
+                    .allSatisfy(SettingsBackupSupport.exportKeys().contains),
+               "the public address lookup is opt-in and the check's interval and host travel in backups")
     }
 }
