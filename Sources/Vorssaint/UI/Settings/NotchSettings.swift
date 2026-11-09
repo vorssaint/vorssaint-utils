@@ -21,6 +21,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
     @AppStorage(DefaultsKey.notchCalendarEnabled) private var calendarEnabled = true
     @AppStorage(DefaultsKey.notchCalendarCountdown) private var calendarCountdown = false
+    @AppStorage(DefaultsKey.notchCalendarCountdownLead) private var calendarCountdownLead = NotchCalendarSupport.defaultCountdownLeadMinutes
     @AppStorage(DefaultsKey.notchCalendarTimeLeft) private var calendarTimeLeft = false
     @AppStorage(DefaultsKey.notchCalendarWeekNumbers) private var calendarWeekNumbers = false
     @AppStorage(DefaultsKey.notchAgentsEnabled) private var agentsEnabled = false
@@ -66,6 +67,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
     @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = true
+    @AppStorage(DefaultsKey.notchMusicShowVolume) private var musicShowVolume = false
     @AppStorage(DefaultsKey.notchPreferredPlayer) private var preferredPlayer = NotchPreferredPlayer.automatic
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchLowBatteryTint) private var lowBatteryTint = false
@@ -114,10 +116,11 @@ struct NotchSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var configuration: [String] {
-        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarTimeLeft),
+        [String(enabled), String(calendarEnabled), String(calendarCountdown), String(calendarCountdownLead),
+         String(calendarTimeLeft),
          String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled),
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
-         String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
+         String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
@@ -428,6 +431,8 @@ struct NotchSettings: View {
             let music = FeatureStrings.notchMusicExtras(l10n.language)
             switchRow("music.note", text.playingMusic, isOn: $showPlayingMusic)
             switchRow("play.rectangle", music.includeOtherPlayers, isOn: $includeOtherPlayers)
+            SettingsFeatureSwitchRow(symbol: "speaker.wave.2", title: music.showVolume,
+                                     isOn: $musicShowVolume, feature: .mixer)
             SettingsRow(symbol: "arrow.up.forward.app", title: music.preferredPlayer, caption: music.preferredPlayerHint) {
                 Picker(music.preferredPlayer, selection: $preferredPlayer) {
                     Text(music.automaticSource).tag(NotchPreferredPlayer.automatic)
@@ -472,6 +477,16 @@ struct NotchSettings: View {
             Divider()
             switchRow("calendar.badge.clock", calendar.countdown, caption: calendar.countdownHint,
                       isOn: $calendarCountdown)
+            // Shown with the countdown off too: events chosen from their menu use the same lead.
+            // A value outside the presets, from a backup or an older build, stays selectable.
+            let lead = NotchCalendarSupport.countdownLeadMinutes(calendarCountdownLead)
+            SettingsMenuRow(symbol: "timer", title: calendar.countdownLead, selection: Binding(
+                get: { lead }, set: { calendarCountdownLead = $0 })) {
+                ForEach(Set(NotchCalendarSupport.countdownLeadPresets + [lead]).sorted(), id: \.self) { minutes in
+                    Text(AgentFormat.duration(TimeInterval(minutes * 60), locale: l10n.language.formattingLocale(),
+                                              style: .short)).tag(minutes)
+                }
+            }
             switchRow("hourglass", calendar.timeLeft, caption: calendar.timeLeftHint, isOn: $calendarTimeLeft)
             switchRow("number", calendar.weekNumbers, isOn: $calendarWeekNumbers)
             if permissions.calendarAccess == .fullAccess { NotchCalendarSelection() }

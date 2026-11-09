@@ -51,6 +51,15 @@ enum MediaImageFormat: String, CaseIterable, Codable, Identifiable {
 
     var id: String { rawValue }
 
+    var contentType: UTType {
+        switch self {
+        case .jpeg: return .jpeg
+        case .heic: return .heic
+        case .png: return .png
+        case .pdf: return .pdf
+        }
+    }
+
     var fileExtension: String {
         switch self {
         case .jpeg: return "jpg"
@@ -222,7 +231,7 @@ struct MediaImageWatermark: Codable, Equatable {
         self.logoPath = logoPath
         self.position = position
         self.opacity = MediaSupport.sanitizedOpacity(opacity)
-        self.margin = MediaSupport.sanitizedImageDimension(margin, fallback: 32, min: 0, max: 2000)
+        self.margin = min(2000, max(0, margin))
         self.scale = MediaSupport.sanitizedWatermarkScale(scale)
     }
 

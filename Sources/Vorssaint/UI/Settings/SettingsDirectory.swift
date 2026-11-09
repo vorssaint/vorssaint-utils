@@ -59,7 +59,7 @@ enum SettingsDirectory {
                             if feature == .clipboardHistory {
                                 return FeatureStrings.commandBar(language).sourceClipboard
                             }
-                            return feature.hubTitle(s, hub: hub)
+                            return feature.hubTitle(s, hub: hub, language: language)
                         }
                     if pageItem.page == .general {
                         rows.insert(SettingsSidebarItem(
@@ -150,7 +150,7 @@ enum SettingsDirectory {
             }
         let hub = FeatureStrings.hub(language)
         let featureItems = SettingsSearchSupport.featureItems(language: language) { feature in
-            feature.hubTitle(s, hub: hub)
+            feature.hubTitle(s, hub: hub, language: language)
         }
         var items = SettingsSearchSupport.combinedItems(pageItems: pageItems,
                                                         featureItems: featureItems)
@@ -186,7 +186,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .features, title: FeatureStrings.hub(language).pageTitle,
                                        icon: "square.grid.2x2",
                                        featureKeywords: AppFeature.allCases.map {
-                                        ($0, [$0.hubTitle(s, hub: FeatureStrings.hub(language))])
+                                        ($0, [$0.hubTitle(s, hub: FeatureStrings.hub(language), language: language)])
                                        }),
                 SettingsDirectoryItem(page: .energy, title: s.tabEnergy, icon: "bolt.fill",
                                        featureKeywords: [
@@ -227,6 +227,7 @@ enum SettingsDirectory {
                                                            s.invertHorizontalScroll]),
                                         (.scrollHorizontal, [s.scrollHorizontalName,
                                                             s.scrollHorizontalModifierLabel]),
+                                        (.scrollZoom, [s.zoomSection, s.pinchZoom]),
                                         (.middleClick, [s.middleClickTapPicker]),
                                         (.focusFollowsMouse, [s.focusFollowsMouseName,
                                                               s.focusFollowsMouseDelay,
@@ -249,6 +250,8 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
+                                                     s.switcherIgnoreHoverSelection,
+                                                     FeatureStrings.switcherShortcuts(language).allWindows,
                                                      s.switcherWindowlessApps,
                                                      s.switcherShowShortcutHints, s.switcherMaxColumns,
                                                      FeatureStrings.switcherAppRules(language).listTitle,
@@ -280,6 +283,7 @@ enum SettingsDirectory {
                                       featureKeywords: [
                                         (.windowLayout, [s.dockClickCycleWindows,
                                                          FeatureStrings.windowLayout(language).edgeSnapEnable,
+                                                         WindowEdgeSnapRestoreStrings.localized(language).title,
                                                          FeatureStrings.windowLayout(language).gestureEnable,
                                                          FeatureStrings.windowLayout(language).gestureResize,
                                                          FeatureStrings.windowLayoutIgnoredApps(language).listTitle]),
@@ -288,7 +292,9 @@ enum SettingsDirectory {
                                           FeatureStrings.windowMaximizerExclusions(language).listTitle]),
                                       ]),
                 SettingsDirectoryItem(page: .autoQuit, title: s.autoQuitName, icon: "xmark.rectangle",
-                                      keywords: [s.autoQuitEnable]),
+                                      keywords: [s.autoQuitEnable,
+                                                 FeatureStrings.autoQuitDockApps(language).listTitle,
+                                                 FeatureStrings.autoQuitDockApps(language).caption]),
                 SettingsDirectoryItem(page: .quitProtection,
                                       title: quitProtection.name,
                                       icon: "shield.lefthalf.filled",
@@ -400,6 +406,10 @@ enum SettingsDirectory {
                                                             .emptyTrashTitle,
                                                          FeatureStrings.brightness(language)
                                                             .keyboardLight]),
+                                        (.quitApps, [s.quitAppsName,
+                                                     FeatureStrings.quickToggles(language).quitAllTitle,
+                                                     FeatureStrings.quickToggles(language).quitOthersTitle,
+                                                     FeatureStrings.quickToggles(language).exceptionsTitle]),
                                         (.cameraPreview,
                                          [FeatureStrings.cameraPreview(language).pageTitle]),
                                         (.wallpaper,
