@@ -63,10 +63,8 @@ struct BrowserPickerSettings: View {
             HStack {
                 Text(text.order).font(.headline)
                 Spacer()
-                Button { service.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                Button(text.scanBrowsers) { service.refresh() }
                     .buttonStyle(.borderless)
-                    .help(FeatureStrings.portManager(l10n.language).refresh)
-                    .accessibilityLabel(FeatureStrings.portManager(l10n.language).refresh)
             }
             Text(text.orderHint).font(.caption).foregroundStyle(.secondary)
             if service.browsers.isEmpty {

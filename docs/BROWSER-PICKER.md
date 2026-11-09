@@ -16,7 +16,7 @@ To stop sending links to the picker, choose another default browser in macOS Sys
 - **Picker position** chooses the center of the screen containing the pointer or a nearby position kept within that screen's usable area.
 - The picker uses the window switcher's Small Simple List sizing. Long browser lists scroll horizontally when they exceed the available screen width.
 
-The refresh button discovers newly installed browsers. If all browsers are hidden, the picker shows instructions for enabling one in Settings.
+**Scan for new browsers** discovers newly installed browsers. If all browsers are hidden, the picker shows instructions for enabling one in Settings.
 
 ## Selection
 
