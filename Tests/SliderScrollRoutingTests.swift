@@ -33,17 +33,21 @@ enum SliderScrollRoutingTests {
 
     /// A scroll view without a window does not move, so it records its input.
     final class Strip: NSScrollView {
-        var sideways: [CGFloat] = []
+        var received: [NSEvent] = []
         override func scrollWheel(with event: NSEvent) {
-            if event.scrollingDeltaX != 0 { sideways.append(event.scrollingDeltaX) }
+            received.append(event)
             super.scrollWheel(with: event)
         }
     }
 
-    private static func event(_ phase: CGScrollPhase, delta: Int32 = 0, sideways: Int32 = 0) -> NSEvent {
-        let cg = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 2,
+    static func event(_ phase: CGScrollPhase?, delta: Int32 = 0, sideways: Int32 = 0,
+                      momentum: CGMomentumScrollPhase = .none, units: CGScrollEventUnit = .pixel,
+                      timestamp: CGEventTimestamp? = nil) -> NSEvent {
+        let cg = CGEvent(scrollWheelEvent2Source: nil, units: units, wheelCount: 2,
                          wheel1: delta, wheel2: sideways, wheel3: 0)!
-        cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase.rawValue))
+        cg.setIntegerValueField(.scrollWheelEventScrollPhase, value: Int64(phase?.rawValue ?? 0))
+        cg.setIntegerValueField(.scrollWheelEventMomentumPhase, value: Int64(momentum.rawValue))
+        if let timestamp { cg.timestamp = timestamp }
         return NSEvent(cgEvent: cg)!
     }
 
@@ -111,13 +115,31 @@ enum SliderScrollRoutingTests {
         slider.isVertical = true
         slider.cancelScroll()
         slider.doubleValue = 0.5
-        target.callbacks = []
-        slider.scrollWheel(with: event(.began))
-        slider.scrollWheel(with: event(.changed, sideways: -40))
-        slider.scrollWheel(with: event(.changed, sideways: -40))
-        slider.scrollWheel(with: event(.ended))
-        suite.expect(slider.doubleValue == 0.5 && strip.sideways == [-40, -40] && target.callbacks == [true, false],
-                     "a sideways swipe on a fader reaches the strip around it and leaves the level alone (value \(slider.doubleValue), strip \(strip.sideways), edits \(target.callbacks))")
+        func expectStripSwipe(_ events: [NSEvent], _ label: String) {
+            strip.received.removeAll()
+            target.callbacks = []
+            for event in events { slider.scrollWheel(with: event) }
+            let delivered = strip.received.elementsEqual(events) {
+                $0.phase == $1.phase && $0.momentumPhase == $1.momentumPhase
+                    && $0.scrollingDeltaX == $1.scrollingDeltaX && $0.scrollingDeltaY == $1.scrollingDeltaY
+            }
+            suite.expect(slider.doubleValue == 0.5 && delivered && target.callbacks == [true, false],
+                         "\(label) (level \(slider.doubleValue), horizontal deltas \(strip.received.map(\.scrollingDeltaX)), edits \(target.callbacks))")
+        }
+        expectStripSwipe([event(.began), event(.changed, sideways: -40), event(.changed, sideways: -40), event(.ended)],
+                        "a sideways swipe reaches the strip with its begin and leaves the level alone")
+        expectStripSwipe([event(.began), event(.changed, sideways: 5), event(.changed, delta: 6),
+                          event(.changed, delta: 24), event(.ended), event(nil, delta: -4),
+                          event(nil, sideways: 12, momentum: .begin), event(nil, momentum: .end)],
+                        "the strip gets the held horizontal travel, the vertical turn, the lift and all of its tail")
+        expectStripSwipe([event(.began, sideways: -2), event(.changed, sideways: -1), event(.ended),
+                          event(nil, sideways: -8, momentum: .begin), event(nil, momentum: .end)],
+                        "a short sideways flick reaches the strip even when the fingers lift below the threshold")
+
+        slider.scrollWheel(with: event(.began, sideways: 3))
+        slider.cancelScroll()
+        expectStripSwipe([event(.began), event(.changed, sideways: -12), event(.cancelled)],
+                        "a new swipe never replays movement left by a cancelled edit")
         slider.isVertical = false
         document.setFrameSize(NSSize(width: 80, height: 50))
         suite.expect(Route.sidewaysStrip(at: slider) == nil && Route.sidewaysStrip(at: document) == nil,

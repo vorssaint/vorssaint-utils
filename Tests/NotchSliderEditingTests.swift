@@ -114,9 +114,26 @@ enum NotchSliderEditingTests {
                                   timestamp: 10.3, current: 0.5, range: range) == .pass
                      && swipe.handle(.ended, dx: 0, dy: 0, precise: true, inverted: true,
                                      timestamp: 10.4, current: 0.5, range: range) == .pass
+                     && swipe.handle(.none, dx: 0, dy: -4, precise: true, inverted: true,
+                                     timestamp: 10.45, current: 0.5, range: range) == .pass
                      && swipe.handle(.momentum, dx: -30, dy: -5, precise: true, inverted: true,
                                      timestamp: 10.5, current: 0.5, range: range) == .pass,
-               "a swipe given to the strip stays with it through any drift, the lift and its momentum")
+               "the strip keeps a sideways swipe through drift, a vertical phaseless tail and momentum")
+        suite.expect(swipe.handle(.none, dx: 0, dy: -4, precise: true, inverted: true,
+                                  timestamp: 11, current: 0.5, range: range) == .move(0.52),
+               "an independent precise wheel after the lift gap can adjust the fader again")
+
+        var arriving = SliderScroll()
+        arriving.verticalOnly = true
+        suite.expect(arriving.handle(.ended, dx: 0, dy: 0, precise: true, inverted: true,
+                                     timestamp: 12, current: 0.5, range: range) == .pass
+                     && arriving.handle(.none, dx: 0, dy: -4, precise: true, inverted: true,
+                                        timestamp: 12.1, current: 0.5, range: range) == .pass
+                     && arriving.handle(.momentum, dx: 12, dy: 0, precise: true, inverted: true,
+                                        timestamp: 12.7, current: 0.5, range: range) == .pass
+                     && arriving.handle(.none, dx: 0, dy: -4, precise: true, inverted: true,
+                                        timestamp: 12.8, current: 0.5, range: range) == .pass,
+               "a fader scrolled under the pointer at lift or during momentum leaves the strip in control")
 
         var diagonal = SliderScroll()
         diagonal.verticalOnly = true
@@ -125,6 +142,18 @@ enum NotchSliderEditingTests {
         suite.expect(diagonal.handle(.changed, dx: 10, dy: -10, precise: true, inverted: true,
                                      timestamp: 20.1, current: 0.5, range: range) == .pass,
                "a swipe that is not clearly vertical scrolls the strip rather than changing the level")
+
+        var wobble = SliderScroll()
+        wobble.verticalOnly = true
+        _ = wobble.handle(.began, dx: 0, dy: 0, precise: true, inverted: false,
+                          timestamp: 21, current: 0.5, range: range)
+        var outcome = SliderScroll.Outcome.hold
+        for sample in 0..<SliderScroll.maxPendingSamples {
+            outcome = wobble.handle(.changed, dx: sample.isMultiple(of: 2) ? 1 : -1, dy: 0,
+                                    precise: true, inverted: false, timestamp: 21.1, current: 0.5, range: range)
+        }
+        suite.expect(outcome == .pass && !wobble.isChoosingAxis,
+                     "movement that keeps reversing below the threshold hands the buffered events to the strip")
 
         var fader = SliderScroll()
         fader.verticalOnly = true
