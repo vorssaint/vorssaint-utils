@@ -54,11 +54,16 @@ enum UninstallerFlowTests {
         @Published var operationStatus: Status?
         var operation: Status?
         var uninstalled: [String] = []
+        var canStart = true
         func packageManagingApplication(at url: URL, completion: @escaping (Result<Package?, HomebrewOwnershipError>) -> Void) {
             callback = completion
         }
-        func clearLog() {}
-        func uninstall(_ package: Package) { uninstalled.append(package.id) }
+        func uninstall(_ package: Package, fromUninstaller: Bool) {
+            guard canStart, fromUninstaller else { return }
+            uninstalled.append(package.id)
+            operation = Status(action: .uninstall, package: package, result: .running)
+            operationStatus = operation
+        }
     }
     enum HUD {
         static var messages: [String] = []
@@ -95,7 +100,8 @@ enum UninstallerFlowTests {
             return [Leftover(url: appURL)]
         }
         func removeSelected() { if !items.isEmpty { phase = .removing } }
-        func finishRemovalAfterHomebrew(package: Package) {}
+        var completedRemovals: [String] = []
+        func finishRemovalAfterHomebrew(package: Package) { completedRemovals.append(package.id) }
     }
     enum Feature {
         case uninstaller
@@ -347,9 +353,21 @@ enum UninstallerFlowTests {
                 uninstaller.target = shownTarget
                 suite.expect(Brew.shared.uninstalled.isEmpty && HUD.messages.count == 3,
                              "a Homebrew confirmation for other rows, another package or another app runs nothing, found \(Brew.shared.uninstalled)")
+                let previous = Brew.Status(action: .uninstall, package: confirmation.package, result: .succeeded)
+                Brew.shared.operationStatus = previous
+                Brew.shared.canStart = false
                 uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
-                suite.expect(Brew.shared.uninstalled == ["first"],
-                             "an unchanged Homebrew confirmation runs its package")
+                suite.expect(uninstaller.homebrewRemovalObservation == nil && uninstaller.completedRemovals.isEmpty
+                             && Brew.shared.operationStatus?.result == .succeeded,
+                             "an unavailable command preserves the previous run without acting on its completion")
+                Brew.shared.canStart = true
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                suite.expect(Brew.shared.uninstalled == ["first"] && uninstaller.completedRemovals.isEmpty,
+                             "confirming the same package again starts a fresh removal")
+                Brew.shared.operation = nil
+                Brew.shared.operationStatus = previous
+                suite.expect(uninstaller.completedRemovals == ["first"] && uninstaller.homebrewRemovalObservation == nil,
+                             "only the new completion finishes the removal")
             } else {
                 suite.expect(false, "a Homebrew-managed app offers a package confirmation")
             }
