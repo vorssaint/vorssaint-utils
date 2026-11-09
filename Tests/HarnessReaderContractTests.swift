@@ -67,6 +67,19 @@ enum HarnessReaderContractTests {
         let quoted = line(#"{"type":"assistant","timestamp":1790088041,"message":{"model":"claude-opus-5-5","content":[{"type":"text","text":"<local-command-stderr>example</local-command-stderr>"}],"stop_reason":null}}"#)
         suite.expect(reader.parse(quoted, state: &state, now: now) == [.turnActive(Date(timeIntervalSince1970: 1_790_088_041))],
                      "a model reply quoting local output still reports activity")
+        var idle = AgentLogState()
+        let question = line(#"{"type":"user","timestamp":1790088040,"message":{"content":"<local-command-stdout>ready</local-command-stdout>\nWhat does this mean?"}}"#)
+        suite.expect(reader.parse(question, state: &idle, now: now) == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_040))],
+                     "a question quoting local output opens its own turn")
+        let childOutput = line(#"{"type":"user","isSidechain":true,"message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#)
+        suite.expect(reader.parse(childOutput, state: &state, now: now).isEmpty && state.turnOpen,
+                     "a child command cannot end the parent turn")
+        let unfinished = line(#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"Bash","id":"interrupted-tool"}],"stop_reason":"tool_use"}}"#)
+        _ = reader.parse(unfinished, state: &state, now: now)
+        suite.expect(state.runningCommands.contains("interrupted-tool")
+                     && reader.parse(clear, state: &state, now: now) == [.turnEnded(nil, completed: false, duration: nil)]
+                     && !state.turnOpen && state.runningCommands.isEmpty,
+                     "clearing a resumed session drops its unfinished turn and command without a finish notice")
     }
 
     private static func codexGolden(_ suite: TestSuite) {

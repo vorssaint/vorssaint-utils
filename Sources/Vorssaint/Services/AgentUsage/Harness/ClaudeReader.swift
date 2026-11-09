@@ -17,6 +17,7 @@ struct ClaudeReader: AgentHarnessReader {
         // the person's own text counts: a tool result can quote the same words.
         if AgentLogParser.contains(line, "[Request interrupted by user") || AgentLogParser.contains(line, "<local-command-std"),
            let json = AgentLogParser.object(line), json["type"] as? String == "user", endsTurn(json) {
+            guard json["isSidechain"] as? Bool != true else { return [] }
             let open = state.turnOpen
             state.turnOpen = false
             return open ? [.turnEnded(nil, completed: false, duration: nil)] : []
@@ -33,8 +34,16 @@ struct ClaudeReader: AgentHarnessReader {
         // uses the same tags and starts work as soon as the user invokes it.
         if AgentLogParser.contains(line, "<command-name>"), let json = AgentLogParser.object(line),
            json["type"] as? String == "user", json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
-           messageTexts(json, singleBlock: true).contains(where: isLocalCommand) {
+           let command = messageTexts(json, singleBlock: true).compactMap(localCommand).first {
             adopt(json, into: &state)
+            if command == .clear {
+                // A resumed transcript can still have an unfinished tool call.
+                // Resetting the context discards it without a completion notice.
+                let wasOpen = state.turnOpen
+                state.turnOpen = false
+                state.runningCommands.removeAll()
+                if wasOpen { return [.turnEnded(nil, completed: false, duration: nil)] }
+            }
             return []
         }
         // Tool results arrive inside a turn and can be large; while a turn is
@@ -128,26 +137,28 @@ struct ClaudeReader: AgentHarnessReader {
     /// The interruption or local command output the person's message holds,
     /// never text inside a tool result.
     private func endsTurn(_ json: [String: Any]) -> Bool {
-        messageTexts(json).contains {
-            $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std")
-        }
+        messageTexts(json).contains { $0.hasPrefix("[Request interrupted by user") }
+            || messageTexts(json, singleBlock: true).contains(where: isLocalOutput)
     }
 
-    private func isLocalCommand(_ text: String) -> Bool {
-        guard text.hasPrefix("<command-") else { return false }
+    private enum LocalCommand { case clear, model }
+
+    private func localCommand(_ text: String) -> LocalCommand? {
+        guard text.hasPrefix("<command-") else { return nil }
         // Arguments can contain other command names, including on a new line.
         var header = text[...]
         if let args = text.range(of: "<command-args>") {
-            guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("</command-args>") else { return false }
+            guard text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("</command-args>") else { return nil }
             header = text[..<args.lowerBound]
         }
         let fields = header.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
         let names = fields.filter { !$0.isEmpty && !($0.hasPrefix("<command-message>") && $0.hasSuffix("</command-message>")) }
-        guard names.count == 1, let name = names.first else { return false }
+        guard names.count == 1, let name = names.first else { return nil }
         switch name {
         case "<command-name>/clear</command-name>", "<command-name>/reset</command-name>",
-             "<command-name>/new</command-name>", "<command-name>/model</command-name>": return true
-        default: return false
+             "<command-name>/new</command-name>": return .clear
+        case "<command-name>/model</command-name>": return .model
+        default: return nil
         }
     }
 
