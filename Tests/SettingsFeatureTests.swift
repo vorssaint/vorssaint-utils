@@ -41,7 +41,7 @@ enum SettingsFeatureTests {
     }
 
     private static func search(_ suite: TestSuite) {
-        let domain = "settings.search.tests." + UUID().uuidString
+        let domain = "vorss.tests.settings-search." + UUID().uuidString
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         defaults.setPersistentDomain([
