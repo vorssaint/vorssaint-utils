@@ -130,6 +130,13 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.dsh, [
+                #"{"v":1,"type":"session","session":"s_dsh","ts":\#(Int(timestamp * 1000)),"cwd":"/tmp/example","parent":null}"#,
+                #"{"v":1,"type":"turn","ts":\#(Int(timestamp * 1000)),"turn":1,"phase":"start"}"#,
+                #"{"v":1,"type":"usage","ts":\#(Int(timestamp * 1000)),"turn":1,"step":1,"request":"r","model":"deepseek/deepseek-v4.1-flash","tokens":{"input":10,"output":2},"cost":0.001}"#,
+                #"{"v":1,"type":"usage","ts":\#(Int(timestamp * 1000)),"turn":1,"step":2,"request":"r2","model":"deepseek/deepseek-v4.1-flash","tokens":{"input":10,"cacheRead":4,"output":5}}"#,
+                #"{"v":1,"type":"turn","ts":\#(Int(timestamp * 1000)),"turn":1,"phase":"end","completed":true}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -146,6 +153,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .dsh: entries += AgentProvider.dsh.reader.parse(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
