@@ -411,6 +411,8 @@ extension Strings {
         homebrewOpenTerminal: "Відкрити термінал",
         homebrewCancelOperation: "Скасувати",
         homebrewClearLog: "Очистити журнал",
+        homebrewLastLogView: "Показати останній журнал",
+        homebrewLastLogHide: "Сховати останній журнал",
         homebrewLogTitle: "Журнал",
         homebrewVersion: "Версія",
         homebrewDescription: "Тип",
