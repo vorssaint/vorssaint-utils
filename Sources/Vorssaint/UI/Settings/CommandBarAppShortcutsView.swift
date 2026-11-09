@@ -164,7 +164,7 @@ struct CommandBarAppShortcutsView: View {
         let entries = service.appEntries.reversed()
         let unique = CommandBarSearch.firstOccurrences(of: entries.map(\.stableKey))
         let candidates = Array(entries)
-        let visible = unique.map { candidates[$0] }.filter { entry in
+        let visible = (unique.map { candidates[$0] } + unlistedApps(shortcuts: shortcuts)).filter { entry in
             let included = filter == .all
                 || (filter == .pinned && pins.contains(entry.stableKey))
                 || (filter == .shortcuts && shortcuts[entry.stableKey] != nil)
@@ -175,6 +175,19 @@ struct CommandBarAppShortcutsView: View {
         return CommandBarAppSort.sorted(visible, by: order.column, ascending: order.order == .forward,
                                         title: \.title, key: \.stableKey,
                                         aliases: aliases, shortcuts: shortcuts, pins: pins)
+    }
+
+    /// Rows for combinations kept under an app the list no longer shows, so a
+    /// key that reads as taken can be found and cleared. Before the apps have
+    /// loaded every app would look missing, so none are added until then.
+    private func unlistedApps(shortcuts: [String: GlobalShortcut]) -> [CommandBarEntry] {
+        guard !service.appsLoading, !service.appEntries.isEmpty else { return [] }
+        let listed = Set(service.appEntries.map(\.stableKey))
+        return CommandBarRowShortcuts.unlistedAppKeys(in: shortcuts, listed: listed).map { key in
+            CommandBarEntry(id: key, stableKey: key, title: CommandBarRowShortcuts.unlistedAppTitle(key),
+                            subtitle: text.kindApp, icon: .symbol("questionmark.app"),
+                            countsUsage: false, run: { _ in })
+        }
     }
 
     private func shortcutField(for entry: CommandBarEntry, shortcut: GlobalShortcut?) -> some View {
