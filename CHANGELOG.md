@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
+More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection. The Command Bar can convert heights entered in feet and inches.
 
 ### Added
 - The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
@@ -36,10 +36,11 @@ More reliable window switching, audio, notifications and display controls, with 
 - Compact media workspaces use one scroll region, keeping controls reachable and allowing floating panels to grow again when more space becomes available. Thanks to @kit101.
 - Playback, volume and brightness sliders follow the pointer across their full track. Thanks to @stieludv.
 - Command Bar outlines selected results and actions so the selection remains visible on dark surfaces, preserving red for destructive actions. Thanks to @heyseere.
+- Command Bar recognizes lengths such as `5ft 11 in cm`, `5ft 11in in cm` and `5′11″ to cm`. Thanks to @andy-kelly for the report.
 - The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @maxmeis, @mevichitra, @nikigan, @nisayera, @phatina, @samueljim, @stieludv, @sugar-king, @victorioustr, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @maxmeis, @mevichitra, @nikigan, @nisayera, @phatina, @samueljim, @stieludv, @sugar-king, @victorioustr, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
