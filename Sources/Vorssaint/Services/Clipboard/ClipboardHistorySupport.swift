@@ -1193,6 +1193,18 @@ enum ClipboardHistorySensitiveText {
 }
 
 enum ClipboardHistoryImageSupport {
+    /// An image copied in Finder lands as a one-file entry, so it gets the
+    /// same Edit action as an image copied from a browser.
+    static func canEdit(_ entry: ClipboardHistoryEntry) -> Bool {
+        entry.kind == .image || copiedImageFileURL(entry) != nil
+    }
+
+    static func copiedImageFileURL(_ entry: ClipboardHistoryEntry) -> URL? {
+        guard entry.kind == .files, entry.filePaths.count == 1,
+              isImageFileName(entry.filePaths[0]) else { return nil }
+        return URL(fileURLWithPath: entry.filePaths[0])
+    }
+
     static func editorImage(for entry: ClipboardHistoryEntry, directory: URL) -> NSImage? {
         guard entry.kind == .image, let name = entry.imageFile,
               !name.isEmpty, (name as NSString).lastPathComponent == name

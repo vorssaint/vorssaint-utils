@@ -37,10 +37,12 @@ struct ClipboardHistoryImageEditorTests {
         static let shared = ScreenshotService()
         var capture: ScreenshotSelectionController.Capture?
         var openedOnMain = false
+        var editedFile: URL?
         func openEditor(with capture: ScreenshotSelectionController.Capture) {
             self.capture = capture
             openedOnMain = Thread.isMainThread
         }
+        func editImage(at url: URL) { editedFile = url }
     }
     private static func pump(until done: () -> Bool) {
         let deadline = Date(timeIntervalSinceNow: 2)
@@ -112,6 +114,22 @@ struct ClipboardHistoryImageEditorTests {
                                 ClipboardHistoryEntry(text: "", kind: .image, imageFile: "../older.png")] {
                 suite.expect(ClipboardHistoryImageSupport.editorImage(for: unsupported, directory: directory) == nil,
                              "only a named image inside the history store can be edited")
+            }
+            let copiedFile = ClipboardHistoryEntry(text: "", kind: .files, filePaths: ["/Users/me/Desktop/shot.png"])
+            ScreenshotService.shared.capture = nil
+            ScreenshotService.shared.editedFile = nil
+            host.hidden = false
+            host.editImage(copiedFile)
+            suite.expect(ScreenshotService.shared.editedFile?.path == "/Users/me/Desktop/shot.png" && host.hidden
+                            && ScreenshotService.shared.capture == nil,
+                         "an image file copied in Finder opens through the editor's file import")
+            suite.expect(ClipboardHistoryImageSupport.canEdit(entry) && ClipboardHistoryImageSupport.canEdit(copiedFile),
+                         "a copied image and a copied image file both offer Edit")
+            for other in [ClipboardHistoryEntry(text: "plain text"),
+                          ClipboardHistoryEntry(text: "", kind: .files, filePaths: ["/Users/me/notes.txt"]),
+                          ClipboardHistoryEntry(text: "", kind: .files, filePaths: ["/Users/me/a.png", "/Users/me/b.png"])] {
+                suite.expect(!ClipboardHistoryImageSupport.canEdit(other),
+                             "text, other files and multi-file entries do not offer image Edit")
             }
         } catch {
             suite.expect(false, "history image editor fixture: \(error)")
