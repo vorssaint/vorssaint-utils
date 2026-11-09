@@ -37,6 +37,7 @@ struct MetricsTests {
                 SuperKeyTapContract.run(suite)
                 PointerScreenContract.run(suite)
             }),
+            ("globe-key", { GlobeKeyTests.run(suite) }),
             ("scroll-modifier", {
                 ScrollHorizontalModifierTests.run(suite)
                 ScrollZoomFocusTests.run(suite)

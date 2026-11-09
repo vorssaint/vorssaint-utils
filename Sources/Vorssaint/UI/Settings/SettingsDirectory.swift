@@ -596,6 +596,9 @@ enum SettingsDirectory {
                                       keywords: SuperKeySource.allCases.map {
                                           FeatureStrings.superKey(language).sourceLabel($0)
                                       }),
+                SettingsDirectoryItem(page: .globeKey,
+                                      title: FeatureStrings.globeKey(language).pageTitle,
+                                      icon: "globe"),
                 SettingsDirectoryItem(page: .textSnippets,
                                       title: FeatureStrings.snippets(language).pageTitle,
                                       icon: "text.append",
