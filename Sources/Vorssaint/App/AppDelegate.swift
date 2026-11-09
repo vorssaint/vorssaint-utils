@@ -9,6 +9,7 @@ import SwiftUI
 import UserNotifications
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSWindowDelegate {
+    var configuredFeatureKeys: Set<String> = []
     private var statusController: StatusItemController!
     private let popover = NSPopover()
     private var popoverDismissMonitor: Any?
@@ -97,7 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.
-        FeaturePreset.prepareFirstRunAvailability()
+        FeaturePreset.prepareFirstRunAvailability(preserving: configuredFeatureKeys)
 
         // Redo a launch at login registration the system lost. The stored
         // choice is the last thing the user expressed in the app; startup

@@ -1258,6 +1258,14 @@ enum AppManagementFeatureTests {
                "identifiers with no installed relative are unowned")
         suite.expect(!CleanerSupport.isOwned(candidate: "com.makerapp.tool", byInstalled: ["com.maker.app"]),
                "prefix ownership requires a dot boundary, not a string prefix")
+        suite.expect(CleanerSupport.isOwnedSupportDomain("Battle.net", byInstalled: ["net.battle.app"])
+               && CleanerSupport.isOwnedSupportDomain("maker.com", byInstalled: ["com.maker"]),
+               "a domain named support folder is owned by the installed app under its reverse")
+        suite.expect(!CleanerSupport.isOwnedSupportDomain("battle.net", byInstalled: ["net.battlefield.app"])
+               && !CleanerSupport.isOwnedSupportDomain("battle.net", byInstalled: ["com.battle.app"])
+               && !CleanerSupport.isOwnedSupportDomain("github.io", byInstalled: ["io.github.someone.tool"])
+               && !CleanerSupport.isOwnedSupportDomain("com.maker.app", byInstalled: ["app.maker.com"]),
+               "reverse ownership needs a dot boundary, two parts and no hosting namespace")
         suite.expect(CleanerSupport.executablePaths(inLaunchPlist: [
                    "Program": "/Applications/Gone.app/Contents/MacOS/agent",
                    "ProgramArguments": ["/usr/local/bin/gone-tool", "--flag"],
