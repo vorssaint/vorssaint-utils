@@ -48,6 +48,62 @@ enum PreferencesFeatureTests {
                "liquid glass in other windows is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.notchLiquidGlassEnabled] as? Bool == false,
                "liquid glass in Dynamic Island is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.appAccentColor] as? String == "",
+               "the app follows the Mac's accent colour until the user picks one")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.appAccentColor),
+               "a chosen accent colour follows settings backups")
+        // Accent colour storage: an absent, empty or malformed value has to
+        // keep the app on the system accent rather than paint an invalid one.
+        suite.expect(AppAccentColor.sanitized(nil) == nil, "an unset accent colour follows the Mac")
+        suite.expect(AppAccentColor.sanitized("") == nil, "an empty accent colour follows the Mac")
+        suite.expect(AppAccentColor.sanitized("not a colour") == nil,
+               "a malformed accent colour follows the Mac instead of painting")
+        suite.expect(AppAccentColor.sanitized("007aff") == "#007AFF",
+               "an accent colour without a leading hash is accepted and normalised")
+        suite.expect(AppAccentColor.sanitized("  #af52de  ") == "#AF52DE",
+               "an accent colour is trimmed and upper-cased the same way the usage-bar colours are")
+        suite.expect(AppAccentColor.sanitized("#ABCDE") == nil,
+               "a five-digit accent colour is rejected")
+        suite.expect(AppAccentColor.sanitized("#ZZZZZZ") == nil,
+               "a non-hex accent colour is rejected")
+        let accentDomain = "vorss.tests.accent-color.\(UUID().uuidString)"
+        let accentDefaults = UserDefaults(suiteName: accentDomain)!
+        defer { accentDefaults.removePersistentDomain(forName: accentDomain) }
+        suite.expect(AppAccentColor.storedHex(defaults: accentDefaults) == nil,
+               "a fresh domain has no accent colour and follows the Mac")
+        accentDefaults.set("28cd41", forKey: DefaultsKey.appAccentColor)
+        suite.expect(AppAccentColor.storedHex(defaults: accentDefaults) == "#28CD41",
+               "a stored accent colour is read back normalised")
+        accentDefaults.set("garbage", forKey: DefaultsKey.appAccentColor)
+        suite.expect(AppAccentColor.storedHex(defaults: accentDefaults) == nil,
+               "a hand-edited accent colour falls back to the Mac")
+        // The presets are the swatches the appearance menu offers, so their
+        // stored form has to be exactly what selection compares against.
+        suite.expect(AppAccentColor.presets.count >= 8,
+               "the accent menu offers a useful set of colours")
+        suite.expect(Set(AppAccentColor.presets.map(\.hex)).count == AppAccentColor.presets.count,
+               "no two accent presets paint the same colour")
+        suite.expect(AppAccentColor.presets.allSatisfy { AppAccentColor.sanitized($0.hex) == $0.hex },
+               "every preset is stored in the same canonical form it is compared with")
+        suite.expect(AppAccentColor.presets.allSatisfy {
+                   AppAccentColor.matches($0.hex, preset: $0)
+               },
+               "each preset matches itself")
+        suite.expect(!AppAccentColor.matches("#007AFF", preset: AppAccentColor.presets[1]),
+               "a preset does not match a different preset's colour")
+        suite.expect(!AppAccentColor.matches(nil, preset: AppAccentColor.presets[0]),
+               "no stored colour matches no preset")
+        // A value read back from disk can be spelled differently (lower case,
+        // no leading hash); matching has to normalise both sides or the menu
+        // would fail to show the colour as selected.
+        suite.expect(AppAccentColor.matches("007aff", preset: AppAccentColor.presets[0]),
+               "a stored colour without a hash still matches its preset")
+        suite.expect(AppAccentColor.matches("  #AF52DE ", preset: AppAccentColor.presets[1]),
+               "a stored colour in mixed case and spacing still matches its preset")
+        suite.expect(!AppAccentColor.presets.contains { $0.color == .accent },
+               "the menu does not offer accent as a preset, since it means the live app accent")
+        suite.expect(AppAccentColor.hex(red: 1, green: 0, blue: 0) == "#FF0000",
+               "a picked colour is written as canonical upper-case hex")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.liquidGlassEnabled),
                "liquid glass in other windows follows settings backups")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchLiquidGlassEnabled),

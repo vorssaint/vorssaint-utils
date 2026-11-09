@@ -3382,7 +3382,7 @@ final class CommandBarService: ObservableObject {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CommandBarView())
+        let host = NSHostingController(rootView: CommandBarView().appAccentTint())
         host.sizingOptions = .preferredContentSize
         panel.contentViewController = host
         self.panel = panel

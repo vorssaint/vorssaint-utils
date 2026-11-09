@@ -359,6 +359,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/RadialMenuStrings.swift
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
+        Sources/Vorssaint/App/AppAppearanceController.swift
+        Sources/Vorssaint/Core/AppAccentColor.swift
+        Sources/Vorssaint/UI/AppAccentTint.swift
         Sources/Vorssaint/Core/AppearanceStrings.swift
         Sources/Vorssaint/Core/GeneralSettingsStrings.swift
         Sources/Vorssaint/Core/SettingsPageStrings.swift
