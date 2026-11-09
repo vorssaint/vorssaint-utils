@@ -2391,6 +2391,8 @@ def main():
         "    private func syncLidDimmingObserver(",
         "    private func lidStateMayHaveChangedForDimming(",
         "    private func applyDimmingAction(",
+        "    private func requestRealDisplaySleepForDimming(",
+        "    private func resumeDisplayAssertionAfterDimming(",
         "    private func attemptDisplayRestore(",
     ]
     write("KeepAwakeLidSleep.swift", "import Foundation\nimport os\n\nextension KeepAwakeLidSleepContract {\n"
@@ -2413,13 +2415,16 @@ def main():
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
           + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
+          + "var hasDisplayAssertion = false\nvar displayAssertion = 0\n"
+          + "var displayAssertionSuspendedForDimming = false\n"
+          + "static func hasExternalDisplay() -> Bool? { KeepAwakeLidSleepContract.externalDisplay }\n"
           + declaration(keep_awake, "    @Published private(set) var clamshellActive = false {")
                 .replace("@Published private(set) ", "", 1)
           + declaration(keep_awake, "    @Published var clamshellPreferred:").replace("@Published ", "", 1)
           + declaration(keep_awake, "    @Published var dimScreenOnLidClose: Bool {").replace("@Published ", "", 1)
           + "init() { clamshellPreferred = true; dimScreenOnLidClose = false }\n"
           + "func syncScreenLockMonitoring() {}\nfunc applyAssertions() { assertionsHeld = true }\n"
-          + "func releaseAssertions() { assertionsHeld = false }\nfunc scheduleEnd(at date: Date) {}\n"
+          + "func releaseAssertions() { assertionsHeld = false; displayAssertionSuspendedForDimming = false }\nfunc scheduleEnd(at date: Date) {}\n"
           + "func startBatteryWatch() {}\nfunc stopBatteryWatch() {}\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"
           + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("

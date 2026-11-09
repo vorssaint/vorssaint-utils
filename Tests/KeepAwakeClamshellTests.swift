@@ -105,8 +105,13 @@ extension KeepAwakeLidSleepContract {
     enum Shell {
         static var status: Int32 = 0
         static var output: String?
+        /// Every command run, executable first, so a test can tell an
+        /// immediate display sleep request apart from the pmset state probes.
+        static var commands: [[String]] = []
+        @discardableResult
         static func run(_ executable: String, _ arguments: [String]) -> (status: Int32, output: String) {
-            (status, output ?? "SleepDisabled \(Sudoers.disabled ? 1 : 0)")
+            commands.append([executable] + arguments)
+            return (status, output ?? "SleepDisabled \(Sudoers.disabled ? 1 : 0)")
         }
     }
     static var onSleep: (() -> Void)?
