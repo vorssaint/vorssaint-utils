@@ -6,7 +6,10 @@ import AppKit
 /// Production routing and lifecycle with controlled event delivery, never posted input.
 enum NotchScreenEdgeClickTests {
     final class Panel { var isVisible = true; var ignoresMouseEvents = false }
-    final class Host { var acceptsPoint = true; func containsDestination(_ point: CGPoint) -> Bool { acceptsPoint } }
+    final class Host {
+        var acceptsPoint = true, isConcealedForMissionControl = false
+        func containsDestination(_ point: CGPoint) -> Bool { acceptsPoint }
+    }
     enum NSScreen {
         static var withMenuBar: Screen? = Screen()
         struct Screen { let frame = CGRect(x: 0, y: 0, width: 1470, height: 956) }
@@ -39,12 +42,25 @@ enum NotchScreenEdgeClickTests {
         static let shared = NotchNotificationService()
         var openingID: UUID?
         var requested: [UUID] = []
-        func open(_ id: UUID, completion: @escaping (ActionResult) -> Void) { requested.append(id); completion(.handedOff) }
+        var delaysResult = false
+        var completion: ((ActionResult) -> Void)?
+        func open(_ id: UUID, completion: @escaping (ActionResult) -> Void) {
+            requested.append(id)
+            if delaysResult { openingID = id; self.completion = completion }
+            else { completion(.handedOff) }
+        }
+        func finish(_ result: ActionResult) {
+            let pending = completion
+            completion = nil
+            openingID = nil
+            pending?(result)
+        }
     }
     class State {
         var running = true, suspended = false, expanded = false, peeking = false
         var captureControls: Bool?, notice: NotchNotice?, departingNotice: NotchNotice?
         var noticeExpanded = false
+        var hiddenInFullscreen = false, routesNotices = true
         var dragPlaceholder = false, heldDrag = false, compactActivityIsVisible = false, keepsWorkingSurface = false
         var panel: Panel? = Panel()
         var windowHost: Host? = Host()
@@ -52,13 +68,16 @@ enum NotchScreenEdgeClickTests {
                                      safeAreaTop: 32, cameraWidth: 180)
         var compactActivityGeometry: NotchGeometry { geometry }
         var hoverEmphasized = false
+        var bannerCapsuleWidth: CGFloat = 0
         var surfaceSize: CGSize {
-            if notice != nil { return CGSize(width: 420, height: geometry.stripHeight) }
+            if let notice {
+                return geometry.floats ? capsuleNoticeSize(notice) : geometry.noticeSize(wings: notice.wings(in: geometry))
+            }
             let size = peeking ? geometry.expanded : compactActivityIsVisible ? geometry.compactActivitySize : geometry.collapsed
             return hoverEmphasized ? NotchHoverEmphasis.size(from: size, geometry: geometry) : size
         }
         var screenEdgeClickMonitors: [Any] = []
-        var screenEdgePressArea: CGRect?
+        var screenEdgePress: (area: CGRect, point: CGPoint, notice: NotchNotice?)?
         var hoverWork: DispatchWorkItem?
         var hoverState = NotchHoverState()
         var compactActivity: NotchCompactActivity?
@@ -130,7 +149,7 @@ enum NotchScreenEdgeClickTests {
             disable(service)
             service.syncScreenEdgeClicks()
             service.handleScreenEdgeClick(.leftMouseUp, at: point, isNotchWindow: false)
-            suite.expect(service.openings == 0 && service.screenEdgePressArea == nil
+            suite.expect(service.openings == 0 && service.screenEdgePress == nil
                    && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                    "leaving an eligible presentation cancels the press and removes every monitor")
         }
@@ -159,7 +178,7 @@ enum NotchScreenEdgeClickTests {
                      "a click the hover pulse grows under still opens the island")
         late.removeScreenEdgeClickMonitors()
         let service = Service()
-        service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0)
+        service.geometry = NotchGeometry(screen: service.geometry.screen, safeAreaTop: 0, cameraWidth: 0, compactSideRoom: 0)
         service.compactActivityIsVisible = true
         service.syncScreenEdgeClicks()
         suite.expect(service.screenEdgeClickArea?.width == service.geometry.cameraWidth
@@ -178,12 +197,13 @@ enum NotchScreenEdgeClickTests {
         countdown.handleScreenEdgeClick(.leftMouseUp, at: countdownPoint, isNotchWindow: false)
         suite.expect(countdown.countdownOpenings == 1 && countdown.openings == 0,
                      "clicking the top edge over an event countdown opens on its event")
+        countdown.removeScreenEdgeClickMonitors()
         // A capsule floats below the top edge; the menu bar above it still
         // opens it, and the capsule itself takes its own clicks.
         for (depth, opens) in [(CGFloat(0), true), (1.5, true), (2.5, true), (3.5, false)] {
             let capsule = Service()
             capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
-                                             silhouette: .capsule)
+                                             compactSideRoom: 64, silhouette: .capsule)
             capsule.syncScreenEdgeClicks()
             let point = CGPoint(x: capsule.geometry.screen.midX, y: capsule.geometry.screen.maxY - depth)
             capsule.handleScreenEdgeClick(.leftMouseDown, at: point, isNotchWindow: false)
@@ -193,6 +213,9 @@ enum NotchScreenEdgeClickTests {
             capsule.removeScreenEdgeClickMonitors()
         }
         runNotices(suite)
+        runBannerChanges(suite)
+        runMenuClearance(suite)
+        runChangingNotices(suite)
     }
 
     private static func runNotices(_ suite: TestSuite) {
@@ -226,17 +249,24 @@ enum NotchScreenEdgeClickTests {
                      "a click on a closing notice opens its page")
         let stale = Service()
         stale.notice = volume
+        stale.departingNotice = track
         stale.activateNotice(track)
-        suite.expect(stale.openings == 0 && stale.notice == volume, "a click on a notice no longer shown opens nothing")
-        // A press lands on the notice and the notice ends before the release.
-        let expiring = Service()
-        expiring.notice = track
-        expiring.syncScreenEdgeClicks()
-        let expiringTop = CGPoint(x: expiring.geometry.screen.midX, y: expiring.geometry.screen.maxY)
-        expiring.handleScreenEdgeClick(.leftMouseDown, at: expiringTop, isNotchWindow: false)
-        expiring.notice = nil
-        expiring.handleScreenEdgeClick(.leftMouseUp, at: expiringTop, isNotchWindow: false)
-        suite.expect(expiring.openings == 1, "a notice ending between press and release keeps the click")
+        suite.expect(stale.openings == 0 && stale.notice == volume, "a superseded outgoing button leaves the new notice alone")
+        // The normal activity is Calendar. Releasing this press must still select Music.
+        for stillDeparting in [true, false] {
+            let expiring = Service()
+            expiring.compactActivity = .calendar
+            expiring.notice = track
+            expiring.syncScreenEdgeClicks()
+            let top = CGPoint(x: expiring.geometry.screen.midX, y: expiring.geometry.screen.maxY)
+            menuBarEvent(.leftMouseDown, at: top)
+            expiring.notice = nil
+            expiring.departingNotice = stillDeparting ? track : nil
+            expiring.syncScreenEdgeClicks()
+            menuBarEvent(.leftMouseUp, at: top)
+            suite.expect(expiring.openings == 1 && expiring.opened == .music && expiring.countdownOpenings == 0,
+                         "the press keeps Music through the outgoing animation and after expiry")
+        }
         // A press lands on the resting island and a notice arrives before the release.
         let arriving = Service()
         arriving.syncScreenEdgeClicks()
@@ -244,8 +274,8 @@ enum NotchScreenEdgeClickTests {
         arriving.handleScreenEdgeClick(.leftMouseDown, at: arrivingTop, isNotchWindow: false)
         arriving.notice = volume
         arriving.handleScreenEdgeClick(.leftMouseUp, at: arrivingTop, isNotchWindow: false)
-        suite.expect(arriving.openings == 1 && arriving.opened == .controls,
-                     "a notice arriving between press and release keeps the click")
+        suite.expect(arriving.openings == 1 && arriving.opened == nil,
+                     "a press on the resting island keeps its normal opening when a notice arrives")
         // The menu bar still gets the click, so the items under a notice's wings keep theirs alone.
         let winged = Service()
         winged.notice = track
@@ -260,10 +290,11 @@ enum NotchScreenEdgeClickTests {
         // A capsule leaves the menu bar above it to the island, end to end.
         let capsule = Service()
         capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
-                                         silhouette: .capsule)
-        capsule.notice = track
+                                         compactSideRoom: 160, silhouette: .capsule)
+        capsule.notice = NotchNotice(event: .track, title: "A song with a long title", detail: "A long artist name", symbol: "music.note")
         capsule.syncScreenEdgeClicks()
-        let end = CGPoint(x: capsule.geometry.screen.midX + 150, y: capsule.geometry.screen.maxY)
+        let end = CGPoint(x: capsule.geometry.screen.midX + capsule.surfaceSize.width / 2 - NotchCapsuleLayout.side(capsule.geometry) - 1,
+                          y: capsule.geometry.screen.maxY)
         capsule.handleScreenEdgeClick(.leftMouseDown, at: end, isNotchWindow: false)
         capsule.handleScreenEdgeClick(.leftMouseUp, at: end, isNotchWindow: false)
         suite.expect(capsule.openings == 1 && capsule.opened == .music,
@@ -280,5 +311,134 @@ enum NotchScreenEdgeClickTests {
         suite.expect(NotchNotificationService.shared.requested.last == id && banner.openings == 0,
                      "a top-edge click on a banner opens its notification, not the island")
         banner.removeScreenEdgeClickMonitors()
+    }
+
+    private static func menuBarEvent(_ type: NSEvent.EventType, at point: CGPoint) {
+        for handler in Array(NSEvent.global.values) { handler(NSEvent(type, point: point)) }
+    }
+
+    private static func runBannerChanges(_ suite: TestSuite) {
+        let notifications = NotchNotificationService.shared
+        let first = NotchNotice(event: .systemNotification, title: "First", detail: "", symbol: "bell", notificationID: UUID())
+        let nextID = UUID()
+        let next = NotchNotice(event: .systemNotification, title: "Next", detail: "", symbol: "bell", notificationID: nextID)
+        let service = Service()
+        let top = CGPoint(x: service.geometry.screen.midX, y: service.geometry.screen.maxY)
+        defer {
+            service.removeScreenEdgeClickMonitors()
+            notifications.delaysResult = false
+            notifications.requested.removeAll()
+        }
+        notifications.requested.removeAll()
+        service.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseDown, at: top)
+        service.notice = first
+        service.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseUp, at: top)
+        suite.expect(service.notice == first && service.openings == 0 && notifications.requested.isEmpty,
+                     "a banner arriving over a resting press keeps its message and its native action")
+        for expires in [false, true] {
+            service.notice = first
+            service.syncScreenEdgeClicks()
+            menuBarEvent(.leftMouseDown, at: top)
+            service.notice = next
+            service.syncScreenEdgeClicks()
+            if expires { service.notice = nil; service.syncScreenEdgeClicks() }
+            menuBarEvent(.leftMouseUp, at: top)
+            suite.expect(notifications.requested.isEmpty && service.openings == 0,
+                         "a replacement cancels the old press even if the replacement also expires")
+        }
+        // A fresh click on the replacement is valid. Its completion may come after another arrival.
+        service.notice = next
+        notifications.delaysResult = true
+        service.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseDown, at: top)
+        menuBarEvent(.leftMouseUp, at: top)
+        suite.expect(notifications.requested == [nextID] && service.openings == 0,
+                     "a new press opens the replacement notification by its own id")
+        service.notice = first
+        notifications.finish(.unavailable)
+        suite.expect(service.notice == first && service.openings == 0, "a late failure leaves the next banner visible")
+        menuBarEvent(.leftMouseDown, at: top)
+        menuBarEvent(.leftMouseUp, at: top)
+        notifications.finish(.uncertain)
+        suite.expect(service.opened == .notifications && service.notice == nil,
+                     "a failed action for the banner still on screen opens the inbox")
+    }
+
+    private static func runMenuClearance(_ suite: TestSuite) {
+        for silhouette in [NotchSilhouette.capsule, .notch] {
+            let service = Service()
+            let screen = service.geometry.screen
+            service.geometry = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, silhouette: silhouette)
+            service.notice = volume
+            let top = CGPoint(x: screen.midX, y: screen.maxY)
+            let menu = CGRect(x: top.x - 10, y: top.y - 24, width: 20, height: 24)
+            let blocked = NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: service.geometry.cameraWidth,
+                                                      barHeight: 24, occupied: [menu])
+            service.syncScreenEdgeClicks()
+            suite.expect(blocked == nil && service.screenEdgeClickMonitors.isEmpty,
+                         "a notice without a verified center leaves the top row with the menu")
+            service.applyMenuSpace(0)
+            menuBarEvent(.leftMouseDown, at: top)
+            service.applyMenuSpace(blocked)
+            suite.expect(service.screenEdgeClickMonitors.isEmpty && service.screenEdgePress == nil,
+                         "a menu taking the simulated center cancels the press")
+            service.applyMenuSpace(0)
+            menuBarEvent(.leftMouseUp, at: top)
+            suite.expect(service.openings == 0, "restoring clearance never rearms an interrupted press")
+            menuBarEvent(.leftMouseDown, at: top)
+            menuBarEvent(.leftMouseUp, at: top)
+            suite.expect(service.openings == 1 && service.opened == .controls,
+                         "a verified center takes a new click even with zero free room beside it")
+            service.removeScreenEdgeClickMonitors()
+        }
+    }
+
+    private static func runChangingNotices(_ suite: TestSuite) {
+        let meter = Service()
+        let top = CGPoint(x: meter.geometry.screen.midX, y: meter.geometry.screen.maxY)
+        let reading = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker", level: 0.5)
+        meter.notice = reading
+        meter.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseDown, at: top)
+        meter.notice = NotchNotice(event: .volume, title: "Volume", detail: "60%", symbol: "speaker", level: 0.6)
+        meter.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseUp, at: top)
+        suite.expect(meter.opened == .controls, "an updated level keeps the original control's click")
+
+        let wing = Service()
+        wing.geometry = NotchGeometry(screen: wing.geometry.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 64)
+        wing.syncScreenEdgeClicks()
+        let beside = CGPoint(x: top.x + wing.geometry.cameraWidth / 2 + 8, y: top.y)
+        menuBarEvent(.leftMouseDown, at: beside)
+        wing.notice = volume
+        wing.syncScreenEdgeClicks()
+        menuBarEvent(.leftMouseUp, at: beside)
+        suite.expect(wing.openings == 0 && wing.notice == volume, "a notice arriving under a resting wing leaves the release to the menu")
+        menuBarEvent(.leftMouseDown, at: top)
+        wing.notice = nil
+        wing.routesNotices = false
+        menuBarEvent(.leftMouseUp, at: top)
+        suite.expect(wing.openings == 0, "turning the notice off during a press cancels its action")
+        wing.removeScreenEdgeClickMonitors()
+
+        for room in [CGFloat(0), 160] {
+            let capsule = Service()
+            capsule.geometry = NotchGeometry(screen: capsule.geometry.screen, safeAreaTop: 0, cameraWidth: 0,
+                                             compactSideRoom: 160, silhouette: .capsule)
+            capsule.notice = NotchNotice(event: .track, title: "A long track title that fills the capsule", detail: "Artist", symbol: "music.note")
+            let point = CGPoint(x: top.x + capsule.geometry.cameraWidth / 2 + 8, y: top.y)
+            capsule.syncScreenEdgeClicks()
+            menuBarEvent(.leftMouseDown, at: point)
+            suite.expect(capsule.screenEdgePress != nil, "the wide notice took the original press")
+            capsule.notice = nil
+            capsule.applyMenuSpace(room)
+            capsule.windowHost?.acceptsPoint = false
+            menuBarEvent(.leftMouseUp, at: point)
+            suite.expect(capsule.opened == (room == 0 ? nil : .music),
+                         "a capsule shrinking under a stationary press keeps its action only while the menu bar still has room")
+            capsule.removeScreenEdgeClickMonitors()
+        }
     }
 }
