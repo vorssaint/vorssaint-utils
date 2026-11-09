@@ -21,17 +21,16 @@ struct KeyboardDebounceSettings: View {
 
     var body: some View {
         Form {
-            Section(l10n.s.keyDebounceName) {
+            Section {
                 Toggle(l10n.s.keyDebounceEnable, isOn: $enabled)
+                    .toggleStyle(.switch)
                     .onChange(of: enabled) { _, value in
                         KeyboardDebounceService.shared.syncWithPreferences()
                         guard value, !permissions.accessibility else { return }
                         permissions.requestAccessibility()
                         permissions.openAccessibilitySettings()
                     }
-                Text(l10n.s.keyDebounceCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .modifier(FeaturePrimaryToggleModifier(feature: .keyboardDebounce))
                 if enabled, debounce.isRunning {
                     Label(l10n.s.keyDebounceActiveNow, systemImage: "checkmark.circle.fill")
                         .font(.caption)

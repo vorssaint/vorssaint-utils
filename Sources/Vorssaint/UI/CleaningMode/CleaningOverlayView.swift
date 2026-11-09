@@ -10,16 +10,27 @@ import SwiftUI
 struct CleaningOverlayView: View {
     @ObservedObject private var manager = CleaningModeManager.shared
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var keepScreenVisible = false
 
     var body: some View {
         ZStack {
             if keepScreenVisible {
                 Color.clear.ignoresSafeArea()
-                compactCornerHUD
+                if notch.notice?.event != .cleaningMode {
+                    compactCornerHUD
+                }
             } else {
                 Color.black.ignoresSafeArea()
                 fullBlackoutContent
+            }
+        }
+        .onChange(of: keepScreenVisible) {
+            guard manager.isActive else { return }
+            if keepScreenVisible {
+                notch.showCleaningMode()
+            } else {
+                notch.retractCleaningModeNotice()
             }
         }
     }

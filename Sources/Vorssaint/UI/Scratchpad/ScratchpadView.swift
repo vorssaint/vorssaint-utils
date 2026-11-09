@@ -251,7 +251,21 @@ struct ScratchpadView: View {
                 .padding(.leading, 12)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
-                .overlay(ScratchpadDragHandle())
+                .overlay(ScratchpadDragHandle { point in
+                    service.dockIntoIslandIfDropped(at: point)
+                })
+            Button {
+                service.moveIntoIsland()
+            } label: {
+                Image(systemName: "arrow.up.to.line")
+                    .font(.system(size: 12, weight: .semibold))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(text.moveToIsland)
+            .accessibilityLabel(text.moveToIsland)
             Button {
                 service.togglePin()
             } label: {
@@ -396,17 +410,32 @@ private enum ScratchpadDialog {
 /// A transparent strip over the header that moves the whole panel when
 /// dragged; everything below it stays free for text selection.
 private struct ScratchpadDragHandle: NSViewRepresentable {
+    let onDragEnded: (CGPoint) -> Void
+
     func makeNSView(context: Context) -> DragHandleView {
-        DragHandleView()
+        DragHandleView(onDragEnded: onDragEnded)
     }
 
-    func updateNSView(_ nsView: DragHandleView, context: Context) {}
+    func updateNSView(_ nsView: DragHandleView, context: Context) {
+        nsView.onDragEnded = onDragEnded
+    }
 
     final class DragHandleView: NSView {
+        var onDragEnded: (CGPoint) -> Void
+
+        init(onDragEnded: @escaping (CGPoint) -> Void) {
+            self.onDragEnded = onDragEnded
+            super.init(frame: .zero)
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { nil }
+
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
         override func mouseDown(with event: NSEvent) {
             window?.performDrag(with: event)
+            onDragEnded(NSEvent.mouseLocation)
         }
     }
 }

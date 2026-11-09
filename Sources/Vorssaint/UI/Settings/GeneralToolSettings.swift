@@ -244,6 +244,7 @@ private struct MusicBlockingSettings: View {
                     .onChange(of: enabled) { _, _ in
                         musicBlocker.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .musicBlock))
             }
             if enabled {
                 if !permissions.accessibility {

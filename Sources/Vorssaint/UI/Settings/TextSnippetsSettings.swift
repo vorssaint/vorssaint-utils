@@ -32,6 +32,7 @@ struct TextSnippetsSettings: View {
                     .onChange(of: enabled) { _, _ in
                         TextSnippetService.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .textSnippets))
                 Text(text.enableCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)

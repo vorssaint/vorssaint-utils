@@ -267,6 +267,7 @@ extension NotchQuickAction {
         case .pin: return "pin"
         case .module(let module): return module.symbol
         case .control(let item): return item.symbol
+        case .shortcut(let id): return NotchCustomShortcutSupport.shortcut(id: id)?.symbol ?? "questionmark"
         }
     }
 
@@ -277,6 +278,7 @@ extension NotchQuickAction {
         case .pin: return FeatureStrings.notch(l10n.language).pin
         case .module(let module): return module.title(l10n.language)
         case .control(let item): return item.title(l10n)
+        case .shortcut(let id): return NotchCustomShortcutSupport.shortcut(id: id)?.name ?? ""
         }
     }
 }

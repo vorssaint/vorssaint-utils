@@ -192,7 +192,7 @@ struct MenuPanelView: View {
             OverlayScrollView(measuredHeight: $navigableContentHeight) {
                 Group {
                     if let selectedMetric { MetricDetailView(kind: selectedMetric) }
-                    else { section(for: activeSection, collapsible: false) }
+                    else { section(for: activeSection, collapsible: false).id(activeSection) }
                 }
                 .frame(width: size.width)
                 .environment(\.notchPresentation, true)
@@ -214,6 +214,7 @@ struct MenuPanelView: View {
             OverlayScrollView(measuredHeight: $navigableContentHeight) {
                 VStack(alignment: .leading, spacing: 12) {
                     section(for: activeSection, collapsible: false)
+                        .id(activeSection)
                 }
                 .frame(width: 308)
             }
@@ -425,6 +426,7 @@ struct MenuPanelView: View {
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
             .buttonStyle(.plain)
+            .accessibilityLabel(L10n.shared.s.actionBack)
             .foregroundStyle(.secondary)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)

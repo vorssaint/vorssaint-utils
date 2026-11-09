@@ -126,6 +126,9 @@ final class CleaningModeManager: ObservableObject {
         isActive = true
         installScreenObserver()
         showOverlays()
+        if UserDefaults.standard.bool(forKey: DefaultsKey.cleaningModeKeepScreenVisible) {
+            NotchService.shared.showCleaningMode()
+        }
     }
 
     func deactivate() {
@@ -182,6 +185,7 @@ final class CleaningModeManager: ObservableObject {
         mouseReleaseGate.reset()
         removeTap()
         removeScreenObserver()
+        NotchService.shared.retractCleaningModeNotice()
         hideOverlays()
         unlock.reset()
         unlockProgress = 0

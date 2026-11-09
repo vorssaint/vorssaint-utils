@@ -23,6 +23,7 @@ struct QuickLauncherView: View {
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var clipboardLimit = 50
+    @AppStorage(DefaultsKey.notchCustomShortcuts) private var customShortcutsData = Data()
 
     private var columns: [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: notchSize == nil ? 10 : 6), count: notchSize == nil ? QuickLauncherService.columns : NotchSupport.toolColumns)
@@ -43,6 +44,9 @@ struct QuickLauncherView: View {
                 emptyState
             } else {
                 grid
+            }
+            if launcher.activeUtility == nil, !launcher.isEditing {
+                toolsShortcutRow
             }
             if launcher.activeUtility == nil, launcher.isEditing,
                let optionsItem, hasQuickOptions(optionsItem) {
@@ -95,6 +99,10 @@ struct QuickLauncherView: View {
         .onChange(of: colorFormat) { _, _ in
             launcher.refreshPanelLayout()
         }
+        .onChange(of: customShortcutsData) { _, _ in
+            launcher.refreshAvailability()
+            launcher.refreshPanelLayout()
+        }
     }
 
     /// The utility runs right here inside the launcher; its own close button
@@ -118,6 +126,8 @@ struct QuickLauncherView: View {
                     PanelWindowLayoutView { launcher.closeUtility() }
                 case .toggles:
                     PanelQuickTogglesView { launcher.closeUtility() }
+                case .shortcuts:
+                    shortcutsPage
                 default:
                     EmptyView()
                 }
@@ -125,6 +135,78 @@ struct QuickLauncherView: View {
         }
         // The island's row holds the way back, so the utility has the page.
         .frame(height: notchSize?.height ?? 470)
+    }
+
+    @ViewBuilder
+    private var shortcutsPage: some View {
+        let shortcuts = NotchCustomShortcutSupport.stored()
+            .filter { $0.destinations.contains(.shortcutsPage) }
+        if shortcuts.isEmpty {
+            ContentUnavailableView(l10n.s.launcherEmptyState, systemImage: "command")
+        } else {
+            LazyVGrid(columns: columns, spacing: notchSize == nil ? 10 : 6) {
+                ForEach(shortcuts) { shortcut in
+                    Button {
+                        NotchCustomShortcutSupport.run(shortcut)
+                    } label: {
+                        VStack(spacing: 7) {
+                            Image(systemName: shortcut.symbol)
+                                .font(.system(size: 19, weight: .medium))
+                                .frame(width: 46, height: 46)
+                                .background(Color.primary.opacity(0.07), in: RoundedRectangle(cornerRadius: 12))
+                            Text(shortcut.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity, minHeight: 28, alignment: .top)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .contentShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("quickLauncher.shortcut.\(shortcut.id.uuidString)")
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var toolsShortcutRow: some View {
+        let shortcuts = NotchCustomShortcutSupport.stored()
+            .filter { $0.destinations.contains(.tools) }
+        if !shortcuts.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(NotchCustomShortcutStrings.localized(l10n.language).title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                ScrollView(.horizontal) {
+                    HStack(spacing: 6) {
+                        ForEach(shortcuts) { shortcut in
+                            Button {
+                                NotchCustomShortcutSupport.run(shortcut)
+                            } label: {
+                                VStack(spacing: 5) {
+                                    Image(systemName: shortcut.symbol)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .frame(width: notchSize == nil ? 38 : 32, height: notchSize == nil ? 38 : 32)
+                                        .background(Color.primary.opacity(notchSize == nil ? 0.07 : 0.12),
+                                                    in: RoundedRectangle(cornerRadius: 11))
+                                    Text(shortcut.name)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .lineLimit(1)
+                                        .frame(width: notchSize == nil ? 72 : 68)
+                                }
+                                .foregroundStyle(notchSize == nil ? Color.primary : Color.white)
+                                .contentShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityIdentifier("quickLauncher.toolsShortcut.\(shortcut.id.uuidString)")
+                        }
+                    }
+                }
+                .scrollIndicators(.hidden)
+            }
+        }
     }
 
     private var header: some View {
@@ -135,6 +217,13 @@ struct QuickLauncherView: View {
                     .frame(height: 30)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .accessibilityHidden(true)
+                    .overlay {
+                        if notchSize == nil {
+                            WindowMoveHandle(onDragEnded: { point in
+                                NotchService.shared.dockContentIfDropped(.tools, at: point)
+                            })
+                        }
+                    }
                 HStack {
                     if launcher.activeUtility != nil {
                         backButton
@@ -143,21 +232,25 @@ struct QuickLauncherView: View {
                     }
                     Spacer()
                     if launcher.activeUtility != nil {
+                        MoveContentToIslandButton(content: .tools)
                         closeButton
                     } else {
-                        Button {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                launcher.isEditing.toggle()
+                        HStack(spacing: 4) {
+                            MoveContentToIslandButton(content: .tools)
+                            Button {
+                                withAnimation(.easeOut(duration: 0.15)) {
+                                    launcher.isEditing.toggle()
+                                }
+                            } label: {
+                                Image(systemName: launcher.isEditing ? "checkmark.circle.fill" : "slider.horizontal.3")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(launcher.isEditing ? Color.accentColor : Color.secondary)
+                                    .frame(width: 26, height: 26)
                             }
-                        } label: {
-                            Image(systemName: launcher.isEditing ? "checkmark.circle.fill" : "slider.horizontal.3")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(launcher.isEditing ? Color.accentColor : Color.secondary)
-                                .frame(width: 26, height: 26)
+                            .buttonStyle(.plain)
+                            .help(l10n.s.launcherEditHint)
+                            .accessibilityLabel(l10n.s.menuSettings)
                         }
-                        .buttonStyle(.plain)
-                        .help(l10n.s.launcherEditHint)
-                        .accessibilityLabel(l10n.s.menuSettings)
                     }
                 }
             }
@@ -514,6 +607,7 @@ struct QuickLauncherView: View {
             return recorder.isRecording ? strings.stopButton : strings.pageTitle
         case .cameraPreview: return FeatureStrings.cameraPreview(l10n.language).pageTitle
         case .scratchpad: return FeatureStrings.scratchpad(l10n.language).pageTitle
+        case .shortcuts: return NotchCustomShortcutStrings.localized(l10n.language).title
         }
     }
 
@@ -536,6 +630,7 @@ struct QuickLauncherView: View {
         case .screenRecorder: return recorder.isRecording ? "stop.circle" : "record.circle"
         case .cameraPreview: return "web.camera"
         case .scratchpad: return "note.text"
+        case .shortcuts: return "command"
         }
     }
 

@@ -10,10 +10,55 @@ enum NotchTimerPhase: String { case timer, focus, shortBreak, longBreak, stopwat
 
 enum NotchTimerRulerScale {
     static let spacing = 14.0
+    static let maximumAcceleration = 3.0
+    static let speedForMaximumAcceleration = 900.0
+    static let velocitySmoothingDuration = 0.08
 
     static func moving(_ value: Double, by points: Double) -> Double {
         guard value.isFinite, points.isFinite else { return 1 }
         return min(180, max(1, value - points / spacing))
+    }
+
+    static func acceleration(for pointsPerSecond: Double) -> Double {
+        guard pointsPerSecond.isFinite else { return 1 }
+        let progress = cubicBezierProgress(
+            min(1, max(0, pointsPerSecond) / speedForMaximumAcceleration),
+            control1: CGPoint(x: 0.35, y: 0),
+            control2: CGPoint(x: 0.8, y: 1)
+        )
+        return 1 + (maximumAcceleration - 1) * progress
+    }
+
+    static func easedProgress(_ progress: Double) -> Double {
+        guard progress.isFinite else { return 0 }
+        return cubicBezierProgress(
+            min(1, max(0, progress)),
+            control1: CGPoint(x: 0.25, y: 0.1),
+            control2: CGPoint(x: 0.25, y: 1)
+        )
+    }
+
+    private static func cubicBezierProgress(_ x: Double, control1: CGPoint, control2: CGPoint) -> Double {
+        guard x > 0 else { return 0 }
+        guard x < 1 else { return 1 }
+
+        func coordinate(_ t: Double, first: CGFloat, second: CGFloat) -> Double {
+            let inverse = 1 - t
+            return 3 * inverse * inverse * t * Double(first)
+                + 3 * inverse * t * t * Double(second) + t * t * t
+        }
+
+        var lower = 0.0
+        var upper = 1.0
+        for _ in 0..<20 {
+            let parameter = (lower + upper) / 2
+            if coordinate(parameter, first: control1.x, second: control2.x) < x {
+                lower = parameter
+            } else {
+                upper = parameter
+            }
+        }
+        return coordinate((lower + upper) / 2, first: control1.y, second: control2.y)
     }
 
     static func minute(_ value: Double) -> Int {
@@ -21,17 +66,25 @@ enum NotchTimerRulerScale {
     }
 
     static func offset(of minute: Int, selected: Int) -> Double {
-        (Double(minute) - Double(selected)) * spacing
+        offset(of: minute, selected: Double(selected))
+    }
+
+    static func offset(of minute: Int, selected: Double) -> Double {
+        (Double(minute) - selected) * spacing
     }
 
     /// Keep the ruler filled near either end instead of centering a short
     /// duration over an empty half. The inset fits the hour labels as well.
     static func selectionX(selected: Int, width: Double) -> Double {
+        selectionX(selected: Double(selected), width: width)
+    }
+
+    static func selectionX(selected: Double, width: Double) -> Double {
         guard width.isFinite, width > 0 else { return 0 }
         let inset = min(24, width / 2)
-        let selected = min(180, max(1, selected))
-        let leading = Double(selected - 1) * spacing
-        let trailing = Double(180 - selected) * spacing
+        let selected = selected.isFinite ? min(180, max(1, selected)) : 1
+        let leading = (selected - 1) * spacing
+        let trailing = (180 - selected) * spacing
         if leading + trailing <= width - 2 * inset {
             return (width - leading - trailing) / 2 + leading
         }
@@ -40,6 +93,79 @@ enum NotchTimerRulerScale {
 
     static func label(for minute: Int) -> String {
         minute >= 60 ? NotchTimerSupport.hoursText(hours: minute / 60, minutes: minute % 60) : String(minute)
+    }
+}
+
+enum NotchTimerRulerFeedback {
+    static func pattern(distance: Double, speed: Double) -> NSHapticFeedbackManager.FeedbackPattern? {
+        guard distance.isFinite, distance > 0 else { return nil }
+        let easedDistance = distance * NotchTimerRulerScale.acceleration(for: speed)
+        if easedDistance >= 2.5 { return .generic }
+        if easedDistance >= 1 { return .levelChange }
+        return .alignment
+    }
+}
+
+/// Retains fractional movement and velocity across drag events so fast drags
+/// accelerate smoothly while a reversal immediately responds in the new direction.
+struct NotchTimerRulerDrag {
+    private(set) var value: Double
+    private var lastX: Double
+    private var lastTimestamp: TimeInterval
+    private var velocity: Double = 0
+    var speed: Double { abs(velocity) }
+
+    init(x: Double, value: Double, timestamp: TimeInterval) {
+        lastX = x.isFinite ? x : 0
+        self.value = NotchTimerRulerScale.moving(value, by: 0)
+        lastTimestamp = timestamp.isFinite ? timestamp : 0
+    }
+
+    mutating func move(to x: Double, at timestamp: TimeInterval) -> Double {
+        guard x.isFinite else { return value }
+        let points = x - lastX
+        let elapsed = timestamp - lastTimestamp
+        if elapsed.isFinite, elapsed > 0 {
+            if points == 0 {
+                velocity *= exp(-elapsed / NotchTimerRulerScale.velocitySmoothingDuration)
+            } else {
+                let instantaneousVelocity = points / elapsed
+                if velocity != 0, velocity.sign != instantaneousVelocity.sign {
+                    velocity = 0
+                }
+                let response = 1 - exp(-elapsed / NotchTimerRulerScale.velocitySmoothingDuration)
+                velocity += (instantaneousVelocity - velocity) * response
+            }
+        } else {
+            velocity = 0
+        }
+        value = NotchTimerRulerScale.moving(
+            value,
+            by: points * NotchTimerRulerScale.acceleration(for: abs(velocity))
+        )
+        lastX = x
+        if timestamp.isFinite { lastTimestamp = timestamp }
+        return value
+    }
+}
+
+struct NotchTimerRulerAnimation {
+    let from: Double
+    let to: Double
+    let startTime: TimeInterval
+    let duration: TimeInterval
+
+    func value(at time: TimeInterval) -> Double {
+        guard time.isFinite, startTime.isFinite, duration.isFinite, duration > 0 else { return to }
+        if time <= startTime { return from }
+        if isComplete(at: time) { return to }
+        let progress = min(1, max(0, (time - startTime) / duration))
+        return from + (to - from) * NotchTimerRulerScale.easedProgress(progress)
+    }
+
+    func isComplete(at time: TimeInterval) -> Bool {
+        !time.isFinite || !startTime.isFinite || !duration.isFinite || duration <= 0
+            || time >= startTime + duration
     }
 }
 
@@ -186,6 +312,25 @@ struct NotchTimerSession: Equatable {
 }
 
 enum NotchTimerSupport {
+    static func timerTileSymbol(for session: NotchTimerSession) -> String {
+        guard session.hasSession else { return "timer" }
+        if session.completed { return "checkmark" }
+        if session.isPaused { return "pause.fill" }
+        return session.countsUp ? "stopwatch" : "timer"
+    }
+
+    static func compactMarkSymbol(for session: NotchTimerSession) -> String {
+        if session.completed { return "checkmark.circle" }
+        if session.isPaused { return "pause.circle" }
+        return session.countsUp ? "stopwatch" : "timer.circle"
+    }
+
+    static func compactMarkVariableValue(for session: NotchTimerSession, at now: TimeInterval) -> Double? {
+        guard session.isRunning, !session.countsUp, now.isFinite,
+              session.duration.isFinite, session.duration > 0 else { return nil }
+        return min(1, max(0, session.reading(at: now) / session.duration))
+    }
+
     /// Hiding the countdown never disables the session or its completion
     /// alerts, and a finished timer shows in the closed island until it is
     /// dismissed. The expanded timer page remains available.

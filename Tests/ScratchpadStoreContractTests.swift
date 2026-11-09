@@ -14,6 +14,7 @@ import VMStatisticsCompat
 
 enum ScratchpadStoreContractTests {
     static func run(_ suite: TestSuite) {
+        transferSupport(suite)
         ScratchpadExportContract.run(suite)
         ScratchpadSaveContract.run(suite)
         let manager = FileManager.default
@@ -187,6 +188,105 @@ enum ScratchpadStoreContractTests {
                     && defaults.data(forKey: DefaultsKey.scratchpadDocument) == originalData,
                    "an unavailable private container never discards stored notes")
         }
+    }
+
+    private static func transferSupport(_ suite: TestSuite) {
+        let expected: [NotchTransferContent] = [.clipboard, .captures, .files, .tools, .camera]
+        let mapped = expected.compactMap {
+            NotchContentTransferSupport.standaloneContent(
+                for: $0.module,
+                captureContentActive: false,
+                captureWindowAvailable: true,
+                choosingFileDropDestination: false,
+                fileMediaPresented: false,
+                filesWindowAvailable: true,
+                cameraEmbeddedPresented: true)
+        }
+        suite.expect(mapped == expected
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .calendar,
+                        captureContentActive: false,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: true) == nil,
+                     "only island pages with matching standalone surfaces participate in shared transfer")
+        suite.expect(NotchContentTransferSupport.standaloneContent(
+                        for: .captures,
+                        captureContentActive: true,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: true) == nil
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .captures,
+                        captureContentActive: false,
+                        captureWindowAvailable: false,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: true) == nil
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .files,
+                        captureContentActive: false,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: true,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: true) == nil
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .files,
+                        captureContentActive: false,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: true,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: true) == nil
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .files,
+                        captureContentActive: false,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: false,
+                        cameraEmbeddedPresented: true) == nil
+                     && NotchContentTransferSupport.standaloneContent(
+                        for: .camera,
+                        captureContentActive: false,
+                        captureWindowAvailable: true,
+                        choosingFileDropDestination: false,
+                        fileMediaPresented: false,
+                        filesWindowAvailable: true,
+                        cameraEmbeddedPresented: false) == nil,
+                     "active capture, media-drop, and camera states are not torn out into mismatched windows")
+
+        suite.expect(!ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: 0, height: 67))
+                     && ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: 0, height: 68))
+                     && ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: 48, height: 68))
+                     && !ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: 100, height: 99))
+                     && !ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: 0, height: -120))
+                     && !ScratchpadTransferSupport.shouldTearOff(translation: CGSize(width: CGFloat.infinity, height: 200)),
+                     "only a deliberate, downward-dominant pull tears the scratchpad out")
+
+        let offset = ScratchpadTransferSupport.resistedOffset(for: CGSize(width: 180, height: 180))
+        suite.expect(offset.width > 0 && offset.height > offset.width
+                     && offset.width < 36 && offset.height < 36
+                     && ScratchpadTransferSupport.resistedOffset(for: CGSize(width: CGFloat.nan, height: CGFloat.infinity))
+                        == .zero,
+                     "the tear-off handle follows the pointer with asymmetric, bounded elastic resistance")
+
+        let screen = CGRect(x: -1440, y: 0, width: 1440, height: 900)
+        suite.expect(ScratchpadTransferSupport.shouldDock(at: CGPoint(x: -720, y: 890),
+                                                          screen: screen, cameraWidth: 180)
+                     && !ScratchpadTransferSupport.shouldDock(at: CGPoint(x: -400, y: 890),
+                                                               screen: screen, cameraWidth: 180)
+                     && !ScratchpadTransferSupport.shouldDock(at: CGPoint(x: -720, y: 800),
+                                                               screen: screen, cameraWidth: 180)
+                     && !ScratchpadTransferSupport.shouldDock(at: CGPoint(x: -720, y: 900),
+                                                               screen: .zero, cameraWidth: 180),
+                     "a scratchpad docks only when released in the island target on a valid screen")
     }
 }
 

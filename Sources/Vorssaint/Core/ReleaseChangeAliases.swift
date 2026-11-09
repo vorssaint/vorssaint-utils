@@ -85,6 +85,7 @@ enum ReleaseChangeAliases {
             "mouse debounce", "keyboard and mouse debounce", "worn-button click filtering", "extra clicks"]
         case .keyboardDebounce: return ["keyboard debounce", "key debounce", "debounce",
             "keyboard and mouse debounce"]
+        case .keyRemapping: return ["keyboard remapping", "key remapping", "remap keys", "key mapping"]
         case .textSnippets: return ["text snippets", "snippets", "snippet"]
         case .superKey: return ["super key"]
         case .quitWindowProtection: return ["quit protection", "quit & close protection",

@@ -7,9 +7,9 @@ import SwiftUI
 /// The "Monitor" settings page: pick what shows next to the menu bar icon, how
 /// it looks and how often it refreshes, which blocks appear in the panel, when
 /// to warn, and which metrics draw a history graph. Everything is opt-in or
-/// reversible, so users keep only what they find useful. The live menu bar
-/// preview stays pinned while the choices that change it scroll under it.
+/// reversible, so users keep only what they find useful.
 struct MonitorSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
 
@@ -26,50 +26,33 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
 
     var body: some View {
-        // A plain stack, not a lazy one: a lazy stack estimates the rows it
-        // has not built yet, and with the taller Bars options this page kept
-        // it re-measuring and re-anchoring without ever settling, which hung
-        // Settings on the first scroll. Pinned headers exist only on lazy
-        // stacks, so the preview sits above the scroll view instead, where it
-        // also stays in view for the shared units further down that change it.
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(l10n.s.monitorMenuBarPreview)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                MenuBarMetricsPreview()
-            }
-            .frame(maxWidth: 760)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 10)
-            Divider()
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(l10n.s.tabMonitor).font(.title2.bold())
-                        Text(FeatureStrings.settingsPages(l10n.language).monitorDescription)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    groupHeading(l10n.s.monitorMenuBarSection, symbol: "menubar.rectangle")
-                    menuBarCard
-                    menuBarStyleCard
-                    groupHeading(l10n.s.monitorPanelSection, symbol: "macwindow")
-                    panelCard
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if focus == .fanControl {
                     if AppFeature.fanControl.isAvailable {
                         fanControlCard
                             .settingsSectionAnchor(.fanControl, cornerRadius: 16)
                     }
-                    groupHeading(FeatureStrings.monitorLayout(l10n.language).shared, symbol: "slider.horizontal.3")
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(l10n.s.monitorMenuBarPreview)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        MenuBarMetricsPreview()
+                    }
+                    groupHeading(l10n.s.monitorMenuBarSection)
+                    menuBarCard
+                    menuBarStyleCard
+                    groupHeading(l10n.s.monitorPanelSection)
+                    panelCard
+                    groupHeading(FeatureStrings.monitorLayout(l10n.language).shared)
                     readingsCard
                     alertsCard
                 }
-                .frame(maxWidth: 760)
-                .frame(maxWidth: .infinity)
-                .padding(22)
             }
+            .frame(maxWidth: 760)
+            .frame(maxWidth: .infinity)
+            .padding(22)
         }
         .toggleStyle(.switch)
         .onAppear {
@@ -84,10 +67,10 @@ struct MonitorSettings: View {
 
     /// Splits the page into what the menu bar shows, what the panel shows,
     /// and what both share, so an option is never read as the other's.
-    private func groupHeading(_ title: String, symbol: String) -> some View {
+    private func groupHeading(_ title: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Divider()
-            Label(title, systemImage: symbol)
+            Text(title)
                 .font(.title3.weight(.semibold))
                 .foregroundStyle(.primary)
                 .accessibilityAddTraits(.isHeader)

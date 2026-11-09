@@ -25,7 +25,6 @@ struct GeneralSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(l10n.s.tabGeneral).font(.title2.bold())
                 basicsCard
                 appearanceCard
                 if AppFeature.keepAwake.isAvailable {
@@ -106,7 +105,8 @@ struct GeneralSettings: View {
 #if compiler(>=6.2)
             if #available(macOS 26.0, *) {
                 Divider()
-                SettingsRow(symbol: "sparkles", title: appearanceStrings.liquidGlass,
+                SettingsRow(symbol: "capsule.on.rectangle.liquid.glass",
+                            title: appearanceStrings.liquidGlass,
                             caption: text.liquidGlassCaption) { EmptyView() }
                 VStack(alignment: .leading, spacing: 8) {
                     Toggle(text.liquidGlassOtherWindows, isOn: $appearance.liquidGlassEnabled)
@@ -119,6 +119,17 @@ struct GeneralSettings: View {
                 .padding(.leading, settingsRowTextInset)
             }
 #endif
+        }
+    }
+
+    private var feedbackCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "bubble.left.and.text.bubble.right", title: feedbackStrings.sectionTitle,
+                        caption: feedbackStrings.sectionCaption) {
+                Button(feedbackStrings.openButton) {
+                    appDelegate()?.openFeedbackWindow()
+                }
+            }
         }
     }
 
@@ -141,17 +152,6 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.leading, settingsRowTextInset)
-            }
-        }
-    }
-
-    private var feedbackCard: some View {
-        SettingsCard {
-            SettingsRow(symbol: "bubble.left.and.text.bubble.right", title: feedbackStrings.sectionTitle,
-                        caption: feedbackStrings.sectionCaption) {
-                Button(feedbackStrings.openButton) {
-                    appDelegate()?.openFeedbackWindow()
-                }
             }
         }
     }

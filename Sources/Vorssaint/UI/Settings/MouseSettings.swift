@@ -6,6 +6,7 @@ import SwiftUI
 /// The Mouse & Trackpad page: a legend of every mouse feature and whether it
 /// is on, each one a click away from its card, then one card per feature.
 struct MouseSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -55,56 +56,49 @@ struct MouseSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.s.tabMouse).font(.title2.bold())
-                    Text(FeatureStrings.settingsPages(l10n.language).mouseDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if !legendFeatures.isEmpty {
+                if focus == nil, !legendFeatures.isEmpty {
                     legendCard
                 }
-                if AppFeature.scrollInverter.isAvailable || AppFeature.scrollHorizontal.isAvailable {
+                if shows(.scrollInverter) || shows(.scrollHorizontal) {
                     scrollCard
                         .settingsSectionAnchor(.scrollDirection, cornerRadius: 16)
                 }
-                if AppFeature.scrollZoom.isAvailable {
+                if shows(.scrollZoom) {
                     zoomCard
                         .settingsSectionAnchor(.scrollZoom, cornerRadius: 16)
                 }
-                if AppFeature.focusFollowsMouse.isAvailable {
+                if shows(.focusFollowsMouse) {
                     focusFollowsMouseCard
                         .settingsSectionAnchor(.focusFollowsMouse, cornerRadius: 16)
                 }
-                if AppFeature.smoothScroll.isAvailable {
+                if shows(.smoothScroll) {
                     smoothScrollCard
                         .settingsSectionAnchor(.smoothScroll, cornerRadius: 16)
                 }
-                if AppFeature.linearScroll.isAvailable {
+                if shows(.linearScroll) {
                     linearScrollCard
                         .settingsSectionAnchor(.linearScroll, cornerRadius: 16)
                 }
-                if AppFeature.mouseAcceleration.isAvailable {
+                if shows(.mouseAcceleration) {
                     accelerationCard
                         .settingsSectionAnchor(.mouseAcceleration, cornerRadius: 16)
                 }
-                if AppFeature.mouseNavigation.isAvailable {
+                if shows(.mouseNavigation) {
                     navigationCard
                         .settingsSectionAnchor(.mouseNavigation, cornerRadius: 16)
                 }
-                if AppFeature.mouseButtonShortcuts.isAvailable {
+                if shows(.mouseButtonShortcuts) {
                     MouseButtonShortcutsSection()
                 }
-                if AppFeature.mouseClickDebounce.isAvailable {
+                if shows(.mouseClickDebounce) {
                     clickDebounceCard
                         .settingsSectionAnchor(.mouseClickDebounce, cornerRadius: 16)
                 }
-                if AppFeature.middleClick.isAvailable {
+                if shows(.middleClick) {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
-                if accessibilityNoteVisible {
+                if accessibilityNoteVisible, focus == nil || focus?.permissions.contains(.accessibility) == true {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
                     }
@@ -118,6 +112,10 @@ struct MouseSettings: View {
         .onAppear {
             MiddleClickService.shared.refreshDragGestureConflict()
         }
+    }
+
+    private func shows(_ feature: AppFeature) -> Bool {
+        feature.isAvailable && (focus == nil || focus == feature)
     }
 
     // MARK: - Overview
@@ -186,7 +184,7 @@ struct MouseSettings: View {
 
     private var scrollCard: some View {
         SettingsCard(title: l10n.s.scrollSection) {
-            if AppFeature.scrollInverter.isAvailable {
+            if shows(.scrollInverter) {
                 SettingsRow(symbol: "arrow.up.arrow.down", title: l10n.s.invertVerticalScroll) {
                     Toggle(l10n.s.invertVerticalScroll, isOn: $invertVertical)
                         .labelsHidden()
@@ -194,6 +192,7 @@ struct MouseSettings: View {
                             ScrollInverter.shared.syncWithPreferences()
                             if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .scrollInverter))
                 }
                 SettingsRow(symbol: "arrow.left.arrow.right", title: l10n.s.invertHorizontalScroll) {
                     Toggle(l10n.s.invertHorizontalScroll, isOn: $invertHorizontal)
@@ -204,7 +203,7 @@ struct MouseSettings: View {
                         }
                 }
             }
-            if AppFeature.scrollHorizontal.isAvailable {
+            if shows(.scrollHorizontal) {
                 SettingsRow(symbol: "arrow.left.and.right", title: l10n.s.scrollHorizontalName,
                             caption: l10n.s.scrollHorizontalCaption) {
                     Toggle(l10n.s.scrollHorizontalName, isOn: $horizontalScrollEnabled)
@@ -213,20 +212,21 @@ struct MouseSettings: View {
                             ScrollInverter.shared.syncWithPreferences()
                             if scrollDirectionEnabled { permissions.requestAccessibility() }
                         }
+                        .modifier(FeaturePrimaryToggleModifier(feature: .scrollHorizontal))
                 }
                 if horizontalScrollEnabled {
                     modifierKeys
                         .padding(.leading, settingsRowTextInset)
                 }
             }
-            if scrollInversionEnabled, inverter.isRunning {
+            if (focus == nil || focus == .scrollInverter), scrollInversionEnabled, inverter.isRunning {
                 activeBadge(l10n.s.scrollActiveNow)
             }
             Text(l10n.s.scrollTrackpadNote)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if scrollDirectionEnabled {
+            if focus != .scrollHorizontal, scrollDirectionEnabled {
                 MouseExceptionsList(scope: .scrollDirection)
             }
         }
@@ -319,6 +319,7 @@ struct MouseSettings: View {
                     ScrollInverter.shared.syncWithPreferences()
                     if active { permissions.requestAccessibility() }
                 }
+                .modifier(FeaturePrimaryToggleModifier(feature: .scrollZoom))
         }
     }
 
@@ -334,6 +335,7 @@ struct MouseSettings: View {
                         FocusFollowsMouseService.shared.syncWithPreferences()
                         if enabled { Permissions.shared.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .focusFollowsMouse))
             }
             if focusFollowsMouseEnabled {
                 VStack(alignment: .leading, spacing: 10) {
@@ -365,6 +367,7 @@ struct MouseSettings: View {
                         SmoothScrollService.shared.syncWithPreferences()
                         if enabled { permissions.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .smoothScroll))
             }
             if smoothScrollEnabled {
                 VStack(alignment: .leading, spacing: 10) {
@@ -412,6 +415,7 @@ struct MouseSettings: View {
                         ScrollInverter.shared.syncWithPreferences()
                         if enabled { permissions.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .linearScroll))
             }
             if linearScrollEnabled {
                 VStack(alignment: .leading, spacing: 10) {
@@ -455,6 +459,7 @@ struct MouseSettings: View {
                     .onChange(of: mouseAccelerationDisabled) { _, _ in
                         MouseAccelerationService.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .mouseAcceleration))
             }
         }
     }
@@ -469,6 +474,7 @@ struct MouseSettings: View {
                         MouseNavigationService.shared.syncWithPreferences()
                         if enabled { permissions.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .mouseNavigation))
             }
             if mouseNavigationEnabled, mouseNavigation.isRunning {
                 activeBadge(l10n.s.mouseNavigationActiveNow)
@@ -489,6 +495,7 @@ struct MouseSettings: View {
                         MouseClickDebounceService.shared.syncWithPreferences()
                         if enabled { permissions.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .mouseClickDebounce))
             }
             if mouseClickDebounceEnabled {
                 VStack(alignment: .leading, spacing: 6) {
@@ -515,7 +522,7 @@ struct MouseSettings: View {
 
     private var middleClickCard: some View {
         SettingsCard(title: l10n.s.middleClickSection) {
-            SettingsRow(symbol: "hand.tap", title: l10n.s.middleClickEnable,
+            SettingsRow(symbol: AppFeature.middleClick.symbolName, title: l10n.s.middleClickEnable,
                         caption: l10n.s.middleClickEnableCaption) {
                 Toggle(l10n.s.middleClickEnable, isOn: $middleClickEnabled)
                     .labelsHidden()
@@ -523,6 +530,7 @@ struct MouseSettings: View {
                         MiddleClickService.shared.syncWithPreferences()
                         if enabled { permissions.requestAccessibility() }
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .middleClick))
             }
             if middleClickEnabled {
                 VStack(alignment: .leading, spacing: 8) {

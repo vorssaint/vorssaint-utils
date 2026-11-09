@@ -17,6 +17,10 @@ enum NotchLockScreenTests {
     }
 
     static func sessionContracts(_ suite: TestSuite) {
+        suite.expect(NotchLockScreenSupport.lockedState(from: ["CGSSessionScreenIsLocked": true]) == true
+                     && NotchLockScreenSupport.lockedState(from: ["CGSSessionScreenIsLocked": false]) == false
+                     && NotchLockScreenSupport.lockedState(from: [:]) == nil,
+                     "lock state refresh distinguishes locked, unlocked and unavailable session readings")
         var locked = NotchSessionState()
         suite.expect(!locked.showsLockScreen, "an unlocked Mac shows nothing over its lock screen")
         locked.locked = true
@@ -80,6 +84,17 @@ enum NotchLockScreenTests {
 
     static func layoutContracts(_ suite: TestSuite) {
         typealias Layout = NotchLockScreenLayout
+        suite.expect(NotchLockScreenSupport.padlockTransitionDuration == 0.30
+                     && NotchLockScreenSupport.islandCollapseDelay == 0.30
+                     && NotchLockScreenSupport.islandCollapseDuration == 0.40
+                     && NotchLockScreenSupport.panelFadeInDuration == 0.30,
+                     "the lock sequence is slightly quicker while keeping its padlock and island transitions ordered")
+        let reducedMotionFadeDelay = NotchLockScreenSupport.islandFadeDelay(reduceMotion: true)
+        let animatedFadeDelay = NotchLockScreenSupport.islandFadeDelay(reduceMotion: false)
+        suite.expect(reducedMotionFadeDelay == 0.30 && animatedFadeDelay == 0.60
+                     && reducedMotionFadeDelay < animatedFadeDelay
+                     && animatedFadeDelay + NotchLockScreenSupport.panelFadeOutDuration <= 0.80,
+                     "the island fades within 0.8 seconds of unlock, and Reduce Motion skips wing contraction")
         // Measured on the lock screen of a 1470 by 956 point display: the
         // clock ends 236 points from the top, the login controls take 218.
         let measured = CGRect(x: 0, y: 0, width: 1470, height: 956)
@@ -142,7 +157,18 @@ enum NotchLockScreenTests {
             suite.expect(window == window.integral && window.contains(surface) && window.maxY == surface.maxY
                          && window.width - surface.width < 2 && window.height - surface.height < 1,
                          "with a fit of \(fit) the island's window lands on whole points around it, the island at its top")
+            let expanded = surface.width
+            let halfway = Layout.islandWidth(cameraWidth: camera.width, expandedWidth: expanded, collapseProgress: 0.5)
+            suite.expect(Layout.islandWidth(cameraWidth: camera.width, expandedWidth: expanded, collapseProgress: 0) == expanded
+                         && Layout.islandWidth(cameraWidth: camera.width, expandedWidth: expanded, collapseProgress: 1) == camera.width
+                         && abs(halfway - (camera.width + expanded) / 2) < 0.001,
+                         "the island smoothly contracts to the camera width on unlock")
         }
+        let offsetCamera = measured.midX + 0.5
+        let offsetSurface = Layout.islandSurface(in: measured, cameraWidth: 179, cameraHeight: 32,
+                                                wing: 44, cameraCenterX: offsetCamera)
+        suite.expect(offsetSurface?.midX == offsetCamera,
+                     "the lock-screen island follows the measured camera centre")
         var crowded = NotchGeometry(screen: measured, safeAreaTop: 32, cameraWidth: 179)
         let wing = crowded.lockScreenMusicGeometry.compactActivityWingWidth
         crowded.compactSideRoom = 0

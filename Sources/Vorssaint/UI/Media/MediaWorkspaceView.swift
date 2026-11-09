@@ -8,7 +8,9 @@ import UniformTypeIdentifiers
 
 struct MediaSettings: View {
     var body: some View {
-        MediaWorkspaceView(compact: false)
+        MediaWorkspaceView(compact: false, showsTitle: false)
+            .frame(maxWidth: 804)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .padding(16)
     }
 }
@@ -132,6 +134,7 @@ struct MediaWorkspaceView: View {
     private let initialInputs: [URL]
     private let initialTool: MediaTool?
     private let preservesServiceState: Bool
+    private let showsTitle: Bool
     private let onContentHeightChange: ((CGFloat) -> Void)?
     private let onToolChange: (() -> Void)?
     private let scrollsContent: Bool
@@ -139,6 +142,7 @@ struct MediaWorkspaceView: View {
     init(compact: Bool, onClose: (() -> Void)? = nil,
          media: MediaService = .shared, initialInputs: [URL] = [],
          initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
+         showsTitle: Bool = true,
          workspace: MediaWorkspaceSelection? = nil,
          onContentHeightChange: ((CGFloat) -> Void)? = nil,
          onToolChange: (() -> Void)? = nil,
@@ -149,6 +153,7 @@ struct MediaWorkspaceView: View {
         self.initialInputs = initialInputs
         self.initialTool = initialTool
         self.preservesServiceState = preservesServiceState
+        self.showsTitle = showsTitle
         self.onContentHeightChange = onContentHeightChange
         self.onToolChange = onToolChange
         self.scrollsContent = scrollsContent
@@ -265,8 +270,10 @@ struct MediaWorkspaceView: View {
 
     private var header: some View {
         HStack(spacing: 9) {
-            Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled")
-                .font(.system(size: compact ? 12 : 16, weight: .semibold))
+            if showsTitle {
+                Label(l10n.s.mediaName, systemImage: "photo.on.rectangle.angled")
+                    .font(.system(size: compact ? 12 : 16, weight: .semibold))
+            }
             Spacer(minLength: 0)
             Text(l10n.s.mediaLocalNote)
                 .font(.system(size: compact ? 9.5 : 11, weight: .medium))
@@ -388,6 +395,13 @@ struct MediaWorkspaceView: View {
                 }
                 .controlSize(.small)
                 .disabled(inputURLs.isEmpty || isRunning)
+                .help(inputURLs.isEmpty ? l10n.s.mediaErrorNoFile : l10n.s.mediaChooseOutput)
+                .accessibilityHint(inputURLs.isEmpty ? l10n.s.mediaErrorNoFile : "")
+            }
+            if inputURLs.isEmpty {
+                Text(l10n.s.mediaSelectFile)
+                    .font(.system(size: compact ? 9 : 10))
+                    .foregroundStyle(.secondary)
             }
             if selectedTool == .imageCompressor, inputURLs.count > 1 {
                 Toggle(imageText.saveInSubfolder, isOn: $imageSaveInSubfolder)
@@ -481,12 +495,20 @@ struct MediaWorkspaceView: View {
     private var actionRow: some View {
         HStack(spacing: 8) {
             Button {
-                run()
+                if inputURLs.isEmpty {
+                    chooseInput()
+                } else {
+                    run()
+                }
             } label: {
-                Label(actionTitle, systemImage: selectedTool == .textExtractor ? "text.viewfinder" : "play.fill")
+                Label(inputURLs.isEmpty ? l10n.s.mediaSelectFile : actionTitle,
+                      systemImage: inputURLs.isEmpty
+                        ? "doc.badge.plus"
+                        : selectedTool == .textExtractor ? "text.viewfinder" : "play.fill")
             }
             .buttonStyle(.borderedProminent)
-            .disabled(inputURLs.isEmpty || isRunning)
+            .disabled(isRunning || isImportingVideo)
+            .accessibilityHint(inputURLs.isEmpty ? l10n.s.mediaDropHint : "")
 
             if selectedTool == .videoCompressor {
                 Button {

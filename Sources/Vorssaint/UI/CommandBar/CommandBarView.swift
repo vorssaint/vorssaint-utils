@@ -235,10 +235,9 @@ struct CommandBarView: View {
                             .help(text.dragHint)
                     )
             } else {
-                // Out of the island, the companion is the bar's face, and the
-                // bar stays where the island put it.
-                CommandBarMascot(service: service)
+                BrandMark(width: 22, tint: markTint)
                     .frame(width: 22, height: 22)
+                    .allowsHitTesting(false)
             }
             if case .naming(let entryID) = service.mode,
                let entry = service.entry(withID: entryID) {

@@ -386,13 +386,13 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
+        suite.expect(AppFeature.allCases.count == 80, "feature catalog has 80 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
             "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
-            "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
+            "mouseClickDebounce", "keyboardDebounce", "keyRemapping", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
@@ -690,6 +690,12 @@ enum FeatureCatalogTests {
                "every feature belongs to exactly one group")
         suite.expect(!FeatureGroup.allCases.contains { AppFeature.features(in: $0).isEmpty },
                "no hub group is empty")
+        suite.expect(FeatureGroup.featureHubDisplayOrder == [
+            .tools, .dynamicIsland, .sound, .energyDisplay,
+            .windowsDock, .mouseKeyboard, .clipboardFiles, .monitor,
+        ], "the Features catalog follows the sidebar's default group order")
+        suite.expect(Set(FeatureGroup.featureHubDisplayOrder) == Set(FeatureGroup.allCases),
+               "the Features catalog order includes every group exactly once")
         suite.expect(AppFeature.features(in: .dynamicIsland) == [
             .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer,
             .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -712,7 +718,7 @@ enum FeatureCatalogTests {
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
             "automationFinder", "automationPlayback", "audioCapture", "microphone", "camera",
-            "appManagement", "calendar",
+            "appManagement", "calendar", "focusStatus",
         ], "permission portal contains every supported permission")
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
@@ -795,22 +801,21 @@ enum FeatureCatalogTests {
                "the onboarding feature picker measures its cards eagerly instead of estimating their height during scrolling")
         // A lazy stack on the Monitor page re-measures and re-anchors its rows
         // without settling once the Bars options make the menu bar card taller,
-        // which hangs Settings on the first scroll. The same kind of source
-        // check: it keeps the eager stack and the preview above the scroll
-        // view, not the scrolling itself.
+        // which hangs Settings on the first scroll. Keep the eager stack and
+        // its preview inside the page's scroll view, below the parent hero.
         let monitorSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorSettings.swift",
             encoding: .utf8)) ?? ""
         let compactMonitorBody = compactMember("var body: some View {", in: monitorSettingsSource)
-        let monitorPreviewAboveScroll: Bool = {
+        let monitorPreviewInScroll: Bool = {
             guard let preview = compactMonitorBody.range(of: "MenuBarMetricsPreview()"),
                   let scroll = compactMonitorBody.range(of: "ScrollView{VStack(") else { return false }
-            return preview.upperBound <= scroll.lowerBound
+            return preview.lowerBound >= scroll.lowerBound
         }()
-        suite.expect(compactMonitorBody.hasPrefix("VStack(spacing:0){")
-                && monitorPreviewAboveScroll
+        suite.expect(compactMonitorBody.hasPrefix("ScrollView{VStack(alignment:.leading,spacing:20){")
+                && monitorPreviewInScroll
                 && !compactMonitorBody.contains("LazyVStack("),
-               "the Monitor page lays its rows out eagerly, with the live preview above its scroll view")
+               "the Monitor page eagerly lays out its scrollable settings below the parent hero")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
@@ -1691,6 +1696,11 @@ enum FeatureCatalogTests {
                 && AppFeature.quitApps.group == .tools
                 && AppFeature.quitApps.symbolName == "xmark.app",
                "Quit apps is an on-demand tool that needs no permission and keeps nothing running")
+        suite.expect(AppFeature.middleClick.symbolName == "rectangle.and.hand.point.up.left",
+                     "Trackpad Middle Click uses the requested hand-and-trackpad symbol")
+        suite.expect(NSImage(systemSymbolName: AppFeature.middleClick.symbolName,
+                             accessibilityDescription: nil) != nil,
+                     "Trackpad Middle Click's symbol exists in the installed macOS SF Symbols catalog")
         suite.expect(AppFeature.quitApps.settingsDestination
                 == FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
                 && !FeaturePreset.allCases.contains { $0.features.contains(.quitApps) },
@@ -2220,6 +2230,9 @@ enum FeatureCatalogTests {
                "mouse click debounce alone keeps its Settings page reachable")
         suite.expect(!pageVisible(.mouse, available: []),
                "the mouse page hides only with all eight mouse features off")
+        suite.expect(pageVisible(.keyRemapping, available: [.keyRemapping])
+                && !pageVisible(.keyRemapping, available: []),
+               "the key remapping page is visible only while its feature is installed")
         suite.expect(!pageVisible(.energy, available: allFeatures.subtracting([.keepAwake, .brightness,
                                                                          .extraBrightness,
                                                                          .bluetoothSleep])),
@@ -2294,8 +2307,11 @@ enum FeatureCatalogTests {
                                 available: allFeatures.subtracting([.windowLayout, .windowMaximizer])),
                "the green button override and its exception list keep the window layout page on their own")
         suite.expect(AppFeature.cleaningMode.settingsDestination
-                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode),
-               "cleaning mode lands on Quick Tools cleaning mode section")
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
+                && AppFeature.cleaningMode.hasHeroAction,
+               "cleaning mode lands on Quick Tools and exposes its immediate hero action")
+        suite.expect(AppFeature.keyRemapping.settingsDestination == FeatureSettingsDestination(.keyRemapping),
+               "key remapping opens its dedicated settings page")
         suite.expect(AppFeature.musicBlock.settingsDestination
                 == FeatureSettingsDestination(.general, sectionAnchor: .musicBlocking)
                 && AppFeature.diskImageInstaller.settingsDestination

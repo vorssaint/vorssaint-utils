@@ -90,7 +90,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.islandMinX = { [weak self] size in self?.islandMinX(size) }
         canvas.stageCentreX = { [weak self] in
             guard let self else { return nil }
-            return self.currentGeometry.screen.midX - self.panel.frame.minX - self.canvas.convert(CGPoint.zero, to: nil).x
+            return self.currentGeometry.cameraCenterX - self.panel.frame.minX - self.canvas.convert(CGPoint.zero, to: nil).x
         }
         canvas.setFloatingGap(geometry.floatingGap)
         canvas.layoutSubtreeIfNeeded()
@@ -990,6 +990,14 @@ final class NotchPanel: NSPanel, NotchWaveHold {
     // hit test includes it. Keep the island above them, below native menus.
     static let normalLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 1)
     static let fullscreenLevel = NSWindow.Level.floating
+    override init(contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType,
+                  defer flag: Bool) {
+        super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
+        // A held click on this borderless overlay must not start a window drag
+        // that exposes its rectangular frame around the masked island.
+        isMovableByWindowBackground = false
+    }
+
     var acceptsKeyFocus = false
     var handleScroll: ((NSEvent) -> Bool)?
     var visibilityDidChange: (() -> Void)?
