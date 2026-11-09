@@ -225,9 +225,11 @@ enum KeepAwakeClamshellTests {
 
         prefs.set(true, forKey: Key.keepAwakeAutoStart)
         prefs.set(30, forKey: Key.defaultDuration)
+        prefs.set(["end": Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate],
+                  forKey: Key.keepAwakeSessionEnd)
         let autoStart = relaunch()
         expect(autoStart.isActive && autoStart.sessionTrigger == .launch && autoStart.sessionMinutes == 30,
-               "start at launch still selects the default preset when there is no manual session")
+               "an expired manual record allows a fresh start at launch with the default preset")
         autoStart.extend(minutes: 15)
         expect(prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
                "starting at launch and extending its timer create no manual record")
@@ -276,6 +278,13 @@ enum KeepAwakeClamshellTests {
         running.syncWithFeatures()
         expect(!running.isActive && !running.assertionsHeld && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
                "removing an active feature ends its session and clears the record")
+
+        let closing = C.reset()
+        closing.activate(minutes: 30)
+        closing.deactivate(reason: .quit); C.drain()
+        let unavailable = relaunch { _ in C.AppFeature.keepAwake.isAvailable = false }
+        expect(!unavailable.isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a cold launch with the feature disabled discards the saved session")
 
         let waiting = pendingLaunch()
         expect(!waiting.recoveryCompleted && C.AdminShell.prompts == 1, "launch recovery is waiting for authorization")
