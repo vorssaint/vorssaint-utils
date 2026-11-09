@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
+Fixes a launch crash on early macOS Sonoma and improves window switching, audio, notifications, display controls, GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
 
 ### Added
 - The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
@@ -22,6 +22,7 @@ More reliable window switching, audio, notifications and display controls, with 
 - Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
+- Vorssaint can open on early macOS Sonoma even when Core Audio process taps are unavailable. Thanks to @oyjt for the diagnosis.
 - Save as GIF and Copy as GIF export faster and use less memory, decoding the recording in order and encoding on the GPU when supported, with the existing encoder as a fallback.
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
 - The window switcher keeps its opening shortcuts working during secure input, including All windows and quick modifier releases. Q/W remain unavailable in this mode and are blocked while the switcher owns the selection. Thanks to @phatina.
