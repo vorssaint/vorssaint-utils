@@ -140,8 +140,11 @@ enum DefaultsKey {
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
-    static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
+    static let middleClickEnabled = "middleClickEnabled"  // the middle click feature; the triggers below say what fires it
+    static let middleClickThreeFingerEnabled = "middleClickThreeFingerEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
+    static let middleClickKeyClickEnabled = "middleClickKeyClickEnabled"  // clicking with the keys below held, on any mouse or trackpad, acts as a middle click
+    static let middleClickKeyClickKeys = "middleClickKeyClickKeys"  // MiddleClickKey tokens joined by "+"
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
     static let switcherPreviewSize = "switcherPreviewSize" // app switcher thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
@@ -1318,7 +1321,12 @@ enum Defaults {
         DefaultsKey.dockClickCycleWindows: false,
         DefaultsKey.spacesOrderEnabled: false,
         DefaultsKey.middleClickEnabled: false,
+        // On by default so turning the feature on, and everyone who already
+        // had it on, keeps the three-finger click.
+        DefaultsKey.middleClickThreeFingerEnabled: true,
         DefaultsKey.middleClickTapFingers: 0,
+        DefaultsKey.middleClickKeyClickEnabled: false,
+        DefaultsKey.middleClickKeyClickKeys: MiddleClickSupport.defaultClickKeysStorageValue,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.switcherPreviewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,

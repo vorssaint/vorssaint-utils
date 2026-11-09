@@ -350,6 +350,10 @@ struct Strings {
     let middleClickTapThreeFingers: String
     let middleClickTapFourFingers: String
     let middleClickTapCaption: String
+    let middleClickThreeFinger: String
+    let middleClickThreeFingerCaption: String
+    let middleClickKeyClick: String
+    let middleClickKeyClickCaption: String
     let quickToolsTab: String
     let quickToolShortcutToggle: String
     let ocrName: String
@@ -1501,9 +1505,9 @@ extension Strings {
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
-        middleClickSection: "Botão do meio no trackpad",
-        middleClickEnable: "Clique com três dedos vira botão do meio",
-        middleClickEnableCaption: "Pressionar o trackpad com três dedos funciona como o clique da rodinha do mouse: abre links em nova aba, fecha abas e tudo mais que o botão do meio faz.",
+        middleClickSection: "Clique do meio",
+        middleClickEnable: "Emular o clique do meio",
+        middleClickEnableCaption: "Funciona como o clique da rodinha do mouse: abre links em nova aba, fecha abas e tudo mais que o botão do meio faz. Acione com clique de três dedos, tecla + clique ou ambos.",
         middleClickDragConflict: "O arrastar com três dedos do macOS está ativado e usa três dedos, então clique com quatro dedos para o clique do meio. Para usar três, desative-o nos Ajustes do Sistema em Acessibilidade, Controle do Cursor, Opções do Trackpad.",
         middleClickNoTrackpad: "Não é possível ler os toques no trackpad. Conecte um trackpad compatível.",
         middleClickTapPicker: "Toque leve também clica",
@@ -1511,6 +1515,10 @@ extension Strings {
         middleClickTapThreeFingers: "3 dedos",
         middleClickTapFourFingers: "4 dedos",
         middleClickTapCaption: "Um toque leve com esse número de dedos, sem pressionar, também dispara o clique do meio. Deslizar nunca conta. Se o toque de três dedos do macOS estiver atribuído à Busca, desative-o para os dois não abrirem juntos.",
+        middleClickThreeFinger: "Clique com três dedos",
+        middleClickThreeFingerCaption: "Pressione o trackpad com três dedos.",
+        middleClickKeyClick: "Tecla + clique",
+        middleClickKeyClickCaption: "Segure exatamente estas teclas e clique com qualquer mouse ou trackpad. Esse clique deixa de fazer o que normalmente faz nos apps.",
         quickToolsTab: "Painel rápido",
         quickToolShortcutToggle: "Atalho global",
         ocrName: "Copiar texto da tela",
@@ -2622,9 +2630,9 @@ extension Strings {
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",
-        middleClickSection: "Trackpad middle click",
-        middleClickEnable: "Three-finger click acts as middle click",
-        middleClickEnableCaption: "Pressing the trackpad with three fingers works like a mouse wheel click: open links in a new tab, close tabs and everything else the middle button does.",
+        middleClickSection: "Middle click",
+        middleClickEnable: "Emulate a middle click",
+        middleClickEnableCaption: "Works like a mouse wheel click: open links in a new tab, close tabs and everything else the middle button does. Trigger it with a three-finger click, a key + click or both.",
         middleClickDragConflict: "macOS three-finger drag is turned on and uses three fingers, so click with four fingers for the middle click. To use three, turn three-finger drag off in System Settings under Accessibility, Pointer Control, Trackpad Options.",
         middleClickNoTrackpad: "Can’t read trackpad touches. Connect a supported trackpad.",
         middleClickTapPicker: "A light tap also clicks",
@@ -2632,6 +2640,10 @@ extension Strings {
         middleClickTapThreeFingers: "3 fingers",
         middleClickTapFourFingers: "4 fingers",
         middleClickTapCaption: "A light tap with that many fingers, without pressing, also fires the middle click. Sliding never counts. If the macOS three-finger tap is assigned to Look Up, turn it off so both do not fire together.",
+        middleClickThreeFinger: "Three-finger click",
+        middleClickThreeFingerCaption: "Press the trackpad with three fingers.",
+        middleClickKeyClick: "Key + click",
+        middleClickKeyClickCaption: "Hold exactly these keys and click with any mouse or trackpad. That click no longer does what it normally does in apps.",
         quickToolsTab: "Quick panel",
         quickToolShortcutToggle: "Global shortcut",
         ocrName: "Copy text from screen",

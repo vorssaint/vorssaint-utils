@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
 
 /// What to do with an incoming physical trackpad press.
@@ -12,6 +13,51 @@ enum MiddleClickClickAction: Equatable {
     /// through would open in the same tab, transforming it would open a
     /// second tab, so it is dropped.
     case swallow
+}
+
+/// A key that can be held through a click to make it a middle click. All of
+/// them are read from the click's own flags, so nothing watches the keyboard.
+/// The raw values are the tokens saved in preferences.
+enum MiddleClickKey: String, CaseIterable {
+    case fn, control, option, shift, command
+
+    var flag: CGEventFlags {
+        switch self {
+        case .fn: return .maskSecondaryFn
+        case .control: return .maskControl
+        case .option: return .maskAlternate
+        case .shift: return .maskShift
+        case .command: return .maskCommand
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .fn: return "fn"
+        case .control: return "⌃"
+        case .option: return "⌥"
+        case .shift: return "⇧"
+        case .command: return "⌘"
+        }
+    }
+
+    var name: String {
+        switch self {
+        case .fn: return "Function"
+        case .control: return "Control"
+        case .option: return "Option"
+        case .shift: return "Shift"
+        case .command: return "Command"
+        }
+    }
+}
+
+/// What the preferences arm. `keys` is empty while key + click is off.
+struct MiddleClickTriggers: Equatable {
+    let threeFinger: Bool
+    let keys: CGEventFlags
+
+    var anyOn: Bool { threeFinger || !keys.isEmpty }
 }
 
 enum MiddleClickSupport {
@@ -35,12 +81,19 @@ enum MiddleClickSupport {
     /// and while the system's own three-finger drag gesture is enabled it
     /// owns three-finger touches: it synthesizes clicks from unpressed
     /// contact that are indistinguishable from real presses here, so the
-    /// press moves to four fingers, as the tap does (issue #2061).
+    /// press moves to four fingers, as the tap does (issue #2061). A key +
+    /// click is a deliberate chord, not a touch to interpret, so it skips all
+    /// of that: finger counts say nothing about a mouse, and two quick ones
+    /// are a real double click rather than a synthesizer bounce.
     static func actionForClick(fingerCount: Int,
                                frameAge: TimeInterval,
                                settledFor: TimeInterval,
                                sinceLastTransformEnd: TimeInterval?,
-                               systemDragGestureEnabled: Bool) -> MiddleClickClickAction {
+                               systemDragGestureEnabled: Bool,
+                               keyClick: Bool = false,
+                               fingerPressOn: Bool = true) -> MiddleClickClickAction {
+        if keyClick { return .transform }
+        guard fingerPressOn else { return .passThrough }
         let pressFingers = systemDragGestureEnabled ? 4 : 3
         guard fingerCount == pressFingers, frameAge >= 0, frameAge <= fingerFreshness else {
             return .passThrough
@@ -51,6 +104,71 @@ enum MiddleClickSupport {
         }
         guard settledFor >= minimumSettle else { return .passThrough }
         return .transform
+    }
+
+    // MARK: - Key + click (opt-in)
+
+    static let defaultClickKeysStorageValue = MiddleClickKey.fn.rawValue
+
+    /// The keys a chord is made of. Caps Lock and the like are not part of
+    /// it, so they can be in any state during a key + click.
+    static let clickKeyMask: CGEventFlags = [.maskSecondaryFn, .maskControl, .maskAlternate,
+                                             .maskShift, .maskCommand]
+
+    /// A chord needs a key besides Shift, which alone would take over every
+    /// range selection; the window gesture modifiers follow the same rule.
+    static func isValidClickChord(_ keys: CGEventFlags) -> Bool {
+        !keys.intersection(clickKeyMask).subtracting(.maskShift).isEmpty
+    }
+
+    /// The chord saved as tokens like "control+option". Anything unreadable
+    /// falls back to fn.
+    static func clickKeys(from storedValue: String?) -> CGEventFlags {
+        let fallback = MiddleClickKey.fn.flag
+        guard let storedValue else { return fallback }
+        var keys: CGEventFlags = []
+        for token in storedValue.split(separator: "+", omittingEmptySubsequences: false) {
+            guard let key = MiddleClickKey(rawValue: String(token)) else { return fallback }
+            keys.insert(key.flag)
+        }
+        return isValidClickChord(keys) ? keys : fallback
+    }
+
+    static func storageValue(forClickKeys keys: CGEventFlags) -> String {
+        MiddleClickKey.allCases.filter { keys.contains($0.flag) }
+            .map(\.rawValue).joined(separator: "+")
+    }
+
+    /// The chord with one key flipped, or nil when that would leave no valid
+    /// chord: the picker keeps the last deliberate key selected.
+    static func togglingClickKey(_ key: MiddleClickKey, in keys: CGEventFlags) -> CGEventFlags? {
+        let next = keys.symmetricDifference(key.flag)
+        return isValidClickChord(next) ? next : nil
+    }
+
+    /// Whether a press is a key + click: the primary button with exactly the
+    /// chosen keys held. Exactly, as window gestures match, so a chord of ⌘
+    /// does not take over ⌃⌘ click; fn + right click stays a right click.
+    static func isKeyClick(type: CGEventType, flags: CGEventFlags, keys: CGEventFlags) -> Bool {
+        !keys.isEmpty && type == .leftMouseDown && flags.intersection(clickKeyMask) == keys
+    }
+
+    /// Both triggers sit under the feature switch, and either works alone.
+    static func triggers(featureOn: Bool, threeFingerOn: Bool, keyClickOn: Bool,
+                         storedKeys: String?) -> MiddleClickTriggers {
+        MiddleClickTriggers(threeFinger: featureOn && threeFingerOn,
+                            keys: featureOn && keyClickOn ? clickKeys(from: storedKeys) : [])
+    }
+
+    /// Rewrites the event in place: same position, timestamp and modifiers,
+    /// but a middle-button event instead of its native button. A chord is
+    /// dropped: it asked for the middle click, so apps should not see it as
+    /// modifiers on one.
+    static func asMiddle(_ event: CGEvent, type: CGEventType, dropping keys: CGEventFlags) -> CGEvent {
+        event.type = type
+        event.setIntegerValueField(.mouseEventButtonNumber, value: 2)
+        event.flags.subtract(keys)
+        return event
     }
 
     // MARK: - Tap to middle click (issue #161, opt-in)

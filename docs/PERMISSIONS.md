@@ -32,7 +32,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
-- **Middle click**, which turns a three finger press on the trackpad into a middle click.
+- **Middle click**, which turns a three finger press on the trackpad, or a click with your chosen keys held, into a middle click.
 - **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
 - **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
 - **Quit on close**, which spots when an app's last window goes away.

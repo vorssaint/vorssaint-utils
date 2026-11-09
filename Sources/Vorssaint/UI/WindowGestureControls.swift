@@ -359,6 +359,40 @@ private struct WindowEdgeSnapMenuAnchorView: NSViewRepresentable {
     }
 }
 
+/// One key in a picker of held modifiers.
+struct ModifierKeyChip: View {
+    let symbol: String
+    let name: String
+    let selected: Bool
+    var compact = false
+    /// A chord's last deliberate key cannot be removed.
+    var locked = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(symbol)
+                .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
+                .frame(width: compact ? 25 : 30, height: compact ? 22 : 25)
+                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.045))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .stroke(selected ? Color.accentColor.opacity(0.45) : Color.primary.opacity(0.1),
+                                lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(locked)
+        .help(name)
+        .accessibilityLabel(name)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+}
+
 struct WindowGestureModifierPicker: View {
     @Binding var storageValue: String
     var title: String?
@@ -387,28 +421,10 @@ struct WindowGestureModifierPicker: View {
             }
             ForEach(choices) { choice in
                 let selected = modifiers.contains(choice.modifier)
-                Button {
+                ModifierKeyChip(symbol: choice.symbol, name: choice.name, selected: selected,
+                                compact: compact, locked: selected && !canRemove(choice.modifier)) {
                     toggle(choice.modifier)
-                } label: {
-                    Text(choice.symbol)
-                        .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
-                        .frame(width: compact ? 25 : 30, height: compact ? 22 : 25)
-                        .foregroundStyle(selected ? Color.accentColor : Color.secondary)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.045))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(selected ? Color.accentColor.opacity(0.45) : Color.primary.opacity(0.1),
-                                        lineWidth: 1)
-                        )
                 }
-                .buttonStyle(.plain)
-                .disabled(selected && !canRemove(choice.modifier))
-                .help(choice.name)
-                .accessibilityLabel(choice.name)
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
     }

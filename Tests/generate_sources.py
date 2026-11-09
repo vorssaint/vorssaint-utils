@@ -528,7 +528,8 @@ def main():
         declaration("Sources/Vorssaint/Services/MiddleClick/MiddleClickService.swift", prefix)
         .replace("private ", "", 1) for prefix in [
             "    private func startMultitouch(", "    private func stopMultitouch(",
-            "    private func restartMultitouch(", "    private func installHotplugObserver(",
+            "    private func restartMultitouch(", "    private func syncMultitouch(",
+            "    private func installHotplugObserver(",
             "    private func removeObservers(", "    private func stop("])
     for function in ["IONotificationPortCreate", "IONotificationPortSetDispatchQueue",
                      "IOServiceAddMatchingNotification", "IOServiceMatching", "IOIteratorNext",
