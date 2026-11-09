@@ -270,6 +270,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchYouTubeMusicSupport.swift
         Sources/Vorssaint/Services/Notch/NotchPreferredPlayer.swift
         Sources/Vorssaint/Core/NotchFilesStrings.swift
         Sources/Vorssaint/Core/NotchWatchStrings.swift

@@ -11,6 +11,7 @@ struct NotchMusicView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
+    @ObservedObject private var youTube = NotchYouTubeMusicService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
@@ -34,6 +35,14 @@ struct NotchMusicView: View {
         case nil: return nil
         }
     }
+    /// While nothing plays, an open YouTube Music page's Listen again shelf
+    /// is followed, and shown below the idle player in the room lyrics or
+    /// the queue take while music plays.
+    private var followsListenAgain: Bool {
+        !preview && service.playback == nil && !service.awaitingPlayback && showsQueue
+            && NotchQueueSupport.isEnabled() && NotchService.shared.geometry.layout != .custom
+    }
+    private var showsListenAgain: Bool { followsListenAgain && !youTube.listenAgain.isEmpty }
     /// The page starts at the top of the row beside the camera, where the
     /// cover tucks in beside it; without one the cover leads the page.
     private var bandHeight: CGFloat { band.besideCamera ? band.height : 0 }
@@ -47,7 +56,7 @@ struct NotchMusicView: View {
         let split = NotchLayout.musicSplit(
             height: size.height, extras: extrasHeight,
             resting: NotchLayout.musicPlayerHeight(band: bandHeight, playing: service.playback != nil, showVolume: showsVolume),
-            keepsPlayer: !preview && geometry.layout != .custom, extraOpen: openExtra != nil)
+            keepsPlayer: !preview && geometry.layout != .custom, extraOpen: openExtra != nil || showsListenAgain)
         // With the player gone the list starts below the camera's row, which
         // keeps its toggles; without that row they come back in one of their
         // own above the list, to close it.
@@ -79,6 +88,11 @@ struct NotchMusicView: View {
                 .frame(maxWidth: .infinity, alignment: .top)
                 .frame(height: max(0, min(split.extra, size.height - reserve)), alignment: .top)
                 .clipped()
+            } else if showsListenAgain {
+                NotchListenAgainView()
+                    .frame(maxWidth: .infinity, alignment: .top)
+                    .frame(height: max(0, min(split.extra, size.height - reserve)), alignment: .top)
+                    .clipped()
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -106,19 +120,24 @@ struct NotchMusicView: View {
         .onChange(of: features.revision) { syncExtras() }
         .onChange(of: lyricsEnabled) { syncExtras() }
         .onChange(of: queueEnabled) { syncExtras() }
+        .onChange(of: followsListenAgain) { syncExtras() }
+        .onChange(of: showsListenAgain) { syncExtras() }
         .onDisappear {
             guard !preview else { return }
             NotchService.shared.setMusicDetailsVisible(false)
             NotchService.shared.setPageLayer(.music, close: nil)
             NotchLyricsService.shared.hide()
             service.setQueueVisible(false)
+            youTube.followListenAgain(false)
+            youTube.stopFollowingQueue()
             shuffle.stop()
         }
     }
 
     private func syncExtras() {
         guard !preview else { return }
-        NotchService.shared.setMusicDetailsVisible(openExtra != nil)
+        NotchService.shared.setMusicDetailsVisible(openExtra != nil || showsListenAgain)
+        youTube.followListenAgain(followsListenAgain)
         // Escape closes lyrics or the queue before the island.
         NotchService.shared.setPageLayer(.music, close: openExtra == nil ? nil : { extra = nil })
         NotchLyricsService.shared.update(playback: service.playback, visible: extra == .lyrics)
