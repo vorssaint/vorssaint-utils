@@ -362,6 +362,7 @@ enum DefaultsKey {
     static let panelControlMouseButtonShortcuts = "panelControlMouseButtonShortcuts"
     static let panelControlMouseAcceleration = "panelControlMouseAcceleration"
     static let panelControlLinearScroll = "panelControlLinearScroll"
+    static let panelControlSmoothScroll = "panelControlSmoothScroll"
     static let panelControlMouseClickDebounce = "panelControlMouseClickDebounce"
     static let panelControlSpacesOrder = "panelControlSpacesOrder"
     // Quick-control categories start collapsed and remember being opened.
@@ -1635,6 +1636,7 @@ enum Defaults {
         DefaultsKey.panelControlMouseButtonShortcuts: true,
         DefaultsKey.panelControlMouseAcceleration: true,
         DefaultsKey.panelControlLinearScroll: true,
+        DefaultsKey.panelControlSmoothScroll: true,
         DefaultsKey.panelControlMouseClickDebounce: true,
         DefaultsKey.panelControlSpacesOrder: true,
         DefaultsKey.panelControlWindowsExpanded: false,
