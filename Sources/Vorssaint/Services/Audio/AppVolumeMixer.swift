@@ -557,8 +557,8 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     /// The published pair shows the monitor's levels while it carries the sound
-    /// and CoreAudio's otherwise. A monitor with no MCCS mute control publishes
-    /// no mute, so the mute control stays unavailable for it.
+    /// and CoreAudio's otherwise. A monitor at zero without a recoverable
+    /// mute state publishes no mute control.
     private func republishSystemOutput() {
         let volume: Double?
         let muted: Bool?
@@ -573,25 +573,6 @@ final class AppVolumeMixer: ObservableObject {
         if systemOutputMuted != muted { systemOutputMuted = muted }
     }
 
-    /// Moves the monitor's own speakers through the brightness work queue, so
-    /// they share one DDC client and its pacing with the backlight. Mute is
-    /// written only for a monitor that has an MCCS mute control; a level
-    /// brings the mute that goes with it (BrightnessService.setVolume).
-    @discardableResult
-    private func writeMonitorSpeakers(_ monitor: BrightnessSupport.MonitorSpeakerOutput,
-                                      volume: Double? = nil, muted: Bool? = nil,
-                                      raises: Bool = true) -> Bool {
-        if let muted {
-            guard monitor.muted != nil else { return false }
-            BrightnessService.shared.setMuted(muted, for: monitor.displayID)
-        }
-        if let volume {
-            BrightnessService.shared.setVolume(min(1, max(0, volume)), for: monitor.displayID,
-                                               raises: raises)
-        }
-        return true
-    }
-
     /// UI feedback is immediate; one HAL write runs at a time and a burst
     /// retains only its newest requested level. Device changes never inherit
     /// a write intended for the previous output. A monitor's speakers take the
@@ -600,7 +581,8 @@ final class AppVolumeMixer: ObservableObject {
                                  completion: @escaping (Bool) -> Void = { _ in }) {
         if let monitor = monitorOutput {
             guard volume?.isFinite != false else { completion(false); return }
-            completion(writeMonitorSpeakers(monitor, volume: volume, muted: muted))
+            BrightnessService.shared.requestSpeakers(.set(volume: volume, muted: muted),
+                                                     target: monitor.target, completion: completion)
             return
         }
         enqueueOutputAdjustment(volume: volume, muted: muted) { completion($0.handled) }
@@ -656,12 +638,10 @@ final class AppVolumeMixer: ObservableObject {
     func requestOutputStep(level: @escaping (Double) -> Double, raises: Bool = false,
                            completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
         if let monitor = monitorOutput {
-            // The monitor keeps its stored level while muted, so the step starts
-            // from it; the mute that goes with the new level is decided where
-            // the level is queued.
-            let target = level(monitor.volume)
-            guard target.isFinite else { completion(.fallback); return }
-            completion(writeMonitorSpeakers(monitor, volume: target, raises: raises) ? .applied : .fallback)
+            BrightnessService.shared.requestSpeakers(.step(levels: [level], raises: raises),
+                                                     target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
             return
         }
         enqueueOutputKey(OutputStep(level: level, completion: completion),
@@ -673,8 +653,10 @@ final class AppVolumeMixer: ObservableObject {
     /// for that toggle and then reads the resulting audible level.
     func requestOutputMuteToggle(completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
         if let monitor = monitorOutput {
-            let applied = monitor.muted.map { writeMonitorSpeakers(monitor, muted: !$0) } ?? false
-            completion(applied ? .applied : .fallback)
+            guard monitor.muted != nil else { completion(.fallback); return }
+            BrightnessService.shared.requestSpeakers(.toggleMute, target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
             return
         }
         enqueueOutputKey(OutputStep(level: nil, completion: completion),
@@ -3503,6 +3485,7 @@ private final class TapGainEngine: GainEngine {
         }
         self.configuration = configuration
         let ramp = TapLevelRamp()
+        let appliedGain = MixerRender.AppliedGain()
         // A boost pushes loud samples past full scale, and clamping the
         // overshoot flattens every peak into audible crackle (issue #326).
         // The limiter turns the whole signal down for just the moment a peak
@@ -3521,6 +3504,7 @@ private final class TapGainEngine: GainEngine {
             guard configuration.canRender else {
                 MixerRender.silence(outputBuffers)
                 limiterBox.reset()
+                appliedGain.reset()
                 return
             }
             // The output clock keeps moving through a short or missing tap
@@ -3532,6 +3516,7 @@ private final class TapGainEngine: GainEngine {
                 // No samples to put in the buffer is not a reason to leave it:
                 // whatever the HAL left there plays otherwise (issue #326).
                 MixerRender.silence(outputBuffers)
+                appliedGain.reset()
                 return
             }
             let gain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)
@@ -3539,10 +3524,14 @@ private final class TapGainEngine: GainEngine {
             // here on leaves the output written.
             let frames = MixerRender.render(source: inputBuffers[tapIndex],
                                             into: outputBuffers,
-                                            gain: gain)
+                                            gain: gain,
+                                            rampingFrom: appliedGain)
             // Draining delayed audio alone must not hide a stalled capture
             // from the engine's recovery check.
-            guard frames > 0 else { return }
+            guard frames > 0 else {
+                appliedGain.reset()
+                return
+            }
             cycles.increment()
         }) == noErr else {
             ioProc = nil

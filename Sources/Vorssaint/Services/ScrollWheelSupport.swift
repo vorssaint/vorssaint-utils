@@ -37,42 +37,31 @@ enum ScrollWheelAxis {
     case vertical, horizontal
 }
 
-enum ScrollZoomEffect {
-    case zoom, pinch
-}
-
 struct ScrollZoomAction {
-    let effect: ScrollZoomEffect
     let axis: ScrollWheelAxis
     let modifier: ScrollHorizontalModifier
     let delta: Double
 }
 
 struct ScrollZoomPreferences: Equatable {
-    let verticalZoom: ScrollHorizontalModifier?
     let pinchZoom: ScrollHorizontalModifier?
 
     var isEnabled: Bool {
-        verticalZoom != nil || pinchZoom != nil
+        pinchZoom != nil
     }
 
     init(isAvailable: Bool, boolFor: (String) -> Bool, stringFor: (String) -> String?) {
         func modifier(_ enabled: String, _ key: String) -> ScrollHorizontalModifier? {
             isAvailable && boolFor(enabled) ? ScrollZoomModifier(storageValue: stringFor(key)).modifier : nil
         }
-        verticalZoom = modifier(DefaultsKey.verticalZoomEnabled, DefaultsKey.verticalZoomModifier)
-        let pinch = modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier)
-        pinchZoom = pinch == verticalZoom ? nil : pinch
+        pinchZoom = modifier(DefaultsKey.pinchZoomEnabled, DefaultsKey.pinchZoomModifier)
     }
 
     func action(for event: CGEvent) -> ScrollZoomAction? {
-        let choices: [(ScrollZoomEffect, ScrollWheelAxis, ScrollHorizontalModifier?)] = [
-            (.zoom, .vertical, verticalZoom),
-            (.pinch, .vertical, pinchZoom), (.pinch, .horizontal, pinchZoom),
-        ]
-        for (effect, axis, modifier) in choices {
-            if let modifier, let delta = ScrollWheelSupport.zoomDelta(event, modifier: modifier, axis: axis) {
-                return ScrollZoomAction(effect: effect, axis: axis, modifier: modifier, delta: delta)
+        guard let modifier = pinchZoom else { return nil }
+        for axis in [ScrollWheelAxis.vertical, .horizontal] {
+            if let delta = ScrollWheelSupport.zoomDelta(event, modifier: modifier, axis: axis) {
+                return ScrollZoomAction(axis: axis, modifier: modifier, delta: delta)
             }
         }
         return nil
@@ -119,32 +108,6 @@ struct ScrollZoomGestureState {
         pinchModifier = nil
         pinchLocation = nil
         return true
-    }
-}
-
-struct ScrollZoomStepLimiter {
-    private var lastStep: (timestamp: UInt64, positive: Bool)?
-
-    mutating func allows(_ delta: Double, at timestamp: UInt64) -> Bool {
-        let positive = delta > 0
-        if let lastStep, lastStep.positive == positive,
-           timestamp >= lastStep.timestamp,
-           timestamp - lastStep.timestamp < 100_000_000 { return false }
-        lastStep = (timestamp, positive)
-        return true
-    }
-
-    mutating func reset() { lastStep = nil }
-}
-
-struct ScrollZoomTargetSnapshot {
-    let windows: [ScrollWheelTargetCache.Window]
-    let modifier: ScrollHorizontalModifier
-    let resolvedAt: TimeInterval
-
-    func target(at point: CGPoint, modifier: ScrollHorizontalModifier, now: TimeInterval) -> WindowServerWindowCandidate? {
-        guard self.modifier == modifier, now >= resolvedAt, now - resolvedAt < 0.5 else { return nil }
-        return windows.first { $0.frame.contains(point) }?.zoomTarget
     }
 }
 
@@ -599,7 +562,6 @@ final class ScrollWheelTargetCache {
     struct Window {
         let frame: CGRect
         let isOwn: Bool
-        let zoomTarget: WindowServerWindowCandidate?
     }
 
     private struct Snapshot {
@@ -698,15 +660,7 @@ final class ScrollWheelTargetCache {
             let isOwn = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == ownProcessID
             if isOwn, let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                clickThroughWindowIDs.contains(number) { return nil }
-            let target: WindowServerWindowCandidate?
-            if !isOwn, (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
-               let pid = (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value, pid > 0,
-               let id = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value {
-                target = WindowServerWindowCandidate(pid: pid, windowID: id, frame: frame)
-            } else {
-                target = nil
-            }
-            return Window(frame: frame, isOwn: isOwn, zoomTarget: target)
+            return Window(frame: frame, isOwn: isOwn)
         }
     }
 }

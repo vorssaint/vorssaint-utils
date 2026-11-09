@@ -2424,7 +2424,7 @@ final class CommandBarService: ObservableObject {
     /// itself with `.confirm`.
     private func confirmUninstallReview(entryID: String) {
         let uninstaller = AppUninstaller.shared
-        guard uninstaller.phase == .results, !uninstaller.isRemoving else { return }
+        guard uninstaller.canRemoveSelected else { return }
         if let confirmation = uninstaller.homebrewRemovalConfirmation {
             pendingHomebrewRemoval = confirmation
             mode = .uninstallHomebrewConfirm(entryID: entryID)

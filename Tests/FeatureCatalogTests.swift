@@ -1562,9 +1562,9 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
-        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.verticalZoomEnabled])
+        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.pinchZoomEnabled])
                 == [.scrollZoom]
-                && activeSet(.accessibility, available: [], on: [DefaultsKey.verticalZoomEnabled]).isEmpty,
+                && activeSet(.accessibility, available: [], on: [DefaultsKey.pinchZoomEnabled]).isEmpty,
                "Zoom alone owns accessibility only while installed")
         suite.expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                            DefaultsKey.scrollInverterHorizontalEnabled],
@@ -1736,6 +1736,35 @@ enum FeatureCatalogTests {
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
 
+        for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
+            let key = role.storageKey
+            let cleared = GlobalShortcutRole.clearedShortcutStorageValue
+            suite.expect(role.supportsClearing, "\(role) supports clearing")
+            suite.expect(role.assignedShortcut(storedValue: { _ in nil }) == role.defaultShortcut,
+                         "\(role) retains its default when absent")
+            suite.expect(role.assignedShortcut(storedValue: { _ in "invalid" }) == role.defaultShortcut,
+                         "\(role) retains its default when corrupt")
+            suite.expect(role.assignedShortcut(storedValue: { _ in cleared }) == nil,
+                         "\(role) stays cleared")
+            suite.expect(role.assignedShortcut(storedValue: { _ in role.defaultShortcut.storageValue })
+                             == role.defaultShortcut, "\(role) can be reset")
+            suite.expect(role.assignedShortcut(storedValue: { _ in GlobalShortcut.shelfDefault.storageValue })
+                             == .shelfDefault, "\(role) accepts a replacement shortcut")
+            suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
+                storedValue: { $0 == key ? cleared : nil }).contains(role),
+                "\(role) is inactive when cleared")
+            suite.expect(GlobalShortcutRole.conflict(for: role.defaultShortcut, excluding: nil,
+                isAvailable: { _ in true }, includeInactive: true,
+                storedValue: { $0 == key ? cleared : nil }) != role,
+                "\(role) releases its conflict reservation")
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { $0 == key ? cleared : nil }
+            let restored = SettingsBackupSupport.sanitizedSettings(from: backup)?[key] as? String
+            suite.expect(role.assignedShortcut(storedValue: { _ in restored }) == nil,
+                         "\(role) stays cleared after a settings backup round trip")
+        }
+        suite.expect(!GlobalShortcutRole.switcher.supportsClearing
+                     && GlobalShortcutRole.switcher.assignedShortcut(storedValue: { _ in "none" }) == .switcherDefault,
+                     "roles outside this change retain their existing invalid-value fallback")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true }).count
                 == GlobalShortcutRole.allCases.count,
                "the availability-free overload keeps every enabled current role")
@@ -1744,10 +1773,10 @@ enum FeatureCatalogTests {
                "a role leaves the shortcuts page when its feature is off in the hub")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true },
                                               isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
-               "both switcher roles follow the switcher feature")
+                .allSatisfy { $0.feature != .switcher },
+               "all switcher roles follow the switcher feature")
         suite.expect(GlobalShortcutRole.availableRoles(isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
+                .allSatisfy { $0.feature != .switcher },
                "the shortcut editor lists installed roles even without reading enable keys")
         for role in [GlobalShortcutRole.displayBrightnessDecrease, .displayBrightnessIncrease] {
             suite.expect(role.feature == .brightness && role.group == .energyDisplay,
@@ -2505,9 +2534,11 @@ enum FeatureCatalogTests {
         suite.expect(ddcWrite == expectedDDCWrite,
                "DDC write packet carries the set opcode, big-endian value and checksum")
         let ddcRead = BrightnessSupport.readRequestPacket(code: 0x10)
-        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xFD]
+        // 0x6E ^ 0x51 ^ 0x82 ^ 0x01 ^ 0x10, the bytes m1ddc sends. A Samsung
+        // Odyssey G5 ignored the request without 0x51 in its checksum.
+        let expectedDDCRead: [UInt8] = [0x82, 0x01, 0x10, 0xAC]
         suite.expect(ddcRead == expectedDDCRead,
-               "DDC read request omits the sub-address from its checksum seed")
+               "DDC read request's checksum covers the source address")
         suite.expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
 
@@ -2675,6 +2706,11 @@ enum FeatureCatalogTests {
         suite.expect(!SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.brightnessDDCWriteOnlyPaths),
                "per-monitor DDC capability never travels in a settings backup")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessDDCReadChecksumRechecked)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessDDCReadChecksumRechecked),
+               "the DDC checksum recheck marker stays on the Mac that ran it")
         suite.expect(SettingsBackupSupport.machineStateKeys.contains(
             DefaultsKey.brightnessForcedSoftwarePaths)
                 && !SettingsBackupSupport.exportKeys().contains(

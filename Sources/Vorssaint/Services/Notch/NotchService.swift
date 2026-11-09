@@ -279,6 +279,10 @@ final class NotchService: ObservableObject {
     private var menuSpaceTimer: Timer?
     private var appFullscreenTimer: Timer?
     private var appFullscreenDisplays: Set<CGDirectDisplayID> = []
+    /// Whether a full-screen Space, not an app's own full screen, hides the island.
+    private var hiddenByFullscreenSpace = false
+    /// Set while an app's own full screen ends, so the hidden island returns with motion.
+    private var revealingFromAppFullscreen = false
     private var menuSpaceReading = false
     private var menuSpaceGeneration = 0
     private var menuBarMeasurements = NotchMenuBarMeasurements()
@@ -416,8 +420,12 @@ final class NotchService: ObservableObject {
     private var musicTitleWork: DispatchWorkItem?
     private static let musicTitleDuration: TimeInterval = 4
     private var mirrors: [CGDirectDisplayID: NotchMirror] = [:]
-    /// Displays showing a full-screen Space, read as Spaces change.
+    /// Displays in full screen, a Space or an app's own, read as it changes.
     private var fullscreenDisplays: Set<CGDirectDisplayID> = []
+    /// The part of `fullscreenDisplays` that shows a full-screen Space.
+    private var fullscreenSpaceDisplays: Set<CGDirectDisplayID> = []
+    /// Copies an app's own full screen hid with motion, so they return with it.
+    private var mirrorsHiddenByApp: Set<CGDirectDisplayID> = []
     private var pointerMonitors: [Any] = []
     private var pointerFollowWork: DispatchWorkItem?
     /// How long the pointer stays on another display before the island
@@ -882,11 +890,15 @@ final class NotchService: ObservableObject {
         let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
+        let claudeProfile = AgentUsageService.shared.claudeProfile
+        let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty) }
+        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
+            || ($0 == .claude && claudeAccount != nil) }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts),
+            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
+                                    claudeAccount: claudeAccount),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
@@ -1363,6 +1375,7 @@ final class NotchService: ObservableObject {
         displayID = nil
         syncPanelKey()
         hiddenInFullscreen = false
+        hiddenByFullscreenSpace = false
     }
 
     /// Opening without a page shows what the closed island is already
@@ -2708,8 +2721,9 @@ final class NotchService: ObservableObject {
                             quickAccess: expanded && captureControls == nil && !showingCommandBar && !access.buttons.isEmpty
                                 ? access : nil,
                             revealFromHidden: !hiddenInFullscreen && captureControls == nil
-                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
-                                && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover),
+                                && (revealingFromAppFullscreen
+                                    || UserDefaults.standard.bool(forKey: DefaultsKey.notchHideUntilHover)
+                                    && UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover)),
                             usesGlass: !fullscreenCompact && usesGlassSurface,
                             steady: fitsInPlace)
         // The selector lives in a separate full-screen panel. A floating
@@ -3182,6 +3196,7 @@ final class NotchService: ObservableObject {
         for (id, mirror) in mirrors where !screens.contains(where: { $0.notchDisplayID == id }) {
             mirror.host.close()
             mirrors[id] = nil
+            mirrorsHiddenByApp.remove(id)
         }
         let activity = compactActivity
         // An island hidden until the pointer reaches it hides its copies as
@@ -3203,9 +3218,16 @@ final class NotchService: ObservableObject {
                 }
             }
             guard let base else {
-                if let mirror = mirrors[id], mirror.model.shown {
-                    mirror.model.shown = false
-                    mirror.host.hide(animated: false)
+                // A full-screen Space already slides the screen, so only an app's
+                // own full screen eases its copy away.
+                let byApp = id != displayID && fullscreenDisplays.contains(id) && !fullscreenSpaceDisplays.contains(id)
+                if !byApp { mirrorsHiddenByApp.remove(id) }
+                if let mirror = mirrors[id] {
+                    if byApp { mirrorsHiddenByApp.insert(id) }
+                    if mirror.model.shown {
+                        mirror.model.shown = false
+                        mirror.host.hide(animated: byApp)
+                    }
                 }
                 continue
             }
@@ -3220,12 +3242,15 @@ final class NotchService: ObservableObject {
             let sharing: NSWindow.SharingType = NotchSupport.showsInCaptures() ? .readOnly : .none
             if mirror.host.panel.sharingType != sharing { mirror.host.panel.sharingType = sharing }
             let revealing = !mirror.model.shown
+            // Where an app's full screen eased the copy away, it eases back in.
+            let afterApp = revealing && mirrorsHiddenByApp.remove(id) != nil
             let previous = mirror.model.activity
             guard mirror.model.update(geometry: base, strip: strip, size: size, activity: activity) || revealing else { continue }
             mirror.model.shown = true
             // Shown at once where the island just left, so the two trade places.
-            mirror.host.present(size: size, geometry: base, animated: !revealing,
-                                transitionContent: !revealing && previous != activity ? .replace : .none)
+            mirror.host.present(size: size, geometry: base, animated: !revealing || afterApp,
+                                transitionContent: !revealing && previous != activity ? .replace : .none,
+                                revealFromHidden: afterApp)
             mirror.host.setActivationArea(CGRect(origin: .zero, size: size),
                                           title: FeatureStrings.notch(L10n.shared.language).open,
                                           willPress: {}, activate: { [weak self] in self?.bringIsland(to: id) })
@@ -3275,6 +3300,7 @@ final class NotchService: ObservableObject {
         guard !mirrors.isEmpty else { return }
         mirrors.values.forEach { $0.host.close() }
         mirrors.removeAll()
+        mirrorsHiddenByApp.removeAll()
     }
 
     /// Whether another display shows a copy of the closed island now.
@@ -3284,13 +3310,17 @@ final class NotchService: ObservableObject {
     /// the island hides there; the island asks for its own display.
     private func updateFullscreenDisplays() {
         guard showsOnAllDisplays, UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
-        else { fullscreenDisplays = []; return }
+        else { fullscreenDisplays = []; fullscreenSpaceDisplays = []; return }
         let covered = NotchAppFullscreen.coveredDisplays()
-        guard let topology = SpaceWindowBridge.topology() else { fullscreenDisplays = covered; return }
+        guard let topology = SpaceWindowBridge.topology() else {
+            fullscreenDisplays = covered
+            fullscreenSpaceDisplays = []
+            return
+        }
         let separate = NSScreen.screensHaveSeparateSpaces
-        fullscreenDisplays = Set(NSScreen.screens.map(\.notchDisplayID).filter {
-            topology.isFullscreen(on: $0, separateSpaces: separate) || covered.contains($0)
-        })
+        let displays = NSScreen.screens.map(\.notchDisplayID)
+        fullscreenSpaceDisplays = Set(displays.filter { topology.isFullscreen(on: $0, separateSpaces: separate) })
+        fullscreenDisplays = Set(displays.filter { fullscreenSpaceDisplays.contains($0) || covered.contains($0) })
     }
 
     /// A click on a copy brings the island to its display, open, closing it
@@ -3617,9 +3647,11 @@ final class NotchService: ObservableObject {
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
         // A game's own full screen leaves the desktop Space in place, so the
         // frontmost app's windows are read when the Space is not full screen.
-        let hidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
-            && (SpaceWindowBridge.topology()?.isFullscreen(on: displayID, separateSpaces: NSScreen.screensHaveSeparateSpaces) == true
-                || NotchAppFullscreen.coveredDisplays().contains(displayID))
+        let enabled = UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
+        let bySpace = enabled
+            && SpaceWindowBridge.topology()?.isFullscreen(on: displayID, separateSpaces: NSScreen.screensHaveSeparateSpaces) == true
+        let hidden = bySpace || (enabled && NotchAppFullscreen.coveredDisplays().contains(displayID))
+        hiddenByFullscreenSpace = bySpace
         guard hidden != hiddenInFullscreen else { return }
         hiddenInFullscreen = hidden
         if hidden {
@@ -3647,6 +3679,7 @@ final class NotchService: ObservableObject {
               hiddenInFullscreen || UserDefaults.standard.bool(forKey: DefaultsKey.notchHideInFullscreen)
         else { return }
         let wasHidden = hiddenInFullscreen
+        let wasBySpace = hiddenByFullscreenSpace
         updateScreen()
         // Each copy follows full screen on its own display.
         updateFullscreenDisplays()
@@ -3655,7 +3688,13 @@ final class NotchService: ObservableObject {
         // as the island closing after a click in another app.
         guard hiddenInFullscreen != wasHidden else { return }
         syncVisibleConsumers()
-        refreshPresentation(animated: false)
+        // A full-screen Space already slides the screen, so the island hides and
+        // returns at once there. An app's own full screen changes nothing else
+        // on screen, so the island eases away and back as it does at any hide.
+        let bySpace = wasBySpace || hiddenByFullscreenSpace
+        revealingFromAppFullscreen = !bySpace && !hiddenInFullscreen
+        refreshPresentation(animated: !bySpace)
+        revealingFromAppFullscreen = false
     }
 
     /// A game can enter or leave its own full screen while it stays
@@ -4249,7 +4288,6 @@ final class NotchService: ObservableObject {
     private func showAgentEvent(_ event: AgentUsageEvent) {
         let text = FeatureStrings.notchAgents(L10n.shared.language)
         let locale = L10n.shared.language.formattingLocale()
-        let remaining = NotchAgentSupport.limitDisplay() == .remaining
         func window(_ window: AgentLimitWindow) -> String {
             switch window.kind {
             case .session: return text.session
@@ -4267,9 +4305,9 @@ final class NotchService: ObservableObject {
             // After the notice, the companion cheers the finished task.
             reactMascot(.celebrate)
         case .limitWarning(let provider, let limit):
-            let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
             show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
+                             detail: NotchAgentSupport.limitShare(limit, display: NotchAgentSupport.limitDisplay(),
+                                                                  text: text),
                              symbol: "exclamationmark.triangle.fill", agent: provider))
         case .limitReset(let provider, let limit):
             // Work can go on: the companion is glad of it.

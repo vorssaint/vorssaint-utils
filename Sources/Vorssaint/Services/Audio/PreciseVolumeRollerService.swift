@@ -18,7 +18,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var notchKeyGate = NotchVolumeKeyGate()
     /// Monitor volume presses this tap claimed and has not yet seen released,
     /// so their key-ups are consumed too. Main thread only: the tap runs there.
-    private var monitorVolumeKeysHeld = Set<BrightnessSupport.VolumeKeyAction>()
+    private var monitorVolumeKeysHeld: [BrightnessSupport.VolumeKeyAction: BrightnessSupport.SpeakerTarget] = [:]
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
@@ -67,7 +67,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         notchKeyGate = NotchVolumeKeyGate()
         feedback = nil
         keyOwnership = PreciseVolumeKeyOwnership()
-        monitorVolumeKeysHeld = []
+        monitorVolumeKeysHeld = [:]
     }
 
     private func start() {
@@ -126,6 +126,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if routeMonitorVolume(nsEvent, flags: event.flags) { return nil }
+        guard AppFeature.mixer.isAvailable else { return Unmanaged.passUnretained(event) }
         if routeNotchVolume(nsEvent, event: event) { return nil }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
               let volumePress = Self.volumePress(fromData1: nsEvent.data1) else {
@@ -149,27 +150,29 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     /// Routes a volume press to the monitor the sound plays through, when macOS
     /// cannot set that output's volume. Every other press keeps its path. The
-    /// press is claimed here and applied on main, so the tap waits on nothing.
+    /// tap only queues the change. All device I/O happens on the DDC queue.
     private func routeMonitorVolume(_ nsEvent: NSEvent, flags: CGEventFlags) -> Bool {
         guard let press = BrightnessSupport.volumeKeyEvent(
             subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) else { return false }
         if !press.isKeyDown {
-            return monitorVolumeKeysHeld.remove(press.action) != nil
+            return monitorVolumeKeysHeld.removeValue(forKey: press.action) != nil
         }
+        let held = monitorVolumeKeysHeld[press.action]
+        if !press.isRepeat { monitorVolumeKeysHeld[press.action] = nil }
+        if press.isRepeat && held == nil { return false }
         guard let fine = BrightnessSupport.volumeKeyFineness(
-            option: flags.contains(.maskAlternate),
-            shift: flags.contains(.maskShift),
-            commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])) else { return false }
-        if press.isRepeat, case .toggleMute = press.action {
-            return monitorVolumeKeysHeld.contains(press.action)
-        }
-        guard BrightnessService.shared.claimsMonitorVolumeKey(press.action) else {
+            option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift),
+            commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])),
+              BrightnessService.shared.wantsMonitorVolumeKeys,
+              let output = AppVolumeMixer.shared.monitorOutput,
+              press.action != .toggleMute || output.muted != nil else {
             if !press.isRepeat {
                 DispatchQueue.main.async { BrightnessService.shared.rescanForUnclaimedVolumeKey() }
             }
-            return false
+            return press.isRepeat && held != nil
         }
-        monitorVolumeKeysHeld.insert(press.action)
+        if press.isRepeat, held != output.target || press.action == .toggleMute { return true }
+        monitorVolumeKeysHeld[press.action] = output.target
         let action = press.action
         // The precise volume setting applies to the monitor as it does to any
         // other output: wheel bursts are thinned by the same gate and each
@@ -179,28 +182,30 @@ final class PreciseVolumeRollerService: ObservableObject {
            !gate.accepts(direction > 0 ? .up : .down, at: ProcessInfo.processInfo.systemUptime) {
             return true
         }
+        let target = output.target
         DispatchQueue.main.async {
-            Self.applyMonitorVolumeKey(action, fine: fine || precise)
+            Self.applyMonitorVolumeKey(action, target: target, fine: fine || precise)
         }
         return true
     }
 
     /// Applies a press that routeMonitorVolume claimed. Main thread only, where
     /// the mixer's monitor output and its request path live.
-    private static func applyMonitorVolumeKey(_ action: BrightnessSupport.VolumeKeyAction, fine: Bool) {
+    private static func applyMonitorVolumeKey(_ action: BrightnessSupport.VolumeKeyAction,
+                                              target: BrightnessSupport.SpeakerTarget, fine: Bool) {
         let mixer = AppVolumeMixer.shared
-        guard mixer.outputIsMonitorSpeakers else { return }
+        guard mixer.monitorOutput?.target == target else { return }
+        func feedback(_ result: AppVolumeMixer.OutputKeyResult) {
+            guard result == .applied, mixer.monitorOutput?.target == target else { return }
+            Self.showMonitorFeedback()
+        }
         switch action {
         case let .step(direction):
             mixer.requestOutputStep(level: {
                 BrightnessSupport.steppedLevel($0, delta: BrightnessSupport.volumeKeyDelta(direction: direction, fine: fine))
-            }, raises: direction > 0, completion: { result in
-                if result == .applied { Self.showMonitorFeedback() }
-            })
+            }, raises: direction > 0, completion: feedback)
         case .toggleMute:
-            mixer.requestOutputMuteToggle(completion: { result in
-                if result == .applied { Self.showMonitorFeedback() }
-            })
+            mixer.requestOutputMuteToggle(completion: feedback)
         }
     }
 
@@ -209,7 +214,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     private static func showMonitorFeedback() {
         if NotchService.shared.showCurrentVolume() { return }
         guard let output = AppVolumeMixer.shared.monitorOutput else { return }
-        BrightnessOSD.show(displayID: output.displayID, level: output.volume,
+        BrightnessOSD.show(displayID: output.target.displayID, level: output.volume,
                            kind: output.muted == true ? .mutedVolume : .volume)
     }
 
@@ -250,6 +255,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         // CoreAudio can wait for a reconnecting device. Never hold the event
         // tap's reply while reading or writing the audio driver.
         DispatchQueue.main.async { [weak self] in
+            guard !mixer.outputIsMonitorSpeakers else { return }
             let completion: (AppVolumeMixer.OutputKeyResult) -> Void = { result in
                 let applied = result == .applied
                 if let self, self.feedback?.step == step {

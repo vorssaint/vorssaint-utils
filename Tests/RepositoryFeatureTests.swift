@@ -63,12 +63,7 @@ enum RepositoryFeatureTests {
     /// Runs the production `pollPasteboard` against a pasteboard the test
     /// fills, recording what would be written back.
     enum URLCleanerPollHost {
-        struct Kind: Equatable {
-            let rawValue: String
-            static let string = Kind(rawValue: "public.utf8-plain-text")
-            static let html = Kind(rawValue: "public.html")
-            static let source = Kind(rawValue: "org.nspasteboard.source")
-        }
+        typealias Kind = AppKit.NSPasteboard.PasteboardType
         final class Pasteboard {
             static let general = Pasteboard()
             var changeCount = 1
@@ -79,11 +74,16 @@ enum RepositoryFeatureTests {
             var copiedDuringRead = false
             var source: String?
             var onRead: ((Kind) -> Void)?
+            var metadata: Data?
             var pasteboardItems: [Int]? { Array(repeating: 0, count: items) }
             func string(forType type: Kind) -> String? {
                 if copiedDuringRead { changeCount += 1 }
                 onRead?(type)
                 return type == .string ? text : type == .html ? html : type == .source ? source : nil
+            }
+            func data(forType type: Kind) -> Data? {
+                onRead?(type)
+                return metadata
             }
         }
         typealias NSPasteboard = Pasteboard
@@ -97,7 +97,8 @@ enum RepositoryFeatureTests {
         static var written: [String] = []
         static var writtenSources: [String?] = []
         static var writtenRemote: [Bool] = []
-        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false) -> Int {
+        static func writeToPasteboard(_ urlString: String, source: String? = nil, remote: Bool = false,
+                                     linkMetadata: Data? = nil) -> Int {
             written.append(urlString)
             writtenSources.append(source)
             writtenRemote.append(remote)
@@ -190,12 +191,14 @@ enum RepositoryFeatureTests {
         }
     }
 
-    /// Runs the production site switch and name removal of the rules list
+    /// Runs the production site creation, switch and name removal of the rules list
     /// against stored names the test reads back.
     final class URLCleanerSiteSwitchHost {
         var globalNames = ""
         var siteNames = ""
         var disabledNames = ""
+        var siteDraft = ""
+        var siteParameterDraft = ""
     }
 
     static func run(_ suite: TestSuite) {
@@ -420,6 +423,56 @@ enum RepositoryFeatureTests {
                "deleting a name the user added drops it from the switched off names too: \(siteSwitch.disabledNames)")
         expectEqual(URLCleaning.siteKey(from: " https://WWW.Weibo.com/path?x=1 ") ?? "",
                     "weibo.com", "the site field takes a pasted link and keeps the host")
+        expectEqual(URLCleaning.siteKey(from: "https://user@Shop.Example.com:8080/x") ?? "",
+                    "shop.example.com", "a pasted link's port and login do not become part of the host key")
+        let siteInputs: [(input: String, host: String, link: String)] = [
+            ("shop.example.com", "shop.example.com", "https://shop.example.com/x"),
+            ("shop.example.com:8080", "shop.example.com", "https://shop.example.com:8080/x"),
+            ("https://shop.example.com:8080/x?ref=a#part", "shop.example.com",
+             "https://shop.example.com:8080/x"),
+            ("https://user@shop.example.com/x", "shop.example.com", "https://user@shop.example.com/x"),
+            (" https://user:pass@WWW.Shop.Example.com:8080/x ", "shop.example.com",
+             "https://user:pass@WWW.Shop.Example.com:8080/x"),
+            ("https://192.0.2.1:8080/x", "192.0.2.1", "https://192.0.2.1:8080/x"),
+            ("[::ffff:192.0.2.1]", "[::ffff:192.0.2.1]", "https://[::ffff:192.0.2.1]/x"),
+            ("https://[::ffff:192.0.2.1]/x", "[::ffff:192.0.2.1]", "https://[::ffff:192.0.2.1]/x"),
+            ("https://user:pass@[2001:db8::192.0.2.1]:8080/x", "[2001:db8::192.0.2.1]",
+             "https://user:pass@[2001:db8::192.0.2.1]:8080/x"),
+        ]
+        for entry in siteInputs {
+            let site = URLCleanerSiteSwitchHost()
+            site.siteDraft = entry.input
+            site.siteParameterDraft = " Ref "
+            site.addSite()
+            expectEqual(site.siteNames, "\(entry.host)|ref", "site creation stores only the host from \(entry.input)")
+            suite.expect(site.siteDraft.isEmpty && site.siteParameterDraft.isEmpty,
+                         "successful site creation clears both drafts")
+            let restored = URLCleaning.rules(globalNames: site.globalNames, siteNames: site.siteNames,
+                                             disabledNames: site.disabledNames)
+            let link = entry.link + "?ref=campaign&id=42#section"
+            expectEqual(URLCleaning.clean(link, rules: restored)?.url ?? "", entry.link + "?id=42#section",
+                        "the stored rule cleans its host and preserves login, port, path and fragment")
+            let otherSite = "https://unrelated.example/?ref=campaign&id=42"
+            expectEqual(URLCleaning.clean(otherSite, rules: restored)?.url ?? "", otherSite,
+                        "a saved site rule does not reach an unrelated host")
+            if let group = URLCleaning.ruleGroups(rules: restored).first(where: { $0.site == entry.host }) {
+                site.setSite(group, enabled: false)
+                let disabled = URLCleaning.rules(globalNames: site.globalNames, siteNames: site.siteNames,
+                                                 disabledNames: site.disabledNames)
+                expectEqual(URLCleaning.clean(link, rules: disabled)?.url ?? "", link,
+                            "a disabled stored site rule preserves the original link")
+            } else {
+                suite.expect(false, "the saved site rule has a group")
+            }
+        }
+        for invalidSite in ["not a host", ".example.com", "https://user@:8080/x", "example.com|ref"] {
+            let site = URLCleanerSiteSwitchHost()
+            site.siteDraft = invalidSite
+            site.siteParameterDraft = "ref"
+            site.addSite()
+            suite.expect(site.siteNames.isEmpty && site.siteDraft == invalidSite,
+                         "invalid site creation keeps its draft and stores no rule")
+        }
         suite.expect(URLCleaning.siteKey(from: "not a host") == nil,
                "text that is not a host is refused rather than stored")
         expectEqual(URLCleaning.parameterName(from: " Ref ") ?? "", "ref",
@@ -554,6 +607,9 @@ enum RepositoryFeatureTests {
             "org.chromium.web-custom-data", "com.apple.WebKit.custom-pasteboard-data",
             "dyn.ah62d4rv4gu8y6y4grf0gn5xbrzw1gydcr7u1e3cytf2gn",
         ]), "a browser's or a messaging app's private notes about the copy do not block the rewrite")
+        suite.expect(URLCleaning.canRewritePasteboard(types: [
+            "public.utf8-plain-text", "public.url", "com.apple.linkpresentation.metadata",
+        ]), "Safari's rich-link metadata can be rewritten with the link")
         suite.expect(!URLCleaning.canRewritePasteboard(types: [
             "public.utf8-plain-text", "public.url", "public.tiff", "public.png",
         ]), "a copied picture with its source link as text is left alone")
@@ -698,10 +754,12 @@ enum RepositoryFeatureTests {
 
         // Delayed providers can answer after the cleaner was turned off or
         // another app copied. The final source read must not reopen that race.
-        for scenario in ["copy during source", "cancel during source", "cancel during HTML"] {
+        for scenario in ["copy during source", "cancel during source", "cancel during HTML",
+                         "copy during metadata", "cancel during metadata"] {
             let pasteboard = URLCleanerPollHost.Pasteboard.general
             let token = URLCleanerPollHost.PollToken()
-            pasteboard.types = chromiumTypes.map(URLCleanerPollHost.Kind.init(rawValue:))
+            pasteboard.types = (chromiumTypes + [URLCleanerLinkMetadata.pasteboardType.rawValue])
+                .map(URLCleanerPollHost.Kind.init(rawValue:))
             pasteboard.items = 1
             pasteboard.text = pollLink
             pasteboard.html = titledCopy
@@ -710,6 +768,12 @@ enum RepositoryFeatureTests {
                 if scenario == "copy during source", kind == .source { pasteboard.changeCount += 1 }
                 if scenario == "cancel during source", kind == .source { token.isCancelled = true }
                 if scenario == "cancel during HTML", kind == .html { token.isCancelled = true }
+                if scenario == "copy during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    pasteboard.changeCount += 1
+                }
+                if scenario == "cancel during metadata", kind == URLCleanerLinkMetadata.pasteboardType {
+                    token.isCancelled = true
+                }
             }
             URLCleanerPollHost.written = []
             _ = URLCleanerPollHost.pollPasteboard(sinceChangeCount: 0, token: token)

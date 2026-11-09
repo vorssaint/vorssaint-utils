@@ -134,12 +134,14 @@ enum BrightnessSupport {
     }
 
     /// Wraps a DDC payload: length-tagged header, payload, XOR checksum. The
-    /// checksum seed covers the destination address, and the sub-address only
-    /// participates for multi-byte payloads (single-byte requests omit it).
+    /// checksum seed covers the destination and source addresses for every
+    /// packet, as DDC/CI specifies. Monitors that check it ignore a read
+    /// request without the source address and replay their previous reply,
+    /// so the luminance read never lands and the range is never learned.
     static func packet(payload: [UInt8]) -> [UInt8] {
         var bytes: [UInt8] = [UInt8(0x80 | (payload.count + 1)), UInt8(payload.count)]
         bytes.append(contentsOf: payload)
-        let seed = UInt8(chipAddress << 1) ^ (payload.count == 1 ? 0 : UInt8(dataAddress))
+        let seed = UInt8(chipAddress << 1) ^ UInt8(dataAddress)
         bytes.append(bytes.reduce(seed) { $0 ^ $1 })
         return bytes
     }
@@ -165,6 +167,7 @@ enum BrightnessSupport {
         let checksum = reply[0..<(reply.count - 1)].reduce(UInt8(0x50)) { $0 ^ $1 }
         guard checksum == reply[reply.count - 1],
               reply[2] == getVCPReplyOpcode,
+              reply[3] == 0,
               reply[4] == code else { return nil }
         let maximum = UInt16(reply[6]) << 8 | UInt16(reply[7])
         let current = UInt16(reply[8]) << 8 | UInt16(reply[9])
@@ -227,11 +230,8 @@ enum BrightnessSupport {
         return !rememberedPaths.contains(pathKey)
     }
 
-    /// Whether a scan reads a monitor's brightness. A path remembered as
-    /// write-only is normally trusted, but speakers are only probed after
-    /// brightness answers, so one failed read would hide them until the
-    /// entry is cleared. While speakers are wanted, such a path is read
-    /// again once per wake or display change instead.
+    /// Recheck a remembered write-only brightness path once after waking or
+    /// changing displays while speaker discovery is running.
     static func shouldProbeLuminance(pathKey: String?, writeOnlyPaths: Set<String>,
                                      probesAudio: Bool, recheckedPaths: Set<String>) -> Bool {
         guard let pathKey, writeOnlyPaths.contains(pathKey) else { return true }
@@ -242,7 +242,7 @@ enum BrightnessSupport {
     /// only when the last finished scan did not cover it and no scan has been
     /// queued for it yet. Forcing again would supersede the queued scan.
     static func needsAudioScan(wanted: Bool, scanned: Bool, queued: Bool?) -> Bool {
-        wanted != scanned && queued != wanted
+        wanted != (queued ?? scanned)
     }
 
     static let ddcRetryDelays: [TimeInterval] = [2, 5, 15]
@@ -782,8 +782,8 @@ enum BrightnessSupport {
     /// empty range, so taking the brightness route would hand a silent display
     /// a slider that looks like it works.
     static func audioReply(current: UInt16, maximum: UInt16) -> Double? {
-        guard maximum > 0 else { return nil }
-        return normalized(current: current, maximum: maximum)
+        guard maximum > 0, current <= maximum else { return nil }
+        return Double(current) / Double(maximum)
     }
 
     /// Whether a mute reply is really the MCCS control. Monitors that answer a
@@ -819,10 +819,18 @@ enum BrightnessSupport {
         isDisplayAudioTransport(transport) && !outputHasSettableVolume
     }
 
-    /// The monitor whose speakers carry the sound, with the levels read from it.
-    /// `muted` is nil when the monitor has no MCCS mute control.
-    struct MonitorSpeakerOutput: Equatable {
+    /// A panel targets a physical connection. An output control also targets
+    /// the CoreAudio device selected when the user operated it.
+    struct SpeakerTarget: Equatable {
         let displayID: UInt32
+        let path: String
+        var connectionGeneration: UInt64 = 0
+        var deviceID: AudioObjectID?
+        var outputGeneration: Int?
+    }
+
+    struct MonitorSpeakerOutput: Equatable {
+        let target: SpeakerTarget
         let volume: Double
         let muted: Bool?
     }
@@ -843,32 +851,153 @@ enum BrightnessSupport {
         return nil
     }
 
-    /// Whether a queued unmute should follow the level write instead of
-    /// preceding it. Monitors ignore an unmute while their own volume is zero,
-    /// so leaving zero sets the new level first; a mute still goes first, so
-    /// the speakers fall silent before the level drops.
-    static func unmutesAfterLevel(muted: Bool?, volume: Double?) -> Bool {
-        muted == false && (volume ?? 0) > 0
+    enum SpeakerChange {
+        case set(volume: Double?, muted: Bool?)
+        case step(levels: [(Double) -> Double], raises: Bool)
+        case toggleMute
+
+        /// Changes already waiting behind one transaction can share the next
+        /// readback. A toggle or a change of direction keeps its ordering.
+        func replacing(_ older: Self) -> Self? {
+            switch (older, self) {
+            case (.set(.some, nil), .set(.some, nil)):
+                return self
+            case let (.step(previous, up), .step(next, raises)) where up == raises:
+                return .step(levels: previous + next, raises: raises)
+            default:
+                return nil
+            }
+        }
     }
 
-    /// Which monitor the sound is coming out of. A single display is the whole
-    /// answer while it is the only one connected; otherwise the audio device's
-    /// name is matched against the display names, since macOS builds both from
-    /// the same EDID product name.
-    static func displayForAudioOutput(deviceName: String,
-                                      candidates: [(id: UInt32, name: String)],
-                                      connectedDisplayCount: Int) -> UInt32? {
-        guard !candidates.isEmpty else { return nil }
-        if candidates.count == 1, connectedDisplayCount <= 1 { return candidates[0].id }
-        let device = deviceName.lowercased()
-        guard !device.isEmpty else { return nil }
-        if let exact = candidates.first(where: { $0.name.lowercased() == device }) {
-            return exact.id
+    typealias VCPReading = (current: UInt16, maximum: UInt16)
+
+    struct SpeakerLevel: Equatable {
+        let raw: UInt16
+        let maximum: UInt16
+        var volume: Double { Double(raw) / Double(maximum) }
+
+        init?(_ reply: VCPReading?) {
+            guard let reply, audioReply(current: reply.current, maximum: reply.maximum) != nil else { return nil }
+            raw = reply.current
+            maximum = reply.maximum
         }
-        return candidates.first { candidate in
-            let name = candidate.name.lowercased()
-            return !name.isEmpty && (device.contains(name) || name.contains(device))
-        }?.id
+
+        func mutedWithoutNativeControl(restoring saved: Self?) -> Bool? {
+            if raw > 0 { return false }
+            return saved?.maximum == maximum && (saved?.raw ?? 0) > 0 ? true : nil
+        }
+    }
+
+    /// Runs on the DDC queue. Every successful result describes a level the
+    /// monitor reported. The transport checks the target before each write.
+    static func applySpeakerChange(
+        _ change: SpeakerChange, hasNativeMute: Bool, restore: inout SpeakerLevel?,
+        read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
+    ) -> (level: SpeakerLevel, muted: Bool?)? {
+        guard let initial = SpeakerLevel(read(audioVolumeCode)) else { return nil }
+        if initial.raw > 0 || restore?.maximum != initial.maximum { restore = nil }
+        func readMute() -> Bool? {
+            read(audioMuteCode).flatMap { muteReply(current: $0.current, maximum: $0.maximum) }
+        }
+        let muted = hasNativeMute ? readMute() : initial.mutedWithoutNativeControl(restoring: restore)
+        guard !hasNativeMute || muted != nil else { return nil }
+
+        var target = initial.raw
+        let requestsLevel: Bool
+        var desiredMute: Bool?
+        switch change {
+        case let .set(volume, requestedMute):
+            requestsLevel = volume != nil
+            guard volume != nil || requestedMute != nil else { return nil }
+            if let volume {
+                guard volume.isFinite else { return nil }
+                target = deviceValue(for: volume, maximum: initial.maximum)
+                if !hasNativeMute, let requestedMute, requestedMute != (target == 0) { return nil }
+                desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
+                                                to: Double(target) / Double(initial.maximum), raises: true)
+            }
+            if let requestedMute { desiredMute = requestedMute }
+        case let .step(levels, raises):
+            requestsLevel = true
+            if muted == true && raises { target = 0 }
+            for step in levels {
+                let current = Double(target) / Double(initial.maximum)
+                let next = step(current)
+                guard next.isFinite else { return nil }
+                let rounded = deviceValue(for: next, maximum: initial.maximum)
+                if rounded != target { target = rounded }
+                else if next > current && target < initial.maximum { target += 1 }
+                else if next < current && target > 0 { target -= 1 }
+            }
+            desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
+                                            to: Double(target) / Double(initial.maximum), raises: raises)
+        case .toggleMute:
+            requestsLevel = false
+            guard let muted else { return nil }
+            desiredMute = !muted
+        }
+
+        func setNativeMute(_ value: Bool) -> Bool {
+            write(audioMuteCode, muteDeviceValue(value)) && readMute() == value
+        }
+        if hasNativeMute {
+            if desiredMute == true, muted != true, !setNativeMute(true) { return nil }
+        } else if desiredMute == true {
+            target = 0
+        } else if desiredMute == false, target == 0 {
+            guard let restore else { return nil }
+            target = restore.raw
+        }
+
+        var confirmed = initial
+        if target != initial.raw {
+            guard write(audioVolumeCode, target),
+                  let actual = SpeakerLevel(read(audioVolumeCode)),
+                  actual.maximum == initial.maximum, actual.raw == target else { return nil }
+            confirmed = actual
+        }
+        if !hasNativeMute {
+            if confirmed.raw > 0 { restore = nil }
+            else if initial.raw > 0 { restore = initial }
+            return (confirmed, confirmed.mutedWithoutNativeControl(restoring: restore))
+        }
+        if desiredMute == false {
+            guard setNativeMute(false) else { return nil }
+            // Some firmware restores its own stored level on unmute. A level
+            // change must still be present after that last command.
+            let final = SpeakerLevel(read(audioVolumeCode))
+            guard let final, !requestsLevel || final == confirmed else {
+                if muted == true { _ = setNativeMute(true) }
+                return nil
+            }
+            return (final, false)
+        }
+        guard let actualMute = readMute(), desiredMute == nil || desiredMute == actualMute else { return nil }
+        if desiredMute == true && target == initial.raw {
+            guard let final = SpeakerLevel(read(audioVolumeCode)) else { return nil }
+            return (final, actualMute)
+        }
+        return (confirmed, actualMute)
+    }
+
+    /// Match against every connected external display, including those whose
+    /// speakers did not answer. A dock or a lone monitor is not an identity.
+    static func displayForAudioOutput(deviceName: String,
+                                      candidates: [(id: UInt32, name: String)]) -> UInt32? {
+        func productName(_ value: String) -> String {
+            var name = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            for suffix in [" (hdmi)", " (displayport)", " hdmi audio", " displayport audio", " audio"]
+                where name.hasSuffix(suffix) {
+                name.removeLast(suffix.count)
+            }
+            return name
+        }
+        let device = productName(deviceName)
+        guard !device.isEmpty, !["audio", "display", "monitor", "hdmi", "displayport"].contains(device)
+        else { return nil }
+        let matches = candidates.filter { productName($0.name) == device }
+        return matches.count == 1 ? matches[0].id : nil
     }
 
     /// An optional lower quarter of the slider dims the picture after the
@@ -919,7 +1048,8 @@ enum BrightnessSupport {
     /// The EDID UUID embeds identity fields at fixed positions; each one that
     /// matches the display scores a point, and the IORegistry path match is
     /// decisive on its own. Zero means the pair is unrelated.
-    static func matchScore(service: ServiceIdentity, display: DisplayIdentity) -> Int {
+    static func matchScore(service: ServiceIdentity, display: DisplayIdentity,
+                           requireIdentity: Bool = false) -> Int {
         var score = 0
         func uuidChunk(at location: Int) -> String {
             String(service.edidUUID.prefix(location + 4).suffix(4))
@@ -933,6 +1063,14 @@ enum BrightnessSupport {
             let key = String(format: "%02X%02X", UInt8(value & 0xFF), UInt8(value >> 8))
             if key != "0000", key == uuidChunk(at: 4) { score += 1 }
         }
+        let sameEDIDProduct = score == 2
+        let sameLocation = !service.ioDisplayLocation.isEmpty && service.ioDisplayLocation == display.ioDisplayLocation
+        let sameName = !service.productName.isEmpty && service.productName.lowercased() == display.productName?.lowercased()
+        if requireIdentity {
+            guard sameLocation || sameEDIDProduct || sameName else { return 0 }
+            if let serial = display.serialNumber, serial != 0, service.serialNumber != 0,
+               serial != service.serialNumber { return 0 }
+        }
         if let week = display.weekOfManufacture, let year = display.yearOfManufacture, year >= 1990 {
             let key = String(format: "%02X%02X",
                              UInt8(clamping: week),
@@ -945,13 +1083,8 @@ enum BrightnessSupport {
                              UInt8(clamping: vertical / 10))
             if key != "0000", key == uuidChunk(at: 30) { score += 1 }
         }
-        if !service.ioDisplayLocation.isEmpty, service.ioDisplayLocation == display.ioDisplayLocation {
-            score += 10
-        }
-        if !service.productName.isEmpty,
-           service.productName.lowercased() == display.productName?.lowercased() {
-            score += 1
-        }
+        if sameLocation { score += 10 }
+        if sameName { score += 1 }
         if service.serialNumber != 0, service.serialNumber == display.serialNumber {
             score += 1
         }
@@ -972,5 +1105,18 @@ enum BrightnessSupport {
             takenServices.insert(entry.serviceOrdinal)
         }
         return assignment
+    }
+
+    /// A speaker write needs one best service in both directions. The same
+    /// vendor alone, or a tie between identical monitors, cannot select it.
+    static func speakerService(for index: Int, scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)]) -> Int? {
+        let candidates = scores.filter { $0.displayIndex == index }
+        guard let best = candidates.max(by: { $0.score < $1.score }), best.score >= 2,
+              !scores.contains(where: {
+                  ($0.displayIndex == index && $0.serviceOrdinal != best.serviceOrdinal
+                   || $0.displayIndex != index && $0.serviceOrdinal == best.serviceOrdinal)
+                      && $0.score >= best.score
+              }) else { return nil }
+        return best.serviceOrdinal
     }
 }

@@ -4,15 +4,160 @@
 import CoreAudio
 import Foundation
 
-/// Pure rules behind a monitor's own speaker volume: the DDC replies, the
-/// volume and mute key parsing and routing, and the remembered-path cache.
+/// Production discovery, queue, transaction and mixer entry points against
+/// a controlled DDC transport, default output and main queue.
 enum DisplaySpeakerVolumeTests {
+    typealias DispatchQueue = MixerOutputAdjustmentContract.DispatchQueue
+    typealias Queue = MixerOutputAdjustmentContract.Queue
+    struct BrightnessDisplay {
+        struct Audio: Equatable {
+            let target: BrightnessSupport.SpeakerTarget
+            var volume: Double
+            var muted: Bool?
+        }
+        let id: UInt32
+        var name: String
+        var isBuiltIn = false
+        var isActive = true
+        var audio: Audio?
+    }
+    enum AppVolumeMixer {
+        static func hasSettableOutputVolume(for device: AudioObjectID) -> Bool { Service.shared.settable }
+    }
+    enum UserDefaults {
+        static let standard = UserDefaults.self
+        static func bool(forKey key: String) -> Bool {
+            key == DefaultsKey.displayVolumeKeysEnabled && Service.shared.wantsMonitorVolumeKeys
+        }
+    }
+    static func CGDisplayIsActive(_ id: UInt32) -> UInt32 { 1 }
+    static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { 0 }
+    struct Write: Equatable {
+        let code: UInt8
+        let value: UInt16
+        init(_ code: UInt8, _ value: UInt16) { self.code = code; self.value = value }
+    }
+    class Fixture {
+        let stateLock = NSLock()
+        let workQueue = Queue()
+        var running = true
+        var wantsMonitorVolume = true
+        var wantsMonitorVolumeKeys = true
+        var displayPowerIsSuspended = false
+        var displays: [BrightnessDisplay] = [] { didSet { onDisplayChange?() } }
+        var onDisplayChange: (() -> Void)?
+        var hiddenDisplays: [(id: UInt32, name: String)] = []
+        var audioDisplayNames: [(id: UInt32, name: String)] {
+            displays.filter { !$0.isBuiltIn }.map { ($0.id, $0.name) } + hiddenDisplays
+        }
+        var audioRoutes: [UInt32: AudioRoute] = [:]
+        var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
+        var audioLifetime: UInt64 = 0
+        var speakerLevelRevisions: [String: UInt64] = [:]
+        var pendingAudio: [PendingAudio] = []
+        var audioWriteInFlight = false
+        var audioOutputGeneration = 0
+        var selectedAudioOutput: (id: AudioObjectID, name: String)? = (31, "Monitor A")
+        var actualDevice: AudioObjectID = 31
+        var settable = false
+        var raw: UInt16 = 40
+        var maximum: UInt16 = 100
+        var nativeMuted: Bool?
+        var rejectVolume = false
+        var ignoreVolume = false
+        var onSend: (() -> Void)?
+        var afterSend: (() -> Void)?
+        var onRead: (() -> Void)?
+        var volumeOnUnmute: UInt16?
+        var writes: [Write] = []
+        var writtenIDs: [UInt32] = []
+        var refreshes = 0
+        var silentPaths: Set<String> = []
+
+        static func defaultOutputDevice() -> (id: AudioObjectID, name: String, transport: UInt32)? {
+            (Service.shared.actualDevice, Service.shared.selectedAudioOutput?.name ?? "", kAudioDeviceTransportTypeHDMI)
+        }
+        static func restorationDisplayFingerprint(_ id: UInt32) -> String? { "fixture-identity" }
+        func refresh(force: Bool) { refreshes += 1 }
+        func rescanForUnclaimedVolumeKey() { refreshes += 1 }
+        func rememberedPaths(_ key: String) -> Set<String> { silentPaths }
+        func rememberPath(_ path: String, key: String, remembered: Bool) { silentPaths.insert(path) }
+        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef) -> DDCProbe {
+            onRead?()
+            if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
+            guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
+            return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
+        }
+        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {
+            onSend?()
+            guard whileCurrent() else { return false }
+            let code = packet[2], value = UInt16(packet[3]) << 8 | UInt16(packet[4])
+            writes.append(Write(code, value))
+            writtenIDs.append(id)
+            if code == BrightnessSupport.audioVolumeCode {
+                guard !rejectVolume else { return false }
+                if !ignoreVolume { raw = value }
+            } else if code == BrightnessSupport.audioMuteCode, nativeMuted != nil {
+                nativeMuted = value == 1
+                if value == 2, let volumeOnUnmute { raw = volumeOnUnmute }
+            } else { return false }
+            let after = afterSend
+            afterSend = nil
+            after?()
+            return true
+        }
+        func finish() {
+            while !workQueue.jobs.isEmpty || !DispatchQueue.main.jobs.isEmpty {
+                if !workQueue.jobs.isEmpty { workQueue.runOne() }
+                if !DispatchQueue.main.jobs.isEmpty { DispatchQueue.main.runOne() }
+            }
+        }
+    }
+
+    @discardableResult
+    static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
+                        raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false) -> Service {
+        let service = Service()
+        Service.shared = service
+        service.raw = raw
+        service.maximum = maximum
+        service.nativeMuted = muted
+        let endpoint = NSObject()
+        if let probed = service.probeAudio(for: 7, service: endpoint, path: "port-a") {
+            service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: "fixture-identity",
+                                                service: endpoint, hasNativeMute: probed.hasNativeMute)
+            service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
+        }
+        service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
+        mixer.monitorOutput = service.monitorSpeakerOutput()
+        return service
+    }
+
     static func run(_ suite: TestSuite) {
         suite.expect(BrightnessSupport.audioReply(current: 50, maximum: 100) == 0.5
                      && BrightnessSupport.audioReply(current: 100, maximum: 100) == 1,
                      "a volume reply is read against its own maximum")
-        suite.expect(BrightnessSupport.audioReply(current: 5, maximum: 0) == nil,
-                     "a volume reply without a maximum is never trusted")
+        suite.expect(BrightnessSupport.audioReply(current: 5, maximum: 0) == nil
+                     && BrightnessSupport.audioReply(current: 255, maximum: 100) == nil,
+                     "an empty or impossible range never becomes a usable volume")
+
+        let service = Service()
+        let endpoint = NSObject()
+        service.raw = 255
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil && service.silentPaths.isEmpty,
+                     "an impossible reading does not permanently classify a connection as silent")
+        service.raw = 3
+        service.onRead = { [weak service] in service?.wantsMonitorVolume = false }
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil,
+                     "turning off speakers during discovery cannot publish a writable route")
+        service.onRead = nil
+        service.wantsMonitorVolume = true
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a")?.state.volume == 0.03,
+                     "reenabling on a readable channel discovers its real low volume")
+        var rejected: [UInt8] = [0x6e, 0x88, 0x02, 0x01, 0x62, 0, 0, 100, 0, 80]
+        rejected.append(rejected.reduce(UInt8(0x50)) { $0 ^ $1 })
+        suite.expect(BrightnessSupport.parseReply(rejected, code: 0x62) == nil,
+                     "an unsupported VCP reply cannot confirm a level even with a correct checksum")
 
         suite.expect(BrightnessSupport.muteReply(current: 1, maximum: 2) == true
                      && BrightnessSupport.muteReply(current: 2, maximum: 2) == false,
@@ -50,33 +195,38 @@ enum DisplaySpeakerVolumeTests {
         suite.expect(Mute.monitorMuteChange(from: 0.0625, muted: nil, to: 0, raises: false) == nil
                      && Mute.monitorMuteChange(from: 0, muted: nil, to: 0.0625, raises: true) == nil,
                      "a monitor without an MCCS mute control never gets a mute write")
-        suite.expect(Mute.unmutesAfterLevel(muted: false, volume: 0.01)
-                     && !Mute.unmutesAfterLevel(muted: true, volume: 0)
-                     && !Mute.unmutesAfterLevel(muted: false, volume: nil)
-                     && !Mute.unmutesAfterLevel(muted: false, volume: 0)
-                     && !Mute.unmutesAfterLevel(muted: nil, volume: 0.5),
-                     "an unmute that leaves zero follows the level write, since monitors refuse it at zero")
-
         let monitors: [(id: UInt32, name: String)] = [(2, "LG HDR 4K"), (3, "DELL U2720Q")]
         suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "DELL U2720Q",
-                        candidates: monitors, connectedDisplayCount: 2) == 3
+                        candidates: monitors) == 3
                      && BrightnessSupport.displayForAudioOutput(deviceName: "dell u2720q",
-                        candidates: monitors, connectedDisplayCount: 2) == 3,
+                        candidates: monitors) == 3,
                      "the sound device is matched to its display by name, ignoring case")
         suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "LG HDR 4K Audio",
-                        candidates: monitors, connectedDisplayCount: 2) == 2,
+                        candidates: monitors) == 2,
                      "a device name that extends the display name still matches it")
         suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "MacBook Pro Speakers",
-                        candidates: monitors, connectedDisplayCount: 2) == nil
+                        candidates: monitors) == nil
                      && BrightnessSupport.displayForAudioOutput(deviceName: "",
-                        candidates: monitors, connectedDisplayCount: 2) == nil,
+                        candidates: monitors) == nil,
                      "sound from another device or with no name never routes keys to a display")
-        let lone: [(id: UInt32, name: String)] = [(7, "Studio Display")]
-        suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "Built-in Output",
-                        candidates: lone, connectedDisplayCount: 1) == 7
-                     && BrightnessSupport.displayForAudioOutput(deviceName: "Built-in Output",
-                        candidates: lone, connectedDisplayCount: 2) == nil,
-                     "a lone candidate answers only while it is the only connected display")
+        let identical: [(id: UInt32, name: String)] = [(2, "LG HDR"), (3, "LG HDR")]
+        suite.expect(BrightnessSupport.displayForAudioOutput(deviceName: "LG HDR", candidates: identical) == nil
+                     && BrightnessSupport.displayForAudioOutput(deviceName: "LG HDR Audio", candidates: identical) == nil
+                     && BrightnessSupport.displayForAudioOutput(deviceName: "Receiver", candidates: [(2, "LG HDR")]) == nil,
+                     "neither duplicate names nor an unrelated single monitor identify the selected output")
+        suite.expect(BrightnessSupport.speakerService(for: 1, scores: [(1, 7, 2), (2, 7, 2)]) == nil
+                     && BrightnessSupport.speakerService(for: 1, scores: [(1, 7, 2), (1, 8, 2)]) == nil
+                     && BrightnessSupport.speakerService(for: 1, scores: [(1, 7, 10), (2, 7, 2)]) == 7,
+                     "a speaker service needs a unique display and endpoint, while a matched connection is usable")
+        var screen = BrightnessSupport.DisplayIdentity()
+        screen.ioDisplayLocation = "port-a"
+        screen.serialNumber = 5
+        var endpointIdentity = BrightnessSupport.ServiceIdentity()
+        endpointIdentity.ioDisplayLocation = "port-a"
+        endpointIdentity.serialNumber = 6
+        suite.expect(BrightnessSupport.matchScore(service: endpointIdentity, display: screen, requireIdentity: true) == 0
+                     && BrightnessSupport.matchScore(service: endpointIdentity, display: screen) > 0,
+                     "a conflicting serial on a reused port rules out audio without changing brightness assignment")
 
         func keyData(_ code: Int, state: Int, repeatBit: Int = 0) -> Int {
             (code << 16) | (state << 8) | repeatBit
@@ -163,6 +313,7 @@ enum DisplaySpeakerVolumeTests {
                      && !BrightnessSupport.needsAudioScan(wanted: true, scanned: false, queued: true)
                      && !BrightnessSupport.needsAudioScan(wanted: true, scanned: true, queued: nil)
                      && BrightnessSupport.needsAudioScan(wanted: false, scanned: true, queued: true)
+                     && BrightnessSupport.needsAudioScan(wanted: false, scanned: false, queued: true)
                      && !BrightnessSupport.needsAudioScan(wanted: false, scanned: true, queued: false),
                      "a speaker scan is forced once per setting change, not again while one is queued")
 
