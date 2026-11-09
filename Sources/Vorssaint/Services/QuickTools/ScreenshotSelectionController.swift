@@ -1860,6 +1860,7 @@ private struct FullScreenCaptureButton: View {
         .shadow(color: .black.opacity(0.20), radius: 12, y: 5)
         .help(FeatureStrings.screenshot(l10n.language).fullScreenShortcutTitle)
         .accessibilityLabel(FeatureStrings.screenshot(l10n.language).fullScreenCaptureButton)
+        .localizedLayoutDirection()
     }
 }
 
@@ -1904,18 +1905,21 @@ private struct CaptureGuideView: View {
     let screenCaptureOptions: ScreenCaptureSelectionOptions?
 
     var body: some View {
-        if let screenCaptureOptions {
-            UnifiedCaptureGuideContent(strings: strings,
-                                       options: screenCaptureOptions,
-                                       offersScrollingCapture: offersScrollingCapture,
-                                       offersRepeatLastRegion: offersRepeatLastRegion,
-                                       scrollingCaptureEnabled: scrollingCaptureEnabled,
-                                       loupeEnabled: loupeEnabled)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(true)
-        } else {
-            standardGuide
+        Group {
+            if let screenCaptureOptions {
+                UnifiedCaptureGuideContent(strings: strings,
+                                           options: screenCaptureOptions,
+                                           offersScrollingCapture: offersScrollingCapture,
+                                           offersRepeatLastRegion: offersRepeatLastRegion,
+                                           scrollingCaptureEnabled: scrollingCaptureEnabled,
+                                           loupeEnabled: loupeEnabled)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(true)
+            } else {
+                standardGuide
+            }
         }
+        .localizedLayoutDirection()
     }
 
     private var standardGuide: some View {

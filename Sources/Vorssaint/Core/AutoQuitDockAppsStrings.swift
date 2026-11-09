@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .he: return .he
         }
     }
 }
@@ -152,5 +153,13 @@ extension AutoQuitDockAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         emptyNote: "沒有可加入的選單列 App。"
+    )
+
+    static let he = AutoQuitDockAppsStrings(
+        listTitle: "אפליקציות שורת התפריטים לסגירה",
+        caption: "אפליקציות שורת התפריטים נשארות פתוחות כברירת מחדל. אפליקציות שבחרת כאן יכולות להיסגר אחרי סגירת החלון האחרון שלהן, כל עוד הן מופיעות ב-Dock. חריגים ממשיכים להשאיר אותן פתוחות.",
+        addButton: "הוסף אפליקציה…",
+        removeButton: "הסר",
+        emptyNote: "אין אפליקציות שורת התפריטים להוספה."
     )
 }

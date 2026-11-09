@@ -63,6 +63,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -650,5 +651,44 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Запустити зберігач екрана",
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
         actionFailed: "Не вдалося завершити."
+    )
+
+    static let he = QuickToggleFeatureStrings(
+        pageTitle: "פעולות מהירות",
+        hubDescription: "פעולות בלחיצה אחת כמו תצוגה כהה ופח האשפה",
+        panelCaption: "פעולות מערכת בלחיצה אחת בפאנל שורת התפריטים ובפאנל המהיר.",
+        darkModeToDark: "עבור לתצוגה כהה",
+        darkModeToLight: "עבור לתצוגה בהירה",
+        darkModeCaption: "משנה את המראה של כל המערכת.",
+        emptyTrashTitle: "רוקן את הפח",
+        emptyTrashCaption: "מסיר הכל מהפח.",
+        emptyTrashConfirmTitle: "לרוקן את הפח?",
+        emptyTrashConfirmMessage: "כל הפריטים בפח יוסרו. לא ניתן לבטל זאת.",
+        emptyTrashConfirmButton: "רוקן את הפח",
+        quitAllTitle: "צא מכל האפליקציות",
+        quitOthersTitle: "צא מכל האפליקציות מלבד זו שבחזית",
+        quitAppsHeader: "אפליקציות פתוחות",
+        quitAppsQuitAll: "צא מהכל",
+        quitAppsQuitAllExcept: "צא מהכל מלבד %@",
+        quitAppsQuitOne: "צא מ-%@",
+        quitAppsFrontBadge: "בחזית",
+        quitAppsKeptBadge: "נשמרת",
+        quitAppsEmpty: "אין אפליקציות פתוחות אחרות.",
+        exceptionsTitle: "אפליקציות שנשמרות",
+        exceptionsCaption: "״צא מהכל״ משאיר את האפליקציות האלה פועלות. Finder, Vorssaint ו-Phone תמיד נשמרות. עדיין אפשר לצאת מאפליקציה שנשמרת דרך השורה שלה.",
+        ejectTitle: "הוצא את כל הדיסקים",
+        ejectCaption: "מוצא בבטחה את כל הדיסקים החיצוניים.",
+        hiddenFilesShow: "הצג קבצים מוסתרים",
+        hiddenFilesHide: "הסתר קבצים מוסתרים",
+        desktopIconsHide: "הסתר סמלים במכתבה",
+        desktopIconsShow: "הצג סמלים במכתבה",
+        finderRestartCaption: "ה-Finder מופעל מחדש כדי להחיל זאת.",
+        lockScreenTitle: "נעל את המסך",
+        lockScreenCaption: "דורש סיסמה כדי לחזור.",
+        displayOffTitle: "כבה את הצג",
+        displayOffCaption: "ה-Mac ממשיך לפעול כשהצג כבוי.",
+        screenSaverTitle: "הפעל שומר מסך",
+        screenSaverCaption: "מתחיל מיד, בכל הצגים.",
+        actionFailed: "לא הצליח להשלים."
     )
 }

@@ -22,6 +22,7 @@ struct PointerDisplayStrings {
         case .zhHans: return .init(title: "将指针移到下一台显示器", caption: "将指针移到下一台显示器的中央。")
         case .zhTW: return .init(title: "將指標移到下一台顯示器", caption: "將指標移到下一台顯示器的中央。")
         case .zhHK: return .init(title: "將指標移到下一部顯示器", caption: "將指標移到下一部顯示器的中央。")
+        case .he: return .init(title: "העבר את המצביע לצג הבא", caption: "ממקם את המצביע במרכז הצג הבא.")
         }
     }
 }

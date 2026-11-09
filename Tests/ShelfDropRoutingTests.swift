@@ -276,6 +276,28 @@ enum ShelfDropRoutingTests {
             suite.expect(!notch.choosingFileDropDestination && Context.NotchFileToolsService.shared.mediaSession == nil,
                    "leaving a drag never creates a media workspace")
 
+            // The two destinations are a row of choices, so a mirrored island
+            // draws the shelf on the right and the optimizer on the left, while
+            // the host still reports a physical point. Routing has to ask the
+            // language, not assume the order it reads in.
+            let originalLanguage = L10n.shared.language
+            L10n.shared.language = .he
+            reset()
+            board.clearContents()
+            board.writeObjects([image as NSURL])
+            let mirroredNotch = Context.Notch()
+            mirroredNotch.beginFileDrop(board)
+            let mirroredArea = NotchFileToolsSupport.mediaDropArea(
+                in: mirroredNotch.geometry, size: mirroredNotch.surfaceSize, isRTL: true)
+            _ = mirroredNotch.updateFileDrop(at: CGPoint(x: mirroredArea.midX, y: mirroredArea.midY))
+            suite.expect(mirroredNotch.targetsMediaDrop,
+                   "a mirrored island targets optimization over the left-hand card")
+            _ = mirroredNotch.updateFileDrop(at: CGPoint(x: mirroredNotch.surfaceSize.width - 40, y: mirroredArea.midY))
+            suite.expect(!mirroredNotch.targetsMediaDrop,
+                   "a mirrored island leaves the right-hand card to the shelf")
+            mirroredNotch.endFileDrop()
+            L10n.shared.language = originalLanguage
+
             for initiallyPinned in [false, true] {
                 reset()
                 let repeatDrop = Context.Notch()

@@ -69,6 +69,12 @@ private struct SettingsSectionFocusModifier: ViewModifier {
                                 .opacity(focusedAnchor == anchor ? 1 : 0)
                         }
                     }
+                    // The rect comes from a geometry anchor, which reports
+                    // where the section physically is, and it is drawn back
+                    // with a position. Both have to read the same way round
+                    // or the highlight lands across the page from the section
+                    // it is pointing at.
+                    .environment(\.layoutDirection, .leftToRight)
                     .allowsHitTesting(false)
                     .accessibilityHidden(true)
                 }

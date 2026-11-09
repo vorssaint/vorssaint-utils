@@ -109,6 +109,13 @@ extension FeatureStrings {
             invalidFolder: "請選擇屬於您且包含獨立 .claude.json 檔案的現有 Claude Code 設定檔資料夾。其他使用者不可擁有該資料夾的寫入權限，檔案亦不可是連結。",
             unknownAccount: "未能識別此設定檔中的帳戶。", noLimits: "Claude Code 尚未傳回此帳戶的限額。",
             signInHelp: "如何登入另一個 Claude 帳戶")
+        case .he: return ClaudeAccountStrings(
+            title: "חשבון Claude", defaultAccount: "חשבון ברירת מחדל", chooseFolder: "בחר תיקיית חשבון…",
+            explanation: "בחר פרופיל שכבר מחובר ל-Claude Code. השימוש נלקח מהסשנים של אותו פרופיל, ו-Claude Code בודק את מגבלות החשבון שלו. שינוי הבחירה לא משנה את החשבון באפליקציות האחרות שלך.",
+            invalidFolder: "בחר תיקיית פרופיל קיימת של Claude Code ששייכת לך ומכילה קובץ .claude.json משלה. התיקייה לא יכולה להיות ניתנת לכתיבה על ידי אחרים, והקובץ לא יכול להיות קישור.",
+            unknownAccount: "לא זוהה חשבון בפרופיל הזה.",
+            noLimits: "Claude Code עדיין לא החזיר מגבלות לחשבון הזה.",
+            signInHelp: "איך להתחבר לחשבון Claude אחר")
         }
     }
 }

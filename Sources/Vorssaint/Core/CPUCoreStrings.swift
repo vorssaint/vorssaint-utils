@@ -32,6 +32,7 @@ extension FeatureStrings {
         case .uk: return .uk
         case .zhHans: return .zhHans
         case .zhTW, .zhHK: return .zhTW
+        case .he: return .he
         }
     }
 }
@@ -187,5 +188,16 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "節能核心",
         apps: "正使用 CPU 的 App",
         perCore: "每個核心"
+    )
+
+    static let he = CPUCoreFeatureStrings(
+        title: "ליבות מעבד לוגיות",
+        coreFormat: "ליבה %d",
+        hint: "כל פס הוא ליבה לוגית אחת. גובה המילוי מציג ניצול, לא ביצועים שנותרו.",
+        superCores: "Super",
+        performanceCores: "ביצועים",
+        efficiencyCores: "יעילות",
+        apps: "אפליקציות שמשתמשות במעבד",
+        perCore: "לכל ליבה"
     )
 }

@@ -197,6 +197,7 @@ struct MenuPanelView: View {
                 .frame(width: size.width)
                 .environment(\.notchPresentation, true)
                 .environment(\.colorScheme, .dark)
+                .localizedLayoutDirection()
             }
             .frame(width: size.width, height: max(0, size.height - 96))
             footer
@@ -216,6 +217,7 @@ struct MenuPanelView: View {
                     section(for: activeSection, collapsible: false)
                 }
                 .frame(width: 308)
+                .localizedLayoutDirection()
             }
             .frame(width: 308, height: navigableScrollHeight)
 
@@ -237,6 +239,7 @@ struct MenuPanelView: View {
                 OverlayScrollView(measuredHeight: $metricContentHeight) {
                     MetricDetailView(kind: selectedMetric)
                         .frame(width: 308)
+                        .localizedLayoutDirection()
                 }
                 .frame(width: 308, height: metricScrollHeight)
             }
@@ -419,7 +422,7 @@ struct MenuPanelView: View {
                 selectedSection = kind.panelSection
                 MenuPanelFocus.shared.clearMetricFocus()
             } label: {
-                Image(systemName: "chevron.left")
+                Image(systemName: "chevron.backward")
                     .font(.system(size: 11, weight: .semibold))
                     .frame(width: 24, height: 24)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -1294,7 +1297,7 @@ struct QuickControlsSection: View {
             }
         } label: {
             HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
+                Image(systemName: "chevron.forward")
                     .font(.system(size: 8.5, weight: .bold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(editing || isExpanded(category) ? 90 : 0))
@@ -2204,7 +2207,7 @@ struct UtilityActionButton: View {
                         )
                 }
                 if showChevron {
-                    Image(systemName: "chevron.right")
+                    Image(systemName: "chevron.forward")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
@@ -2841,7 +2844,7 @@ struct KeepAwakeCard: View {
                 optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
@@ -2908,7 +2911,7 @@ struct KeepAwakeCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     automationSummaryBadges
-                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.forward")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(.tertiary)
                 }
@@ -3106,6 +3109,7 @@ struct KeepAwakeCard: View {
         case .uk: return "Заряд \(percent)%. Підключіть живлення або знизьте поріг заряду, щоб почати"
         case .zhHans: return "电量 \(percent)%。接通电源或调低电量下限即可开始"
         case .zhTW, .zhHK: return "電量 \(percent)%。接上電源或調低電量下限即可開始"
+        case .he: return "הסוללה ב-\(percent)%. חבר מטען או הורד את מגבלת הסוללה כדי להתחיל"
         }
     }
 
@@ -3125,6 +3129,7 @@ struct KeepAwakeCard: View {
         case .uk: return "Натисніть на чип, щоб почати. Натисніть ще раз, щоб зупинити"
         case .zhHans: return "点按一个标签即可开始，再次点按即可停止"
         case .zhTW, .zhHK: return "點按一個標籤即可開始，再次點按即可停止"
+        case .he: return "לחץ על אחת האפשרויות כדי להתחיל. לחץ שוב כדי לעצור"
         }
     }
 

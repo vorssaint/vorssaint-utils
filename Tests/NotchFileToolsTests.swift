@@ -95,6 +95,18 @@ enum NotchFileToolsTests {
                            "the target excludes the header and margins on both physical and simulated cutouts")
                     suite.expect(area.width * 2 + NotchFileToolsSupport.dropSpacing == content.width && area.height == content.height,
                            "native hit testing and the two equal SwiftUI cards share the same content bounds")
+                    // The two destinations are a row of choices, so a mirrored
+                    // layout draws optimizing on the left. The host still
+                    // reports a physical point, so the half has to move with
+                    // the cards or a file dropped on the shelf is optimized.
+                    let mirrored = NotchFileToolsSupport.mediaDropArea(in: geometry, size: size, isRTL: true)
+                    suite.expect(mirrored.maxX < size.width / 2
+                           && mirrored.minX == NotchLayout.horizontalInset
+                           && mirrored.width == area.width && mirrored.height == area.height
+                           && mirrored.minY == area.minY,
+                           "a mirrored island puts the media target on the left-hand card, the same size and rows")
+                    suite.expect(!mirrored.intersects(area),
+                           "the two destinations never overlap, so a drop lands on exactly one of them")
                 }
             }
         }

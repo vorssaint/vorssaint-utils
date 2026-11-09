@@ -543,6 +543,33 @@ extension FeatureStrings {
             petTip: "Затримайте на ньому вказівник, щоб погладити. Залишившись сам, він дрімає, доки ви не повернетеся.",
             livesInIsland: "Компаньйон живе в Dynamic Island.",
             keywords: "маскот улюбленець приятель персонаж")
+        case .he: return NotchMascotStrings(
+            title: "בן לוויה",
+            hint: "חבר קטן שגר ב-Dynamic Island. הוא נח שם כשאין שום דבר אחר להציג, ויוצא מעל מוזיקה ופעילויות כדי להגיד שלום ולהגיב למה שקורה.",
+            visits: "הופע מדי פעם",
+            visitsHint: "כל כמה דקות הוא עובר באי עם אנימציה קצרה.",
+            style: "סגנון", minimal: "מינימלי", robot: "רובוט",
+            shape: "צורה", ball: "כדור", egg: "ביצה", squircle: "ריבוע מעוגל", pill: "גלולה",
+            color: "צבע", pearl: "פנינה", mint: "מנטה", peach: "אפרסק", lilac: "לילך", lemon: "לימון", rose: "ורד",
+            commandBar: "סרגל הפקודות באי",
+            commandBarHint: "עם הקיצור, סרגל הפקודות יוצא מהאי ובן הלוויה הוא הפנים שלו. הוא מגיב בזמן שאתה מחפש.",
+            opensAs: "נפתח בתור", droplet: "טיפה", openIsland: "אי פתוח",
+            preview: "תצוגה מקדימה של בן הלוויה", previewHint: "לחץ כדי לראות אותו מגיב.",
+            side: "צד המצלמה", left: "שמאל", right: "ימין",
+            frequency: "באיזו תדירות", rare: "לעיתים רחוקות", normal: "לפעמים", frequent: "לעיתים קרובות",
+            sky: "שמיים",
+            hubDescription: "חבר קטן ב-Dynamic Island שאומר שלום מדי פעם ומגיב למה שקורה ב-Mac שלך.",
+            appearance: "מראה", behavior: "התנהגות",
+            reactions: "הגב למה שקורה",
+            reactionsHint: "הוא יוצא כדי להגיב למוזיקה, טיימרים, הורדות, צילומי מסך, המיקרופון, ״שמור ערנות״ ועוד.",
+            hidesWhenIdle: "הסתר כשאין פעילות",
+            hidesWhenIdleHint: "אחרי חצי דקה שבה שום דבר לא קורה, הוא קופץ אל תוך האי והאי חוזר לגודלו הרגיל. ביקורים ותגובות עדיין מוציאים אותו.",
+            sayHi: "אמור שלום", sayHiHint: "מנגן עכשיו ביקור ב-Dynamic Island.",
+            momentsTitle: "ראה איך הוא מגיב",
+            visitMoment: "ביקור", timerStarted: "הטיימר התחיל", downloadFailed: "ההורדה נכשלה", unlocked: "ה-Mac נפתח",
+            petTip: "השאר את המצביע עליו כדי ללטף אותו. אם תשאיר אותו לבד, הוא מנמנם עד שתחזור.",
+            livesInIsland: "בן הלוויה גר ב-Dynamic Island.",
+            keywords: "קמע מסקוט חיית מחמד חבר דמות בן לוויה")
         }
     }
 }

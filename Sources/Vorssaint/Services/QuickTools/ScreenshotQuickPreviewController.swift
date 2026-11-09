@@ -113,7 +113,7 @@ final class ScreenshotQuickPreviewController {
             showsDismissButton: presentationPolicy.showsDismissButton,
             embedded: wantsNotch)
         if wantsNotch, NotchService.shared.presentCapture(
-            id: presentationID, content: AnyView(content), actions: AnyView(content.toolbar), height: Self.size(showingLink: model.sharedRecord != nil).height,
+            id: presentationID, content: AnyView(content.localizedLayoutDirection()), actions: AnyView(content.toolbar.localizedLayoutDirection()), height: Self.size(showingLink: model.sharedRecord != nil).height,
             takeFocus: presentationPolicy.takesFocus,
             closeOnCollapse: presentationPolicy.closesOnCollapse,
             fallback: { [weak self] in
@@ -132,7 +132,7 @@ final class ScreenshotQuickPreviewController {
             finishShowing()
             return
         }
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.localizedLayoutDirection())
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),

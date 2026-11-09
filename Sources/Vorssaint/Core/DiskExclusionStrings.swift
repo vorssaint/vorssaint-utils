@@ -30,6 +30,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -167,5 +168,14 @@ extension DiskExclusionStrings {
         removeButton: "Видалити",
         customPlaceholder: "Назва диска або тому",
         caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
+    )
+
+    static let he = DiskExclusionStrings(
+        listTitle: "כוננים שאינם נפלטים",
+        addButton: "הוסף כונן…",
+        otherDrive: "שם כונן אחר…",
+        removeButton: "הסר",
+        customPlaceholder: "שם הכונן או הערכה",
+        caption: "כוננים ברשימה זו לעולם אינם נפלטים בעת שימוש ב״הוצא את כל הדיסקים״."
     )
 }

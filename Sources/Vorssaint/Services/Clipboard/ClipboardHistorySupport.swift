@@ -887,18 +887,21 @@ enum ClipboardHistoryPreview {
 enum ClipboardHistoryNavigation {
     /// How far a key moves the highlight, or nil when it is not a move.
     /// Down and Control-N go forward and up and Control-P back in both
-    /// layouts. The cards run left to right, so a plain side arrow walks
-    /// them too; with a modifier, or in the list, it stays with the search
-    /// field's caret.
+    /// layouts. The cards run in reading order, so a plain side arrow walks
+    /// them too, towards the start of the strip for the arrow that points
+    /// that way: a mirrored strip starts at the right. With a modifier, or in
+    /// the list, it stays with the search field's caret.
     static func step(keyCode: UInt16, modifiers: NSEvent.ModifierFlags, key: String?,
-                     layout: ClipboardHistoryLayout) -> Int? {
+                     layout: ClipboardHistoryLayout, isRTL: Bool = false) -> Int? {
         let sideArrowsMove = modifiers.isEmpty && layout.sideArrowsMoveSelection
+        let forwardArrow = UInt16(isRTL ? kVK_LeftArrow : kVK_RightArrow)
+        let backArrow = UInt16(isRTL ? kVK_RightArrow : kVK_LeftArrow)
         if keyCode == UInt16(kVK_DownArrow) || (modifiers == [.control] && key == "n")
-            || (sideArrowsMove && keyCode == UInt16(kVK_RightArrow)) {
+            || (sideArrowsMove && keyCode == forwardArrow) {
             return 1
         }
         if keyCode == UInt16(kVK_UpArrow) || (modifiers == [.control] && key == "p")
-            || (sideArrowsMove && keyCode == UInt16(kVK_LeftArrow)) {
+            || (sideArrowsMove && keyCode == backArrow) {
             return -1
         }
         return nil

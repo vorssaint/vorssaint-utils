@@ -42,6 +42,15 @@ final class CommandBarDroplet {
 
     private static var reducesMotion: Bool { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
 
+    /// Where the companion sits in the bar's field: the bar's mark leads the
+    /// field, so it is at the start of the reading direction, and the drop has
+    /// to land on the side the field puts it. `field` is a physical rectangle.
+    private static func iconPoint(in field: CGRect) -> CGPoint {
+        let inset = 16 + CommandBarDropletMotion.mascotSize / 2
+        let x = L10n.shared.language.isRTL ? field.maxX - inset : field.minX + inset
+        return CGPoint(x: x, y: field.midY)
+    }
+
     /// Lets the drop fall from `island` into the bar's frame `bar`, both on
     /// screen. `revealed` runs once it has opened into the field, for the bar
     /// itself to take its place, fading in over the seconds it is given.
@@ -61,7 +70,7 @@ final class CommandBarDroplet {
         let edge = CommandBarDropletMotion.rootDepth
         let centerX = island.midX - area.minX
         let fieldRect = local(field)
-        let icon = CGPoint(x: fieldRect.minX + 16 + CommandBarDropletMotion.mascotSize / 2, y: fieldRect.midY)
+        let icon = Self.iconPoint(in: fieldRect)
         let motion = CommandBarDropletMotion.drop(edge: edge, centerX: centerX, field: fieldRect, icon: icon)
         let begin = CACurrentMediaTime()
         fall = (motion, edge, centerX, begin)
@@ -137,7 +146,7 @@ final class CommandBarDroplet {
         let edge = CommandBarDropletMotion.rootDepth
         let centerX = island.midX - area.minX
         let fieldRect = local(field)
-        let icon = CGPoint(x: fieldRect.minX + 16 + CommandBarDropletMotion.mascotSize / 2, y: fieldRect.midY)
+        let icon = Self.iconPoint(in: fieldRect)
         let motion = CommandBarDropletMotion.retract(edge: edge, centerX: centerX, bar: local(bar), field: fieldRect, icon: icon)
         prepare(in: area, look: look, mood: mood)
         play(motion, edge: edge, centerX: centerX, begin: CACurrentMediaTime()) { [weak self] in

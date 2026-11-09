@@ -498,6 +498,36 @@ extension FeatureStrings {
             lowBattery: "Низький заряд",
             keepAwakeActivity: "Показувати «Не давати Mac заснути» в закритому острівці",
             keepAwakeActivityHint: "Поточний сеанс з’являється біля камери із залишком часу або знаком ∞, якщо він не має завершення.")
+        case .he: return NotchActivityStrings(
+            timer: "טיימר",
+            timerDescription: "טיימרים, שעון עצר וסשנים של עבודה ממוקדת ב-Dynamic Island.",
+            pomodoro: "פומודורו",
+            stopwatch: "שעון עצר",
+            focus: "מיקוד",
+            shortBreak: "הפסקה קצרה",
+            longBreak: "הפסקה ארוכה",
+            pomodoroHint: "התחל כל שלב כשאתה מוכן. המחזור מסתיים אחרי סשן המיקוד האחרון.",
+            totalSessions: "סך הכל סשנים",
+            longBreakInterval: "סשנים בין הפסקות ארוכות",
+            sessionProgress: "סשן %d מתוך %d",
+            pomodoroFinished: "הפומודורו הושלם",
+            minutes: "דקות",
+            start: "התחל",
+            resume: "המשך",
+            finished: "הזמן נגמר",
+            soundEnabled: "השמע צליל כשהזמן נגמר",
+            hideTimerCountdown: "הסתר את הספירה לאחור של הטיימר",
+            camera: "מראת מצלמה",
+            cameraUnavailable: "לא ניתן להפעיל את המצלמה. נסה לפתוח אותה שוב.",
+            cameraHint: "פתח כאן מראה חיה. המצלמה נעצרת כשאתה עוזב את התצוגה הזו.",
+            startCamera: "פתח מצלמה",
+            stopCamera: "עצור מצלמה",
+            accessories: "התראות אביזרים",
+            accessoryDescription: "הצג אביזרים מחוברים והזהר פעם אחת כשהסוללה שלהם יורדת ל-20%.",
+            connected: "מחובר",
+            lowBattery: "סוללה חלשה",
+            keepAwakeActivity: "הצג את ״שמור ערנות״ באי הסגור",
+            keepAwakeActivityHint: "סשן פעיל מופיע ליד המצלמה עם הזמן שנותר לו, או ∞ כשאין לו סוף.")
         }
     }
 }

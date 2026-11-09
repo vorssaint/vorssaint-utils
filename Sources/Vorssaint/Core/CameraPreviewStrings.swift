@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .he: return .he
         }
     }
 }
@@ -216,5 +217,17 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "Камеру не виявлено",
         permName: "Камера",
         permExplain: "Показує вашу камеру лише у вікні попереднього перегляду, щоб ви могли перевірити, як виглядаєте перед дзвінком. Нічого не записується та не залишає ваш Mac."
+    )
+
+    static let he = CameraPreviewFeatureStrings(
+        pageTitle: "תצוגה מקדימה של המצלמה",
+        hubDescription: "פותח מראה מרחפת עם המצלמה שלך",
+        panelCaption: "בדוק איך אתה נראה לפני שיחה",
+        openButton: "פתח תצוגה מקדימה",
+        cameraMenuLabel: "מצלמה",
+        deniedMessage: "הגישה למצלמה עבור Vorssaint מבוטלת בהגדרות המערכת.",
+        noCameraMessage: "לא זוהתה מצלמה",
+        permName: "מצלמה",
+        permExplain: "מציג את המצלמה שלך רק בחלון התצוגה המקדימה, כדי שתוכל לבדוק איך אתה נראה לפני שיחה. שום דבר לא מוקלט או עוזב את ה-Mac שלך."
     )
 }
