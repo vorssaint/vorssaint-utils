@@ -265,6 +265,8 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)
+                && backupKeys.contains(DefaultsKey.screenshotScrollingShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.screenshotScrollingShortcut)
                 && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
                 && backupKeys.contains(DefaultsKey.screenshotHighlightWindows)
                 && backupKeys.contains(DefaultsKey.screenshotToolOrder)
