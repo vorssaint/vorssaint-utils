@@ -65,10 +65,11 @@ enum ScreenshotScrollingCaptureTests {
         nonisolated static func pickableWindows(hideVorssaintWindows: Bool,
                                                 protectedWindowIDs: Set<CGWindowID>)
             -> [(id: CGWindowID, bounds: CGRect)] {
-            ScreenshotCapturePolicy.canPickWindow(31,
+            let id: CGWindowID = 31
+            return ScreenshotCapturePolicy.canPickWindow(id,
                 isOwnWindow: Desktop.pid == ProcessInfo.processInfo.processIdentifier,
                 hideVorssaintWindows: hideVorssaintWindows, protectedWindowIDs: protectedWindowIDs)
-                ? [(31, Desktop.bounds)] : []
+                ? [(id, Desktop.bounds)] : []
         }
         static var source: Source!
         static var preparations = 0
