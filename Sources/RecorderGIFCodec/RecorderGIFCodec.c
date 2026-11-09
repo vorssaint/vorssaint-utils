@@ -38,6 +38,12 @@ uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,
         || (uint64_t)width * height != pixelCount || pixelCount > 67108864
         || paletteBytes < 6 || paletteBytes > 768 || paletteBytes % 3) return NULL;
     uint32_t colors = (uint32_t)(paletteBytes / 3);
+    // GIF tables are powers of two. Reserve their last entry for unchanged
+    // pixels, without making a screen recording with few colors carry a
+    // 256-entry palette and an eight-bit minimum LZW code on every change.
+    uint16_t entries = 4;
+    while (entries <= colors && entries < 256) entries *= 2;
+    const uint8_t transparent = (uint8_t)(entries - 1);
     uint32_t left = 0, top = 0, right = width - 1, bottom = height - 1;
     if (previous) {
         left = width;
@@ -48,7 +54,7 @@ uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,
         const uint8_t *row = pixels + (size_t)y * width;
         const uint8_t *old = previous ? previous + (size_t)y * width : NULL;
         for (uint32_t x = 0; x < width; ++x) {
-            if (row[x] >= colors || row[x] == 255) return NULL;
+            if (row[x] >= colors || row[x] == transparent) return NULL;
             if (old && row[x] != old[x]) {
                 if (x < left) left = x;
                 if (x > right) right = x;
@@ -67,7 +73,7 @@ uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,
         const uint8_t *old = previous ? previous + (size_t)y * width : NULL;
         for (uint32_t x = left; x <= right; ++x) {
             rectangle[(size_t)(y - top) * rectWidth + x - left] =
-                old && row[x] == old[x] ? 255 : row[x];
+                old && row[x] == old[x] ? transparent : row[x];
         }
     }
     uint8_t table[768] = {0};
@@ -80,7 +86,7 @@ uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,
     config.pGCT = table;
     config.width = (uint16_t)width;
     config.height = (uint16_t)height;
-    config.sizeGCT = 256;
+    config.sizeGCT = entries;
     config.attrFlags = CGIF_RAW_ATTR_IS_ANIMATED | CGIF_RAW_ATTR_NO_LOOP;
     CGIFRaw *gif = cgif_raw_newgif(&config);
     if (!gif) { free(rectangle); free(sink.data); return NULL; }
@@ -91,7 +97,7 @@ uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,
     frame.left = (uint16_t)left;
     frame.top = (uint16_t)top;
     frame.disposalMethod = DISPOSAL_METHOD_LEAVE;
-    frame.transIndex = 255;
+    frame.transIndex = transparent;
     frame.attrFlags = CGIF_RAW_FRAME_ATTR_HAS_TRANS;
     int result = cgif_raw_addframe(gif, &frame);
     int closed = cgif_raw_close(gif);

@@ -386,8 +386,12 @@ enum RecorderFastGIFExportTests {
                 }
                 let data = try Data(contentsOf: gif)
                 if name == "sdr", percent == 100, MTLCreateSystemDefaultDevice() != nil {
-                    let first = try RecorderGIFWriter.chunk(from: data).frames.first
-                    suite.expect(first?.disposal == 1 && first?.transparency == 1 && first?.transparentIndex == 255,
+                    let chunk = try RecorderGIFWriter.chunk(from: data)
+                    let first = chunk.frames.first
+                    let entries = (chunk.globalTable?.count ?? 0) / 3
+                    suite.expect(first?.disposal == 1 && first?.transparency == 1
+                            && first.map { Int($0.transparentIndex) } == entries - 1
+                            && chunk.screen.first.map { $0 & 0x70 == 0 } == true,
                                  "an ordinary opaque export actually uses the indexed Metal/cgif writer")
                 }
                 suite.expect(RecorderGIFClipboard.publish(fileURL: gif, to: pasteboard)

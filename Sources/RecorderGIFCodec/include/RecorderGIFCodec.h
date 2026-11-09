@@ -5,7 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-// Opaque indexed pixels, with index 255 reserved for unchanged pixels.
+// Opaque indexed pixels, up to 255 colors. The encoder reserves a separate
+// palette entry for unchanged pixels.
 // previous is NULL or contains pixelCount bytes using the same palette.
 // On success the caller owns the returned allocation and frees it with free().
 uint8_t *RecorderGIFCodecEncode(const uint8_t *pixels, const uint8_t *previous,

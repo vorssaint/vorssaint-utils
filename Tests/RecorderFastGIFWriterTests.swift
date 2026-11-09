@@ -39,6 +39,18 @@ enum RecorderFastGIFWriterTests {
         suite.expect(encode([0, 1, 1, 0], colors: [0, 0, 0, 255]) == nil
                 && encode([0, 1, 9, 0]) == nil && encode([0, 1, 255, 0]) == nil,
                      "indexed GIF rejects malformed palettes and reserved pixel indices")
+        if let small = encode([0, 1, 1, 0]),
+           let full = encode([0, 254, 254, 0], colors: Array(repeating: 0, count: 255 * 3)) {
+            let smallChunk = try RecorderGIFWriter.chunk(from: small)
+            let fullChunk = try RecorderGIFWriter.chunk(from: full)
+            suite.expect(smallChunk.globalTable?.count == 4 * 3
+                    && smallChunk.frames.first?.transparentIndex == 3
+                    && smallChunk.frames.first?.pixels.first == 2,
+                         "a two-color animation needs only four table entries and a two-bit LZW minimum")
+            suite.expect(fullChunk.globalTable?.count == 256 * 3
+                    && fullChunk.frames.first?.transparentIndex == 255,
+                         "all 255 opaque indices remain available in a full GIF table")
+        } else { suite.expect(false, "small and full GIF palettes both encode") }
         let indexedURL = folder.appendingPathComponent("indexed.gif")
         let indexed = try RecorderGIFWriter(url: indexedURL, fps: 12)
         var last: [UInt8] = []
