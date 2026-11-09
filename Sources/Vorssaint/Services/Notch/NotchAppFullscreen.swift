@@ -72,19 +72,7 @@ enum NotchAppFullscreen {
     /// are the frontmost app's, as it sets them itself.
     static func coveredDisplays() -> Set<CGDirectDisplayID> {
         let ownPID = ProcessInfo.processInfo.processIdentifier
-        guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
-                                                       kCGNullWindowID) as? [[String: Any]]
-        else { return [] }
-        let windows: [WindowInfo] = entries.compactMap { entry in
-            guard let number = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
-                  let pid = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
-                  let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue,
-                  let bounds = entry[kCGWindowBounds as String] as? NSDictionary,
-                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary)
-            else { return nil }
-            let alpha = (entry[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
-            return WindowInfo(number: number, ownerPID: pid, layer: layer, alpha: alpha, bounds: rect)
-        }
+        guard let windows = onScreenWindows() else { return [] }
         let menuBarHidden = !NSApp.currentSystemPresentationOptions
             .intersection([.autoHideMenuBar, .hideMenuBar]).isEmpty
         let result = coveredDisplays(windows: windows,
@@ -95,7 +83,26 @@ enum NotchAppFullscreen {
         return result.displays
     }
 
-    private static func activeDisplays() -> [CGDirectDisplayID: CGRect] {
+    /// The windows on screen, front to back, or nil when the window server
+    /// did not answer. Shared with the window switcher's exclusive full
+    /// screen check.
+    static func onScreenWindows() -> [WindowInfo]? {
+        guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                       kCGNullWindowID) as? [[String: Any]]
+        else { return nil }
+        return entries.compactMap { entry in
+            guard let number = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                  let pid = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue,
+                  let bounds = entry[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary)
+            else { return nil }
+            let alpha = (entry[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1
+            return WindowInfo(number: number, ownerPID: pid, layer: layer, alpha: alpha, bounds: rect)
+        }
+    }
+
+    static func activeDisplays() -> [CGDirectDisplayID: CGRect] {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [:] }
         var ids = [CGDirectDisplayID](repeating: 0, count: Int(count))
