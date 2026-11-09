@@ -453,9 +453,9 @@ final class AppUninstaller: ObservableObject {
         let package = confirmation.package
         let manager = HomebrewManager.shared
         guard manager.operation == nil else { return }
-        manager.clearLog()
         homebrewRemovalObservation?.cancel()
         homebrewRemovalObservation = manager.$operationStatus
+            .dropFirst()
             .compactMap { $0 }
             .filter { $0.action == .uninstall && $0.package?.id == package.id }
             .sink { [weak self] status in
@@ -466,7 +466,8 @@ final class AppUninstaller: ObservableObject {
                     self?.finishRemovalAfterHomebrew(package: package)
                 }
             }
-        manager.uninstall(package)
+        manager.uninstall(package, fromUninstaller: true)
+        if manager.operation == nil { homebrewRemovalObservation = nil }
     }
 
     private func finishRemovalAfterHomebrew(package: HomebrewPackage) {

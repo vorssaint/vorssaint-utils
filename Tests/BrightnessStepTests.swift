@@ -85,7 +85,8 @@ enum BrightnessStepTests {
             committed.append(value)
             pendingLevels[displayID] = value
         }
-        func ddcProbeLuminance(for id: UInt32, service: CFTypeRef) -> DDCProbe {
+        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef,
+                      classifyingChannel: Bool = false) -> DDCProbe {
             .replied(current: reply.current, maximum: reply.maximum)
         }
         func forgetWriteOnlyDDCPath(_ path: String?) {}
