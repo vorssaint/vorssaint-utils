@@ -64,7 +64,6 @@ struct BrowserPickerSettings: View {
                 Text(text.order).font(.headline)
                 Spacer()
                 Button(text.scanBrowsers) { service.refresh() }
-                    .buttonStyle(.borderless)
             }
             Text(text.orderHint).font(.caption).foregroundStyle(.secondary)
             if service.browsers.isEmpty {
