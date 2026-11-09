@@ -60,6 +60,10 @@ enum MixerUniversalRoutingContract {
         var outputDevices = [Device(uid: "speakers", canBeDefaultOutput: true, audioObjectID: 10),
                              Device(uid: "airpods", canBeDefaultOutput: true, audioObjectID: 20)]
         var currentOutputDeviceUID: String? = "speakers"
+        var isCombinedOutputActive: Bool = false
+        var combinedSelectedDeviceUIDs: Set<String> = []
+        var combinedSubDeviceVolumes: [String: Double] = [:]
+        var combinedSubDeviceMutes: [String: Bool] = [:]
         var outputSwitchError: String?
         var apps: [MixerApp] = []
         var savedRoutes: [String: String] = [:]
@@ -72,6 +76,24 @@ enum MixerUniversalRoutingContract {
         var refreshCount = 0
         var applied: [MixerApp] = []
         func refreshApps() { refreshCount += 1 }
+        func eligibleCombinedOutputDevices() -> [Device] {
+            outputDevices.filter { MixerRoutingSupport.isEligibleForCombinedOutput(uid: $0.uid, canBeDefault: $0.canBeDefaultOutput) }
+        }
+        func activeCombinedSubDeviceUIDs() -> [String] {
+            let eligible = eligibleCombinedOutputDevices().map(\.uid)
+            if combinedSelectedDeviceUIDs.isEmpty { return eligible }
+            let selected = eligible.filter { combinedSelectedDeviceUIDs.contains($0) }
+            return selected.count >= 2 ? selected : eligible
+        }
+        func initializeCombinedVolumeState(activeUIDs: [String]) {
+            if combinedSelectedDeviceUIDs.isEmpty {
+                combinedSelectedDeviceUIDs = Set(activeUIDs)
+            }
+            for uid in activeUIDs {
+                if combinedSubDeviceVolumes[uid] == nil { combinedSubDeviceVolumes[uid] = 1.0 }
+                if combinedSubDeviceMutes[uid] == nil { combinedSubDeviceMutes[uid] = false }
+            }
+        }
         func savedOutputDeviceUIDs() -> [String: String] { savedRoutes }
         func savedVolumes() -> [String: Double] { volumes }
         func persistOutputDeviceUIDs(_ routes: [String: String]) { savedRoutes = routes }
@@ -345,4 +367,9 @@ enum MixerUniversalRoutingContract {
         suite.expect(publishing.applyingCurrentVolumes(to: read)[0].volume == 1,
                      "a volume returned to 100 percent while the pass read publishes as unity, not the old gain")
     }
+}
+
+extension MixerOutputAdjustmentContract.Mixer {
+    var isCombinedOutputActive: Bool { false }
+    func applyCombinedOutputAdjustment(volume: Double? = nil, muted: Bool? = nil) {}
 }

@@ -10,6 +10,7 @@ import SwiftUI
 /// boosts, with the slider and percentage turning amber in the boost range.
 struct MixerSection: View {
     @Environment(\.notchPresentation) private var inNotch
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var inputManager = AudioInputDeviceManager.shared
@@ -82,6 +83,9 @@ struct MixerSection: View {
     private var audioDevicesSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             universalOutputPicker
+            if mixer.isCombinedOutputActive {
+                combinedSubDevicesSection
+            }
             systemSoundOutputPicker
             microphonePicker
             if let outputSwitchError = mixer.outputSwitchError {
@@ -134,7 +138,7 @@ struct MixerSection: View {
                 Spacer(minLength: 6)
 
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
-                    if mixer.currentOutputDeviceUID == nil {
+                    if !mixer.isCombinedOutputActive && mixer.currentOutputDeviceUID == nil {
                         Text(l10n.s.mixerOutputUnavailable)
                             .tag(MixerRoutingSupport.systemDefaultSelectionID)
                     }
@@ -142,7 +146,10 @@ struct MixerSection: View {
                         Text(outputDeviceTitle(device))
                             .tag(device.uid)
                     }
-                    if let selected = mixer.currentOutputDeviceUID,
+                    let selectedUID = mixer.isCombinedOutputActive
+                        ? MixerRoutingSupport.combineAllOutputsSelectionID
+                        : mixer.currentOutputDeviceUID
+                    if let selected = selectedUID,
                        !universalOutputDevices.contains(where: { $0.uid == selected }) {
                         Text(l10n.s.mixerOutputUnavailable)
                             .tag(selected)
@@ -194,6 +201,99 @@ struct MixerSection: View {
                 inputMessage(l10n.s.mixerSystemOutputNoDevices, systemImage: "speaker.slash")
             }
         }
+    }
+
+    private var combinedSubDevicesSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Outputs in mix")
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .padding(.top, 2)
+
+            ForEach(universalOutputDevices.filter { $0.uid != MixerRoutingSupport.combineAllOutputsSelectionID }) { device in
+                combinedSubDeviceRow(device)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func combinedSubDeviceRow(_ device: MixerOutputDevice) -> some View {
+        let isSelected = isCombinedDeviceSelected(device.uid)
+        let isMuted = isCombinedSubDeviceMuted(device.uid)
+        let volume = mixer.combinedSubDeviceVolumes[device.uid] ?? 1.0
+
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Toggle(isOn: combinedDeviceSelectionBinding(for: device.uid)) {
+                    Text(device.name)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .toggleStyle(.checkbox)
+                .controlSize(.small)
+
+                Spacer(minLength: 4)
+
+                Button {
+                    mixer.toggleCombinedSubDeviceMute(for: device.uid)
+                } label: {
+                    Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isMuted
+                                         ? PanelMetricColor.red(for: colorScheme)
+                                         : Color.secondary)
+                        .frame(width: 16)
+                }
+                .buttonStyle(.plain)
+                .help(isMuted ? l10n.s.actionUnmute : l10n.s.actionMute)
+                .accessibilityLabel("\(isMuted ? l10n.s.actionUnmute : l10n.s.actionMute): \(device.name)")
+            }
+
+            if isSelected {
+                HStack(spacing: 8) {
+                    MixerVolumeSlider(value: combinedSubDeviceVolumeBinding(for: device.uid),
+                                      normalTint: normalSliderTint,
+                                      boostTint: normalSliderTint,
+                                      isBoosting: false,
+                                      accentRevision: accentRevision,
+                                      glassEnabled: glassEnabled,
+                                      maximum: 1,
+                                      accessibilityLabel: device.name)
+
+                    Text("\(MixerRoutingSupport.displayPercent(forVolume: volume))%")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 36, alignment: .trailing)
+                }
+                .padding(.leading, 18)
+            }
+        }
+    }
+
+    private func isCombinedDeviceSelected(_ uid: String) -> Bool {
+        mixer.combinedSelectedDeviceUIDs.isEmpty
+            ? true
+            : mixer.combinedSelectedDeviceUIDs.contains(uid)
+    }
+
+    private func combinedDeviceSelectionBinding(for uid: String) -> Binding<Bool> {
+        Binding(
+            get: { isCombinedDeviceSelected(uid) },
+            set: { _ in mixer.toggleCombinedDeviceSelection(uid: uid) }
+        )
+    }
+
+    private func isCombinedSubDeviceMuted(_ uid: String) -> Bool {
+        mixer.combinedSubDeviceMutes[uid] == true || (mixer.combinedSubDeviceVolumes[uid] ?? 1.0) <= 0.001
+    }
+
+    private func combinedSubDeviceVolumeBinding(for uid: String) -> Binding<Double> {
+        Binding(
+            get: { mixer.combinedSubDeviceVolumes[uid] ?? 1.0 },
+            set: { mixer.setCombinedSubDeviceVolume($0, for: uid) }
+        )
     }
 
     private var systemSoundOutputPicker: some View {
@@ -251,7 +351,12 @@ struct MixerSection: View {
 
     private var universalOutputSelectionBinding: Binding<String> {
         Binding(
-            get: { mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID },
+            get: {
+                if mixer.isCombinedOutputActive {
+                    return MixerRoutingSupport.combineAllOutputsSelectionID
+                }
+                return mixer.currentOutputDeviceUID ?? MixerRoutingSupport.systemDefaultSelectionID
+            },
             set: { selection in
                 guard selection != MixerRoutingSupport.systemDefaultSelectionID else { return }
                 mixer.setUniversalOutputDeviceUID(selection)
@@ -413,7 +518,8 @@ struct MixerSection: View {
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
-        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+        let isCurrent = device.isDefault || (device.uid == MixerRoutingSupport.combineAllOutputsSelectionID && mixer.isCombinedOutputActive)
+        return isCurrent ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 
     private func systemSoundOutputDeviceTitle(_ device: MixerOutputDevice) -> String {
@@ -842,7 +948,8 @@ struct SoundOutputSwitcherControls: View {
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
-        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+        let isCurrent = device.isDefault || (device.uid == MixerRoutingSupport.combineAllOutputsSelectionID && mixer.isCombinedOutputActive)
+        return isCurrent ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 
     private func inputMessage(_ text: String, systemImage: String) -> some View {
@@ -1109,7 +1216,8 @@ private struct MixerRow: View {
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
-        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+        let isCurrent = device.isDefault || (device.uid == MixerRoutingSupport.combineAllOutputsSelectionID && mixer.isCombinedOutputActive)
+        return isCurrent ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 }
 

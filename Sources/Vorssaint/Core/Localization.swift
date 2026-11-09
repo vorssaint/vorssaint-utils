@@ -1327,6 +1327,12 @@ struct Strings {
     let quitAppsCaption: String
 }
 
+extension Strings {
+    var mixerCombineAllOutputs: String { "Combine All Outputs" }
+    var mixerCombineAllOutputsCaption: String { "Play audio through all connected outputs simultaneously" }
+    var mixerCombineAllOutputsOption: String { "Combine All Audio Outputs" }
+}
+
 // MARK: - Português (Brasil)
 
 extension Strings {
