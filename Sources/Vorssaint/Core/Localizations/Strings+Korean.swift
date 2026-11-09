@@ -206,7 +206,6 @@ extension Strings {
         micUnmutePartialHUD: "일부 마이크가 아직 음소거되어 있습니다",
         micMuteMenuBarToggle: "기능이 켜져 있을 때 메뉴 막대에 표시",
         micMuteMenuBarCaption: "메뉴 막대의 빨간 마이크는 이 기능이 켜져 있음을 나타냅니다. 모든 앱의 오디오 수집이 중단되었음을 보장하지는 않습니다.",
-
         pastePlainName: "일반 텍스트로 붙여넣기",
         pastePlainCaption: "색상, 글꼴, 서식 없이 복사한 내용을 붙여넣습니다. 원본은 클립보드에 유지됩니다.",
         launcherName: "빠른 패널",
@@ -216,6 +215,7 @@ extension Strings {
         launcherEmptyState: "모든 도구가 숨겨져 있습니다. 조정 버튼에서 다시 표시할 수 있습니다.",
         launcherAddSection: "복원",
         launcherKeysHint: "화살표 키로 이동, Return으로 열기, 1~9로 바로 열기",
+
         switcherSection: "윈도우 전환기",
         switcherEnable: "Vorssaint 전환기 사용",
         switcherEnableCaption: "앱과 윈도우를 전환합니다. 최소화한 윈도우와 같은 앱의 여러 윈도우도 지원합니다.",
@@ -1119,6 +1119,36 @@ extension Strings {
         spacesOrderName: "공간 순서 고정",
         spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다.",
         quitAppsName: "앱 종료",
-        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다."
+        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다.",
+
+        widgetCPU: "CPU 위젯",
+        widgetGPU: "GPU 위젯",
+        widgetRAM: "RAM 위젯",
+        widgetDisk: "디스크 위젯",
+        widgetNetwork: "네트워크 위젯",
+        widgetUnited: "통합 위젯",
+        widgetCPUDescription: "CPU 통계를 표시합니다",
+        widgetGPUDescription: "GPU 통계를 표시합니다",
+        widgetRAMDescription: "RAM 통계를 표시합니다",
+        widgetDiskDescription: "디스크 통계를 표시합니다",
+        widgetNetworkDescription: "네트워크 통계를 표시합니다",
+        widgetUnitedDescription: "CPU, GPU, RAM 및 디스크 통계를 표시합니다",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "디스크",
+        widgetSystem: "시스템",
+        widgetUser: "사용자",
+        widgetUsage: "사용량",
+        widgetRenderer: "렌더러",
+        widgetTiler: "타일러",
+        widgetUsed: "사용",
+        widgetFree: "여유",
+        widgetPressureLevel: "압력 수준",
+        widgetDownload: "다운로드",
+        widgetUpload: "업로드",
+        widgetStatus: "상태",
+        widgetInterface: "인터페이스",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }
