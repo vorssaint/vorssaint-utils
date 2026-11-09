@@ -55,13 +55,6 @@ struct SwitcherSettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(l10n.s.tabSwitcher).font(.title2.bold())
-                    Text(pages.switcherDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if AppFeature.switcher.isAvailable {
                     switcherCard
                         .settingsSectionAnchor(.switcher, cornerRadius: 16)
@@ -125,6 +118,7 @@ struct SwitcherSettings: View {
                     .onChange(of: switcherEnabled) { _, _ in
                         AppSwitcher.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .switcher))
             }
             Group {
                 VStack(alignment: .leading, spacing: 8) {

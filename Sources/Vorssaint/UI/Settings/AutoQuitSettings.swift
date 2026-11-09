@@ -19,12 +19,11 @@ struct AutoQuitSettings: View {
         Form {
             Section {
                 Toggle(l10n.s.autoQuitEnable, isOn: $enabled)
+                    .toggleStyle(.switch)
                     .onChange(of: enabled) { _, _ in
                         AutoQuitService.shared.syncWithPreferences()
                     }
-                Text(l10n.s.autoQuitEnableCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .modifier(FeaturePrimaryToggleModifier(feature: .autoQuit))
                 if enabled, service.isRunning {
                     Label(l10n.s.autoQuitActiveNow, systemImage: "checkmark.circle.fill")
                         .font(.caption)

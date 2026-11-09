@@ -6,6 +6,7 @@ import SwiftUI
 /// The Dock page: Dock Preview, Dock clicks and the window previews Dock
 /// Preview shares with the switcher.
 struct DockSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -25,43 +26,36 @@ struct DockSettings: View {
     @AppStorage(DefaultsKey.dockClickCycleWindows) private var dockClickCycleWindows = false
     @AppStorage(DefaultsKey.spacesOrderEnabled) private var spacesOrderEnabled = false
 
-    private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var dockPreviewEngaged: Bool { dockPreviewEnabled && AppFeature.dockPreview.isAvailable }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(pages.dockTitle).font(.title2.bold())
-                    Text(pages.dockDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if AppFeature.dockPreview.isAvailable {
+                if shows(.dockPreview) {
                     dockPreviewCard
                         .settingsSectionAnchor(.dock, cornerRadius: 16)
                 }
                 // Clicking a Dock icon is its own installable feature in the
                 // hub, so it gets its own card here.
-                if AppFeature.dockClick.isAvailable {
+                if shows(.dockClick) {
                     dockClickCard
                         .settingsSectionAnchor(.dockClick, cornerRadius: 16)
                 }
-                if AppFeature.spacesOrder.isAvailable {
+                if shows(.spacesOrder) {
                     spacesOrderCard
                         .settingsSectionAnchor(.spacesOrder, cornerRadius: 16)
                 }
-                if AppFeature.dockPreview.isAvailable {
+                if shows(.dockPreview) {
                     WindowPreviewsCard(sizeKey: DefaultsKey.previewSize,
                                        excludedAppsKey: DefaultsKey.windowPreviewExcludedApps)
                 }
-                if needsAccessibility, !permissions.accessibility {
+                if needsAccessibility, !permissions.accessibility, focus == nil || focus?.permissions.contains(.accessibility) == true {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
                     }
                 }
-                if dockPreviewEngaged, !permissions.screenRecording {
+                if dockPreviewEngaged, !permissions.screenRecording,
+                   focus == nil || focus == .dockPreview {
                     SettingsCard {
                         PermissionRow(kind: .screenRecording)
                     }
@@ -74,6 +68,10 @@ struct DockSettings: View {
         .toggleStyle(.switch)
     }
 
+    private func shows(_ feature: AppFeature) -> Bool {
+        feature.isAvailable && (focus == nil || focus == feature)
+    }
+
     private var dockPreviewCard: some View {
         SettingsCard(title: l10n.s.dockPreviewName) {
             SettingsRow(symbol: "dock.rectangle", title: l10n.s.dockPreviewEnable, caption: dockPreviewCaption) {
@@ -82,6 +80,7 @@ struct DockSettings: View {
                     .onChange(of: dockPreviewEnabled) { _, _ in
                         DockPreviewService.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .dockPreview))
             }
             if dockPreviewEnabled {
                 SettingsRow(symbol: "rectangle.3.group", title: l10n.s.switcherCurrentSpaceOnly,
@@ -160,6 +159,7 @@ struct DockSettings: View {
                         if enabled { dockClickHide = false }
                         DockClickService.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .dockClick))
             }
             SettingsRow(symbol: "eye.slash", title: l10n.s.dockClickHide, caption: l10n.s.dockClickHideCaption) {
                 Toggle(l10n.s.dockClickHide, isOn: $dockClickHide)
@@ -189,6 +189,7 @@ struct DockSettings: View {
                     .onChange(of: spacesOrderEnabled) { _, _ in
                         SpacesOrderHold.shared.syncWithPreferences()
                     }
+                    .modifier(FeaturePrimaryToggleModifier(feature: .spacesOrder))
             }
         }
     }
@@ -248,4 +249,3 @@ struct DockSettings: View {
         return formatter
     }()
 }
-

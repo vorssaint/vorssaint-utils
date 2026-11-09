@@ -29,7 +29,7 @@ struct ScreenCaptureSettings: View {
         Form {
             if !availableTools.isEmpty {
                 Section {
-                    if availableTools.count > 1 {
+                    if availableTools.count > 1, router.destination.sectionAnchor == nil {
                         ScreenCaptureToolPicker(tools: availableTools,
                                                 strings: l10n.s,
                                                 language: l10n.language,
@@ -37,7 +37,8 @@ struct ScreenCaptureSettings: View {
                     }
                     ToolShortcutRows(tool: currentTool, keys: currentTool.dedicatedShortcut)
                         .id(currentTool)
-                    if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
+                    if router.destination.sectionAnchor == nil,
+                       AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
                         RecentCapturesShortcutRows()
                     }
                 } header: {

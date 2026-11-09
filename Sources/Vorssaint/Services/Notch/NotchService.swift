@@ -14,6 +14,7 @@ struct NotchNotice: Equatable {
     var level: Double? = nil
     var notification: NotchNotificationContent? = nil
     var notificationID: UUID? = nil
+    var action: URL? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
     /// With the companion on, it takes the symbol's place in the notice and
@@ -1111,6 +1112,14 @@ final class NotchService: ObservableObject {
     }
     var acceptsSystemFeedback: Bool {
         acceptsUserInteraction && !hiddenInFullscreen
+    }
+    var trashSuggestionAvailability: TrashSuggestionNotchAvailability {
+        TrashSuggestionSupport.notchAvailability(
+            expanded: expanded,
+            peeking: peeking,
+            occupied: dragPlaceholder || captureControls != nil || notice != nil || noticeExpanded,
+            acceptsSystemFeedback: acceptsSystemFeedback,
+            routeEnabled: NotchSupport.routes(.systemNotification))
     }
     var showsSystemFeedback: Bool {
         acceptsSystemFeedback && (!hiddenUntilHover || NotchSupport.hiddenShowsActivity())
@@ -2326,8 +2335,20 @@ final class NotchService: ObservableObject {
 
     @discardableResult
     func show(_ incoming: NotchNotice) -> Bool {
-        guard showsSystemFeedback, NotchSupport.routes(incoming.event),
-              NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else { return false }
+        let actionCanRoute = incoming.action != nil && NotchSupport.isEnabled()
+        guard showsSystemFeedback, (NotchSupport.routes(incoming.event) || actionCanRoute) else { return false }
+        // An actionable Trash suggestion must not wait behind a held notice or
+        // an open island. It is the result of a user action and can safely
+        // take the island's presentation slot, then return to the activity.
+        if actionCanRoute && (expanded || peeking) {
+            collapse()
+            DispatchQueue.main.async { [weak self] in _ = self?.show(incoming) }
+            return true
+        }
+        guard actionCanRoute
+                || NotchSupport.shouldReplace(notice?.event, with: incoming.event, held: noticeExpanded) else {
+            return false
+        }
         noticeWork?.cancel(); noticeWork = nil
         var incoming = incoming
         if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
@@ -2361,6 +2382,11 @@ final class NotchService: ObservableObject {
 
     func activateNotice(_ selectedNotice: NotchNotice) {
         guard notice == selectedNotice else { return }
+        if let url = selectedNotice.action {
+            dismissNotice()
+            (NSApp.delegate as? AppDelegate)?.openUninstaller(for: url)
+            return
+        }
         if let id = selectedNotice.notificationID {
             guard NotchNotificationService.shared.openingID == nil else { return }
             // The pointer stays where the banner was; like a click on the

@@ -11,7 +11,10 @@ enum LocalizationTests {
     ]
 
     static func fields(_ value: Any) -> [String: String] {
-        Dictionary(uniqueKeysWithValues: Mirror(reflecting: value).children.compactMap {
+        if let remapping = value as? KeyboardRemappingStrings {
+            return remapping.localizedFields
+        }
+        return Dictionary(uniqueKeysWithValues: Mirror(reflecting: value).children.compactMap {
             guard let name = $0.label, let text = $0.value as? String else { return nil }
             return (name, text)
         })
@@ -70,7 +73,17 @@ enum LocalizationTests {
         for (language, strings) in languages {
             suite.expect(!strings.zoomControlNote.isEmpty,
                          "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")
+            suite.expect(!strings.uninstallerTrashDetectionTitle.isEmpty
+                         && !strings.uninstallerTrashDetectionCaption.isEmpty
+                         && !strings.uninstallerTrashDetectionNeedsFDA.isEmpty
+                         && !strings.uninstallerTrashDetectionFailed.isEmpty,
+                         "Trash monitoring text is localized in \(language.rawValue)")
             if language != .enUS {
+                suite.expect(strings.uninstallerTrashDetectionTitle != Strings.enUS.uninstallerTrashDetectionTitle
+                             && strings.uninstallerTrashDetectionCaption != Strings.enUS.uninstallerTrashDetectionCaption
+                             && strings.uninstallerTrashDetectionNeedsFDA != Strings.enUS.uninstallerTrashDetectionNeedsFDA
+                             && strings.uninstallerTrashDetectionFailed != Strings.enUS.uninstallerTrashDetectionFailed,
+                             "Trash monitoring strings are translated in \(language.rawValue)")
                 suite.expect(strings.zoomControlNote != Strings.enUS.zoomControlNote,
                              "the Zoom warning is translated in \(language.rawValue)")
             }
@@ -83,6 +96,18 @@ enum LocalizationTests {
                              "disk picker translates every field in \(language.rawValue)")
             }
             check(strings, against: Strings.enUS, name: "strings/\(language.rawValue)", suite: suite)
+            let remapping = FeatureStrings.keyboardRemapping(language)
+            let remappingEnglish = FeatureStrings.keyboardRemapping(.enUS)
+            suite.expect(remapping.hasCompleteCatalog,
+                         "keyboard remapping provides every UI string in \(language.rawValue)")
+            check(remapping, against: remappingEnglish,
+                  name: "keyboardRemapping/\(language.rawValue)", suite: suite)
+            if language != .enUS {
+                for key in [KeyboardRemappingString.pageTitle, .enabled, .addRule, .allApps] {
+                    suite.expect(remapping[key] != remappingEnglish[key],
+                                 "keyboard remapping translates \(key.localizedName) in \(language.rawValue)")
+                }
+            }
             let additional: [(String, (AppLanguage) -> Any)] = [
                 ("imageConverter", { MediaImageConverterStrings.localized($0) }),
                 ("directionalLayout", { WindowDirectionalStrings.localized($0) }),

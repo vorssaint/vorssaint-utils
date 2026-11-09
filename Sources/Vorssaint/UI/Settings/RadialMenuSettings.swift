@@ -5,9 +5,10 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Settings > Radial menu: profiles, colors, shortcuts, the master switch,
-/// opening behavior, placement and list of actions per profile.
+/// Settings > Radial menu: profiles, colors, shortcuts, opening behavior,
+/// placement and list of actions per profile.
 struct RadialMenuSettings: View {
+    var focus: AppFeature? = nil
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = RadialMenuService.shared
@@ -64,10 +65,10 @@ struct RadialMenuSettings: View {
     var body: some View {
         Form {
             Section {
-                Toggle(text.enableLabel, isOn: $enabled)
-                Text(text.hubDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if focus != .radialMenu {
+                    Toggle(text.enableLabel, isOn: $enabled)
+                        .toggleStyle(.switch)
+                }
                 if service.registrationFailed {
                     Text(l10n.s.shortcutInvalid)
                         .font(.caption)
@@ -90,11 +91,6 @@ struct RadialMenuSettings: View {
                     Text(text.positionCenter).tag(false)
                 }
                 .pickerStyle(.segmented)
-                Button(text.tryButton) {
-                    RadialMenuService.shared.presentPreview(for: selectedProfile)
-                }
-            } header: {
-                Text(text.pageTitle)
             }
 
             if RadialMenuSupport.needsAccessibility(profiles), !permissions.accessibility {
@@ -180,9 +176,11 @@ struct RadialMenuSettings: View {
             } header: {
                 Text(text.actionsHeader)
             } footer: {
-                Text(level.count >= RadialMenuSupport.maxItemsPerWheel ? text.limitCaption : text.hubDescription)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if level.count >= RadialMenuSupport.maxItemsPerWheel {
+                    Text(text.limitCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
         .formStyle(.grouped)
@@ -208,6 +206,7 @@ struct RadialMenuSettings: View {
                              delete: isNew ? nil : { remove(id: item.id) })
         }
         .onChange(of: enabled) { _, on in
+            guard focus != .radialMenu else { return }
             RadialMenuService.shared.syncWithPreferences()
             requestAccessibilityIfNeeded(on)
         }

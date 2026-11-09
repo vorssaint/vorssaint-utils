@@ -23,6 +23,22 @@ enum SettingsFeatureTests {
     }
 
     static func run(_ suite: TestSuite) {
+        let settingsViewSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/SettingsView.swift",
+            encoding: .utf8)) ?? ""
+        let heroActions: [(AppFeature, String, String)] = [
+            (.screenRecorder, "FeatureStrings.recorder(l10n.language)", "ScreenRecorderService.shared.toggle()"),
+            (.screenOCR, "l10n.s.ocrName", "ScreenTextService.shared.capture()"),
+            (.colorPicker, "l10n.s.colorPickerPickNow", "ColorSamplerService.shared.pick()"),
+            (.micMute, "l10n.s.micMuteName", "MicMuteService.shared.toggle()")
+        ]
+        suite.expect(heroActions.allSatisfy { item in
+                         item.0.hasHeroAction
+                             && settingsViewSource.contains("case .\(item.0.rawValue):")
+                             && settingsViewSource.contains(item.1)
+                             && settingsViewSource.contains(item.2)
+                     },
+                     "screen recording, copy text, colour picker and microphone mute expose localized hero actions")
         for (language, strings) in LocalizationTests.languages {
             let mouse = SettingsDirectory.sections(strings, language: language)
                 .flatMap(\.items).first { $0.page == .mouse }!

@@ -16,7 +16,7 @@ jobs:
   compatibility:
     name: Swift 6.0.3 compatibility
     runs-on: macos-15
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
     steps:

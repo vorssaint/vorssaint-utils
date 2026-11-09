@@ -41,13 +41,6 @@ struct EnergySettings: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(pageTitle).font(.title2.bold())
-                    Text(pageDescription)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
                 if (focus == nil || focus == .keepAwake), AppFeature.keepAwake.isAvailable {
                     keepAwakeCard
                         .settingsSectionAnchor(.keepAwake, cornerRadius: 16)
@@ -97,26 +90,6 @@ struct EnergySettings: View {
         }
     }
 
-    private var pageTitle: String {
-        switch focus {
-        case .keepAwake: return l10n.s.keepAwakeTitle
-        case .brightness: return FeatureStrings.brightness(l10n.language).pageTitle
-        case .extraBrightness: return l10n.s.extraBrightnessName
-        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).pageTitle
-        default: return l10n.s.tabEnergy
-        }
-    }
-
-    private var pageDescription: String {
-        switch focus {
-        case .keepAwake: return FeatureStrings.hub(l10n.language).descKeepAwake
-        case .brightness: return FeatureStrings.brightness(l10n.language).hubDescription
-        case .extraBrightness: return FeatureStrings.hub(l10n.language).descExtraBrightness
-        case .bluetoothSleep: return FeatureStrings.bluetoothSleep(l10n.language).hubDescription
-        default: return FeatureStrings.settingsPages(l10n.language).energyDescription
-        }
-    }
-
     // MARK: - Keep awake
 
     /// The feature itself: what it is doing now, the switch, the default
@@ -127,10 +100,11 @@ struct EnergySettings: View {
             // automatic session names its condition instead, as in the panel.
             if awake.isActive, awake.sessionTrigger != .automation, let end = awake.endDate {
                 TimelineView(.periodic(from: .now, by: 1)) { _ in
-                    sessionRow(status: "\(l10n.s.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))")
+                    sessionRow(status: "\(l10n.s.keepAwakeEndsIn) \(KeepAwakeCard.remainingText(until: end))",
+                               showToggle: focus != .keepAwake)
                 }
             } else {
-                sessionRow(status: sessionStatus)
+                sessionRow(status: sessionStatus, showToggle: focus != .keepAwake)
             }
             VStack(alignment: .leading, spacing: 8) {
                 Text(l10n.s.defaultDurationLabel)
@@ -160,10 +134,12 @@ struct EnergySettings: View {
     }
 
     /// The feature's name, what it is doing right now and its switch.
-    private func sessionRow(status: String) -> some View {
+    private func sessionRow(status: String, showToggle: Bool) -> some View {
         SettingsRow(symbol: "moon.zzz.fill", title: l10n.s.keepAwakeTitle, caption: status) {
-            Toggle(l10n.s.keepAwakeTitle, isOn: sessionBinding)
-                .labelsHidden()
+            if showToggle {
+                Toggle(l10n.s.keepAwakeTitle, isOn: sessionBinding)
+                    .labelsHidden()
+            }
         }
     }
 
@@ -299,11 +275,15 @@ struct EnergySettings: View {
         let strings = FeatureStrings.brightness(l10n.language)
         return SettingsCard {
             SettingsRow(symbol: "display.2", title: strings.enable, caption: strings.enableCaption) {
-                Toggle(strings.enable, isOn: $brightnessEnabled)
-                    .labelsHidden()
-                    .onChange(of: brightnessEnabled) { _, _ in
-                        BrightnessService.shared.syncWithPreferences()
-                    }
+                if focus != .brightness {
+                    Toggle(strings.enable, isOn: $brightnessEnabled)
+                        .labelsHidden()
+                        .onChange(of: brightnessEnabled) { _, _ in
+                            BrightnessService.shared.syncWithPreferences()
+                        }
+                } else {
+                    EmptyView()
+                }
             }
             if brightnessEnabled {
                 Divider()
@@ -428,11 +408,15 @@ struct EnergySettings: View {
             if extraBrightness.supported {
                 SettingsRow(symbol: "sun.max.fill", title: l10n.s.extraBrightnessName,
                             caption: l10n.s.extraBrightnessCaption) {
-                    Toggle(l10n.s.extraBrightnessName, isOn: $extraBrightnessEnabled)
-                        .labelsHidden()
-                        .onChange(of: extraBrightnessEnabled) { _, _ in
-                            ExtraBrightnessService.shared.syncWithPreferences()
-                        }
+                    if focus != .extraBrightness {
+                        Toggle(l10n.s.extraBrightnessName, isOn: $extraBrightnessEnabled)
+                            .labelsHidden()
+                            .onChange(of: extraBrightnessEnabled) { _, _ in
+                                ExtraBrightnessService.shared.syncWithPreferences()
+                            }
+                    } else {
+                        EmptyView()
+                    }
                 }
                 if extraBrightnessEnabled {
                     HStack(spacing: 12) {
@@ -470,11 +454,15 @@ struct EnergySettings: View {
             if BluetoothSleepService.isSupported {
                 SettingsRow(symbol: "dot.radiowaves.left.and.right", title: strings.enable,
                             caption: strings.enableCaption) {
-                    Toggle(strings.enable, isOn: $bluetoothSleepEnabled)
-                        .labelsHidden()
-                        .onChange(of: bluetoothSleepEnabled) { _, _ in
-                            BluetoothSleepService.shared.syncWithPreferences()
-                        }
+                    if focus != .bluetoothSleep {
+                        Toggle(strings.enable, isOn: $bluetoothSleepEnabled)
+                            .labelsHidden()
+                            .onChange(of: bluetoothSleepEnabled) { _, _ in
+                                BluetoothSleepService.shared.syncWithPreferences()
+                            }
+                    } else {
+                        EmptyView()
+                    }
                 }
                 if bluetoothSleepEnabled {
                     SettingsRow(symbol: "arrow.counterclockwise", title: strings.restoreToggle,

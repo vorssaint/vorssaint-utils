@@ -252,11 +252,22 @@ def main():
           + "}\n")
     cleaner_view = "Sources/Vorssaint/UI/Cleaner/CleanerView.swift"
     feature_hub = "Sources/Vorssaint/UI/Settings/FeatureHubSettings.swift"
-    write("FeatureHubLayout.swift", "import AppKit\nimport SwiftUI\nextension FeatureHubLayoutTests.Page {\n"
-          + "".join(declaration(feature_hub, prefix).replace("    private var", "    var", 1)
-                    for prefix in ["    private var content:", "    private var restartCard:"])
+    settings_card = "Sources/Vorssaint/UI/Settings/SettingsCard.swift"
+    hub_layout_members = []
+    for prefix in ["    private var content:", "    private var featureHubHeader:",
+                   "    private var featureCatalog:", "    private var restartCard:"]:
+        member = declaration(feature_hub, prefix).replace("    private var", "    var", 1)
+        if prefix == "    private var featureCatalog:":
+            member = member.replace("    var featureCatalog:", "    @ViewBuilder\n    var featureCatalog:", 1)
+        hub_layout_members.append(member)
+    write("FeatureHubLayout.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration(settings_card, "struct SettingsIconTile:")
+          + declaration(settings_card, "struct SettingsFeatureHeader<")
+          + declaration(settings_card, "extension SettingsFeatureHeader where Accessory == EmptyView")
+          + "extension FeatureHubLayoutTests.Page {\n"
+          + "".join(hub_layout_members)
           + "}\nextension FeatureHubLayoutTests {\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsCard.swift", "struct SettingsCard<")
+          + declaration(settings_card, "struct SettingsCard<")
           + "}\n"
           + declaration(feature_hub, "private struct FeatureHubScrollAnchor:"))
     write("CleanerLayout.swift", "import SwiftUI\nextension CleanerLayoutTests.Results {\n"
@@ -1744,6 +1755,8 @@ def main():
           + "struct MenuBarGlyph: View { var body: some View { EmptyView() } }\n"
           + "final class FeatureRuntime: ObservableObject {\nstatic let shared = FeatureRuntime()\nvar installed = true\n"
           + "func isAvailable(_ feature: AppFeature) -> Bool { installed }\n}\n"
+          + "struct FeaturePrimaryToggleModifier: ViewModifier {\nlet feature: AppFeature\n"
+          + "func body(content: Content) -> some View { content }\n}\n"
           + declaration(settings_card, "struct SettingsCard<")
           + declaration(settings_card, "struct SettingsRow<")
           + feature_row

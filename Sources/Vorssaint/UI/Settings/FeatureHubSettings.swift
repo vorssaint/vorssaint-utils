@@ -16,7 +16,14 @@ struct FeatureHubSettings: View {
     @ObservedObject private var router = SettingsRouter.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var tab: Tab = .features
+    @State private var searchQuery = ""
+    @AppStorage(DefaultsKey.featureHubCategoryFilter) private var categoryFilter = "all"
+    @AppStorage(DefaultsKey.featureHubStatusFilter) private var statusFilter = "all"
+    @AppStorage(DefaultsKey.featureHubSortOrder) private var sortOrder = FeatureCatalogSortOrder.defaultOrder.rawValue
+    @AppStorage(DefaultsKey.featureHubLayout) private var layout = FeatureCatalogLayout.cards.rawValue
     @State private var confirmingPreset: FeaturePreset?
+    @State private var confirmingUninstallAll = false
+    @State private var confirmingNeverUsedUninstall = false
     /// Tracks the feature-target request currently being revealed, so a
     /// delayed retry from an older request cannot act after a newer one has
     /// already taken over (same convention as `SettingsSectionFocusModifier`).
@@ -28,6 +35,7 @@ struct FeatureHubSettings: View {
     @State private var expandedGroups = Set(FeatureGroup.allCases)
     @State private var islandExtensionsExpanded = true
     @State private var presetsExpanded = true
+    @State private var showsRecommendationSurvey = false
     /// Installed switches never once turned on, read when the page appears
     /// and after every install change rather than on every redraw.
     @State private var neverUsed: [AppFeature] = []
@@ -41,6 +49,51 @@ struct FeatureHubSettings: View {
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
+    private var matchingFeatures: Set<AppFeature> {
+        let category = FeatureGroup(rawValue: categoryFilter)
+        return Set(FeatureCatalogQuery.filter(
+            AppFeature.allCases,
+            text: searchQuery,
+            category: category,
+            status: FeatureCatalogStatusFilter(rawValue: statusFilter) ?? .all,
+            searchTerms: { feature in
+                [feature.hubTitle(l10n.s, hub: hub),
+                 feature.hubDescription(hub),
+                 feature.group.rawValue,
+                 groupTitle(feature.group),
+                 feature.permissions.map { $0.name(hub) }.joined(separator: " ")]
+                    .joined(separator: " ")
+            },
+            isInstalled: { $0.isAvailable },
+            isEnabled: featureIsEnabled))
+    }
+
+    private var hasSearchQuery: Bool {
+        !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasCatalogFilter: Bool {
+        hasSearchQuery || categoryFilter != "all" || statusFilter != FeatureCatalogStatusFilter.all.rawValue
+    }
+
+    private var selectedLayout: FeatureCatalogLayout {
+        FeatureCatalogLayout(rawValue: layout) ?? .cards
+    }
+
+    private func featureIsEnabled(_ feature: AppFeature) -> Bool {
+        if feature == .keepAwake { return KeepAwakeManager.shared.isActive }
+        return feature.enabledKeys.contains { UserDefaults.standard.bool(forKey: $0) }
+    }
+
+    private func orderedFeatures(in group: FeatureGroup, from matches: Set<AppFeature>) -> [AppFeature] {
+        let members = AppFeature.features(in: group).filter(matches.contains)
+        return FeatureCatalogQuery.sort(
+            members,
+            by: FeatureCatalogSortOrder(rawValue: sortOrder) ?? .defaultOrder,
+            isInstalled: { $0.isAvailable },
+            title: { $0.hubTitle(l10n.s, hub: hub) })
+    }
+
     var body: some View {
         ScrollViewReader { proxy in
             content
@@ -51,6 +104,38 @@ struct FeatureHubSettings: View {
                 .onChange(of: router.requestID) { _, _ in revealPendingFeatureTarget(using: proxy) }
                 .onChange(of: features.revision) { _, _ in refreshNeverUsed() }
         }
+        .sheet(isPresented: $showsRecommendationSurvey) {
+            FeatureRecommendationSurvey(
+                onExit: { showsRecommendationSurvey = false },
+                onApply: { recommendation in
+                    FeatureRuntime.shared.setAvailable(Array(recommendation), true)
+                    showsRecommendationSurvey = false
+                })
+                .frame(minWidth: 850, idealWidth: 1000, minHeight: 680, idealHeight: 760)
+        }
+        .confirmationDialog(
+            confirmingUninstallAll ? hub.uninstallAllButton : hub.neverUsedUninstall,
+            isPresented: Binding(
+                get: { confirmingUninstallAll || confirmingNeverUsedUninstall },
+                set: {
+                    if !$0 {
+                        confirmingUninstallAll = false
+                        confirmingNeverUsedUninstall = false
+                    }
+                }),
+            titleVisibility: .visible) {
+            if confirmingUninstallAll {
+                Button(hub.uninstallAllButton, role: .destructive) {
+                    confirmingUninstallAll = false
+                    FeatureRuntime.shared.setAllAvailable(false)
+                }
+            } else {
+                Button(hub.neverUsedUninstall, role: .destructive, action: uninstallNeverUsed)
+            }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            Text(confirmingUninstallAll ? hub.uninstallAllButton : hub.neverUsedTitle)
+        }
     }
 
     private var content: some View {
@@ -59,56 +144,18 @@ struct FeatureHubSettings: View {
         // the viewport in the lazy layout loop reported in #2311 and #2642.
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                // Keep the header's identity stable when the notice changes.
-                VStack(alignment: .leading, spacing: 20) {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text(hub.pageTitle).font(.title2.bold())
-                        Text(tab == .features ? hub.intro : hub.permissionsIntro)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                    Picker(hub.pageTitle, selection: $tab) {
-                        Text(hub.tabFeatures).tag(Tab.features)
-                        Text(hub.tabPermissions).tag(Tab.permissions)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    // The restart notice comes first on either tab.
-                    if features.needsRestartToUnload {
-                        restartCard
-                    }
-                    if tab == .features {
-                        VStack(alignment: .leading, spacing: 20) {
-                            summaryCard
-                            neverUsedCard
-                        }
-                    }
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background { FeatureHubScrollAnchor() }
+                self.featureHubHeader
                 if tab == .features {
-                    dynamicIslandCard
-                    presetsCard
-                    ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
-                        groupCard(group)
-                    }
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(hub.footerNote)
-                        Text(hub.energyHelp)
-                    }
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                    self.featureCatalog
                 } else {
                     SettingsCard {
                         PermissionsPortalSections(hub: hub)
                     }
                 }
             }
-            .frame(maxWidth: 760)
+            .frame(maxWidth: 980)
             .frame(maxWidth: .infinity)
-            .padding(22)
+            .padding(26)
         }
         // Include the scroll view's document height in this transaction;
         // animating that height would constrain an immediate notice adjustment
@@ -131,6 +178,67 @@ struct FeatureHubSettings: View {
         }
     }
 
+    private var featureHubHeader: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Picker(hub.pageTitle, selection: $tab) {
+                Text(hub.tabFeatures).tag(Tab.features)
+                Text(hub.tabPermissions).tag(Tab.permissions)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if features.needsRestartToUnload {
+                restartCard
+            }
+            if tab == .features {
+                VStack(alignment: .leading, spacing: 20) {
+                    summaryCard
+                    if !self.hasSearchQuery {
+                        neverUsedCard
+                    }
+                }
+                self.featureSearchField
+                self.catalogControls
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { FeatureHubScrollAnchor() }
+    }
+
+    @ViewBuilder
+    private var featureCatalog: some View {
+        let matches = self.matchingFeatures
+        if !self.hasCatalogFilter {
+            presetsCard
+        }
+        if FeatureRecommendationEngine.isBroadEnough {
+            recommendationCard
+        }
+        ForEach(FeatureGroup.featureHubDisplayOrder, id: \.self) { group in
+            if AppFeature.features(in: group).contains(where: matches.contains) {
+                if group == .dynamicIsland {
+                    dynamicIslandCard
+                } else {
+                    groupCard(group)
+                }
+            }
+        }
+        if matches.isEmpty {
+            ContentUnavailableView("No features match",
+                                   systemImage: "line.3.horizontal.decrease.circle",
+                                   description: Text("Try changing your search or filters."))
+                .frame(maxWidth: .infinity, minHeight: 180)
+        }
+        if !self.hasCatalogFilter {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(hub.footerNote)
+                Text(hub.energyHelp)
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     /// Consumes a pending Feature Hub target: switches off the Permissions
     /// tab if needed and scrolls the requested row into view. Retried once
     /// after the first run-loop turn, the same allowance
@@ -139,6 +247,7 @@ struct FeatureHubSettings: View {
     private func revealPendingFeatureTarget(using proxy: ScrollViewProxy) {
         guard let request = router.pendingFeatureTarget else { return }
         router.consumeFeatureTarget(id: request.id)
+        searchQuery = ""
         revealID = request.id
         if tab == .permissions { tab = .features }
         if request.feature.group == .dynamicIsland {
@@ -218,11 +327,104 @@ struct FeatureHubSettings: View {
                 }
                 .disabled(features.availableCount == features.installableCount)
                 Button(hub.uninstallAllButton) {
-                    FeatureRuntime.shared.setAllAvailable(false)
+                    confirmingUninstallAll = true
                 }
                 .disabled(features.availableCount == 0)
             }
             InstalledShareBar(installed: features.availableCount, total: features.installableCount)
+        }
+    }
+
+    private var featureSearchField: some View {
+        HStack(spacing: 9) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search features", text: $searchQuery)
+                .textFieldStyle(.plain)
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.quaternary.opacity(0.55),
+                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private var catalogControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Picker("Category", selection: $categoryFilter) {
+                    Text("All categories").tag("all")
+                    ForEach(FeatureGroup.featureHubDisplayOrder, id: \.rawValue) { group in
+                        Text(groupTitle(group)).tag(group.rawValue)
+                    }
+                }
+                .frame(maxWidth: 220)
+                .accessibilityLabel("Filter by category")
+                Picker("Status", selection: $statusFilter) {
+                    ForEach(FeatureCatalogStatusFilter.allCases) { filter in
+                        Text(filter.title).tag(filter.rawValue)
+                    }
+                }
+                .frame(maxWidth: 180)
+                .accessibilityLabel("Filter by installation status")
+                Spacer(minLength: 0)
+                Text("\(matchingFeatures.count) features")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                Picker("Sort", selection: $sortOrder) {
+                    ForEach(FeatureCatalogSortOrder.allCases) { order in
+                        Text(order.title).tag(order.rawValue)
+                    }
+                }
+                .frame(maxWidth: 220)
+                .accessibilityLabel("Sort features")
+                Spacer(minLength: 0)
+                Picker("Layout", selection: $layout) {
+                    ForEach(FeatureCatalogLayout.allCases) { option in
+                        Label(option.title, systemImage: option.symbolName).tag(option.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+                .accessibilityLabel("Feature layout")
+            }
+        }
+        .controlSize(.small)
+    }
+
+    private var recommendationCard: some View {
+        HStack(spacing: 16) {
+            SettingsIconTile(symbol: "sparkles", size: 40, accentGroup: .tools)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Find features for your routine")
+                    .font(.headline)
+                Text("Answer a few everyday questions and get a short, editable list.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Button("Explore") { showsRecommendationSurvey = true }
+                .buttonStyle(.borderedProminent)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.indigo.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.indigo.opacity(0.18), lineWidth: 1)
         }
     }
 
@@ -256,7 +458,7 @@ struct FeatureHubSettings: View {
                 HStack(spacing: 8) {
                     Spacer(minLength: 0)
                     Button(hub.neverUsedKeep, action: keepNeverUsed)
-                    Button(hub.neverUsedUninstall, action: uninstallNeverUsed)
+                    Button(hub.neverUsedUninstall) { confirmingNeverUsedUninstall = true }
                 }
             }
         }
@@ -345,28 +547,19 @@ struct FeatureHubSettings: View {
     /// The island stays near the top, with its additions in a group the user
     /// can close when they want a shorter catalog.
     private var dynamicIslandCard: some View {
-        let members = AppFeature.features(in: .dynamicIsland)
+        let members = orderedFeatures(in: .dynamicIsland, from: matchingFeatures)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
             groupHeader(.dynamicIsland, installed: installed, total: members.count)
-            FeatureHubRow(feature: .notch, hub: hub,
-                          isHighlighted: highlightedFeature == .notch)
-                .id(AppFeature.notch)
+            if members.contains(.notch) {
+                featureRows([.notch])
+            }
             DisclosureGroup(
                 FeatureStrings.notch(l10n.language).modules,
                 isExpanded: $islandExtensionsExpanded
             ) {
                 if islandExtensionsExpanded {
-                    VStack(spacing: 0) {
-                        ForEach(members.filter { $0 != .notch }, id: \.self) { feature in
-                            FeatureHubRow(feature: feature, hub: hub,
-                                          isHighlighted: highlightedFeature == feature)
-                                .id(feature)
-                            if feature != members.last {
-                                Divider().padding(.leading, 8)
-                            }
-                        }
-                    }
+                    featureRows(members.filter { $0 != .notch })
                 }
             }
         }
@@ -376,7 +569,7 @@ struct FeatureHubSettings: View {
     /// Groups start open and are measured before scrolling begins.
     /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
-        let members = AppFeature.features(in: group)
+        let members = orderedFeatures(in: group, from: matchingFeatures)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
             DisclosureGroup(isExpanded: Binding(
@@ -387,19 +580,7 @@ struct FeatureHubSettings: View {
                 }
             )) {
                 if expandedGroups.contains(group) {
-                    VStack(spacing: 0) {
-                        ForEach(members, id: \.self) { feature in
-                            FeatureHubRow(
-                                feature: feature,
-                                hub: hub,
-                                isHighlighted: highlightedFeature == feature
-                            )
-                            .id(feature)
-                            if feature != members.last {
-                                Divider().padding(.leading, 8)
-                            }
-                        }
-                    }
+                    featureRows(members)
                     if group == .monitor,
                        !FeatureVisibilitySupport.monitorFeatures.contains(where: \.isAvailable) {
                         Text(hub.monitorAllOffNote)
@@ -413,6 +594,28 @@ struct FeatureHubSettings: View {
             }
         }
         .id(group)
+    }
+
+    @ViewBuilder
+    private func featureRows(_ members: [AppFeature]) -> some View {
+        if selectedLayout == .cards {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 300), spacing: 12)],
+                      alignment: .leading, spacing: 12) {
+                ForEach(members, id: \.self) { feature in
+                    FeatureHubRow(feature: feature, hub: hub, layout: .cards,
+                                  isHighlighted: highlightedFeature == feature)
+                        .id(feature)
+                }
+            }
+        } else {
+            VStack(spacing: 7) {
+                ForEach(members, id: \.self) { feature in
+                    FeatureHubRow(feature: feature, hub: hub, layout: .list,
+                                  isHighlighted: highlightedFeature == feature)
+                        .id(feature)
+                }
+            }
+        }
     }
 
     private func groupHeader(_ group: FeatureGroup, installed: Int, total: Int) -> some View {
@@ -655,10 +858,12 @@ private struct FeatureHubRow: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @State private var confirmingExtensions = false
+    @State private var confirmingUninstall = false
     @State private var hovering = false
     @State private var showingMetadata = false
     let feature: AppFeature
     let hub: FeatureHubStrings
+    var layout: FeatureCatalogLayout = .cards
     var isHighlighted: Bool = false
 
     private var installed: Bool { feature.isAvailable }
@@ -706,7 +911,7 @@ private struct FeatureHubRow: View {
     }
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             if opensSettings {
                 Button {
                     SettingsRouter.shared.request(feature.settingsDestination,
@@ -726,12 +931,20 @@ private struct FeatureHubRow: View {
                     .opacity(unsupportedReason == nil ? 1 : 0.4)
                     .saturation(unsupportedReason == nil ? 1 : 0)
             }
-            metadata
-            installAction
+            HStack(spacing: 8) {
+                metadata
+                Spacer(minLength: 4)
+                installAction
+            }
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
-        .background(rowFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .padding(layout == .cards ? 12 : 9)
+        .frame(maxWidth: .infinity, minHeight: layout == .cards ? 128 : 64,
+               alignment: .topLeading)
+        .background(rowFill, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(Color.primary.opacity(isHighlighted ? 0.18 : 0.07), lineWidth: 1)
+        }
         .onHover { hovering = $0 }
         .alert(hub.notchUninstallTitle, isPresented: $confirmingExtensions) {
             Button(hub.notchUninstallWithExtensions) { flip(to: false, alongside: installedExtensions) }
@@ -742,15 +955,25 @@ private struct FeatureHubRow: View {
                         installedExtensions.map { $0.hubTitle(l10n.s, hub: hub) }
                             .joined(separator: ", ")))
         }
+        .confirmationDialog(hub.uninstallButton, isPresented: $confirmingUninstall,
+                            titleVisibility: .visible) {
+            Button(hub.uninstallButton, role: .destructive) { flip(to: false) }
+            Button(hub.presetConfirmCancel, role: .cancel) {}
+        } message: {
+            Text(accessibilityTitle)
+        }
     }
 
     private var rowFill: Color {
         if isHighlighted { return Color.accentColor.opacity(0.10) }
-        return hovering && opensSettings ? Color.primary.opacity(0.04) : Color.clear
+        if hovering && opensSettings { return Color.primary.opacity(0.08) }
+        return Color.primary.opacity(0.035)
     }
 
     private func rowContent(showsChevron: Bool) -> some View {
         HStack(spacing: 12) {
+            SettingsIconTile(symbol: feature.symbolName, size: layout == .cards ? 34 : 28,
+                             accentGroup: feature.group)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(feature.hubTitle(l10n.s, hub: hub))
@@ -830,7 +1053,11 @@ private struct FeatureHubRow: View {
     private var installAction: some View {
         if installed {
             Button(hub.uninstallButton) {
-                if installedExtensions.isEmpty { flip(to: false) } else { confirmingExtensions = true }
+                if feature == .notch, !installedExtensions.isEmpty {
+                    confirmingExtensions = true
+                } else {
+                    confirmingUninstall = true
+                }
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -1156,6 +1383,7 @@ extension AppFeature {
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(language).pageTitle
         case .middleClick: return s.middleClickSection
         case .keyboardDebounce: return s.keyDebounceName
+        case .keyRemapping: return FeatureStrings.keyboardRemapping(language)[.pageTitle]
         case .textSnippets: return FeatureStrings.snippets(language).pageTitle
         case .superKey: return FeatureStrings.superKey(language).pageTitle
         case .mouseClickDebounce:
@@ -1233,7 +1461,7 @@ extension AppFeature {
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
-        case .scrollZoom: return L10n.shared.s.pinchZoom
+        case .scrollZoom: return L10n.shared.s.zoomControlNote
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .linearScroll: return L10n.shared.s.linearScrollCaption
@@ -1242,6 +1470,8 @@ extension AppFeature {
         case .mouseButtonShortcuts: return FeatureStrings.mouseButtons(L10n.shared.language).hubDescription
         case .middleClick: return hub.descMiddleClick
         case .keyboardDebounce: return hub.descKeyboardDebounce
+        case .keyRemapping:
+            return FeatureStrings.settingsPages(L10n.shared.language).keyRemappingDescription
         case .textSnippets: return FeatureStrings.snippets(L10n.shared.language).hubDescription
         case .superKey: return FeatureStrings.superKey(L10n.shared.language).hubDescription
         case .mouseClickDebounce:

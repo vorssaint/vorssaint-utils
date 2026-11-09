@@ -738,6 +738,13 @@ struct NotchSettings: View {
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
                 destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
                 destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
+                destination(l10n.s.uninstallerName, symbol: "trash", value: Binding(
+                    get: { TrashSuggestionPresentation.current == .notch },
+                    set: { UserDefaults.standard.set(
+                        $0 ? TrashSuggestionPresentation.notch.rawValue : TrashSuggestionPresentation.window.rawValue,
+                        forKey: DefaultsKey.trashSuggestionPresentation
+                    ) }
+                ))
             }
             SettingsCard(title: editor.privacy) {
                 switchRow("camera.viewfinder", text.showInCaptures, isOn: $showInCaptures)
