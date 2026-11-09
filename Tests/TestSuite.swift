@@ -17,7 +17,8 @@ final class TestSuite {
         let progress = lock.withLock { () -> Int? in
             checks += 1
             if let failure { failures.append(failure) }
-            return activeSuite == "notch" && checks.isMultiple(of: 100) ? checks : nil
+            return (activeSuite == "notch" || activeSuite?.hasPrefix("notch-") == true)
+                && checks.isMultiple(of: 100) ? checks : nil
         }
         if let progress {
             FileHandle.standardError.write(Data("notch progress: \(progress) checks at \(file):\(line)\n".utf8))
