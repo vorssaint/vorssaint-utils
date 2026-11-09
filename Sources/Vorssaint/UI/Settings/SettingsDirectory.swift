@@ -414,6 +414,7 @@ enum SettingsDirectory {
                                          [FeatureStrings.cameraPreview(language).pageTitle]),
                                         (.wallpaper,
                                          [FeatureStrings.wallpaper(language).pageTitle]),
+                                        (.browserPicker, [FeatureStrings.browserPicker(language).title]),
                                         (.scratchpad, [FeatureStrings.scratchpad(language).pageTitle]),
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
