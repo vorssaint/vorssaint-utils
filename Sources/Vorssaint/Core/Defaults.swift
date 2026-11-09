@@ -697,6 +697,7 @@ enum DefaultsKey {
     static let screenshotDefaultAction = "screenshotDefaultAction"
     static let screenshotIncludePointer = "screenshotIncludePointer"
     static let screenshotShowLastRegion = "screenshotShowLastRegion"
+    static let screenshotConfirmSelection = "screenshotConfirmSelection"
     static let screenshotHighlightWindows = "screenshotHighlightWindows"
     static let screenshotLoupeStartsOn = "screenshotLoupeStartsOn"
     static let screenshotLoupeRememberZoom = "screenshotLoupeRememberZoom"
@@ -1288,7 +1289,10 @@ enum Defaults {
         DefaultsKey.switcherAllWindowsShortcut: GlobalShortcut.switcherAllWindowsDefault.storageValue,
         DefaultsKey.switcherAllWindowsShortcutEnabled: false,
         DefaultsKey.switcherIconRowMode: false,
-        DefaultsKey.switcherSimpleMode: false,
+        // Developer builds default to Simple so App Switcher does not warm
+        // window thumbnails (and trip macOS screen-recording prompts) when the
+        // Developer app is used as a daily driver. Release keeps previews on.
+        DefaultsKey.switcherSimpleMode: AppInfo.isDeveloperBuild,
         DefaultsKey.switcherMergeTabs: false,
         DefaultsKey.switcherShowWindowlessFinder: true,
         DefaultsKey.switcherWindowlessApps: SwitcherWindowlessApps.fallback.rawValue,
@@ -1922,6 +1926,7 @@ enum Defaults {
         DefaultsKey.screenshotDefaultAction: "",
         DefaultsKey.screenshotIncludePointer: false,
         DefaultsKey.screenshotShowLastRegion: true,
+        DefaultsKey.screenshotConfirmSelection: false,
         DefaultsKey.screenshotHighlightWindows: true,
         DefaultsKey.screenshotLoupeStartsOn: false,
         DefaultsKey.screenshotLoupeRememberZoom: false,

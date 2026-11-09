@@ -192,6 +192,7 @@ extension Strings {
         ocrCaption: "選擇螢幕上的一塊區域，識別出的文字會被拷貝，隨時可以貼上。",
         ocrCopied: "文字已拷貝",
         ocrNoText: "未找到文字",
+        ocrPickToCopyHint: "點選或拖選文字即可拷貝",
         colorPickerName: "顏色吸管",
         colorPickerCaption: "取得螢幕上任意像素的顏色，並以你喜歡的格式拷貝。",
         colorPickerFormatLabel: "拷貝格式",

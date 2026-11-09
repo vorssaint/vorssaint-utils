@@ -29,6 +29,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     @Published var selectedID: UUID?
     @Published var editingTextID: UUID?
+    /// Confirm-selection keeps the active draw tool after tap-selecting a mark
+    /// so consecutive numbered arrows (1, 2, 3…) stay available. The full
+    /// editor still switches to select for handle editing.
+    var keepsCreationToolWhenSelecting = false
     @Published var tool: ScreenshotSupport.Tool {
         didSet {
             UserDefaults.standard.set(tool.rawValue, forKey: DefaultsKey.screenshotLastTool)
@@ -434,6 +438,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         if !selectedWordIndexes.isEmpty { selectedWordIndexes = [] }
     }
 
+    /// Highlights every recognized word so an OCR pass is visible on the
+    /// confirm overlay the same way a drag-selected range is in the editor.
+    func selectAllRecognizedWords() {
+        selectedWordIndexes = Array(textWords.indices)
+    }
+
+
     func wordIndex(at point: CGPoint) -> Int? {
         textWords.firstIndex { $0.rect.insetBy(dx: -2 * scale, dy: -2 * scale).contains(point) }
     }
@@ -665,6 +676,33 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         recordCleanState()
     }
 
+    /// Swaps the capture pixels for an in-overlay confirm session that has not
+    /// been annotated yet. Tool and style choices stay; undo history resets.
+    func resetCaptureImage(_ image: CGImage) {
+        baseImage = image
+        annotations = []
+        selectedID = nil
+        editingTextID = nil
+        newTextID = nil
+        cropDraft = nil
+        cropLoupePoint = nil
+        expansionDraft = nil
+        expansionRejected = false
+        textWords = []
+        textRuns = nil
+        selectedWordIndexes = []
+        textSelectionAnchor = nil
+        qrReading = nil
+        pixelated = [:]
+        softBlurred = [:]
+        undoStack = []
+        redoStack = []
+        draftID = nil
+        carriedRuns = [:]
+        refreshUndoFlags()
+        recordCleanState()
+    }
+
     private func recordCleanState() {
         cleanImage = baseImage
         cleanAnnotations = annotations
@@ -717,6 +755,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 annotations[index].scribbleSeed = ScreenshotSupport.randomScribbleSeed()
             }
             annotations[index].arrowStyle = arrowStyle
+            if arrowStyleChanged {
+                if arrowStyle != .numbered {
+                    annotations[index].number = 0
+                }
+                annotations = ScreenshotSupport.renumberingNumberedArrows(annotations)
+            }
         }
         if annotations[index].tool == .text {
             annotations[index].textSize = textSize
@@ -817,9 +861,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         case .arrow, .line:
             registerUndo()
             dragRegistered = true
+            let arrowNumber = (tool == .arrow && arrowStyle == .numbered)
+                ? ScreenshotSupport.nextNumberedArrowNumber(in: annotations)
+                : 0
             let annotation = ScreenshotSupport.Annotation(
                 tool: tool, points: [point, point], color: color, stroke: stroke,
-                arrowStyle: arrowStyle)
+                arrowStyle: arrowStyle, number: arrowNumber)
             annotations.append(annotation)
             draftID = annotation.id
         case .freehand:
@@ -876,6 +923,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                 }
             }
         }
+        // Prefer OCR words when recognition is showing so confirm-selection
+        // (and the editor) can pick a phrase without hitting marks first.
+        if !textWords.isEmpty, let word = wordIndex(at: point) {
+            self.selectedID = nil
+            textSelectionAnchor = point
+            selectedWordIndexes = [word]
+            return
+        }
+        // A press that is not on a word drops any prior OCR highlight so a
+        // later release cannot re-copy a stale selection (Shottr-style).
+        clearTextSelection()
         let hitID = hitTest(point)
         self.selectedID = nil
         if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
@@ -883,11 +941,6 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             self.selectedID = hitID
             moveOrigin = hit.rect
             movePoints = hit.points
-            clearTextSelection()
-        } else if let word = wordIndex(at: point) {
-            // A drag over recognized text selects intersecting words.
-            textSelectionAnchor = point
-            selectedWordIndexes = [word]
         }
     }
 
@@ -1087,15 +1140,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private func finishSelectDrag(at point: CGPoint, isTap: Bool) {
         textSelectionAnchor = nil
         guard isTap, !dragRegistered else { return }
-        let hitID = hitTest(point)
         self.selectedID = nil
-        if let hitID, let hit = annotations.first(where: { $0.id == hitID }) {
+        if !textWords.isEmpty, let word = wordIndex(at: point) {
+            selectedWordIndexes = [word]
+            return
+        }
+        if let hitID = hitTest(point),
+           let hit = annotations.first(where: { $0.id == hitID }) {
             syncControls(to: hit)
             self.selectedID = hitID
             editingTextID = hit.tool == .text ? hitID : nil
             clearTextSelection()
-        } else if let word = wordIndex(at: point) {
-            selectedWordIndexes = [word]
         } else {
             clearTextSelection()
         }
@@ -1118,7 +1173,9 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         selectedID = hitID
         editingTextID = hit.tool == .text ? hitID : nil
         clearTextSelection()
-        tool = .select
+        if !keepsCreationToolWhenSelecting {
+            tool = .select
+        }
         return true
     }
 
@@ -1209,12 +1266,17 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     func deleteSelected() {
         guard let selectedID else { return }
         guard annotations.contains(where: { $0.id == selectedID }) else { return }
+        let removedID = selectedID
         registerUndo()
-        annotations.removeAll { $0.id == selectedID }
-        annotations = ScreenshotSupport.renumberingCounters(annotations)
+        annotations.removeAll { $0.id == removedID }
+        // Dense 1…n after deleting a middle numbered arrow (and counters).
+        annotations = ScreenshotSupport.renumberingNumberedArrows(
+            ScreenshotSupport.renumberingCounters(annotations))
         self.selectedID = nil
         editingTextID = nil
-        if newTextID == selectedID { newTextID = nil }
+        if newTextID == removedID { newTextID = nil }
+        refreshUndoFlags()
+        refreshDirtyState()
     }
 
     /// Moves the selected annotation one step through the drawing order, so a
@@ -1226,7 +1288,10 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         let reordered = ScreenshotSupport.reordering(annotations, moving: selectedID, move)
         guard reordered.map(\.id) != annotations.map(\.id) else { return }
         registerUndo()
-        annotations = ScreenshotSupport.renumberingCounters(reordered)
+        annotations = ScreenshotSupport.renumberingNumberedArrows(
+            ScreenshotSupport.renumberingCounters(reordered))
+        refreshUndoFlags()
+        refreshDirtyState()
     }
 
     func commitText(_ id: UUID, text: String) {
@@ -1320,9 +1385,11 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     // MARK: - Output
 
-    func exportImage(withBackdrop: Bool = true) -> ScreenshotRenderer.Export? {
+    func exportImage(withBackdrop: Bool = true,
+                     downscaleTo1x: Bool? = nil) -> ScreenshotRenderer.Export? {
         ensureBlurSamplesForAnnotations()
-        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        let downscale = downscaleTo1x
+            ?? UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         return ScreenshotRenderer.renderExport(
             baseImage: baseImage,
             annotations: annotations,
