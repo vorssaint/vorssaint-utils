@@ -277,9 +277,11 @@ final class SmoothScrollService: ObservableObject {
         // zoom already took the raw event above.
         guard let processID = pid_t(exactly: event.getIntegerValueField(.eventTargetUnixProcessID)),
               processID > 0,
-              let windowNumber = NSEvent(cgEvent: event)?.windowNumber, windowNumber > 0,
-              Int64(processID) != Self.ownProcessID || ScreenshotSelectionController.isActiveLoupeWindow(windowNumber),
-              let template = event.copy() else {
+              // AppKit translates Shift-wheel to horizontal on the CGEvent it wraps.
+              // Read the window from the replay copy so the modifier sees the original axes.
+              let template = event.copy(),
+              let windowNumber = NSEvent(cgEvent: template)?.windowNumber, windowNumber > 0,
+              Int64(processID) != Self.ownProcessID || ScreenshotSelectionController.isActiveLoupeWindow(windowNumber) else {
             stopGlide()
             return Unmanaged.passUnretained(event)
         }

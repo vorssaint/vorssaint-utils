@@ -405,8 +405,9 @@ enum SmoothScrollRoutingTests {
             let speeding = Service()
             let held = wheel(flags: [key.flag, .maskAlphaShift])
             suite.expect(tick(speeding, held) == nil && speeding.engine.remainingVertical == 120
-                            && speeding.engine.remainingHorizontal == 0,
-                         "each speed key, including Shift and Control, extends the vertical glide once")
+                            && speeding.engine.remainingHorizontal == 0
+                            && held.getIntegerValueField(.scrollWheelEventDeltaAxis1) == 1,
+                         "speed key \(key.rawValue) adds one scaled vertical step and preserves the original notch")
             frame(speeding)
             suite.expect(posted.last?.event.flags == .maskAlphaShift && held.flags.contains(key.flag),
                          "only the speed modifier is removed from the delivered frame")
