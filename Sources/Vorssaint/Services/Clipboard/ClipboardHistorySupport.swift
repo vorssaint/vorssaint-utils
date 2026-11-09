@@ -63,6 +63,26 @@ enum ClipboardHistoryWindowSizing {
     }
 }
 
+enum ClipboardHistoryWindowPlacement {
+    static func restoredFrame(origin: NSPoint, visibleFrames: [NSRect],
+                              size: (NSRect) -> NSSize) -> NSRect? {
+        guard origin.x.isFinite, origin.y.isFinite else { return nil }
+        var restored: NSRect?
+        var largestOverlap: CGFloat = 0
+        for visible in visibleFrames {
+            let frame = NSRect(origin: origin, size: size(visible))
+            let overlap = frame.intersection(visible)
+            let area = overlap.isNull ? 0 : overlap.width * overlap.height
+            guard area > largestOverlap else { continue }
+            largestOverlap = area
+            restored = NSRect(x: max(visible.minX, min(origin.x, visible.maxX - frame.width)),
+                              y: max(visible.minY, min(origin.y, visible.maxY - frame.height)),
+                              width: frame.width, height: frame.height)
+        }
+        return restored
+    }
+}
+
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
 struct ClipboardHistoryCaptureState {

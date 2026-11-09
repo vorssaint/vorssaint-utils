@@ -353,6 +353,10 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.linearScrollLines)
                 && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
                "linear scrolling preferences travel with the settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelControlSmoothScroll] as? Bool == true
+                && backupKeys.contains(DefaultsKey.smoothScrollEnabled)
+                && backupKeys.contains(DefaultsKey.panelControlSmoothScroll),
+               "smooth scrolling is visible when installed and its panel visibility travels with settings backups")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { backupKeys.contains($0.defaultsKey) },
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
@@ -370,8 +374,10 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),
                "the clipboard history layout travels with the settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
-                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight),
-               "the clipboard window size stays on the display where it was chosen")
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowX)
+                && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowY),
+               "the clipboard window geometry stays on the display where it was chosen")
         suite.expect(backupKeys.contains(DefaultsKey.windowLayoutIgnoredApps),
                "the apps that pause window layout travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.switcherAppRules),
