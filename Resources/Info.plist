@@ -65,7 +65,7 @@
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Show your upcoming appointments in the notch. Calendar events stay on this Mac.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
+	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac. Face Unlock also uses it, only while the Mac is locked and you have turned it on, to recognise you; no image is saved.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
 	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose. The Cleaner also looks for forgotten screenshots when you save screenshots here.</string>
 	<key>NSDesktopFolderUsageDescription</key>
@@ -82,5 +82,84 @@
 	<string>© 2026 Vorssaint</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSServices</key>
+	<array>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Lock with Vorssaint…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>lockItems</string>
+			<key>NSPortName</key>
+			<string>Vorssaint</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>public.item</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
+				<string>Unlock with Vorssaint…</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>unlockItems</string>
+			<key>NSPortName</key>
+			<string>Vorssaint</string>
+			<key>NSSendFileTypes</key>
+			<array>
+				<string>com.vorssaint.utils.locked-item</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Vorssaint Locked Item</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.vorssaint.utils.locked-item</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.vorssaint.utils.locked-item</string>
+			<key>UTTypeDescription</key>
+			<string>Vorssaint Locked Item</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>vslock</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.vorssaint.utils.privacy-lock</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>vorssaint</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

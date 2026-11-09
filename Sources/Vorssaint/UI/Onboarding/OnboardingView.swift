@@ -410,6 +410,7 @@ private struct PurposeStep: View {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        case .authentication: return FeatureStrings.authenticationGroupTitle(l10n.language)
         }
     }
 }

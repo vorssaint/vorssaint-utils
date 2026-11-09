@@ -57,7 +57,7 @@ enum SettingsSidebarSupport {
                                  utilities: [SettingsSidebarItem])
         -> (windowsDock: [SettingsSidebarItem], mouseKeyboard: [SettingsSidebarItem],
             files: [SettingsSidebarItem], sound: [SettingsSidebarItem],
-            utilities: [SettingsSidebarItem]) {
+            utilities: [SettingsSidebarItem], authentication: [SettingsSidebarItem]) {
         func group(_ item: SettingsSidebarItem) -> FeatureGroup? {
             if case .feature(let feature) = item.id { return feature.group }
             return AppFeature.allCases.first { $0.settingsDestination == item.destination }?.group
@@ -68,7 +68,8 @@ enum SettingsSidebarSupport {
         return (windowsControls.filter { group($0) == .windowsDock },
                 windowsControls.filter { group($0) != .windowsDock } + moved(.mouseKeyboard),
                 moved(.clipboardFiles), moved(.sound),
-                utilities.filter { ![.mouseKeyboard, .clipboardFiles, .sound].contains(group($0)) })
+                utilities.filter { ![.mouseKeyboard, .clipboardFiles, .sound, .authentication].contains(group($0)) },
+                moved(.authentication))
     }
 
     static func selection(for destination: FeatureSettingsDestination,

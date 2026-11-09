@@ -381,6 +381,19 @@ final class FeatureRuntime: ObservableObject {
         .notchMascot: {
             if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
         },
+        // These services belong to the main actor; bindings run on the main thread.
+        .faceUnlock: {
+            MainActor.assumeIsolated {
+                FaceUnlockService.shared.syncWithPreferences()
+                NotchLockScreenService.shared.faceUnlockDidChange()
+            }
+        },
+        .privacyLock: {
+            MainActor.assumeIsolated {
+                AppLockService.shared.syncWithPreferences()
+                FileLockController.shared.syncWithPreferences()
+            }
+        },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
         .cleaner: {

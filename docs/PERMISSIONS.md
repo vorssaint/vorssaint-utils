@@ -6,11 +6,11 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback, and typing your saved password at the lock screen in Face Unlock |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
-| Camera | Yes | The camera preview mirror, floating or inside the notch |
+| Camera | Yes | The camera preview mirror, floating or inside the notch, and recognising your face in Face Unlock |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
 | Files and Folders | Yes | Monitoring downloads in a folder you choose |
@@ -82,7 +82,9 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **What uses it.** Camera preview, either in its floating mirror or inside the notch. The camera starts only from an explicit action and stops when the preview closes, its notch section is hidden, the feature is disabled or the Mac locks.
 
-**If you say no.** The preview window explains the state and offers the System Settings shortcut. Everything else in the app carries on as normal.
+**Face Unlock.** When you turn Face Unlock on, the camera also runs briefly while the Mac is locked: from the moment the display wakes or the Mac locks, for the scan time you choose (3 to 10 seconds), and again only if you tap the padlock or choose one automatic retry. Frames are compared with your enrolled faces in memory and then discarded. No image is saved or sent. It never runs while Face Unlock is off.
+
+**If you say no.** The preview window explains the state and offers the System Settings shortcut. Face Unlock stays blocked and says why. Everything else in the app carries on as normal.
 
 **Optional.** Yes. The image goes straight to the local preview. This feature does not save or upload camera frames. Visible notch content can still appear in a screenshot or recording when you include the notch in captures.
 
@@ -172,3 +174,23 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 ## Resetting permissions
 
 To clear what you have granted and start over, follow the reset steps in the [troubleshooting guide](TROUBLESHOOTING.md#resetting-permissions), or use Settings under Advanced, which clears every permission, the login item and the closed lid rule while leaving the app in place.
+
+## Face Unlock
+
+Face Unlock needs Accessibility to type your Mac password at the lock screen, and Camera to see your face. Setting it up asks for Touch ID or your password once per launch. It is never installed or turned on by an update.
+
+**What is stored.** Your Mac account password and the numeric templates of your enrolled faces (never photos). Both are sealed with a random key kept in your login Keychain, which macOS lets only Vorssaint read without asking. The key is released into memory only after Touch ID or your password confirms it is you, and is forgotten when you lock the session, after the idle limit you choose, or when the feature is turned off. Nothing leaves this Mac.
+
+**What it can and cannot do.** A Mac camera sees a flat image, not a depth map like Face ID. Liveness checks turn away a printed photo or a phone screen, but a video of you may pass, and anyone who can type your saved password has what Face Unlock has. If the saved password is refused twice, typing stops until you save a new one so the account is not hit with wrong attempts.
+
+**Removing it.** Settings > Face Unlock > Remove password and faces deletes the sealed password, the key and every enrolled face.
+
+## Privacy Lock
+
+Privacy Lock needs no system permission. Touch ID (or your Mac password) is asked for through the system's own prompt.
+
+**App lock.** Covers apps you choose with a shield and asks for Touch ID, or for a password you set here (kept only as a salted hash in your login Keychain). It is a deterrent for a Mac left unlocked, not a sandbox: the locked app keeps running behind the shield and Vorssaint has to be running.
+
+**Files and folders.** Right-click an item in Finder and choose Services > Lock with Vorssaint. You choose a password for each item. The item is encrypted with AES-256-GCM under a key derived from that password (PBKDF2-HMAC-SHA256, 600,000 rounds) into a `.vslock` file, a folder is packed into one file first, and the original is deleted only after the locked copy has been verified. Vorssaint cannot recover a forgotten password. Optionally a password can be kept in your login Keychain so Touch ID opens the item; it is off by default. The list of locked items (names and paths, never passwords) stays in a private file on this Mac.
+
+**Finder right-click.** Privacy Lock can add four Quick Actions to `~/Library/Services` (Lock and Unlock for files and folders, Lock and Unlock for apps). Each runs a one-line script that opens a `vorssaint://privacy-lock/...` link in the background. Only workflows carrying Vorssaint's marker are ever changed or removed, and a link can only start a question or add an app to the lock list: removing a lock always asks for Touch ID or your password first. macOS does not let other apps add items to the Dock's menu.

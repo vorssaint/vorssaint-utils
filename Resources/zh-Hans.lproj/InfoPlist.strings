@@ -11,7 +11,7 @@
 "NSMicrophoneUsageDescription" = "Vorssaint 只会在你为屏幕录制开启麦克风时录制声音。除非你选择创建临时链接，否则音频只会保留在 Mac 上。";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaint 仅在你打开的预览窗口中显示摄像头画面，方便你在通话前查看自己的状态。不会录制任何内容，也不会有任何数据离开你的 Mac。";
+"NSCameraUsageDescription" = "Vorssaint 仅在你打开的预览窗口中显示摄像头画面，方便你在通话前查看自己的状态。不会录制任何内容，也不会有任何数据离开你的 Mac。面容解锁也会在你开启后、仅在 Mac 锁定期间使用它来识别你，不会保存任何图像。";
 
 /* macOS Downloads folder permission prompt. */
 "NSDownloadsFolderUsageDescription" = "Vorssaint 检查下载文件夹中的本地元数据，仅查看、整理或移到废纸篓你选择的已确认 WhatsApp 文件。如果你把截图保存在这里，清理功能还会查找被遗忘的截图。";

@@ -323,6 +323,26 @@ enum DefaultsKey {
     static let killProcessGroupRelated = "killProcessGroupRelated"
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
     static let killProcessSortAscending = "killProcessSortAscending"
+    // Face Unlock: signs in at the lock screen when the camera recognises you.
+    static let faceUnlockEnabled = "faceUnlockEnabled"
+    static let faceUnlockOnWake = "faceUnlockOnWake" // scan when the display wakes
+    static let faceUnlockOnLock = "faceUnlockOnLock" // scan as soon as the Mac locks
+    static let faceUnlockStrictness = "faceUnlockStrictness" // FaceUnlockStrictness.rawValue
+    static let faceUnlockLiveness = "faceUnlockLiveness" // FaceUnlockLiveness.rawValue
+    static let faceUnlockScanSeconds = "faceUnlockScanSeconds"
+    static let faceUnlockRetryOnce = "faceUnlockRetryOnce"
+    static let faceUnlockShowOnLockScreen = "faceUnlockShowOnLockScreen" // the padlock scans in the island
+    static let faceUnlockSessionLimit = "faceUnlockSessionLimit" // FaceUnlockSessionLimit.rawValue
+    static let faceUnlockCameraID = "faceUnlockCameraID" // AVCaptureDevice.uniqueID; empty means automatic
+    // Privacy Lock: a shield over chosen apps, and files or folders locked with a password of their own.
+    static let privacyLockEnabled = "privacyLockEnabled"
+    static let appLockEnabled = "appLockEnabled"
+    static let appLockedApps = "appLockedApps" // bundle ids, one per line
+    static let appLockMethod = "appLockMethod" // AppLockMethod.rawValue
+    static let appLockRelock = "appLockRelock" // AppLockRelock.rawValue
+    static let appLockUseFace = "appLockUseFace" // open locked apps with Face Unlock first
+    static let fileLockEnabled = "fileLockEnabled" // Lock and Unlock in the Services menu
+    static let fileLockRemember = "fileLockRemember" // offer to keep a password in the Keychain for Touch ID
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let homebrewGroupDependencies = "homebrewGroupDependencies"
@@ -1595,6 +1615,24 @@ enum Defaults {
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",
         DefaultsKey.killProcessSortAscending: false,
+        DefaultsKey.faceUnlockEnabled: false,
+        DefaultsKey.faceUnlockOnWake: true,
+        DefaultsKey.faceUnlockOnLock: true,
+        DefaultsKey.faceUnlockStrictness: FaceUnlockStrictness.standard.rawValue,
+        DefaultsKey.faceUnlockLiveness: FaceUnlockLiveness.light.rawValue,
+        DefaultsKey.faceUnlockScanSeconds: FaceUnlockSupport.defaultScanSeconds,
+        DefaultsKey.faceUnlockRetryOnce: false,
+        DefaultsKey.faceUnlockShowOnLockScreen: true,
+        DefaultsKey.faceUnlockSessionLimit: FaceUnlockSessionLimit.thirtyDays.rawValue,
+        DefaultsKey.faceUnlockCameraID: "",
+        DefaultsKey.privacyLockEnabled: false,
+        DefaultsKey.appLockEnabled: false,
+        DefaultsKey.appLockedApps: "",
+        DefaultsKey.appLockMethod: AppLockMethod.biometric.rawValue,
+        DefaultsKey.appLockRelock: AppLockRelock.fiveMinutes.rawValue,
+        DefaultsKey.appLockUseFace: true,
+        DefaultsKey.fileLockEnabled: true,
+        DefaultsKey.fileLockRemember: false,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.homebrewGroupDependencies: true,
