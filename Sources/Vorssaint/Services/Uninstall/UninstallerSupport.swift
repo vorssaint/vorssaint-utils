@@ -83,6 +83,26 @@ enum UninstallerSupport {
         case related
     }
 
+    /// What a select-all control shows for the leftover rows: nothing chosen,
+    /// everything chosen, or some of each.
+    enum BulkSelection: Equatable {
+        case none, some, all
+
+        init(included: Int, total: Int) {
+            if total == 0 || included == 0 {
+                self = .none
+            } else if included >= total {
+                self = .all
+            } else {
+                self = .some
+            }
+        }
+
+        /// The choice the next click applies: anything short of all fills in
+        /// the rest, a full selection clears.
+        var nextInclude: Bool { self != .all }
+    }
+
     struct DirListing: Equatable {
         let name: String
         let children: [DirListing]
