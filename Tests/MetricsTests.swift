@@ -111,11 +111,13 @@ struct MetricsTests {
             }),
             ("recorder", {
                 RecorderGIFWriterTests.run(suite)
+                RecorderFastGIFWriterTests.run(suite)
                 RecorderFeatureTests.run(suite)
                 RecorderZoomAimingTests.run(suite)
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportControlsTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
+                RecorderFastGIFExportTests.run(suite)
             }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
@@ -160,6 +162,7 @@ struct MetricsTests {
                 BrightnessStepTests.run(suite)
                 BrightnessKeyRoutingTests.run(suite)
             }),
+            ("speaker-volume", { DisplaySpeakerVolumeTests.run(suite) }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
@@ -206,6 +209,7 @@ struct MetricsTests {
             }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
+                HomebrewOperationLogRetentionTests.run(suite)
                 UninstallerFlowTests.run(suite)
                 UninstallerBulkSelectionTests.run(suite)
                 MixedStateCheckboxTests.run(suite)
