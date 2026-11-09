@@ -77,6 +77,7 @@ enum BrightnessKeyRoutingTests {
         struct Display { let id: UInt32; let isBuiltIn: Bool; let brightness: Double }
         static let log = Logger(subsystem: "vorssaint.tests", category: "brightness-keys")
         static var forwardedSteps = 0
+        var displayControlEnabled = true
         var running = true
         var keyTap: Int?
         var functionKeyTap: Int?
@@ -140,6 +141,14 @@ enum BrightnessKeyRoutingTests {
             }
             let kind = mediaKey ? "media" : "plain"
             let native = service()
+            if mediaKey {
+                let warmthOnly = service()
+                warmthOnly.displayControlEnabled = false
+                NSScreen.current = 2
+                suite.expect(!press(warmthOnly) && warmthOnly.steps == 0,
+                             "warmth-only mode leaves brightness keys to macOS even with an external display")
+                NSScreen.current = 1
+            }
             suite.expect(!press(native), "\(kind): built-in brightness starts with macOS")
             NSScreen.current = 2
             suite.expect(!press(native, repeated: true) && !press(native, down: false)

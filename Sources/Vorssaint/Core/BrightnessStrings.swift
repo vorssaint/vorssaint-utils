@@ -7,6 +7,13 @@ import Foundation
 /// FeatureStrings structs: memberwise init in declaration order, one static
 /// per language, all in this file.
 struct BrightnessFeatureStrings {
+    let warmthFollowNightShift: String
+    let warmthWaiting: String
+    let warmthNightShiftUnavailable: String
+    let warmth: String
+    let warmthCaption: String
+    let warmthIntensity: String
+    let warmthFailed: String
     let pageTitle: String
     let hubDescription: String
     let enable: String
@@ -69,6 +76,13 @@ extension FeatureStrings {
 
 extension BrightnessFeatureStrings {
     static let enUS = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Follow Night Shift",
+        warmthWaiting: "Waiting for Night Shift.",
+        warmthNightShiftUnavailable: "Night Shift status is unavailable. Turn off following to use the filter manually.",
+        warmth: "Blue Light Filter",
+        warmthCaption: "Reduce blue light on the built-in display, from a subtle tint to deep amber. Works together with Extra dimming.",
+        warmthIntensity: "Filter strength",
+        warmthFailed: "Could not apply the color filter to this display.",
         pageTitle: "Displays",
         hubDescription: "Brightness and power controls for every display",
         enable: "Control displays",
@@ -108,6 +122,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let ptBR = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Seguir o Night Shift",
+        warmthWaiting: "Aguardando o Night Shift.",
+        warmthNightShiftUnavailable: "O estado do Night Shift está indisponível. Desative o acompanhamento para usar o filtro manualmente.",
+        warmth: "Filtro de luz azul",
+        warmthCaption: "Reduza a luz azul da tela integrada, de um tom suave a âmbar intenso. Funciona com o escurecimento extra.",
+        warmthIntensity: "Intensidade do filtro",
+        warmthFailed: "Não foi possível aplicar o filtro de cor nesta tela.",
         pageTitle: "Telas",
         hubDescription: "Brilho e controles para ligar ou desligar cada tela",
         enable: "Controlar telas",
@@ -147,6 +168,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let tr = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Night Shift’i takip et",
+        warmthWaiting: "Night Shift bekleniyor.",
+        warmthNightShiftUnavailable: "Night Shift durumu kullanılamıyor. Filtreyi elle kullanmak için takibi kapatın.",
+        warmth: "Mavi ışık filtresi",
+        warmthCaption: "Dahili ekranın mavi ışığını hafif bir tondan koyu kehribara kadar azaltın. Ek karartmayla birlikte çalışır.",
+        warmthIntensity: "Filtre yoğunluğu",
+        warmthFailed: "Renk filtresi bu ekrana uygulanamadı.",
         pageTitle: "Ekranlar",
         hubDescription: "Tüm ekranlar için parlaklık ve güç denetimleri",
         enable: "Ekranları denetle",
@@ -186,6 +214,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let ru = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Следовать Night Shift",
+        warmthWaiting: "Ожидание Night Shift.",
+        warmthNightShiftUnavailable: "Состояние Night Shift недоступно. Отключите следование для ручного управления фильтром.",
+        warmth: "Фильтр синего света",
+        warmthCaption: "Уменьшает синий свет встроенного экрана: от лёгкого оттенка до насыщенного янтарного. Работает с дополнительным затемнением.",
+        warmthIntensity: "Интенсивность фильтра",
+        warmthFailed: "Не удалось применить цветовой фильтр к этому экрану.",
         pageTitle: "Экраны",
         hubDescription: "Яркость и включение всех экранов",
         enable: "Управлять экранами",
@@ -225,6 +260,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let es = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Seguir Night Shift",
+        warmthWaiting: "Esperando a Night Shift.",
+        warmthNightShiftUnavailable: "El estado de Night Shift no está disponible. Desactiva el seguimiento para usar el filtro manualmente.",
+        warmth: "Filtro de luz azul",
+        warmthCaption: "Reduce la luz azul de la pantalla integrada, de un tinte suave a ámbar intenso. Compatible con la atenuación extra.",
+        warmthIntensity: "Intensidad del filtro",
+        warmthFailed: "No se pudo aplicar el filtro de color a esta pantalla.",
         pageTitle: "Pantallas",
         hubDescription: "Brillo y encendido para todas las pantallas",
         enable: "Controlar las pantallas",
@@ -264,6 +306,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let sk = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Sledovať Night Shift",
+        warmthWaiting: "Čaká sa na Night Shift.",
+        warmthNightShiftUnavailable: "Stav Night Shift nie je dostupný. Pre ručné ovládanie vypnite sledovanie.",
+        warmth: "Filter modrého svetla",
+        warmthCaption: "Zníži modré svetlo vstavaného displeja od jemného nádychu po sýtu jantárovú. Funguje s dodatočným stlmením.",
+        warmthIntensity: "Intenzita filtra",
+        warmthFailed: "Na tento displej sa nepodarilo použiť farebný filter.",
         pageTitle: "Displeje",
         hubDescription: "Jas a zapínanie pre všetky displeje",
         enable: "Ovládať displeje",
@@ -303,6 +352,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let de = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Night Shift folgen",
+        warmthWaiting: "Warten auf Night Shift.",
+        warmthNightShiftUnavailable: "Der Night-Shift-Status ist nicht verfügbar. Deaktiviere die Kopplung für die manuelle Nutzung.",
+        warmth: "Blaulichtfilter",
+        warmthCaption: "Reduziert blaues Licht des integrierten Displays, von leichter Tönung bis zu kräftigem Bernstein. Funktioniert mit zusätzlicher Abdunklung.",
+        warmthIntensity: "Filterstärke",
+        warmthFailed: "Der Farbfilter konnte nicht auf dieses Display angewendet werden.",
         pageTitle: "Displays",
         hubDescription: "Helligkeit und Ein oder Aus für alle Displays",
         enable: "Displays steuern",
@@ -342,6 +398,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let fr = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Suivre Night Shift",
+        warmthWaiting: "En attente de Night Shift.",
+        warmthNightShiftUnavailable: "État de Night Shift indisponible. Désactivez le suivi pour utiliser le filtre manuellement.",
+        warmth: "Filtre de lumière bleue",
+        warmthCaption: "Réduisez le bleu de l’écran intégré, d’une teinte légère à un ambre intense. Compatible avec la réduction supplémentaire de luminosité.",
+        warmthIntensity: "Intensité du filtre",
+        warmthFailed: "Impossible d’appliquer le filtre de couleur à cet écran.",
         pageTitle: "Écrans",
         hubDescription: "Luminosité et alimentation de tous les écrans",
         enable: "Contrôler les écrans",
@@ -381,6 +444,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let it = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Segui Night Shift",
+        warmthWaiting: "In attesa di Night Shift.",
+        warmthNightShiftUnavailable: "Stato di Night Shift non disponibile. Disattiva il collegamento per usare il filtro manualmente.",
+        warmth: "Filtro luce blu",
+        warmthCaption: "Riduce la luce blu dello schermo integrato, da una tinta leggera ad ambra intensa. Funziona con la riduzione extra della luminosità.",
+        warmthIntensity: "Intensità del filtro",
+        warmthFailed: "Impossibile applicare il filtro colore a questo schermo.",
         pageTitle: "Schermi",
         hubDescription: "Luminosità e accensione per tutti gli schermi",
         enable: "Controlla gli schermi",
@@ -420,6 +490,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let ja = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Night Shift に連動",
+        warmthWaiting: "Night Shift を待機中。",
+        warmthNightShiftUnavailable: "Night Shift の状態を取得できません。連動をオフにすると手動で使用できます。",
+        warmth: "ブルーライトフィルタ",
+        warmthCaption: "内蔵ディスプレイの青色光を、淡い色合いから濃い琥珀色まで低減します。追加の減光と併用できます。",
+        warmthIntensity: "フィルタの強さ",
+        warmthFailed: "このディスプレイにカラーフィルタを適用できませんでした。",
         pageTitle: "ディスプレイ",
         hubDescription: "すべてのディスプレイの明るさと電源を操作",
         enable: "ディスプレイを操作",
@@ -459,6 +536,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let ko = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Night Shift 따르기",
+        warmthWaiting: "Night Shift 대기 중.",
+        warmthNightShiftUnavailable: "Night Shift 상태를 사용할 수 없습니다. 수동으로 사용하려면 연동을 끄세요.",
+        warmth: "청색광 필터",
+        warmthCaption: "내장 디스플레이의 청색광을 옅은 색조부터 짙은 호박색까지 줄입니다. 추가 밝기 감소와 함께 사용할 수 있습니다.",
+        warmthIntensity: "필터 강도",
+        warmthFailed: "이 디스플레이에 색상 필터를 적용할 수 없습니다.",
         pageTitle: "디스플레이",
         hubDescription: "모든 디스플레이의 밝기와 전원 제어",
         enable: "디스플레이 제어",
@@ -498,6 +582,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let zhHans = BrightnessFeatureStrings(
+        warmthFollowNightShift: "跟随 Night Shift",
+        warmthWaiting: "等待 Night Shift。",
+        warmthNightShiftUnavailable: "无法获取 Night Shift 状态。关闭跟随即可手动使用滤镜。",
+        warmth: "蓝光过滤",
+        warmthCaption: "减少内置显示屏的蓝光，可从轻微色调调至深琥珀色。可与额外调暗同时使用。",
+        warmthIntensity: "过滤强度",
+        warmthFailed: "无法将颜色滤镜应用到此显示屏。",
         pageTitle: "显示器",
         hubDescription: "控制所有显示器的亮度和开关",
         enable: "控制显示器",
@@ -537,6 +628,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let zhTW = BrightnessFeatureStrings(
+        warmthFollowNightShift: "跟隨 Night Shift",
+        warmthWaiting: "等待 Night Shift。",
+        warmthNightShiftUnavailable: "無法取得 Night Shift 狀態。關閉跟隨即可手動使用濾鏡。",
+        warmth: "藍光過濾",
+        warmthCaption: "減少內建顯示器的藍光，可從輕微色調調至深琥珀色。可與額外調暗同時使用。",
+        warmthIntensity: "過濾強度",
+        warmthFailed: "無法將顏色濾鏡套用到此顯示器。",
         pageTitle: "顯示器",
         hubDescription: "控制所有顯示器的亮度和開關",
         enable: "控制顯示器",
@@ -576,6 +674,13 @@ extension BrightnessFeatureStrings {
     )
 
     static let zhHK = BrightnessFeatureStrings(
+        warmthFollowNightShift: "跟隨 Night Shift",
+        warmthWaiting: "等待 Night Shift。",
+        warmthNightShiftUnavailable: "無法取得 Night Shift 狀態。關閉跟隨即可手動使用濾鏡。",
+        warmth: "藍光過濾",
+        warmthCaption: "減少內置顯示器的藍光，可從輕微色調調至深琥珀色。可與額外調暗同時使用。",
+        warmthIntensity: "過濾強度",
+        warmthFailed: "無法將顏色濾鏡套用到此顯示器。",
         pageTitle: "顯示器",
         hubDescription: "控制所有顯示器的亮度和開關",
         enable: "控制顯示器",
@@ -614,6 +719,13 @@ extension BrightnessFeatureStrings {
         islandPromptKeepOff: "保持關閉"
     )
     static let uk = BrightnessFeatureStrings(
+        warmthFollowNightShift: "Слідувати за Night Shift",
+        warmthWaiting: "Очікування Night Shift.",
+        warmthNightShiftUnavailable: "Стан Night Shift недоступний. Вимкніть слідування для ручного керування фільтром.",
+        warmth: "Фільтр синього світла",
+        warmthCaption: "Зменшує синє світло вбудованого екрана: від легкого відтінку до насиченого бурштинового. Працює з додатковим затемненням.",
+        warmthIntensity: "Інтенсивність фільтра",
+        warmthFailed: "Не вдалося застосувати колірний фільтр до цього екрана.",
         pageTitle: "Дисплеї",
         hubDescription: "Керування яскравістю та живленням для кожного дисплея",
         enable: "Керування дисплеями",

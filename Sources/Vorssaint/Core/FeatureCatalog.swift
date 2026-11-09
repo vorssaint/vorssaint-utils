@@ -285,7 +285,7 @@ extension AppFeature {
         case .audioPriority: return [DefaultsKey.audioPriorityOutputEnabled,
                                      DefaultsKey.audioPriorityInputEnabled]
         case .musicBlock: return [DefaultsKey.musicBlockEnabled]
-        case .brightness: return [DefaultsKey.brightnessControlEnabled]
+        case .brightness: return [DefaultsKey.brightnessControlEnabled, DefaultsKey.brightnessWarmthEnabled]
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
@@ -549,9 +549,10 @@ extension AppFeature {
             case (.mixer, .accessibility):
                 return boolFor(DefaultsKey.preciseVolumeRollerEnabled)
             case (.brightness, .accessibility):
-                return boolFor(DefaultsKey.brightnessKeysEnabled)
+                return boolFor(DefaultsKey.brightnessControlEnabled)
+                    && (boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
-                    || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
+                    || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard)
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)
             case (.monitorMemory, .notifications):

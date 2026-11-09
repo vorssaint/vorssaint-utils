@@ -246,6 +246,9 @@ enum DefaultsKey {
     // Per-monitor connections where the lower end of the brightness slider
     // also dims the picture below the panel's hardware minimum.
     static let brightnessExtendedDimmingPaths = "brightnessExtendedDimmingPaths"
+    static let brightnessWarmthEnabled = "brightnessWarmthEnabled"
+    static let brightnessWarmthLevel = "brightnessWarmthLevel"
+    static let brightnessWarmthFollowsNightShift = "brightnessWarmthFollowsNightShift"
     // Displays this app switched off, so a run that ends without putting them
     // back can be repaired on the next start instead of needing a replug.
     static let displaysSwitchedOff = "displaysSwitchedOff"
@@ -1388,6 +1391,9 @@ enum Defaults {
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,
+        DefaultsKey.brightnessWarmthEnabled: false,
+        DefaultsKey.brightnessWarmthLevel: 0.5,
+        DefaultsKey.brightnessWarmthFollowsNightShift: true,
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
         DefaultsKey.displayBrightnessIncreaseShortcut: "shift+command:24",
