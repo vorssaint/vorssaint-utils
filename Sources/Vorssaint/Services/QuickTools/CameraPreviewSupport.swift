@@ -23,4 +23,11 @@ enum NotchCameraSupport {
                            captureControls: Bool, in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && expanded && selected == .camera && !appPanel && !captureControls
     }
+
+    /// Whether arriving on a page on purpose starts the mirror at once instead
+    /// of waiting for its button. The island decides what counts as on purpose:
+    /// a click, a key or the sections, never opening under the pointer.
+    static func opensDirectly(choosing module: NotchModule, in defaults: UserDefaults = .standard) -> Bool {
+        module == .camera && defaults.bool(forKey: DefaultsKey.notchCameraOpensDirectly)
+    }
 }
