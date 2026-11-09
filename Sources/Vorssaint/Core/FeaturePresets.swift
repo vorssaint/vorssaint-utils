@@ -125,6 +125,9 @@ extension AppFeature {
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic
+        // Space and wake notifications, and a 1 s check only while a
+        // full-screen app is on the notched display.
+        case .notchFullscreenMenuBar: return .periodic
         case .notchAccessories: return .periodic
         // Log changes arrive as file events; a timer keeps countdowns and
         // limits current while the section is on.

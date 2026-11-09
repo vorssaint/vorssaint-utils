@@ -965,6 +965,8 @@ enum DefaultsKey {
     // Companion: a small friend who rests in the closed island and is the Command Bar's face.
     static let notchMascotEnabled = "notchMascotEnabled"
     static let notchMascotVisits = "notchMascotVisits" // passes through the island now and then
+    // The menu bar stays in full-screen apps on the notched display, except over full-screen video.
+    static let notchFullscreenMenuBarEnabled = "notchFullscreenMenuBarEnabled"
     static let notchMascotReactions = "notchMascotReactions" // comes out to react to what the island sees
     static let notchMascotStyle = "notchMascotStyle" // NotchMascotStyle.rawValue
     static let notchMascotShape = "notchMascotShape" // NotchMascotShape.rawValue
@@ -1566,6 +1568,7 @@ enum Defaults {
         DefaultsKey.notchLockSounds: false,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
+        DefaultsKey.notchFullscreenMenuBarEnabled: false,
         DefaultsKey.notchMascotReactions: true,
         DefaultsKey.notchMascotStyle: NotchMascotStyle.minimal.rawValue,
         DefaultsKey.notchMascotShape: NotchMascotShape.ball.rawValue,

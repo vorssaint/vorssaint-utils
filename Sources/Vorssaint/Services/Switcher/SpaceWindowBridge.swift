@@ -132,6 +132,8 @@ enum SpaceWindowBridge {
             let spaces: [UInt64]
             let fullscreenSpaces: Set<UInt64>
             let currentSpace: UInt64?
+            /// The app owning the current Space when it is full screen.
+            var currentFullscreenOwner: pid_t? = nil
         }
 
         /// With separate Spaces, only the island's display controls visibility.
@@ -194,13 +196,17 @@ enum SpaceWindowBridge {
                 guard (space["type"] as? NSNumber)?.intValue == 4 else { return nil }
                 return (space["id64"] as? NSNumber)?.uint64Value
             })
-            let current = (display["Current Space"] as? [String: Any])?["id64"] as? NSNumber
+            let currentSpace = display["Current Space"] as? [String: Any]
+            let current = currentSpace?["id64"] as? NSNumber
             let uuidStr = display["Display Identifier"] as? String
             let displayID = uuidStr.flatMap { displayIDsByUUID[$0] }
+            let owner = (currentSpace?["type"] as? NSNumber)?.intValue == 4
+                ? (currentSpace?["pid"] as? NSNumber).map { pid_t($0.int32Value) } : nil
             displays.append(Topology.DisplayInfo(displayID: displayID,
                                                  spaces: row,
                                                  fullscreenSpaces: fullscreenSpaces,
-                                                 currentSpace: current?.uint64Value))
+                                                 currentSpace: current?.uint64Value,
+                                                 currentFullscreenOwner: owner))
         }
         guard !displays.isEmpty else { return nil }
         return Topology(displays: displays)
