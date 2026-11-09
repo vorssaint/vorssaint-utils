@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>Vorssaint Widgets</string>
+	<key>CFBundleExecutable</key>
+	<string>VorssaintWidgets</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.vorssaint.utils.widget</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>de</string>
+		<string>enUS</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>it</string>
+		<string>ja</string>
+		<string>ko</string>
+		<string>pt-BR</string>
+		<string>tr</string>
+		<string>ru</string>
+		<string>sk</string>
+		<string>uk</string>
+		<string>zh-Hans</string>
+		<string>zh-TW</string>
+		<string>zh-HK</string>
+	</array>
+	<key>CFBundleName</key>
+	<string>VorssaintWidgets</string>
+	<key>CFBundlePackageType</key>
+	<string>XPC!</string>
+	<key>CFBundleShortVersionString</key>
+	<string>3.4.3</string>
+	<key>CFBundleSupportedPlatforms</key>
+	<array>
+		<string>MacOSX</string>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>105</string>
+	<key>DTPlatformName</key>
+	<string>macosx</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSExtension</key>
+	<dict>
+		<key>NSExtensionPointIdentifier</key>
+		<string>com.apple.widgetkit-extension</string>
+	</dict>
+	<key>NSHumanReadableCopyright</key>
+	<string>© 2026 Vorssaint</string>
+	<key>VorssaintAppGroup</key>
+	<string>com.vorssaint.utils.widgets</string>
+</dict>
+</plist>

@@ -130,5 +130,34 @@ enum SystemMonitorPlanTests {
         suite.expect(monitor.currentPlan(defaults: defaults).needPeripheralBattery,
                      "the island's Battery detail still lists peripherals with the Power row hidden")
         monitor.notchDetailNeeds = .none
+
+        // Desktop widgets read every family they can show on their own, even
+        // with every panel and menu bar surface closed. They never force the
+        // per-core bars or the menu bar's fast strides.
+        monitor.widgetsActive = true
+        defaults.set(false, forKey: DefaultsKey.menuBarCPU)
+        defaults.set(false, forKey: DefaultsKey.menuBarGPU)
+        defaults.set(false, forKey: DefaultsKey.menuBarMemory)
+        defaults.set(false, forKey: DefaultsKey.menuBarNetwork)
+        defaults.set(false, forKey: DefaultsKey.menuBarDiskUsage)
+        defaults.set(false, forKey: DefaultsKey.menuBarDiskActivity)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertCPU)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertMemory)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertDisk)
+        for feature in [AppFeature.monitorCPU, .monitorGPU, .monitorMemory,
+                        .monitorNetwork, .monitorDisk] {
+            defaults.set(true, forKey: feature.availabilityKey)
+        }
+        let widgetPlan = monitor.currentPlan(defaults: defaults)
+        suite.expect(widgetPlan.needCPU && widgetPlan.needGPUUsage && widgetPlan.needMemory
+                         && widgetPlan.needNetwork && widgetPlan.needDisk,
+                     "a desktop widget keeps its metric family sampling with every other surface closed")
+        suite.expect(!widgetPlan.needCPUCores && !widgetPlan.needGPUUsageMenuBar,
+                     "a desktop widget does not force per-core bars or the menu bar's fast GPU stride")
+        monitor.widgetsActive = false
+        let idlePlan = monitor.currentPlan(defaults: defaults)
+        suite.expect(!idlePlan.needCPU && !idlePlan.needGPUUsage && !idlePlan.needMemory
+                         && !idlePlan.needNetwork && !idlePlan.needDisk,
+                     "removing the last widget stops the widget-driven sampling")
     }
 }

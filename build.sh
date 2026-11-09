@@ -62,8 +62,13 @@ FAN_HELPER_ID="$APP_BUNDLE_ID.fan-control"
 # Sources/NowPlayingAdapter. Staged under Contents/Frameworks, signed on its own.
 NOW_PLAYING_ADAPTER_ID="$APP_BUNDLE_ID.now-playing"
 NOW_PLAYING_ADAPTER="libVorssaintNowPlaying.dylib"
+WIDGET_EXECUTABLE="VorssaintWidgets"
+WIDGET_BUNDLE_ID="$APP_BUNDLE_ID.widget"
+WIDGET_APP_GROUP="$APP_BUNDLE_ID.widgets"
 TARGET="arm64-apple-macosx14.0"
 ENTITLEMENTS="Resources/Vorssaint.entitlements"
+HOST_ENTITLEMENTS="build/Vorssaint.entitlements"
+WIDGET_ENTITLEMENTS="build/VorssaintWidgets.entitlements"
 LEGACY_IDENTITY="Vorssaint Utils Signing"
 
 developer_id_identity() {
@@ -149,15 +154,72 @@ write_swift_output_file_map() {
     } > "$output_file"
 }
 
+# Resolve the signing identity once so the widget bundle and both plists agree
+# on how they share data. A real Developer ID carries a team ID, and macOS
+# requires app groups to be team-prefixed, so those builds use a group container.
+# Local identities have no provisioned group: both processes use the app's
+# Application Support folder instead, which the sandboxed extension reaches
+# through a narrow temporary exception (see WidgetSharedData).
+DEVID="$(developer_id_identity)"
+WIDGET_TEAM_ID=""
+if [[ -n "$DEVID" ]]; then
+    WIDGET_TEAM_ID="$(print -r -- "$DEVID" | sed -n 's/.*(\([A-Z0-9]*\)).*/\1/p')"
+fi
+WIDGET_USES_APP_GROUP=false
+if [[ -n "$WIDGET_TEAM_ID" ]]; then
+    WIDGET_APP_GROUP="$WIDGET_TEAM_ID.$APP_BUNDLE_ID.widgets"
+    WIDGET_USES_APP_GROUP=true
+fi
+mkdir -p build
+cp "$ENTITLEMENTS" "$HOST_ENTITLEMENTS"
+cp Resources/Widgets/VorssaintWidgets.entitlements "$WIDGET_ENTITLEMENTS"
+if [[ -n "$WIDGET_TEAM_ID" ]]; then
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups array" \
+        "$HOST_ENTITLEMENTS" >/dev/null
+    /usr/libexec/PlistBuddy -c "Add :com.apple.security.application-groups:0 string $WIDGET_APP_GROUP" \
+        "$HOST_ENTITLEMENTS" >/dev/null
+    /usr/libexec/PlistBuddy -c "Set :com.apple.security.application-groups:0 $WIDGET_APP_GROUP" \
+        "$WIDGET_ENTITLEMENTS" >/dev/null
+    /usr/libexec/PlistBuddy -c \
+        "Delete :com.apple.security.temporary-exception.files.home-relative-path.read-write" \
+        "$WIDGET_ENTITLEMENTS" >/dev/null 2>&1 || true
+else
+    # No provisioned group on local builds. Keeping an unprefixed group claim
+    # would only make the sandbox look for a container it cannot create.
+    /usr/libexec/PlistBuddy -c "Delete :com.apple.security.application-groups" \
+        "$WIDGET_ENTITLEMENTS" >/dev/null 2>&1 || true
+    # The shared folder is the app's own Application Support directory, which
+    # differs between the stable and Developer builds.
+    /usr/libexec/PlistBuddy -c \
+        "Set :com.apple.security.temporary-exception.files.home-relative-path.read-write:0 /Library/Application Support/$APP_BUNDLE_ID/" \
+        "$WIDGET_ENTITLEMENTS" >/dev/null
+fi
+ENTITLEMENTS="$HOST_ENTITLEMENTS"
+
+codesign_widget_extension() {
+    local target="$1"
+    if [[ -n "$DEVID" ]]; then
+        codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp \
+            --entitlements "$WIDGET_ENTITLEMENTS" --sign "$DEVID" "$target"
+    elif legacy_identity_installed; then
+        codesign --force --strip-disallowed-xattrs --entitlements "$WIDGET_ENTITLEMENTS" \
+            --sign "$LEGACY_IDENTITY" "$target"
+    else
+        codesign --force --strip-disallowed-xattrs --entitlements "$WIDGET_ENTITLEMENTS" --sign - "$target"
+    fi
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
+    local appex="$bundle/Contents/PlugIns/$WIDGET_BUNDLE_ID.appex"
     local devid
     devid="$(developer_id_identity)"
 
     echo "▸ Finalizing installed signature…"
     sleep 3
+    [[ -d "$appex" ]] && codesign_widget_extension "$appex"
     if [[ -n "$devid" ]]; then
         [[ -f "$helper" ]] && codesign_with_timestamp_retry --force --strip-disallowed-xattrs \
             --options runtime --timestamp --identifier "$FAN_HELPER_ID" --sign "$devid" "$helper"
@@ -180,6 +242,7 @@ finalize_installed_bundle_after_child() {
     fi
     [[ -f "$helper" ]] && /usr/bin/codesign --verify --strict "$helper"
     [[ -f "$adapter" ]] && /usr/bin/codesign --verify --strict "$adapter"
+    [[ -d "$appex" ]] && /usr/bin/codesign --verify --strict "$appex"
     /usr/bin/codesign --verify --deep --strict "$bundle"
     echo "✓ Signature ready: $bundle"
 }
@@ -194,22 +257,37 @@ if (( INSTALL && ! TEST )) && [[ "${VORSSAINT_INSTALL_CHILD:-0}" != "1" ]]; then
     exit 0
 fi
 
-# Prefer the macOS 26 SDK when present: the 27 SDK turns SwiftUI property wrappers
-# into macros (SwiftUIMacros plugin) that the Command Line Tools cannot load yet.
-PINNED_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
+# Prefer the macOS 27 SDK when present, with the macOS 26 SDK as the fallback
+# for checkouts on older Command Line Tools. The 27 SDK declares SwiftUI's
+# property wrappers as macros; its plugin ships with Xcode, not the Command
+# Line Tools, so use that plugin when it is installed and fall back to the 26
+# SDK when it is not.
+PINNED_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX27.sdk"
+SDK_FALLBACK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
 if [[ -n "${DEVELOPER_DIR:-}" ]]; then
     SDK="$(xcrun --show-sdk-path)"
 elif [[ -d "$PINNED_SDK" ]]; then
     SDK="$PINNED_SDK"
+elif [[ -d "$SDK_FALLBACK" ]]; then
+    SDK="$SDK_FALLBACK"
 else
     SDK="$(xcrun --show-sdk-path)"
 fi
 SDK_COMPAT_FLAGS=()
+SDK_PLUGIN_FLAGS=()
 VM_STATISTICS_COMPAT_FLAGS=(-I Sources/VMStatisticsCompat)
 HID_EVENT_SYSTEM_FLAGS=(-I Sources/HIDEventSystem)
-if [[ "$SDK" == "$PINNED_SDK" ]]; then
-    # Swift 6.4 can read the SDK 26 interfaces when given their compiler version.
+if [[ "$SDK" == "$PINNED_SDK" || "$SDK" == "$SDK_FALLBACK" ]]; then
+    # Swift 6.4 can read the newer interfaces when given their compiler version.
     SDK_COMPAT_FLAGS=(-Xfrontend -interface-compiler-version -Xfrontend 6.3.2)
+fi
+if [[ "$SDK" == "$PINNED_SDK" ]]; then
+    SWIFTUI_MACROS_PLUGIN="${DEVELOPER_DIR:-$(xcode-select -p 2>/dev/null)}/Platforms/MacOSX.platform/Developer/usr/lib/swift/host/plugins/libSwiftUIMacros.dylib"
+    if [[ -f "$SWIFTUI_MACROS_PLUGIN" ]]; then
+        SDK_PLUGIN_FLAGS=(-load-plugin-library "$SWIFTUI_MACROS_PLUGIN")
+    elif [[ -d "$SDK_FALLBACK" ]]; then
+        SDK="$SDK_FALLBACK"
+    fi
 fi
 
 # The defaults migrations under test need a real UserDefaults suite, and every
@@ -560,6 +638,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Metrics/PeripheralBatterySupport.swift
         Sources/Vorssaint/Services/Metrics/DiskSupport.swift
         Sources/Vorssaint/Services/Metrics/MonitorSamplingPolicy.swift
+        Sources/Vorssaint/Services/Widgets/WidgetSharedData.swift
         Sources/Vorssaint/Services/Metrics/USBDeviceSampler.swift
         Sources/Vorssaint/Services/Metrics/CPUCoreSampler.swift
         Sources/Vorssaint/Services/Metrics/MaxCapacityProbe.swift
@@ -593,7 +672,7 @@ if (( TEST )); then
     echo "▸ Building & running tests against $(basename "$SDK")…"
     swiftc -Onone -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
         -module-name VorssaintTests -output-file-map "$TEST_OUTPUT_FILE_MAP" \
-        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${SDK_PLUGIN_FLAGS[@]}" \
         "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${TEST_SOURCES[@]}" -o build/metrics-tests
     test_status=0
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
@@ -612,8 +691,10 @@ if (( ! DEV )); then
     # A release starts from an empty build directory, so nothing an earlier
     # build left behind (an old icon catalog, a staged bundle) can reach it.
     # Only the compiler's incremental records stay: they rebuild whatever
-    # changed since, and a fresh checkout has none.
-    find build -mindepth 1 -maxdepth 1 ! -name objects -exec rm -rf {} + 2>/dev/null || true
+    # changed since, and a fresh checkout has none. The entitlements above are
+    # freshly written for this build and are signed later, so they survive.
+    find build -mindepth 1 -maxdepth 1 ! -name objects ! -name '*.entitlements' \
+        -exec rm -rf {} + 2>/dev/null || true
 fi
 APP_OBJECT_DIR="build/objects/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
@@ -625,12 +706,12 @@ write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOUR
 # optimization stays per file, as before.
 swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
-    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+    -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${SDK_PLUGIN_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
     "${BUILD_VARIANT_FLAGS[@]}" \
     "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 
 echo "▸ Compiling protected fan helper…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${SDK_PLUGIN_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
     Sources/Vorssaint/Services/FanControl/FanControlSupport.swift \
     Sources/Vorssaint/Services/FanControl/FanControlXPC.swift \
     Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
@@ -641,7 +722,7 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
 "build/$FAN_HELPER_ID" --selftest
 
 echo "▸ Compiling Now Playing adapter…"
-swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
+swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${SDK_PLUGIN_FLAGS[@]}" -emit-library \
     -module-name VorssaintNowPlaying \
     Sources/NowPlayingAdapter/NowPlayingAdapter.swift \
     Sources/NowPlayingAdapter/NowPlayingQueue.swift \
@@ -649,6 +730,25 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     Sources/Vorssaint/Services/Notch/NotchPlaybackSource.swift \
     Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift \
     -o "build/$NOW_PLAYING_ADAPTER"
+
+echo "▸ Compiling desktop widgets…"
+WIDGET_SOURCES=(
+    Sources/VorssaintWidgets/*.swift
+    Sources/Vorssaint/Services/Widgets/WidgetSharedData.swift
+    Sources/Vorssaint/Core/Localization.swift
+    Sources/Vorssaint/Core/Localizations/*.swift
+)
+# An app-extension executable enters through NSExtensionMain, not through the
+# Swift @main thunk Xcode would normally leave unexported. Entering at main
+# instead makes ExtensionFoundation bootstrap without the host environment that
+# NSExtensionMain installs, and WidgetKit's first timeline request traps inside
+# _EXRunningExtension. This is the linker setting Xcode applies to WidgetKit
+# extensions; without it the extension never appears in the widget gallery.
+swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -target "$TARGET" -sdk "$SDK" \
+    "${SDK_COMPAT_FLAGS[@]}" "${SDK_PLUGIN_FLAGS[@]}" "${BUILD_VARIANT_FLAGS[@]}" \
+    -parse-as-library -application-extension -module-name VorssaintWidgets \
+    -Xlinker -e -Xlinker _NSExtensionMain \
+    "${WIDGET_SOURCES[@]}" -o "build/$WIDGET_EXECUTABLE"
 
 echo "▸ Generating app icon…"
 swift Tools/MakeIcon.swift build/AppIcon.iconset
@@ -696,10 +796,44 @@ cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :VorssaintAppGroup string $WIDGET_APP_GROUP" \
+    "$STAGE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :VorssaintUsesAppGroup bool $WIDGET_USES_APP_GROUP" \
+    "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done
+
+# The WidgetKit extension is a nested appex. Its version has to match the host
+# exactly because chronod compares the two when it discovers the widget.
+WIDGET_APPEX="$STAGE/Contents/PlugIns/$WIDGET_BUNDLE_ID.appex"
+mkdir -p "$WIDGET_APPEX/Contents/MacOS" "$WIDGET_APPEX/Contents/Resources"
+cp "build/$WIDGET_EXECUTABLE" "$WIDGET_APPEX/Contents/MacOS/$WIDGET_EXECUTABLE"
+cp Resources/Widgets/Info.plist "$WIDGET_APPEX/Contents/Info.plist"
+WIDGET_VERSION="$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+    "$STAGE/Contents/Info.plist")"
+WIDGET_BUILD="$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" \
+    "$STAGE/Contents/Info.plist")"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $WIDGET_BUNDLE_ID" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $WIDGET_EXECUTABLE" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $WIDGET_EXECUTABLE" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME Widgets" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $WIDGET_VERSION" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $WIDGET_BUILD" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :VorssaintAppGroup $WIDGET_APP_GROUP" \
+    "$WIDGET_APPEX/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Add :VorssaintUsesAppGroup bool $WIDGET_USES_APP_GROUP" \
+    "$WIDGET_APPEX/Contents/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :VorssaintUsesAppGroup $WIDGET_USES_APP_GROUP" \
+        "$WIDGET_APPEX/Contents/Info.plist"
+
 if (( DEV )); then
     # A distinct identity so the Developer build installs and runs next to the
     # official app, with its own permissions, preferences and login item.
@@ -760,7 +894,6 @@ xattr -c -r "$STAGE" 2>/dev/null || true
 #      as a fallback so contributors without a Developer ID still get a constant
 #      designated requirement across their local builds.
 #   3. Ad-hoc — fresh clone with no identity at all.
-DEVID="$(developer_id_identity)"
 codesign_app() {
     local target="$1"
     if [[ -n "$DEVID" ]]; then
@@ -804,6 +937,7 @@ sign_bundle() {
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
     local helper="$bundle/Contents/Library/LaunchServices/$FAN_HELPER_ID"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
+    local appex="$bundle/Contents/PlugIns/$WIDGET_BUNDLE_ID.appex"
 
     if [[ -n "$DEVID" ]]; then
         echo "  signing with Developer ID (hardened runtime): $DEVID"
@@ -812,6 +946,7 @@ sign_bundle() {
     else
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
+    [[ -d "$appex" ]] && codesign_widget_extension "$appex"
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
     codesign_app "$bundle"
@@ -821,11 +956,13 @@ sign_bundle() {
     if ! codesign --verify --deep --strict "$bundle" >/dev/null 2>&1; then
         echo "  re-signing after filesystem metadata settled"
         xattr -c -r "$bundle" 2>/dev/null || true
+        [[ -d "$appex" ]] && codesign_widget_extension "$appex"
         [[ -f "$helper" ]] && codesign_fan_helper "$helper"
         [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
         codesign_app "$bundle"
     fi
     [[ -f "$executable" ]] && codesign --verify --strict "$executable"
+    [[ -d "$appex" ]] && codesign --verify --strict "$appex"
     [[ -f "$helper" ]] && codesign --verify --strict "$helper"
     [[ -f "$adapter" ]] && codesign --verify --strict "$adapter"
     codesign --verify --deep --strict "$bundle"

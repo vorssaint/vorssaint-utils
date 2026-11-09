@@ -37,6 +37,7 @@ extension Strings {
         menuMinimize: "Згорнути",
         menuZoom: "Змінити масштаб",
         menuClose: "Закрити",
+
         minutes15: "15 хвилин",
         minutes30: "30 хвилин",
         hour1: "1 година",
@@ -45,9 +46,11 @@ extension Strings {
         hours8: "8 годин",
         indefinitely: "Доки не вимкнете",
         indefinite: "Доки не вимкнете",
+
         panelSettings: "Налаштування",
         panelQuit: "Вийти",
         panelHotkeyHint: "Клавіатурне скорочення перемикає",
+
         keepAwakeTitle: "Не давати Mac заснути",
         keepAwakeEndsIn: "Завершиться через",
         keepAwakeUntilDisabled: "Активно, поки ви не вимкнете",
@@ -77,6 +80,7 @@ extension Strings {
         clamshellNeedsSession: "Застосовується, коли активний режим «Не давати заснути»",
         clamshellReady: "Готово. Перемикається без пароля",
         clamshellNeedsPassword: "Один раз попросить пароль адміністратора",
+
         systemSection: "Система",
         temperatures: "Температури",
         cpuLabel: "CPU",
@@ -94,6 +98,7 @@ extension Strings {
         monitorUnavailable: "Датчики недоступні на цьому Mac",
         energyAppsTitle: "Програми зі значним енергоспоживанням",
         energyAppsIdle: "Зараз немає значного енергоспоживання",
+
         notifySessionEndedTitle: "Сеанс завершено",
         notifySessionEndedBody: "Час вийшов. Mac знову засинатиме як зазвичай.",
         notifyBatteryTitle: "Vorssaint вимкнено",
@@ -104,6 +109,7 @@ extension Strings {
         adminPromptUpdate: "Vorssaint потрібен ваш пароль, щоб встановити оновлення.",
         adminPromptSudoersInstall: "Vorssaint створить обмежене правило (лише pmset disablesleep), щоб перемикати режим закритої кришки без запиту пароля. Пароль потрібен лише цього разу.",
         adminPromptSudoersRemove: "Vorssaint видалить правило закритої кришки без пароля.",
+
         settingsTitle: "Налаштування Vorssaint",
         tabGeneral: "Загальне",
         tabEnergy: "Живлення",
@@ -134,6 +140,7 @@ extension Strings {
         advancedUninstallConfirmBody: "Vorssaint очистить дозволи, видалить налаштування та переміститься в Смітник, після чого закриється. Це не можна скасувати з програми, але файл залишиться в Смітнику, поки ви його не очистите.",
         advancedUninstallFailedTitle: "Видалення зупинено",
         advancedUninstallFailedBody: "Vorssaint не вдалося відновити системне налаштування, яке він змінив: сон, швидкість вентилятора, прискорення миші або порядок Spaces. Нічого не видалено. Спробуйте ще раз і дозвольте запит пароля, якщо він з’явиться.",
+
         launchAtLogin: "Запускати під час входу в систему",
         languageLabel: "Мова",
         menuBarSection: "Смуга меню",
@@ -141,6 +148,7 @@ extension Strings {
         globalHotkeySection: "Глобальне клавіатурне скорочення",
         hotkeyToggle: "Увімкнути клавіатурне скорочення для «Не давати заснути»",
         hotkeyCaption: "Працює в будь-якій програмі без додаткових дозволів.",
+
         sessionSection: "Сеанс",
         defaultDurationLabel: "Тривалість за замовчуванням",
         keepAwakeAutoStart: "Не давати заснути при запуску Vorssaint",
@@ -155,6 +163,7 @@ extension Strings {
         clamshellExplanation: "«Не присипляти Mac із закритою кришкою» повністю вимикає сон, поки активний режим «Не давати заснути», і автоматично повертає звичайну поведінку, коли сеанс завершується або програма закривається. Краще використовувати при підключеному живленні.",
         dimScreenOnLidCloseTitle: "Повністю затемнювати екран",
         dimScreenOnLidCloseCaption: "Затемнює екран, коли ви закриваєте кришку, і повертає яскравість, коли відкриваєте її.",
+
         scrollSection: "Прокрутка",
         invertMouseScroll: "Інвертувати прокрутку миші",
         invertMouseScrollCaption: "Змінює напрямок колеса миші на протилежний.",
@@ -206,6 +215,7 @@ extension Strings {
         launcherEmptyState: "Усі інструменти приховані. Поверніть їх кнопкою налаштування.",
         launcherAddSection: "Повернути",
         launcherKeysHint: "Стрілки для навігації, Enter відкриває, 1–9 відкривають одразу",
+
         switcherSection: "Перемикач вікон",
         switcherEnable: "Використовувати перемикач Vorssaint",
         switcherEnableCaption: "Перемикає програми та вікна, включно зі згорнутими та кількома вікнами однієї програми.",
@@ -270,6 +280,7 @@ extension Strings {
         dockPreviewClosePanel: "Закрити мініатюру",
         dockPreviewPreviousWindow: "Попереднє вікно",
         dockPreviewNextWindow: "Наступне вікно",
+
         cutPasteName: "Вирізати та вставити",
         cutPasteEnable: "Вирізати та вставляти файли у Finder",
         cutPasteEnableCaption: "Використовуйте ⌘X для вирізання та ⌘V для переміщення файлів і папок у Finder.",
@@ -290,6 +301,7 @@ extension Strings {
         cutSomeFailed: "Деякі елементи не вдалося перемістити",
         cutMovingTitle: "Переміщення…",
         cutMovingCountFormat: "%d з %d",
+
         autoQuitName: "Закривати разом із вікном",
         autoQuitEnable: "Закривати програму, коли закривається її останнє вікно",
         autoQuitEnableCaption: "Закриття останнього вікна програми також завершує її.",
@@ -303,6 +315,7 @@ extension Strings {
         autoQuitExceptionsCaption: "Програми в цьому списку залишаються відкритими навіть без вікон.",
         autoQuitExceptionsEmpty: "Без винятків",
         autoQuitAddApp: "Додати програму…",
+
         uninstallerName: "Деінсталятор",
         uninstallerEnableCaption: "Видаляє програму разом з її кешем, налаштуваннями, журналами та іншими залишками.",
         uninstallerStep1: "Перетягніть програму в Налаштування або виберіть зі списку.",
@@ -355,6 +368,7 @@ extension Strings {
         uninstallerRefusedLinkFormat: "%@ не можна видалити, бо це посилання на програму, що зберігається в іншому місці.",
         uninstallerRefusedUnidentifiedFormat: "%@ не можна видалити, бо не вдається визначити, що це за програма.",
         uninstallerPickerHiddenNote: "Програми, що входять до macOS або належать Apple, тут не показуються.",
+
         urlCleanerName: "Очищення URL",
         urlCleanerEnable: "Очищати URL при копіюванні",
         urlCleanerEnableCaption: "Видаляє параметри відстеження з посилання в момент потрапляння в буфер обміну.",
@@ -370,6 +384,7 @@ extension Strings {
         urlCleanerCleaned: "URL очищено.",
         urlCleanerCopied: "Скопійовано.",
         urlCleanerLocalNote: "Локально. Без мережі.",
+ 
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Пошук, встановлення та видалення formulae і casks.",
         homebrewMissingTitle: "Homebrew не знайдено",
@@ -460,6 +475,7 @@ extension Strings {
         homebrewOperationHideDetails: "Сховати деталі",
         homebrewOperationTechnicalLog: "Технічні деталі",
         homebrewOperationProgressUnknown: "Homebrew ще не повідомив відсоток виконання.",
+
         mediaName: "Медіа",
         mediaEnableCaption: "Стискайте відео, конвертуйте та обробляйте зображення, створюйте GIF та видобувайте текст локально.",
         mediaLocalNote: "Локально. Без мережі.",
@@ -520,6 +536,7 @@ extension Strings {
         mediaErrorNoVideo: "У цього файлу немає відеодоріжки.",
         mediaErrorSameOutput: "Виберіть папку призначення, відмінну від вихідного файлу.",
         mediaErrorUnsupported: "Формат не підтримується macOS.",
+
         shelfName: "Полиця",
         shelfEnable: "Тимчасова область для перетягування файлів",
         shelfEnableCaption: "Плаваюче місце, куди можна зібрати файли, зображення та текст, а потім перетягнути їх куди завгодно.",
@@ -582,7 +599,9 @@ extension Strings {
         shelfActionShare: "Поділитися",
         shelfActionPin: "Закріпити",
         shelfActionUnpin: "Відкріпити",
+
         breakdownMeasuring: "Вимірювання…",
+
         mixerSection: "Мікшер гучності",
         mixerEmpty: "Програми, що відтворюють звук, з’являться тут",
         mixerUnavailable: "Доступно в macOS 14.4 та новіших",
@@ -630,6 +649,7 @@ extension Strings {
         audioPriorityUnavailable: "Недоступний",
         audioPriorityCurrent: "Поточний",
         audioPriorityCaption: "Пристрої вибираються в порядку пріоритету. Коли підключається пристрій із вищим пріоритетом, він стає активним. Коли активний пристрій від’єднується, його замінює наступний доступний.",
+
         updatesSection: "Оновлення",
         autoCheckToggle: "Перевіряти оновлення автоматично",
         includeBetaUpdatesToggle: "Отримувати бета-версії",
@@ -649,6 +669,7 @@ extension Strings {
         updateNeedsApplicationsTitle: "Перемістіть Vorssaint у папку «Програми»",
         updateNeedsApplicationsBody: "Програму запущено з місця, яке не можна оновити, наприклад з образу диска або тимчасового системного розташування. Перетягніть Vorssaint у папку «Програми», відкрийте його звідти та спробуйте знову.",
         menuCheckUpdates: "Перевірити оновлення…",
+
         permissionRequired: "Потрібен дозвіл",
         permissionAccessibility: "Доступність",
         permissionScreenRecording: "Запис екрана",
@@ -665,11 +686,13 @@ extension Strings {
         secureInputSwitcherHeldFormat: "Коли його було увімкнено, активною програмою була %@, і, можливо, саме вона його утримує. Поки воно увімкнене, macOS приховує натискання клавіш від перемикача і ⌘Tab натомість відкриває перемикач macOS. Приберіть поле пароля програми або завершіть її, щоб звільнити.",
         secureInputSwitcherUnattributed: "Не вдається визначити, яка програма його утримує. Поки воно увімкнене, macOS приховує натискання клавіш від перемикача і ⌘Tab натомість відкриває перемикач macOS. Приберіть відкрите поле пароля або вийдіть із сеансу та увійдіть знову, щоб скинути.",
         secureInputSwitcherUnidentified: "Програму, що утримує його, не вдалося розпізнати. Поки воно увімкнене, macOS приховує натискання клавіш від перемикача і ⌘Tab натомість відкриває перемикач macOS.",
+
         aboutDescription: "Набір корисних інструментів для вашого Mac.\nЖивлення, системний монітор, прокрутка та перемикач вікон прямо на смузі меню.",
         versionPrefix: "Версія",
         reviewIntro: "Показати вступ знову",
         reviewHighlights: "Показати огляд новинок знову",
         viewOnGitHub: "Відкрити на GitHub",
+
         obContinue: "Далі",
         obBack: "Назад",
         obSkipStep: "Пропустити крок",
@@ -708,6 +731,7 @@ extension Strings {
         obPurposeBody: "Виберіть готове налаштування або саме ті функції, якими хочете користуватися.",
         obPurposeSkip: "Функції можна додати або прибрати пізніше в Налаштуваннях.",
         tabMonitor: "Монітор",
+
         monitorMenuBarSection: "На смузі меню",
         monitorMenuBarPreview: "Попередній перегляд смуги меню",
         monitorMenuBarCaption: "Виберіть, що показувати біля значка на смузі меню.",
@@ -731,6 +755,7 @@ extension Strings {
         panelFooterList: "Список",
         betaBadge: "БЕТА",
         betaFeatureWarning: "Бета. Можливі помилки.",
+
         networkSection: "Мережа",
         networkIPAddresses: "IP-адреси",
         networkLocalIP: "Локальна IPv4-адреса",
@@ -740,6 +765,7 @@ extension Strings {
         networkMeasuring: "Вимірювання…",
         networkApps: "Програми, що використовують мережу",
         networkAppsIdle: "Зараз немає програм, що використовують мережу",
+
         diskSection: "Диски",
         diskUsed: "зайнято",
         diskFree: "вільно",
@@ -774,6 +800,7 @@ extension Strings {
         diskOpenInFinder: "Відкрити",
         diskStorageSettings: "Сховище",
         diskNoDisks: "Змонтовані диски не знайдені.",
+
         powerSection: "Живлення",
         powerSystem: "Система",
         powerAdapter: "Адаптер",
@@ -790,6 +817,7 @@ extension Strings {
         monitorShowPeripheralBattery: "Акумулятор аксесуарів",
         peripheralBatteryNoDevices: "Пристрої не знайдені",
         monitorGraphsSection: "Графіки",
+
         updateBannerTitle: "Доступне оновлення",
         updateBannerAction: "Оновити",
         obStepMenuBarTitle: "Метрики на смузі меню",
@@ -820,6 +848,7 @@ extension Strings {
         speedTestLatency: "Затримка",
         speedTestTesting: "Перевірка…",
         speedTestFailed: "Тест не вдався",
+
         monitorShowInPanel: "Показати в панелі",
         disclosureExpanded: "Розгорнуто",
         disclosureCollapsed: "Згорнуто",
@@ -841,6 +870,7 @@ extension Strings {
         obStepPanelBody: "Відкрийте кожен блок і виберіть, що саме показуватиметься при натисканні на значок.",
         obStepPanelNavigationTitle: "Панель за секціями",
         obStepPanelNavigationBody: "Тепер панель може показувати по одному розділу за раз. Перемикатися між «Секціями» та «Списком» можна в Налаштуваннях.",
+
         cleaningMenuItem: "Режим очищення",
         utilitiesSection: "Утиліти",
         quickControlsSection: "Керування",
@@ -873,6 +903,7 @@ extension Strings {
         cleaningStartNow: "Заблокувати клавіатуру зараз",
         cleaningNeedsAxTitle: "Потрібен дозвіл «Доступність»",
         cleaningNeedsAxBody: "Для безпечного блокування клавіатури Vorssaint потрібен дозвіл «Доступність». Надайте його в Системних параметрах і спробуйте знову.",
+
         tabSupport: "Підтримка",
         shortcutsPageCaption: "Редагуйте всі глобальні клавіатурні скорочення функцій, встановлених на цьому Mac. Неактивні поєднання зберігаються, але не спрацьовують.",
         shortcutsPageTitle: "Скорочення клавіш",
@@ -1088,6 +1119,36 @@ extension Strings {
         spacesOrderName: "Фіксований порядок Spaces",
         spacesOrderCaption: "Не дає macOS змінювати порядок Spaces за останнім використанням, тож вони лишаються в заданому вами порядку. Попереднє налаштування повернеться, коли цю опцію вимкнено. Dock може один раз перезапуститися, щоб застосувати зміну.",
         quitAppsName: "Закриття програм",
-        quitAppsCaption: "Показує відкриті програми, щоб закрити їх по одній, усі одразу або всі, крім активної. Список завжди з’являється до того, як щось закриється."
+        quitAppsCaption: "Показує відкриті програми, щоб закрити їх по одній, усі одразу або всі, крім активної. Список завжди з’являється до того, як щось закриється.",
+
+        widgetCPU: "Віджет ЦП",
+        widgetGPU: "Віджет ГП",
+        widgetRAM: "Віджет ОЗП",
+        widgetDisk: "Віджет диска",
+        widgetNetwork: "Віджет мережі",
+        widgetUnited: "Загальний віджет",
+        widgetCPUDescription: "Показує статистику ЦП",
+        widgetGPUDescription: "Показує статистику ГП",
+        widgetRAMDescription: "Показує статистику ОЗП",
+        widgetDiskDescription: "Показує статистику диска",
+        widgetNetworkDescription: "Показує статистику мережі",
+        widgetUnitedDescription: "Показує статистику ЦП, ГП, ОЗП і диска",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "Диск",
+        widgetSystem: "Система",
+        widgetUser: "Користувач",
+        widgetUsage: "Використання",
+        widgetRenderer: "Рендеринг",
+        widgetTiler: "Тайлінг",
+        widgetUsed: "Використовується",
+        widgetFree: "Вільно",
+        widgetPressureLevel: "Рівень тиску",
+        widgetDownload: "Завантаження",
+        widgetUpload: "Віддача",
+        widgetStatus: "Статус",
+        widgetInterface: "Інтерфейс",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

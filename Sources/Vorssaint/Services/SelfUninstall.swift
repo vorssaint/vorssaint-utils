@@ -251,6 +251,7 @@ enum SelfUninstall {
 
     private static func removePreferences() {
         let id = bundleID
+        WidgetSharedData.removeStoredData()
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Preferences/\(id).plist")
