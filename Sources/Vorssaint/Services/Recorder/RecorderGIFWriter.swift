@@ -20,17 +20,17 @@ import UniformTypeIdentifiers
 final class RecorderGIFWriter {
     enum Failure: Error { case invalidFrame, closed, empty }
 
-    /// How many frames ImageIO holds at once. It is the frame budget the
-    /// in-memory encoder always had (300 decoded frames, ~1.6 MB each at the
-    /// large size), so every clip within it comes out as that encoder made it.
-    /// On top of those frames, the chunk's encoded bytes are held up to three
-    /// times while ImageIO's output is parsed.
+    /// Small frames keep the native encoder's 300-frame chunks. Large frames
+    /// flush sooner to bound pending decoded pixels; ImageIO's working data,
+    /// encoded bytes and the previous chunk's final frame are additional.
     static let framesPerChunk = 300
+    private static let maximumPendingBytes = 500.0 * 1024 * 1024
 
     private let file: FileHandle
     private let fps: Int
     private let chunkLength: Int
     private var pending: [CGImage] = []
+    private var pendingBytes = 0.0
     /// The last frame of the previous chunk. It is written once the next
     /// chunk shows whether it has to clear the canvas behind it.
     private var held: (picture: Picture, image: CGImage)?
@@ -66,8 +66,11 @@ final class RecorderGIFWriter {
             }
             canvas = (image.width, image.height)
         }
+        let bytes = Double(image.bytesPerRow) * Double(image.height)
+        if !pending.isEmpty, pendingBytes + bytes > Self.maximumPendingBytes { try flush() }
         pending.append(image)
-        if pending.count >= chunkLength { try flush() }
+        pendingBytes += bytes
+        if pending.count >= chunkLength || pendingBytes >= Self.maximumPendingBytes { try flush() }
     }
 
     func finish() throws {
@@ -109,6 +112,7 @@ final class RecorderGIFWriter {
             self.held = (last, pending[pending.count - 1])
         }
         pending.removeAll()
+        pendingBytes = 0
     }
 
     private func writeHeader(_ chunk: Chunk) throws {
