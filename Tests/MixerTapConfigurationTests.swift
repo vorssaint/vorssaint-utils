@@ -421,7 +421,8 @@ enum MixerTapConfigurationTests {
         HAL.reset()
         let counter = Counter()
         var watch: MixerTapConfiguration? = makeWatch(format: format, counter: counter)
-        weak var weakWatch = watch
+        weak var weakWatch: MixerTapConfiguration?
+        weakWatch = watch
         watch?.start()
         watch?.queue.run()
         let client = HAL.registrations.first?.client
@@ -468,7 +469,8 @@ enum MixerTapConfigurationTests {
             }
             let counter = Counter()
             var watch: MixerTapConfiguration? = makeWatch(format: format, direct: false, counter: counter)
-            weak var weakWatch = watch
+            weak var weakWatch: MixerTapConfiguration?
+            weakWatch = watch
             let started = watch?.start()
             let installed = HAL.registrations.count
             suite.expect(started == false && watch?.canRender == false && HAL.readCount == 0,

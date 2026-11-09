@@ -2677,7 +2677,7 @@ final class BrightnessService: ObservableObject {
         workQueue.async { [weak self] in
             guard let self else { return }
             if self.dimmedDisplays.contains(id) {
-                self.applySoftwareDim(id, value: 1)
+                _ = self.applySoftwareDim(id, value: 1)
             }
             DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }
         }
@@ -2722,7 +2722,7 @@ final class BrightnessService: ObservableObject {
         stateLock.unlock()
         workQueue.async { [weak self] in
             guard let self else { return }
-            self.applySoftwareDim(id, value: 1)
+            _ = self.applySoftwareDim(id, value: 1)
             DispatchQueue.main.async { [weak self] in self?.refresh(force: true) }
         }
     }
