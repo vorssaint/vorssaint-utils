@@ -1575,6 +1575,24 @@ enum ClipboardFeatureTests {
                                                                  plainText: "/tmp/example.txt") ?? "",
                     "/tmp/example.txt",
                     "clipboard history ignores non-web URL pasteboard types")
+        let excelTypes = ["public.utf8-plain-text", "public.html", "public.rtf", "public.tiff"]
+        suite.expect(ClipboardHistoryPasteboardText.prefersPlainText(types: excelTypes, plainText: "A1\tB1"),
+                     "a spreadsheet copy keeps its tab-separated text over the range picture")
+        suite.expect(ClipboardHistoryPasteboardText.prefersPlainText(
+                        types: ["public.utf8-plain-text", "com.apple.flat-rtfd", "public.png"],
+                        plainText: "Notes"),
+                     "rtfd siblings also mark the picture as a rendering")
+        suite.expect(!ClipboardHistoryPasteboardText.prefersPlainText(types: ["public.tiff"], plainText: nil)
+                        && !ClipboardHistoryPasteboardText.prefersPlainText(types: ["public.tiff"], plainText: "")
+                        && !ClipboardHistoryPasteboardText.prefersPlainText(types: ["public.tiff"], plainText: "   "),
+                     "a lone screenshot keeps its picture with missing, empty or blank text")
+        suite.expect(!ClipboardHistoryPasteboardText.prefersPlainText(
+                        types: ["public.url", "public.tiff"],
+                        plainText: "https://example.com/pic.png"),
+                     "a browser image keeps its picture over the source URL")
+        suite.expect(!ClipboardHistoryPasteboardText.prefersPlainText(
+                        types: ["public.utf8-plain-text"], plainText: "hi"),
+                     "plain text alone takes the ordinary path")
         suite.expect(!ClipboardHistorySensitiveText.looksSensitive("http://localhost:3000/page"),
                "clipboard history does not treat normal web URLs as secrets")
         suite.expect(ClipboardHistorySensitiveText.looksSensitive("https://example.com/callback?token=abc"),
@@ -1877,8 +1895,11 @@ enum ClipboardPreviewContract {
             struct Preferences {
                 var skipSensitive = Defaults.registeredDefaults[
                     DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
+                var includeImages = false
                 func bool(forKey key: String) -> Bool {
-                    key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
+                    if key == DefaultsKey.clipboardHistoryFilterSensitiveText { return skipSensitive }
+                    if key == DefaultsKey.clipboardHistoryIncludeImagesFiles { return includeImages }
+                    return false
                 }
             }
             static var standard = Preferences()
