@@ -14,7 +14,6 @@ struct PanelUninstallerView: View {
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
-    @State private var showHomebrewDetails = false
 
     var onClose: () -> Void
 
@@ -22,6 +21,7 @@ struct PanelUninstallerView: View {
         VStack(alignment: .leading, spacing: 10) {
             header
             content
+            UninstallerHomebrewLastLog(compact: true)
         }
         .dropDestination(for: URL.self) { urls, _ in
             let selected = selectFirstApp(from: urls)
@@ -390,14 +390,7 @@ struct PanelUninstallerView: View {
             if let status = homebrew.operationStatus,
                status.action == .uninstall,
                status.package?.id == package.id {
-                HomebrewOperationStatusView(status: status,
-                                            log: homebrew.log,
-                                            terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                            compact: true,
-                                            showDetails: $showHomebrewDetails,
-                                            onCancel: homebrew.cancelOperation,
-                                            onClear: homebrew.clearLog,
-                                            onOpenTerminal: homebrew.openTerminalFallback)
+                HomebrewOperationOutputView(homebrew: homebrew, output: .status(status), compact: true)
                 if let tap = homebrew.untrustedTap {
                     HomebrewTrustCard(tap: tap, compact: true)
                 }
