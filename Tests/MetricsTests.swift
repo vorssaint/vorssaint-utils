@@ -208,6 +208,7 @@ struct MetricsTests {
             }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
+                HomebrewOperationLogRetentionTests.run(suite)
                 UninstallerFlowTests.run(suite)
                 UninstallerBulkSelectionTests.run(suite)
                 MixedStateCheckboxTests.run(suite)

@@ -860,6 +860,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
+    write("AppUpdatesOperationLog.swift", "extension HomebrewOperationLogRetentionTests.Updates {\n"
+          + declaration("Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
+                        "    private var operationLog:").replace("private var", "var", 1)
+          + "}\n")
     write("HomebrewOwnership.swift", "import Foundation\n"
           + "extension HomebrewOwnershipTests.Manager {\n"
           + declaration(homebrew, "    func packageManagingApplication(")
