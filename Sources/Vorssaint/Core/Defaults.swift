@@ -514,6 +514,7 @@ enum DefaultsKey {
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge
     static let windowReserveStageManagerSpace = "windowReserveStageManagerSpace"
     static let windowLayoutMarginPercent = "windowLayoutMarginPercent" // per-edge percentage for margin maximize
+    static let windowLayoutNudgeStep = "windowLayoutNudgeStep" // points one nudge moves the active window
     static let windowLayoutSideRepeatCyclesThirds = "windowLayoutSideRepeatCyclesThirds" // repeated Left/Right cycles half, 2/3, 1/3 on the same display
     static let windowLayoutIgnoredApps = "windowLayoutIgnoredApps" // apps that temporarily disable window layout while focused
     static let panelCollapsedSections = "panelCollapsedSections"
@@ -815,6 +816,10 @@ enum DefaultsKey {
     static let windowLayoutShortcutBottomLeftSixth = "windowLayoutShortcutBottomLeftSixth"
     static let windowLayoutShortcutBottomCenterSixth = "windowLayoutShortcutBottomCenterSixth"
     static let windowLayoutShortcutBottomRightSixth = "windowLayoutShortcutBottomRightSixth"
+    static let windowLayoutShortcutNudgeLeft = "windowLayoutShortcutNudgeLeft"
+    static let windowLayoutShortcutNudgeRight = "windowLayoutShortcutNudgeRight"
+    static let windowLayoutShortcutNudgeUp = "windowLayoutShortcutNudgeUp"
+    static let windowLayoutShortcutNudgeDown = "windowLayoutShortcutNudgeDown"
 
     // Text snippets: type a trigger, get the expansion.
     static let textSnippetsEnabled = "textSnippetsEnabled"
@@ -1685,6 +1690,7 @@ enum Defaults {
         DefaultsKey.windowReserveStageManagerSpace: false,
         DefaultsKey.windowLayoutMarginPercent: 5.0,
         DefaultsKey.windowLayoutSideRepeatCyclesThirds: false,
+        DefaultsKey.windowLayoutNudgeStep: WindowLayoutNudge.defaultStep,
         DefaultsKey.menuBarMetricOrder: defaultMenuBarMetricOrder.joined(separator: ","),
         DefaultsKey.menuBarCombineTemperatures: true,
         DefaultsKey.menuBarSeparateMetrics: false,
@@ -2012,6 +2018,10 @@ enum Defaults {
         DefaultsKey.windowLayoutShortcutBottomCenterSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutBottomRightSixth: WindowLayoutAction.clearedShortcutStorageValue,
         DefaultsKey.windowLayoutShortcutFullScreen: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutNudgeLeft: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutNudgeRight: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutNudgeUp: WindowLayoutAction.clearedShortcutStorageValue,
+        DefaultsKey.windowLayoutShortcutNudgeDown: WindowLayoutAction.clearedShortcutStorageValue,
     ]
 
     static func register() {
