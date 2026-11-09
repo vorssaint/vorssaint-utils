@@ -7,15 +7,20 @@ import Foundation
 /// failure never stops the remaining assertions; the runner owns the exit code.
 final class TestSuite {
     private let lock = NSLock()
+    private var activeSuite: String?
     private(set) var checks = 0
     private(set) var failures: [String] = []
 
     func expect(_ condition: Bool, _ message: @autoclosure () -> String,
                 file: StaticString = #filePath, line: UInt = #line) {
         let failure = condition ? nil : "\(file):\(line): \(message())"
-        lock.withLock {
+        let progress = lock.withLock { () -> Int? in
             checks += 1
             if let failure { failures.append(failure) }
+            return activeSuite == "notch" && checks.isMultiple(of: 100) ? checks : nil
+        }
+        if let progress {
+            FileHandle.standardError.write(Data("notch progress: \(progress) checks at \(file):\(line)\n".utf8))
         }
     }
 
@@ -30,12 +35,14 @@ final class TestSuite {
         let before = checks
         let previousFailures = failures.count
         let started = ProcessInfo.processInfo.systemUptime
+        lock.withLock { activeSuite = name }
         FileHandle.standardError.write(Data("suite started: \(name)\n".utf8))
         body()
         if checks == before { expect(false, "\(name) executed no assertions") }
         let elapsed = ProcessInfo.processInfo.systemUptime - started
         let status = failures.count == previousFailures ? "OK" : "FAILED"
         print("\(name): \(status) (\(checks - before) checks, \(String(format: "%.2f", elapsed))s)")
+        lock.withLock { activeSuite = nil }
         FileHandle.standardError.write(
             Data("suite finished: \(name) (\(status), \(String(format: "%.2f", elapsed))s)\n".utf8)
         )
