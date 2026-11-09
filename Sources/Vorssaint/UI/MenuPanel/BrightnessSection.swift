@@ -145,7 +145,7 @@ struct BrightnessSection: View {
             }
             SoftwareDimmingButton(display: display, compact: true)
             if display.isActive, let audio = display.audio {
-                volumeRow(display, audio: audio)
+                MonitorSpeakerVolumeRow(displayName: display.name, audio: audio, strings: strings, compact: true)
             }
         }
     }
@@ -185,37 +185,44 @@ struct BrightnessSection: View {
                 set: { service.setBrightness($0, for: display.id,
                                              showOSD: brightnessOSDEnabled) })
     }
+}
 
-    private func volumeRow(_ display: BrightnessDisplay,
-                           audio: BrightnessDisplay.Audio) -> some View {
-        HStack(spacing: 6) {
+struct MonitorSpeakerVolumeRow: View {
+    let displayName: String
+    let audio: BrightnessDisplay.Audio
+    let strings: BrightnessFeatureStrings
+    let compact: Bool
+
+    var body: some View {
+        HStack(spacing: compact ? 6 : 12) {
             if let muted = audio.muted {
                 Button {
-                    service.requestSpeakers(.set(volume: nil, muted: !muted), target: audio.target)
+                    BrightnessService.shared.requestSpeakers(.set(volume: nil, muted: !muted), target: audio.target)
                 } label: {
                     Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.system(size: compact ? 10 : 12, weight: .semibold))
                         .foregroundStyle(muted ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
                         .frame(width: 16)
                 }
                 .buttonStyle(.plain)
                 .help(muted ? strings.unmute : strings.mute)
-                .accessibilityLabel(muted ? strings.unmute : strings.mute)
+                .accessibilityLabel("\(displayName): \(muted ? strings.unmute : strings.mute)")
             } else {
                 Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: compact ? 10 : 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 16)
             }
-            Slider(value: Binding(get: { audio.volume },
-                                  set: { service.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target) }),
+            Slider(value: Binding(get: { audio.volume }, set: {
+                BrightnessService.shared.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target)
+            }),
                    in: 0...1)
-                .controlSize(.small)
-                .accessibilityLabel("\(display.name) \(strings.volumeLabel)")
+                .controlSize(compact ? .small : .regular)
+                .accessibilityLabel("\(displayName) \(strings.volumeLabel)")
             Text("\(Int((audio.volume * 100).rounded()))%")
-                .font(.system(size: 10, weight: .semibold).monospacedDigit())
+                .font(compact ? .system(size: 10, weight: .semibold).monospacedDigit() : .body.monospacedDigit())
                 .foregroundStyle(.secondary)
-                .frame(width: 30, alignment: .trailing)
+                .frame(width: compact ? 30 : 52, alignment: .trailing)
         }
     }
 }
