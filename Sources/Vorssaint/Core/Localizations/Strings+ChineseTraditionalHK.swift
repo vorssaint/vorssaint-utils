@@ -1128,6 +1128,15 @@ extension Strings {
         spacesOrderName: "固定桌面空間順序",
         spacesOrderCaption: "避免 macOS 依最近使用情況重新排列桌面空間，讓它們維持你設定的順序。關閉此選項後會恢復先前的設定。為套用變更，Dock 可能會重新啟動一次。",
         quitAppsName: "結束 App",
-        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。"
+        quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。",
+        nativeHiDPI: "原生 HiDPI",
+        virtualHiDPI: "虛擬 HiDPI",
+        standardResolution: "標準解像度 (1x)",
+        recoveryKeep: "保留設定",
+        recoveryRevert: "還原",
+        recoveryCountdownTitle: "保留這個顯示設定？",
+        recoveryCountdownRemaining: { "\($0) 秒後自動恢復" },
+        recoveryFailedMessage: "無法恢復先前的 HiDPI 模式",
+        toggleHiDPICaption: "切換 Retina HiDPI 縮放"
     )
 }

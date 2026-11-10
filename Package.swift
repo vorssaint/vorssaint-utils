@@ -25,9 +25,13 @@ let package = Package(
             path: "Sources/RecorderGIFCodec",
             sources: ["RecorderGIFCodec.c", "vendor/cgif/cgif_raw.c"]
         ),
+        .systemLibrary(
+            name: "VirtualDisplayBridge",
+            path: "Sources/VirtualDisplayBridge"
+        ),
         .executableTarget(
             name: "Vorssaint",
-            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "CoreAudioTapCompat", "RecorderGIFCodec"],
+            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "CoreAudioTapCompat", "RecorderGIFCodec", "VirtualDisplayBridge"],
             path: "Sources/Vorssaint"
         )
     ]

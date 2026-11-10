@@ -1334,6 +1334,17 @@ struct Strings {
     let spacesOrderCaption: String
     let quitAppsName: String
     let quitAppsCaption: String
+
+    // MARK: Display Resolution & HiDPI
+    public let nativeHiDPI: String
+    public let virtualHiDPI: String
+    public let standardResolution: String
+    public let recoveryKeep: String
+    public let recoveryRevert: String
+    public let recoveryCountdownTitle: String
+    public let recoveryCountdownRemaining: (Int) -> String
+    public let recoveryFailedMessage: String
+    public let toggleHiDPICaption: String
 }
 
 // MARK: - Português (Brasil)
@@ -2462,7 +2473,16 @@ extension Strings {
         spacesOrderName: "Manter os Espaços em ordem fixa",
         spacesOrderCaption: "Impede que o macOS reorganize os Espaços pelo uso mais recente, para que fiquem na ordem que você definiu. A configuração anterior volta ao desligar esta opção. O Dock pode reiniciar uma vez para aplicar a mudança.",
         quitAppsName: "Encerrar apps",
-        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um."
+        quitAppsCaption: "Lista seus apps abertos para encerrar um por um, todos de uma vez ou todos exceto o da frente. Sempre mostra a lista antes de encerrar qualquer um.",
+        nativeHiDPI: "HiDPI nativo",
+        virtualHiDPI: "HiDPI virtual",
+        standardResolution: "Resolução padrão (1x)",
+        recoveryKeep: "Manter alterações",
+        recoveryRevert: "Reverter",
+        recoveryCountdownTitle: "Confirmar ajustes de tela",
+        recoveryCountdownRemaining: { "Revertendo em \($0) s" },
+        recoveryFailedMessage: "Não foi possível restaurar o modo HiDPI anterior",
+        toggleHiDPICaption: "Alternar dimensionamento Retina HiDPI"
     )
 }
 
@@ -3592,6 +3612,15 @@ extension Strings {
         spacesOrderName: "Keep Spaces in a fixed order",
         spacesOrderCaption: "Stops macOS from rearranging Spaces by most recent use, so they stay in the order you set. Your previous setting returns when this is turned off. The Dock may restart once to apply the change.",
         quitAppsName: "Quit apps",
-        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits."
+        quitAppsCaption: "Lists your open apps to quit one by one, all at once, or all but the one in front. Always shows the list before anything quits.",
+        nativeHiDPI: "Native HiDPI",
+        virtualHiDPI: "Virtual HiDPI",
+        standardResolution: "Standard (1x)",
+        recoveryKeep: "Keep Changes",
+        recoveryRevert: "Revert",
+        recoveryCountdownTitle: "Confirm Display Settings",
+        recoveryCountdownRemaining: { "Auto-reverting in \($0)s" },
+        recoveryFailedMessage: "Previous HiDPI mode could not be restored",
+        toggleHiDPICaption: "Toggle Retina HiDPI scaling"
     )
 }

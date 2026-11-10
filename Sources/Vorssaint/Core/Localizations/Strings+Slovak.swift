@@ -1127,6 +1127,15 @@ extension Strings {
         spacesOrderName: "Udržať plochy v pevnom poradí",
         spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila.",
         quitAppsName: "Ukončenie aplikácií",
-        quitAppsCaption: "Zobrazí otvorené aplikácie, aby ste ich mohli ukončiť jednu po druhej, všetky naraz alebo všetky okrem tej vpredu. Zoznam sa vždy zobrazí skôr, než sa čokoľvek ukončí."
+        quitAppsCaption: "Zobrazí otvorené aplikácie, aby ste ich mohli ukončiť jednu po druhej, všetky naraz alebo všetky okrem tej vpredu. Zoznam sa vždy zobrazí skôr, než sa čokoľvek ukončí.",
+        nativeHiDPI: "Natívne HiDPI",
+        virtualHiDPI: "Virtuálne HiDPI",
+        standardResolution: "Štandardné rozlíšenie (1x)",
+        recoveryKeep: "Ponechať zmeny",
+        recoveryRevert: "Vrátiť späť",
+        recoveryCountdownTitle: "Potvrdiť nastavenia displeja",
+        recoveryCountdownRemaining: { "Automatické vrátenie o \($0) s" },
+        recoveryFailedMessage: "Predchádzajúci režim HiDPI sa nepodarilo obnoviť",
+        toggleHiDPICaption: "Prepnúť Retina HiDPI škálovanie"
     )
 }

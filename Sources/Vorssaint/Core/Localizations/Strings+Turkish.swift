@@ -1127,6 +1127,15 @@ extension Strings {
         spacesOrderName: "Space sırasını sabit tut",
         spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir.",
         quitAppsName: "Uygulamaları kapat",
-        quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir."
+        quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir.",
+        nativeHiDPI: "Yerel HiDPI",
+        virtualHiDPI: "Sanal HiDPI",
+        standardResolution: "Standart Çözünürlük (1x)",
+        recoveryKeep: "Ayarları Koru",
+        recoveryRevert: "Geri Dön",
+        recoveryCountdownTitle: "Bu ekran ayarları korunsun mu?",
+        recoveryCountdownRemaining: { "\($0) sn içinde otomatik geri dönülecek" },
+        recoveryFailedMessage: "Önceki HiDPI modu geri yüklenemedi",
+        toggleHiDPICaption: "Retina HiDPI ölçeklemeyi aç/kapat"
     )
 }
