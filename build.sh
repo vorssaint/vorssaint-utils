@@ -306,6 +306,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentCLIConversation.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeServer.swift
         Sources/Vorssaint/Services/AgentUsage/AgentAntigravityServer.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentAntigravityIndex.swift
         Sources/Vorssaint/Services/AgentUsage/ClaudeAccountProfile.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift
         Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
