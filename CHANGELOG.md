@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-This update addresses a startup crash on early macOS Sonoma and improves window switching, audio, notifications and display controls. It also improves GIF exports, large-image editing and compact panels. New controls cover monitor speakers, automatic scrolling screenshots, window dragging, shortcuts and uninstaller review. A read-only settings file can now manage selected preferences across Macs.
+This update addresses a startup crash on early macOS Sonoma and improves window switching, audio, notifications and display handling when a locked MacBook wakes. It also improves GIF exports, large-image editing and compact panels. New controls cover monitor speakers, automatic scrolling screenshots, window dragging, shortcuts and uninstaller review. A read-only settings file can now manage selected preferences across Macs.
 
 ### Added
 - Adjust supported monitor speakers from Displays settings, the volume mixer or Dynamic Island. Thanks to @jairuspace, @sambet1997, @morhaf-ko and @ruvelro.
@@ -28,6 +28,7 @@ This update addresses a startup crash on early macOS Sonoma and improves window 
 - Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
+- If macOS reactivates a disabled MacBook display at the lock screen, Vorssaint waits until you unlock and another display is active before switching the built-in panel off again. Thanks to @jankorbay.
 - When Keep Awake ends with the lid closed, Vorssaint respects a docked session on external power and the macOS sleep policy on battery. Thanks to @ruvelro.
 - When Caps Lock is the Super Key and its solo action is set to Caps Lock, a tap reliably toggles capitals. Thanks to @iva-zhu.
 - Shortcut recording recognizes Super Key combinations while the keyboard mapping is starting. Thanks to @roypadina for the diagnosis.
@@ -60,7 +61,7 @@ This update addresses a startup crash on early macOS Sonoma and improves window 
 - The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jankorbay, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
