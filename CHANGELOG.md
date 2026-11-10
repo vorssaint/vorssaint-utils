@@ -7,15 +7,19 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection. A read-only settings file can now manage selected preferences across Macs.
+More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New controls cover monitor speakers, automatic scrolling screenshots, window dragging, shortcuts and uninstaller review. A read-only settings file can now manage selected preferences across Macs.
 
 ### Added
+- Adjust supported monitor speakers from Displays settings, the volume mixer or Dynamic Island. Thanks to @jairuspace, @sambet1997, @morhaf-ko and @ruvelro.
+- Start a scrolling screenshot with a dedicated shortcut and optionally let Vorssaint scroll the selected window. Thanks to @EugeneCarldotme.
+- The uninstaller can offer to review leftovers when Finder moves the last installed copy of an app to the Trash. The option is off by default. You choose which files to remove and confirm the cleanup. Thanks to @zamai and @ilim-cell.
 - Vorssaint can load selected preferences from a read-only settings file at launch. Unlisted preferences and snippets stay local. Thanks to @whizzzkid.
 - The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
 - Edge snapping can restore a window's previous size when it is dragged by its title bar, preserving manual resizing and using the size confirmed by the app. The option starts off and respects ignored apps. Thanks to @nisayera.
 - Both uninstaller result views offer a Select all checkbox with a mixed state, including optional rows when explicitly selected and preserving removal safeguards. Thanks to @heyseere.
 
 ### Changed
+- Keep Awake resumes manual sessions after a restart and keeps their original end time. Thanks to @stieludv.
 - GIF exports can retain the full edited resolution and offer scale and frame-rate controls, with captions kept proportional at smaller sizes. Thanks to @COMEBACKISREAL.
 - Large clipboard images can be resized before opening in the screenshot editor, preserving native image formats, the primary HEIC image and its orientation. Thanks to @kit101.
 - Supported DDC monitors can use software picture dimming instead of hardware brightness commands, with pending brightness changes cancelled when switching modes. Thanks to @yavuzmeteafsar.
@@ -23,6 +27,11 @@ More reliable window switching, audio, notifications and display controls, with 
 - Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
+- When Keep Awake ends with the lid closed, Vorssaint respects a docked session on external power and the macOS sleep policy on battery. Thanks to @ruvelro.
+- A solo Caps Lock tap toggles capitals when Caps Lock also serves as the Super Key. Thanks to @iva-zhu.
+- Settings search finds more visible controls, including the low disk space alert, and opens their section. Thanks to @MaximilianMauroner.
+- A click on a Dynamic Island notice uses the action from the notice you pressed, even if another arrives before you release. Thanks to @stieludv.
+- Horizontal swipes over the Dynamic Island mixer scroll across its faders without changing the volume. Thanks to @stieludv.
 - During the current session, Homebrew keeps the last operation log until you clear it or run another command. You can reopen it from App Updates, even when the Homebrew page is off. Thanks to @iva-zhu.
 - With smooth scrolling on, mouse wheels now scroll at the native distance in clipboard history and other Vorssaint panels. The screenshot magnifier keeps its smooth zoom. Thanks to @iva-zhu.
 - Cleaner preserves support folders owned by installed apps, including Battle.net, when scanning and before moving selected items to the Trash. Thanks to @lsopenad.
@@ -46,7 +55,7 @@ More reliable window switching, audio, notifications and display controls, with 
 - The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @heyseere, @jerome-queck, @kit101, @maxmeis, @mevichitra, @nikigan, @nisayera, @phatina, @samueljim, @stieludv, @sugar-king, @victorioustr, @yavuzmeteafsar, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @phatina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @victorioustr, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
