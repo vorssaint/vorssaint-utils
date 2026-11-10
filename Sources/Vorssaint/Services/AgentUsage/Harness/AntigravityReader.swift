@@ -188,9 +188,18 @@ struct AntigravityReader: AgentHarnessReader {
         return rest[..<end].trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private static func extractModelSelection(from content: String) -> String? {
+    private static func extractModelSelection(from message: String) -> String? {
         let marker = "changed setting `Model Selection` from "
-        guard content.contains(marker) else { return nil }
+        guard message.contains(marker) else { return nil }
+        // What the user typed is never searched, even when it holds a system tag
+        // of its own: the request runs from its first opening tag to its last
+        // closing one, or to the end when it is not closed.
+        var content = message
+        if let open = message.range(of: "<USER_REQUEST>") {
+            let close = message.range(of: "</USER_REQUEST>", options: .backwards,
+                                      range: open.upperBound..<message.endIndex)
+            content = String(message[..<open.lowerBound]) + "\n" + message[(close?.upperBound ?? message.endIndex)...]
+        }
         // agy 1.5 writes the change in its own `<USER_SETTINGS_CHANGE>` block beside
         // `<ADDITIONAL_METADATA>`; older builds put it inside the metadata block.
         let systemTags = ["ADDITIONAL_METADATA", "USER_SETTINGS_CHANGE"]
@@ -203,7 +212,7 @@ struct AntigravityReader: AgentHarnessReader {
                 cursor = end?.upperBound ?? content.endIndex
             }
         }
-        if slices.isEmpty, !content.contains("<USER_REQUEST>") {
+        if slices.isEmpty, !message.contains("<USER_REQUEST>") {
             slices.append(content[...])
         }
         var selected: String?

@@ -88,6 +88,38 @@ enum AntigravityIndexTests {
                         && AgentAntigravityIndex.project(forTranscript: transcript(first)) == "app",
                      "the index shows rows still in the write-ahead log of a running agy")
 
+        // A database that cannot be read is tried again though it did not change.
+        let broken = home.appending(path: "broken/conversation_summaries.db")
+        try? FileManager.default.createDirectory(at: broken.deletingLastPathComponent(), withIntermediateDirectories: true)
+        var other: OpaquePointer?
+        defer { sqlite3_close(other) }
+        guard sqlite3_open(broken.path, &other) == SQLITE_OK,
+              exec(other, "CREATE TABLE unrelated (id text)") else {
+            suite.expect(false, "Antigravity index fixture: unreadable database could not be written")
+            return
+        }
+        suite.expect(AgentAntigravityIndex.projects(in: broken).isEmpty,
+                     "a database without agy's table names no project")
+        // The table appears with the file's size and time unchanged, so only a
+        // read that was not kept can see it.
+        var before = stat()
+        var after = stat()
+        guard stat(broken.path, &before) == 0,
+              exec(other, "DROP TABLE unrelated"),
+              exec(other, "CREATE TABLE conversation_summaries (conversation_id text, workspace_uris text)"),
+              exec(other, "INSERT INTO conversation_summaries VALUES ('\(first)', '[\"file:///Users/me/work/app\"]')") else {
+            suite.expect(false, "Antigravity index fixture: table could not be replaced")
+            return
+        }
+        let times = [before.st_atimespec, before.st_mtimespec]
+        suite.expect(utimensat(AT_FDCWD, broken.path, times, 0) == 0 && stat(broken.path, &after) == 0
+                        && after.st_size == before.st_size
+                        && after.st_mtimespec.tv_sec == before.st_mtimespec.tv_sec
+                        && after.st_mtimespec.tv_nsec == before.st_mtimespec.tv_nsec,
+                     "the index fixture changed without its size or time changing")
+        suite.expect(AgentAntigravityIndex.projects(in: broken)[first] == "app",
+                     "a failed read of the index is not remembered as an empty index")
+
         suite.expect(AgentAntigravityIndex.project(forTranscript: transcript("33333333-3333-4333-8333-333333333333")) == nil,
                      "a conversation the index does not hold names no project")
         let elsewhere = home.appending(path: "somewhere/\(first)/.system_generated/logs/transcript.jsonl").path

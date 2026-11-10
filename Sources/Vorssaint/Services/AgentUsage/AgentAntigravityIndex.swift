@@ -39,7 +39,9 @@ enum AgentAntigravityIndex {
         let path = database.path
         guard let stamp = stamp(of: path) else { return [:] }
         if let cached = lock.withLock({ cache[path] }), cached.stamp == stamp { return cached.projects }
-        let projects = read(path)
+        // A failed read is not kept: the stamp may never change again while
+        // agy is not running, and the next pass should try the database anew.
+        guard let projects = read(path) else { return [:] }
         lock.withLock { cache[path] = (stamp, projects) }
         return projects
     }
@@ -66,7 +68,8 @@ enum AgentAntigravityIndex {
         return Stamp(database: database, log: fingerprint(path + "-wal") ?? [])
     }
 
-    private static func read(_ path: String) -> [String: String] {
+    /// Nil when the database could not be opened or read to its end.
+    private static func read(_ path: String) -> [String: String]? {
         var db: OpaquePointer?
         // SQLite hands back a connection to close even when opening fails.
         defer { sqlite3_close(db) }
@@ -78,19 +81,21 @@ enum AgentAntigravityIndex {
         let running = FileManager.default.fileExists(atPath: path + "-wal")
         let location = running ? path : URL(fileURLWithPath: path).absoluteString + "?immutable=1"
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX | (running ? 0 : SQLITE_OPEN_URI)
-        guard sqlite3_open_v2(location, &db, flags, nil) == SQLITE_OK else { return [:] }
+        guard sqlite3_open_v2(location, &db, flags, nil) == SQLITE_OK else { return nil }
         sqlite3_busy_timeout(db, 2000)
         var statement: OpaquePointer?
         let query = "SELECT conversation_id, workspace_uris FROM conversation_summaries "
             + "WHERE workspace_uris != '' LIMIT \(maximumRows)"
-        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else { return [:] }
+        guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(statement) }
         var projects: [String: String] = [:]
-        while sqlite3_step(statement) == SQLITE_ROW {
+        var result = sqlite3_step(statement)
+        while result == SQLITE_ROW {
+            defer { result = sqlite3_step(statement) }
             guard let id = sqlite3_column_text(statement, 0), let uris = sqlite3_column_text(statement, 1),
                   let project = project(fromWorkspaceURIs: String(cString: uris)) else { continue }
             projects[AgentLogParser.native(String(cString: id))] = project
         }
-        return projects
+        return result == SQLITE_DONE ? projects : nil
     }
 }
