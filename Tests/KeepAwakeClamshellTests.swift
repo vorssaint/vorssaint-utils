@@ -255,6 +255,29 @@ enum KeepAwakeClamshellTests {
         expect(!C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag) && C.AdminShell.prompts == 0,
                "successful quit clears recovery before returning and never asks for a password")
 
+        for policy in [true, false, nil] as [Bool?] {
+            let cutoff = active()
+            C.connectedToPower = false
+            C.externalDisplay = nil
+            C.policy = policy
+            cutoff.deactivate(reason: .battery)
+            C.drain()
+            let expectedCalls = policy == true ? 1 : 0
+            expect(!C.Sudoers.disabled && C.calls == expectedCalls,
+                   "with an unreadable display list the battery cutoff follows the lid policy \(String(describing: policy))")
+        }
+
+        for display in [true, false, nil] as [Bool?] {
+            let timed = active()
+            C.connectedToPower = nil
+            C.externalDisplay = display
+            timed.deactivate(reason: .timer)
+            C.drain()
+            let expectedCalls = display == false ? 1 : 0
+            expect(!C.Sudoers.disabled && C.calls == expectedCalls,
+                   "with unknown power the timer needs a confirmed absence of external displays, got \(String(describing: display))")
+        }
+
         for lid in [false, nil] as [Bool?] {
             let service = active(); C.BrightnessService.lid = lid
             service.deactivate(reason: .quit)
