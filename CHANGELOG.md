@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- A monitor whose speakers take volume writes but never answer a reading, such as some Samsung Odyssey models, now follows the volume keys when the Mac plays through it. Its level is the last one set here, starting low, since there is nothing to read it from.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

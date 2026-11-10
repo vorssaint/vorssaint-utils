@@ -139,6 +139,9 @@ final class BrightnessService: ObservableObject {
         let fingerprint: String
         let service: CFTypeRef
         let hasNativeMute: Bool
+        /// The monitor takes volume writes and never answers a reading, so
+        /// the level is the one this app last wrote.
+        var blind = false
     }
 
     private struct Route {
@@ -2552,7 +2555,8 @@ final class BrightnessService: ObservableObject {
                   let path = BrightnessSupport.ddcPathKey(displayFingerprint: fingerprint,
                                                           ioDisplayLocation: matched.identity.ioDisplayLocation) else { continue }
             let speakerKey = "audio:" + path
-            guard let probed = probeAudio(for: id, service: matched.service, path: path) else {
+            guard let probed = probeAudio(for: id, service: matched.service, path: path,
+                                          names: externalNames) else {
                 let attempt = (ddcRetryAttempts[speakerKey] ?? 0) + 1
                 if let delay = BrightnessSupport.ddcRetryDelay(attempt: attempt, probesAudio: probesAudio,
                                                               repliedThisSession: ddcRepliedPaths.contains(speakerKey)) {
@@ -2565,7 +2569,7 @@ final class BrightnessService: ObservableObject {
             ddcRetryAttempts[speakerKey] = nil
             built[candidate.index].audio = probed.state
             newAudioRoutes[id] = AudioRoute(path: path, fingerprint: fingerprint, service: matched.service,
-                                           hasNativeMute: probed.hasNativeMute)
+                                           hasNativeMute: probed.hasNativeMute, blind: probed.blind)
         }
 
         // A DDC or system route owns the picture again. A gamma curve left
@@ -3162,17 +3166,23 @@ final class BrightnessService: ObservableObject {
         let keySettings = pending.requiresKeys ? monitorVolumeKeySettings : MonitorVolumeKeySettings()
         let result = BrightnessSupport.applySpeakerChange(pending.change, hasNativeMute: route.hasNativeMute,
             keySettings: keySettings, restore: &restore, read: { code in
-                guard current(), case let .replied(value, maximum) = self.ddcProbe(code, for: id, service: route.service)
+                guard current() else { return nil }
+                if route.blind { return code == BrightnessSupport.audioVolumeCode ? self.blindReading(route.path) : nil }
+                guard case let .replied(value, maximum) = self.ddcProbe(code, for: id, service: route.service)
                 else { return nil }
                 return (value, maximum)
             }, write: { code, value in
                 let packet = BrightnessSupport.writePacket(code: code, value: value)
-                return self.ddcSend(to: id, service: route.service, packet: packet) {
+                let sent = self.ddcSend(to: id, service: route.service, packet: packet) {
                     // Settings can change while the bus is pacing a write. A
                     // protective re-mute still belongs to the original target.
                     let mutes = code == BrightnessSupport.audioMuteCode && value == BrightnessSupport.audioMutedValue
                     return current() && (!pending.requiresKeys || mutes || self.monitorVolumeKeySettings == keySettings)
                 }
+                if sent, route.blind, code == BrightnessSupport.audioVolumeCode {
+                    self.rememberBlindLevel(value, path: route.path)
+                }
+                return sent
             })
         speakerRestoreLevels[target.path] = restore
         guard let result else { return nil }
@@ -3302,12 +3312,14 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Speaker probing (work queue)
 
-    private func probeAudio(for id: CGDirectDisplayID, service: CFTypeRef, path: String)
-        -> (hasNativeMute: Bool, state: BrightnessDisplay.Audio)? {
+    private func probeAudio(for id: CGDirectDisplayID, service: CFTypeRef, path: String,
+                            names: [(id: UInt32, name: String)])
+        -> (hasNativeMute: Bool, blind: Bool, state: BrightnessDisplay.Audio)? {
         guard wantsMonitorVolume, BrightnessSupport.shouldProbe(
-            pathKey: path, rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)),
-              case let .replied(current, maximum) = ddcProbe(BrightnessSupport.audioVolumeCode,
-                                                             for: id, service: service) else { return nil }
+            pathKey: path, rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)) else { return nil }
+        let volume = ddcProbe(BrightnessSupport.audioVolumeCode, for: id, service: service)
+        if case .writeOnly = volume { return blindAudio(for: id, path: path, names: names) }
+        guard case let .replied(current, maximum) = volume else { return nil }
         guard let level = BrightnessSupport.SpeakerLevel((current, maximum)) else {
             if current == 0 && maximum == 0 {
                 rememberPath(path, key: DefaultsKey.displayAudioSilentPaths, remembered: true)
@@ -3323,7 +3335,41 @@ final class BrightnessService: ObservableObject {
         let muted = nativeMute ?? level.mutedWithoutNativeControl(restoring: speakerRestoreLevels[path])
         let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
                                                      connectionGeneration: stateLock.withLock { audioLifetime })
-        return (nativeMute != nil, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+        return (nativeMute != nil, false, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+    }
+
+    /// A monitor that accepts writes but never answers a reading cannot say
+    /// whether it has speakers. The sound the Mac plays through it can: when
+    /// the default output is this monitor's own audio and macOS cannot set
+    /// its volume, the speakers exist and the volume keys have nothing else
+    /// to drive. Any other monitor of that kind is left alone.
+    private func blindAudio(for id: CGDirectDisplayID, path: String,
+                            names: [(id: UInt32, name: String)])
+        -> (hasNativeMute: Bool, blind: Bool, state: BrightnessDisplay.Audio)? {
+        guard let output = Self.defaultOutputDevice(),
+              BrightnessSupport.isDisplayAudioTransport(output.transport),
+              !AppVolumeMixer.hasSettableOutputVolume(for: output.id),
+              BrightnessSupport.displayForAudioOutput(deviceName: output.name, candidates: names) == id,
+              wantsMonitorVolume else { return nil }
+        let level = BrightnessSupport.SpeakerLevel(blindReading(path))
+        guard let level else { return nil }
+        if level.raw > 0 { speakerRestoreLevels[path] = nil }
+        let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
+                                                     connectionGeneration: stateLock.withLock { audioLifetime })
+        let muted = level.mutedWithoutNativeControl(restoring: speakerRestoreLevels[path])
+        return (false, true, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+    }
+
+    /// The level last written to a monitor that cannot be read.
+    private func blindReading(_ path: String) -> BrightnessSupport.VCPReading {
+        let stored = UserDefaults.standard.dictionary(forKey: DefaultsKey.displayAudioBlindLevels)?[path] as? Int
+        return BrightnessSupport.blindSpeakerReading(remembered: stored)
+    }
+
+    private func rememberBlindLevel(_ raw: UInt16, path: String) {
+        var stored = UserDefaults.standard.dictionary(forKey: DefaultsKey.displayAudioBlindLevels) ?? [:]
+        stored[path] = Int(raw)
+        UserDefaults.standard.set(stored, forKey: DefaultsKey.displayAudioBlindLevels)
     }
 
     // MARK: - Display identity

@@ -248,6 +248,10 @@ enum DefaultsKey {
     // write-only paths: two extra reads on a bus paced in tens of
     // milliseconds are not worth repeating on every scan.
     static let displayAudioSilentPaths = "displayAudioSilentPaths"
+    // The level last written to each monitor whose speakers take volume
+    // writes but never answer a reading, by connection path: there is
+    // nothing to read it back from.
+    static let displayAudioBlindLevels = "displayAudioBlindLevels"
     // Set once the paths cached before paired discovery requests have been
     // dropped, so a monitor written off then is classified again exactly once.
     static let brightnessDDCWriteOnlyPathsRechecked = "brightnessDDCWriteOnlyPathsRechecked"
