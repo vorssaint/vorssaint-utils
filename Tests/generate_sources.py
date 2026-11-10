@@ -1239,6 +1239,9 @@ def main():
                                    "    private func performSoloAction(", "    private func toggleCapsLock(",
                                    "    private func finishStart()"])
             .replace("CGEvent.tapCreate(", "Tap.create(")
+          + "}\nfinal class InputSourceSwitch: InputSourceState {\n"
+          + declaration(super_key, "    private static func selectNextInputSource()")
+            .replace("private static func", "static func", 1)
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
                     .replace("private static func", "static func", 1)
