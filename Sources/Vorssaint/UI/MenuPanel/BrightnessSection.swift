@@ -223,7 +223,8 @@ struct MonitorSpeakerVolumeRow: View {
             Text("\(Int((audio.volume * 100).rounded()))%")
                 .font(compact ? .system(size: 10, weight: .semibold).monospacedDigit() : .body.monospacedDigit())
                 .foregroundStyle(.secondary)
-                .frame(width: compact ? 30 : 52, alignment: .trailing)
+                .fixedSize()
+                .frame(minWidth: compact ? 30 : 52, alignment: .trailing)
         }
     }
 }
