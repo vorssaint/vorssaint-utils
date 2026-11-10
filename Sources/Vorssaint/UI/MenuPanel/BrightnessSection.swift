@@ -216,7 +216,8 @@ struct MonitorSpeakerVolumeRow: View {
             Slider(value: Binding(get: { audio.volume }, set: {
                 BrightnessService.shared.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target)
             }),
-                   in: 0...1)
+                   in: 0...1,
+                   onEditingChanged: { if !$0 { PreciseVolumeRollerService.playVolumeFeedback() } })
                 .controlSize(compact ? .small : .regular)
                 .accessibilityLabel("\(displayName) \(strings.volumeLabel)")
             Text("\(Int((audio.volume * 100).rounded()))%")
