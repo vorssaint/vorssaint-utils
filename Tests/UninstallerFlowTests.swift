@@ -27,11 +27,15 @@ enum UninstallerFlowTests {
         func cancel() { canceled = true }
     }
     enum Queue {
-        enum QoS { case userInitiated }
+        enum QoS { case userInitiated, utility }
         static var pending: [() -> Void] = []
         static var main: Queue.Type { Self.self }
         static func global(qos: QoS) -> Queue.Type { Self.self }
         static func async(execute: @escaping () -> Void) { pending.append(execute) }
+        static func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) { pending.append(execute) }
+        static func concurrentPerform(iterations: Int, execute: (Int) -> Void) {
+            for index in 0..<iterations { execute(index) }
+        }
         static func drain() {
             while !pending.isEmpty { pending.removeFirst()() }
         }
@@ -50,15 +54,22 @@ enum UninstallerFlowTests {
             var isActive: Bool { result == .running }
         }
         static let shared = Brew()
+        var checkedURL: URL?
         var callback: ((Result<Package?, HomebrewOwnershipError>) -> Void)?
         @Published var operationStatus: Status?
         var operation: Status?
         var uninstalled: [String] = []
+        var canStart = true
         func packageManagingApplication(at url: URL, completion: @escaping (Result<Package?, HomebrewOwnershipError>) -> Void) {
+            checkedURL = url
             callback = completion
         }
-        func clearLog() {}
-        func uninstall(_ package: Package) { uninstalled.append(package.id) }
+        func uninstall(_ package: Package, fromUninstaller: Bool) {
+            guard canStart, fromUninstaller else { return }
+            uninstalled.append(package.id)
+            operation = Status(action: .uninstall, package: package, result: .running)
+            operationStatus = operation
+        }
     }
     enum HUD {
         static var messages: [String] = []
@@ -78,15 +89,16 @@ enum UninstallerFlowTests {
         var homebrewRemovalSize: Int64 = 0
         var homebrewRemovedApplication = false
         var homebrewRemovalObservation: AnyCancellable?
-        var targetFileIdentity: UninstallerSupport.FileIdentity?
-        var targetInfoIdentity: UninstallerSupport.FileIdentity?
+        var targetSelection: UninstallerSupport.Selection?
+        var targetTrashMove: UninstallerSupport.TrashMove?
         var allowedRemovalPaths = Set<String>()
         var items: [Leftover] = []
         var scanCancellation: UninstallerSupport.ScanCancellation?
         static func allBundleIDs(in url: URL, fm: FileManager) -> Set<String> { [] }
         static func knownApplicationURLs(candidateBundleIDs: Set<String>) -> [URL] { [] }
-        static func applicationBundleIdentifiers(in urls: [URL]) -> [String] { [] }
-        static func exclusiveOwnedBundleIDs(in url: URL, candidates: Set<String>, knownApplicationIDs: [String]) -> Set<String> { [] }
+        static func applicationBundleIdentifiers(in urls: [URL]) -> [(url: URL, bundleID: String)] { [] }
+        static func exclusiveOwnedBundleIDs(in url: URL, candidates: Set<String>, knownApplicationIDs: [(url: URL, bundleID: String)]) -> Set<String> { [] }
+        static func trashMoveIsCurrent(_ move: UninstallerSupport.TrashMove) -> Bool { false }
         static func signingIdentity(in url: URL, requireValidSignature: Bool) -> (teamIDs: Set<String>, groupIDs: Set<String>) { ([], []) }
         static func exclusiveGroupIDs(_ ids: Set<String>, selectedURL: URL, knownApplications: [URL]) -> Set<String> { [] }
         static var collects = 0
@@ -95,7 +107,8 @@ enum UninstallerFlowTests {
             return [Leftover(url: appURL)]
         }
         func removeSelected() { if !items.isEmpty { phase = .removing } }
-        func finishRemovalAfterHomebrew(package: Package) {}
+        var completedRemovals: [String] = []
+        func finishRemovalAfterHomebrew(package: Package) { completedRemovals.append(package.id) }
     }
     enum Feature {
         case uninstaller
@@ -240,6 +253,14 @@ enum UninstallerFlowTests {
             suite.expect(uninstaller.phase == .results && uninstaller.items.count == 1,
                          "current scan delivers the accepted app")
             suite.expect(uninstaller.canRemoveSelected, "a verified unmanaged app can be removed")
+            // Homebrew is asked when the scan starts, so it may answer first.
+            _ = uninstaller.select(appURL: a)
+            Brew.shared.callback?(.success(nil))
+            suite.expect(uninstaller.phase == .scanning && uninstaller.items.isEmpty,
+                         "a Homebrew answer alone does not end the scan")
+            Queue.drain()
+            suite.expect(uninstaller.phase == .results && uninstaller.items.count == 1,
+                         "the scan finishing after Homebrew answered delivers the results")
             _ = uninstaller.select(appURL: a)
             Queue.drain()
             Brew.shared.callback?(.failure(.unavailable))
@@ -347,9 +368,21 @@ enum UninstallerFlowTests {
                 uninstaller.target = shownTarget
                 suite.expect(Brew.shared.uninstalled.isEmpty && HUD.messages.count == 3,
                              "a Homebrew confirmation for other rows, another package or another app runs nothing, found \(Brew.shared.uninstalled)")
+                let previous = Brew.Status(action: .uninstall, package: confirmation.package, result: .succeeded)
+                Brew.shared.operationStatus = previous
+                Brew.shared.canStart = false
                 uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
-                suite.expect(Brew.shared.uninstalled == ["first"],
-                             "an unchanged Homebrew confirmation runs its package")
+                suite.expect(uninstaller.homebrewRemovalObservation == nil && uninstaller.completedRemovals.isEmpty
+                             && Brew.shared.operationStatus?.result == .succeeded,
+                             "an unavailable command preserves the previous run without acting on its completion")
+                Brew.shared.canStart = true
+                uninstaller.removeSelectedWithHomebrew(confirmation: confirmation)
+                suite.expect(Brew.shared.uninstalled == ["first"] && uninstaller.completedRemovals.isEmpty,
+                             "confirming the same package again starts a fresh removal")
+                Brew.shared.operation = nil
+                Brew.shared.operationStatus = previous
+                suite.expect(uninstaller.completedRemovals == ["first"] && uninstaller.homebrewRemovalObservation == nil,
+                             "only the new completion finishes the removal")
             } else {
                 suite.expect(false, "a Homebrew-managed app offers a package confirmation")
             }
@@ -373,6 +406,9 @@ enum UninstallerFlowTests {
                          "the integration starts off")
             suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerCommandBarEnabled),
                          "backup includes the command-bar preference")
+            suite.expect(Defaults.registeredDefaults[DefaultsKey.uninstallerWatchesTrash] as? Bool == false
+                            && SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerWatchesTrash),
+                         "the Trash cleanup offer starts off and travels with settings backup")
         } catch {
             suite.expect(false, "uninstaller fixture failed: \(error)")
         }

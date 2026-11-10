@@ -36,7 +36,7 @@ enum KeepAwakeDimmingTests {
         C.DimmingObserver.callback?()
         C.drain()
         expect(C.LidDisplayDimmer.written == [0] && closing.savedDisplayBrightness == 0.6
-               && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == 0.6,
+               && C.UserDefaults.standard.double(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == 0.6,
                "closing the lid saves the current brightness and dims the panel to zero")
 
         for reading in [0.0, nil] as [Double?] {
@@ -45,7 +45,7 @@ enum KeepAwakeDimmingTests {
             C.DimmingObserver.callback?()
             C.drain()
             expect(C.LidDisplayDimmer.written.isEmpty && unreadable.savedDisplayBrightness == nil
-                   && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == nil,
+                   && C.UserDefaults.standard.object(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == nil,
                    "a panel that already reads asleep is left alone instead of being saved as zero")
         }
 
@@ -57,7 +57,7 @@ enum KeepAwakeDimmingTests {
         C.DimmingObserver.callback?()
         C.drain()
         expect(C.LidDisplayDimmer.written == [0, 0.6] && opening.savedDisplayBrightness == nil
-               && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == nil,
+               && C.UserDefaults.standard.object(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == nil,
                "opening the lid restores the saved brightness and clears the recovery marker")
 
         let toggledOff = armed()
@@ -92,7 +92,7 @@ enum KeepAwakeDimmingTests {
         C.UserDefaults.standard.set(0.4, forKey: C.DefaultsKey.dimmedDisplaySavedBrightness)
         recovering.recoverDimmedDisplayIfNeeded()
         expect(C.LidDisplayDimmer.written == [0.4]
-               && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == nil,
+               && C.UserDefaults.standard.object(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == nil,
                "a brightness saved before a crash is restored and cleared on the next launch")
 
         let nothingToRecover = C.reset()
@@ -111,7 +111,7 @@ enum KeepAwakeDimmingTests {
         C.DimmingObserver.callback?()
         C.drain()
         expect(C.LidDisplayDimmer.written == [0] && retrying.savedDisplayBrightness == 0.6
-               && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == 0.6,
+               && C.UserDefaults.standard.double(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == 0.6,
                "a restore that finds no panel yet keeps the saved level and its marker instead of clearing them")
         C.LidDisplayDimmer.writeSucceeds = true
         C.DispatchQueue.main.advance()
@@ -129,7 +129,7 @@ enum KeepAwakeDimmingTests {
         exhausted.dimScreenOnLidClose = false
         for _ in 0..<8 { C.DispatchQueue.main.advance() }
         expect(C.LidDisplayDimmer.written == [0] && exhausted.savedDisplayBrightness == 0.6
-               && C.UserDefaults.standard.doubles[C.DefaultsKey.dimmedDisplaySavedBrightness] == 0.6
+               && C.UserDefaults.standard.double(forKey: C.DefaultsKey.dimmedDisplaySavedBrightness) == 0.6
                && C.DimmingObserver.destroyedPorts == 0,
                "exhausting the retries after the option is switched off still owes the restore and keeps watching the lid")
         C.LidDisplayDimmer.writeSucceeds = true

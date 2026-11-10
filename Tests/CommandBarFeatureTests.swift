@@ -1078,7 +1078,10 @@ enum CommandBarFeatureTests {
                 of: #"AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil"#,
                 options: .regularExpression) != nil,
                "the uninstall row is offered only for an app the uninstaller will take")
-        suite.expect(commandBarServiceSource.contains("uninstaller.select(appURL: url) || uninstaller.isRemoving"),
+        let appDelegateSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift", encoding: .utf8)) ?? ""
+        suite.expect(commandBarServiceSource.contains("appDelegate()?.openUninstaller(for: url)")
+                && appDelegateSource.contains("uninstaller.select(appURL: appURL, trashMove: trashMove) || (trashMove == nil && uninstaller.isRemoving)"),
                "the uninstall row still opens the page on a removal already running")
         suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
                 && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
