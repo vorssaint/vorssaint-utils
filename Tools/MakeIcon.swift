@@ -118,10 +118,10 @@ func renderAppIcon(px: Int) -> Data? {
 // limiting side and left the height unused, rendering it far shorter than the
 // menu bar icons around it. Size from the height and let the width follow.
 let menuBarGlyphHeight: CGFloat = 12.5
-// Centered geometrically the mark reads high, since the thin ring tails carry
-// the bounding box below the planet body. Drop it onto the same visual floor
-// as its neighbours.
-let menuBarGlyphDrop: CGFloat = 1
+// The mark's ink is centered on the canvas, exactly like
+// BlackHoleGlyph.fixedSizeSymbol centers the active states' symbols. The thin
+// ring tails already hang below the planet body, so a manual drop sits the
+// glyph below the rest of the menu bar (issue #3851).
 // Taller than the mark needs: the same canvas holds the compact Keep Awake
 // symbols. Keep in sync with BlackHoleGlyph.pointSize in
 // Sources/Vorssaint/App/StatusItemController.swift; `--selftest` enforces it.
@@ -136,9 +136,9 @@ func renderMenuBarIcon(scale: Int) -> Data? {
     NSGraphicsContext.current = ctx
     // Height-limited target spanning the full canvas width: drawMark keeps the
     // aspect ratio and centers, landing the mark at 24.6×12.5 pt. Coordinates
-    // are bottom-up, so dropping it lowers y.
+    // are bottom-up.
     let ink = menuBarGlyphHeight * CGFloat(scale)
-    let y = (CGFloat(height) - ink) / 2 - menuBarGlyphDrop * CGFloat(scale)
+    let y = (CGFloat(height) - ink) / 2
     drawMark(into: CGRect(x: 0, y: y, width: CGFloat(width), height: ink))
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])
