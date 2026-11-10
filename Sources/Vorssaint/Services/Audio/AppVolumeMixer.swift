@@ -6,6 +6,7 @@ import AppKit
 import AudioToolbox
 import Combine
 import CoreAudio
+import CoreAudioTapCompat
 import Darwin
 
 struct MixerOutputDevice: Identifiable, Equatable {
@@ -3436,7 +3437,6 @@ private final class TapGainEngine: GainEngine {
 
         guard let capture = Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID) else { return nil }
         tapID = capture.id
-        let description = capture.description
         // Started before the aggregate, so its first read runs while the
         // aggregate is built. Every failure from here on calls stop().
         let compensation = compensationBox
@@ -3451,7 +3451,7 @@ private final class TapGainEngine: GainEngine {
             kAudioAggregateDeviceMainSubDeviceKey: outputDeviceUID,
             kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputDeviceUID]],
             kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapUIDKey: capture.uid,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
             kAudioAggregateDeviceTapAutoStartKey: true,
@@ -3586,27 +3586,25 @@ private final class TapGainEngine: GainEngine {
 
     private struct Capture {
         let id: AudioObjectID
-        let description: CATapDescription
+        let uid: String
         let format: MixerTapFormat
         let source: MixerTapConfiguration.Source?
     }
 
     private static func createTap(objects: [AudioObjectID], outputDeviceUID: String) -> Capture? {
         let source = deviceStreamSource(objects: objects, outputDeviceUID: outputDeviceUID)
-        if let source,
-           let capture = createTap(CATapDescription(processes: objects, deviceUID: outputDeviceUID, stream: 0),
-                                   source: source) {
+        if let source, let capture = createTap(objects: objects, deviceUID: outputDeviceUID, source: source) {
             return capture
         }
-        return createTap(CATapDescription(stereoMixdownOfProcesses: objects), source: nil)
+        return createTap(objects: objects, deviceUID: nil, source: nil)
     }
 
-    private static func createTap(_ description: CATapDescription,
+    private static func createTap(objects: [AudioObjectID], deviceUID: String?,
                                   source: MixerTapConfiguration.Source?) -> Capture? {
-        description.muteBehavior = .mutedWhenTapped
-        description.isPrivate = true
         var tap = AudioObjectID(0)
-        guard AudioHardwareCreateProcessTap(description, &tap) == noErr, tap != 0 else { return nil }
+        guard let uuid = createPrivateAudioTap(deviceUID == nil ? .stereoMixdown : .deviceStream,
+                                               processes: objects as [NSNumber], deviceUID: deviceUID,
+                                               name: nil, muteBehavior: .mutedWhenTapped, id: &tap) else { return nil }
         var asbd = AudioStreamBasicDescription()
         guard AppVolumeMixer.read(tap, kAudioTapPropertyFormat, &asbd),
               let format = MixerTapFormat(asbd),
@@ -3614,7 +3612,7 @@ private final class TapGainEngine: GainEngine {
             AudioHardwareDestroyProcessTap(tap)
             return nil
         }
-        return Capture(id: tap, description: description, format: format, source: source)
+        return Capture(id: tap, uid: uuid.uuidString, format: format, source: source)
     }
 
     private static func deviceStreamSource(objects: [AudioObjectID], outputDeviceUID: String)
@@ -3739,10 +3737,8 @@ private final class AirPlayGainEngine: GainEngine {
         self.gainBox = AtomicFloatBox(gain)
         self.compensationBox = AtomicFloatBox(1)
 
-        let description = CATapDescription(stereoMixdownOfProcesses: objects)
-        description.muteBehavior = .mutedWhenTapped
-        description.isPrivate = true
-        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
+        guard let uuid = createPrivateAudioTap(.stereoMixdown, processes: objects as [NSNumber], deviceUID: nil,
+                                               name: nil, muteBehavior: .mutedWhenTapped, id: &tapID) else {
             return nil
         }
         // Started before the aggregate, so its first read runs while the
@@ -3759,7 +3755,7 @@ private final class AirPlayGainEngine: GainEngine {
             kAudioAggregateDeviceMainSubDeviceKey: clockDeviceUID,
             kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: clockDeviceUID]],
             kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapUIDKey: uuid.uuidString,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
             kAudioAggregateDeviceTapAutoStartKey: true,
