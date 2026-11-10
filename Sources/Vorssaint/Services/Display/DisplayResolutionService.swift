@@ -5,7 +5,61 @@ import AppKit
 import Combine
 @preconcurrency import CoreGraphics
 import Foundation
+import IOKit.graphics
 import os
+
+/// Snapshot of a CoreGraphics display mode used for pure mode-eligibility evaluation.
+public struct PublicDisplayModeRecord: Sendable, Equatable {
+    public let width: Int
+    public let height: Int
+    public let pixelWidth: Int
+    public let pixelHeight: Int
+    public let refreshRate: Double
+    public let ioFlags: UInt32
+    public let isUsableForDesktopGUI: Bool
+
+    public init(
+        width: Int,
+        height: Int,
+        pixelWidth: Int,
+        pixelHeight: Int,
+        refreshRate: Double,
+        ioFlags: UInt32,
+        isUsableForDesktopGUI: Bool = true
+    ) {
+        self.width = width
+        self.height = height
+        self.pixelWidth = pixelWidth
+        self.pixelHeight = pixelHeight
+        self.refreshRate = refreshRate
+        self.ioFlags = ioFlags
+        self.isUsableForDesktopGUI = isUsableForDesktopGUI
+    }
+
+    public init(cgMode: CGDisplayMode) {
+        self.init(
+            width: cgMode.width,
+            height: cgMode.height,
+            pixelWidth: cgMode.pixelWidth,
+            pixelHeight: cgMode.pixelHeight,
+            refreshRate: cgMode.refreshRate,
+            ioFlags: cgMode.ioFlags,
+            isUsableForDesktopGUI: cgMode.isUsableForDesktopGUI()
+        )
+    }
+
+    public var resolutionMode: DisplayResolutionMode {
+        DisplayResolutionMode(
+            width: width,
+            height: height,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            refreshRate: refreshRate,
+            modeNumber: nil,
+            isHiDPI: pixelWidth > width
+        )
+    }
+}
 
 /// Represents a display resolution mode with logical size, physical pixel size, refresh rate, and HiDPI capability.
 public struct DisplayResolutionMode: Identifiable, Hashable, Sendable {
@@ -107,6 +161,33 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
 
     private var cancellables = Set<AnyCancellable>()
     private var pendingScreenRefresh: DispatchWorkItem?
+
+    internal var readPublicModes: (CGDirectDisplayID, Bool) -> [PublicDisplayModeRecord] = { displayID, includeDuplicateLowRes in
+        let options: CFDictionary? = includeDuplicateLowRes
+            ? ([kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary)
+            : nil
+        let modes = (CGDisplayCopyAllDisplayModes(displayID, options) as? [CGDisplayMode]) ?? []
+        return modes.map { PublicDisplayModeRecord(cgMode: $0) }
+    }
+    internal var readCGSModes: (CGDirectDisplayID) -> [CGSDisplayModeRecord] = { displayID in
+        SkyLightBridge.queryCGSModes(for: displayID)
+    }
+    internal var readCurrentMode: (CGDirectDisplayID) -> DisplayResolutionMode? = { displayID in
+        CGDisplayCopyDisplayMode(displayID).map { DisplayResolutionMode(cgMode: $0) }
+    }
+    internal var isDisplayBuiltIn: (CGDirectDisplayID) -> Bool = { displayID in
+        CGDisplayIsBuiltin(displayID) != 0
+    }
+    internal var isVirtualSourceDisplay: (CGDirectDisplayID) -> Bool = { displayID in
+        VirtualDisplayService.shared.physicalTargetID(for: displayID) != nil
+    }
+    internal var enableVirtualMirror: (CGDirectDisplayID, Int, Int) throws -> CGDirectDisplayID = { displayID, width, height in
+        try VirtualDisplayService.shared.enableVirtualMirror(for: displayID, width: width, height: height)
+    }
+    internal var disableVirtualMirror: (CGDirectDisplayID) throws -> Void = { displayID in
+        try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
+    }
+    internal var performApplyMode: ((DisplayResolutionMode, CGDirectDisplayID, Bool) -> Bool)?
 
     private init() {
         refresh()
@@ -274,20 +355,106 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         }
     }
 
-    /// Queries all available display modes for a given display ID, combining CGDisplay modes and CGS private modes.
-    public func queryModes(for displayID: CGDirectDisplayID) -> [DisplayResolutionMode] {
-        let options = [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
-        let cgModes = (CGDisplayCopyAllDisplayModes(displayID, options) as? [CGDisplayMode] ?? []).filter {
-            $0.isUsableForDesktopGUI()
+    private static let nativeModeFlag = UInt32(kDisplayModeNativeFlag)
+    private static let defaultModeFlag = UInt32(kDisplayModeDefaultFlag)
+    private static let mirrorOnlyModeFlag = UInt32(kDisplayModeValidForMirroringFlag)
+    private static let disallowedModeFlags = UInt32(
+        kDisplayModeNeverShowFlag | kDisplayModeInterlacedFlag | kDisplayModeNotGraphicsQualityFlag
+    )
+
+    /// Builds the user-selectable resolution list for a display while rejecting
+    /// hidden mirror-only, out-of-link-refresh, and LoDPI-oversampled HiDPI modes.
+    public static func resolveAvailableModes(
+        defaultPublicModes: [PublicDisplayModeRecord],
+        duplicatePublicModes: [PublicDisplayModeRecord],
+        cgsRecords: [CGSDisplayModeRecord],
+        currentMode: DisplayResolutionMode?,
+        isBuiltIn: Bool,
+        isVirtualDisplay: Bool
+    ) -> [DisplayResolutionMode] {
+        let usableDefault = defaultPublicModes.filter {
+            $0.isUsableForDesktopGUI && ($0.ioFlags & disallowedModeFlags) == 0
         }
-        let publicModes = cgModes.map { DisplayResolutionMode(cgMode: $0) }
-        let cgsRecords = SkyLightBridge.queryCGSModes(for: displayID)
+        let usableDuplicate = duplicatePublicModes.filter {
+            $0.isUsableForDesktopGUI && ($0.ioFlags & disallowedModeFlags) == 0
+        }
+
+        let nativeMarked = (usableDefault + usableDuplicate).filter {
+            ($0.ioFlags & nativeModeFlag) != 0
+        }
+        let fallback1x = usableDefault.filter {
+            $0.pixelWidth == $0.width && $0.pixelHeight == $0.height
+        }
+        let panelReference = nativeMarked.isEmpty ? fallback1x : nativeMarked
+        let nativePanel = panelReference.max {
+            ($0.pixelWidth * $0.pixelHeight) < ($1.pixelWidth * $1.pixelHeight)
+        }
+        let nativePixelWidth = nativePanel?.pixelWidth ?? 0
+        let nativePixelHeight = nativePanel?.pixelHeight ?? 0
+
+        let linkReference = usableDefault + usableDuplicate.filter {
+            ($0.ioFlags & (nativeModeFlag | defaultModeFlag)) != 0
+        }
+        let maxLinkRefreshRate = linkReference.map(\.refreshRate).max() ?? 0
+
+        let hasNativeOrDefaultHiDPI = usableDuplicate.contains {
+            $0.pixelWidth > $0.width &&
+            ($0.ioFlags & mirrorOnlyModeFlag) == 0 &&
+            ($0.ioFlags & (nativeModeFlag | defaultModeFlag)) != 0
+        }
+        let isUHDOrHigherPanel = max(nativePixelWidth, nativePixelHeight) >= 3840
+            && min(nativePixelWidth, nativePixelHeight) >= 2160
+        let supportsScaledHiDPI = isBuiltIn || hasNativeOrDefaultHiDPI || isUHDOrHigherPanel
+
+        func isEligibleHiDPI(
+            width: Int,
+            height: Int,
+            pixelWidth: Int,
+            pixelHeight: Int,
+            refreshRate: Double,
+            flags: UInt32
+        ) -> Bool {
+            guard (flags & disallowedModeFlags) == 0 else { return false }
+            if isVirtualDisplay { return true }
+            if (flags & mirrorOnlyModeFlag) != 0 && (flags & (nativeModeFlag | defaultModeFlag)) == 0 {
+                return false
+            }
+            if nativePixelWidth > 0 && nativePixelHeight > 0 {
+                if width >= nativePixelWidth || height >= nativePixelHeight {
+                    return false
+                }
+                if !supportsScaledHiDPI && (pixelWidth > nativePixelWidth || pixelHeight > nativePixelHeight) {
+                    return false
+                }
+            }
+            if maxLinkRefreshRate > 0 && refreshRate > maxLinkRefreshRate + 0.5 {
+                return false
+            }
+            return true
+        }
+
+        let publicModes = usableDuplicate.compactMap { candidate -> DisplayResolutionMode? in
+            if candidate.pixelWidth > candidate.width {
+                guard isEligibleHiDPI(
+                    width: candidate.width,
+                    height: candidate.height,
+                    pixelWidth: candidate.pixelWidth,
+                    pixelHeight: candidate.pixelHeight,
+                    refreshRate: candidate.refreshRate,
+                    flags: candidate.ioFlags
+                ) else {
+                    return nil
+                }
+            }
+            return candidate.resolutionMode
+        }
 
         var result = publicModes
-        let maxMode = publicModes.max(by: { ($0.width * $0.height) < ($1.width * $1.height) })
+        let aspectSource = publicModes.isEmpty ? usableDefault.map(\.resolutionMode) : publicModes
+        let maxMode = aspectSource.max(by: { ($0.width * $0.height) < ($1.width * $1.height) })
         let nativeAspect = (maxMode != nil && maxMode!.height > 0) ? Double(maxMode!.width) / Double(maxMode!.height) : 0.0
 
-        for r in cgsRecords where r.isUsable {
+        for r in cgsRecords where r.isUsable && (r.flags & disallowedModeFlags) == 0 {
             if nativeAspect > 0 {
                 let aspect = Double(r.width) / Double(r.height)
                 if abs(aspect - nativeAspect) / nativeAspect >= 0.03 {
@@ -296,17 +463,29 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             }
 
             let newMode = DisplayResolutionMode(cgsRecord: r)
+            if newMode.isHiDPI {
+                guard isEligibleHiDPI(
+                    width: r.width,
+                    height: r.height,
+                    pixelWidth: r.pixelWidth,
+                    pixelHeight: r.pixelHeight,
+                    refreshRate: r.refreshRate,
+                    flags: r.flags
+                ) else {
+                    continue
+                }
+            }
+
             if let idx = result.firstIndex(where: { $0.matches(newMode) }) {
                 if result[idx].modeNumber == nil && newMode.modeNumber != nil {
                     result[idx] = newMode
                 }
-            } else {
+            } else if !newMode.isHiDPI || publicModes.isEmpty {
                 result.append(newMode)
             }
         }
 
-        if let currentCG = CGDisplayCopyDisplayMode(displayID) {
-            let currentMode = DisplayResolutionMode(cgMode: currentCG)
+        if let currentMode {
             if !result.contains(where: { $0.matches(currentMode) }) {
                 result.append(currentMode)
             }
@@ -328,6 +507,18 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
         }
 
         return result
+    }
+
+    /// Queries all available display modes for a given display ID, combining CGDisplay modes and CGS private modes.
+    public func queryModes(for displayID: CGDirectDisplayID) -> [DisplayResolutionMode] {
+        Self.resolveAvailableModes(
+            defaultPublicModes: readPublicModes(displayID, false),
+            duplicatePublicModes: readPublicModes(displayID, true),
+            cgsRecords: readCGSModes(displayID),
+            currentMode: readCurrentMode(displayID),
+            isBuiltIn: isDisplayBuiltIn(displayID),
+            isVirtualDisplay: isVirtualSourceDisplay(displayID)
+        )
     }
 
     /// Applies a resolution mode for the target display, optionally protected by the 15-second watchdog timer.
@@ -402,7 +593,16 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
 
         if !applied {
             let options = [kCGDisplayShowDuplicateLowResolutionModes as String: true] as CFDictionary
-            let allModes = (CGDisplayCopyAllDisplayModes(displayID, options) as? [CGDisplayMode]) ?? []
+            let allModes = ((CGDisplayCopyAllDisplayModes(displayID, options) as? [CGDisplayMode]) ?? []).filter { cgMode in
+                guard cgMode.isUsableForDesktopGUI(),
+                      (cgMode.ioFlags & Self.disallowedModeFlags) == 0 else { return false }
+                if cgMode.pixelWidth > cgMode.width,
+                   (cgMode.ioFlags & Self.mirrorOnlyModeFlag) != 0,
+                   (cgMode.ioFlags & (Self.nativeModeFlag | Self.defaultModeFlag)) == 0 {
+                    return false
+                }
+                return true
+            }
             let exactBacking = allModes.filter {
                 $0.width == mode.width &&
                 $0.height == mode.height &&
@@ -474,9 +674,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             ((currentModePerDisplay[displayID]?.isHiDPI ?? false) ? .native : .none)
         )
 
-        guard let current = currentModePerDisplay[displayID] ?? (
-            CGDisplayCopyDisplayMode(displayID).map { DisplayResolutionMode(cgMode: $0) }
-        ) else {
+        guard let current = currentModePerDisplay[displayID] ?? readCurrentMode(displayID) else {
             Self.log.error("Cannot toggle HiDPI: unable to determine current mode for display \(displayID)")
             return
         }
@@ -497,7 +695,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 return
             }
             do {
-                try VirtualDisplayService.shared.disableVirtualMirror(for: displayID)
+                try disableVirtualMirror(displayID)
             } catch {
                 Self.log.error("Failed to disable virtual mirror for display \(displayID): \(error.localizedDescription)")
                 DisplayRecoveryManager.shared.rollback()
@@ -509,7 +707,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             let available = modesPerDisplay[displayID] ?? queryModes(for: displayID)
             let candidates = available.filter { !$0.isHiDPI && $0.width == current.width && $0.height == current.height }
             if let target = candidates.min(by: { abs($0.refreshRate - current.refreshRate) < abs($1.refreshRate - current.refreshRate) }) {
-                applyMode(target, for: displayID, useWatchdog: true)
+                _ = performApplyMode?(target, displayID, true) ?? applyMode(target, for: displayID, useWatchdog: true)
             } else {
                 Self.log.warning("No matching standard non-HiDPI mode found for \(current.width) × \(current.height) on display \(displayID)")
             }
@@ -520,7 +718,7 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
             let candidates = available.filter { $0.isHiDPI && $0.width == current.width && $0.height == current.height }
             if let nativeHiDPI = candidates.min(by: { abs($0.refreshRate - current.refreshRate) < abs($1.refreshRate - current.refreshRate) }) {
                 Self.log.info("Found native HiDPI mode \(nativeHiDPI.label); applying mode")
-                applyMode(nativeHiDPI, for: displayID, useWatchdog: true)
+                _ = performApplyMode?(nativeHiDPI, displayID, true) ?? applyMode(nativeHiDPI, for: displayID, useWatchdog: true)
             } else {
                 Self.log.info("No native HiDPI mode found for \(current.width) × \(current.height); enabling virtual mirror")
                 let currentCGMode = CGDisplayCopyDisplayMode(displayID)
@@ -541,10 +739,10 @@ public final class DisplayResolutionService: ObservableObject, @unchecked Sendab
                 }
 
                 do {
-                    try VirtualDisplayService.shared.enableVirtualMirror(
-                        for: displayID,
-                        width: current.width,
-                        height: current.height
+                    _ = try enableVirtualMirror(
+                        displayID,
+                        current.width,
+                        current.height
                     )
                     Self.log.info("Successfully enabled virtual mirror HiDPI for display \(displayID)")
                 } catch {

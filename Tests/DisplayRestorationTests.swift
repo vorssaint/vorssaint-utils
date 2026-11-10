@@ -1349,5 +1349,232 @@ enum DisplayRestorationTests {
         suite.expect(!FileManager.default.fileExists(
             atPath: "Sources/Vorssaint/Services/Display/XDRBoostService.swift"),
             "display integration does not ship an out-of-contract gamma overdrive path")
+
+        do {
+            let resolution = DisplayResolutionService.shared
+            let origReadPublic = resolution.readPublicModes
+            let origReadCGS = resolution.readCGSModes
+            let origReadCurrent = resolution.readCurrentMode
+            let origIsBuiltIn = resolution.isDisplayBuiltIn
+            let origIsVirtual = resolution.isVirtualSourceDisplay
+            let origEnableMirror = resolution.enableVirtualMirror
+            let origDisableMirror = resolution.disableVirtualMirror
+            let origPerformApply = resolution.performApplyMode
+            defer {
+                resolution.readPublicModes = origReadPublic
+                resolution.readCGSModes = origReadCGS
+                resolution.readCurrentMode = origReadCurrent
+                resolution.isDisplayBuiltIn = origIsBuiltIn
+                resolution.isVirtualSourceDisplay = origIsVirtual
+                resolution.enableVirtualMirror = origEnableMirror
+                resolution.disableVirtualMirror = origDisableMirror
+                resolution.performApplyMode = origPerformApply
+                recovery.confirm()
+            }
+
+            let externalQHD: CGDirectDisplayID = 0xE144
+            let externalUHD: CGDirectDisplayID = 0xE400
+            let builtIn13: CGDirectDisplayID = 0xB130
+
+            var currentModes: [CGDirectDisplayID: DisplayResolutionMode] = [
+                externalQHD: DisplayResolutionMode(
+                    width: 2560, height: 1440,
+                    pixelWidth: 2560, pixelHeight: 1440,
+                    refreshRate: 144
+                ),
+                externalUHD: DisplayResolutionMode(
+                    width: 2560, height: 1440,
+                    pixelWidth: 2560, pixelHeight: 1440,
+                    refreshRate: 160
+                ),
+                builtIn13: DisplayResolutionMode(
+                    width: 1470, height: 956,
+                    pixelWidth: 2940, pixelHeight: 1912,
+                    refreshRate: 60
+                ),
+            ]
+            var appliedModes: [(CGDirectDisplayID, DisplayResolutionMode)] = []
+            var enabledMirrors: [(CGDirectDisplayID, Int, Int)] = []
+
+            resolution.isDisplayBuiltIn = { $0 == builtIn13 }
+            resolution.isVirtualSourceDisplay = { _ in false }
+            resolution.readCurrentMode = { currentModes[$0] }
+            resolution.performApplyMode = { mode, id, _ in
+                appliedModes.append((id, mode))
+                return true
+            }
+            resolution.enableVirtualMirror = { id, w, h in
+                enabledMirrors.append((id, w, h))
+                return 0xF144
+            }
+            resolution.readPublicModes = { id, includeDuplicates in
+                switch id {
+                case externalQHD:
+                    let defaults = [
+                        PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 144, ioFlags: 0x2000003),
+                        PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 60, ioFlags: 0x2000003),
+                        PublicDisplayModeRecord(width: 1920, height: 1080, pixelWidth: 1920, pixelHeight: 1080, refreshRate: 144, ioFlags: 0x3),
+                        PublicDisplayModeRecord(width: 1280, height: 720, pixelWidth: 1280, pixelHeight: 720, refreshRate: 144, ioFlags: 0x3),
+                    ]
+                    guard includeDuplicates else { return defaults }
+                    return defaults + [
+                        // Hidden synthetic mode exposed by kCGDisplayShowDuplicateLowResolutionModes on QHD HDMI monitors.
+                        PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880, refreshRate: 240, ioFlags: 0x200003),
+                        // Oversampled synthetic backing exceeding a 1440p LoDPI panel.
+                        PublicDisplayModeRecord(width: 1920, height: 1080, pixelWidth: 3840, pixelHeight: 2160, refreshRate: 144, ioFlags: 0x3),
+                        // Exact 2x pixel doubling within the physical 2560x1440 panel.
+                        PublicDisplayModeRecord(width: 1280, height: 720, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 144, ioFlags: 0x3),
+                        // Synthetic HiDPI timing exceeding the active 144 Hz HDMI link ceiling.
+                        PublicDisplayModeRecord(width: 1280, height: 720, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 240, ioFlags: 0x3),
+                    ]
+                case externalUHD:
+                    let defaults = [
+                        PublicDisplayModeRecord(width: 3840, height: 2160, pixelWidth: 3840, pixelHeight: 2160, refreshRate: 160, ioFlags: 0x2000003),
+                        PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 160, ioFlags: 0x3),
+                    ]
+                    guard includeDuplicates else { return defaults }
+                    return defaults + [
+                        PublicDisplayModeRecord(width: 1920, height: 1080, pixelWidth: 3840, pixelHeight: 2160, refreshRate: 160, ioFlags: 0x2000007),
+                        PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880, refreshRate: 160, ioFlags: 0x3),
+                        PublicDisplayModeRecord(width: 2304, height: 1296, pixelWidth: 4608, pixelHeight: 2592, refreshRate: 160, ioFlags: 0x3),
+                    ]
+                case builtIn13:
+                    let defaults = [
+                        PublicDisplayModeRecord(width: 2560, height: 1664, pixelWidth: 2560, pixelHeight: 1664, refreshRate: 60, ioFlags: 0x2000003),
+                    ]
+                    guard includeDuplicates else { return defaults }
+                    return defaults + [
+                        PublicDisplayModeRecord(width: 1280, height: 832, pixelWidth: 2560, pixelHeight: 1664, refreshRate: 60, ioFlags: 0x2000007),
+                        PublicDisplayModeRecord(width: 1710, height: 1112, pixelWidth: 3420, pixelHeight: 2224, refreshRate: 60, ioFlags: 0x3),
+                    ]
+                default:
+                    return []
+                }
+            }
+            resolution.readCGSModes = { id in
+                switch id {
+                case externalQHD:
+                    return [
+                        CGSDisplayModeRecord(modeNumber: 42, width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 144, density: 1.0, flags: 0x2000001, isHiDPI: false, isUsable: true),
+                        CGSDisplayModeRecord(modeNumber: 134, width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880, refreshRate: 240, density: 2.0, flags: 0x200003, isHiDPI: true, isUsable: true),
+                    ]
+                case externalUHD:
+                    return [
+                        CGSDisplayModeRecord(modeNumber: 137, width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880, refreshRate: 160, density: 2.0, flags: 0x1, isHiDPI: true, isUsable: true),
+                        CGSDisplayModeRecord(modeNumber: 221, width: 3840, height: 2160, pixelWidth: 7680, pixelHeight: 4320, refreshRate: 160, density: 2.0, flags: 0x200001, isHiDPI: true, isUsable: true),
+                    ]
+                default:
+                    return []
+                }
+            }
+
+            let qhdModes = resolution.queryModes(for: externalQHD)
+            suite.expect(!qhdModes.contains(where: { $0.isHiDPI && $0.width == 2560 && $0.height == 1440 }),
+                         "1440p non-HiDPI external excludes hidden 5120x2880 mirror-only HiDPI modes")
+            suite.expect(!qhdModes.contains(where: { $0.isHiDPI && $0.width == 1920 && $0.height == 1080 }),
+                         "1440p non-HiDPI external excludes oversampled HiDPI modes exceeding panel pixels")
+            suite.expect(!qhdModes.contains(where: { $0.isHiDPI && $0.refreshRate > 144.5 }),
+                         "1440p HDMI external excludes synthetic HiDPI timings above active link refresh rate")
+            suite.expect(qhdModes.contains(where: { $0.isHiDPI && $0.width == 1280 && $0.height == 720 && abs($0.refreshRate - 144) < 0.05 }),
+                         "1440p external still allows valid pixel-doubled 720p HiDPI within panel pixels and link refresh")
+            suite.expect(qhdModes.contains(where: { !$0.isHiDPI && $0.width == 2560 && $0.height == 1440 && $0.modeNumber == 42 }),
+                         "1440p external retains native 1x mode with its SkyLight index")
+
+            recovery.confirm()
+            resolution.toggleHiDPI(for: externalQHD)
+            suite.expect(appliedModes.isEmpty
+                         && enabledMirrors.count == 1
+                         && enabledMirrors[0].0 == externalQHD
+                         && enabledMirrors[0].1 == 2560
+                         && enabledMirrors[0].2 == 1440
+                         && recovery.currentSnapshot?.virtualDisplayCreated == true,
+                         "HiDPI toggle on a 1440p non-HiDPI monitor falls through to virtual mirror instead of applying hidden mode")
+            recovery.confirm()
+
+            enabledMirrors.removeAll()
+            currentModes[externalQHD] = DisplayResolutionMode(
+                width: 1920, height: 1080,
+                pixelWidth: 1920, pixelHeight: 1080,
+                refreshRate: 144
+            )
+            resolution.toggleHiDPI(for: externalQHD)
+            suite.expect(appliedModes.isEmpty
+                         && enabledMirrors.count == 1
+                         && enabledMirrors[0].1 == 1920
+                         && enabledMirrors[0].2 == 1080,
+                         "HiDPI toggle at 1080p on a 1440p non-HiDPI monitor also uses virtual mirror")
+            recovery.confirm()
+
+            let uhdModes = resolution.queryModes(for: externalUHD)
+            suite.expect(uhdModes.contains(where: { $0.isHiDPI && $0.width == 2560 && $0.height == 1440 && $0.modeNumber == 137 })
+                         && uhdModes.contains(where: { $0.isHiDPI && $0.width == 2304 && $0.height == 1296 })
+                         && uhdModes.contains(where: { $0.isHiDPI && $0.width == 1920 && $0.height == 1080 }),
+                         "4K Retina-capable external retains native and scaled HiDPI modes")
+            suite.expect(!uhdModes.contains(where: { $0.isHiDPI && $0.width == 3840 && $0.height == 2160 }),
+                         "4K external excludes CGS-only 7680x4320 mirror mode at full panel size")
+
+            appliedModes.removeAll()
+            enabledMirrors.removeAll()
+            resolution.toggleHiDPI(for: externalUHD)
+            suite.expect(enabledMirrors.isEmpty
+                         && appliedModes.count == 1
+                         && appliedModes[0].0 == externalUHD
+                         && appliedModes[0].1.isHiDPI
+                         && appliedModes[0].1.width == 2560
+                         && appliedModes[0].1.height == 1440
+                         && appliedModes[0].1.modeNumber == 137,
+                         "HiDPI toggle at 2560x1440 on a 4K external applies native scaled HiDPI without creating a virtual mirror")
+            recovery.confirm()
+
+            let builtInModes = resolution.queryModes(for: builtIn13)
+            suite.expect(builtInModes.contains(where: { $0.isHiDPI && $0.width == 1280 && $0.height == 832 })
+                         && builtInModes.contains(where: { $0.isHiDPI && $0.width == 1710 && $0.height == 1112 }),
+                         "built-in sub-4K Retina panel retains native and scaled HiDPI modes")
+
+            let virtualSource: CGDirectDisplayID = 0xF144
+            resolution.isVirtualSourceDisplay = { $0 == virtualSource }
+            resolution.readPublicModes = { id, includeDuplicates in
+                guard id == virtualSource else { return [] }
+                let oneX = [PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 2560, pixelHeight: 1440, refreshRate: 60, ioFlags: 0x3)]
+                guard includeDuplicates else { return oneX }
+                return oneX + [PublicDisplayModeRecord(width: 2560, height: 1440, pixelWidth: 5120, pixelHeight: 2880, refreshRate: 60, ioFlags: 0x3)]
+            }
+            let virtualModes = resolution.queryModes(for: virtualSource)
+            suite.expect(virtualModes.contains(where: { $0.isHiDPI && $0.width == 2560 && $0.height == 1440 }),
+                         "Vorssaint virtual HiDPI source display retains its full-backing HiDPI mode")
+
+            let dualQHDModes = DisplayResolutionService.resolveAvailableModes(
+                defaultPublicModes: [
+                    PublicDisplayModeRecord(width: 5120, height: 1440, pixelWidth: 5120, pixelHeight: 1440, refreshRate: 120, ioFlags: 0x2000003),
+                ],
+                duplicatePublicModes: [
+                    PublicDisplayModeRecord(width: 5120, height: 1440, pixelWidth: 5120, pixelHeight: 1440, refreshRate: 120, ioFlags: 0x2000003),
+                    PublicDisplayModeRecord(width: 3840, height: 1080, pixelWidth: 7680, pixelHeight: 2160, refreshRate: 120, ioFlags: 0x3),
+                ],
+                cgsRecords: [],
+                currentMode: nil,
+                isBuiltIn: false,
+                isVirtualDisplay: false
+            )
+            suite.expect(!dualQHDModes.contains(where: { $0.isHiDPI && $0.width == 3840 && $0.height == 1080 }),
+                         "5120x1440 Dual-QHD LoDPI ultrawide is not misclassified as UHD native HiDPI")
+
+            let portraitUHDModes = DisplayResolutionService.resolveAvailableModes(
+                defaultPublicModes: [
+                    PublicDisplayModeRecord(width: 2160, height: 3840, pixelWidth: 2160, pixelHeight: 3840, refreshRate: 60, ioFlags: 0x2000003),
+                ],
+                duplicatePublicModes: [
+                    PublicDisplayModeRecord(width: 2160, height: 3840, pixelWidth: 2160, pixelHeight: 3840, refreshRate: 60, ioFlags: 0x2000003),
+                    PublicDisplayModeRecord(width: 1440, height: 2560, pixelWidth: 2880, pixelHeight: 5120, refreshRate: 60, ioFlags: 0x3),
+                ],
+                cgsRecords: [],
+                currentMode: nil,
+                isBuiltIn: false,
+                isVirtualDisplay: false
+            )
+            suite.expect(portraitUHDModes.contains(where: { $0.isHiDPI && $0.width == 1440 && $0.height == 2560 }),
+                         "rotated portrait 4K external retains scaled HiDPI modes")
+        }
+
     }
 }
