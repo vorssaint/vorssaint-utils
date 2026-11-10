@@ -33,6 +33,7 @@ enum ShortcutRecordingTap {
     /// as the super key lets a field record the combination the way it will be
     /// pressed later, instead of asking for the chosen modifiers by hand.
     private static var superState = SuperKeySupport.State()
+    private static var superKeyTap: CFMachPort?
     private static var observingSession = false
 
     /// Starts swallowing key events and delivering each fresh press to the
@@ -44,6 +45,7 @@ enum ShortcutRecordingTap {
         drainWatchdog = nil
         drainingKeyCode = nil
         heldKeyCode = nil
+        superKeyTap = nil
         superState.reset()
         // Registered before the Accessibility check: ShortcutCapture.begin() has
         // already switched the global shortcuts off, and the resign must give them back.
@@ -109,6 +111,7 @@ enum ShortcutRecordingTap {
         drainingKeyCode = nil
         heldKeyCode = nil
         handler = nil
+        superKeyTap = nil
         superState.reset()
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
@@ -136,7 +139,12 @@ enum ShortcutRecordingTap {
             // Holding the super key while recording means the modifiers it
             // stands for, and the key holding them is never the shortcut.
             var heldModifiers: GlobalShortcutModifiers = []
-            if SuperKeyService.isEngaged {
+            let keyboard = SuperKeyService.shared.keyboardTapForRecording
+            if keyboard !== superKeyTap {
+                superState.reset()
+                superKeyTap = keyboard
+            }
+            if keyboard != nil {
                 let superEvent: SuperKeySupport.Event
                 if keyCode == SuperKeySupport.triggerKeyCode {
                     let timestamp = EventTimestamp.nanoseconds(of: event)
