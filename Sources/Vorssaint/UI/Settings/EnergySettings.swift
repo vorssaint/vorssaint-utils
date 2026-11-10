@@ -318,7 +318,7 @@ struct EnergySettings: View {
                         VStack(alignment: .leading, spacing: 6) {
                             displayRow(display)
                             if display.isActive, let audio = display.audio {
-                                MonitorSpeakerVolumeRow(displayName: display.name, audio: audio,
+                                MonitorSpeakerVolumeRow(display: display, audio: audio,
                                                         strings: strings, compact: false)
                                     .padding(.leading, 38)
                             }
@@ -371,6 +371,14 @@ struct EnergySettings: View {
                                 }
                         }
                         if displayVolume {
+                            ForEach(brightness.displays) { display in
+                                if display.isActive, let setup = display.speakerSetup {
+                                    MonitorVolumeSettingsRow(name: display.name, setup: setup, strings: strings) {
+                                        brightness.setSpeakerEnabled($0, reference: $1, for: setup.target)
+                                    }
+                                    .id(setup.target.path)
+                                }
+                            }
                             SettingsRow(symbol: "keyboard", title: strings.volumeKeysToggle,
                                         caption: strings.volumeKeysCaption) {
                                 Toggle(strings.volumeKeysToggle, isOn: $displayVolumeKeys)

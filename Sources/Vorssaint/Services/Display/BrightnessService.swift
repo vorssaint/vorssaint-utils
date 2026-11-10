@@ -52,6 +52,7 @@ struct BrightnessDisplay: Identifiable, Equatable {
     var restorationFingerprint: String? = nil
     /// The monitor's speakers, once its channel has been asked about them.
     var audio: Audio? = nil
+    var speakerSetup: MonitorVolumeSupport.Setup? = nil
 }
 
 /// Brightness sliders for every display, built-in and external. The built-in
@@ -139,6 +140,8 @@ final class BrightnessService: ObservableObject {
         let fingerprint: String
         let service: CFTypeRef
         let hasNativeMute: Bool
+        var writeOnly = false
+        var persistent = true
     }
 
     private struct Route {
@@ -223,6 +226,7 @@ final class BrightnessService: ObservableObject {
     private var audioDisplayNames: [(id: UInt32, name: String)] = []
     /// Only the DDC queue touches these confirmed, per-connection levels.
     private var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
+    private var speakerPreferences = MonitorVolumeSupport.Preferences(defaults: .standard)
     private struct PendingAudio {
         let target: BrightnessSupport.SpeakerTarget
         let change: BrightnessSupport.SpeakerChange
@@ -564,8 +568,11 @@ final class BrightnessService: ObservableObject {
                 if !audioRoutes.isEmpty { audioLifetime &+= 1; audioRoutes = [:] }
             }
             cancelPendingAudio()
-            if displays.contains(where: { $0.audio != nil }) {
-                displays = displays.map { var display = $0; display.audio = nil; return display }
+            if displays.contains(where: { $0.speakerSetup != nil }) {
+                for index in displays.indices {
+                    displays[index].audio = nil
+                    displays[index].speakerSetup = nil
+                }
             }
         }
         if needsAudioScan { refresh(force: true) }
@@ -690,7 +697,10 @@ final class BrightnessService: ObservableObject {
         knownMirrorSources = [:]
         stateLock.unlock()
         cancelPendingAudio()
-        workQueue.async { [weak self] in self?.speakerRestoreLevels = [:] }
+        workQueue.async { [weak self] in
+            self?.speakerRestoreLevels = [:]
+            self?.speakerPreferences.temporary.removeAll()
+        }
         ddcPendingSteps = [:]
         pendingDisplayIDs = []
         displayControlFailure = nil
@@ -2321,7 +2331,7 @@ final class BrightnessService: ObservableObject {
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
         let services = BrightnessBridge.ddcAvailable && (!ddcCandidates.isEmpty || !speakerCandidates.isEmpty)
-            ? Self.externalServices() : []
+            ? Self.externalServices(forSpeakers: probesAudio) : []
         var softwareIndices = Set(ddcCandidates.map(\.index))
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
@@ -2522,26 +2532,36 @@ final class BrightnessService: ObservableObject {
         for candidate in speakerCandidates {
             let id = built[candidate.index].id
             guard built[candidate.index].isActive, CGDisplayIsAsleep(id) == 0,
-                  let ordinal = BrightnessSupport.speakerService(for: candidate.index, scores: speakerScores),
-                  let matched = services.first(where: { $0.identity.ordinal == ordinal }),
+                  let ordinal = BrightnessSupport.speakerService(for: candidate.index, scores: speakerScores) else { continue }
+            let endpoints = services.filter { $0.identity.ordinal == ordinal }
+            guard endpoints.count == 1, let matched = endpoints.first,
                   let fingerprint = fingerprints[id],
-                  let path = BrightnessSupport.ddcPathKey(displayFingerprint: fingerprint,
-                                                          ioDisplayLocation: matched.identity.ioDisplayLocation) else { continue }
+                  let physicalPath = BrightnessSupport.ddcPathKey(displayFingerprint: fingerprint,
+                                                                  ioDisplayLocation: matched.identity.ioDisplayLocation),
+                  let connection = MonitorVolumeSupport.connection(path: physicalPath, displaySerial: CGDisplaySerialNumber(id),
+                                                                   serviceSerial: matched.identity.serialNumber,
+                                                                   entryID: matched.entryID) else { continue }
+            let path = connection.path
             let speakerKey = "audio:" + path
-            guard let probed = probeAudio(for: id, service: matched.service, path: path) else {
+            let probed = probeAudio(for: id, service: matched.service, path: path, persistent: connection.persistent)
+            if probed == nil || probed?.setup.writeOnly == true {
                 let attempt = (ddcRetryAttempts[speakerKey] ?? 0) + 1
                 if let delay = BrightnessSupport.ddcRetryDelay(attempt: attempt, probesAudio: probesAudio,
                                                               repliedThisSession: ddcRepliedPaths.contains(speakerKey)) {
                     ddcRetryAttempts[speakerKey] = attempt
                     retryDelay = min(retryDelay ?? delay, delay)
                 }
-                continue
+            } else {
+                ddcRepliedPaths.insert(speakerKey)
+                ddcRetryAttempts[speakerKey] = nil
             }
-            ddcRepliedPaths.insert(speakerKey)
-            ddcRetryAttempts[speakerKey] = nil
-            built[candidate.index].audio = probed.state
+            guard let probed else { continue }
+            built[candidate.index].speakerSetup = probed.setup
+            guard let state = probed.state else { continue }
+            built[candidate.index].audio = state
             newAudioRoutes[id] = AudioRoute(path: path, fingerprint: fingerprint, service: matched.service,
-                                           hasNativeMute: probed.hasNativeMute)
+                                           hasNativeMute: probed.hasNativeMute, writeOnly: probed.setup.writeOnly,
+                                           persistent: connection.persistent)
         }
 
         // A DDC or system route owns the picture again. A gamma curve left
@@ -2561,7 +2581,7 @@ final class BrightnessService: ObservableObject {
                 // Even without a brightness route, an active physical display is
                 // useful in the generalized Displays surface when it can be
                 // switched on or off.
-                guard display.audio != nil || DisplayConfigurationBridge.configureEnabled != nil else { return nil }
+                guard display.speakerSetup != nil || DisplayConfigurationBridge.configureEnabled != nil else { return nil }
                 var display = display
                 display.method = nil
                 return display
@@ -2587,6 +2607,8 @@ final class BrightnessService: ObservableObject {
             audioRoutes = newAudioRoutes
             audioDisplayNames = externalNames
             let connectedPaths = Set(newAudioRoutes.values.map(\.path))
+            let setupPaths = Set(resolved.compactMap { $0.isActive ? $0.speakerSetup?.target.path : nil })
+            speakerPreferences.temporary = speakerPreferences.temporary.filter { setupPaths.contains($0.key) }
             speakerLevelRevisions = speakerLevelRevisions.filter { connectedPaths.contains($0.key) }
             speakerRestoreLevels = speakerRestoreLevels.filter { connectedPaths.contains($0.key) }
             scannedAudio = probesAudio
@@ -2610,7 +2632,10 @@ final class BrightnessService: ObservableObject {
         DispatchQueue.main.async { [weak self] in
             guard let self, self.running, generation == self.rebuildGeneration else { return }
             if !self.wantsMonitorVolume {
-                for index in resolved.indices { resolved[index].audio = nil }
+                for index in resolved.indices {
+                    resolved[index].audio = nil
+                    resolved[index].speakerSetup = nil
+                }
             }
             if self.displays != resolved { self.displays = resolved }
             if self.softwareDimmingPreferred != forcedSoftwareIDs {
@@ -2845,6 +2870,16 @@ final class BrightnessService: ObservableObject {
         case replied(current: UInt16, maximum: UInt16)
         case writeOnly
         case dead
+
+        static func reading(_ reply: [UInt8], code: UInt8) -> Self? {
+            if let parsed = BrightnessSupport.parseReply(reply, code: code) {
+                return .replied(current: parsed.current, maximum: parsed.maximum)
+            }
+            if code == BrightnessSupport.audioVolumeCode, BrightnessSupport.replyResult(reply, code: code) == 1 {
+                return .dead // Explicitly unsupported, even when the request write succeeded.
+            }
+            return nil
+        }
     }
 
     private func forcedSoftwarePaths() -> Set<String> {
@@ -2999,8 +3034,8 @@ final class BrightnessService: ObservableObject {
             var reply = [UInt8](repeating: 0, count: BrightnessSupport.replyLength)
             if requestAccepted, read(service, BrightnessSupport.chipAddress, 0,
                     &reply, UInt32(reply.count)) == KERN_SUCCESS,
-               let parsed = BrightnessSupport.parseReply(reply, code: code) {
-                return .replied(current: parsed.current, maximum: parsed.maximum)
+               let reading = DDCProbe.reading(reply, code: code) {
+                return reading
             }
             if attempt + 1 < attempts {
                 usleep(BrightnessSupport.retryPauseMicroseconds)
@@ -3025,6 +3060,37 @@ final class BrightnessService: ObservableObject {
     var wantsMonitorVolumeKeys: Bool {
         running && wantsMonitorVolume
             && UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled)
+    }
+
+    /// Settings supplies the percentage shown on a monitor that cannot be
+    /// read. Enabling it never sends a volume change. The first key starts
+    /// from that explicit reference or the last accepted write on this path.
+    func setSpeakerEnabled(_ enabled: Bool, reference: Int?, for target: BrightnessSupport.SpeakerTarget) {
+        let id = target.displayID
+        let path = target.path
+        guard running, wantsMonitorVolume, !displayPowerIsSuspended,
+              let index = displays.firstIndex(where: { $0.id == id && $0.isActive }),
+              let setup = displays[index].speakerSetup, setup.target == target,
+              stateLock.withLock({ audioLifetime == target.connectionGeneration }),
+              !enabled || !setup.writeOnly || reference.map({ (1...100).contains($0) }) == true
+        else { return }
+        stateLock.withLock { audioRoutes[id] = nil }
+        cancelPendingAudio(for: id)
+        displays[index].audio = nil
+        var next = setup.preference ?? MonitorVolumeSupport.Preference(enabled: enabled)
+        next.enabled = enabled
+        if enabled, setup.writeOnly, let reference { next.setReference(reference) }
+        displays[index].speakerSetup = MonitorVolumeSupport.Setup(target: target, writeOnly: setup.writeOnly,
+                                                                  preference: next, persistent: setup.persistent)
+        workQueue.async {
+            guard setup.persistent || self.stateLock.withLock({ self.audioLifetime == target.connectionGeneration }) else { return }
+            var preference = self.speakerPreferences.value(for: path, persistent: setup.persistent)
+                ?? MonitorVolumeSupport.Preference(enabled: enabled)
+            preference.enabled = enabled
+            if enabled, setup.writeOnly, let reference { preference.setReference(reference) }
+            self.speakerPreferences.save(preference, for: path, persistent: setup.persistent)
+        }
+        refresh(force: true)
     }
 
     func requestSpeakers(_ change: BrightnessSupport.SpeakerChange,
@@ -3072,12 +3138,13 @@ final class BrightnessService: ObservableObject {
             audioRoutes.removeAll()
         }
         cancelPendingAudio()
+        workQueue.async { [weak self] in self?.speakerPreferences.temporary.removeAll() }
         AppVolumeMixer.shared.refreshMonitorOutput()
     }
 
-    private func cancelPendingAudio() {
-        let cancelled = pendingAudio
-        pendingAudio.removeAll()
+    private func cancelPendingAudio(for id: CGDirectDisplayID? = nil) {
+        let cancelled = pendingAudio.filter { id == nil || $0.target.displayID == id }
+        pendingAudio.removeAll { id == nil || $0.target.displayID == id }
         for change in cancelled { change.completion(false) }
     }
 
@@ -3091,7 +3158,16 @@ final class BrightnessService: ObservableObject {
                 let current = self.isCurrentSpeakerChange(pending)
                     && self.acceptsSpeakerTarget(pending.target, requiresKeys: pending.requiresKeys)
                 if current, let index = self.displays.firstIndex(where: { $0.id == pending.target.displayID }) {
-                    if self.displays[index].audio != result { self.displays[index].audio = result }
+                    var display = self.displays[index]
+                    if let result, let setup = display.speakerSetup, setup.writeOnly, var choice = setup.preference {
+                        choice.raw = BrightnessSupport.deviceValue(for: result.volume, maximum: choice.maximum)
+                        display.speakerSetup = MonitorVolumeSupport.Setup(target: setup.target, writeOnly: true,
+                                                                         preference: choice, persistent: setup.persistent)
+                    }
+                    display.audio = result
+                    if display.audio != self.displays[index].audio || display.speakerSetup != self.displays[index].speakerSetup {
+                        self.displays[index] = display
+                    }
                     if result == nil { self.refresh(force: true) }
                 }
                 pending.completion(current && result != nil)
@@ -3120,6 +3196,7 @@ final class BrightnessService: ObservableObject {
             guard wantsMonitorVolume,
                   !pending.requiresKeys || UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled),
                   isCurrentSpeakerChange(pending),
+                  stateLock.withLock({ audioRoutes[id]?.writeOnly == route.writeOnly }),
                   Self.restorationDisplayFingerprint(id) == route.fingerprint,
                   CGDisplayIsActive(id) != 0, CGDisplayIsAsleep(id) == 0 else { return false }
             guard let device = target.deviceID else { return true }
@@ -3131,6 +3208,20 @@ final class BrightnessService: ObservableObject {
             }
         }
         guard current() else { return nil }
+        let panel = BrightnessSupport.SpeakerTarget(displayID: id, path: target.path,
+                                                   connectionGeneration: target.connectionGeneration)
+        if route.writeOnly {
+            let setup = MonitorVolumeSupport.Setup(target: panel, writeOnly: true,
+                preference: speakerPreferences.value(for: target.path, persistent: route.persistent),
+                persistent: route.persistent)
+            guard let next = MonitorVolumeSupport.apply(pending.change, setup: setup, write: { value in
+                self.ddcSend(to: id, service: route.service,
+                    packet: BrightnessSupport.writePacket(code: BrightnessSupport.audioVolumeCode, value: value),
+                    whileCurrent: current)
+            }), let level = next.level else { return nil }
+            speakerPreferences.save(next, for: target.path, persistent: route.persistent)
+            return BrightnessDisplay.Audio(target: panel, volume: level, muted: nil)
+        }
         var restore = speakerRestoreLevels[target.path]
         let result = BrightnessSupport.applySpeakerChange(pending.change, hasNativeMute: route.hasNativeMute,
             restore: &restore, read: { code in
@@ -3142,9 +3233,9 @@ final class BrightnessService: ObservableObject {
                              whileCurrent: current)
             })
         speakerRestoreLevels[target.path] = restore
+        _ = speakerPreferences.rememberReported(result?.level, muted: result?.muted, for: target.path,
+                                                persistent: route.persistent)
         guard let result else { return nil }
-        let panel = BrightnessSupport.SpeakerTarget(displayID: id, path: target.path,
-                                                   connectionGeneration: target.connectionGeneration)
         return BrightnessDisplay.Audio(target: panel, volume: result.level.volume, muted: result.muted)
     }
 
@@ -3269,28 +3360,44 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Speaker probing (work queue)
 
-    private func probeAudio(for id: CGDirectDisplayID, service: CFTypeRef, path: String)
-        -> (hasNativeMute: Bool, state: BrightnessDisplay.Audio)? {
+    private func probeAudio(for id: CGDirectDisplayID, service: CFTypeRef, path: String, persistent: Bool = true)
+        -> (setup: MonitorVolumeSupport.Setup, hasNativeMute: Bool, state: BrightnessDisplay.Audio?)? {
         guard wantsMonitorVolume, BrightnessSupport.shouldProbe(
-            pathKey: path, rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)),
-              case let .replied(current, maximum) = ddcProbe(BrightnessSupport.audioVolumeCode,
-                                                             for: id, service: service) else { return nil }
+            pathKey: path, rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)) else { return nil }
+        let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
+                                                     connectionGeneration: stateLock.withLock { audioLifetime })
+        let preference = speakerPreferences.value(for: path, persistent: persistent)
+        let response = ddcProbe(BrightnessSupport.audioVolumeCode, for: id, service: service)
+        guard wantsMonitorVolume, stateLock.withLock({ audioLifetime == target.connectionGeneration }) else { return nil }
+        if case .writeOnly = response {
+            if let maximum = preference?.maximum, maximum <= 1 { return nil }
+            let setup = MonitorVolumeSupport.Setup(target: target, writeOnly: true, preference: preference,
+                                                   persistent: persistent)
+            guard setup.enabled, let level = preference?.level else { return (setup, false, nil) }
+            return (setup, false, BrightnessDisplay.Audio(target: target, volume: level, muted: nil))
+        }
+        guard case let .replied(current, maximum) = response else { return nil }
         guard let level = BrightnessSupport.SpeakerLevel((current, maximum)) else {
             if current == 0 && maximum == 0 {
                 rememberPath(path, key: DefaultsKey.displayAudioSilentPaths, remembered: true)
             }
             return nil
         }
+        if preference?.enabled == false {
+            let updated = speakerPreferences.rememberReported(level, muted: nil, for: path, persistent: persistent)
+            return (MonitorVolumeSupport.Setup(target: target, writeOnly: false, preference: updated,
+                                               persistent: persistent), false, nil)
+        }
         var nativeMute: Bool?
         if case let .replied(value, range) = ddcProbe(BrightnessSupport.audioMuteCode, for: id, service: service) {
             nativeMute = BrightnessSupport.muteReply(current: value, maximum: range)
         }
-        guard wantsMonitorVolume else { return nil }
+        guard wantsMonitorVolume, stateLock.withLock({ audioLifetime == target.connectionGeneration }) else { return nil }
         if level.raw > 0 { speakerRestoreLevels[path] = nil }
         let muted = nativeMute ?? level.mutedWithoutNativeControl(restoring: speakerRestoreLevels[path])
-        let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
-                                                     connectionGeneration: stateLock.withLock { audioLifetime })
-        return (nativeMute != nil, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+        let updated = speakerPreferences.rememberReported(level, muted: muted, for: path, persistent: persistent)
+        let setup = MonitorVolumeSupport.Setup(target: target, writeOnly: false, preference: updated, persistent: persistent)
+        return (setup, nativeMute != nil, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
     }
 
     // MARK: - Display identity
@@ -3333,13 +3440,14 @@ final class BrightnessService: ObservableObject {
     private struct ExternalService {
         var identity: BrightnessSupport.ServiceIdentity
         var service: CFTypeRef
+        var entryID: UInt64
     }
 
     /// External displays hang off the IORegistry as a framebuffer entry
     /// (identity: EDID UUID, product attributes) followed by its AV service
     /// proxy (the I2C endpoint, tagged with its location). Only proxies
     /// marked External accept DDC; the built-in panel's proxy is Embedded.
-    private static func externalServices() -> [ExternalService] {
+    private static func externalServices(forSpeakers: Bool) -> [ExternalService] {
         guard let createWithService = BrightnessBridge.createWithService else { return [] }
         var results: [ExternalService] = []
         let root = IORegistryGetRootEntry(kIOMainPortDefault)
@@ -3381,7 +3489,9 @@ final class BrightnessService: ObservableObject {
                       location == "External",
                       let service = createWithService(kCFAllocatorDefault, entry)?.takeRetainedValue()
                 else { continue }
-                results.append(ExternalService(identity: pending, service: service))
+                var entryID: UInt64 = 0
+                if forSpeakers { _ = IORegistryEntryGetRegistryEntryID(entry, &entryID) }
+                results.append(ExternalService(identity: pending, service: service, entryID: entryID))
             }
         }
         return results

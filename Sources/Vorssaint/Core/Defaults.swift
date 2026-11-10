@@ -233,6 +233,7 @@ enum DefaultsKey {
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
     static let displayVolumeEnabled = "displayVolumeEnabled" // speakers built into external monitors
     static let displayVolumeKeysEnabled = "displayVolumeKeysEnabled" // volume keys reach those speakers
+    static let displaySpeakerPreferences = "displaySpeakerPreferences" // per-monitor choices on this Mac
     // Per-monitor connection paths whose display answered the audio controls
     // with no speakers behind them. Remembered for the same reason as the
     // write-only paths: two extra reads on a bus paced in tens of

@@ -145,7 +145,7 @@ struct BrightnessSection: View {
             }
             SoftwareDimmingButton(display: display, compact: true)
             if display.isActive, let audio = display.audio {
-                MonitorSpeakerVolumeRow(displayName: display.name, audio: audio, strings: strings, compact: true)
+                MonitorSpeakerVolumeRow(display: display, audio: audio, strings: strings, compact: true)
             }
         }
     }
@@ -188,12 +188,15 @@ struct BrightnessSection: View {
 }
 
 struct MonitorSpeakerVolumeRow: View {
-    let displayName: String
+    let display: BrightnessDisplay
     let audio: BrightnessDisplay.Audio
     let strings: BrightnessFeatureStrings
     let compact: Bool
 
     var body: some View {
+        let setup = display.speakerSetup
+        let writeOnly = setup?.writeOnly == true
+        let minimum = writeOnly ? 1.0 / Double(max(1, setup?.preference?.maximum ?? 100)) : 0
         HStack(spacing: compact ? 6 : 12) {
             if let muted = audio.muted {
                 Button {
@@ -206,7 +209,7 @@ struct MonitorSpeakerVolumeRow: View {
                 }
                 .buttonStyle(.plain)
                 .help(muted ? strings.unmute : strings.mute)
-                .accessibilityLabel("\(displayName): \(muted ? strings.unmute : strings.mute)")
+                .accessibilityLabel("\(display.name): \(muted ? strings.unmute : strings.mute)")
             } else {
                 Image(systemName: "speaker.wave.2.fill")
                     .font(.system(size: compact ? 10 : 12, weight: .semibold))
@@ -216,10 +219,10 @@ struct MonitorSpeakerVolumeRow: View {
             Slider(value: Binding(get: { audio.volume }, set: {
                 BrightnessService.shared.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target)
             }),
-                   in: 0...1)
+                   in: minimum...1)
                 .controlSize(compact ? .small : .regular)
-                .accessibilityLabel("\(displayName) \(strings.volumeLabel)")
-            Text("\(Int((audio.volume * 100).rounded()))%")
+                .accessibilityLabel("\(display.name) \(strings.volumeLabel)")
+            Text("\(writeOnly ? "≈" : "")\(Int((audio.volume * 100).rounded()))%")
                 .font(compact ? .system(size: 10, weight: .semibold).monospacedDigit() : .body.monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: compact ? 30 : 52, alignment: .trailing)

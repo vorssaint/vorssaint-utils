@@ -162,13 +162,17 @@ enum BrightnessSupport {
     /// Anything malformed reads as no reply. Some monitors fall one reply
     /// behind when read too soon and hand back the previous request's
     /// answer; checking the code keeps that from reading as this control.
-    static func parseReply(_ reply: [UInt8], code: UInt8) -> (current: UInt16, maximum: UInt16)? {
+    static func replyResult(_ reply: [UInt8], code: UInt8) -> UInt8? {
         guard reply.count >= replyLength else { return nil }
         let checksum = reply[0..<(reply.count - 1)].reduce(UInt8(0x50)) { $0 ^ $1 }
         guard checksum == reply[reply.count - 1],
               reply[2] == getVCPReplyOpcode,
-              reply[3] == 0,
               reply[4] == code else { return nil }
+        return reply[3]
+    }
+
+    static func parseReply(_ reply: [UInt8], code: UInt8) -> (current: UInt16, maximum: UInt16)? {
+        guard replyResult(reply, code: code) == 0 else { return nil }
         let maximum = UInt16(reply[6]) << 8 | UInt16(reply[7])
         let current = UInt16(reply[8]) << 8 | UInt16(reply[9])
         return (current, maximum)

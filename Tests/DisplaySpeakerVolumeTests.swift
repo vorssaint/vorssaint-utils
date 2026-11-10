@@ -20,6 +20,7 @@ enum DisplaySpeakerVolumeTests {
         var isBuiltIn = false
         var isActive = true
         var audio: Audio?
+        var speakerSetup: MonitorVolumeSupport.Setup?
     }
     enum AppVolumeMixer {
         static func hasSettableOutputVolume(for device: AudioObjectID) -> Bool { Service.shared.settable }
@@ -51,6 +52,9 @@ enum DisplaySpeakerVolumeTests {
             displays.filter { !$0.isBuiltIn }.map { ($0.id, $0.name) } + hiddenDisplays
         }
         var audioRoutes: [UInt32: AudioRoute] = [:]
+        var speakerPreferences = MonitorVolumeSupport.Preferences(
+            defaults: Foundation.UserDefaults(suiteName: "com.vorssaint.tests.speakers.\(UUID().uuidString)")!)
+        var volumeResponse: DDCProbe?
         var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
         var audioLifetime: UInt64 = 0
         var speakerLevelRevisions: [String: UInt64] = [:]
@@ -84,7 +88,7 @@ enum DisplaySpeakerVolumeTests {
         func rememberPath(_ path: String, key: String, remembered: Bool) { silentPaths.insert(path) }
         func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef) -> DDCProbe {
             onRead?()
-            if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
+            if code == BrightnessSupport.audioVolumeCode { return volumeResponse ?? .replied(current: raw, maximum: maximum) }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
             return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
         }
@@ -134,6 +138,7 @@ enum DisplaySpeakerVolumeTests {
     }
 
     static func run(_ suite: TestSuite) {
+        MonitorVolumeTests.run(suite)
         suite.expect(BrightnessSupport.audioReply(current: 50, maximum: 100) == 0.5
                      && BrightnessSupport.audioReply(current: 100, maximum: 100) == 1,
                      "a volume reply is read against its own maximum")
@@ -152,7 +157,7 @@ enum DisplaySpeakerVolumeTests {
                      "turning off speakers during discovery cannot publish a writable route")
         service.onRead = nil
         service.wantsMonitorVolume = true
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a")?.state.volume == 0.03,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a")?.state?.volume == 0.03,
                      "reenabling on a readable channel discovers its real low volume")
         var rejected: [UInt8] = [0x6e, 0x88, 0x02, 0x01, 0x62, 0, 0, 100, 0, 80]
         rejected.append(rejected.reduce(UInt8(0x50)) { $0 ^ $1 })

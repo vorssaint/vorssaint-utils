@@ -41,6 +41,14 @@ This permission is used by the mixer, the optional live equalizer and system aud
 
 Finder cut and paste and the uninstaller may ask for Automation. If a Finder move does nothing after a denial, open System Settings, Privacy and Security, Automation, and allow Vorssaint for Finder.
 
+## A monitor's volume does not change
+
+Open **Settings → Displays → More options** and enable **Monitor speakers**. If the monitor accepts DDC/CI requests but does not report its volume, enter the percentage shown on the monitor and enable **Control this monitor’s volume** for that display. Enabling it leaves the speakers at their current level.
+
+The panel marks the reference with **≈**. It starts at the value you entered and follows the last volume write the connection accepted. Try a small adjustment and listen for the change. If you later use the monitor’s buttons, switch the control off and enter the new level before enabling it again. A monitor without a serial number needs a fresh reference after reconnection.
+
+For keyboard control, select the monitor as the Mac’s sound output and enable **Volume keys reach monitor speakers**. The keys require Accessibility and a uniquely matched HDMI or DisplayPort output whose volume macOS cannot adjust.
+
 ## Clipboard history does not copy or paste
 
 First check whether a fresh copy appears in history. History must be enabled,

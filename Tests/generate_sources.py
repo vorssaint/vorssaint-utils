@@ -433,6 +433,7 @@ def main():
               "    private struct AudioRoute", "    private struct PendingAudio", "    private enum DDCProbe"])
           + "final class Service: Fixture {\nstatic var shared = Service()\n"
           + "".join(declaration(brightness, prefix).replace("private func", "func", 1) for prefix in [
+              "    func setSpeakerEnabled(", "    private func cancelPendingAudio(",
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
               "    func monitorSpeakerOutput(", "    private func probeAudio("])
