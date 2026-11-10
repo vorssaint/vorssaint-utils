@@ -14,6 +14,7 @@ struct NotchTimerView: View {
     @AppStorage(DefaultsKey.notchPomodoroLongBreakInterval) private var longBreakInterval = 4
     @AppStorage(DefaultsKey.notchPomodoroTotalSessions) private var totalSessions = 4
     @AppStorage(DefaultsKey.notchTimerMinutes) private var savedMinutes = 15
+    @State private var savedSeconds = 0
     @Namespace private var modeSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchBand) private var band
@@ -63,13 +64,22 @@ struct NotchTimerView: View {
                 case .timer:
                     NotchTimerRuler(minutes: timerMinutes, label: text.timer, locale: locale)
                         .frame(height: rulerHeight)
+
+                    Stepper(value: $savedSeconds, in: 0...59) {
+                        Text("\(savedSeconds)s")
+                            .font(.system(size: 12))
+                            .monospacedDigit()
+                    }
+                    .fixedSize()
                 case .pomodoro:
                     NotchTimerRuler(minutes: binding(.focus), label: text.focus, locale: locale)
                         .frame(height: rulerHeight)
                 case .stopwatch:
                     Spacer(minLength: 0)
                 }
+
                 clock(setupClock, size: 26)
+                .id("\(timerMinutes.wrappedValue)-\(savedSeconds)")
             }
             .frame(height: rulerHeight)
             if mode == .pomodoro {
@@ -81,7 +91,13 @@ struct NotchTimerView: View {
 
     /// A small capsule in the top row, in the ruler's orange.
     private var startButton: some View {
-        Button { service.start(mode: mode, minutes: timerMinutes.wrappedValue) } label: {
+       Button {
+    service.start(
+        mode: mode,
+        minutes: timerMinutes.wrappedValue,
+        seconds: mode == .timer ? savedSeconds : 0
+    )
+} label: {
             Text(text.start)
                 .font(.system(size: NotchTimerSupport.StartButton.labelSize, weight: .semibold))
                 .lineLimit(1)
@@ -133,12 +149,17 @@ struct NotchTimerView: View {
     }
 
     private var setupClock: String {
-        switch mode {
-        case .timer: return NotchTimerSupport.clockText(Double(timerMinutes.wrappedValue) * 60)
-        case .pomodoro: return NotchTimerSupport.clockText(Double(binding(.focus).wrappedValue) * 60)
-        case .stopwatch: return NotchTimerSupport.stopwatchText(0)
-        }
+    switch mode {
+    case .timer:
+        return NotchTimerSupport.clockText(
+    Double(timerMinutes.wrappedValue * 60 + savedSeconds)
+)
+    case .pomodoro:
+        return NotchTimerSupport.clockText(Double(binding(.focus).wrappedValue) * 60)
+    case .stopwatch:
+        return NotchTimerSupport.stopwatchText(0)
     }
+}
 
     /// Three words in a row, the current one underlined in the ruler's
     /// orange: a heading beside Start, not a control with a box of its own.
