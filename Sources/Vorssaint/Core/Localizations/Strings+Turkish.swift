@@ -6,6 +6,7 @@ import Foundation
 // Türkçe.
 extension Strings {
     static let tr = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: normal uyku",
         statusActiveUntil: "Vorssaint: şu zamana kadar uyanık",
         statusActiveIndefinite: "Vorssaint: süresiz uyanık",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "Yakınlaştır",
         menuClose: "Kapat",
 
+        // MARK: Durations
         minutes15: "15 dakika",
         minutes30: "30 dakika",
         hour1: "1 saat",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "Süresiz",
         indefinite: "Süresiz",
 
+        // MARK: Panel — header & footer
         panelSettings: "Ayarlar",
         panelQuit: "Çık",
         panelHotkeyHint: "Kısayol açıp kapatır",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "Uyanık tut",
         keepAwakeEndsIn: "Kalan süre",
         keepAwakeUntilDisabled: "Sen kapatana kadar etkin",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "Hazır. Parola istemeden açılıp kapanır",
         clamshellNeedsPassword: "Yönetici parolasını bir kez isteyecek",
 
+        // MARK: Panel — system monitor
         systemSection: "Sistem",
         temperatures: "Sıcaklıklar",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "Önemli enerji kullanan uygulamalar",
         energyAppsIdle: "Önemli enerji kullanımı yok",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "Oturum bitti",
         notifySessionEndedBody: "Süre doldu. Mac yeniden normal şekilde uyuyacak.",
         notifyBatteryTitle: "Vorssaint devre dışı",
         notifyBatteryBody: "Pil düşük. Şarjı korumak için normal uyku geri yüklendi.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint’in, Mac’i kapak kapalıyken çalıştırmak için parolana ihtiyacı var.",
         adminPromptClamshellOff: "Vorssaint’in, Mac’in normal uykusunu geri yüklemek için parolana ihtiyacı var.",
         adminPromptRecover: "Mac’in uykusu kapalıyken Vorssaint kapandı. Normal uykuyu geri yüklemek için parolayı gir.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint, parola sormadan kapak kapalı modunu açıp kapatmak için kısıtlı bir kural oluşturacak (yalnızca pmset disablesleep). Parolanın gerektiği tek zaman bu.",
         adminPromptSudoersRemove: "Vorssaint, parolasız kapak kapalı kuralını kaldıracak.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Vorssaint Ayarları",
         tabGeneral: "Genel",
         tabEnergy: "Enerji",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "Büyük",
         previewSizeXLarge: "Çok büyük",
         settingsGroupFeatures: "Özellikler",
+
+        // MARK: Settings — advanced
         advancedResetSection: "İzinler",
         advancedResetDescription: "Vorssaint’e verdiğin tüm izinleri (Erişilebilirlik, Ekran Kaydı, Tam Disk Erişimi ve diğerleri), oturum açma öğesini ve kapak kapalı kuralını kaldırır. Sıfırdan başlamak veya kaldırmadan önce temizlemek için kullanışlıdır. Uygulama yüklü kalır.",
         advancedClearButton: "Tüm izinleri temizle",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "Kaldırma durduruldu",
         advancedUninstallFailedBody: "Vorssaint değiştirdiği bir sistem ayarını geri alamadı: uyku, fan hızı, fare hızlandırması veya Space sırası. Hiçbir şey silinmedi. Yeniden deneyin ve parola istenirse izin verin.",
 
+        // MARK: Settings — general
         launchAtLogin: "Oturum açınca başlat",
         languageLabel: "Dil",
         menuBarSection: "Menü çubuğu",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "“Uyanık tut” kısayolunu etkinleştir",
         hotkeyCaption: "Her uygulamada çalışır, ek izin gerekmez.",
 
+        // MARK: Settings — energy
         sessionSection: "Oturum",
         defaultDurationLabel: "Varsayılan süre",
         keepAwakeAutoStart: "Vorssaint açılınca uyanık tut",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "Ekranı tamamen karart",
         dimScreenOnLidCloseCaption: "Kapak kapandığında ekranı karartır, açıldığında parlaklığı geri getirir.",
 
+        // MARK: Settings — mouse
         scrollSection: "Kaydırma",
         invertMouseScroll: "Fare kaydırmasını ters çevir",
         invertMouseScrollCaption: "Fare tekerleği yönünü tersine çevirir.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "Akıcı kaydırma",
         smoothScrollCaption: "Fare tekerleğinin her adımını kısa ve yumuşak bir kaymaya dönüştürür. İzleme dörtgeni değişmez.",
         smoothScrollStepLabel: "Kaydırma hızı",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",
+
+        // MARK: Settings — middle click
         middleClickSection: "İzleme dörtgeniyle orta tıklama",
         middleClickEnable: "Üç parmakla tıklama orta tıklama olur",
         middleClickEnableCaption: "İzleme dörtgenine üç parmakla basmak fare tekerleği tıklaması gibi çalışır: bağlantıları yeni sekmede açma, sekmeleri kapatma ve orta düğmenin yaptığı her şey.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 parmak",
         middleClickTapFourFingers: "4 parmak",
         middleClickTapCaption: "O sayıda parmakla hafifçe dokunmak, bastırmadan, orta tıklamayı da tetikler. Kaydırma asla sayılmaz. macOS üç parmak dokunuşu Araştır işlevine atanmışsa, ikisinin birlikte tetiklenmemesi için onu kapatın.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "Hızlı panel",
         quickToolShortcutToggle: "Genel kısayol",
+
+        // MARK: Quick tool — OCR
         ocrName: "Ekrandaki metni kopyala",
         ocrCaption: "Ekranda bir alan seçin; tanınan metin kopyalanır ve yapıştırmaya hazır olur.",
         ocrCopied: "Metin kopyalandı",
         ocrNoText: "Metin bulunamadı",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "Renk damlalığı",
         colorPickerCaption: "Ekrandaki herhangi bir pikselin rengini alın ve istediğiniz biçimde kopyalayın.",
         colorPickerFormatLabel: "Kopyalama biçimi",
         colorPickerBareHexToggle: "# öneki olmadan kopyala",
         colorPickerPickNow: "Renk seç",
+
+        // MARK: Quick tool — microphone
         micMuteName: "Mikrofonu sessize al",
         micUnmuteName: "Mikrofonu aç",
         micMuteCaption: "Her mikrofonun sessize alma veya giriş ses düzeyi denetimlerini kullanır. Siri ve bazı uygulamalar sizi duymaya devam edebilir. Mikrofona tüm erişimleri engellemez.",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "Bazı mikrofonlar hâlâ sessiz",
         micMuteMenuBarToggle: "Özellik açıkken menü çubuğunda göster",
         micMuteMenuBarCaption: "Menü çubuğundaki kırmızı mikrofon, özelliğin açık olduğunu gösterir. Tüm uygulamaların ses kaydını durdurduğunu garanti etmez.",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "Düz metin olarak yapıştır",
         pastePlainCaption: "Kopyalananı renk, yazı tipi ve biçimlendirme olmadan yapıştırır. Orijinal panoda kalır.",
+
+        // MARK: Quick tool — launcher
         launcherName: "Hızlı panel",
         launcherCaption: "En sevdiğiniz araçları toplayan, her yerden kısayolla açılan yüzen bir panel.",
         launcherOpenNow: "Hızlı paneli aç",
@@ -215,11 +245,15 @@ extension Strings {
         launcherEmptyState: "Tüm araçlar gizli. Geri eklemek için ayar düğmesini kullanın.",
         launcherAddSection: "Geri ekle",
         launcherKeysHint: "Oklar gezinir, Enter açar, 1-9 doğrudan açar",
+
+        // MARK: Settings — switcher
         switcherSection: "Pencere değiştirici",
         switcherEnable: "Vorssaint değiştiricisini kullan",
         switcherEnableCaption: "Küçültülmüş pencereler ve aynı uygulamanın birden çok penceresi dahil, uygulamalar ve pencereler arasında geçiş yap.",
         switcherUsageHint: "Gezinmek için kısayolu basılı tut; pencereyi etkinleştirmek için bırak. Shift veya ← geri gider; W pencereyi kapatır; Q uygulamadan çıkar; Esc iptal eder.",
         switcherNoWindows: "Açık pencere yok",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "%@’i büyük simgelerle göster",
         switcherIconRowModeCaption: "Her uygulama için bir simge ve üstünde o uygulamanın pencere önizlemelerini gösterir.",
         switcherSimpleModeCaption: "Uygulama simgelerini ve pencere başlıklarını gösterir; önizleme veya değiştirici tarafından ekran yakalama kullanmaz.",
@@ -239,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "İmleç uygulamaların ve pencerelerin üzerinden geçerken vurgu yerinde kalır. Tıklamak yine açar.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
         switcherMergeTabsCaption: "Değiştiricide pencere başına bir giriş yerine, bir uygulamanın tüm pencerelerini tek girişte toplar.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "Açık penceresi olmayan uygulamalar",
         switcherWindowlessAppsCaption: "Hiç penceresi olmayan açık uygulamalardan hangilerinin değiştiricide görüneceğini seçer.",
         switcherWindowlessAppsOff: "Gösterme",
@@ -247,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "“%@” açıkken çalışan tüm uygulamalara erişim korunur. Seçim yapmak için bu seçeneği kapatın.",
         switcherNoOpenWindow: "Açık penceresi yok",
         switcherOtherDesktop: "Başka masaüstü",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock’tan pencereleri önizle",
         dockPreviewEnableCaption: "Pencerelerini görmek için Dock’taki açık bir uygulamanın üzerine gel, ardından açmak istediğin pencereye tıkla.",
@@ -280,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "Önceki pencere",
         dockPreviewNextWindow: "Sonraki pencere",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "Kes ve yapıştır",
         cutPasteEnable: "Finder’da dosya kes ve yapıştır",
         cutPasteEnableCaption: "Finder’da dosya ve klasörleri kesmek için ⌘X, taşımak için ⌘V kullan.",
@@ -301,6 +340,7 @@ extension Strings {
         cutMovingTitle: "Taşınıyor…",
         cutMovingCountFormat: "%d / %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "Kapatınca çık",
         autoQuitEnable: "Son penceresi kapanınca uygulamadan çık",
         autoQuitEnableCaption: "Bir uygulamanın son penceresini kapatmak uygulamadan da çıkar.",
@@ -315,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "İstisna yok",
         autoQuitAddApp: "Uygulama ekle…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "Kaldırıcı",
         uninstallerEnableCaption: "Bir uygulamayı geride bıraktığı önbellekler, tercihler, günlükler ve kalıntılarla birlikte kaldırır.",
         uninstallerStep1: "Bir uygulamayı Ayarlar’a sürükle veya listeden seç.",
@@ -372,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@ bir uygulama olarak tanımlanamadığı için kaldırılamaz.",
         uninstallerPickerHiddenNote: "macOS’un parçası olan veya Apple’a ait uygulamalar listelenmez.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "URL temizle",
         urlCleanerEnable: "URL’leri kopyalarken temizle",
         urlCleanerEnableCaption: "Bir bağlantı panoya ulaşır ulaşmaz izleme parametrelerini kaldırır.",
@@ -388,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "Kopyalandı.",
         urlCleanerLocalNote: "Yerel. Ağ yok.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Formülleri ve cask’leri ara, yükle ve kaldır.",
         homebrewMissingTitle: "Homebrew bulunamadı",
@@ -404,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "Tap henüz güvenilir değil",
         homebrewTrustCaption: "Homebrew artık üçüncü taraf tap kullanmadan önce onayınızı istiyor. Devam etmek için %@ kaynağına güvenin.",
         homebrewTrustButton: "Güven ve devam et",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "Paket ara",
         homebrewKeyboardHint: "Boşluk veya Return macOS panelini kapatır. Arama düğmesini kullan.",
         homebrewSearchButton: "Ara",
@@ -419,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "Bağımlılık olarak kuruldular, ancak artık kurulu hiçbir paket bunlara ihtiyaç duymuyor.",
         homebrewDependencyUpdatesFormat: "Bağımlılık güncellemeleri: %d",
         homebrewNoSelection: "Yüklü bir paket seç veya yenisini ara.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "Paket ayrıntıları",
         homebrewInstall: "Yükle",
         homebrewUninstall: "Kaldır",
@@ -442,6 +489,8 @@ extension Strings {
         homebrewUpdates: "Güncellemeler",
         homebrewUpdateAvailableBadge: "Güncelleme var",
         homebrewLatestVersion: "En son",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Homebrew ile yüklensin mi?",
         homebrewConfirmInstallBodyFormat: "Homebrew %@ paketini indirip yükleyecek. Bağımlılıklar da yüklenebilir.",
         homebrewConfirmUninstallTitle: "Homebrew ile kaldırılsın mı?",
@@ -455,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "Bu işlem, yönetici parolasını istemek için terminale ihtiyaç duyar. Vorssaint parolaları yakalamaz.",
         homebrewLoading: "Yükleniyor…",
         homebrewSearchEmpty: "Sonuç yok",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "%@ yükleniyor",
         homebrewOperationUninstallFormat: "%@ kaldırılıyor",
         homebrewOperationUpgradeFormat: "%@ güncelleniyor",
@@ -481,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "Teknik ayrıntılar",
         homebrewOperationProgressUnknown: "Homebrew henüz yüzde bildirmedi.",
 
+        // MARK: Feature — local media tools
         mediaName: "Medya",
         mediaEnableCaption: "Videoları sıkıştır, görselleri dönüştür ve işle, GIF oluştur ve metni yerel olarak çıkar.",
         mediaLocalNote: "Yerel. Ağ yok.",
@@ -488,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "Görsel",
         mediaToolText: "Metin",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "Dosya seç",
         mediaDropHint: "Buraya dosya bırak veya seçmek için tıkla.",
         mediaOutput: "Çıktı",
         mediaOutputAutomatic: "Otomatik",
         mediaChooseOutput: "Hedef",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "Videoyu sıkıştır",
         mediaStartGIF: "GIF oluştur",
         mediaStartImage: "Görseli işle",
@@ -522,11 +578,15 @@ extension Strings {
         mediaFormat: "Biçim",
         mediaStripMetadata: "Meta verileri kaldır",
         mediaLoopGIF: "GIF’i döngüye al",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "Doğru",
         mediaOCRFast: "Hızlı",
         mediaLanguageCorrection: "Dil düzeltmesi",
         mediaTextOutputNote: "Çıkarılan metin kopyalanabilir ve TXT olarak kaydedilebilir.",
+
+        // MARK: Media — results & errors
         mediaRunning: "İşleniyor",
         mediaCompleted: "Tamamlandı",
         mediaCancelled: "İptal edildi.",
@@ -542,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "Özgün dosyadan farklı bir hedef seç.",
         mediaErrorUnsupported: "Biçim macOS tarafından desteklenmiyor.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "Raf",
         shelfEnable: "Dosya sürüklemek için geçici alan",
         shelfEnableCaption: "Dosyaları, görselleri ve metinleri toplamak, sonra istediğin yere sürüklemek için yüzen bir alan.",
@@ -570,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "Bu uygulamalarda başlayan sürüklemelerde sallama ve menü çubuğu alanı açılmaz. Kısayol ve Şimdi aç çalışmaya devam eder.",
         shelfPin: "Açık tut",
         shelfUnpin: "Kullanımdan sonra kapanmasına izin ver",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "Ekstra parlaklık",
         extraBrightnessCaption: "Ekranın HDR payını kullanarak en yüksek parlaklığın ötesine geçer. Daha çok pil harcar ve Mac ısınabilir.",
         extraBrightnessLevelLabel: "Yoğunluk",
@@ -578,6 +641,8 @@ extension Strings {
         shelfOpenNow: "Şimdi aç",
         shelfNoPermission: "İzin gerektirmez.",
         shelfMenuItem: "Rafı aç",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "Raf",
         shelfEmpty: "Öğeleri buraya sürükle",
         shelfClearAll: "Tümünü temizle",
@@ -585,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "%d seçili",
         shelfHint: "Seçmek için tıkla. Kullanmak için sürükle veya diğer eylemler için sağ tıkla.",
         shelfItemImage: "Görsel",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d öğe",
         shelfTooltipItemsFew: "%d öğe",
         shelfTooltipImageSingular: "%d resim",
@@ -599,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d bağlantı",
         shelfTooltipLinkFew: "%d bağlantı",
         shelfTooltipLinkPlural: "%d bağlantı",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "Aç",
         shelfActionOpenWith: "Birlikte aç",
         shelfActionShare: "Paylaş",
         shelfActionPin: "Sabitle",
         shelfActionUnpin: "Sabitlemeyi kaldır",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "Ölçülüyor…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "Ses mikseri",
         mixerEmpty: "Ses kullanan uygulamalar burada görünür",
         mixerUnavailable: "macOS 14.4 ve sonrasında kullanılabilir",
         mixerPermissionBody: "Uygulama başına ses düzeyini ayarlamak için Sistem Ayarları’nda “Ekran ve Sistem Sesi Kaydı”na izin ver. Ses hiçbir zaman kaydedilmez.",
         mixerResetTooltip: "%100’e sıfırla",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "Varsayılan",
         mixerOutputCurrent: "geçerli",
         mixerOutputUnavailable: "Çıkış kullanılamıyor",
@@ -623,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "Çıkış bulunamadı",
         mixerSystemOutputTooltip: "Sistem çıkışını seç",
         mixerSystemOutputErrorFormat: "Geçiş yapılamadı: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "Kulaklık bağlantısı kesilince sesi düşür",
         mixerLowerOnHeadphonesDisconnectCaption: "Kablolu veya Bluetooth kulaklık bağlantısı kesildiğinde çıkışı seçilen seviyeye ayarlar.",
         mixerHeadphonesDisconnectVolume: "Bağlantı kesilince ses",
         preciseVolumeRollerEnable: "Daha hassas ses adımları kullan",
         preciseVolumeRollerCaption: "Ses tekerleklerini ve tuşlarını daha küçük sistem adımlarına dönüştürür.",
         preciseVolumeRollerTapFailed: "Ses tuşları dinlenemedi.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "Çıkış değiştirici",
         soundOutputSwitcherEnable: "Çıkışları kısayolla değiştir",
         soundOutputSwitcherCaption: "Çıkışları seç ve kısayolla bir sonraki kullanılabilir çıkışa geç.",
         soundOutputSwitcherDevices: "Döngüdeki çıkışlar",
         soundOutputSwitcherNoAvailableSelection: "En az bir kullanılabilir çıkış seç.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "Mikrofon",
         mixerInputNoDevices: "Mikrofon bulunamadı",
         mixerInputUnavailable: "Mikrofon kullanılamıyor",
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "Listedeki uygulamalar",
         mixerAllShown: "Tümü",
         mixerHiddenCountLabel: "Gizli",
         mixerHideFromList: "Listeden gizle",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "Ses cihazı önceliği",
         audioPriorityOutputEnable: "En yüksek öncelikli ses çıkışına otomatik geç",
         audioPriorityInputEnable: "En yüksek öncelikli mikrofona otomatik geç",
@@ -655,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "Etkin",
         audioPriorityCaption: "Cihazlar öncelik sırasına göre seçilir. Daha yüksek öncelikli bir cihaz bağlandığında o cihaza geçilir. Etkin cihazın bağlantısı kesildiğinde sıradaki kullanılabilir cihaza geçilir.",
 
+        // MARK: Settings — updates
         updatesSection: "Güncellemeler",
         autoCheckToggle: "Güncellemeleri otomatik denetle",
         includeBetaUpdatesToggle: "Beta güncellemelerini al",
@@ -675,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "Uygulama, disk görüntüsü veya geçici bir sistem konumu gibi güncellenemeyen bir yerden çalışıyor. Vorssaint’i Uygulamalar klasörüne sürükleyin, oradan açın ve yeniden deneyin.",
         menuCheckUpdates: "Güncellemeleri denetle…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "İzin gerekli",
         permissionAccessibility: "Erişilebilirlik",
         permissionScreenRecording: "Ekran Kaydı",
@@ -683,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "Sistem Ayarları’nı aç…",
         permissionRequest: "Erişim ver",
         permissionRestartNote: "macOS izin verdikten sonra uygulamayı yeniden açmanı isteyebilir.",
+
+        // MARK: Secure input
         secureInputTitle: "Güvenli giriş açık",
         secureInputHeldFormat: "Açıldığında etkin uygulama %@ idi ve bunu o açık tutuyor olabilir, bu yüzden Vorssaint senin yerine yazamıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
         secureInputUnattributed: "Bunu açık tutan uygulama belirlenemiyor, bu yüzden Vorssaint senin yerine yazamıyor. Temizlemek için açık bir parola alanı varsa ondan çık ya da oturumu kapatıp yeniden aç.",
         secureInputUnidentified: "Bunu açık tutan uygulama belirlenemedi, bu yüzden Vorssaint senin yerine yazamıyor.",
         secureInputRevealFormat: "%@ uygulamasını göster",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "Açıldığında etkin uygulama %@ idi ve bunu o açık tutuyor olabilir. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Serbest bırakmak için parola alanından çık ya da uygulamayı kapat.",
         secureInputSwitcherUnattributed: "Bunu açık tutan uygulama belirlenemiyor. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor. Temizlemek için açık bir parola alanı varsa ondan çık ya da oturumu kapatıp yeniden aç.",
         secureInputSwitcherUnidentified: "Bunu açık tutan uygulama belirlenemedi. Güvenli giriş açık kaldıkça macOS bastığın tuşları değiştiriciden gizliyor ve ⌘Tab onun yerine macOS değiştiricisini açıyor.",
 
+        // MARK: About
         aboutDescription: "Mac’in için bir yardımcı merkez.\nEnerji, sistem monitörü, kaydırma ve pencere değiştirici, doğrudan menü çubuğunda.",
         versionPrefix: "Sürüm",
         reviewIntro: "Tanıtımı incele",
         reviewHighlights: "Yenilikler turunu incele",
         viewOnGitHub: "GitHub’da görüntüle",
 
+        // MARK: Onboarding
         obContinue: "Devam",
         obBack: "Geri",
         obSkipStep: "Bu adımı atla",
@@ -711,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "Fare ve pencereler, senin tarzın",
         obWelcomeBullet3Body: "Ters fare kaydırması ve küçük resimli pencere değiştirici.",
         obLanguageLabel: "Dil",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "Erişilebilirlik",
         obStepAccessibilityBody: "Fare kaydırmasını ters çevirmek ve pencere değiştiricinin klavyeye yanıt vermesi için gereklidir.",
         obAccessibilityWhy: "Uygulama yalnızca fare tekerleğini ve değiştirici kısayolunu izler. Hiçbir şey kaydedilmez veya bir yere gönderilmez.",
         obStepRecordingTitle: "Ekran Kaydı",
         obStepRecordingBody: "Değiştiricinin yalnızca simge yerine gerçek pencere küçük resimleri göstermesini sağlar.",
         obRecordingWhy: "Küçük resimler anlık oluşturulur, bellekte kalır ve Mac’inden çıkmaz. Bu izin olmadan değiştirici simgelerle çalışmaya devam eder.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "Sistem monitörü",
         obStepMonitorBody: "Panel CPU, GPU ve pil sıcaklıklarını, donanım kullanımını ve bellek basıncını gösterir.",
         obMonitorNoPermission: "İzin gerekmez. Sensörler doğrudan sistemden okunur.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "İsteğe bağlı özellikler",
         obStepOptionalBody: "Şimdi kullanmak istediklerini aç. Her şeyi daha sonra Ayarlar’dan değiştirebilirsin.",
         obStepStatusTitle: "Kontrol",
         obStepStatusBody: "İstediğin özellikler için her şeyin hazır olduğundan emin ol.",
         obStatusRecheck: "Tekrar denetle",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "Her şey hazır!",
         obStepDoneBody: "Vorssaint Mac’inle ilgilenmeye başladı bile.",
         obDoneHint: "Ekranın sağ üstündeki menü çubuğunda kara deliği ara.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "Bu sürümdeki yenilikler",
         obWhatsNewFallback: "Bu güncelleme en son düzeltmeleri ve iyileştirmeleri içerir.",
         obLanguageUpdateTitle: "Artık kendi dilinde",
@@ -736,7 +837,10 @@ extension Strings {
         obPurposeBody: "Hazır bir kurulum veya kullanmak istediğiniz özellikleri tek tek seçin.",
         obPurposeSkip: "Özellikleri daha sonra Ayarlar’dan değiştirebilirsiniz.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "Monitör",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "Menü çubuğunda",
         monitorMenuBarPreview: "Menü çubuğu önizlemesi",
         monitorMenuBarCaption: "Menü çubuğunda simgenin yanında ne görüneceğini seç.",
@@ -753,6 +857,8 @@ extension Strings {
         monitorInterval1: "1 saniye",
         monitorInterval2: "2 saniye",
         monitorInterval5: "5 saniye",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "Panelde",
         panelNavigationMode: "Panelde bölümlere göre gezin",
         panelNavigationCaption: "Her seferinde bir bölüm gösterir. Her şeyi kesintisiz kaydırmada görmek için Liste’yi seç.",
@@ -761,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Bazı hatalarla karşılaşabilirsin.",
 
+        // MARK: Panel — network
         networkSection: "Ağ",
         networkIPAddresses: "IP adresleri",
         networkLocalIP: "Yerel IPv4",
@@ -771,6 +878,7 @@ extension Strings {
         networkApps: "Ağı kullanan uygulamalar",
         networkAppsIdle: "Şu anda ağı kullanan uygulama yok",
 
+        // MARK: Panel — disk
         diskSection: "Diskler",
         diskUsed: "kullanıldı",
         diskFree: "boş",
@@ -806,6 +914,7 @@ extension Strings {
         diskStorageSettings: "Depolama",
         diskNoDisks: "Bağlı disk bulunamadı.",
 
+        // MARK: Panel — power
         powerSection: "Güç",
         powerSystem: "Sistem",
         powerAdapter: "Adaptör",
@@ -823,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "Aygıt bulunamadı",
         monitorGraphsSection: "Grafikler",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "Güncelleme var",
         updateBannerAction: "Güncelle",
         obStepMenuBarTitle: "Menü çubuğunda metrikler",
@@ -844,6 +954,8 @@ extension Strings {
         memoryStyleDot: "Nokta",
         memoryStylePercent: "%",
         memoryStyleBoth: "İkisi de",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "Çalışma süresi",
         batteryCharge: "Şarj",
         powerHealth: "Pil sağlığı",
@@ -854,6 +966,7 @@ extension Strings {
         speedTestTesting: "Test ediliyor…",
         speedTestFailed: "Test başarısız",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "Panelde göster",
         disclosureExpanded: "Genişletildi",
         disclosureCollapsed: "Daraltıldı",
@@ -871,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "Araçlar",
         monitorPanelConfigHint: "Ne göstereceğini seçmek için bir blok aç.",
         monitorOrderHint: "Panel bölümlerini yeniden sıralamak için sürükle ve her birini göstermek veya gizlemek için göz simgesini kullan.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "Panelde neler var",
         obStepPanelBody: "Her bloğu aç ve simgeye tıkladığında tam olarak ne görüneceğini seç.",
         obStepPanelNavigationTitle: "Bölüm tabanlı panel",
         obStepPanelNavigationBody: "Panel artık her seferinde bir bölüm gösterebilir. Ayarlar’da Bölümler ve Liste arasında geçiş yapabilirsin.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "Temizleme Modu",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "Araçlar",
         quickControlsSection: "Denetimler",
         panelCategoryWindows: "Pencereler",
         panelCategoryInput: "Fare ve klavye",
         panelCategoryFiles: "Dosyalar",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "Pencereleri büyüt",
         windowMaximizeCaption: "Yeşil düğme başka bir Space oluşturmadan pencereyi büyütür.",
         windowMaximizeActiveNow: "Yeşil düğme geçersiz kılma etkin",
         windowMaximizeNeedsAccessibility: "Çalışması için Erişilebilirlik gerekir.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "Tuş sekmesini filtrele",
         keyDebounceEnable: "Yinelenen tuşları filtrele",
         keyDebounceCaption: "Çok hızlı yinelenen tuş basışlarını filtreler.",
@@ -898,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "Tuş ekle",
         keyDebounceNoOverrides: "Belirli tuş ayarı yok.",
         keyDebounceRemoveKey: "Tuşu kaldır",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "Güvenle temizleyebilmen için klavyeyi kilitler.",
         cleaningOverlayTitle: "Klavye temizlik için kilitlendi",
         cleaningOverlaySubtitle: "Kilidi açmak için Esc tuşuna 5 kez bas",
@@ -909,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "Erişilebilirlik gerekli",
         cleaningNeedsAxBody: "Klavyeyi güvenle kilitlemek için Vorssaint’in Erişilebilirlik iznine ihtiyacı var. Sistem Ayarları’ndan izin ver ve tekrar dene.",
 
+        // MARK: Support / donate
         tabSupport: "Destek",
         shortcutsPageCaption: "Bu Mac’te yüklü özelliklerin tüm genel kısayollarını burada düzenleyin. Etkin olmayan kısayollar kayıtlı kalır ancak çalışmaz.",
         shortcutsPageTitle: "Klavye kısayolları",
         settingsSearchPlaceholder: "Ayarlarda ara",
+
+        // MARK: Support — donations
         donateHeading: "Vorssaint’in gelişmesine destek ol",
         donateMessage: "Vorssaint ücretsiz ve yerel kalmaya devam ediyor; reklam ya da kullanım takibi yok. İşinize yarıyorsa, geliştirilmesine maddi destek vermenin tek yolu Buy Me a Coffee.",
         donateButton: "Buy Me a Coffee ile destek ol",
         donateThanks: "Burada olduğun için teşekkürler. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Vorssaint’in gelişmesine destek ol",
         supportIntroMessage: "Vorssaint ücretsiz ve yerel kalmaya devam ediyor; reklam ya da kullanım takibi yok. İşinize yarıyorsa, geliştirilmesine maddi destek vermenin tek yolu Buy Me a Coffee.",
         supportIntroStarButton: "GitHub’da Vorssaint’e yıldız ver",
@@ -925,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Buy Me a Coffee ile destek ol",
         supportIntroLaterButton: "Şimdi değil",
         supportIntroDoneButton: "Tamam",
+
+        // MARK: Support — community
         discordIntroTitle: "Vorssaint Discord topluluğu daha yeni başlıyor",
         discordIntroMessage: "Vorssaint topluluğu yeni ve hâlâ şekilleniyor. Diğer kullanıcılarla tanışmak ve uygulamanın etrafında sıcak bir alan oluşturmaya yardım etmek için erkenden katıl.",
         discordIntroJoinButton: "Discord topluluğuna katıl",
         communityIntroTitle: "Her şeyi herkesten önce gör",
         communityIntroMessage: "Beni X’te zaten takip edenler bu güncellemedeki birçok yeniliği herkesten önce gördü. Orada sırada neler olduğuna dair ön izlemeler paylaşıyor ve nasıl çalıştıklarını gösteriyorum. Böylece güncelleme çıkmadan önce temelini öğrenebilirsin. Takip et ve sırada ne olduğunu gör!",
         communityIntroFollowButton: "X’te @vorssaint’i takip et",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Artık resmî Homebrew kataloğunda",
         homebrewOfficialIntroMessage: "Vorssaint artık doğrudan resmî Homebrew kataloğundan kurulabilir.",
         homebrewOfficialIntroInstallLabel: "Yeni kurulum",
         homebrewOfficialIntroMigrationTitle: "Eski tap’i mi kullanıyordunuz?",
         homebrewOfficialIntroMigrationMessage: "Eski tap’i bir kez kaldırın. Uygulama ve ayarlarınız yerinde kalır.",
         homebrewOfficialIntroCopyButton: "Komutu kopyala",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "3.1.4’te yenilikler",
         updateShowcaseMessage: "Bu güncellemedeki başlıca iyileştirmelere hızlıca göz at.",
         updateShowcaseUnavailable: "Video şu anda yüklenemedi. Yine de devam edebilirsin.",
         updateShowcaseRestart: "Yeniden başlat",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "Menü çubuğu simgesini göster",
         menuBarIconStillHiddenTitle: "Simge hâlâ gizli",
         menuBarIconStillHiddenBody: "Simge yeniden oluşturuldu ancak macOS ona görünür bir yer vermedi. Menü çubuğunda büyük olasılıkla yer kalmadı: bazı menü çubuğu simgelerini kaldırın (veya menüleri uzun uygulamaları kapatın) ve yeniden deneyin.",
         menuBarIconManagerHintFormat: "%@ açık ve simgeyi gizli bölümünde tutuyor olabilir. Vorssaint’i orada arayın veya %@ uygulamasını Vorssaint’i her zaman gösterecek şekilde ayarlayın.",
         menuBarIconDisallowedBody: "macOS, Vorssaint’i menü çubuğunun dışında tutuyor. Sistem Ayarları > Menü Çubuğu’nu açın, uygulama listesinde Vorssaint’i bulun ve “Menü Çubuğunda İzin Ver” (Allow in the Menu Bar) seçeneğini açın. Anahtar açılır açılmaz simge görünür.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "Yeni kısayola bas",
         shortcutReset: "Sıfırla",
         shortcutNone: "Yok",
@@ -963,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS bu kısayolu reddetti. Başka birini seç.",
         shelfShortcutToggle: "Raf kısayolu",
         switcherUsageHintFormat: "Gezinmek için %@ tuşunu basılı tut; pencereyi etkinleştirmek için bırak. Shift veya ← geri gider; W pencereyi kapatır; Q uygulamadan çıkar; Esc iptal eder.",
+
+        // MARK: Media keys
         musicBlockSection: "Medya tuşları",
         musicBlockTitle: "Müzik uygulamasının kendiliğinden açılmasını engelle",
         musicBlockCaption: "Algılanan bir medya tuşundan sonra müzik uygulamasının açılmasını engeller. Erişilebilirlik izni gerektirir. Tuş algılanmayan kulaklık komutlarına izin verilir.",
@@ -972,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "Engellenen uygulamalar Müzik ve iTunes olduğu için yerine açılamazlar. Başka bir uygulama seçin.",
         musicBlockChooseApp: "Uygulama seç…",
         musicBlockPlayReplacement: "Yerine açılan uygulama açıldığında çal",
+
+        // MARK: Cleaner
         cleanerName: "Temizlik",
         cleanerIntroTitle: "Mac içindeki gereksizleri temizle",
         cleanerIntroCaption: "Kaldırılmış uygulama kalıntılarını, önbellekleri, günlükleri ve Çöp Sepetini arar. Önce her şeyi gözden geçirirsin ve kaldırılanlar Çöp Sepetine gider.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "Tara",
         cleanerScanning: "Taranıyor…",
         cleanerCleaning: "Temizleniyor…",
@@ -993,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "%d gündür açmadığınız ve macOS’un verdiği ad ile klasörde duran ekran görüntüleri. Yeniden adlandırdıklarınız veya taşıdıklarınız burada hiç görünmez.",
         cleanerScreenshotsSettingCaption: "Tarama, bu süredir açmadığınız ekran görüntülerini işaretsiz ve toplam boyutuyla listeler.",
         cleanerScreenshotsAfterFormat: "%d gün sonra",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "Temizlenecek bir şey yok. Mac düzenli.",
         cleanerClean: "Temizle",
         cleanerDoneNote: "Öğeler Çöp Sepetine taşındı ve oradan geri alınabilir.",
@@ -1009,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "Kaldırdığın uygulamalardan kalan dosyalar.",
         cleanerOtherCachesCaption: "Silmek güvenli, hiçbir şey bozulmaz. Uygulamalar bir kez daha yavaş açılabilir ve çevrimdışı müzik gibi indirilen içerikler yeniden indirilir.",
         cleanerCleanSizeFormat: "%@ temizle",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "Otomatik temizlik",
         cleanerScheduleOff: "Kapalı",
         cleanerScheduleDaily: "Günlük",
@@ -1019,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "Sonraki temizlik %@.",
         cleanerScheduleRanFormat: "Son otomatik temizlik %@.",
         cleanerScheduleNotifyToggle: "Bitince bildir",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Vorssaint bildirimleri sistemde kapalı.",
         cleanerNotifOpenSettings: "Bildirim ayarlarını aç…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "Uygulama, oturum açılırken açılmaya izin vermeyen bir konumdan çalışıyor. Vorssaint’i Uygulamalar klasörüne sürükleyin, oradan açın ve bu seçeneği yeniden açın.",
         launchAtLoginNeedsApproval: "Giriş ögesi kayıtlı, ancak macOS hâlâ onayınızı bekliyor. Sistem Ayarları’nda Vorssaint’in oturum açılırken açılmasına ve arka planda çalışmasına izin verin.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "Satır sonlarını kaldır",
         ocrRemoveLineBreaksCaption: "Satır sonlarını kaldırarak kopyalanan metnin tek paragraf olarak yapıştırılmasını sağlar.",
         ocrQRToggle: "QR kodlarını oku",
@@ -1031,6 +1186,8 @@ extension Strings {
         qrResultTitle: "QR kodu",
         qrResultCopy: "Kopyala",
         qrResultOpen: "Bağlantıyı aç",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "Bu güncellemedeki yenilikler",
         highlightsTitleClipboardRedesign: "Yenilenen Pano",
         highlightsTitleWindowLayout: "Pencere Yerleşimi",
@@ -1047,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "Ayarla",
         highlightsTry: "Dene",
         highlightsSeeAll: "Tüm değişiklikleri gör",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "Yalnızca geçerli masaüstünü göster",
         switcherCurrentSpaceOnlyCaption: "Geçerli masaüstündeki pencereleri listeler. Tam ekran pencereleri gösterme seçeneği açıkken, diğer masaüstlerindeki tam ekran pencereleri de gösterilir.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "Dosya artık yok",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "Küçük",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "Sistem sesleri",
         mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "Etkinlik Monitörü’nü aç",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Dock simgesine tıklayınca uygulamayı gizle",
         dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "Belleği şu şekilde ölç",
         memoryMetricUsed: "Kullanılan Bellek",
         memoryMetricApp: "Uygulama Belleği",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "Uyanık tutmayı açıp kapatmak için menü çubuğu simgesine sağ tıkla",
         keepAwakeRightClickToggleCaption: "Sağ tık bağlam menüsünün yerini alır.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "Temizleme kuralları",
         urlCleanerRulesCaption: "Bir site, bağlantının nereden geldiğini izlemek için bu parametreleri kendi paylaşım bağlantılarına ekler. İşaretliyken ad temizlik sırasında kaldırılır, işaret kaldırılınca kalır. Eklediğiniz adlar silinebilir.",
         urlCleanerRulesCoverageCaption: "Liste, bir sitenin farklı paylaşım yollarını (web sayfası, uygulama, canlı yayın) kapsadığı için uzundur; gerçek bir bağlantı genelde bunlardan yalnızca iki ila dördünü taşır.",
@@ -1075,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Bu sitenin tüm kurallarını kapat",
         urlCleanerRulesRestoreSiteButton: "Bu sitenin tüm kurallarını aç",
         urlCleanerRemovedFormat: "Kaldırıldı: %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "S ile aramayı sabitle",
         switcherSearchPinCaption: "S, aramayı başlatır ve değiştiriciyi sabitler; kısayolun ⌥ kullanması durumunda özel karakter yazılmasını, Q veya W ile başlayan aramaların pencereyi kapatmasını veya uygulamadan çıkmasını önler.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "Dikey kaydırmayı ters çevir",
         invertHorizontalScroll: "Yatay kaydırmayı ters çevir",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "Tuş basılıyken yatay kaydırma",
+
+        // MARK: Settings — zoom
         zoomSection: "Yakınlaştırma",
         zoomControlNote: "Control + kaydırma, macOS ekranı yerine uygulama içeriğini yakınlaştırır.",
         pinchZoom: "Kısma ile yakınlaştırma",
@@ -1088,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "Dikey fare tekerleğiyle yatay kaydırmak için yalnızca seçilen değiştirici tuşu basılı tutun. Diğer tuş birleşimleri değişmez.",
         switcherShowShortcutHints: "Kısayol ipuçlarını göster",
         switcherShowShortcutHintsCaption: "Simge sırasının altında uygulama ve pencere kısayollarını gösterir.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@, Homebrew’den de kaldırılacak.",
         uninstallerHomebrewCheckFailed: "Bu uygulamanın Homebrew tarafından yönetilip yönetilmediği doğrulanamadı. Yenile düğmesiyle tekrar deneyin veya Homebrew üzerinden kaldırın.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "Ekran kenarına yaklaşınca aç",
         shelfEdgeCaption: "Bir dosyayı ekran kenarına doğru sürüklediğinde raf belirmeye başlar. Bıraktığın yerde kalır, ya da geri çekersen raf da geri çekilir.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "Odak fareyi takip etsin",
         focusFollowsMouseCaption: "İşaretçinin altındaki pencereye odaklanır.",
         focusFollowsMouseDelay: "Üzerinde bekleme gecikmesi",
         focusFollowsMouseRaise: "Pencereyi öne getir",
         focusFollowsMouseWaitForStop: "İşaretçinin durmasını bekle",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "Küçültülmüş pencereler",
         switcherTreatHiddenAppsLikeMinimized: "Gizli uygulamaları küçültülmüş pencereler gibi işle",
         switcherMinimizedPlacementNormal: "Normal sıralama",
@@ -1110,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "Birden fazla ekran bağlıyken değiştiricinin hangi ekranda açılacağını belirler.",
         switcherCurrentDisplayOnly: "Yalnızca geçerli ekranı göster",
         switcherCurrentDisplayOnlyCaption: "Yalnızca işaretçinin bulunduğu ekrandaki pencereleri gösterir. O ekranda pencere yoksa değiştirici açılmaz.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "Tepki",
         smoothScrollCoastLabel: "Atalet",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "Fare hızlandırmasını kapat",
         mouseAccelerationCaption: "Bağlı farelerde işaretçi hızlandırmasını kaldırır. Seçenek kapatıldığında veya Vorssaint’ten çıkıldığında önceki ayar geri yüklenir.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "Doğrusal kaydırma",
         linearScrollCaption: "Fare tekerleğinin her adımı, ne kadar hızlı çevrilirse çevrilsin aynı mesafeyi kaydırır. İzleme dörtgeni değişmez.",
         linearScrollLinesLabel: "Adım başına satır",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "Bir tuşa basılı tutarak daha hızlı kaydır",
         scrollSpeedCaption: "Fare tekerleğini çevirirken yalnızca seçilen değiştiriciyi basılı tutarak kaydırma mesafesini katlayın. İzleme dörtgeni etkilenmez.",
         scrollSpeedMultiplierLabel: "Hız",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "Kapatınca temizle",
         shelfClearOnCloseCaption: "Rafı yalnızca kapatma düğmesine tıkladığında boşaltır. Otomatik gizleme ve daraltma öğeleri korur.",
         shelfShortcutFinderSelection: "Kısayolla Finder seçimini ekle",
         shelfShortcutFinderSelectionCaption: "Finder öndeyken kısayol, rafı seçili dosyalar içinde olacak şekilde açar. Hiçbir şey seçili değilse her zamanki gibi açılır.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "Space sırasını sabit tut",
         spacesOrderCaption: "macOS’un Space’leri son kullanıma göre yeniden sıralamasını engeller, böylece belirlediğiniz sırada kalırlar. Seçenek kapatıldığında önceki ayar geri yüklenir. Değişikliği uygulamak için Dock bir kez yeniden başlayabilir.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "Uygulamaları kapat",
-        quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir."
+        quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir.",
     )
 }

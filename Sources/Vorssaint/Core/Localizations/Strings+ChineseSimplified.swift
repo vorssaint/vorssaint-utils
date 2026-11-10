@@ -6,6 +6,7 @@ import Foundation
 // 简体中文 — translated and hand-checked, not machine output.
 extension Strings {
     static let zhHans = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint：正常睡眠",
         statusActiveUntil: "Vorssaint：唤醒至",
         statusActiveIndefinite: "Vorssaint：持续唤醒",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "缩放",
         menuClose: "关闭",
 
+        // MARK: Durations
         minutes15: "15 分钟",
         minutes30: "30 分钟",
         hour1: "1 小时",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "持续不限",
         indefinite: "不限时",
 
+        // MARK: Panel — header & footer
         panelSettings: "设置",
         panelQuit: "退出",
         panelHotkeyHint: "快捷键切换",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "保持唤醒",
         keepAwakeEndsIn: "剩余时间",
         keepAwakeUntilDisabled: "保持启用直到你手动关闭",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "已就绪，切换时无需密码",
         clamshellNeedsPassword: "只会要求输入一次管理员密码",
 
+        // MARK: Panel — system monitor
         systemSection: "系统",
         temperatures: "温度",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "显著耗能",
         energyAppsIdle: "无显著耗能",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "会话已结束",
         notifySessionEndedBody: "时间到。Mac 将恢复正常睡眠。",
         notifyBatteryTitle: "Vorssaint 已关闭",
         notifyBatteryBody: "电量过低。已恢复正常睡眠以保护电量。",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint 需要您的密码才能在合盖后继续运行。",
         adminPromptClamshellOff: "Vorssaint 需要您的密码才能恢复 Mac 的正常睡眠。",
         adminPromptRecover: "Vorssaint 在 Mac 睡眠被禁用时退出了。请输入您的密码以恢复正常睡眠。",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint 将创建一条受限规则（仅限 pmset disablesleep），用于切换合盖模式时无需输入密码。这是唯一一次需要您输入密码。",
         adminPromptSudoersRemove: "Vorssaint 将为您移除免密码的合盖规则。",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Vorssaint 设置",
         tabGeneral: "通用",
         tabEnergy: "能源",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "大",
         previewSizeXLarge: "特大",
         settingsGroupFeatures: "功能",
+
+        // MARK: Settings — advanced
         advancedResetSection: "权限",
         advancedResetDescription: "移除你授予 Vorssaint 的所有权限（辅助功能、屏幕录制、完全磁盘访问权限等）、登录项以及合盖规则。适合重新开始或卸载前使用。App 仍保持安装状态。",
         advancedClearButton: "清除所有权限",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "已停止卸载",
         advancedUninstallFailedBody: "Vorssaint 无法还原它更改过的系统设置：睡眠、风扇转速、鼠标加速或空间顺序。没有移除任何内容。请重试，并在出现密码请求时允许。",
 
+        // MARK: Settings — general
         launchAtLogin: "登录时启动",
         languageLabel: "语言",
         menuBarSection: "菜单栏",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "启用“保持唤醒”快捷键",
         hotkeyCaption: "在任何 App 中都有效，无需额外权限。",
 
+        // MARK: Settings — energy
         sessionSection: "会话",
         defaultDurationLabel: "默认时长",
         keepAwakeAutoStart: "打开 Vorssaint 时保持唤醒",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "将显示器完全调暗",
         dimScreenOnLidCloseCaption: "合盖时调暗显示器，开盖时恢复亮度。",
 
+        // MARK: Settings — mouse
         scrollSection: "滚动",
         invertMouseScroll: "反转鼠标滚动",
         invertMouseScrollCaption: "反转鼠标滚轮的方向。",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "平滑滚动",
         smoothScrollCaption: "把鼠标滚轮的每一格变成短暂顺滑的滑动。触控板不受影响。",
         smoothScrollStepLabel: "滚动速度",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "导航",
         mouseNavigationEnable: "使用侧键后退和前进",
         mouseNavigationCaption: "将鼠标的后退和前进按钮转换为 Finder、浏览器和兼容 App 的导航命令。",
+
+        // MARK: Settings — middle click
         middleClickSection: "触控板中键点按",
         middleClickEnable: "三指按下作为中键点按",
         middleClickEnableCaption: "用三根手指按下触控板，效果等同于鼠标滚轮点按：在新标签页中打开链接、关闭标签页，以及中键能做的一切。",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 根手指",
         middleClickTapFourFingers: "4 根手指",
         middleClickTapCaption: "用该数量的手指轻点（无需按压）也会触发中键点按。滑动不会触发。如果 macOS 的三指轻点被指定为“查询”，请将其关闭以免两者同时触发。",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "快捷面板",
         quickToolShortcutToggle: "全局快捷键",
+
+        // MARK: Quick tool — OCR
         ocrName: "拷贝屏幕文字",
         ocrCaption: "选择屏幕上的一块区域，识别出的文字会被拷贝，随时可以粘贴。",
         ocrCopied: "文字已拷贝",
         ocrNoText: "未找到文字",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "颜色吸管",
         colorPickerCaption: "获取屏幕上任意像素的颜色，并以你喜欢的格式拷贝。",
         colorPickerFormatLabel: "拷贝格式",
         colorPickerBareHexToggle: "拷贝时不带 # 前缀",
         colorPickerPickNow: "拾取颜色",
+
+        // MARK: Quick tool — microphone
         micMuteName: "静音麦克风",
         micUnmuteName: "取消静音麦克风",
         micMuteCaption: "使用各个麦克风的静音或输入音量控制。Siri 和部分 App 仍可能听到你的声音。此功能无法阻止所有麦克风访问。",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "部分麦克风仍处于静音",
         micMuteMenuBarToggle: "功能开启时在菜单栏显示",
         micMuteMenuBarCaption: "菜单栏中的红色麦克风表示此功能已开启，并不保证所有 App 都已停止采集音频。",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "粘贴为纯文本",
         pastePlainCaption: "粘贴拷贝的内容时去除颜色、字体和格式。原始内容仍保留在剪贴板中。",
+
+        // MARK: Quick tool — launcher
         launcherName: "快捷面板",
         launcherCaption: "一个汇集你最爱工具的悬浮面板，随时随地用快捷键唤出。",
         launcherOpenNow: "打开快捷面板",
@@ -215,11 +245,15 @@ extension Strings {
         launcherEmptyState: "所有工具都已隐藏。使用调整按钮把它们加回来。",
         launcherAddSection: "重新添加",
         launcherKeysHint: "方向键导航，Enter 打开，1 到 9 直接打开",
+
+        // MARK: Settings — switcher
         switcherSection: "窗口切换器",
         switcherEnable: "使用 Vorssaint 切换器",
         switcherEnableCaption: "在 App 和窗口之间切换，包括最小化窗口和同一 App 的多个窗口。",
         switcherUsageHint: "按住快捷键进行浏览；松开即可激活窗口。Shift 或 ← 返回；W 关闭窗口；Q 退出 App；Esc 取消。",
         switcherNoWindows: "没有打开的窗口",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "用大图标显示 %@",
         switcherIconRowModeCaption: "每个 App 显示一个图标，并在上方显示该 App 的窗口预览。",
         switcherSimpleModeCaption: "显示 App 图标和窗口标题，不显示预览，也不会由切换器捕捉屏幕。",
@@ -239,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "指针经过 App 和窗口时，高亮保持不动。单击仍会打开。",
         switcherMergeTabs: "每个 App 仅显示一项",
         switcherMergeTabsCaption: "将一个 App 的所有窗口合并为切换器中的一项，而不是每个窗口一项。",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "无打开窗口的 App",
         switcherWindowlessAppsCaption: "选择哪些正在运行但完全没有窗口的 App 显示在切换器中。",
         switcherWindowlessAppsOff: "不显示",
@@ -247,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "开启“%@”时，会保留所有正在运行的 App 入口。如需选择，请关闭此选项。",
         switcherNoOpenWindow: "无打开的窗口",
         switcherOtherDesktop: "其他桌面",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "程序坞预览",
         dockPreviewEnable: "在程序坞中预览窗口",
         dockPreviewEnableCaption: "将指针悬停在程序坞中已打开的 App 上查看窗口，然后点按要打开的窗口。",
@@ -280,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "上一个窗口",
         dockPreviewNextWindow: "下一个窗口",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "剪切和粘贴",
         cutPasteEnable: "在访达中剪切和粘贴文件",
         cutPasteEnableCaption: "在访达中用 ⌘X 剪切、用 ⌘V 移动文件和文件夹。",
@@ -301,6 +340,7 @@ extension Strings {
         cutMovingTitle: "正在移动…",
         cutMovingCountFormat: "%d / %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "关闭时退出",
         autoQuitEnable: "App 最后一个窗口关闭时退出该 App",
         autoQuitEnableCaption: "关闭 App 的最后一个窗口也会退出该 App。",
@@ -315,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "没有例外",
         autoQuitAddApp: "添加 App…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "卸载器",
         uninstallerEnableCaption: "在移除 App 的同时，清除它遗留的缓存、偏好设置、日志和残留文件。",
         uninstallerStep1: "将一个 App 拖到设置中，或从列表中选择一个。",
@@ -372,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "无法识别 %@ 是哪个 App，因此无法卸载。",
         uninstallerPickerHiddenNote: "属于 macOS 或来自 Apple 的 App 不会列出。",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "清理 URL",
         urlCleanerEnable: "拷贝时自动清理 URL",
         urlCleanerEnableCaption: "链接一进剪贴板就移除其中的跟踪参数。",
@@ -388,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "已拷贝。",
         urlCleanerLocalNote: "本地处理。无网络。",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "搜索、安装和移除 formula 与 cask。",
         homebrewMissingTitle: "未找到 Homebrew",
@@ -404,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "Tap 尚未受信任",
         homebrewTrustCaption: "Homebrew 现在会在使用第三方 tap 前请求你的确认。信任 %@ 即可继续。",
         homebrewTrustButton: "信任并继续",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "搜索包",
         homebrewKeyboardHint: "空格或回车会关闭 macOS 面板。请使用搜索按钮。",
         homebrewSearchButton: "搜索",
@@ -419,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "作为依赖装进来，但现在已安装的包都不需要它们。",
         homebrewDependencyUpdatesFormat: "依赖项更新：%d",
         homebrewNoSelection: "选择一个已安装的包，或搜索一个新的包。",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "包详情",
         homebrewInstall: "安装",
         homebrewUninstall: "卸载",
@@ -442,6 +489,8 @@ extension Strings {
         homebrewUpdates: "更新",
         homebrewUpdateAvailableBadge: "有可用更新",
         homebrewLatestVersion: "最新",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "用 Homebrew 安装？",
         homebrewConfirmInstallBodyFormat: "Homebrew 将下载并安装“%@”。也可能安装依赖项。",
         homebrewConfirmUninstallTitle: "用 Homebrew 卸载？",
@@ -455,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "此操作需要通过终端询问管理员密码。Vorssaint 不会获取密码。",
         homebrewLoading: "正在加载…",
         homebrewSearchEmpty: "无结果",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "正在安装 %@",
         homebrewOperationUninstallFormat: "正在卸载 %@",
         homebrewOperationUpgradeFormat: "正在更新 %@",
@@ -481,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "技术详情",
         homebrewOperationProgressUnknown: "Homebrew 尚未报告百分比。",
 
+        // MARK: Feature — local media tools
         mediaName: "媒体",
         mediaEnableCaption: "在本地压缩视频、转换和处理图像、制作 GIF，并从图像中提取文字。",
         mediaLocalNote: "本地。无网络。",
@@ -488,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "图像",
         mediaToolText: "文字",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "选择文件",
         mediaDropHint: "将文件拖到这里，或点击选择。",
         mediaOutput: "输出",
         mediaOutputAutomatic: "自动",
         mediaChooseOutput: "目标位置",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "压缩视频",
         mediaStartGIF: "制作 GIF",
         mediaStartImage: "处理图像",
@@ -522,11 +578,15 @@ extension Strings {
         mediaFormat: "格式",
         mediaStripMetadata: "移除元数据",
         mediaLoopGIF: "循环 GIF",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "准确",
         mediaOCRFast: "快速",
         mediaLanguageCorrection: "语言校正",
         mediaTextOutputNote: "提取的文字可以拷贝并存储为 TXT。",
+
+        // MARK: Media — results & errors
         mediaRunning: "处理中",
         mediaCompleted: "完成",
         mediaCancelled: "已取消。",
@@ -542,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "请选择不同于原文件的目标位置。",
         mediaErrorUnsupported: "macOS 不支持此格式。",
 
+        // MARK: Feature — temporary shelf
         shelfName: "暂存架",
         shelfEnable: "用于拖放文件的临时区域",
         shelfEnableCaption: "一个浮动空间，用来收集文件、图像和文本，稍后再拖到任何 App 中。",
@@ -570,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "从这些 App 开始拖移时，摇动手势和菜单栏区域不会打开。快捷键和立即打开仍可使用。",
         shelfPin: "保持打开",
         shelfUnpin: "允许使用后关闭",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "超亮度",
         extraBrightnessCaption: "利用显示器的HDR余量突破最高亮度。会更耗电，Mac可能会发热。",
         extraBrightnessLevelLabel: "强度",
@@ -578,6 +641,8 @@ extension Strings {
         shelfOpenNow: "立即打开",
         shelfNoPermission: "无需任何权限。",
         shelfMenuItem: "打开暂存架",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "暂存架",
         shelfEmpty: "将项目拖到这里",
         shelfClearAll: "全部清除",
@@ -585,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "已选择 %d 项",
         shelfHint: "点按以选择，拖出即可使用，或右键点按查看更多操作。",
         shelfItemImage: "图像",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d 项",
         shelfTooltipItemsFew: "%d 项",
         shelfTooltipImageSingular: "%d 张图片",
@@ -599,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d 个链接",
         shelfTooltipLinkFew: "%d 个链接",
         shelfTooltipLinkPlural: "%d 个链接",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "打开",
         shelfActionOpenWith: "打开方式",
         shelfActionShare: "共享",
         shelfActionPin: "固定",
         shelfActionUnpin: "取消固定",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "测量中…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "音量混音器",
         mixerEmpty: "使用音频的 App 会显示在这里",
         mixerUnavailable: "需 macOS 14.4 及更高版本",
         mixerPermissionBody: "若要调整各 App 的音量，请在“系统设置”中允许“屏幕与系统音频录制”。绝不会录制音频。",
         mixerResetTooltip: "重置为 100%",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "默认",
         mixerOutputCurrent: "当前",
         mixerOutputUnavailable: "输出不可用",
@@ -623,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "未找到输出设备",
         mixerSystemOutputTooltip: "选择系统输出",
         mixerSystemOutputErrorFormat: "无法切换：%@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "耳机断开时降低音量",
         mixerLowerOnHeadphonesDisconnectCaption: "有线或蓝牙耳机断开时，自动调整输出音量。",
         mixerHeadphonesDisconnectVolume: "断开后的音量",
         preciseVolumeRollerEnable: "使用更细的音量步进",
         preciseVolumeRollerCaption: "将音量滚轮和按键转换为更小的系统音量步进。",
         preciseVolumeRollerTapFailed: "无法监听音量键。",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "输出切换器",
         soundOutputSwitcherEnable: "用快捷键切换输出",
         soundOutputSwitcherCaption: "选择输出设备，然后用快捷键切到下一个可用输出。",
         soundOutputSwitcherDevices: "循环中的输出",
         soundOutputSwitcherNoAvailableSelection: "请至少选择一个可用输出。",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "麦克风",
         mixerInputNoDevices: "未找到麦克风",
         mixerInputUnavailable: "麦克风不可用",
         mixerInputFallback: "在此麦克风恢复前使用默认输入。",
         mixerInputTooltip: "选择麦克风",
         mixerInputErrorFormat: "无法切换：%@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "列表中的 App",
         mixerAllShown: "全部",
         mixerHiddenCountLabel: "已隐藏",
         mixerHideFromList: "从列表中隐藏",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "音频设备优先级",
         audioPriorityOutputEnable: "自动切换到最高优先级的音频输出",
         audioPriorityInputEnable: "自动切换到最高优先级的麦克风",
@@ -655,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "使用中",
         audioPriorityCaption: "设备按优先级顺序选用。连接优先级更高的设备时，系统会切换到该设备；当前设备断开连接时，则切换到下一个可用设备。",
 
+        // MARK: Settings — updates
         updatesSection: "更新",
         autoCheckToggle: "自动检查更新",
         includeBetaUpdatesToggle: "接收 Beta 测试版更新",
@@ -675,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "App 正在一个无法更新的位置运行，例如磁盘映像或系统临时位置。请将 Vorssaint 拖到“应用程序”文件夹，从那里打开后再试一次。",
         menuCheckUpdates: "检查更新…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "需要权限",
         permissionAccessibility: "辅助功能",
         permissionScreenRecording: "屏幕录制",
@@ -683,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "打开系统设置…",
         permissionRequest: "授予访问权限",
         permissionRestartNote: "授予后，macOS 可能会要求重新打开 App。",
+
+        // MARK: Secure input
         secureInputTitle: "安全输入已开启",
         secureInputHeldFormat: "它开启时 %@ 位于前台，可能正在占用它，因此 Vorssaint 无法代你输入。退出其密码栏或退出该 App 即可释放。",
         secureInputUnattributed: "无法确定占用它的 App，因此 Vorssaint 无法代你输入。退出已打开的密码栏，或注销后重新登录即可清除。",
         secureInputUnidentified: "无法识别占用它的 App，因此 Vorssaint 无法代你输入。",
         secureInputRevealFormat: "显示 %@",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "它开启时 %@ 位于前台，可能正在占用它。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。退出其密码栏或退出该 App 即可释放。",
         secureInputSwitcherUnattributed: "无法确定占用它的 App。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。退出已打开的密码栏，或注销后重新登录即可清除。",
         secureInputSwitcherUnidentified: "无法识别占用它的 App。在安全输入关闭前，macOS 会对切换器隐藏你的按键，⌘Tab 会改为打开 macOS 的切换器。",
 
+        // MARK: About
         aboutDescription: "你的 Mac 实用工具中心。\n能源、系统监视器、滚动和窗口切换器，尽在菜单栏中。",
         versionPrefix: "版本",
         reviewIntro: "重看介绍",
         reviewHighlights: "重看新功能导览",
         viewOnGitHub: "在 GitHub 上查看",
 
+        // MARK: Onboarding
         obContinue: "继续",
         obBack: "返回",
         obSkipStep: "跳过此步骤",
@@ -711,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "鼠标和窗口，随你所愿",
         obWelcomeBullet3Body: "反转鼠标滚动，以及带缩略图的窗口切换器。",
         obLanguageLabel: "语言",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "辅助功能",
         obStepAccessibilityBody: "用于反转鼠标滚动，并让窗口切换器响应键盘操作。",
         obAccessibilityWhy: "App 只会监听鼠标滚轮和切换器快捷键。不会录制任何内容，也不会发送到任何地方。",
         obStepRecordingTitle: "屏幕录制",
         obStepRecordingBody: "让切换器显示真实的窗口缩略图，而不仅是图标。",
         obRecordingWhy: "缩略图实时生成，仅保留在内存中，绝不会离开你的 Mac。即使没有它，切换器仍可用图标工作。",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "系统监视器",
         obStepMonitorBody: "面板会显示 CPU、GPU 和电池温度、硬件占用以及内存压力。",
         obMonitorNoPermission: "无需任何权限。传感器直接从系统读取。",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "可选功能",
         obStepOptionalBody: "现在开启你想用的功能。一切都可以稍后在设置中更改。",
         obStepStatusTitle: "检查",
         obStepStatusBody: "确认你想使用的功能都已就绪。",
         obStatusRecheck: "重新检查",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "全部就绪！",
         obStepDoneBody: "Vorssaint 已开始照看你的 Mac。",
         obDoneHint: "在菜单栏（屏幕右上角）寻找那个黑洞图标。",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "此版本的新功能",
         obWhatsNewFallback: "此更新包含最新的修复和改进。",
         obLanguageUpdateTitle: "现在支持你的语言",
@@ -736,7 +837,10 @@ extension Strings {
         obPurposeBody: "选择一套预设，或准确勾选你想使用的功能。",
         obPurposeSkip: "之后可随时在设置中添加或移除功能。",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "监视",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "在菜单栏中",
         monitorMenuBarPreview: "菜单栏预览",
         monitorMenuBarCaption: "选择菜单栏中图标旁显示的内容。",
@@ -753,6 +857,8 @@ extension Strings {
         monitorInterval1: "1 秒",
         monitorInterval2: "2 秒",
         monitorInterval5: "5 秒",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "在面板中",
         panelNavigationMode: "按分区导航面板",
         panelNavigationCaption: "一次显示一个分区。选择“列表”可在连续滚动中查看全部内容。",
@@ -761,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "测试版。你可能会遇到一些错误。",
 
+        // MARK: Panel — network
         networkSection: "网络",
         networkIPAddresses: "IP 地址",
         networkLocalIP: "本地 IPv4",
@@ -771,6 +878,7 @@ extension Strings {
         networkApps: "正在使用网络的 App",
         networkAppsIdle: "当前没有 App 使用网络",
 
+        // MARK: Panel — disk
         diskSection: "磁盘",
         diskUsed: "已用",
         diskFree: "可用",
@@ -806,6 +914,7 @@ extension Strings {
         diskStorageSettings: "存储空间",
         diskNoDisks: "未找到已挂载磁盘。",
 
+        // MARK: Panel — power
         powerSection: "电源",
         powerSystem: "系统",
         powerAdapter: "电源适配器",
@@ -823,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "未找到外设",
         monitorGraphsSection: "图表",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "有可用更新",
         updateBannerAction: "更新",
         obStepMenuBarTitle: "菜单栏中的指标",
@@ -844,6 +954,8 @@ extension Strings {
         memoryStyleDot: "圆点",
         memoryStylePercent: "%",
         memoryStyleBoth: "两者",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "已运行",
         batteryCharge: "电量",
         powerHealth: "电池健康度",
@@ -854,6 +966,7 @@ extension Strings {
         speedTestTesting: "测试中…",
         speedTestFailed: "测试失败",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "在面板中显示",
         disclosureExpanded: "已展开",
         disclosureCollapsed: "已折叠",
@@ -871,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "工具",
         monitorPanelConfigHint: "打开某个模块以选择它显示的内容。",
         monitorOrderHint: "拖动以重新排列面板分区，点按眼睛图标可显示或隐藏各分区。",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "面板中显示的内容",
         obStepPanelBody: "打开每个模块，精确选择点按图标时显示的内容。",
         obStepPanelNavigationTitle: "分区式面板",
         obStepPanelNavigationBody: "面板现在可以一次显示一个分区。你可以在设置中切换“分区”和“列表”。",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "清洁模式",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "实用工具",
         quickControlsSection: "控制",
         panelCategoryWindows: "窗口",
         panelCategoryInput: "鼠标和键盘",
         panelCategoryFiles: "文件",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "最大化窗口",
         windowMaximizeCaption: "绿色按钮会最大化，不创建新的空间。",
         windowMaximizeActiveNow: "绿色按钮已启用",
         windowMaximizeNeedsAccessibility: "需要辅助功能权限才能工作。",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "按键防抖",
         keyDebounceEnable: "过滤重复按键",
         keyDebounceCaption: "过滤过快的重复按键。",
@@ -898,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "添加按键",
         keyDebounceNoOverrides: "尚未配置指定按键。",
         keyDebounceRemoveKey: "移除按键",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "锁定键盘，便于安全清洁。",
         cleaningOverlayTitle: "键盘已锁定以便清洁",
         cleaningOverlaySubtitle: "按下 Esc 键 5 次以解锁",
@@ -909,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "需要辅助功能",
         cleaningNeedsAxBody: "为安全地锁定键盘，Vorssaint 需要辅助功能权限。请在“系统设置”中授予后重试。",
 
+        // MARK: Support / donate
         tabSupport: "支持",
         shortcutsPageCaption: "在这里编辑此 Mac 已安装功能的所有全局快捷键。未启用的快捷键仍会保存，但不会执行。",
         shortcutsPageTitle: "键盘快捷键",
         settingsSearchPlaceholder: "搜索设置",
+
+        // MARK: Support — donations
         donateHeading: "帮助 Vorssaint 继续成长",
         donateMessage: "Vorssaint 依然免费，在本地运行，没有广告，也不追踪使用情况。如果它帮到了你，Buy Me a Coffee 是唯一能以捐款支持其开发的渠道。",
         donateButton: "通过 Buy Me a Coffee 支持",
         donateThanks: "谢谢你的到来。🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "帮助 Vorssaint 继续成长",
         supportIntroMessage: "Vorssaint 依然免费，在本地运行，没有广告，也不追踪使用情况。如果它帮到了你，Buy Me a Coffee 是唯一能以捐款支持其开发的渠道。",
         supportIntroStarButton: "在 GitHub 为 Vorssaint 点星",
@@ -925,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "通过 Buy Me a Coffee 支持",
         supportIntroLaterButton: "稍后再说",
         supportIntroDoneButton: "完成",
+
+        // MARK: Support — community
         discordIntroTitle: "Vorssaint Discord 社区刚刚起步",
         discordIntroMessage: "Vorssaint 社区刚刚建立，还在不断完善。现在加入，认识其他用户，并一起打造一个围绕这款 App 的友好空间。",
         discordIntroJoinButton: "加入 Discord 社区",
         communityIntroTitle: "抢先看到每个新功能",
         communityIntroMessage: "已经在 X 上关注我的人，早在其他人之前就看到了这次更新中的多项变化。我会在那里发布即将推出的新功能预览并展示使用方法，让你在更新发布前就了解基本操作。关注我，提前看看接下来会有什么！",
         communityIntroFollowButton: "在 X 上关注 @vorssaint",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "现已加入 Homebrew 官方目录",
         homebrewOfficialIntroMessage: "现在可以直接从 Homebrew 官方目录安装 Vorssaint。",
         homebrewOfficialIntroInstallLabel: "全新安装",
         homebrewOfficialIntroMigrationTitle: "用过旧 tap？",
         homebrewOfficialIntroMigrationMessage: "移除一次旧 tap。App 和你的设置都会保留。",
         homebrewOfficialIntroCopyButton: "拷贝命令",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "3.1.4 新功能",
         updateShowcaseMessage: "快速预览这次更新的主要改进。",
         updateShowcaseUnavailable: "现在无法加载视频。你仍然可以继续。",
         updateShowcaseRestart: "回到开头",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "显示菜单栏图标",
         menuBarIconStillHiddenTitle: "图标仍然被隐藏",
         menuBarIconStillHiddenBody: "图标已重建，但 macOS 没有给它可见的位置。菜单栏可能已经没有空间：请移除一些菜单栏图标（或关闭菜单很长的 App）后再试一次。",
         menuBarIconManagerHintFormat: "%@ 正在运行，可能把图标收进了它的隐藏区域。请在那里找找 Vorssaint，或将 %@ 设置为始终显示 Vorssaint。",
         menuBarIconDisallowedBody: "macOS 正在阻止 Vorssaint 出现在菜单栏中。打开“系统设置”>“菜单栏”，在 App 列表中找到 Vorssaint，并打开“允许显示在菜单栏中”（Allow in the Menu Bar）。开关打开后图标会立即出现。",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "按下新的快捷键",
         shortcutReset: "重置",
         shortcutNone: "无",
@@ -963,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS 拒绝了此快捷键。请选择另一个。",
         shelfShortcutToggle: "暂存架快捷键",
         switcherUsageHintFormat: "按住 %@ 进行浏览；松开即可激活窗口。Shift 或 ← 返回；W 关闭窗口；Q 退出 App；Esc 取消。",
+
+        // MARK: Media keys
         musicBlockSection: "媒体键",
         musicBlockTitle: "阻止音乐 App 自行打开",
         musicBlockCaption: "阻止检测到的媒体键触发音乐 App 启动。需要辅助功能权限。未检测到按键的耳机指令不会被阻止。",
@@ -972,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "被阻止的正是音乐和 iTunes，所以不能改为打开它们。请选择其他 App。",
         musicBlockChooseApp: "选择 App…",
         musicBlockPlayReplacement: "打开替代 App 后播放",
+
+        // MARK: Cleaner
         cleanerName: "清理",
         cleanerIntroTitle: "清理 Mac 垃圾",
         cleanerIntroCaption: "查找已卸载 App 的残留、缓存、日志和废纸篓。清理前可逐项确认，移除的项目会进入废纸篓。",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "扫描",
         cleanerScanning: "正在扫描…",
         cleanerCleaning: "正在清理…",
@@ -993,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "%d 天内没有打开过、仍保留 macOS 给的名称和文件夹的截图。你重命名或移动过的截图不会出现在这里。",
         cleanerScreenshotsSettingCaption: "扫描会列出这段时间内没有打开的截图，默认不勾选，并显示总大小。",
         cleanerScreenshotsAfterFormat: "%d 天后",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "没有可清理的内容。Mac 很整洁。",
         cleanerClean: "清理",
         cleanerDoneNote: "项目已移到废纸篓，可以从那里恢复。",
@@ -1009,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "已卸载 App 留下的文件。",
         cleanerOtherCachesCaption: "可以放心删除，不会损坏任何东西。App 首次打开可能变慢，离线音乐等已下载内容会重新下载。",
         cleanerCleanSizeFormat: "清理 %@",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "自动清理",
         cleanerScheduleOff: "关闭",
         cleanerScheduleDaily: "每天",
@@ -1019,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "下次清理%@。",
         cleanerScheduleRanFormat: "上次自动清理%@。",
         cleanerScheduleNotifyToggle: "完成时通知",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Vorssaint 的通知在系统中已关闭。",
         cleanerNotifOpenSettings: "打开通知设置…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "App 正从一个无法在登录时打开的位置运行。请将 Vorssaint 拖到“应用程序”文件夹，从那里打开后再重新开启此选项。",
         launchAtLoginNeedsApproval: "登录项已注册，但 macOS 仍需要批准。请在“系统设置”中允许 Vorssaint 在登录时打开并在后台运行。",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "移除换行",
         ocrRemoveLineBreaksCaption: "移除识别文本中的换行，使拷贝的内容粘贴为一个段落。",
         ocrQRToggle: "读取二维码",
@@ -1031,6 +1186,8 @@ extension Strings {
         qrResultTitle: "二维码",
         qrResultCopy: "拷贝",
         qrResultOpen: "打开链接",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "本次更新亮点",
         highlightsTitleClipboardRedesign: "剪贴板全新设计",
         highlightsTitleWindowLayout: "窗口布局",
@@ -1047,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "配置",
         highlightsTry: "试一试",
         highlightsSeeAll: "查看全部更改",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "仅显示当前桌面",
         switcherCurrentSpaceOnlyCaption: "显示当前桌面的窗口。启用显示全屏窗口时，也会显示其他桌面的全屏窗口。",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "文件已不存在",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "小",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "系统声音",
         mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "打开活动监视器",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "点按程序坞图标隐藏 App",
         dockClickHideCaption: "点按当前 App 的程序坞图标可隐藏它。再次点按即可恢复。",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "内存计量方式",
         memoryMetricUsed: "已用内存",
         memoryMetricApp: "App 内存",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "右键点按菜单栏图标以切换“保持唤醒”",
         keepAwakeRightClickToggleCaption: "将取代右键点按菜单。",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "清理规则",
         urlCleanerRulesCaption: "网站会把这些参数附加在自己的分享链接上，用来追踪链接从哪里来。勾上表示清理时把它删掉，取消勾选表示保留。自己添加的名称可以删除。",
         urlCleanerRulesCoverageCaption: "表里覆盖的是同一个站点的不同分享入口（网页、App、直播间），所以条目多；一条真实链接通常只带其中 2 到 4 个。",
@@ -1075,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "关闭这个网站的全部规则",
         urlCleanerRulesRestoreSiteButton: "打开这个网站的全部规则",
         urlCleanerRemovedFormat: "已移除 %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "按 S 固定搜索",
         switcherSearchPinCaption: "浏览时按 S 启动搜索，固定切换器；避免自定义快捷键为 ⌥ 时打出特殊字符，以及 Q/W 开头误触发关闭/退出。",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "反转垂直滚动",
         invertHorizontalScroll: "反转水平滚动",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "按住按键横向滚动",
+
+        // MARK: Settings — zoom
         zoomSection: "缩放",
         zoomControlNote: "Control + 滚动会缩放应用内容，而不是 macOS 屏幕。",
         pinchZoom: "捏合缩放",
@@ -1088,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "仅按住所选修饰键，即可用鼠标的垂直滚轮进行水平滚动。其他组合键保持不变。",
         switcherShowShortcutHints: "显示快捷键提示",
         switcherShowShortcutHintsCaption: "在图标下方显示 App 和窗口快捷键。",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ 也会从 Homebrew 中移除。",
         uninstallerHomebrewCheckFailed: "无法确认此 App 是否由 Homebrew 管理。请刷新后重试，或通过 Homebrew 卸载。",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "靠近屏幕边缘时打开",
         shelfEdgeCaption: "将文件拖向屏幕边缘，暂存架就会探出一角。放在那里即可放下，往回拖则会收回去。",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "悬停聚焦",
         focusFollowsMouseCaption: "聚焦指针下方的窗口。",
         focusFollowsMouseDelay: "悬停延迟",
         focusFollowsMouseRaise: "将窗口置前",
         focusFollowsMouseWaitForStop: "等待指针停下",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "最小化的窗口",
         switcherTreatHiddenAppsLikeMinimized: "将隐藏的 App 视为最小化的窗口",
         switcherMinimizedPlacementNormal: "正常顺序",
@@ -1110,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "连接多个显示器时，切换器在哪个显示器上打开。",
         switcherCurrentDisplayOnly: "仅显示当前显示器的窗口",
         switcherCurrentDisplayOnlyCaption: "只显示指针所在显示器上的窗口。如果该显示器没有窗口，切换器不会打开。",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "响应",
         smoothScrollCoastLabel: "惯性",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "关闭鼠标加速",
         mouseAccelerationCaption: "移除已连接鼠标的指针加速。关闭此选项或退出 Vorssaint 后，会恢复之前的设置。",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "线性滚动",
         linearScrollCaption: "无论转动多快，鼠标滚轮每一格都滚动相同的距离。触控板不受影响。",
         linearScrollLinesLabel: "每格行数",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "按住按键加快滚动",
         scrollSpeedCaption: "滚动鼠标滚轮时只按住所选修饰键即可倍增滚动距离。触控板不受影响。",
         scrollSpeedMultiplierLabel: "速度",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "关闭时清空",
         shelfClearOnCloseCaption: "仅在点按关闭按钮时清空暂存架。自动隐藏或收起时会保留项目。",
         shelfShortcutFinderSelection: "使用快捷键添加访达中的所选项",
         shelfShortcutFinderSelectionCaption: "访达位于前台时，快捷键会打开暂存架并放入所选文件。未选择任何内容时照常打开。",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "固定空间顺序",
         spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。",
+
+        // MARK: Feature — quit applications
         quitAppsName: "退出应用",
-        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。"
+        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。",
     )
 }
