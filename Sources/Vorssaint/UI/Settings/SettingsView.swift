@@ -225,23 +225,16 @@ struct SettingsView: View {
         }
     }
 
-    /// macOS 27 backs the pinned sidebar search field with a hard top scroll
-    /// edge, so rows fade out cleanly under it. On macOS 26 that effect does
-    /// not render inside split-view sidebars and the pinned field has no
-    /// backing of its own, so rows slid legibly across the placeholder
-    /// (issues #183, #254); there the field lives on a fixed header above the
-    /// list, where rows can never reach it. Earlier systems keep the classic
-    /// opaque sidebar chrome.
+    /// From macOS 26 the pinned system search field has no opaque backing in
+    /// a split-view sidebar, so scrolled rows stay legible behind and above
+    /// it (issues #183, #254); macOS 27's hard top scroll edge does not cover
+    /// it either. There the field lives on a fixed header above the list, as
+    /// in System Settings, where rows can never reach it. Earlier systems keep
+    /// the classic opaque sidebar chrome.
     @ViewBuilder
     private func sidebar(searchResults: SearchResultsSnapshot) -> some View {
 #if compiler(>=6.2)
-        if #available(macOS 27, *) {
-            sidebarList(searchResults: searchResults)
-                .searchable(text: $searchQuery,
-                            placement: .sidebar,
-                            prompt: l10n.s.settingsSearchPlaceholder)
-                .scrollEdgeEffectStyle(.hard, for: .top)
-        } else if #available(macOS 26, *) {
+        if #available(macOS 26, *) {
             VStack(spacing: 0) {
                 SidebarSearchField(query: $searchQuery, isFocused: $sidebarSearchFocused)
                 sidebarList(searchResults: searchResults)
