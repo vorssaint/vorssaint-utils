@@ -67,7 +67,7 @@ extension FeatureStrings {
             clearAll: "Esborra-ho tot",
             unavailable: "Aquesta notificació ja no admet aquesta acció.",
             hideSystemBanner: "Oculta el bàner del sistema",
-            hideSystemBannerHint: "Oculta l’original mentre la Dynamic Island el mostra. Per veure-hi les notificacions d’una app, mantén activats a macOS els seus avisos a l’escriptori.")
+            hideSystemBannerHint: "Oculta l’original mentre la Dynamic Island el mostra. Per veure-hi les notificacions d’una app, mantén activats al macOS els seus avisos a l’escriptori.")
         case .sk: return NotchNotificationStrings(
             title: "Hlásenia",
             description: "Nové systémové hlásenia v Dynamic Island.",

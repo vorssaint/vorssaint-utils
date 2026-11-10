@@ -371,6 +371,13 @@ extension BrightnessFeatureStrings {
         displayBrightnessIncrease: "Augmenta la brillantor de la pantalla",
         keyboardLight: "Llum del teclat",
         keyboardLightCaption: "Activa o desactiva la retroil·luminació del teclat.",
+        volumeToggle: "Altaveus del monitor",
+        volumeCaption: "Els monitors amb altaveus propis mostren aquí un regulador de volum, que fa servir el mateix canal que els seus botons. Les pantalles sense altaveus no en mostren cap.",
+        volumeLabel: "Volum",
+        mute: "Silencia",
+        unmute: "Activa el so",
+        volumeKeysToggle: "Tecles de volum als altaveus del monitor",
+        volumeKeysCaption: "Mentre el so surt per un monitor, les tecles de volum del teclat ajusten aquest monitor en lloc d’un nivell que el macOS no pot canviar.",
         keyboardBrightnessShortcuts: "Utilitza les dreceres de brillantor del teclat",
         keyboardBrightnessDecrease: "Redueix la brillantor del teclat",
         keyboardBrightnessIncrease: "Augmenta la brillantor del teclat",
@@ -378,7 +385,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Enfosquiment extra",
         islandPromptTitle: "Vols mostrar la brillantor a la Dynamic Island?",
         islandPromptMessage: "La Dynamic Island només mostra els canvis de brillantor mentre “Controla les pantalles” està activat a la configuració de Pantalles.",
-        islandPromptKeepOff: "Deixa-ho desactivat"
+        islandPromptKeepOff: "Deixa-ho desactivat",
+        speakersStep: "Pas del volum",
+        speakersStepStandard: "Estàndard (6,25 %)",
+        speakersMinimum: "Volum mínim",
+        speakersMinimumCaption: "El volum no baixa per sota d’aquí. “Silencia” continua deixant el monitor sense so.",
+        speakersMaximum: "Volum màxim",
+        speakersMaximumCaption: "El volum no puja per sobre d’aquí."
     )
 
     static let sk = BrightnessFeatureStrings(
