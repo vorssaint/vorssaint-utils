@@ -414,7 +414,8 @@ def main():
               "    private func performHeadlessDisplayRestoration(",
               "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
               "    private func displaysWillSleep(", "    private func displaysWokeUp(",
-              "    private func reapplyManagedDisplayDisables(", "    private func screensChanged("])
+              "    private func reapplyManagedDisplayDisables(", "    private func observeScreenUnlock(",
+              "    private func screensChanged("])
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
