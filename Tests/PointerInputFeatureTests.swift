@@ -1228,6 +1228,33 @@ enum PointerInputFeatureTests {
         suite.expect(longDelayFocusState.nextEvaluation(at: 23, delayMilliseconds: 3_000)?.point
                 == CGPoint(x: 40, y: 70),
                "a three-second focus delay evaluates the window once the full delay passes")
+        var settledFocusState = FocusFollowsMouseState()
+        settledFocusState.recordMovement(to: CGPoint(x: 10, y: 10), at: 50)
+        let settlingFocus = settledFocusState.nextEvaluation(at: 50.3, delayMilliseconds: 250)
+        if let settlingFocus { settledFocusState.finishEvaluation(settlingFocus, succeeded: true, settlingOn: 7) }
+        suite.expect(settlingFocus != nil && settledFocusState.hasSettled(on: 7)
+                && !settledFocusState.hasSettled(on: 8),
+               "a completed hover settles on the window under the pointer")
+        settledFocusState.recordMovement(to: CGPoint(x: 12, y: 10), at: 51)
+        let restingFocus = settledFocusState.nextEvaluation(at: 51.3, delayMilliseconds: 250)
+        if let restingFocus { settledFocusState.finishEvaluation(restingFocus, succeeded: true) }
+        suite.expect(settledFocusState.hasSettled(on: 7),
+               "a pop-up opened over a settled window keeps focus while the pointer rests there")
+        settledFocusState.recordClick(in: 9)
+        suite.expect(settledFocusState.hasSettled(on: 9) && !settledFocusState.hasSettled(on: 7),
+               "a click settles on the window it lands in, so what it opens keeps focus")
+        settledFocusState.recordMovement(to: CGPoint(x: 80, y: 10), at: 52)
+        let failedFocus = settledFocusState.nextEvaluation(at: 52.3, delayMilliseconds: 250)
+        if let failedFocus { settledFocusState.finishEvaluation(failedFocus, succeeded: false, settlingOn: 3) }
+        suite.expect(failedFocus != nil && settledFocusState.hasSettled(on: 9)
+                && !settledFocusState.hasSettled(on: 3),
+               "a failed hover leaves the window it was over free to be focused later")
+        if let settlingFocus { settledFocusState.finishEvaluation(settlingFocus, succeeded: true, settlingOn: 4) }
+        suite.expect(!settledFocusState.hasSettled(on: 4),
+               "a stale hover cannot settle after newer movement")
+        settledFocusState.reset()
+        suite.expect(!settledFocusState.hasSettled(on: 9),
+               "space and wake resets let hover focus the window under the pointer again")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseEnabled] as? Bool == false
                 && Defaults.registeredDefaults[DefaultsKey.focusFollowsMouseDelay] as? Int
                     == FocusFollowsMouseSupport.defaultDelayMilliseconds,
