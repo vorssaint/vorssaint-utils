@@ -232,10 +232,8 @@ struct AntigravityReader: AgentHarnessReader {
                 }
                 if let toStart {
                     var candidate = line[toStart...]
-                    for delimiter in [".\n", ".<", ". "] {
-                        if let cut = candidate.range(of: delimiter) {
-                            candidate = candidate[..<cut.lowerBound]
-                        }
+                    if let cut = candidate.range(of: ". ") {
+                        candidate = candidate[..<cut.lowerBound]
                     }
                     var cleaned = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
                     if cleaned.hasSuffix(".") { cleaned.removeLast() }
