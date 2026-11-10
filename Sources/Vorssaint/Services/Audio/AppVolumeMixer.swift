@@ -87,6 +87,17 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    /// The output's volume and mute as CoreAudio reports them. The published
+    /// pair above shows the monitor's speakers instead while one carries the
+    /// sound; see `republishSystemOutput()`.
+    private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }
+    private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }
+    /// The monitor whose speakers carry the sound, when its speakers are on and
+    /// macOS cannot set that output's volume. Kept current by the brightness service.
+    private(set) var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil {
+        didSet { republishSystemOutput() }
+    }
+
     @Published private(set) var outputSwitchError: String?
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
@@ -325,8 +336,9 @@ final class AppVolumeMixer: ObservableObject {
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
-        if systemOutputVolume != nil { systemOutputVolume = nil }
-        if systemOutputMuted != nil { systemOutputMuted = nil }
+        if coreAudioOutputVolume != nil { coreAudioOutputVolume = nil }
+        if coreAudioOutputMuted != nil { coreAudioOutputMuted = nil }
+        refreshMonitorOutput()
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
         processMonitoringEnabled = false
@@ -533,11 +545,47 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Volume API (panel)
 
+    /// Whether the output in use is a monitor's own speakers. The panel and the
+    /// volume keys then work on the monitor's level instead of CoreAudio's.
+    var outputIsMonitorSpeakers: Bool { monitorOutput != nil }
+
+    /// Reads which monitor, if any, carries the sound. The brightness service
+    /// calls this when its display list or the default output changes. Main
+    /// thread only.
+    func refreshMonitorOutput() {
+        let next = BrightnessService.shared.monitorSpeakerOutput()
+        if next != monitorOutput { monitorOutput = next }
+    }
+
+    /// The published pair shows the monitor's levels while it carries the sound
+    /// and CoreAudio's otherwise. A monitor at zero without a recoverable
+    /// mute state publishes no mute control.
+    private func republishSystemOutput() {
+        let volume: Double?
+        let muted: Bool?
+        if let monitor = monitorOutput {
+            volume = monitor.volume
+            muted = monitor.muted
+        } else {
+            volume = coreAudioOutputVolume
+            muted = coreAudioOutputMuted
+        }
+        if systemOutputVolume != volume { systemOutputVolume = volume }
+        if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
     /// UI feedback is immediate; one HAL write runs at a time and a burst
     /// retains only its newest requested level. Device changes never inherit
-    /// a write intended for the previous output.
+    /// a write intended for the previous output. A monitor's speakers take the
+    /// request on the brightness queue instead.
     func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
                                  completion: @escaping (Bool) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            guard volume?.isFinite != false else { completion(false); return }
+            BrightnessService.shared.requestSpeakers(.set(volume: volume, muted: muted),
+                                                     target: monitor.target, completion: completion)
+            return
+        }
         enqueueOutputAdjustment(volume: volume, muted: muted) { completion($0.handled) }
     }
 
@@ -546,8 +594,8 @@ final class AppVolumeMixer: ObservableObject {
                                          completion: @escaping (OutputKeyResult) -> Void) {
         guard let device = outputControlListenerDevice,
               volume?.isFinite != false,
-              volume == nil || systemOutputVolume != nil,
-              muted == nil || systemOutputMuted != nil else { completion(.fallback); return }
+              volume == nil || coreAudioOutputVolume != nil,
+              muted == nil || coreAudioOutputMuted != nil else { completion(.fallback); return }
         // A direct control change supersedes keys pressed before it. The HAL
         // read for those keys may still finish later, so invalidate its value.
         if step == nil {
@@ -565,20 +613,20 @@ final class AppVolumeMixer: ObservableObject {
         if let volume {
             let value = min(1, max(0, volume))
             adjustment.volume = value
-            if step == nil { systemOutputVolume = value }
+            if step == nil { coreAudioOutputVolume = value }
             // Many outputs still play faintly at a scalar of zero; macOS mutes
             // there, so do the same. A level the percent labels show as 0%
             // counts: a key steps from the level the output reports, so a
             // coarse step from a hair above one step lands just above zero.
-            if systemOutputMuted != nil, muted == nil {
+            if coreAudioOutputMuted != nil, muted == nil {
                 let mutes = MixerRoutingSupport.mutesOutput(atVolume: value)
                 adjustment.muted = mutes
-                if step == nil { systemOutputMuted = mutes }
+                if step == nil { coreAudioOutputMuted = mutes }
             }
         }
         if let muted {
             adjustment.muted = muted
-            if step == nil { systemOutputMuted = muted }
+            if step == nil { coreAudioOutputMuted = muted }
         }
         pendingOutputAdjustment = adjustment
         previous?.completion(.superseded)
@@ -588,18 +636,32 @@ final class AppVolumeMixer: ObservableObject {
     /// A key reads the output before stepping. Keys wait for the previous
     /// write and its readback, so a USB device's rounded level becomes the
     /// starting point for the next press. `level` receives zero while muted.
-    func requestOutputStep(level: @escaping (Double) -> Double,
+    func requestOutputStep(level: @escaping (Double) -> Double, raises: Bool = false,
                            completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            BrightnessService.shared.requestSpeakers(.step(levels: [level], raises: raises),
+                                                     target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
+            return
+        }
         enqueueOutputKey(OutputStep(level: level, completion: completion),
-                         isAvailable: systemOutputVolume != nil)
+                         isAvailable: coreAudioOutputVolume != nil)
     }
 
     /// The mute key rides the same read and queue as the volume keys, so it
     /// toggles the state the output reports now. A following volume key waits
     /// for that toggle and then reads the resulting audible level.
     func requestOutputMuteToggle(completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            guard monitor.muted != nil else { completion(.fallback); return }
+            BrightnessService.shared.requestSpeakers(.toggleMute, target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
+            return
+        }
         enqueueOutputKey(OutputStep(level: nil, completion: completion),
-                         isAvailable: systemOutputMuted != nil)
+                         isAvailable: coreAudioOutputMuted != nil)
     }
 
     private func enqueueOutputKey(_ step: OutputStep, isAvailable: Bool) {
@@ -646,8 +708,8 @@ final class AppVolumeMixer: ObservableObject {
                 let superseded = self.outputStepReadGeneration != readGeneration
                 let fresh = !superseded && !self.hasCurrentOutputAdjustment
                 if fresh {
-                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
-                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                    if self.coreAudioOutputVolume != volume { self.coreAudioOutputVolume = volume }
+                    if self.coreAudioOutputMuted != muted { self.coreAudioOutputMuted = muted }
                 }
                 self.applyQueuedOutputSteps()
             }
@@ -665,15 +727,15 @@ final class AppVolumeMixer: ObservableObject {
     private func applyQueuedOutputSteps() {
         guard !hasCurrentOutputAdjustment, !queuedOutputSteps.isEmpty else { return }
         let step = queuedOutputSteps.removeFirst()
-        if let level = step.level, let volume = systemOutputVolume {
-            let target = level(systemOutputMuted == true ? 0 : volume)
+        if let level = step.level, let volume = coreAudioOutputVolume {
+            let target = level(coreAudioOutputMuted == true ? 0 : volume)
             guard target.isFinite else {
                 step.completion(.fallback)
                 applyQueuedOutputSteps()
                 return
             }
             enqueueOutputAdjustment(volume: target, step: step, completion: step.completion)
-        } else if step.level == nil, let muted = systemOutputMuted {
+        } else if step.level == nil, let muted = coreAudioOutputMuted {
             enqueueOutputAdjustment(muted: !muted, step: step, completion: step.completion)
         } else {
             step.completion(.fallback)
@@ -691,8 +753,8 @@ final class AppVolumeMixer: ObservableObject {
 
     private func applyOutputControls(volume: Double?, muted: Bool?) {
         guard !hasCurrentOutputAdjustment else { return }
-        if systemOutputVolume != volume { systemOutputVolume = volume }
-        if systemOutputMuted != muted { systemOutputMuted = muted }
+        if coreAudioOutputVolume != volume { coreAudioOutputVolume = volume }
+        if coreAudioOutputMuted != muted { coreAudioOutputMuted = muted }
     }
 
     private func isCurrentOutputKey(_ adjustment: OutputAdjustment) -> Bool {
@@ -2433,7 +2495,7 @@ final class AppVolumeMixer: ObservableObject {
         return nil
     }
 
-    private static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
+    static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
         for selector in outputVolumeSelectors {
             var address = AudioObjectPropertyAddress(mSelector: selector,
                                                      mScope: kAudioObjectPropertyScopeOutput,
@@ -2693,7 +2755,7 @@ final class AppVolumeMixer: ObservableObject {
         return setOutputMuted(muted, for: device)
     }
 
-    fileprivate static func defaultOutputDeviceID() -> AudioObjectID? {
+    static func defaultOutputDeviceID() -> AudioObjectID? {
         var device = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    kAudioHardwarePropertyDefaultOutputDevice, &device),

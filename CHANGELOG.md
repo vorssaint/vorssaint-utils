@@ -7,9 +7,10 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-Fixes a launch crash on early macOS Sonoma and improves window switching, audio, notifications, display controls, GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection.
+More reliable window switching, audio, notifications and display controls, with better GIF exports, large-image editing and compact-panel behavior. New options improve window dragging, shortcut setup and uninstaller selection. A read-only settings file can now manage selected preferences across Macs.
 
 ### Added
+- Vorssaint can load selected preferences from a read-only settings file at launch. Unlisted preferences and snippets stay local. Thanks to @whizzzkid.
 - The window switcher can ignore hover selection while preserving clicks, keyboard navigation and hovered-window closing. Overflowing icon rows still slide at their edges. The option starts off. Thanks to @victorioustr.
 - Edge snapping can restore a window's previous size when it is dragged by its title bar, preserving manual resizing and using the size confirmed by the app. The option starts off and respects ignored apps. Thanks to @nisayera.
 - Both uninstaller result views offer a Select all checkbox with a mixed state, including optional rows when explicitly selected and preserving removal safeguards. Thanks to @heyseere.
@@ -22,14 +23,19 @@ Fixes a launch crash on early macOS Sonoma and improves window switching, audio,
 - Clipboard history remembers the list window's position after moves and resizes, keeping it visible when displays change. Thanks to @maxmeis.
 
 ### Fixed
-- Vorssaint can open on early macOS Sonoma even when Core Audio process taps are unavailable. Thanks to @oyjt for the diagnosis.
-- Save as GIF and Copy as GIF export faster and use less memory, decoding the recording in order and encoding on the GPU when supported, with the existing encoder as a fallback.
+- During the current session, Homebrew keeps the last operation log until you clear it or run another command. You can reopen it from App Updates, even when the Homebrew page is off. Thanks to @iva-zhu.
+- With smooth scrolling on, mouse wheels now scroll at the native distance in clipboard history and other Vorssaint panels. The screenshot magnifier keeps its smooth zoom. Thanks to @iva-zhu.
+- Cleaner preserves support folders owned by installed apps, including Battle.net, when scanning and before moving selected items to the Trash. Thanks to @lsopenad.
+- The menu panel shows the Smooth Scrolling switch in Controls, including when it is the only available control. Thanks to @EugeneCarldotme.
+- Resetting a Claude Code session stops its activity timer without a completion notice. Prompts and project commands still report their duration and usage. Thanks to @iva-zhu.
+- Save as GIF and Copy as GIF export faster and use less memory, decoding the recording in order and encoding on the GPU when supported, with the existing encoder as a fallback. Thanks to @oskarsss.
 - The window switcher opens and switches more efficiently, reduces flashes when restoring minimized windows and cancels outdated activation requests after a newer selection. Thanks to @zhanghao87.
 - The window switcher keeps its opening shortcuts working during secure input, including All windows and quick modifier releases. Q/W remain unavailable in this mode and are blocked while the switcher owns the selection. Thanks to @phatina.
 - Focus follows mouse recovers keyboard focus when the usual no-raise activation fails, while preserving window order when Bring the window to the front is off. Thanks to @jerome-queck.
 - Window dragging and resizing find the target when an app's child controls cannot be identified through Accessibility, with bounded queries to limit delays from unresponsive apps. Thanks to @carlhuareforge.
 - Mic Mute also uses input volume and reapplies supported mute controls when another app changes them, while preserving each microphone's previous channel settings for restoration. Device and app limitations still apply. Thanks to @samueljim.
 - Volume mixer smooths volume changes and applies mute immediately across interruptions in captured audio. Thanks to @Chubi01.
+- Vorssaint can open on early macOS Sonoma even when Core Audio process taps are unavailable. Thanks to @oyjt for the diagnosis.
 - Brightness controls correctly validate DDC replies and refresh previously cached monitor ranges. Thanks to @nikigan.
 - Recording previews and exports reuse GPU rendering resources to reduce memory growth, while preserving the orientation of imported videos. Thanks to @Zekuath and @zepeng-jin.
 - Dynamic Island hides over an app's own full screen on every display and refreshes its visibility after temporary overlays or leaving full screen. Thanks to @sugar-king.
