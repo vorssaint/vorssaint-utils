@@ -6,6 +6,7 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Combine
 import CoreGraphics
+import HIDEventSystem
 import IOKit
 import IOKit.hidsystem
 
@@ -84,6 +85,10 @@ final class SuperKeyService: ObservableObject {
     private var soloAction: SuperKeySoloAction = .none
     private var eventModifiers = SuperKeySupport.defaultModifiers
     private var eventSource = SuperKeySource.capsLock
+    // Protected by stateLock. Track event order across the hop from the tap
+    // to main, including two solo releases waiting for the same busy queue.
+    private var rawCapsLockCount: UInt = 0
+    private var soloCapsLockWrite: (generation: UInt, count: UInt, on: Bool)?
     private var wakeObserver: NSObjectProtocol?
     private var exceptionObservation: AnyCancellable?
     /// The mapping is written off the main thread, and in the order it was
@@ -545,6 +550,13 @@ final class SuperKeyService: ObservableObject {
                 }
             }
         }
+        // A wake or an already queued repair can adopt a new keyboard before
+        // the work for its raw key runs. Clear its native lock while the
+        // missing mapping still identifies that keyboard.
+        if enabled, source == .capsLock,
+           !SuperKeySupport.mappingReportConfirms(report.output, expected: wanted) {
+            clearUnmappedCapsLock(reportedOn: false)
+        }
         let write = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
@@ -593,7 +605,10 @@ final class SuperKeyService: ObservableObject {
 
     private func finishStart() {
         // Caps Lock left on would have no way back once the key stops locking.
-        if source == .capsLock { setCapsLock(false) }
+        let lastSoloGeneration = stateLock.withLock { soloCapsLockWrite?.generation }
+        if source == .capsLock, lastSoloGeneration != lifecycleLock.withLock({ mappingGeneration }) {
+            setCapsLock(false)
+        }
         observeWake()
         isRunning = true
         Self.isEngaged = true
@@ -610,10 +625,20 @@ final class SuperKeyService: ObservableObject {
     /// raw source; the first press on it is the signal to map it too. Repaired
     /// at most once every few seconds. A keyboard that refuses the mapping
     /// cannot turn typing into a stream of commands.
-    private func repairMappingIfStale() {
+    private func repairMappingIfStale(rawCapsLockOn: Bool?) {
         guard let active = lifecycleLock.withLock({
             shouldStopTapThread ? nil : tap.map { ($0, mappingGeneration) }
         }) else { return }
+        if let rawCapsLockOn {
+            // Inspect the devices before our queued repair installs F18. Even
+            // a throttled repair must neutralize a newly attached keyboard.
+            mappingQueue.async { [weak self] in
+                guard let self, self.lifecycleLock.withLock({
+                    self.tap === active.0 && self.mappingGeneration == active.1 && !self.shouldStopTapThread
+                }) else { return }
+                self.clearUnmappedCapsLock(reportedOn: rawCapsLockOn)
+            }
+        }
         let now = ProcessInfo.processInfo.systemUptime
         let shouldRepair = stateLock.withLock {
             now - lastMappingAt >= mappingRepairInterval
@@ -677,23 +702,14 @@ final class SuperKeyService: ObservableObject {
             event.flags = event.flags.union(modifierFlags)
             return Unmanaged.passUnretained(event)
         case .soloTap(repeated: let repeated):
-            performSoloAction(longHold: false, repeated: repeated)
+            performSoloAction(longHold: false, repeated: repeated, flags: event.flags)
             return nil
         case .soloHold(repeated: let repeated):
-            performSoloAction(longHold: true, repeated: repeated)
+            performSoloAction(longHold: true, repeated: repeated, flags: event.flags)
             return nil
         case .interceptAndRemap:
-            repairMappingIfStale()
-            // A missing Caps Lock mapping may already have flipped the lock
-            // state. Put it back off while the mapping repairs.
-            DispatchQueue.main.async { [weak self] in
-                guard let self,
-                      self.lifecycleLock.withLock({
-                          self.tap != nil && !self.shouldStopTapThread
-                      })
-                else { return }
-                if source == .capsLock { self.setCapsLock(false) }
-            }
+            if source == .capsLock { stateLock.withLock { rawCapsLockCount &+= 1 } }
+            repairMappingIfStale(rawCapsLockOn: source == .capsLock ? event.flags.contains(.maskAlphaShift) : nil)
             return nil
         }
     }
@@ -801,7 +817,7 @@ final class SuperKeyService: ObservableObject {
 
     // MARK: - Tapped on its own
 
-    private func performSoloAction(longHold: Bool, repeated: Bool) {
+    private func performSoloAction(longHold: Bool, repeated: Bool, flags: CGEventFlags) {
         let action = stateLock.withLock { soloAction }
         switch SuperKeySupport.soloEffect(action: action,
                                           longHold: longHold,
@@ -811,7 +827,7 @@ final class SuperKeyService: ObservableObject {
         case .escape:
             runOnMainIfNeeded { _ = Self.postKey(CGKeyCode(kVK_Escape)) }
         case .capsLock:
-            runOnMainIfNeeded { self.setCapsLock(!self.capsLockIsOn()) }
+            toggleCapsLock(flags: flags)
         case .inputSource:
             // Must finish before this tap returns: the next keystroke is already
             // in flight, and hopping to main (or waiting on Accessibility) left
@@ -875,6 +891,52 @@ final class SuperKeyService: ObservableObject {
 
     // MARK: - Caps Lock itself
 
+    private func toggleCapsLock(flags: CGEventFlags) {
+        let generation = lifecycleLock.withLock { mappingGeneration }
+        let atRelease = stateLock.withLock { (raw: rawCapsLockCount, write: soloCapsLockWrite?.count) }
+        runOnMainIfNeeded {
+            guard self.lifecycleLock.withLock({
+                self.tap != nil && self.mappingGeneration == generation && !self.shouldStopTapThread
+            }) else { return }
+            let (rawCount, lastWrite) = self.stateLock.withLock { (self.rawCapsLockCount, self.soloCapsLockWrite) }
+            let wasOn: Bool
+            if let lastWrite, lastWrite.generation == generation, lastWrite.count != atRelease.write {
+                wasOn = lastWrite.on  // An earlier queued solo action just ran.
+            } else if rawCount != atRelease.raw {
+                wasOn = flags.contains(.maskAlphaShift)  // The live lock can already reflect a later raw press.
+            } else {
+                wasOn = self.capsLockIsOn() ?? flags.contains(.maskAlphaShift)
+            }
+            if self.setCapsLock(!wasOn) {
+                self.stateLock.withLock {
+                    self.soloCapsLockWrite = (generation, (lastWrite?.count ?? 0) &+ 1, !wasOn)
+                }
+            }
+        }
+    }
+
+    /// Setting the system lock emits flagsChanged on mapped keyboards too.
+    /// Only a keyboard that still has a native Caps Lock needs a corrective
+    /// write. A system-wide reset here would undo a solo tap on another device.
+    private func clearUnmappedCapsLock(reportedOn: Bool) {
+        for keyboard in connectedKeyboards() {
+            let mapping = IOHIDServiceClientCopyProperty(keyboard, SuperKeySupport.userMappingProperty as CFString)
+            guard SuperKeySupport.hasNativeCapsLock(in: mapping) else { continue }
+            let lockKey = "HIDCapsLockState" as CFString
+            if reportedOn || IOHIDServiceClientCopyProperty(keyboard, lockKey) as? Bool != false {
+                _ = IOHIDServiceClientSetProperty(keyboard, lockKey, kCFBooleanFalse)
+            }
+        }
+    }
+
+    private func connectedKeyboards() -> [IOHIDServiceClient] {
+        let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+        let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] ?? []
+        return services.filter {
+            IOHIDServiceClientConformsTo($0, UInt32(kHIDPage_GenericDesktop), UInt32(kHIDUsage_GD_Keyboard)) != 0
+        }
+    }
+
     /// The lock state lives with the system's own keyboard service, which is
     /// also what lights the key.
     private func withHIDSystem<T>(_ body: (io_connect_t) -> T?) -> T? {
@@ -888,18 +950,18 @@ final class SuperKeyService: ObservableObject {
         return body(connection)
     }
 
-    private func capsLockIsOn() -> Bool {
+    private func capsLockIsOn() -> Bool? {
         withHIDSystem { connection in
             var state = false
             guard IOHIDGetModifierLockState(connection, Int32(kIOHIDCapsLockState), &state) == KERN_SUCCESS
             else { return nil }
             return state
-        } ?? false
+        }
     }
 
-    private func setCapsLock(_ on: Bool) {
-        _ = withHIDSystem { connection in
-            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on)
-        }
+    @discardableResult private func setCapsLock(_ on: Bool) -> Bool {
+        withHIDSystem { connection in
+            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on) == KERN_SUCCESS
+        } ?? false
     }
 }
