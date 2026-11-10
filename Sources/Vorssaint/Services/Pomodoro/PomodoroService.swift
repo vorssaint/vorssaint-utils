@@ -29,21 +29,16 @@ public final class PomodoroService: ObservableObject {
     // MARK: Utility Properties
 
     public var formattedTime: String {
-        let minutes = Int(timeRemaining) / 60
-        let seconds = Int(timeRemaining) % 60
-        return String(format: "%02d:%02d", minutes, seconds)
+        PomodoroSupport.formattedTime(timeRemaining)
     }
 
     public var progress: Double {
-        guard totalPhaseDuration > 0 else { return 0 }
-        let elapsed = totalPhaseDuration - timeRemaining
-        return min(max(elapsed / totalPhaseDuration, 0), 1)
+        PomodoroSupport.progress(remaining: timeRemaining, total: totalPhaseDuration)
     }
 
     public var menuBarTitle: String {
         guard UserDefaults.standard.bool(forKey: DefaultsKey.pomodoroShowInMenuBar) else { return "" }
-        guard state != .idle else { return "" }
-        return "🍅 \(formattedTime)"
+        return PomodoroSupport.menuBarTitle(phase: currentPhase, remaining: timeRemaining, isRunningOrPaused: state != .idle)
     }
 
     // MARK: Private State
@@ -149,21 +144,11 @@ public final class PomodoroService: ObservableObject {
     public func advanceToNextPhase() {
         stopTimer()
 
-        switch currentPhase {
-        case .focus:
-            completedCycles += 1
-            if completedCycles % pomodoroLongBreakInterval == 0 {
-                currentPhase = .longBreak
-            } else {
-                currentPhase = .shortBreak
-            }
-
-        case .shortBreak:
-            currentPhase = .focus
-
-        case .longBreak:
-            currentPhase = .focus
-        }
+        let transition = PomodoroSupport.nextPhase(after: currentPhase,
+                                                   completedCycles: completedCycles,
+                                                   longBreakInterval: pomodoroLongBreakInterval)
+        currentPhase = transition.phase
+        completedCycles = transition.cycles
 
         totalPhaseDuration = duration(for: currentPhase)
         timeRemaining = totalPhaseDuration
@@ -249,14 +234,12 @@ public final class PomodoroService: ObservableObject {
     }
 
     private func duration(for phase: PomodoroPhase) -> TimeInterval {
-        switch phase {
-        case .focus:
-            return TimeInterval(pomodoroFocusMinutes * 60)
-        case .shortBreak:
-            return TimeInterval(pomodoroShortBreakMinutes * 60)
-        case .longBreak:
-            return TimeInterval(pomodoroLongBreakMinutes * 60)
-        }
+        PomodoroSupport.duration(
+            for: phase,
+            focusMinutes: pomodoroFocusMinutes,
+            shortBreakMinutes: pomodoroShortBreakMinutes,
+            longBreakMinutes: pomodoroLongBreakMinutes
+        )
     }
 
     // MARK: Sound & Alerts

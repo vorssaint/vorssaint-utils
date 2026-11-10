@@ -428,6 +428,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/PortManagerStrings.swift
         Sources/Vorssaint/Core/PomodoroStrings.swift
         Sources/Vorssaint/Services/Pomodoro/PomodoroPhase.swift
+        Sources/Vorssaint/Services/Pomodoro/PomodoroSupport.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
