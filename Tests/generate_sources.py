@@ -1231,7 +1231,10 @@ def main():
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
     write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
-          + "extension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
+          + "extension SuperKeyTapContract.State {\n"
+          + declaration(super_key, "    var keyboardTapForRecording:")
+            .replace("CGEvent.tapIsEnabled(tap: keyboard)", "CFMachPortIsValid(keyboard)")
+          + "}\nextension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
                                    "    private func handle(", "    private static func classify(",
