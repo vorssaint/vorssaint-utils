@@ -784,6 +784,13 @@ enum BrightnessSupport {
         }
     }
 
+    /// Whether a monitor whose mute is not the MCCS control still takes the
+    /// unmute when it leaves zero. A Samsung S34C65xT reads 0 unmuted and 1
+    /// muted, and stays silent after reaching zero until it is told to unmute.
+    static func unmutesLeavingZero(muteReply current: UInt16, maximum: UInt16) -> Bool {
+        current == 0 && maximum >= audioUnmutedValue
+    }
+
     static func muteDeviceValue(_ muted: Bool) -> UInt16 {
         muted ? audioMutedValue : audioUnmutedValue
     }
@@ -828,7 +835,7 @@ enum BrightnessSupport {
     /// mute on, as macOS does for its own outputs, and leaving zero always
     /// writes mute off whatever the last reading said. A raise (or a slider
     /// set) also lifts a mute the person chose; a lower leaves it in place.
-    /// A monitor without an MCCS mute control gets no mute writes at all.
+    /// A monitor without an MCCS mute control gets no mute change here.
     static func monitorMuteChange(from current: Double, muted: Bool?,
                                   to level: Double, raises: Bool) -> Bool? {
         guard let muted else { return nil }
@@ -878,7 +885,8 @@ enum BrightnessSupport {
     /// Runs on the DDC queue. Every successful result describes a level the
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
-        _ change: SpeakerChange, hasNativeMute: Bool, keySettings: MonitorVolumeKeySettings,
+        _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
+        keySettings: MonitorVolumeKeySettings,
         restore: inout SpeakerLevel?,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
@@ -954,6 +962,9 @@ enum BrightnessSupport {
             confirmed = actual
         }
         if !hasNativeMute {
+            if unmutesLeavingZero, initial.raw == 0, confirmed.raw > 0 {
+                _ = write(audioMuteCode, audioUnmutedValue)
+            }
             if confirmed.raw > 0 { restore = nil }
             else if initial.raw > 0 { restore = initial }
             return (confirmed, confirmed.mutedWithoutNativeControl(restoring: restore))

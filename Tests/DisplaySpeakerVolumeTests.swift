@@ -64,6 +64,7 @@ enum DisplaySpeakerVolumeTests {
         var raw: UInt16 = 40
         var maximum: UInt16 = 100
         var nativeMuted: Bool?
+        var unmutedReads: UInt16 = 2
         var rejectVolume = false
         var ignoreVolume = false
         var onSend: (() -> Void)?
@@ -87,7 +88,7 @@ enum DisplaySpeakerVolumeTests {
             onRead?()
             if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
-            return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
+            return .replied(current: nativeMuted ? 1 : unmutedReads, maximum: 2)
         }
         func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {
             onSend?()
@@ -117,16 +118,19 @@ enum DisplaySpeakerVolumeTests {
 
     @discardableResult
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
-                        raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false) -> Service {
+                        raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
+                        unmutedReads: UInt16 = 2) -> Service {
         let service = Service()
         Service.shared = service
         service.raw = raw
         service.maximum = maximum
         service.nativeMuted = muted
+        service.unmutedReads = unmutedReads
         let endpoint = NSObject()
         if let probed = service.probeAudio(for: 7, service: endpoint, path: "port-a") {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: "fixture-identity",
-                                                service: endpoint, hasNativeMute: probed.hasNativeMute)
+                                                service: endpoint, hasNativeMute: probed.hasNativeMute,
+                                                unmutesLeavingZero: probed.unmutesLeavingZero)
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
