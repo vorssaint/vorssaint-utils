@@ -51,6 +51,26 @@ struct GlobalShortcutModifiers: OptionSet, Hashable {
         return caps
     }
 
+    /// The Super Key is this app's synthetic combination of all four
+    /// modifiers: one key the user holds, not four caps pressed together.
+    static let superKeyCombination: GlobalShortcutModifiers = validMask
+
+    var isSuperKeyCombination: Bool { self == .superKeyCombination }
+
+    /// The one glyph the Super Key prints as. It is one key, so it gets one
+    /// cap of its own rather than the four it is built from (issue #3701).
+    static let superKeyGlyph = "◆"
+
+    /// The caps as the user should see them. The Super Key collapses into its
+    /// single diamond; every ordinary combination keeps its own glyphs.
+    var displayCaps: [String] {
+        isSuperKeyCombination ? [Self.superKeyGlyph] : keyCaps
+    }
+
+    /// A chord with no key of its own, written the way the user should read
+    /// it: the Super Key alone is the diamond, anything else is its caps.
+    var displayChord: String { displayCaps.joined() }
+
     var storageTokens: [String] {
         var tokens: [String] = []
         if contains(.control) { tokens.append("control") }
