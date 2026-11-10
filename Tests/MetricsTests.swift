@@ -215,6 +215,7 @@ struct MetricsTests {
                 HomebrewOwnershipTests.run(suite)
                 HomebrewOperationLogRetentionTests.run(suite)
                 UninstallerFlowTests.run(suite)
+                UninstallerTrashTests.run(suite)
                 UninstallerBulkSelectionTests.run(suite)
                 MixedStateCheckboxTests.run(suite)
                 UninstallerCommandBarCleanupTests.run(suite)

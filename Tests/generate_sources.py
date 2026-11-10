@@ -871,6 +871,29 @@ def main():
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
+    # Run the whole selection and removal model. Only the platform inputs and
+    # the final Trash destination are redirected into the disposable home.
+    trash_model = declaration(uninstall, "final class AppUninstaller:")
+    for system, fixture in [
+        ("FileManager.default.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("fm.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("NSHomeDirectory()", "fixtureHome.path"),
+        ("UninstallerSupport.searchFolders(", "fixtureFolders("),
+        ("roots: spotlightRoots(home: home)", "roots: []"),
+        ("!codeSignatureIsValid(at: appURL)", "fixtureGroups[appURL] == nil"),
+        ("= codeSigningIdentity(at:", "= fixtureSigningIdentity(at:"),
+        ("fm.trashItem(at: item.url, resultingItemURL: nil)", "moveToFixtureTrash(item.url)"),
+    ]:
+        if system not in trash_model:
+            raise ValueError(f"Uninstaller Trash fixture no longer redirects {system}")
+        trash_model = trash_model.replace(system, fixture)
+    write("UninstallerTrash.swift", "import AppKit\nimport Combine\nimport CoreServices\nimport Security\n"
+          + "extension UninstallerTrashTests {\n" + trash_model
+          + "enum Watcher {\n" + declaration("Sources/Vorssaint/Services/Uninstall/TrashAppWatcher.swift",
+                                            "    private func offer(").replace("private func offer(", "static func offer(")
+          + "}\nfinal class Delegate: WindowHost {\n"
+          + declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func openUninstaller(for ")
+          + "}\n}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
     write("AppUpdatesOperationLog.swift", "extension HomebrewOperationLogRetentionTests.Updates {\n"
           + declaration("Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
