@@ -2257,10 +2257,11 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts, .monitorAlerts,
+                    .panelConfiguration, .keyboardBrightnessShortcuts, .monitorAlerts, .screenshotScrolling,
                 ])
                 && SettingsSectionAnchor.panelConfiguration.page == .general
                 && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts
+                && SettingsSectionAnchor.screenshotScrolling.page == .screenshot
                 && SettingsSectionAnchor.monitorAlerts.page == .monitor,
                "feature anchors and standalone Settings anchors reach their pages")
         suite.expect(AppFeature.dockPreview.settingsDestination

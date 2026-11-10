@@ -351,6 +351,7 @@ enum CommandBarCatalog {
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
             let screenshot = FeatureStrings.screenshot(language)
+            let autoScroll = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotScrollingAutoScroll)
             entries.append(CommandBarEntry(
                 id: "action.screenshot",
                 title: screenshot.pageTitle,
@@ -364,7 +365,8 @@ enum CommandBarCatalog {
                 title: screenshot.scrollingCaptureTitle,
                 subtitle: area(.screenshot, under: screenshot.pageTitle),
                 icon: .symbol("rectangle.stack"),
-                trouble: Permissions.shared.screenRecording && Permissions.shared.accessibility
+                shortcut: roleShortcut(.screenshotScrolling),
+                trouble: Permissions.shared.screenRecording && (!autoScroll || Permissions.shared.accessibility)
                     ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenshotService.shared.captureScrolling() } }))
         }

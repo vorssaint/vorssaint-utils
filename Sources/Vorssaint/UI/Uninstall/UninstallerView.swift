@@ -28,6 +28,7 @@ struct UninstallerView: View {
     @ObservedObject private var homebrew = HomebrewManager.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.uninstallerCommandBarEnabled) private var commandBarEnabled = false
+    @AppStorage(DefaultsKey.uninstallerWatchesTrash) private var watchesTrash = false
     @State private var dropTargeted = false
     @State private var showingAppPicker = false
     @State private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
@@ -72,6 +73,13 @@ struct UninstallerView: View {
             Section {
                 Toggle(l10n.s.uninstallerCommandBarToggle, isOn: $commandBarEnabled)
                 Text(l10n.s.uninstallerCommandBarCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Toggle(l10n.s.uninstallerWatchTrashToggle, isOn: $watchesTrash)
+                    .onChange(of: watchesTrash) { _, _ in TrashAppWatcher.shared.syncWithPreferences() }
+                Text(l10n.s.uninstallerWatchTrashCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

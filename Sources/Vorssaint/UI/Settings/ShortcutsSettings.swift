@@ -228,7 +228,8 @@ struct ShortcutsSettings: View {
             role: role,
             isEnabled: !role.isKeyboardBrightness || keyboardBrightnessShortcutsEnabled,
             label: title,
-            symbolName: role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
+            symbolName: role == .screenshotScrolling ? ScreenCaptureTool.scrolling.systemImageName
+                : role.isKeyboardBrightness ? "keyboard" : role.feature.symbolName,
             contextLabel: showsFeatureContext && title != featureTitle ? featureTitle : nil,
             statusText: active ? text.active : text.inactive,
             statusIsActive: active,

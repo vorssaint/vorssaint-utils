@@ -281,6 +281,8 @@ def main():
           + "}\n")
     write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
           + "extension ScreenshotScrollingCaptureTests {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotAutomaticScroller.swift",
+                        "final class ScreenshotAutomaticScroller:").replace("event.post(tap:", "Desktop.record(event, tap:")
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",
                         "enum ScreenshotScrollingCapture {").replace(
                             "    private static func stitch(", "    static func stitch(")
@@ -869,6 +871,29 @@ def main():
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
+    # Run the whole selection and removal model. Only the platform inputs and
+    # the final Trash destination are redirected into the disposable home.
+    trash_model = declaration(uninstall, "final class AppUninstaller:")
+    for system, fixture in [
+        ("FileManager.default.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("fm.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("NSHomeDirectory()", "fixtureHome.path"),
+        ("UninstallerSupport.searchFolders(", "fixtureFolders("),
+        ("roots: spotlightRoots(home: home)", "roots: []"),
+        ("!codeSignatureIsValid(at: appURL)", "fixtureGroups[appURL] == nil"),
+        ("= codeSigningIdentity(at:", "= fixtureSigningIdentity(at:"),
+        ("fm.trashItem(at: item.url, resultingItemURL: nil)", "moveToFixtureTrash(item.url)"),
+    ]:
+        if system not in trash_model:
+            raise ValueError(f"Uninstaller Trash fixture no longer redirects {system}")
+        trash_model = trash_model.replace(system, fixture)
+    write("UninstallerTrash.swift", "import AppKit\nimport Combine\nimport CoreServices\nimport Security\n"
+          + "extension UninstallerTrashTests {\n" + trash_model
+          + "enum Watcher {\n" + declaration("Sources/Vorssaint/Services/Uninstall/TrashAppWatcher.swift",
+                                            "    private func offer(").replace("private func offer(", "static func offer(")
+          + "}\nfinal class Delegate: WindowHost {\n"
+          + declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func openUninstaller(for ")
+          + "}\n}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
     write("AppUpdatesOperationLog.swift", "extension HomebrewOperationLogRetentionTests.Updates {\n"
           + declaration("Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
@@ -1199,11 +1224,14 @@ def main():
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
-    write("SuperKeyTap.swift", "import CoreGraphics\nimport Foundation\n"
+    write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
           + "extension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
-                                   "    private func handle(", "    private static func classify("])
+                                   "    private func handle(", "    private static func classify(",
+                                   "    private func repairMappingIfStale(", "    private func clearUnmappedCapsLock(",
+                                   "    private func performSoloAction(", "    private func toggleCapsLock(",
+                                   "    private func finishStart()"])
             .replace("CGEvent.tapCreate(", "Tap.create(")
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
@@ -2133,8 +2161,25 @@ def main():
                                    "    private var spotlightDimValue:"])
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
           + "}\n}\n")
+    capture_service = "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift"
+    def countdown_method(path, prefix):
+        return (declaration(path, prefix)
+                .replace("UserDefaults.standard", "ScreenshotCountdownTests.defaults")
+                .replace("fromShortcut: fromShortcut)", "fromShortcut: fromShortcut, defaults: ScreenshotCountdownTests.defaults)")
+                .replace("ScreenCaptureTool.available()", "ScreenCaptureTool.available(isAvailable: { _ in true })")
+                .replace("DispatchQueue.main.asyncAfter", "Clock.main.asyncAfter"))
+
+    write("ScreenshotCountdown.swift", "import Foundation\nextension ScreenshotCountdownTests {\n"
+          + "final class ScreenCaptureService: ChooserState {\nstatic let shared = ScreenCaptureService()\n"
+          + "".join(countdown_method(capture_service, prefix) for prefix in [
+              "    func capture(initial preferred:", "    func performAfterDelay(",
+              "    private func tickCountdown(", "    func cancelCountdownIfActive()"])
+          + "}\nfinal class ScreenshotService: ScreenshotState {\nstatic let shared = ScreenshotService()\n"
+          + countdown_method(screenshot_service, "    func captureScrolling()")
+          + countdown_method(screenshot_service, "    func captureFullScreen()") + "}\n}\n")
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
+        "    private func toggleScrollingCapture()",
         "    private func adoptCapturePolicy(",
         "    private func applySource(",
         "    private func loadLiveLoupeImages()",
@@ -2151,7 +2196,9 @@ def main():
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"
           + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
           + declaration(selection, "    fileprivate func setSelectionInProgress(").replace("fileprivate func", "func", 1)
+          + declaration(selection, "    private var activeMode:").replace("private var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + declaration(selection, "    fileprivate var offersScrollingCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var offersFullScreenCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsWindowClick:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    func placeFullScreenControlBelowNotch(")
@@ -2420,12 +2467,26 @@ def main():
     keep_awake = "Sources/Vorssaint/Services/KeepAwakeManager.swift"
     keep_awake_methods = [
         "    func refreshPasswordlessStatus(",
+        "    func toggle(",
+        "    func syncWithFeatures(",
         "    func activate(minutes:",
         "    func activate(until date:",
         "    func startLastPick(",
+        "    func activateOnLaunchIfNeeded(",
+        "    private func saveManualSession(",
+        "    private func restoreSessionIfNeeded(",
+        "    func extend(minutes:",
         "    func resumeAfterSystemTeardown(",
         "    private func activate(end:",
         "    func deactivate(reason:",
+        "    private func scheduleEnd(",
+        "    private func continueAutomaticallyAfterTimerIfNeeded(",
+        "    private func automationConditionsHold(",
+        "    private func automaticSessionAllowedByBatteryProtection(",
+        "    private func startBatteryWatch(",
+        "    private func stopBatteryWatch(",
+        "    private func checkBattery(",
+        "    func batteryProtectionPercent(",
         "    private func applyClamshellPreference(",
         "    private func prepareClamshellPreference(",
         "    private func finishClamshellSetup(",
@@ -2456,10 +2517,14 @@ def main():
           + "var lidSleepGeneration = 0\nvar lidSleepAttemptsRemaining = 0\n"
           + "var clamshellSetupInProgress = false\nvar clamshellSetupFailed = false\n"
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
-          + "var recoveryCompleted = false\nvar screenLocked = false\nvar assertionsHeld = false\n"
+          + "var recoveryCompleted = false\nvar launchActivationPending = true\nvar screenLocked = false\nvar assertionsHeld = false\n"
           + "var automationSuppressedUntilConditionsClear = false\n"
-          + "var endTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\nvar sessionMinutes: Int?\n"
+          + "var endTimer: Timer?\nvar batteryTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\nvar sessionMinutes: Int?\n"
           + "var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()\n"
+          + "var matchingConditions = Set<KeepAwakeAutomationCondition>()\n"
+          + "func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> { matchingConditions }\n"
+          + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { [.power] }\n"
+          + "func automationRequiresAllConditions() -> Bool { false }\n"
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
           + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
@@ -2469,8 +2534,7 @@ def main():
           + declaration(keep_awake, "    @Published var dimScreenOnLidClose: Bool {").replace("@Published ", "", 1)
           + "init() { clamshellPreferred = true; dimScreenOnLidClose = false }\n"
           + "func syncScreenLockMonitoring() {}\nfunc applyAssertions() { assertionsHeld = true }\n"
-          + "func releaseAssertions() { assertionsHeld = false }\nfunc scheduleEnd(at date: Date) {}\n"
-          + "func startBatteryWatch() {}\nfunc stopBatteryWatch() {}\nfunc syncMouseJiggleTimer() {}\n"
+          + "func releaseAssertions() { assertionsHeld = false }\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"
           + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("
           + "systemAllowsSleep: policy, externalDisplayConnected: externalDisplay, "
