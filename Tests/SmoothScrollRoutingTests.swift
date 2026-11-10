@@ -39,8 +39,12 @@ enum SmoothScrollRoutingTests {
         static let shared = Session()
         var isActive = true
     }
-    enum Capture {
-        static func steppedLoupeNeedsRawWheel(optionPressed: Bool) -> Bool { false }
+    struct Capture {
+        typealias UserDefaults = DefaultsStore
+        struct Panel { let windowNumber: Int }
+        static var activeSession: Capture?
+        var loupeEnabled: Bool
+        let panels: [Panel]
     }
     /// Whether the event came in at the HID stage; false stands for a remote
     /// screen's scroll, posted further down.
@@ -58,8 +62,7 @@ enum SmoothScrollRoutingTests {
         typealias SessionActivity = Session
         typealias ScreenshotSelectionController = Capture
         typealias ScrollWheelHIDStage = HIDStage
-        // Test events carry the harness pid; the real service rejects its own.
-        static let ownProcessID: Int64 = -1
+        static let ownProcessID = Int64(getpid())
         var tap: CFMachPort?
         var engine = SmoothScrollSupport.Engine()
         var targetLatch = SmoothScrollSupport.TargetLatch()
@@ -90,6 +93,7 @@ enum SmoothScrollRoutingTests {
         defaults.set(0, forKey: DefaultsKey.smoothScrollCoast)
         defer {
             defaults.removePersistentDomain(forName: domain)
+            Capture.activeSession = nil
             Exceptions.shared.scopes = []
             HIDStage.shared.passes = true
             Inverter.shared.consumesZoom = false
@@ -99,14 +103,15 @@ enum SmoothScrollRoutingTests {
         let a = CGPoint(x: 120, y: 240), b = CGPoint(x: 900, y: 600)
         func wheel(_ point: CGPoint = CGPoint(x: 120, y: 240), pid: Int64 = 41, window: Int = 101,
                    flags: CGEventFlags = []) -> CGEvent {
-            // AppKit's public factory supplies a window annotation. Change
-            // only the type and wheel fields; no synthetic event is posted.
+            // AppKit supplies the window annotation. Hardware has a source
+            // PID of zero even when this process owns the receiving window.
             let ns = NSEvent.mouseEvent(with: .mouseMoved, location: .zero, modifierFlags: [],
                 timestamp: 1, windowNumber: window, context: nil, eventNumber: 0, clickCount: 0, pressure: 0)!
             let event = ns.cgEvent!
             event.type = .scrollWheel
             event.location = point
             event.flags = flags
+            event.setIntegerValueField(.eventSourceUnixProcessID, value: 0)
             event.setIntegerValueField(.eventTargetUnixProcessID, value: pid)
             event.setIntegerValueField(.scrollWheelEventIsContinuous, value: 0)
             event.setIntegerValueField(.scrollWheelEventDeltaAxis1, value: 1)
@@ -230,6 +235,23 @@ enum SmoothScrollRoutingTests {
             suite.expect(tick(unknown, event) === event && !unknown.engine.isActive && !unknown.scheduled,
                          "an event without a usable receiver passes through without swallowing distance")
         }
+        let ownWindow = Service()
+        _ = tick(ownWindow, wheel())
+        let ownTick = wheel(pid: Service.ownProcessID, window: 303)
+        suite.expect(ownTick.getIntegerValueField(.eventTargetUnixProcessID) == Int64(getpid())
+                && ownTick.getIntegerValueField(.eventSourceUnixProcessID) == 0
+                && NSEvent(cgEvent: ownTick)?.windowNumber == 303 && ownWindow.scheduled,
+                     "a hardware notch targets this process's panel while another window is gliding")
+        suite.expect(tick(ownWindow, ownTick) === ownTick && !ownWindow.engine.isActive
+                && !ownWindow.scheduled && ownWindow.targetLatch.target == nil
+                && ownTick.getIntegerValueField(.scrollWheelEventIsContinuous) == 0
+                && ownTick.getIntegerValueField(.scrollWheelEventPointDeltaAxis1) == 10,
+                     "a wheel aimed at one of our own windows stays raw and drops the glide it interrupted")
+        let stoppedAtPanel = posted.count
+        frame(ownWindow)
+        suite.expect(posted.count == stoppedAtPanel && tick(ownWindow, wheel()) == nil && ownWindow.scheduled,
+                     "no tail follows the clipboard notch and a new notch in another app glides again")
+
         let ignored = Service()
         _ = tick(ignored, wheel())
         let synthetic = wheel()
@@ -265,8 +287,43 @@ enum SmoothScrollRoutingTests {
         defaults.set(true, forKey: AppFeature.scrollInverter.availabilityKey)
         defaults.set(true, forKey: DefaultsKey.scrollInverterEnabled)
         let ownZoom = Service()
-        suite.expect(tick(ownZoom, wheel(flags: .maskAlternate)) == nil && ownZoom.engine.remainingVertical < 0,
-                     "a declined zoom on our panel still takes the normal inverted smooth-scroll path")
+        let zoomRequestsBefore = Inverter.shared.zoomRequests
+        let ownZoomTick = wheel(pid: Service.ownProcessID, flags: .maskAlternate)
+        suite.expect(tick(ownZoom, ownZoomTick) === ownZoomTick && !ownZoom.engine.isActive
+                && Inverter.shared.zoomRequests == zoomRequestsBefore + 1,
+                     "a zoom declined over our own panel leaves the wheel raw instead of gliding it")
+
+        let loupeWindow = 404
+        Capture.activeSession = Capture(loupeEnabled: true, panels: [.init(windowNumber: loupeWindow)])
+        for steppedByDefault in [false, true] {
+            defaults.set(steppedByDefault, forKey: DefaultsKey.screenshotLoupeSteppedZoomByDefault)
+            let loupe = Service()
+            let fastFlags: CGEventFlags = steppedByDefault ? .maskAlternate : []
+            let fast = wheel(pid: Service.ownProcessID, window: loupeWindow, flags: fastFlags)
+            let beforeFast = posted.count
+            suite.expect(tick(loupe, fast) == nil && loupe.scheduled && loupe.engine.remainingVertical < 0,
+                         "fast loupe zoom keeps the inverted glide, including when Option selects fast zoom")
+            frame(loupe)
+            let frames = posted.dropFirst(beforeFast)
+            suite.expect(frames.count == 1 && frames.allSatisfy {
+                $0.pid == getpid() && NSEvent(cgEvent: $0.event)?.windowNumber == loupeWindow
+                    && $0.event.getIntegerValueField(.scrollWheelEventIsContinuous) == 1
+                    && $0.event.flags == fast.flags
+            }, "fast zoom receives a continuous frame in the capture window with its modifiers")
+            let stepped = wheel(pid: Service.ownProcessID, window: loupeWindow,
+                                flags: steppedByDefault ? [] : .maskAlternate)
+            suite.expect(tick(loupe, stepped) === stepped && !loupe.scheduled && !loupe.engine.isActive,
+                         "switching to stepped zoom cancels the fast glide and delivers the original notch")
+            let otherPanel = wheel(pid: Service.ownProcessID, window: 303, flags: fastFlags)
+            suite.expect(tick(loupe, otherPanel) === otherPanel && !loupe.scheduled,
+                         "a fast loupe does not smooth a wheel aimed at another panel of the same process")
+        }
+        Capture.activeSession?.loupeEnabled = false
+        let inactiveLoupe = wheel(pid: Service.ownProcessID, window: loupeWindow)
+        suite.expect(tick(ownWindow, inactiveLoupe) === inactiveLoupe && !ownWindow.scheduled,
+                     "the capture window receives its ordinary wheel when the loupe is off")
+        Capture.activeSession = nil
+
         Target.shared.isOwn = false
         defaults.set(false, forKey: AppFeature.scrollZoom.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.scrollInverterEnabled)

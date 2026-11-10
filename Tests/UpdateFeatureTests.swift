@@ -548,8 +548,8 @@ enum UpdateFeatureTests {
             SettingsSearchItem(id: .page(.features),
                                 destination: FeatureSettingsDestination(.features),
                                 title: "Features", icon: "square.grid.2x2",
-                                keywords: ["Homebrew", "Camera Preview"],
-                                keywordFeatures: [.homebrew, .cameraPreview]),
+                                terms: [.init(["Homebrew"], feature: .homebrew),
+                                        .init(["Camera Preview"], feature: .cameraPreview)]),
             SettingsSearchItem(id: .page(.appUpdates),
                                 destination: FeatureSettingsDestination(.appUpdates),
                                 title: "App Updates", icon: "arrow.down.app",
@@ -635,9 +635,9 @@ enum UpdateFeatureTests {
         let windowLayoutPage = SettingsSearchItem(
             id: .page(.windowLayout), destination: FeatureSettingsDestination(.windowLayout),
             title: "Window Layout", icon: "rectangle.3.group",
-            keywords: ["Snap to edges", "Keep full screen in these apps",
-                       WindowStageManagerStrings.localized(.enUS).title],
-            keywordFeatures: [.windowLayout, .windowMaximizer, nil])
+            terms: [.init(["Snap to edges"], feature: .windowLayout),
+                    .init(["Keep full screen in these apps"], feature: .windowMaximizer),
+                    .init([WindowStageManagerStrings.localized(.enUS).title])])
         let windowLayoutItems = SettingsSearchSupport.combinedItems(
             pageItems: [windowLayoutPage],
             featureItems: SettingsSearchSupport.featureItems(language: .enUS) { $0.rawValue })
@@ -760,13 +760,13 @@ enum UpdateFeatureTests {
         let availabilityPage = SettingsSearchItem(
             id: .page(.quickTools), destination: FeatureSettingsDestination(.quickTools),
             title: "Quick Tools", icon: "wand.and.rays",
-            keywords: ["Camera Preview", "Open camera automatically", "Scratchpad Notes"],
-            keywordFeatures: [.cameraPreview, .cameraPreview, .scratchpad])
+            terms: [.init(["Camera Preview", "Open camera automatically"], feature: .cameraPreview),
+                    .init(["Scratchpad Notes"], feature: .scratchpad)])
         let availabilityHub = SettingsSearchItem(
             id: .page(.features), destination: FeatureSettingsDestination(.features),
             title: "Features", icon: "square.grid.2x2",
-            keywords: ["Camera Preview", "scratchpad"],
-            keywordFeatures: [.cameraPreview, .scratchpad])
+            terms: [.init(["Camera Preview"], feature: .cameraPreview),
+                    .init(["scratchpad"], feature: .scratchpad)])
         let availabilityFeatures = featureSearchItems.filter {
             $0.id == .feature(.cameraPreview) || $0.id == .feature(.scratchpad)
         }
