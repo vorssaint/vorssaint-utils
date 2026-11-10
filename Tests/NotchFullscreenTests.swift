@@ -28,6 +28,7 @@ enum NotchFullscreenTests {
     final class BrightnessService {
         static let shared = BrightnessService()
         var syncs = 0
+        var wantsMonitorVolumeKeys = false
         func syncWithPreferences() { syncs += 1 }
     }
     enum NotchSupport {
