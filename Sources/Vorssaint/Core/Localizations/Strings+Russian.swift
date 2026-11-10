@@ -6,6 +6,7 @@ import Foundation
 // Русский — полный перевод интерфейса.
 extension Strings {
     static let ru = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: обычный сон",
         statusActiveUntil: "Vorssaint: активно до",
         statusActiveIndefinite: "Vorssaint: активно без срока",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "Увеличить",
         menuClose: "Закрыть",
 
+        // MARK: Durations
         minutes15: "15 минут",
         minutes30: "30 минут",
         hour1: "1 час",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "Без срока",
         indefinite: "Бессрочно",
 
+        // MARK: Panel — header & footer
         panelSettings: "Настройки",
         panelQuit: "Выйти",
         panelHotkeyHint: "Горячая клавиша переключает",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "Не давать Mac уснуть",
         keepAwakeEndsIn: "Завершится через",
         keepAwakeUntilDisabled: "Активно, пока вы не отключите режим",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "Готово. Переключается без пароля",
         clamshellNeedsPassword: "Один раз попросит пароль администратора",
 
+        // MARK: Panel — system monitor
         systemSection: "Система",
         temperatures: "Температуры",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "Приложения с высоким энергопотреблением",
         energyAppsIdle: "Сейчас нет заметного энергопотребления",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "Сеанс завершён",
         notifySessionEndedBody: "Время вышло. Mac снова будет засыпать как обычно.",
         notifyBatteryTitle: "Vorssaint отключён",
         notifyBatteryBody: "Низкий заряд. Обычный сон восстановлен, чтобы сохранить батарею.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint нужен ваш пароль, чтобы Mac продолжал работать с закрытой крышкой.",
         adminPromptClamshellOff: "Vorssaint нужен ваш пароль, чтобы вернуть обычный режим сна Mac.",
         adminPromptRecover: "Vorssaint завершился, пока сон Mac был отключён. Введите пароль, чтобы вернуть обычный режим сна.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint создаст ограниченное правило (только pmset disablesleep), чтобы переключать режим закрытой крышки без запроса пароля. Пароль понадобится только сейчас.",
         adminPromptSudoersRemove: "Vorssaint удалит правило для режима закрытой крышки без пароля.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Настройки Vorssaint",
         tabGeneral: "Основное",
         tabEnergy: "Питание",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "Большой",
         previewSizeXLarge: "Очень большой",
         settingsGroupFeatures: "Функции",
+
+        // MARK: Settings — advanced
         advancedResetSection: "Разрешения",
         advancedResetDescription: "Удаляет все разрешения, которые вы дали Vorssaint (Универсальный доступ, Запись экрана, Полный доступ к диску и другие), элемент входа и правило закрытой крышки. Полезно, если хотите начать с чистого листа или перед удалением. Приложение останется установленным.",
         advancedClearButton: "Сбросить все разрешения",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "Удаление остановлено",
         advancedUninstallFailedBody: "Vorssaint не смог вернуть изменённую системную настройку: режим сна, скорость вентиляторов, ускорение мыши или порядок Spaces. Ничего не удалено. Повторите попытку и разрешите запрос пароля, если он появится.",
 
+        // MARK: Settings — general
         launchAtLogin: "Запускать при входе",
         languageLabel: "Язык",
         menuBarSection: "Строка меню",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "Включить горячую клавишу для «Не давать уснуть»",
         hotkeyCaption: "Работает в любом приложении, без дополнительных разрешений.",
 
+        // MARK: Settings — energy
         sessionSection: "Сеанс",
         defaultDurationLabel: "Длительность по умолчанию",
         keepAwakeAutoStart: "Не давать уснуть при запуске Vorssaint",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "Полностью затемнять экран",
         dimScreenOnLidCloseCaption: "Затемняет экран при закрытии крышки и восстанавливает яркость при её открытии.",
 
+        // MARK: Settings — mouse
         scrollSection: "Прокрутка",
         invertMouseScroll: "Инвертировать прокрутку мыши",
         invertMouseScrollCaption: "Меняет направление колеса мыши на обратное.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "Плавная прокрутка",
         smoothScrollCaption: "Превращает каждый щелчок колёсика мыши в короткое плавное скольжение. Трекпад не меняется.",
         smoothScrollStepLabel: "Скорость прокрутки",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "Навигация",
         mouseNavigationEnable: "Использовать боковые кнопки для переходов назад и вперёд",
         mouseNavigationCaption: "Преобразует кнопки мыши Назад и Вперёд в команды навигации для Finder, браузеров и совместимых приложений.",
+
+        // MARK: Settings — middle click
         middleClickSection: "Средняя кнопка на трекпаде",
         middleClickEnable: "Щелчок тремя пальцами как средняя кнопка",
         middleClickEnableCaption: "Нажатие на трекпад тремя пальцами работает как щелчок колёсиком мыши: открытие ссылок в новой вкладке, закрытие вкладок и всё остальное, что умеет средняя кнопка.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 пальца",
         middleClickTapFourFingers: "4 пальца",
         middleClickTapCaption: "Лёгкое касание таким числом пальцев, без нажатия, тоже срабатывает как средний клик. Скольжение не считается. Если в macOS касание тремя пальцами назначено на «Поиск», отключите его, чтобы оба не срабатывали вместе.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "Быстрая панель",
         quickToolShortcutToggle: "Глобальное сочетание",
+
+        // MARK: Quick tool — OCR
         ocrName: "Скопировать текст с экрана",
         ocrCaption: "Выделите область экрана, и распознанный текст будет скопирован и готов к вставке.",
         ocrCopied: "Текст скопирован",
         ocrNoText: "Текст не найден",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "Пипетка цвета",
         colorPickerCaption: "Возьмите цвет любого пикселя на экране и скопируйте его в удобном формате.",
         colorPickerFormatLabel: "Формат копирования",
         colorPickerBareHexToggle: "Копировать без префикса #",
         colorPickerPickNow: "Взять цвет",
+
+        // MARK: Quick tool — microphone
         micMuteName: "Выключить микрофон",
         micUnmuteName: "Включить микрофон",
         micMuteCaption: "Использует регуляторы отключения звука или входной громкости каждого микрофона. Siri и некоторые приложения могут по-прежнему вас слышать. Это не блокировка доступа к микрофону.",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "Некоторые микрофоны всё ещё выключены",
         micMuteMenuBarToggle: "Показывать в строке меню, пока функция включена",
         micMuteMenuBarCaption: "Красный микрофон в строке меню означает, что функция включена. Это не гарантирует, что все приложения перестали записывать звук.",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "Вставить как обычный текст",
         pastePlainCaption: "Вставляет скопированное без цветов, шрифтов и форматирования. Оригинал остаётся в буфере обмена.",
+
+        // MARK: Quick tool — launcher
         launcherName: "Быстрая панель",
         launcherCaption: "Плавающая панель с любимыми инструментами, вызывается сочетанием клавиш откуда угодно.",
         launcherOpenNow: "Открыть быструю панель",
@@ -216,11 +246,14 @@ extension Strings {
         launcherAddSection: "Вернуть",
         launcherKeysHint: "Стрелки для навигации, Enter открывает, 1–9 открывают сразу",
 
+        // MARK: Settings — switcher
         switcherSection: "Переключатель окон",
         switcherEnable: "Использовать переключатель Vorssaint",
         switcherEnableCaption: "Переключает приложения и окна, включая свернутые и несколько окон одного приложения.",
         switcherUsageHint: "Удерживайте сочетание клавиш для навигации; отпустите, чтобы активировать окно. Shift или ← возвращают назад; W закрывает окно; Q завершает приложение; Esc отменяет.",
         switcherNoWindows: "Нет открытых окон",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "Показывать %@ с крупными значками",
         switcherIconRowModeCaption: "Показывает по одному значку на приложение, а сверху миниатюры его окон.",
         switcherSimpleModeCaption: "Показывает значки приложений и заголовки окон, без миниатюр и захвата экрана переключателем.",
@@ -240,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "Перемещение указателя по приложениям и окнам не сдвигает выделение. Щелчок по-прежнему открывает элемент.",
         switcherMergeTabs: "Показывать одну запись на приложение",
         switcherMergeTabsCaption: "Сводит все окна приложения в одну запись в переключателе вместо отдельной записи на каждое окно.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "Приложения без открытых окон",
         switcherWindowlessAppsCaption: "Выбирает, какие запущенные приложения без единого окна появляются в переключателе.",
         switcherWindowlessAppsOff: "Не показывать",
@@ -248,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "Пока параметр «%@» включён, все запущенные приложения остаются доступны. Чтобы выбрать, выключите параметр.",
         switcherNoOpenWindow: "Без открытых окон",
         switcherOtherDesktop: "Другой рабочий стол",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Показывать окна из Dock",
         dockPreviewEnableCaption: "Наведите указатель на открытое приложение в Dock, чтобы увидеть его окна, затем нажмите нужное.",
@@ -281,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "Предыдущее окно",
         dockPreviewNextWindow: "Следующее окно",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "Вырезать и вставить",
         cutPasteEnable: "Вырезать и вставлять файлы в Finder",
         cutPasteEnableCaption: "Используйте ⌘X для вырезания и ⌘V для перемещения файлов и папок в Finder.",
@@ -302,6 +340,7 @@ extension Strings {
         cutMovingTitle: "Перемещение…",
         cutMovingCountFormat: "%d из %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "Закрывать вместе с окном",
         autoQuitEnable: "Закрывать приложение, когда закрывается его последнее окно",
         autoQuitEnableCaption: "Если закрыть последнее окно приложения, оно тоже завершится.",
@@ -316,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "Без исключений",
         autoQuitAddApp: "Добавить приложение…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "Деинсталлятор",
         uninstallerEnableCaption: "Удаляет приложение вместе с его кэшами, настройками, логами и прочими остатками.",
         uninstallerStep1: "Перетащите приложение в Настройки или выберите его из списка.",
@@ -373,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@ нельзя удалить, так как не удаётся определить, что это за приложение.",
         uninstallerPickerHiddenNote: "Приложения, которые входят в macOS или выпущены Apple, здесь не показываются.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "Очистка URL",
         urlCleanerEnable: "Очищать URL при копировании",
         urlCleanerEnableCaption: "Удаляет параметры отслеживания из ссылки, как только она попадает в буфер обмена.",
@@ -389,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "Скопировано.",
         urlCleanerLocalNote: "Локально. Без сети.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Поиск, установка и удаление пакетов Homebrew.",
         homebrewMissingTitle: "Homebrew не найден",
@@ -405,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "Tap ещё не доверенный",
         homebrewTrustCaption: "Homebrew теперь запрашивает подтверждение перед использованием сторонних tap. Доверьтесь %@, чтобы продолжить.",
         homebrewTrustButton: "Доверять и продолжить",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "Поиск пакетов",
         homebrewKeyboardHint: "Клавиши Space и Return закрывают системную панель macOS. Используйте кнопку поиска.",
         homebrewSearchButton: "Искать",
@@ -420,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "Установлены как зависимости, но ни одному установленному пакету они больше не нужны.",
         homebrewDependencyUpdatesFormat: "Обновления зависимостей: %d",
         homebrewNoSelection: "Выберите установленный пакет или найдите новый.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "Детали пакета",
         homebrewInstall: "Установить",
         homebrewUninstall: "Удалить",
@@ -443,6 +489,8 @@ extension Strings {
         homebrewUpdates: "Обновления",
         homebrewUpdateAvailableBadge: "Доступно обновление",
         homebrewLatestVersion: "Последняя",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Установить через Homebrew?",
         homebrewConfirmInstallBodyFormat: "Homebrew загрузит и установит %@. Также могут быть установлены зависимости.",
         homebrewConfirmUninstallTitle: "Удалить через Homebrew?",
@@ -456,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "Для этой операции нужен терминал, чтобы запросить пароль администратора. Vorssaint не перехватывает пароли.",
         homebrewLoading: "Загрузка…",
         homebrewSearchEmpty: "Нет результатов",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "Установка %@",
         homebrewOperationUninstallFormat: "Удаление %@",
         homebrewOperationUpgradeFormat: "Обновление %@",
@@ -482,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "Технические детали",
         homebrewOperationProgressUnknown: "Homebrew ещё не сообщил процент выполнения.",
 
+        // MARK: Feature — local media tools
         mediaName: "Медиа",
         mediaEnableCaption: "Сжимайте видео, преобразуйте и обрабатывайте изображения, создавайте GIF и извлекайте текст локально.",
         mediaLocalNote: "Локально. Без сети.",
@@ -489,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "Изображение",
         mediaToolText: "Текст",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "Выбрать файл",
         mediaDropHint: "Перетащите сюда файл или нажмите для выбора.",
         mediaOutput: "Вывод",
         mediaOutputAutomatic: "Автоматически",
         mediaChooseOutput: "Папка назначения",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "Сжать видео",
         mediaStartGIF: "Создать GIF",
         mediaStartImage: "Обработать изображение",
@@ -523,11 +578,15 @@ extension Strings {
         mediaFormat: "Формат",
         mediaStripMetadata: "Удалить метаданные",
         mediaLoopGIF: "Зациклить GIF",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "Точно",
         mediaOCRFast: "Быстро",
         mediaLanguageCorrection: "Языковая коррекция",
         mediaTextOutputNote: "Извлечённый текст можно скопировать и сохранить как TXT.",
+
+        // MARK: Media — results & errors
         mediaRunning: "Обработка",
         mediaCompleted: "Готово",
         mediaCancelled: "Отменено.",
@@ -543,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "Выберите папку назначения, отличную от исходного файла.",
         mediaErrorUnsupported: "Формат не поддерживается macOS.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "Полка",
         shelfEnable: "Временная область для перетаскивания файлов",
         shelfEnableCaption: "Плавающее место, куда можно собрать файлы, изображения и текст, а потом перетащить их куда угодно.",
@@ -571,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "Встряхивание и зона в строке меню не открываются для перетаскиваний из этих приложений. Сочетание клавиш и Открыть сейчас продолжают работать.",
         shelfPin: "Оставить открытой",
         shelfUnpin: "Разрешить закрытие после использования",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "Дополнительная яркость",
         extraBrightnessCaption: "Использует запас HDR дисплея, чтобы выйти за максимальную яркость. Расходует больше батареи, и Mac может нагреваться.",
         extraBrightnessLevelLabel: "Интенсивность",
@@ -579,6 +641,8 @@ extension Strings {
         shelfOpenNow: "Открыть сейчас",
         shelfNoPermission: "Разрешения не нужны.",
         shelfMenuItem: "Открыть полку",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "Полка",
         shelfEmpty: "Перетащите элементы сюда",
         shelfClearAll: "Очистить всё",
@@ -586,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "Выбрано: %d",
         shelfHint: "Нажмите для выбора. Перетащите для использования или щёлкните правой кнопкой для других действий.",
         shelfItemImage: "Изображение",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d элементов",
         shelfTooltipItemsFew: "%d элемента",
         shelfTooltipImageSingular: "%d изображение",
@@ -600,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d ссылка",
         shelfTooltipLinkFew: "%d ссылки",
         shelfTooltipLinkPlural: "%d ссылок",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "Открыть",
         shelfActionOpenWith: "Открыть с помощью",
         shelfActionShare: "Поделиться",
         shelfActionPin: "Закрепить",
         shelfActionUnpin: "Открепить",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "Измерение…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "Микшер громкости",
         mixerEmpty: "Здесь появятся приложения, которые воспроизводят звук",
         mixerUnavailable: "Доступно в macOS 14.4 и новее",
         mixerPermissionBody: "Чтобы регулировать громкость по приложениям, разрешите «Запись экрана и системного аудио» в Системных настройках. Аудио никогда не записывается.",
         mixerResetTooltip: "Сбросить на 100%",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "По умолчанию",
         mixerOutputCurrent: "текущий",
         mixerOutputUnavailable: "Выход недоступен",
@@ -624,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "Выходы не найдены",
         mixerSystemOutputTooltip: "Выбрать системный выход",
         mixerSystemOutputErrorFormat: "Не удалось переключить: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "Снижать громкость при отключении наушников",
         mixerLowerOnHeadphonesDisconnectCaption: "Меняет громкость выхода при отключении проводных или Bluetooth-наушников.",
         mixerHeadphonesDisconnectVolume: "Громкость после отключения",
         preciseVolumeRollerEnable: "Использовать более точные шаги громкости",
         preciseVolumeRollerCaption: "Преобразует колесики и клавиши громкости в меньшие системные шаги.",
         preciseVolumeRollerTapFailed: "Не удалось отслеживать клавиши громкости.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "Переключатель выхода",
         soundOutputSwitcherEnable: "Переключать выходы горячей клавишей",
         soundOutputSwitcherCaption: "Выберите выходы и используйте сочетание клавиш, чтобы перейти к следующему доступному.",
         soundOutputSwitcherDevices: "Выходы в цикле",
         soundOutputSwitcherNoAvailableSelection: "Выберите хотя бы один доступный выход.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "Микрофон",
         mixerInputNoDevices: "Микрофоны не найдены",
         mixerInputUnavailable: "Микрофон недоступен",
         mixerInputFallback: "Используется значение по умолчанию, пока этот микрофон не вернётся.",
         mixerInputTooltip: "Выбрать микрофон",
         mixerInputErrorFormat: "Не удалось переключить: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "Приложения в списке",
         mixerAllShown: "Все",
         mixerHiddenCountLabel: "Скрыто",
         mixerHideFromList: "Скрыть из списка",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "Приоритет аудиоустройств",
         audioPriorityOutputEnable: "Автоматически переключаться на устройство вывода звука с самым высоким приоритетом",
         audioPriorityInputEnable: "Автоматически переключаться на микрофон с самым высоким приоритетом",
@@ -656,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "Активно",
         audioPriorityCaption: "Устройства выбираются в порядке приоритета. При подключении устройства с более высоким приоритетом система переключается на него. При отключении активного устройства выбирается следующее доступное.",
 
+        // MARK: Settings — updates
         updatesSection: "Обновления",
         autoCheckToggle: "Проверять обновления автоматически",
         includeBetaUpdatesToggle: "Получать бета-версии",
@@ -676,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "Приложение запущено из места, которое нельзя обновить, например из образа диска или временного системного расположения. Перетащите Vorssaint в папку «Программы», откройте его оттуда и попробуйте снова.",
         menuCheckUpdates: "Проверить обновления…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "Требуется разрешение",
         permissionAccessibility: "Универсальный доступ",
         permissionScreenRecording: "Запись экрана",
@@ -684,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "Открыть Системные настройки…",
         permissionRequest: "Выдать доступ",
         permissionRestartNote: "После выдачи доступа macOS может предложить переоткрыть приложение.",
+
+        // MARK: Secure input
         secureInputTitle: "Защищённый ввод включён",
         secureInputHeldFormat: "Когда он включился, активным приложением было %@, и, возможно, именно оно его удерживает, поэтому Vorssaint не может печатать за вас. Снимите фокус с поля пароля или завершите работу приложения, чтобы освободить его.",
         secureInputUnattributed: "Не удаётся определить, какое приложение его удерживает, поэтому Vorssaint не может печатать за вас. Снимите фокус с открытого поля пароля или выйдите из системы и войдите снова, чтобы сбросить его.",
         secureInputUnidentified: "Не удалось определить приложение, которое его удерживает, поэтому Vorssaint не может печатать за вас.",
         secureInputRevealFormat: "Показать %@",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "Когда он включился, активным приложением было %@, и, возможно, именно оно его удерживает. Пока он включён, macOS скрывает нажатия клавиш от переключателя и ⌘Tab вместо него открывает переключатель macOS. Снимите фокус с поля пароля или завершите работу приложения, чтобы освободить его.",
         secureInputSwitcherUnattributed: "Не удаётся определить, какое приложение его удерживает. Пока он включён, macOS скрывает нажатия клавиш от переключателя и ⌘Tab вместо него открывает переключатель macOS. Снимите фокус с открытого поля пароля или выйдите из системы и войдите снова, чтобы сбросить его.",
         secureInputSwitcherUnidentified: "Не удалось определить приложение, которое его удерживает. Пока он включён, macOS скрывает нажатия клавиш от переключателя и ⌘Tab вместо него открывает переключатель macOS.",
 
+        // MARK: About
         aboutDescription: "Набор полезных инструментов для вашего Mac.\nПитание, системный монитор, прокрутка и переключатель окон прямо в строке меню.",
         versionPrefix: "Версия",
         reviewIntro: "Повторно показать вступление",
         reviewHighlights: "Повторно показать обзор новинок",
         viewOnGitHub: "Открыть на GitHub",
 
+        // MARK: Onboarding
         obContinue: "Далее",
         obBack: "Назад",
         obSkipStep: "Пропустить шаг",
@@ -712,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "Мышь и окна по-вашему",
         obWelcomeBullet3Body: "Инверсия прокрутки мыши и переключатель окон с миниатюрами.",
         obLanguageLabel: "Язык",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "Универсальный доступ",
         obStepAccessibilityBody: "Нужен для инверсии прокрутки мыши и для работы переключателя окон с клавиатуры.",
         obAccessibilityWhy: "Приложение отслеживает только колесо мыши и сочетание клавиш переключателя. Ничего не записывается и никуда не отправляется.",
         obStepRecordingTitle: "Запись экрана",
         obStepRecordingBody: "Позволяет переключателю показывать настоящие миниатюры окон вместо одних значков.",
         obRecordingWhy: "Миниатюры создаются на лету, остаются в памяти и никогда не покидают ваш Mac. Без этого переключатель всё равно работает, но только со значками.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "Системный монитор",
         obStepMonitorBody: "Панель показывает температуры CPU, GPU и батареи, нагрузку железа и давление памяти.",
         obMonitorNoPermission: "Разрешения не нужны. Датчики читаются напрямую из системы.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "Необязательные функции",
         obStepOptionalBody: "Включите то, чем хотите пользоваться прямо сейчас. Всё можно будет изменить позже в Настройках.",
         obStepStatusTitle: "Проверка",
         obStepStatusBody: "Убедитесь, что всё готово для нужных вам функций.",
         obStatusRecheck: "Проверить снова",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "Всё готово!",
         obStepDoneBody: "Vorssaint уже заботится о вашем Mac.",
         obDoneHint: "Ищите чёрную дыру в строке меню, в правом верхнем углу экрана.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "Что нового в этой версии",
         obWhatsNewFallback: "В это обновление вошли последние исправления и улучшения.",
         obLanguageUpdateTitle: "Теперь и на вашем языке",
@@ -737,7 +837,10 @@ extension Strings {
         obPurposeBody: "Выберите готовую настройку или именно те функции, которыми хотите пользоваться.",
         obPurposeSkip: "Функции можно добавить или убрать позже в настройках.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "Монитор",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "В строке меню",
         monitorMenuBarPreview: "Предпросмотр строки меню",
         monitorMenuBarCaption: "Выберите, что показывать рядом со значком в строке меню.",
@@ -754,6 +857,8 @@ extension Strings {
         monitorInterval1: "1 секунду",
         monitorInterval2: "2 секунды",
         monitorInterval5: "5 секунд",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "В панели",
         panelNavigationMode: "Навигация по секциям",
         panelNavigationCaption: "Показывает по одной секции за раз. Выберите «Список», чтобы просматривать всё непрерывной прокруткой.",
@@ -762,6 +867,7 @@ extension Strings {
         betaBadge: "БЕТА",
         betaFeatureWarning: "Бета. Возможны ошибки.",
 
+        // MARK: Panel — network
         networkSection: "Сеть",
         networkIPAddresses: "IP-адреса",
         networkLocalIP: "Локальный IPv4",
@@ -772,6 +878,7 @@ extension Strings {
         networkApps: "Приложения, использующие сеть",
         networkAppsIdle: "Сейчас нет приложений, использующих сеть",
 
+        // MARK: Panel — disk
         diskSection: "Диски",
         diskUsed: "занято",
         diskFree: "свободно",
@@ -807,6 +914,7 @@ extension Strings {
         diskStorageSettings: "Хранилище",
         diskNoDisks: "Смонтированные диски не найдены.",
 
+        // MARK: Panel — power
         powerSection: "Питание",
         powerSystem: "Система",
         powerAdapter: "Адаптер",
@@ -824,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "Устройства не найдены",
         monitorGraphsSection: "Графики",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "Доступно обновление",
         updateBannerAction: "Обновить",
         obStepMenuBarTitle: "Метрики в строке меню",
@@ -845,6 +954,8 @@ extension Strings {
         memoryStyleDot: "Точка",
         memoryStylePercent: "%",
         memoryStyleBoth: "Оба",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "Время работы",
         batteryCharge: "Заряд",
         powerHealth: "Состояние батареи",
@@ -855,6 +966,7 @@ extension Strings {
         speedTestTesting: "Проверка…",
         speedTestFailed: "Тест не удался",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "Показывать в панели",
         disclosureExpanded: "Развёрнуто",
         disclosureCollapsed: "Свёрнуто",
@@ -872,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "Инструменты",
         monitorPanelConfigHint: "Откройте блок, чтобы выбрать, что он показывает.",
         monitorOrderHint: "Перетаскивайте, чтобы менять порядок секций панели, и используйте глаз, чтобы показывать или скрывать каждую из них.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "Что находится в панели",
         obStepPanelBody: "Откройте каждый блок и выберите, что именно будет показываться по нажатию на значок.",
         obStepPanelNavigationTitle: "Панель по секциям",
         obStepPanelNavigationBody: "Теперь панель может показывать по одной секции за раз. Переключаться между «Секциями» и «Списком» можно в настройках.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "Режим очистки",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "Утилиты",
         quickControlsSection: "Управление",
         panelCategoryWindows: "Окна",
         panelCategoryInput: "Мышь и клавиатура",
         panelCategoryFiles: "Файлы",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "Разворачивать окна",
         windowMaximizeCaption: "Зелёная кнопка разворачивает окно, не создавая новый Space.",
         windowMaximizeActiveNow: "Переопределение зелёной кнопки активно",
         windowMaximizeNeedsAccessibility: "Для работы нужен Универсальный доступ.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "Фильтр повторов",
         keyDebounceEnable: "Фильтровать повторные нажатия",
         keyDebounceCaption: "Фильтрует очень быстрые повторные нажатия клавиш.",
@@ -899,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "Добавить клавишу",
         keyDebounceNoOverrides: "Отдельные клавиши не настроены.",
         keyDebounceRemoveKey: "Удалить клавишу",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "Блокирует клавиатуру, чтобы можно было безопасно почистить её.",
         cleaningOverlayTitle: "Клавиатура заблокирована для чистки",
         cleaningOverlaySubtitle: "Нажмите Esc 5 раз, чтобы разблокировать",
@@ -910,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "Нужен Универсальный доступ",
         cleaningNeedsAxBody: "Чтобы безопасно блокировать клавиатуру, Vorssaint нужен доступ к Универсальному доступу. Выдайте его в Системных настройках и попробуйте снова.",
 
+        // MARK: Support / donate
         tabSupport: "Поддержка",
         shortcutsPageCaption: "Изменяйте здесь все глобальные сочетания установленных на этом Mac функций. Неактивные сочетания сохраняются, но не срабатывают.",
         shortcutsPageTitle: "Сочетания клавиш",
         settingsSearchPlaceholder: "Поиск в настройках",
+
+        // MARK: Support — donations
         donateHeading: "Помогите Vorssaint развиваться",
         donateMessage: "Vorssaint остаётся бесплатным и локальным, без рекламы и отслеживания. Если он вам помогает, финансово поддержать разработку можно только через Buy Me a Coffee.",
         donateButton: "Поддержать через Buy Me a Coffee",
         donateThanks: "Спасибо, что вы здесь. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Помогите Vorssaint развиваться",
         supportIntroMessage: "Vorssaint остаётся бесплатным и локальным, без рекламы и отслеживания. Если он вам помогает, финансово поддержать разработку можно только через Buy Me a Coffee.",
         supportIntroStarButton: "Поставить Vorssaint звезду на GitHub",
@@ -926,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Поддержать через Buy Me a Coffee",
         supportIntroLaterButton: "Не сейчас",
         supportIntroDoneButton: "Готово",
+
+        // MARK: Support — community
         discordIntroTitle: "Сообщество Vorssaint в Discord только начинает расти",
         discordIntroMessage: "Сообщество Vorssaint новое и всё ещё формируется. Присоединяйтесь сейчас, знакомьтесь с другими пользователями и помогите создать дружелюбное пространство вокруг приложения.",
         discordIntroJoinButton: "Присоединиться к сообществу в Discord",
         communityIntroTitle: "Смотрите всё раньше всех",
         communityIntroMessage: "Те, кто уже следил за мной в X, увидели многие изменения этого обновления раньше всех. Там я публикую превью будущих новинок и показываю, как они работают, чтобы вы знали основы ещё до выхода обновления. Подписывайтесь и узнайте, что будет дальше!",
         communityIntroFollowButton: "Подписаться на @vorssaint в X",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Теперь в официальном каталоге Homebrew",
         homebrewOfficialIntroMessage: "Теперь Vorssaint можно установить прямо из официального каталога Homebrew.",
         homebrewOfficialIntroInstallLabel: "Новая установка",
         homebrewOfficialIntroMigrationTitle: "Пользовались старым tap?",
         homebrewOfficialIntroMigrationMessage: "Удалите старый tap один раз. Приложение и ваши настройки останутся на месте.",
         homebrewOfficialIntroCopyButton: "Копировать команду",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "Что нового в 3.1.4",
         updateShowcaseMessage: "Быстро взгляните на главные улучшения этого обновления.",
         updateShowcaseUnavailable: "Сейчас не удалось загрузить видео. Вы всё равно можете продолжить.",
         updateShowcaseRestart: "Начать заново",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "Показывать значок в строке меню",
         menuBarIconStillHiddenTitle: "Значок всё ещё скрыт",
         menuBarIconStillHiddenBody: "Значок был создан заново, но macOS не выделила ему видимого места. Скорее всего, в строке меню не хватает места: уберите несколько значков (или закройте приложения с длинными меню) и попробуйте снова.",
         menuBarIconManagerHintFormat: "%@ запущен и, возможно, держит значок в своей скрытой секции. Поищите Vorssaint там или настройте %@ всегда показывать Vorssaint.",
         menuBarIconDisallowedBody: "macOS не пускает Vorssaint в строку меню. Откройте Системные настройки > Строка меню, найдите Vorssaint в списке приложений и включите «Разрешить в строке меню» (Allow in the Menu Bar). Значок появится, как только переключатель будет включён.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "Нажмите новое сочетание клавиш",
         shortcutReset: "Сбросить",
         shortcutNone: "Нет",
@@ -964,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS отклонила это сочетание клавиш. Выберите другое.",
         shelfShortcutToggle: "Горячая клавиша полки",
         switcherUsageHintFormat: "Удерживайте %@ для навигации; отпустите, чтобы активировать окно. Shift или ← возвращают назад; W закрывает окно; Q завершает приложение; Esc отменяет.",
+
+        // MARK: Media keys
         musicBlockSection: "Медиаклавиши",
         musicBlockTitle: "Не давать Музыке открываться самой",
         musicBlockCaption: "Блокирует запуск музыкального приложения после обнаруженного нажатия медиаклавиши. Требуется доступ к Универсальному доступу. Команды наушников без обнаруженного нажатия не блокируются.",
@@ -973,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "Музыка и iTunes как раз блокируются, поэтому не могут открываться вместо них. Выберите другое приложение.",
         musicBlockChooseApp: "Выбрать приложение…",
         musicBlockPlayReplacement: "Воспроизводить после открытия приложения-замены",
+
+        // MARK: Cleaner
         cleanerName: "Очистка",
         cleanerIntroTitle: "Очистите Mac от мусора",
         cleanerIntroCaption: "Ищет остатки удалённых приложений, кэши, журналы и Корзину. Всё проверяется заранее, а удалённое попадает в Корзину.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "Проверить",
         cleanerScanning: "Проверка…",
         cleanerCleaning: "Очистка…",
@@ -994,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "Снимки экрана, которые вы не открывали %d дн. и у которых остались имя и папка от macOS. Переименованные или перемещённые здесь не появляются.",
         cleanerScreenshotsSettingCaption: "Проверка покажет снимки экрана, которые вы не открывали столько времени, без отметок и с общим размером.",
         cleanerScreenshotsAfterFormat: "Через %d дн.",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "Нечего очищать. Ваш Mac в порядке.",
         cleanerClean: "Очистить",
         cleanerDoneNote: "Объекты перемещены в Корзину, откуда их можно восстановить.",
@@ -1010,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "Файлы, оставшиеся от удалённых приложений.",
         cleanerOtherCachesCaption: "Удалять безопасно, ничего не сломается. Приложения могут открыться медленнее один раз, а загруженное, например офлайн-музыка, скачается заново.",
         cleanerCleanSizeFormat: "Очистить %@",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "Автоматическая очистка",
         cleanerScheduleOff: "Выключена",
         cleanerScheduleDaily: "Ежедневно",
@@ -1020,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "Следующая очистка %@.",
         cleanerScheduleRanFormat: "Последняя автоматическая очистка %@.",
         cleanerScheduleNotifyToggle: "Уведомлять по завершении",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Уведомления Vorssaint отключены в системе.",
         cleanerNotifOpenSettings: "Открыть настройки уведомлений…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "Приложение запущено из места, из которого нельзя открываться при входе. Перетащите Vorssaint в папку «Программы», откройте его оттуда и включите параметр снова.",
         launchAtLoginNeedsApproval: "Объект входа зарегистрирован, но macOS всё ещё требуется ваше разрешение. В Системных настройках разрешите Vorssaint открываться при входе и работать в фоновом режиме.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "Убирать переносы строк",
         ocrRemoveLineBreaksCaption: "Удаляет переносы строк, чтобы скопированный текст вставлялся одним абзацем.",
         ocrQRToggle: "Читать QR-коды",
@@ -1032,6 +1186,8 @@ extension Strings {
         qrResultTitle: "QR-код",
         qrResultCopy: "Копировать",
         qrResultOpen: "Открыть ссылку",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "Новое в этом обновлении",
         highlightsTitleClipboardRedesign: "Обновлённый буфер обмена",
         highlightsTitleWindowLayout: "Размещение окон",
@@ -1048,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "Настроить",
         highlightsTry: "Попробовать",
         highlightsSeeAll: "Все изменения",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "Показывать только текущий рабочий стол",
         switcherCurrentSpaceOnlyCaption: "Показывает окна текущего рабочего стола. Если включён показ полноэкранных окон, они также видны с других рабочих столов.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "Файл больше не существует",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "Маленький",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "Системные звуки",
         mixerSoundEffectsOutputTooltip: "Выбрать устройство для оповещений и звуковых эффектов",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "Открыть Мониторинг системы",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Скрывать приложение кликом по Dock",
         dockClickHideCaption: "Активное приложение скрывается при клике по его значку в Dock. Нажмите ещё раз, чтобы вернуть его.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "Как измерять память",
         memoryMetricUsed: "Занято памяти",
         memoryMetricApp: "Память приложений",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "Щёлкните правой кнопкой значок в строке меню, чтобы включить или выключить «Не давать уснуть»",
         keepAwakeRightClickToggleCaption: "Заменяет контекстное меню правой кнопки мыши.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "Правила очистки",
         urlCleanerRulesCaption: "Сайт добавляет эти параметры в собственные ссылки для обмена, чтобы отследить, откуда пришла ссылка. С флажком название удаляется при очистке ссылки, без флажка остаётся. Добавленные вами названия можно удалить.",
         urlCleanerRulesCoverageCaption: "Список охватывает разные способы поделиться на одном сайте (страницу, приложение, эфир), поэтому он длинный; в настоящей ссылке обычно всего два-четыре из них.",
@@ -1076,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Отключить все правила этого сайта",
         urlCleanerRulesRestoreSiteButton: "Включить все правила этого сайта",
         urlCleanerRemovedFormat: "Удалено: %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "Закрепить поиск по S",
         switcherSearchPinCaption: "S запускает поиск и закрепляет переключатель открытым. Печать больше не даёт специальные символы, если сочетание использует ⌥, а поиск, начинающийся с Q или W, больше не закрывает окно и не завершает приложение по ошибке.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "Инвертировать вертикальную прокрутку",
         invertHorizontalScroll: "Инвертировать горизонтальную прокрутку",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "Горизонтальная прокрутка с зажатой клавишей",
+
+        // MARK: Settings — zoom
         zoomSection: "Масштабирование",
         zoomControlNote: "Control + прокрутка масштабирует содержимое приложения вместо экрана macOS.",
         pinchZoom: "Масштабирование щипком",
@@ -1089,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "Удерживайте только выбранную клавишу, чтобы вертикальное колёсико мыши прокручивало по горизонтали. Другие сочетания клавиш не изменяются.",
         switcherShowShortcutHints: "Показывать подсказки сочетаний клавиш",
         switcherShowShortcutHintsCaption: "Показывает сочетания клавиш для приложений и окон под значками.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ также будет удалён из Homebrew.",
         uninstallerHomebrewCheckFailed: "Не удалось проверить, управляет ли Homebrew этим приложением. Обновите список и попробуйте снова или удалите приложение через Homebrew.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "Открывать у края экрана",
         shelfEdgeCaption: "Перетащите файл к краю экрана, чтобы полка выглянула. Отпустите его там, или потяните обратно, и полка уберётся.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "Фокус следует за мышью",
         focusFollowsMouseCaption: "Фокусирует окно под указателем.",
         focusFollowsMouseDelay: "Задержка наведения",
         focusFollowsMouseRaise: "Поднимать окно на передний план",
         focusFollowsMouseWaitForStop: "Ждать, пока указатель остановится",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "Свёрнутые окна",
         switcherTreatHiddenAppsLikeMinimized: "Считать скрытые приложения свёрнутыми окнами",
         switcherMinimizedPlacementNormal: "Обычный порядок",
@@ -1111,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "На каком экране открывается переключатель, когда подключено несколько экранов.",
         switcherCurrentDisplayOnly: "Показывать только текущий экран",
         switcherCurrentDisplayOnlyCaption: "Показывает только окна на экране под указателем. Если на этом экране нет окон, переключатель не открывается.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "Отклик",
         smoothScrollCoastLabel: "Инерция",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "Отключить ускорение мыши",
         mouseAccelerationCaption: "Отключает ускорение указателя для подключённых мышей. Прежняя настройка вернётся после выключения функции или выхода из Vorssaint.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "Линейная прокрутка",
         linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
         linearScrollLinesLabel: "Строк на щелчок",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "Быстрее прокручивать с зажатой клавишей",
         scrollSpeedCaption: "Удерживайте только выбранный модификатор при прокрутке колёсиком мыши, чтобы увеличить расстояние. Трекпад не затрагивается.",
         scrollSpeedMultiplierLabel: "Скорость",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "Очищать при закрытии",
         shelfClearOnCloseCaption: "Очищает полку только при нажатии кнопки закрытия. Автоматическое скрытие и сворачивание сохраняют элементы.",
         shelfShortcutFinderSelection: "Добавлять выбранное в Finder по горячей клавише",
         shelfShortcutFinderSelectionCaption: "Когда Finder на переднем плане, горячая клавиша открывает полку уже с выбранными файлами. Если ничего не выбрано, полка открывается как обычно.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "Фиксированный порядок Spaces",
         spacesOrderCaption: "Не даёт macOS переставлять Spaces по недавнему использованию, чтобы они оставались в заданном порядке. Прежняя настройка вернётся после выключения функции. Для применения Dock может один раз перезапуститься.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "Закрытие приложений",
-        quitAppsCaption: "Показывает открытые приложения, чтобы закрыть их по одному, все сразу или все, кроме активного. Список всегда появляется до того, как что-либо закроется."
+        quitAppsCaption: "Показывает открытые приложения, чтобы закрыть их по одному, все сразу или все, кроме активного. Список всегда появляется до того, как что-либо закроется.",
     )
 }

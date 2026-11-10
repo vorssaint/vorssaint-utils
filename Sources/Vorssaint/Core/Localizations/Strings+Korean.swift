@@ -6,6 +6,7 @@ import Foundation
 // 한국어
 extension Strings {
     static let ko = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: 일반 절전",
         statusActiveUntil: "Vorssaint: 다음 시간까지 절전 방지",
         statusActiveIndefinite: "Vorssaint: 끌 때까지 절전 방지",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "확대/축소",
         menuClose: "닫기",
 
+        // MARK: Durations
         minutes15: "15분",
         minutes30: "30분",
         hour1: "1시간",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "계속",
         indefinite: "계속",
 
+        // MARK: Panel — header & footer
         panelSettings: "설정",
         panelQuit: "종료",
         panelHotkeyHint: "단축키로 전환",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "절전 방지",
         keepAwakeEndsIn: "남은 시간",
         keepAwakeUntilDisabled: "끌 때까지 유지",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "준비되었습니다. 암호 없이 전환할 수 있습니다",
         clamshellNeedsPassword: "관리자 암호는 한 번만 요청됩니다",
 
+        // MARK: Panel — system monitor
         systemSection: "시스템",
         temperatures: "온도",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "에너지를 많이 쓰는 앱",
         energyAppsIdle: "에너지를 많이 쓰는 앱이 없습니다",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "세션이 끝났습니다",
         notifySessionEndedBody: "설정한 시간이 지났습니다. Mac이 다시 평소처럼 절전 모드로 전환됩니다.",
         notifyBatteryTitle: "Vorssaint를 껐습니다",
         notifyBatteryBody: "배터리 잔량이 낮습니다. 충전을 보호하기 위해 일반 절전 모드로 되돌렸습니다.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "덮개를 닫아도 계속 사용하려면 Vorssaint에 관리자 암호가 필요합니다.",
         adminPromptClamshellOff: "Mac의 일반 절전 모드를 복원하려면 관리자 암호가 필요합니다.",
         adminPromptRecover: "Mac의 절전이 비활성화된 상태에서 Vorssaint가 종료되었습니다. 일반 절전 모드를 복원하려면 암호를 입력하세요.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "덮개 닫힘 모드를 암호 없이 전환할 수 있도록 Vorssaint가 제한된 규칙(pmset disablesleep만)을 만듭니다. 암호는 이번 한 번만 필요합니다.",
         adminPromptSudoersRemove: "Vorssaint가 암호 없이 사용하는 덮개 닫힘 모드 규칙을 제거합니다.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Vorssaint 설정",
         tabGeneral: "일반",
         tabEnergy: "에너지",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "크게",
         previewSizeXLarge: "매우 크게",
         settingsGroupFeatures: "기능",
+
+        // MARK: Settings — advanced
         advancedResetSection: "권한",
         advancedResetDescription: "Vorssaint에 허용한 모든 권한(손쉬운 사용, 화면 녹화, 전체 디스크 접근 등), 로그인 항목 및 덮개 닫힘 모드 규칙을 제거합니다. 처음부터 다시 시작하거나 앱을 삭제하기 전에 유용합니다. 앱은 설치된 상태로 유지됩니다.",
         advancedClearButton: "모든 권한 지우기",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "제거를 중단했습니다",
         advancedUninstallFailedBody: "Vorssaint가 변경한 시스템 설정을 되돌리지 못했습니다. 잠자기, 팬 속도, 마우스 가속 또는 공간 순서입니다. 아무것도 삭제되지 않았습니다. 다시 시도하고 암호를 요청하면 허용하세요.",
 
+        // MARK: Settings — general
         launchAtLogin: "로그인 시 실행",
         languageLabel: "언어",
         menuBarSection: "메뉴 막대",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "절전 방지 단축키 사용",
         hotkeyCaption: "추가 권한 없이 어떤 앱에서든 사용할 수 있습니다.",
 
+        // MARK: Settings — energy
         sessionSection: "세션",
         defaultDurationLabel: "기본 지속 시간",
         keepAwakeAutoStart: "Vorssaint 실행 시 잠자기 방지",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "화면을 완전히 어둡게 하기",
         dimScreenOnLidCloseCaption: "덮개를 닫으면 화면을 어둡게 하고, 열면 밝기를 원래대로 되돌립니다.",
 
+        // MARK: Settings — mouse
         scrollSection: "스크롤",
         invertMouseScroll: "마우스 스크롤 반전",
         invertMouseScrollCaption: "마우스 휠의 스크롤 방향을 반대로 바꿉니다.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "부드러운 스크롤",
         smoothScrollCaption: "마우스 휠 한 칸을 짧고 부드러운 슬라이드로 바꿉니다. 트랙패드는 변경되지 않습니다.",
         smoothScrollStepLabel: "스크롤 속도",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "탐색",
         mouseNavigationEnable: "사이드 버튼으로 뒤로 및 앞으로 이동",
         mouseNavigationCaption: "마우스의 뒤로 및 앞으로 버튼을 Finder, 브라우저 및 지원 앱의 탐색 동작으로 바꿉니다.",
+
+        // MARK: Settings — middle click
         middleClickSection: "트랙패드 가운데 클릭",
         middleClickEnable: "세 손가락 클릭을 가운데 클릭으로 사용",
         middleClickEnableCaption: "트랙패드를 세 손가락으로 누르면 마우스 휠 클릭과 같이 동작합니다. 링크를 새 탭으로 열거나 탭을 닫는 등 가운데 버튼으로 할 수 있는 모든 동작에 사용할 수 있습니다.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "세 손가락",
         middleClickTapFourFingers: "네 손가락",
         middleClickTapCaption: "해당 개수의 손가락으로 가볍게 탭하기만 해도(누르지 않아도) 가운데 클릭이 실행됩니다. 쓸어 넘기기는 포함되지 않습니다. macOS의 세 손가락 탭에 ‘찾아보기’가 지정되어 있다면 두 동작이 함께 실행되지 않도록 끄세요.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "빠른 패널",
         quickToolShortcutToggle: "전역 단축키",
+
+        // MARK: Quick tool — OCR
         ocrName: "화면의 텍스트 복사",
         ocrCaption: "화면 영역을 선택하면 인식한 텍스트를 복사해 즉시 붙여넣을 수 있습니다.",
         ocrCopied: "텍스트를 복사했습니다",
         ocrNoText: "텍스트를 찾을 수 없습니다",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "색상 선택기",
         colorPickerCaption: "화면의 모든 픽셀 색상을 가져와 원하는 형식으로 복사합니다.",
         colorPickerFormatLabel: "복사 형식",
         colorPickerBareHexToggle: "앞의 # 없이 복사",
         colorPickerPickNow: "색상 가져오기",
+
+        // MARK: Quick tool — microphone
         micMuteName: "마이크 음소거",
         micUnmuteName: "마이크 음소거 해제",
         micMuteCaption: "각 마이크의 음소거 또는 입력 음량 제어를 사용합니다. Siri와 일부 앱은 여전히 사용자의 소리를 들을 수 있습니다. 개인정보 보호를 위해 마이크 접근을 차단하는 기능은 아닙니다.",
@@ -207,8 +233,11 @@ extension Strings {
         micMuteMenuBarToggle: "기능이 켜져 있을 때 메뉴 막대에 표시",
         micMuteMenuBarCaption: "메뉴 막대의 빨간 마이크는 이 기능이 켜져 있음을 나타냅니다. 모든 앱의 오디오 수집이 중단되었음을 보장하지는 않습니다.",
 
+        // MARK: Quick tool — paste plain text
         pastePlainName: "일반 텍스트로 붙여넣기",
         pastePlainCaption: "색상, 글꼴, 서식 없이 복사한 내용을 붙여넣습니다. 원본은 클립보드에 유지됩니다.",
+
+        // MARK: Quick tool — launcher
         launcherName: "빠른 패널",
         launcherCaption: "즐겨 쓰는 도구를 모아 둔 떠 있는 패널입니다. 어디서나 단축키로 열 수 있습니다.",
         launcherOpenNow: "빠른 패널 열기",
@@ -216,11 +245,15 @@ extension Strings {
         launcherEmptyState: "모든 도구가 숨겨져 있습니다. 조정 버튼에서 다시 표시할 수 있습니다.",
         launcherAddSection: "복원",
         launcherKeysHint: "화살표 키로 이동, Return으로 열기, 1~9로 바로 열기",
+
+        // MARK: Settings — switcher
         switcherSection: "윈도우 전환기",
         switcherEnable: "Vorssaint 전환기 사용",
         switcherEnableCaption: "앱과 윈도우를 전환합니다. 최소화한 윈도우와 같은 앱의 여러 윈도우도 지원합니다.",
         switcherUsageHint: "단축키를 누른 채 이동하고 놓으면 윈도우가 활성화됩니다. Shift 또는 ←로 뒤로 이동하고, W로 윈도우를 닫고, Q로 앱을 종료하며, Esc로 취소합니다.",
         switcherNoWindows: "열린 윈도우가 없습니다",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "%@을 큰 아이콘으로 표시",
         switcherIconRowModeCaption: "앱마다 하나의 아이콘을 표시하고 그 위에 해당 앱의 윈도우 미리보기를 표시합니다.",
         switcherSimpleModeCaption: "미리보기와 전환기의 화면 녹화 기능을 사용하지 않고 앱 아이콘과 윈도우 제목을 표시합니다.",
@@ -240,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "앱과 윈도우 위로 포인터를 옮겨도 강조 표시는 그대로입니다. 클릭하면 여전히 엽니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
         switcherWindowlessAppsCaption: "윈도우가 하나도 없이 실행 중인 앱 중에서 어떤 앱을 전환기에 표시할지 선택합니다.",
         switcherWindowlessAppsOff: "표시 안 함",
@@ -248,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "‘%@’ 옵션이 켜져 있는 동안에는 실행 중인 모든 앱에 계속 접근할 수 있습니다. 직접 고르려면 이 옵션을 꺼 주세요.",
         switcherNoOpenWindow: "열린 윈도우 없음",
         switcherOtherDesktop: "다른 데스크탑",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock 미리보기",
         dockPreviewEnable: "Dock에서 윈도우 미리보기",
         dockPreviewEnableCaption: "Dock의 열린 앱 위에 포인터를 올려 윈도우를 확인한 다음 원하는 윈도우를 클릭하세요.",
@@ -281,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "이전 윈도우",
         dockPreviewNextWindow: "다음 윈도우",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "잘라내기 및 붙여넣기",
         cutPasteEnable: "Finder에서 파일 잘라내기 및 붙여넣기",
         cutPasteEnableCaption: "⌘X로 잘라내고 ⌘V로 Finder의 파일과 폴더를 이동합니다.",
@@ -302,6 +340,7 @@ extension Strings {
         cutMovingTitle: "이동하는 중…",
         cutMovingCountFormat: "%d / %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "닫으면 종료",
         autoQuitEnable: "마지막 윈도우를 닫을 때 앱 종료",
         autoQuitEnableCaption: "앱의 마지막 윈도우를 닫으면 해당 앱도 종료합니다.",
@@ -316,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "예외가 없습니다",
         autoQuitAddApp: "앱 추가…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "앱 제거기",
         uninstallerEnableCaption: "앱과 함께 남겨진 캐시, 설정, 로그 및 파일도 제거합니다.",
         uninstallerStep1: "앱을 설정으로 드래그하거나 목록에서 하나를 선택합니다.",
@@ -373,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@은(는) 앱으로 식별할 수 없으므로 제거할 수 없습니다.",
         uninstallerPickerHiddenNote: "macOS에 포함된 앱이나 Apple 앱은 목록에 표시되지 않습니다.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "URL 정리",
         urlCleanerEnable: "복사할 때 URL 자동 정리",
         urlCleanerEnableCaption: "링크가 클립보드에 들어오는 즉시 추적 매개변수를 제거합니다.",
@@ -389,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "복사했습니다.",
         urlCleanerLocalNote: "로컬 처리. 네트워크 없음.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "formula와 cask를 검색, 설치 및 제거합니다.",
         homebrewMissingTitle: "Homebrew를 찾을 수 없습니다",
@@ -405,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "아직 신뢰하지 않은 Tap",
         homebrewTrustCaption: "Homebrew는 타사 Tap을 사용하기 전에 확인을 요청합니다. %@을(를) 신뢰하면 계속할 수 있습니다.",
         homebrewTrustButton: "신뢰하고 계속",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "패키지 검색",
         homebrewKeyboardHint: "Space 또는 Return을 누르면 macOS 패널이 닫힙니다. 검색 버튼을 사용하세요.",
         homebrewSearchButton: "검색",
@@ -420,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "종속성으로 설치되었지만 지금은 설치된 어떤 패키지도 필요로 하지 않습니다.",
         homebrewDependencyUpdatesFormat: "종속성 업데이트: %d",
         homebrewNoSelection: "설치한 패키지를 선택하거나 새 패키지를 검색하세요.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "패키지 세부 정보",
         homebrewInstall: "설치",
         homebrewUninstall: "제거",
@@ -443,6 +489,8 @@ extension Strings {
         homebrewUpdates: "업데이트",
         homebrewUpdateAvailableBadge: "업데이트 가능",
         homebrewLatestVersion: "최신",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Homebrew로 설치할까요?",
         homebrewConfirmInstallBodyFormat: "Homebrew가 %@을(를) 다운로드하고 설치합니다. 종속성도 설치될 수 있습니다.",
         homebrewConfirmUninstallTitle: "Homebrew로 제거할까요?",
@@ -456,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "이 작업은 관리자 암호를 요청하기 위해 터미널이 필요합니다. Vorssaint는 암호를 수집하지 않습니다.",
         homebrewLoading: "불러오는 중…",
         homebrewSearchEmpty: "결과 없음",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "%@ 설치 중",
         homebrewOperationUninstallFormat: "%@ 제거 중",
         homebrewOperationUpgradeFormat: "%@ 업그레이드 중",
@@ -482,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "기술 세부 정보",
         homebrewOperationProgressUnknown: "Homebrew가 아직 진행률을 보고하지 않았습니다.",
 
+        // MARK: Feature — local media tools
         mediaName: "미디어",
         mediaEnableCaption: "동영상을 압축하고 이미지를 변환 및 처리하며, GIF를 만들고 텍스트를 로컬에서 추출합니다.",
         mediaLocalNote: "로컬 처리. 네트워크 없음.",
@@ -489,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "이미지",
         mediaToolText: "텍스트",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "파일 선택",
         mediaDropHint: "여기에 파일을 놓거나 클릭해 선택하세요.",
         mediaOutput: "출력",
         mediaOutputAutomatic: "자동",
         mediaChooseOutput: "저장 위치",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "동영상 압축",
         mediaStartGIF: "GIF 만들기",
         mediaStartImage: "이미지 처리",
@@ -523,11 +578,15 @@ extension Strings {
         mediaFormat: "형식",
         mediaStripMetadata: "메타데이터 제거",
         mediaLoopGIF: "GIF 반복",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "정확도 우선",
         mediaOCRFast: "속도 우선",
         mediaLanguageCorrection: "언어 보정",
         mediaTextOutputNote: "추출한 텍스트는 복사하거나 TXT로 저장할 수 있습니다.",
+
+        // MARK: Media — results & errors
         mediaRunning: "처리 중",
         mediaCompleted: "완료",
         mediaCancelled: "취소했습니다.",
@@ -543,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "원본 파일과 다른 저장 위치를 선택하세요.",
         mediaErrorUnsupported: "macOS에서 지원하지 않는 형식입니다.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "선반",
         shelfEnable: "파일을 드래그해 두는 임시 공간",
         shelfEnableCaption: "파일, 이미지, 텍스트를 모아 두었다가 나중에 어디든 드래그할 수 있는 떠 있는 공간입니다.",
@@ -571,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "이 앱에서 시작한 드래그에서는 흔들기 동작과 메뉴 막대 영역이 열리지 않습니다. 단축키와 지금 열기는 계속 사용할 수 있습니다.",
         shelfPin: "열어 두기",
         shelfUnpin: "사용 후 닫기",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "추가 밝기",
         extraBrightnessCaption: "디스플레이의 HDR 여유를 사용해 최대 밝기를 넘깁니다. 배터리 소모가 늘고 Mac이 뜨거워질 수 있습니다.",
         extraBrightnessLevelLabel: "강도",
@@ -579,6 +641,8 @@ extension Strings {
         shelfOpenNow: "지금 열기",
         shelfNoPermission: "권한이 필요하지 않습니다.",
         shelfMenuItem: "선반 열기",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "선반",
         shelfEmpty: "여기에 항목을 드래그하세요",
         shelfClearAll: "모두 지우기",
@@ -586,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "%d개 선택됨",
         shelfHint: "클릭하여 선택하고 드래그하여 사용하거나, 보조 클릭하여 더 많은 동작을 표시하세요.",
         shelfItemImage: "이미지",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d개 항목",
         shelfTooltipItemsFew: "%d개 항목",
         shelfTooltipImageSingular: "%d개 이미지",
@@ -600,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d개 링크",
         shelfTooltipLinkFew: "%d개 링크",
         shelfTooltipLinkPlural: "%d개 링크",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "열기",
         shelfActionOpenWith: "다음으로 열기",
         shelfActionShare: "공유",
         shelfActionPin: "고정",
         shelfActionUnpin: "고정 해제",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "측정 중…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "볼륨 믹서",
         mixerEmpty: "오디오를 사용하는 앱이 여기에 표시됩니다",
         mixerUnavailable: "macOS 14.4 이상에서 사용할 수 있습니다",
         mixerPermissionBody: "앱별 볼륨을 조절하려면 시스템 설정에서 ‘화면 및 시스템 오디오 녹음’을 허용하세요. 오디오는 기록되지 않습니다.",
         mixerResetTooltip: "100%로 재설정",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "기본값",
         mixerOutputCurrent: "현재",
         mixerOutputUnavailable: "출력을 사용할 수 없습니다",
@@ -624,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "출력을 찾을 수 없습니다",
         mixerSystemOutputTooltip: "시스템 출력 선택",
         mixerSystemOutputErrorFormat: "변경하지 못했습니다: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "헤드폰 연결 해제 시 볼륨 낮추기",
         mixerLowerOnHeadphonesDisconnectCaption: "유선 또는 Bluetooth 헤드폰이 연결 해제되면 출력을 조정합니다.",
         mixerHeadphonesDisconnectVolume: "연결 해제 후 볼륨",
         preciseVolumeRollerEnable: "더 세밀한 볼륨 단계 사용",
         preciseVolumeRollerCaption: "볼륨 휠과 키를 더 작은 시스템 볼륨 단계로 바꿉니다.",
         preciseVolumeRollerTapFailed: "볼륨 키를 감지할 수 없습니다.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "출력 전환",
         soundOutputSwitcherEnable: "단축키로 출력 전환",
         soundOutputSwitcherCaption: "출력을 선택하고 단축키로 다음 사용 가능한 출력으로 전환합니다.",
         soundOutputSwitcherDevices: "전환할 출력",
         soundOutputSwitcherNoAvailableSelection: "사용 가능한 출력을 하나 이상 선택하세요.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "마이크",
         mixerInputNoDevices: "마이크를 찾을 수 없습니다",
         mixerInputUnavailable: "마이크를 사용할 수 없습니다",
         mixerInputFallback: "이 마이크가 돌아올 때까지 기본 입력을 사용합니다.",
         mixerInputTooltip: "마이크 선택",
         mixerInputErrorFormat: "변경하지 못했습니다: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "목록에 표시할 앱",
         mixerAllShown: "모두",
         mixerHiddenCountLabel: "숨김",
         mixerHideFromList: "목록에서 숨기기",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "오디오 장치 우선순위",
         audioPriorityOutputEnable: "우선순위가 가장 높은 오디오 출력으로 자동 전환",
         audioPriorityInputEnable: "우선순위가 가장 높은 마이크로 자동 전환",
@@ -656,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "사용 중",
         audioPriorityCaption: "장치는 우선순위에 따라 선택됩니다. 더 높은 순위의 장치가 연결되면 해당 장치로 전환됩니다. 사용 중인 장치의 연결이 끊기면 다음으로 사용 가능한 장치로 전환됩니다.",
 
+        // MARK: Settings — updates
         updatesSection: "업데이트",
         autoCheckToggle: "업데이트 자동 확인",
         includeBetaUpdatesToggle: "베타 업데이트 받기",
@@ -676,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "앱이 디스크 이미지나 시스템 임시 위치처럼 업데이트할 수 없는 위치에서 실행 중입니다. Vorssaint를 ‘응용 프로그램’ 폴더로 드래그하고 그곳에서 연 뒤 다시 시도하세요.",
         menuCheckUpdates: "업데이트 확인…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "권한이 필요합니다",
         permissionAccessibility: "손쉬운 사용",
         permissionScreenRecording: "화면 녹화",
@@ -684,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "시스템 설정 열기…",
         permissionRequest: "접근 허용",
         permissionRestartNote: "권한을 허용한 뒤 macOS에서 앱을 다시 열도록 요청할 수 있습니다.",
+
+        // MARK: Secure input
         secureInputTitle: "보안 입력이 켜져 있습니다",
         secureInputHeldFormat: "보안 입력이 켜질 때 %@이(가) 활성 앱이었으며, 이 앱이 보안 입력을 유지하고 있을 수 있어 Vorssaint가 대신 입력할 수 없습니다. 암호 필드에서 포커스를 옮기거나 앱을 종료하면 해제됩니다.",
         secureInputUnattributed: "보안 입력을 유지하는 앱을 알 수 없어 Vorssaint가 대신 입력할 수 없습니다. 열려 있는 암호 필드에서 포커스를 옮기거나 로그아웃한 후 다시 로그인하면 해제됩니다.",
         secureInputUnidentified: "보안 입력을 유지하는 앱을 확인할 수 없어 Vorssaint가 대신 입력할 수 없습니다.",
         secureInputRevealFormat: "%@ 보기",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "보안 입력이 켜질 때 %@이(가) 활성 앱이었으며, 이 앱이 보안 입력을 유지하고 있을 수 있습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다. 암호 필드에서 포커스를 옮기거나 앱을 종료하면 해제됩니다.",
         secureInputSwitcherUnattributed: "보안 입력을 유지하는 앱을 알 수 없습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다. 열려 있는 암호 필드에서 포커스를 옮기거나 로그아웃한 후 다시 로그인하면 해제됩니다.",
         secureInputSwitcherUnidentified: "보안 입력을 유지하는 앱을 확인할 수 없습니다. 보안 입력이 켜져 있는 동안 macOS가 전환기에서 키 입력을 숨기고, ⌘Tab을 누르면 대신 macOS 전환기가 열립니다.",
 
+        // MARK: About
         aboutDescription: "Mac을 위한 유틸리티 허브입니다.\n메뉴 막대에서 에너지 관리, 시스템 모니터, 스크롤 및 윈도우 전환을 제공합니다.",
         versionPrefix: "버전",
         reviewIntro: "시작하기 다시 보기",
         reviewHighlights: "업데이트 둘러보기 다시 보기",
         viewOnGitHub: "GitHub에서 보기",
 
+        // MARK: Onboarding
         obContinue: "계속",
         obBack: "뒤로",
         obSkipStep: "이 단계 건너뛰기",
@@ -712,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "마우스와 윈도우를 내 방식대로",
         obWelcomeBullet3Body: "마우스 스크롤 반전과 썸네일이 있는 윈도우 전환기를 제공합니다.",
         obLanguageLabel: "언어",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "손쉬운 사용",
         obStepAccessibilityBody: "마우스 스크롤을 반전하고 윈도우 전환기가 키보드에 반응하도록 하는 데 필요합니다.",
         obAccessibilityWhy: "앱은 마우스 휠과 전환기 단축키만 감시합니다. 어떤 내용도 기록하거나 전송하지 않습니다.",
         obStepRecordingTitle: "화면 녹화",
         obStepRecordingBody: "전환기에서 아이콘뿐 아니라 실제 윈도우의 썸네일도 표시할 수 있습니다.",
         obRecordingWhy: "썸네일은 즉시 생성되어 메모리에만 머무르며 Mac 밖으로 나가지 않습니다. 허용하지 않아도 전환기는 아이콘으로 작동합니다.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "시스템 모니터",
         obStepMonitorBody: "패널에 CPU, GPU, 배터리 온도와 하드웨어 사용량, 메모리 압력이 표시됩니다.",
         obMonitorNoPermission: "권한이 필요하지 않습니다. 센서는 시스템에서 직접 읽습니다.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "선택 기능",
         obStepOptionalBody: "지금 사용할 기능을 켜세요. 나중에 설정에서 모두 변경할 수 있습니다.",
         obStepStatusTitle: "확인",
         obStepStatusBody: "사용하려는 기능이 모두 준비되었는지 확인합니다.",
         obStatusRecheck: "다시 확인",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "준비 완료!",
         obStepDoneBody: "Vorssaint가 이미 Mac을 살피고 있습니다.",
         obDoneHint: "화면 오른쪽 위 메뉴 막대에서 블랙홀 아이콘을 찾으세요.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "이번 버전의 새로운 기능",
         obWhatsNewFallback: "이 업데이트에는 최신 수정 사항과 개선 사항이 포함되어 있습니다.",
         obLanguageUpdateTitle: "내 언어로 사용하기",
@@ -737,7 +837,10 @@ extension Strings {
         obPurposeBody: "준비된 설정을 고르거나 사용할 기능을 정확히 선택하세요.",
         obPurposeSkip: "기능은 나중에 설정에서 추가하거나 제거할 수 있습니다.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "모니터",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "메뉴 막대",
         monitorMenuBarPreview: "메뉴 막대 미리보기",
         monitorMenuBarCaption: "메뉴 막대의 아이콘 옆에 표시할 항목을 선택합니다.",
@@ -754,6 +857,8 @@ extension Strings {
         monitorInterval1: "1초",
         monitorInterval2: "2초",
         monitorInterval5: "5초",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "패널",
         panelNavigationMode: "패널을 섹션별로 이동",
         panelNavigationCaption: "한 번에 하나의 섹션만 표시합니다. ‘목록’을 선택하면 모든 섹션을 연속으로 스크롤해 표시합니다.",
@@ -762,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "베타 기능입니다. 일부 문제가 남아 있을 수 있습니다.",
 
+        // MARK: Panel — network
         networkSection: "네트워크",
         networkIPAddresses: "IP 주소",
         networkLocalIP: "로컬 IPv4",
@@ -772,6 +878,7 @@ extension Strings {
         networkApps: "네트워크를 사용하는 앱",
         networkAppsIdle: "현재 네트워크를 사용하는 앱이 없습니다",
 
+        // MARK: Panel — disk
         diskSection: "디스크",
         diskUsed: "사용됨",
         diskFree: "사용 가능",
@@ -807,6 +914,7 @@ extension Strings {
         diskStorageSettings: "저장 공간",
         diskNoDisks: "마운트된 디스크를 찾을 수 없습니다.",
 
+        // MARK: Panel — power
         powerSection: "전원",
         powerSystem: "시스템",
         powerAdapter: "어댑터",
@@ -824,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "주변 기기를 찾을 수 없습니다",
         monitorGraphsSection: "그래프",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "업데이트를 사용할 수 있습니다",
         updateBannerAction: "업데이트",
         obStepMenuBarTitle: "메뉴 막대 지표",
@@ -845,6 +954,8 @@ extension Strings {
         memoryStyleDot: "점",
         memoryStylePercent: "%",
         memoryStyleBoth: "둘 다",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "가동 시간",
         batteryCharge: "충전량",
         powerHealth: "배터리 상태",
@@ -855,6 +966,7 @@ extension Strings {
         speedTestTesting: "테스트 중…",
         speedTestFailed: "테스트에 실패했습니다",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "패널에 표시",
         disclosureExpanded: "펼쳐짐",
         disclosureCollapsed: "접힘",
@@ -872,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "도구",
         monitorPanelConfigHint: "블록을 열어 표시할 내용을 선택하세요.",
         monitorOrderHint: "드래그하여 패널 섹션의 순서를 바꾸고 눈 아이콘으로 각 섹션을 표시하거나 숨길 수 있습니다.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "패널에 표시할 항목",
         obStepPanelBody: "각 블록을 열고 아이콘을 클릭했을 때 표시할 내용을 자세히 선택하세요.",
         obStepPanelNavigationTitle: "섹션형 패널",
         obStepPanelNavigationBody: "패널에 한 번에 하나의 섹션만 표시할 수 있습니다. 설정에서 ‘섹션’과 ‘목록’ 사이를 전환할 수 있습니다.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "청소 모드",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "유틸리티",
         quickControlsSection: "제어",
         panelCategoryWindows: "윈도우",
         panelCategoryInput: "마우스 및 키보드",
         panelCategoryFiles: "파일",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "윈도우 최대화",
         windowMaximizeCaption: "초록색 버튼으로 별도 공간을 만들지 않고 최대화합니다.",
         windowMaximizeActiveNow: "초록색 버튼으로 활성화됨",
         windowMaximizeNeedsAccessibility: "작동하려면 손쉬운 사용 권한이 필요합니다.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "디바운스",
         keyDebounceEnable: "중복 키 입력 필터링",
         keyDebounceCaption: "매우 빠른 중복 입력을 필터링합니다.",
@@ -899,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "키 추가",
         keyDebounceNoOverrides: "개별 키가 설정되지 않았습니다.",
         keyDebounceRemoveKey: "키 제거",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "안전하게 청소할 수 있도록 키보드를 잠급니다.",
         cleaningOverlayTitle: "청소를 위해 키보드 잠김",
         cleaningOverlaySubtitle: "Esc 키를 5번 눌러 잠금을 해제하세요",
@@ -910,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "손쉬운 사용 권한이 필요합니다",
         cleaningNeedsAxBody: "키보드를 안전하게 잠그려면 Vorssaint에 손쉬운 사용 권한이 필요합니다. 시스템 설정에서 허용한 뒤 다시 시도하세요.",
 
+        // MARK: Support / donate
         tabSupport: "지원",
         shortcutsPageCaption: "이 Mac에 설치된 기능의 모든 전역 단축키를 여기에서 편집할 수 있습니다. 비활성 단축키도 저장되지만 실행되지는 않습니다.",
         shortcutsPageTitle: "키보드 단축키",
         settingsSearchPlaceholder: "설정 검색",
+
+        // MARK: Support — donations
         donateHeading: "Vorssaint의 성장을 도와주세요",
         donateMessage: "Vorssaint는 계속 무료로 로컬에서 작동하며, 광고나 사용 추적이 없습니다. 도움이 되었다면 Buy Me a Coffee로 개발을 후원해 주세요. 금전적 후원은 이곳에서만 받습니다.",
         donateButton: "Buy Me a Coffee에서 후원하기",
         donateThanks: "들러 주셔서 감사합니다. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Vorssaint의 성장을 도와주세요",
         supportIntroMessage: "Vorssaint는 계속 무료로 로컬에서 작동하며, 광고나 사용 추적이 없습니다. 도움이 되었다면 Buy Me a Coffee로 개발을 후원해 주세요. 금전적 후원은 이곳에서만 받습니다.",
         supportIntroStarButton: "GitHub에서 Vorssaint에 별표 남기기",
@@ -926,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Buy Me a Coffee에서 후원하기",
         supportIntroLaterButton: "나중에",
         supportIntroDoneButton: "완료",
+
+        // MARK: Support — community
         discordIntroTitle: "Vorssaint Discord 커뮤니티가 이제 시작됩니다",
         discordIntroMessage: "Vorssaint 커뮤니티는 새롭게 만들어지는 중입니다. 일찍 참여해 다른 사용자와 만나고 앱을 중심으로 따뜻한 공간을 함께 만들어 주세요.",
         discordIntroJoinButton: "Discord 커뮤니티 참여",
         communityIntroTitle: "누구보다 먼저 새 기능 확인",
         communityIntroMessage: "이미 X에서 저를 팔로우한 분들은 이번 업데이트의 여러 변경 사항을 누구보다 먼저 확인했습니다. X에서는 다음 기능의 미리보기와 사용 방법을 소개하므로 업데이트가 나오기 전부터 기본 사용법을 알 수 있습니다. 팔로우하고 다음 소식을 먼저 확인해 보세요!",
         communityIntroFollowButton: "X에서 @vorssaint 팔로우",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "이제 Homebrew 공식 카탈로그에서 제공",
         homebrewOfficialIntroMessage: "이제 Homebrew 공식 카탈로그에서 Vorssaint를 바로 설치할 수 있습니다.",
         homebrewOfficialIntroInstallLabel: "새로 설치",
         homebrewOfficialIntroMigrationTitle: "기존 tap을 사용하셨나요?",
         homebrewOfficialIntroMigrationMessage: "기존 tap을 한 번 제거하세요. 앱과 설정은 그대로 유지됩니다.",
         homebrewOfficialIntroCopyButton: "명령 복사",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "3.1.4의 새로운 기능",
         updateShowcaseMessage: "이 업데이트의 주요 개선 사항을 짧은 미리보기로 확인할 수 있습니다.",
         updateShowcaseUnavailable: "지금은 동영상을 불러올 수 없습니다. 계속 진행할 수 있습니다.",
         updateShowcaseRestart: "처음부터 다시 보기",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "메뉴 막대에 아이콘 표시",
         menuBarIconStillHiddenTitle: "아이콘이 아직 숨겨져 있습니다",
         menuBarIconStillHiddenBody: "아이콘을 다시 만들었지만 macOS가 표시할 공간을 할당하지 않았습니다. 메뉴 막대에 빈 공간이 없을 가능성이 높습니다. 메뉴 막대 아이콘을 일부 줄이거나 메뉴가 긴 앱을 닫은 뒤 다시 시도하세요.",
         menuBarIconManagerHintFormat: "%@이(가) 실행 중이며 아이콘을 숨김 섹션에 넣었을 수 있습니다. 그곳에서 Vorssaint를 찾거나 %@에서 Vorssaint가 항상 표시되도록 설정하세요.",
         menuBarIconDisallowedBody: "macOS가 Vorssaint를 메뉴 막대에 표시하지 않고 있습니다. 시스템 설정 > 메뉴 막대를 열고 앱 목록에서 Vorssaint를 찾아 “메뉴 막대에서 허용”(Allow in the Menu Bar)을 켜세요. 스위치를 켜는 즉시 아이콘이 나타납니다.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "새 단축키를 누르세요",
         shortcutReset: "재설정",
         shortcutNone: "없음",
@@ -964,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS가 이 단축키를 거부했습니다. 다른 단축키를 선택하세요.",
         shelfShortcutToggle: "선반 단축키",
         switcherUsageHintFormat: "%@을(를) 누른 채 이동하고 놓으면 윈도우가 활성화됩니다. Shift 또는 ←로 뒤로 이동하고, W로 윈도우를 닫고, Q로 앱을 종료하며, Esc로 취소합니다.",
+
+        // MARK: Media keys
         musicBlockSection: "미디어 키",
         musicBlockTitle: "음악 앱이 저절로 열리지 않게 하기",
         musicBlockCaption: "감지된 미디어 키로 음악 앱이 열리는 것을 차단합니다. 손쉬운 사용 권한이 필요합니다. 키가 감지되지 않는 헤드폰 명령은 차단하지 않습니다.",
@@ -973,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "음악과 iTunes는 차단 대상이라 대신 열 수 없습니다. 다른 앱을 선택하세요.",
         musicBlockChooseApp: "앱 선택…",
         musicBlockPlayReplacement: "대신 실행할 앱을 연 후 재생",
+
+        // MARK: Cleaner
         cleanerName: "정리",
         cleanerIntroTitle: "Mac의 불필요한 파일 정리",
         cleanerIntroCaption: "삭제한 앱의 남은 파일, 캐시, 로그와 휴지통을 검사합니다. 실행 전에 모두 검토할 수 있고 삭제한 항목은 휴지통으로 이동합니다.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "검사",
         cleanerScanning: "검사 중…",
         cleanerCleaning: "정리 중…",
@@ -994,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "%d일 동안 열지 않았고 macOS가 붙인 이름과 폴더 그대로인 스크린샷입니다. 이름을 바꾸거나 옮긴 스크린샷은 여기에 나타나지 않습니다.",
         cleanerScreenshotsSettingCaption: "검사하면 이 기간 동안 열지 않은 스크린샷을 선택하지 않은 상태로 전체 크기와 함께 보여 줍니다.",
         cleanerScreenshotsAfterFormat: "%d일 후",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "정리할 항목이 없습니다. Mac이 깔끔합니다.",
         cleanerClean: "정리",
         cleanerDoneNote: "항목을 휴지통으로 이동했으며 그곳에서 복원할 수 있습니다.",
@@ -1010,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "삭제한 앱이 남긴 파일입니다.",
         cleanerOtherCachesCaption: "삭제해도 안전하며 망가지는 것은 없습니다. 처음 실행할 때 약간 느려질 수 있고 오프라인 음악 같은 다운로드 콘텐츠는 다시 다운로드됩니다.",
         cleanerCleanSizeFormat: "%@ 정리",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "자동 정리",
         cleanerScheduleOff: "끔",
         cleanerScheduleDaily: "매일",
@@ -1020,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "다음 정리: %@.",
         cleanerScheduleRanFormat: "지난 자동 정리: %@.",
         cleanerScheduleNotifyToggle: "완료 시 알림",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "시스템에서 Vorssaint 알림이 꺼져 있습니다.",
         cleanerNotifOpenSettings: "알림 설정 열기…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "로그인 시 열 수 없는 위치에서 앱이 실행되고 있습니다. Vorssaint를 응용 프로그램 폴더로 드래그한 다음 거기에서 열고 이 옵션을 다시 켜 주세요.",
         launchAtLoginNeedsApproval: "로그인 항목은 등록되었지만 macOS의 승인이 아직 필요합니다. 시스템 설정에서 Vorssaint가 로그인 시 열리고 백그라운드에서 실행되도록 허용해 주세요.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "줄바꿈 제거",
         ocrRemoveLineBreaksCaption: "인식한 텍스트의 줄바꿈을 제거하여 한 문단으로 붙여 넣습니다.",
         ocrQRToggle: "QR 코드 읽기",
@@ -1032,6 +1186,8 @@ extension Strings {
         qrResultTitle: "QR 코드",
         qrResultCopy: "복사",
         qrResultOpen: "링크 열기",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "이 업데이트의 새로운 기능",
         highlightsTitleClipboardRedesign: "새로워진 클립보드",
         highlightsTitleWindowLayout: "윈도우 레이아웃",
@@ -1048,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "설정하기",
         highlightsTry: "사용해 보기",
         highlightsSeeAll: "모든 변경 사항 보기",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "현재 데스크탑만 표시",
         switcherCurrentSpaceOnlyCaption: "현재 데스크탑의 윈도우를 표시합니다. 전체 화면 윈도우 표시가 켜져 있으면 다른 데스크탑의 전체 화면 윈도우도 표시합니다.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "파일이 더 이상 존재하지 않습니다",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "작게",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "시스템 사운드",
         mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "활성 상태 보기 열기",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Dock 클릭으로 앱 숨기기",
         dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "메모리 측정 방식",
         memoryMetricUsed: "사용 중인 메모리",
         memoryMetricApp: "앱 메모리",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "메뉴 막대 아이콘을 오른쪽 클릭하여 절전 방지 전환",
         keepAwakeRightClickToggleCaption: "오른쪽 클릭 메뉴를 대체합니다.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "정리 규칙",
         urlCleanerRulesCaption: "사이트가 자체 공유 링크에 붙여 링크의 출처를 추적하는 매개변수입니다. 체크한 이름은 링크를 정리할 때 제거되고, 해제하면 남습니다. 직접 추가한 이름은 삭제할 수 있습니다.",
         urlCleanerRulesCoverageCaption: "목록은 한 사이트의 여러 공유 경로(웹 페이지, 앱, 라이브 방송)를 모두 담고 있어 길어집니다. 실제 링크에는 보통 2~4개만 붙습니다.",
@@ -1076,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "이 사이트의 규칙 모두 끄기",
         urlCleanerRulesRestoreSiteButton: "이 사이트의 규칙 모두 켜기",
         urlCleanerRemovedFormat: "%@ 삭제함",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "S로 검색창 고정",
         switcherSearchPinCaption: "S를 누르면 검색을 시작하고 전환기를 고정합니다. 단축키가 ⌥를 사용할 때 특수 문자가 입력되는 문제와, Q나 W로 시작하는 검색이 창을 닫거나 앱을 종료시키는 문제를 모두 막아줍니다.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "세로 스크롤 반전",
         invertHorizontalScroll: "가로 스크롤 반전",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "키를 눌러 가로 스크롤",
+
+        // MARK: Settings — zoom
         zoomSection: "확대/축소",
         zoomControlNote: "Control + 스크롤은 macOS 화면 대신 앱 콘텐츠를 확대합니다.",
         pinchZoom: "핀치 확대/축소",
@@ -1089,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "선택한 보조 키만 누른 채 마우스 휠을 굴리면 가로로 스크롤합니다. 다른 키 조합은 변경하지 않습니다.",
         switcherShowShortcutHints: "단축키 힌트 보기",
         switcherShowShortcutHintsCaption: "아이콘 아래에 앱 및 윈도우 단축키를 표시합니다.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@도 Homebrew에서 제거됩니다.",
         uninstallerHomebrewCheckFailed: "Homebrew가 이 앱을 관리하는지 확인할 수 없습니다. 새로 고침하여 다시 시도하거나 Homebrew에서 제거하세요.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "화면 가장자리 근처에서 열기",
         shelfEdgeCaption: "파일을 화면 가장자리 쪽으로 드래그하면 선반이 살짝 나타납니다. 그 자리에 놓거나, 다시 뒤로 당기면 선반이 들어갑니다.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "마우스를 따라 포커스",
         focusFollowsMouseCaption: "포인터 아래의 윈도우에 포커스를 줍니다.",
         focusFollowsMouseDelay: "호버 지연",
         focusFollowsMouseRaise: "윈도우를 앞으로 가져오기",
         focusFollowsMouseWaitForStop: "포인터가 멈출 때까지 기다리기",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "최소화된 윈도우",
         switcherTreatHiddenAppsLikeMinimized: "숨긴 앱을 최소화된 윈도우처럼 처리",
         switcherMinimizedPlacementNormal: "일반 순서",
@@ -1111,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "화면이 두 개 이상 연결되어 있을 때 전환기를 어느 화면에 표시할지 선택합니다.",
         switcherCurrentDisplayOnly: "현재 화면만 표시",
         switcherCurrentDisplayOnlyCaption: "포인터가 있는 화면의 윈도우만 표시합니다. 해당 화면에 윈도우가 없으면 전환기가 열리지 않습니다.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "반응 속도",
         smoothScrollCoastLabel: "관성",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "마우스 가속 끄기",
         mouseAccelerationCaption: "연결된 마우스의 포인터 가속을 끕니다. 옵션을 끄거나 Vorssaint를 종료하면 이전 설정으로 복원됩니다.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "선형 스크롤",
         linearScrollCaption: "마우스 휠을 얼마나 빨리 돌리든 한 칸마다 항상 같은 거리만큼 스크롤합니다. 트랙패드는 변경되지 않습니다.",
         linearScrollLinesLabel: "한 칸당 줄 수",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "키를 누른 채 더 빠르게 스크롤",
         scrollSpeedCaption: "선택한 수정 키만 누른 채 마우스 휠을 돌리면 스크롤 거리가 배가됩니다. 트랙패드는 영향을 받지 않습니다.",
         scrollSpeedMultiplierLabel: "속도",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "닫을 때 항목 지우기",
         shelfClearOnCloseCaption: "닫기 버튼을 클릭할 때만 선반을 비웁니다. 자동으로 숨겨지거나 접을 때는 항목을 유지합니다.",
         shelfShortcutFinderSelection: "단축키로 Finder 선택 항목 추가",
         shelfShortcutFinderSelectionCaption: "Finder가 앞에 있을 때 단축키를 누르면 선택한 파일이 담긴 선반이 열립니다. 아무것도 선택하지 않았다면 평소처럼 열립니다.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "공간 순서 고정",
         spacesOrderCaption: "macOS가 최근 사용 순서에 따라 공간을 재정렬하지 않도록 해 정한 순서를 유지합니다. 끄면 이전 설정으로 돌아갑니다. 변경 사항을 적용하려고 Dock이 한 번 다시 시작될 수 있습니다.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "앱 종료",
-        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다."
+        quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다.",
     )
 }

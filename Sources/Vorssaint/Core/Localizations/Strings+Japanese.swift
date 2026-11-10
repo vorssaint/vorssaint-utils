@@ -6,6 +6,7 @@ import Foundation
 // 日本語 — translated and hand-checked, not machine output.
 extension Strings {
     static let ja = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint：通常のスリープ",
         statusActiveUntil: "Vorssaint：次の時刻までスリープしない",
         statusActiveIndefinite: "Vorssaint：解除するまでスリープしない",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "拡大／縮小",
         menuClose: "閉じる",
 
+        // MARK: Durations
         minutes15: "15分",
         minutes30: "30分",
         hour1: "1時間",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "無期限",
         indefinite: "無期限",
 
+        // MARK: Panel — header & footer
         panelSettings: "設定",
         panelQuit: "終了",
         panelHotkeyHint: "ショートカットで切り替え",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "スリープ防止",
         keepAwakeEndsIn: "残り",
         keepAwakeUntilDisabled: "オフにするまで継続",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "準備完了。パスワードなしで切り替えられます",
         clamshellNeedsPassword: "管理者パスワードは一度だけ求められます",
 
+        // MARK: Panel — system monitor
         systemSection: "システム",
         temperatures: "温度",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "大きなエネルギー使用",
         energyAppsIdle: "大きなエネルギー使用なし",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "セッションが終了しました",
         notifySessionEndedBody: "時間になりました。Mac は再び通常どおりスリープします。",
         notifyBatteryTitle: "Vorssaint をオフにしました",
         notifyBatteryBody: "バッテリー残量が少なくなりました。充電を保護するため通常のスリープに戻しました。",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "ふたを閉じても続けるには、Vorssaint にパスワードが必要です。",
         adminPromptClamshellOff: "Mac の通常のスリープを元に戻すにはパスワードが必要です。",
         adminPromptRecover: "Mac のスリープを無効化したまま Vorssaint が終了しました。通常のスリープに戻すにはパスワードを入力してください。",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "ふたを閉じたモードをパスワードなしで切り替えられるよう、Vorssaint が制限付きルール（pmset disablesleep のみ）を作成します。パスワードが必要なのはこの一度きりです。",
         adminPromptSudoersRemove: "パスワード不要のふたを閉じたモードのルールを Vorssaint が削除します。",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Vorssaint 設定",
         tabGeneral: "一般",
         tabEnergy: "省エネルギー",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "大",
         previewSizeXLarge: "特大",
         settingsGroupFeatures: "機能",
+
+        // MARK: Settings — advanced
         advancedResetSection: "アクセス権",
         advancedResetDescription: "Vorssaint に許可したすべてのアクセス権（アクセシビリティ、画面収録、フルディスクアクセスなど）、ログイン項目、ふたを閉じたモードのルールを削除します。最初からやり直すときや、アンインストールの前に便利です。アプリはインストールされたまま残ります。",
         advancedClearButton: "すべてのアクセス権を消去",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "アンインストールを中止しました",
         advancedUninstallFailedBody: "Vorssaint が変更したシステム設定（スリープ、ファンの回転数、マウス加速、スペースの順序）を元に戻せませんでした。何も削除していません。もう一度試して、パスワードの入力を求められたら許可してください。",
 
+        // MARK: Settings — general
         launchAtLogin: "ログイン時に起動",
         languageLabel: "言語",
         menuBarSection: "メニューバー",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "「スリープ防止」のショートカットを有効にする",
         hotkeyCaption: "追加のアクセス権なしで、どのアプリでも使えます。",
 
+        // MARK: Settings — energy
         sessionSection: "セッション",
         defaultDurationLabel: "デフォルトの継続時間",
         keepAwakeAutoStart: "Vorssaint起動時にスリープを防ぐ",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "画面を完全に暗くする",
         dimScreenOnLidCloseCaption: "ふたを閉じると画面を暗くし、開くと明るさを元に戻します。",
 
+        // MARK: Settings — mouse
         scrollSection: "スクロール",
         invertMouseScroll: "マウスのスクロールを反転",
         invertMouseScrollCaption: "マウスホイールのスクロール方向を逆にします。",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "スムーズスクロール",
         smoothScrollCaption: "マウスホイールの1目盛りを短くなめらかなスライドに変えます。トラックパッドは変わりません。",
         smoothScrollStepLabel: "スクロール速度",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "ナビゲーション",
         mouseNavigationEnable: "サイドボタンで戻ると進むを操作",
         mouseNavigationCaption: "マウスの戻るボタンと進むボタンを、Finder、ブラウザ、対応アプリのナビゲーション操作に変換します。",
+
+        // MARK: Settings — middle click
         middleClickSection: "トラックパッドの中クリック",
         middleClickEnable: "3本指クリックを中クリックにする",
         middleClickEnableCaption: "トラックパッドを3本指で押すと、マウスのホイールクリックと同じように動作します。リンクを新しいタブで開く、タブを閉じるなど、中ボタンでできることすべてに使えます。",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 本指",
         middleClickTapFourFingers: "4 本指",
         middleClickTapCaption: "その本数の指で軽くタップ（押し込まずに）しても中クリックが発火します。スライドは対象外です。macOS の 3 本指タップが「調べる」に割り当てられている場合は、両方が同時に発火しないようオフにしてください。",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "クイックパネル",
         quickToolShortcutToggle: "グローバルショートカット",
+
+        // MARK: Quick tool — OCR
         ocrName: "画面のテキストをコピー",
         ocrCaption: "画面の範囲を選択すると、認識されたテキストがコピーされ、すぐにペーストできます。",
         ocrCopied: "テキストをコピーしました",
         ocrNoText: "テキストが見つかりません",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "カラーピッカー",
         colorPickerCaption: "画面上の任意のピクセルの色を取得し、好みの形式でコピーします。",
         colorPickerFormatLabel: "コピー形式",
         colorPickerBareHexToggle: "先頭の # を付けずにコピー",
         colorPickerPickNow: "色を取得",
+
+        // MARK: Quick tool — microphone
         micMuteName: "マイクを消音",
         micUnmuteName: "マイクを再開",
         micMuteCaption: "各マイクの消音または入力音量の設定を使用します。Siriや一部のアプリには声が届く場合があります。プライバシーを守るためにマイクへのアクセスを遮断する機能ではありません。",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "一部のマイクはまだ消音中です",
         micMuteMenuBarToggle: "機能がオンの間はメニューバーに表示",
         micMuteMenuBarCaption: "メニューバーの赤いマイクは、この機能がオンであることを示します。すべてのアプリで音声の取り込みが止まることを保証するものではありません。",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "プレーンテキストとしてペースト",
         pastePlainCaption: "コピーした内容を色・フォント・書式なしでペーストします。元の内容はクリップボードに残ります。",
+
+        // MARK: Quick tool — launcher
         launcherName: "クイックパネル",
         launcherCaption: "お気に入りのツールを集めたフローティングパネル。どこからでもショートカットで呼び出せます。",
         launcherOpenNow: "クイックパネルを開く",
@@ -215,11 +245,15 @@ extension Strings {
         launcherEmptyState: "すべてのツールが非表示です。調整ボタンで戻せます。",
         launcherAddSection: "元に戻す",
         launcherKeysHint: "矢印で移動、Enterで開く、1〜9で直接開く",
+
+        // MARK: Settings — switcher
         switcherSection: "ウインドウスイッチャー",
         switcherEnable: "Vorssaint のスイッチャーを使う",
         switcherEnableCaption: "アプリやウインドウを切り替えます。最小化したウインドウや同じアプリの複数ウインドウにも対応します。",
         switcherUsageHint: "ショートカットを押したまま移動し、放すとウインドウがアクティブになります。Shift または ← で戻る、W でウインドウを閉じ、Q でアプリを終了、Esc でキャンセルします。",
         switcherNoWindows: "開いているウインドウはありません",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "%@ を大きなアイコンで表示",
         switcherIconRowModeCaption: "アプリごとに1つのアイコンを表示し、その上にそのアプリのウインドウプレビューを表示します。",
         switcherSimpleModeCaption: "プレビューやスイッチャーによる画面収録を使わず、アプリのアイコンとウインドウのタイトルを表示します。",
@@ -239,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "アプリやウインドウの上にポインタを動かしても、ハイライトは動きません。クリックすると開きます。",
         switcherMergeTabs: "アプリごとに1つにまとめて表示",
         switcherMergeTabsCaption: "スイッチャーで、アプリのすべてのウインドウをウインドウごとではなく1つの項目にまとめます。",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "ウインドウなしのアプリ",
         switcherWindowlessAppsCaption: "ウインドウを1つも開いていない起動中のアプリのうち、どれをスイッチャーに表示するかを選びます。",
         switcherWindowlessAppsOff: "表示しない",
@@ -247,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "「%@」がオンの間は、実行中のすべてのアプリに切り替えられます。選ぶにはオフにしてください。",
         switcherNoOpenWindow: "ウインドウなし",
         switcherOtherDesktop: "別のデスクトップ",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Dock でウインドウをプレビュー",
         dockPreviewEnableCaption: "Dock の開いているアプリにポインタを重ねてウインドウを確認し、開きたいウインドウをクリックします。",
@@ -280,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "前のウインドウ",
         dockPreviewNextWindow: "次のウインドウ",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "カット＆ペースト",
         cutPasteEnable: "Finder でファイルをカット＆ペースト",
         cutPasteEnableCaption: "⌘X でカット、⌘V で Finder のファイルやフォルダを移動できます。",
@@ -301,6 +340,7 @@ extension Strings {
         cutMovingTitle: "移動中…",
         cutMovingCountFormat: "%d / %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "閉じたら終了",
         autoQuitEnable: "最後のウインドウを閉じたらアプリを終了",
         autoQuitEnableCaption: "アプリの最後のウインドウを閉じると、そのアプリも終了します。",
@@ -315,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "例外はありません",
         autoQuitAddApp: "アプリを追加…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "アンインストーラ",
         uninstallerEnableCaption: "アプリを、それが残すキャッシュ、環境設定、ログ、残存ファイルもろとも削除します。",
         uninstallerStep1: "アプリを設定にドラッグするか、リストから1つ選びます。",
@@ -372,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@ はアプリとして識別できないため、アンインストールできません。",
         uninstallerPickerHiddenNote: "macOS に含まれるアプリや Apple のアプリはリストに表示されません。",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "URL をクリーン",
         urlCleanerEnable: "コピー時に URL を自動でクリーン",
         urlCleanerEnableCaption: "リンクがクリップボードに入った時点でトラッキング用パラメータを削除します。",
@@ -388,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "コピーしました。",
         urlCleanerLocalNote: "ローカル。通信なし。",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "formula と cask を検索、インストール、削除します。",
         homebrewMissingTitle: "Homebrew が見つかりません",
@@ -404,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "まだ信頼されていないTap",
         homebrewTrustCaption: "Homebrewはサードパーティ製Tapを使う前に確認を求めるようになりました。%@を信頼すると続行できます。",
         homebrewTrustButton: "信頼して続ける",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "パッケージを検索",
         homebrewKeyboardHint: "スペースまたは Return で macOS パネルが閉じます。検索ボタンを使用してください。",
         homebrewSearchButton: "検索",
@@ -419,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "依存関係としてインストールされましたが、今はどのインストール済みパッケージも必要としていません。",
         homebrewDependencyUpdatesFormat: "依存関係の更新：%d",
         homebrewNoSelection: "インストール済みパッケージを選択するか、新しいものを検索してください。",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "パッケージ詳細",
         homebrewInstall: "インストール",
         homebrewUninstall: "アンインストール",
@@ -442,6 +489,8 @@ extension Strings {
         homebrewUpdates: "更新",
         homebrewUpdateAvailableBadge: "更新あり",
         homebrewLatestVersion: "最新",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Homebrew でインストールしますか？",
         homebrewConfirmInstallBodyFormat: "Homebrew が %@ をダウンロードしてインストールします。依存関係もインストールされる場合があります。",
         homebrewConfirmUninstallTitle: "Homebrew でアンインストールしますか？",
@@ -455,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "この操作では管理者パスワードを求めるためにターミナルが必要です。Vorssaint はパスワードを取得しません。",
         homebrewLoading: "読み込み中…",
         homebrewSearchEmpty: "結果なし",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "%@ をインストール中",
         homebrewOperationUninstallFormat: "%@ をアンインストール中",
         homebrewOperationUpgradeFormat: "%@ を更新中",
@@ -481,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "技術的な詳細",
         homebrewOperationProgressUnknown: "Homebrew はまだ割合を報告していません。",
 
+        // MARK: Feature — local media tools
         mediaName: "メディア",
         mediaEnableCaption: "動画を圧縮し、画像の変換と加工、GIF の作成、テキストの抽出をローカルで行います。",
         mediaLocalNote: "ローカル。ネットワークなし。",
@@ -488,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "画像",
         mediaToolText: "テキスト",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "ファイルを選択",
         mediaDropHint: "ここにファイルをドロップするか、クリックして選択します。",
         mediaOutput: "出力",
         mediaOutputAutomatic: "自動",
         mediaChooseOutput: "保存先",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "動画を圧縮",
         mediaStartGIF: "GIF を作成",
         mediaStartImage: "画像を加工",
@@ -522,11 +578,15 @@ extension Strings {
         mediaFormat: "形式",
         mediaStripMetadata: "メタデータを削除",
         mediaLoopGIF: "GIF をループ",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "高精度",
         mediaOCRFast: "高速",
         mediaLanguageCorrection: "言語補正",
         mediaTextOutputNote: "抽出したテキストはコピーして TXT として保存できます。",
+
+        // MARK: Media — results & errors
         mediaRunning: "処理中",
         mediaCompleted: "完了",
         mediaCancelled: "キャンセルしました。",
@@ -542,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "元のファイルとは別の保存先を選んでください。",
         mediaErrorUnsupported: "macOS が対応していない形式です。",
 
+        // MARK: Feature — temporary shelf
         shelfName: "シェルフ",
         shelfEnable: "ファイルをドラッグする一時置き場",
         shelfEnableCaption: "ファイル、画像、テキストを集めておき、あとからどこへでもドラッグできるフローティングの置き場です。",
@@ -570,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "これらのアプリから始めたドラッグでは、振る操作とメニューバーの領域は開きません。ショートカットと今すぐ開くは引き続き使えます。",
         shelfPin: "開いたままにする",
         shelfUnpin: "使用後に閉じる",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "エクストラ輝度",
         extraBrightnessCaption: "ディスプレイのHDR余力を使って最大輝度を超えます。バッテリー消費が増え、Macが温かくなることがあります。",
         extraBrightnessLevelLabel: "強さ",
@@ -578,6 +641,8 @@ extension Strings {
         shelfOpenNow: "今すぐ開く",
         shelfNoPermission: "アクセス権は不要です。",
         shelfMenuItem: "シェルフを開く",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "シェルフ",
         shelfEmpty: "ここに項目をドラッグ",
         shelfClearAll: "すべてを消去",
@@ -585,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "%d 件を選択中",
         shelfHint: "クリックで選択。ドラッグして使用するか、右クリックでその他の操作を表示します。",
         shelfItemImage: "画像",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d 件",
         shelfTooltipItemsFew: "%d 件",
         shelfTooltipImageSingular: "%d 枚の画像",
@@ -599,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d 件のリンク",
         shelfTooltipLinkFew: "%d 件のリンク",
         shelfTooltipLinkPlural: "%d 件のリンク",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "開く",
         shelfActionOpenWith: "このアプリケーションで開く",
         shelfActionShare: "共有",
         shelfActionPin: "固定",
         shelfActionUnpin: "固定を解除",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "計測中…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "音量ミキサー",
         mixerEmpty: "オーディオを使用するアプリがここに表示されます",
         mixerUnavailable: "macOS 14.4 以降で利用できます",
         mixerPermissionBody: "アプリごとの音量を調整するには、システム設定で「画面とシステムオーディオ収録」を許可してください。オーディオが記録されることはありません。",
         mixerResetTooltip: "100% にリセット",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "デフォルト",
         mixerOutputCurrent: "現在",
         mixerOutputUnavailable: "出力を利用できません",
@@ -623,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "出力が見つかりません",
         mixerSystemOutputTooltip: "システム出力を選択",
         mixerSystemOutputErrorFormat: "変更できませんでした: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "ヘッドフォン切断時に音量を下げる",
         mixerLowerOnHeadphonesDisconnectCaption: "有線またはBluetoothヘッドフォンが切断されたら出力を調整します。",
         mixerHeadphonesDisconnectVolume: "切断後の音量",
         preciseVolumeRollerEnable: "より細かい音量ステップを使う",
         preciseVolumeRollerCaption: "音量ホイールやキーを、より小さなシステム音量ステップに変換します。",
         preciseVolumeRollerTapFailed: "音量キーを監視できませんでした。",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "出力切り替え",
         soundOutputSwitcherEnable: "ショートカットで出力を切り替える",
         soundOutputSwitcherCaption: "出力を選び、ショートカットで次に利用可能な出力へ切り替えます。",
         soundOutputSwitcherDevices: "切り替える出力",
         soundOutputSwitcherNoAvailableSelection: "利用可能な出力を1つ以上選択してください。",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "マイク",
         mixerInputNoDevices: "マイクが見つかりません",
         mixerInputUnavailable: "マイクを利用できません",
         mixerInputFallback: "このマイクが戻るまでデフォルトを使用します。",
         mixerInputTooltip: "マイクを選択",
         mixerInputErrorFormat: "変更できませんでした: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "リストに表示するアプリ",
         mixerAllShown: "すべて",
         mixerHiddenCountLabel: "非表示",
         mixerHideFromList: "リストから隠す",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "オーディオデバイスの優先順位",
         audioPriorityOutputEnable: "最も優先度の高いオーディオ出力に自動的に切り替える",
         audioPriorityInputEnable: "最も優先度の高いマイクに自動的に切り替える",
@@ -655,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "使用中",
         audioPriorityCaption: "デバイスは優先順位に従って選択されます。優先順位の高いデバイスが接続されると、そのデバイスに切り替わります。使用中のデバイスが切断されると、次に利用可能なデバイスに切り替わります。",
 
+        // MARK: Settings — updates
         updatesSection: "アップデート",
         autoCheckToggle: "アップデートを自動的に確認",
         includeBetaUpdatesToggle: "ベータ版のアップデートを受け取る",
@@ -675,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "アプリが、ディスクイメージやシステムの一時的な場所など、アップデートできない場所から実行されています。Vorssaint を「アプリケーション」フォルダにドラッグし、そこから開いてからもう一度お試しください。",
         menuCheckUpdates: "アップデートを確認…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "アクセス権が必要です",
         permissionAccessibility: "アクセシビリティ",
         permissionScreenRecording: "画面収録",
@@ -683,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "システム設定を開く…",
         permissionRequest: "アクセスを許可",
         permissionRestartNote: "許可後、macOS がアプリの再オープンを求めることがあります。",
+
+        // MARK: Secure input
         secureInputTitle: "セキュア入力がオンです",
         secureInputHeldFormat: "オンになったときに最前面にあったのは %@ で、このアプリが保持している可能性があるため、Vorssaint が代わりに入力できません。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
         secureInputUnattributed: "保持しているアプリを特定できないため、Vorssaint が代わりに入力できません。開いているパスワード欄からフォーカスを外すか、ログアウトしてから再度ログインすると解除されます。",
         secureInputUnidentified: "保持しているアプリを特定できないため、Vorssaint が代わりに入力できません。",
         secureInputRevealFormat: "%@ を表示",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "オンになったときに最前面にあったのは %@ で、このアプリが保持している可能性があります。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
         secureInputSwitcherUnattributed: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。開いているパスワード欄からフォーカスを外すか、ログアウトしてから再度ログインすると解除されます。",
         secureInputSwitcherUnidentified: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。",
 
+        // MARK: About
         aboutDescription: "あなたの Mac のためのユーティリティハブ。\n省エネルギー、システムモニタ、スクロール、ウインドウスイッチャーを、メニューバーから。",
         versionPrefix: "バージョン",
         reviewIntro: "はじめにを見直す",
         reviewHighlights: "新機能ツアーを見直す",
         viewOnGitHub: "GitHub で見る",
 
+        // MARK: Onboarding
         obContinue: "続ける",
         obBack: "戻る",
         obSkipStep: "このステップをスキップ",
@@ -711,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "マウスとウインドウを自分流に",
         obWelcomeBullet3Body: "マウスのスクロール反転と、サムネール付きのウインドウスイッチャー。",
         obLanguageLabel: "言語",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "アクセシビリティ",
         obStepAccessibilityBody: "マウスのスクロールを反転したり、ウインドウスイッチャーがキーボードに反応したりするために必要です。",
         obAccessibilityWhy: "アプリが監視するのはマウスホイールとスイッチャーのショートカットだけです。記録したり、どこかに送信したりすることはありません。",
         obStepRecordingTitle: "画面収録",
         obStepRecordingBody: "スイッチャーで、アイコンだけでなく実際のウインドウのサムネールを表示できるようになります。",
         obRecordingWhy: "サムネールはその場で生成され、メモリ内にとどまり、Mac の外に出ることはありません。許可しなくても、スイッチャーはアイコンで動作します。",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "システムモニタ",
         obStepMonitorBody: "パネルに CPU・GPU・バッテリーの温度、ハードウェア使用状況、メモリプレッシャーが表示されます。",
         obMonitorNoPermission: "アクセス権は不要です。センサーはシステムから直接読み取られます。",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "オプション機能",
         obStepOptionalBody: "今すぐ使いたいものをオンにしてください。すべて後から設定で変更できます。",
         obStepStatusTitle: "チェック",
         obStepStatusBody: "使いたい機能の準備がすべて整っているか確認します。",
         obStatusRecheck: "もう一度確認",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "準備完了！",
         obStepDoneBody: "Vorssaint はすでにあなたの Mac を見守っています。",
         obDoneHint: "画面右上のメニューバーで、ブラックホールを探してください。",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "このバージョンの新機能",
         obWhatsNewFallback: "このアップデートには最新の修正と改善が含まれています。",
         obLanguageUpdateTitle: "あなたの言語に対応",
@@ -736,7 +837,10 @@ extension Strings {
         obPurposeBody: "用意された設定か、使いたい機能を一つずつ選んでください。",
         obPurposeSkip: "機能は後から設定で追加または削除できます。",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "モニタ",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "メニューバー",
         monitorMenuBarPreview: "メニューバーのプレビュー",
         monitorMenuBarCaption: "メニューバーのアイコンの横に表示する項目を選びます。",
@@ -753,6 +857,8 @@ extension Strings {
         monitorInterval1: "1秒",
         monitorInterval2: "2秒",
         monitorInterval5: "5秒",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "パネル",
         panelNavigationMode: "パネルをセクションごとに移動",
         panelNavigationCaption: "1つのセクションだけを表示します。「リスト」を選ぶと、すべてを連続スクロールで表示します。",
@@ -761,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "ベータ版です。一部の不具合が残っている場合があります。",
 
+        // MARK: Panel — network
         networkSection: "ネットワーク",
         networkIPAddresses: "IP アドレス",
         networkLocalIP: "ローカル IPv4",
@@ -771,6 +878,7 @@ extension Strings {
         networkApps: "通信中のアプリ",
         networkAppsIdle: "現在ネットワークを使用中のアプリはありません",
 
+        // MARK: Panel — disk
         diskSection: "ディスク",
         diskUsed: "使用済み",
         diskFree: "空き",
@@ -806,6 +914,7 @@ extension Strings {
         diskStorageSettings: "ストレージ",
         diskNoDisks: "マウント済みディスクが見つかりません。",
 
+        // MARK: Panel — power
         powerSection: "電源",
         powerSystem: "システム",
         powerAdapter: "アダプタ",
@@ -823,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "周辺機器が見つかりません",
         monitorGraphsSection: "グラフ",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "アップデートが利用できます",
         updateBannerAction: "アップデート",
         obStepMenuBarTitle: "メニューバーの計測値",
@@ -844,6 +954,8 @@ extension Strings {
         memoryStyleDot: "ドット",
         memoryStylePercent: "%",
         memoryStyleBoth: "両方",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "稼働時間",
         batteryCharge: "充電量",
         powerHealth: "バッテリーの状態",
@@ -854,6 +966,7 @@ extension Strings {
         speedTestTesting: "テスト中…",
         speedTestFailed: "テストに失敗しました",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "パネルに表示",
         disclosureExpanded: "展開済み",
         disclosureCollapsed: "折りたたみ済み",
@@ -871,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "ツール",
         monitorPanelConfigHint: "ブロックを開いて、表示する内容を選びます。",
         monitorOrderHint: "ドラッグしてパネルのセクションを並べ替え、目のアイコンで各セクションを表示/非表示にできます。",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "パネルに表示する内容",
         obStepPanelBody: "各ブロックを開いて、アイコンをクリックしたときに表示する内容を細かく選びます。",
         obStepPanelNavigationTitle: "セクション式パネル",
         obStepPanelNavigationBody: "パネルで1つのセクションだけを表示できるようになりました。設定で「セクション」と「リスト」を切り替えられます。",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "クリーニングモード",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "ユーティリティ",
         quickControlsSection: "コントロール",
         panelCategoryWindows: "ウインドウ",
         panelCategoryInput: "マウスとキーボード",
         panelCategoryFiles: "ファイル",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "ウインドウを最大化",
         windowMaximizeCaption: "緑のボタンで別のスペースを作らず最大化します。",
         windowMaximizeActiveNow: "緑のボタンで有効",
         windowMaximizeNeedsAccessibility: "動作にはアクセシビリティが必要です。",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "デバウンス",
         keyDebounceEnable: "重複キーをフィルタ",
         keyDebounceCaption: "非常に速い重複入力をフィルタします。",
@@ -898,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "キーを追加",
         keyDebounceNoOverrides: "個別キーは設定されていません。",
         keyDebounceRemoveKey: "キーを削除",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "安全に掃除できるようキーボードをロックします。",
         cleaningOverlayTitle: "クリーニングのためキーボードをロック中",
         cleaningOverlaySubtitle: "Escキーを5回押すとロックを解除します",
@@ -909,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "アクセシビリティが必要です",
         cleaningNeedsAxBody: "キーボードを安全にロックするには、Vorssaint にアクセシビリティのアクセス権が必要です。システム設定で許可して、もう一度お試しください。",
 
+        // MARK: Support / donate
         tabSupport: "支援",
         shortcutsPageCaption: "このMacにインストールされている機能のグローバルショートカットをすべてここで編集できます。無効なものも保存されますが、動作はしません。",
         shortcutsPageTitle: "キーボードショートカット",
         settingsSearchPlaceholder: "設定を検索",
+
+        // MARK: Support — donations
         donateHeading: "Vorssaint の成長を支える",
         donateMessage: "Vorssaint はこれからも無料でローカルで動作し、広告や利用状況の追跡はありません。役に立っているなら、開発への金銭的な支援をお願いします。寄付は Buy Me a Coffee でのみ受け付けています。",
         donateButton: "Buy Me a Coffee で支援する",
         donateThanks: "来てくれてありがとう。🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Vorssaint の成長を支える",
         supportIntroMessage: "Vorssaint はこれからも無料でローカルで動作し、広告や利用状況の追跡はありません。役に立っているなら、開発への金銭的な支援をお願いします。寄付は Buy Me a Coffee でのみ受け付けています。",
         supportIntroStarButton: "GitHub で Vorssaint にスターを付ける",
@@ -925,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Buy Me a Coffee で支援する",
         supportIntroLaterButton: "今はしない",
         supportIntroDoneButton: "完了",
+
+        // MARK: Support — community
         discordIntroTitle: "VorssaintのDiscordコミュニティが始まります",
         discordIntroMessage: "Vorssaint コミュニティは新しく、まだ成長の途中です。早い段階から参加して他のユーザーと出会い、アプリを囲む心地よい場所を一緒につくりましょう。",
         discordIntroJoinButton: "Discord コミュニティに参加",
         communityIntroTitle: "誰よりも先に新機能をチェック",
         communityIntroMessage: "すでにXでフォローしてくれていた人は、今回のアップデートに含まれるいくつもの変更を誰よりも早く知っていました。Xでは次に登場する機能のプレビューや使い方を紹介しているので、アップデートの公開前から基本を知ることができます。フォローして次の新機能をチェックしてください！",
         communityIntroFollowButton: "Xで@vorssaintをフォロー",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Homebrew 公式カタログに登場",
         homebrewOfficialIntroMessage: "Vorssaint を Homebrew 公式カタログから直接インストールできるようになりました。",
         homebrewOfficialIntroInstallLabel: "新規インストール",
         homebrewOfficialIntroMigrationTitle: "以前の tap を使っていましたか？",
         homebrewOfficialIntroMigrationMessage: "以前の tap を一度削除してください。アプリと設定はそのまま残ります。",
         homebrewOfficialIntroCopyButton: "コマンドをコピー",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "3.1.4 の新機能",
         updateShowcaseMessage: "このアップデートの主な改善点を短いプレビューで確認できます。",
         updateShowcaseUnavailable: "今は動画を読み込めません。続けることはできます。",
         updateShowcaseRestart: "最初に戻る",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "メニューバーにアイコンを表示",
         menuBarIconStillHiddenTitle: "アイコンはまだ隠れています",
         menuBarIconStillHiddenBody: "アイコンを作り直しましたが、macOS が表示できる場所を割り当てませんでした。メニューバーに空きがない可能性が高いので、メニューバーのアイコンをいくつか減らす（またはメニューの長いアプリを閉じる）してから、もう一度お試しください。",
         menuBarIconManagerHintFormat: "%@ が起動中で、アイコンを隠しセクションにしまっている可能性があります。そこで Vorssaint を探すか、%@ で Vorssaint を常に表示する設定にしてください。",
         menuBarIconDisallowedBody: "macOS が Vorssaint をメニューバーに表示させていません。「システム設定」>「メニューバー」を開き、App のリストで Vorssaint を見つけて「メニューバーでの表示を許可」（Allow in the Menu Bar）をオンにしてください。オンにするとすぐにアイコンが表示されます。",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "新しいショートカットを押してください",
         shortcutReset: "リセット",
         shortcutNone: "なし",
@@ -963,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS がこのショートカットを拒否しました。別のものを選んでください。",
         shelfShortcutToggle: "Shelf ショートカット",
         switcherUsageHintFormat: "%@ を押したまま移動し、放すとウインドウがアクティブになります。Shift または ← で戻る、W でウインドウを閉じ、Q でアプリを終了、Esc でキャンセルします。",
+
+        // MARK: Media keys
         musicBlockSection: "メディアキー",
         musicBlockTitle: "ミュージックが勝手に開かないようにする",
         musicBlockCaption: "検出したメディアキーによる音楽アプリの起動を防ぎます。アクセシビリティの許可が必要です。キーを検出できないヘッドフォンの操作はブロックしません。",
@@ -972,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "ミュージックと iTunes はブロック対象のため、代わりに開くアプリにはできません。別のアプリを選んでください。",
         musicBlockChooseApp: "アプリを選択…",
         musicBlockPlayReplacement: "代わりのアプリを開いた後に再生",
+
+        // MARK: Cleaner
         cleanerName: "クリーンアップ",
         cleanerIntroTitle: "Mac の不要ファイルを掃除",
         cleanerIntroCaption: "アンインストール済みアプリの残骸、キャッシュ、ログ、ゴミ箱を調べます。実行前にすべて確認でき、削除した項目はゴミ箱に移動します。",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "スキャン",
         cleanerScanning: "スキャン中…",
         cleanerCleaning: "クリーンアップ中…",
@@ -993,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "%d日間開いておらず、macOSが付けた名前とフォルダのままのスクリーンショットです。名前を変えたり移動したりしたものは表示されません。",
         cleanerScreenshotsSettingCaption: "スキャンでは、この期間開いていないスクリーンショットをチェックなしで合計サイズとともに表示します。",
         cleanerScreenshotsAfterFormat: "%d日後",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "掃除するものはありません。Mac は整っています。",
         cleanerClean: "クリーンアップ",
         cleanerDoneNote: "項目はゴミ箱に移動され、そこから復元できます。",
@@ -1009,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "アンインストールしたアプリが残したファイルです。",
         cleanerOtherCachesCaption: "削除しても安全で、壊れるものはありません。初回起動が少し遅くなり、オフライン音楽などのダウンロード済みコンテンツは再ダウンロードされます。",
         cleanerCleanSizeFormat: "%@ をクリーンアップ",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "自動クリーンアップ",
         cleanerScheduleOff: "オフ",
         cleanerScheduleDaily: "毎日",
@@ -1019,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "次のクリーンアップは %@。",
         cleanerScheduleRanFormat: "前回の自動クリーンアップは %@。",
         cleanerScheduleNotifyToggle: "完了時に通知",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Vorssaint の通知がシステムでオフになっています。",
         cleanerNotifOpenSettings: "通知設定を開く…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "ログイン時に開けない場所からアプリが実行されています。Vorssaintをアプリケーションフォルダにドラッグし、そこから開いてもう一度オンにしてください。",
         launchAtLoginNeedsApproval: "ログイン項目は登録されていますが、macOSの許可がまだ必要です。「システム設定」で、Vorssaintがログイン時に開き、バックグラウンドで実行できるように許可してください。",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "改行を削除",
         ocrRemoveLineBreaksCaption: "認識したテキストの改行を取り除き、1つの段落としてペーストします。",
         ocrQRToggle: "QRコードを読み取る",
@@ -1031,6 +1186,8 @@ extension Strings {
         qrResultTitle: "QRコード",
         qrResultCopy: "コピー",
         qrResultOpen: "リンクを開く",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "このアップデートの新機能",
         highlightsTitleClipboardRedesign: "クリップボードの再設計",
         highlightsTitleWindowLayout: "ウィンドウの配置",
@@ -1047,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "設定する",
         highlightsTry: "試す",
         highlightsSeeAll: "すべての変更を見る",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "現在のデスクトップのみ表示",
         switcherCurrentSpaceOnlyCaption: "現在のデスクトップのウインドウを表示します。フルスクリーンのウインドウの表示が有効な場合は、ほかのデスクトップのフルスクリーンのウインドウも表示します。",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "ファイルはもう存在しません",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "小",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "システムサウンド",
         mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "アクティビティモニタを開く",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Dock クリックでアプリを隠す",
         dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "メモリの測定方法",
         memoryMetricUsed: "使用中のメモリ",
         memoryMetricApp: "Appメモリ",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "メニューバーアイコンの右クリックでスリープ防止を切り替える",
         keepAwakeRightClickToggleCaption: "右クリックのコンテキストメニューを置き換えます。",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "クリーンのルール",
         urlCleanerRulesCaption: "サイトが自身の共有リンクに付ける、どこから来たリンクかを追跡するためのパラメータです。チェックを入れた名前はリンクの整理時に削除され、外すと残ります。自分で追加した名前は削除できます。",
         urlCleanerRulesCoverageCaption: "一覧はサイトごとの共有経路（ウェブページ、アプリ、ライブルーム）をまとめて扱うため長くなります。実際のリンクが持つのは通常 2〜4 個です。",
@@ -1075,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "このサイトのルールをすべてオフにする",
         urlCleanerRulesRestoreSiteButton: "このサイトのルールをすべてオンにする",
         urlCleanerRemovedFormat: "%@ を削除しました",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "S で検索欄を固定",
         switcherSearchPinCaption: "S を押すと検索を開始して切り替え画面を固定表示にします。ショートカットが ⌥ を使う場合の特殊文字入力も、Q や W で始める検索によるウインドウを閉じる/アプリを終了する誤動作も防げます。",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "縦スクロールを反転",
         invertHorizontalScroll: "横スクロールを反転",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "キーを押して横スクロール",
+
+        // MARK: Settings — zoom
         zoomSection: "ズーム",
         zoomControlNote: "Control キーを押しながらスクロールすると、macOS の画面ではなくアプリの内容が拡大されます。",
         pinchZoom: "ピンチズーム",
@@ -1088,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "選択した修飾キーだけを押しながらマウスの縦ホイールを回すと、横にスクロールします。他のキーの組み合わせは変更しません。",
         switcherShowShortcutHints: "ショートカットのヒントを表示",
         switcherShowShortcutHintsCaption: "アイコンの下にアプリとウインドウのショートカットを表示します。",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ も Homebrew から削除されます。",
         uninstallerHomebrewCheckFailed: "このアプリがHomebrewで管理されているか確認できませんでした。更新して再試行するか、Homebrewからアンインストールしてください。",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "画面の端に近づけたら開く",
         shelfEdgeCaption: "ファイルを画面の端に向けてドラッグすると、シェルフが少しだけ現れます。そこでドロップするか、手を戻すとシェルフは引っ込みます。",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "マウス追従フォーカス",
         focusFollowsMouseCaption: "ポインタの下にあるウインドウをフォーカスします。",
         focusFollowsMouseDelay: "ホバー遅延",
         focusFollowsMouseRaise: "ウインドウを手前に表示",
         focusFollowsMouseWaitForStop: "ポインタが止まるまで待つ",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "最小化されたウインドウ",
         switcherTreatHiddenAppsLikeMinimized: "非表示のアプリを最小化されたウインドウとして扱う",
         switcherMinimizedPlacementNormal: "通常の順序",
@@ -1110,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "複数の画面を接続しているとき、スイッチャーをどの画面に表示するかを選びます。",
         switcherCurrentDisplayOnly: "現在の画面のみ表示",
         switcherCurrentDisplayOnlyCaption: "ポインタがある画面のウインドウだけを表示します。その画面にウインドウがない場合、スイッチャーは開きません。",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "反応",
         smoothScrollCoastLabel: "慣性",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "マウス加速を無効にする",
         mouseAccelerationCaption: "接続したマウスのポインタ加速を無効にします。オフにするか Vorssaint を終了すると以前の設定に戻ります。",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "リニアスクロール",
         linearScrollCaption: "マウスホイールの1目盛りで、回す速さに関係なく常に同じ距離をスクロールします。トラックパッドは変わりません。",
         linearScrollLinesLabel: "1目盛りあたりの行数",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "キーを押しながらスクロールを速くする",
         scrollSpeedCaption: "選んだ修飾キーだけを押しながらマウスホイールを回すと、スクロール距離が倍になります。トラックパッドは変わりません。",
         scrollSpeedMultiplierLabel: "速度",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "閉じるときに項目を消去",
         shelfClearOnCloseCaption: "閉じるボタンをクリックしたときだけシェルフを空にします。自動的に隠れた場合や折りたたんだ場合は項目を保持します。",
         shelfShortcutFinderSelection: "ショートカットで Finder の選択項目を追加",
         shelfShortcutFinderSelectionCaption: "Finder が最前面にあるとき、ショートカットで選択中のファイルが入った状態のシェルフを開きます。何も選択していない場合は通常どおり開きます。",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "スペースの順序を固定",
         spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。",
+
+        // MARK: Feature — quit applications
         quitAppsName: "アプリを終了",
-        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。"
+        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。",
     )
 }
