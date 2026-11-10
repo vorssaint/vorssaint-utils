@@ -671,9 +671,19 @@ final class AppUninstaller: ObservableObject {
             groupIDs: exclusiveGroupIDs
         )
         let allowedRoots = scanRoots(home: home)
+        let homeURL = URL(fileURLWithPath: home, isDirectory: true)
+        // The hidden folder itself is the leftover: its name must be the app's
+        // own identifier, and it must still sit directly below home without a
+        // symlink in between. Home is never a scan root, only this check's
+        // boundary.
+        let hiddenLeftovers = UninstallerSupport.hiddenHomeFolders(home: homeURL).filter {
+            UninstallerSupport.hiddenHomeFolderMatches($0.lastPathComponent, identity: identity)
+                && UninstallerSupport.removalPathIsSafe($0, within: homeURL)
+        }
+        let hiddenLeftoverPaths = Set(hiddenLeftovers.map(\.standardizedFileURL.path))
 
         let folders = UninstallerSupport.searchFolders(
-            home: URL(fileURLWithPath: home, isDirectory: true),
+            home: homeURL,
             darwinCache: darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR),
             darwinTemp: darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR)
         )
@@ -698,6 +708,15 @@ final class AppUninstaller: ObservableObject {
         guard !cancellation.isCancelled else { return [] }
         paths += matches.joined()
 
+        // The hidden folder itself is already verified above, and the scan
+        // above only produced entries below their roots.
+        for folderURL in hiddenLeftovers {
+            paths.append(ScanCandidate(url: folderURL, category: .support,
+                                       ownerBundleID: nil, ownerGroupID: nil,
+                                       evidenceBundleID: nil,
+                                       confidence: .exact, include: true))
+        }
+
         // Last line of defense: nothing outside the scanned roots (or the app
         // bundle itself) may ever reach the removal list.
         let appPath = appURL.standardizedFileURL.path
@@ -706,7 +725,12 @@ final class AppUninstaller: ObservableObject {
             if path == appPath {
                 return !UninstallerSupport.isSymbolicLink(candidate.url)
             }
-            guard let root = allowedRoots.first(where: { path.hasPrefix($0.path + "/") }) else {
+            // A hidden home folder is its own root, so the folder matches the
+            // root exactly instead of sitting below it.
+            guard let root = allowedRoots.first(where: { path.hasPrefix($0.path + "/") })
+                    ?? allowedRoots.first(where: {
+                        $0.standardizedFileURL.path == path && hiddenLeftoverPaths.contains(path)
+                    }) else {
                 return false
             }
             return UninstallerSupport.removalPathIsSafe(candidate.url, within: root)
@@ -1057,8 +1081,18 @@ final class AppUninstaller: ObservableObject {
         }
         guard let root = scanRoots(home: NSHomeDirectory()).first(where: {
             path.hasPrefix($0.path + "/")
-        }) else { return false }
+        }) ?? hiddenHomeRoot(at: path) else { return false }
         return UninstallerSupport.removalPathIsSafe(url, within: root)
+    }
+
+    /// A hidden home folder can be removed as itself, but only while it still
+    /// sits directly below home with no symlink from it up to there.
+    private static func hiddenHomeRoot(at path: String) -> URL? {
+        let home = URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+        return UninstallerSupport.hiddenHomeFolders(home: home).first {
+            $0.standardizedFileURL.path == path
+                && UninstallerSupport.removalPathIsSafe($0, within: home)
+        }
     }
 
     private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {
@@ -1116,9 +1150,13 @@ final class AppUninstaller: ObservableObject {
             URL(fileURLWithPath: home + "/.config", isDirectory: true),
             URL(fileURLWithPath: home + "/.cache", isDirectory: true),
             URL(fileURLWithPath: home + "/.local/share", isDirectory: true),
+            URL(fileURLWithPath: home + "/.local/state", isDirectory: true),
             URL(fileURLWithPath: "/private/var/db/receipts", isDirectory: true),
             URL(fileURLWithPath: "/Users/Shared/Library", isDirectory: true),
         ]
+        // A hidden home folder is a root of its own, never home itself.
+        roots += UninstallerSupport.hiddenHomeFolders(
+            home: URL(fileURLWithPath: home, isDirectory: true))
         if let cache = darwinUserDirectory(_CS_DARWIN_USER_CACHE_DIR) { roots.append(cache) }
         if let temp = darwinUserDirectory(_CS_DARWIN_USER_TEMP_DIR) { roots.append(temp) }
         return roots.map(\.standardizedFileURL)
