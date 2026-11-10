@@ -1095,7 +1095,7 @@ enum ScreenshotFeatureTests {
         let captureFeatures: Set<AppFeature> = [.screenshot, .screenRecorder,
                                                 .screenOCR, .colorPicker]
         suite.expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
-                == [.screenshot, .recording, .text, .color],
+                == [.screenshot, .recording, .text, .color, .scrolling],
                "the capture chooser keeps a stable order for every installed mode")
         let captureSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
@@ -1142,13 +1142,33 @@ enum ScreenshotFeatureTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
                 && ScreenCaptureTool.matchingShortcut("1") == .screenshot
                 && ScreenCaptureTool.matchingShortcut("2") == .recording
                 && ScreenCaptureTool.matchingShortcut("3") == .text
                 && ScreenCaptureTool.matchingShortcut("4") == .color
-                && ScreenCaptureTool.matchingShortcut("5") == nil,
+                && ScreenCaptureTool.matchingShortcut("5") == .scrolling
+                && ScreenCaptureTool.matchingShortcut("6") == nil,
                "number keys select the same capture mode shown in the chooser")
+        suite.expect(ScreenCaptureTool.available(isAvailable: { $0 == .screenshot })
+                == [.screenshot, .scrolling]
+                && ScreenCaptureTool.scrolling.feature == .screenshot,
+               "scrolling capture is installed and removed with the screenshot feature")
+        let scrollingPolicy = ScreenshotSupport.unifiedCapturePolicy(
+            for: .scrolling,
+            screenshotFreeze: true,
+            screenshotIncludePointer: true,
+            screenshotHideVorssaintWindows: false)
+        suite.expect(scrollingPolicy == .init(freeze: false, includePointer: false,
+                                              hideVorssaintWindows: false,
+                                              keepsContentWindowsOut: false,
+                                              usesGeometry: true),
+               "scrolling capture selects a live region without repeated pointer marks")
+        suite.expect(GlobalShortcutRole.screenshotScrolling.requiredEnableKeys
+                == [DefaultsKey.screenshotScrollingShortcutEnabled]
+                && GlobalShortcutRole.screenshotScrolling.storageKey
+                    == DefaultsKey.screenshotScrollingShortcut,
+               "scrolling capture has its own optional shortcut and preferences")
         let liveScreenshotPolicy = ScreenshotSupport.unifiedCapturePolicy(
             for: .screenshot,
             screenshotFreeze: false,
@@ -1505,11 +1525,11 @@ enum ScreenshotFeatureTests {
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
-        let recorderEditorSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift",
+        let recorderExportControlSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderExportFormatControl.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(!recorderEditorSource.isEmpty, "the recorder editor source reads back for its shape check")
-        suite.expect(recorderEditorSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
+        suite.expect(!recorderExportControlSource.isEmpty, "the recorder export control source reads back for its shape check")
+        suite.expect(recorderExportControlSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
                "the recorder states its output size with the multiplication sign")
         // A card that names itself twice reads like filler. The look cards had
         // borrowed the shape, pointer and background labels as subtitles, so
@@ -4250,7 +4270,7 @@ enum ScreenshotFeatureTests {
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
         suite.expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling],
                "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded

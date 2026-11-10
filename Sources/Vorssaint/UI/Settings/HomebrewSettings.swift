@@ -16,7 +16,6 @@ struct HomebrewSettings: View {
     @State private var searchKind: HomebrewPackageKind = .cask
     @State private var installedFilter = HomebrewInstalledFilter.all
     @State private var pendingAction: HomebrewPendingAction?
-    @State private var showOperationDetails = false
     @State private var expandedPackageIDs: Set<String> = []
 
     var body: some View {
@@ -27,7 +26,10 @@ struct HomebrewSettings: View {
             Divider()
             Group {
                 if homebrew.brewPath == nil {
-                    missingState
+                    VStack(spacing: 0) {
+                        missingState
+                        operationLog
+                    }
                 } else {
                     content
                 }
@@ -43,9 +45,6 @@ struct HomebrewSettings: View {
         .onChange(of: query) { _, _ in resetContextSelection() }
         .onChange(of: searchKind) { _, _ in resetContextSelection() }
         .onChange(of: installedFilter) { _, _ in clearSelectionIfHidden() }
-        .onChange(of: homebrew.operationStatus?.targetID) { _, _ in
-            showOperationDetails = false
-        }
         .confirmationDialog(confirmationTitle,
                             isPresented: confirmationPresented,
                             titleVisibility: .visible) {
@@ -582,11 +581,7 @@ struct HomebrewSettings: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            if homebrew.operationStatus != nil {
-                Divider()
-                operationLog
-                    .padding(12)
-            }
+            operationLog
         }
     }
 
@@ -661,15 +656,10 @@ struct HomebrewSettings: View {
 
     @ViewBuilder
     private var operationLog: some View {
-        if let status = homebrew.operationStatus {
-            HomebrewOperationStatusView(status: status,
-                                        log: homebrew.log,
-                                        terminalFallbackCommand: homebrew.terminalFallbackCommand,
-                                        compact: false,
-                                        showDetails: $showOperationDetails,
-                                        onCancel: homebrew.cancelOperation,
-                                        onClear: homebrew.clearLog,
-                                        onOpenTerminal: homebrew.openTerminalFallback)
+        if let output = homebrew.operationOutput {
+            Divider()
+            HomebrewOperationOutputView(homebrew: homebrew, output: output, compact: false)
+                .padding(12)
         }
     }
 
@@ -865,13 +855,11 @@ struct HomebrewSettings: View {
 
     private func resetContextSelection() {
         pendingAction = nil
-        showOperationDetails = false
         homebrew.clearSelection()
     }
 
     private func clearSelectionIfHidden() {
         pendingAction = nil
-        showOperationDetails = false
         guard let selected = homebrew.selectedPackage else { return }
         let isVisible = (homebrew.searchResults + filteredInstalled).contains { $0.id == selected.id }
         if !isVisible {

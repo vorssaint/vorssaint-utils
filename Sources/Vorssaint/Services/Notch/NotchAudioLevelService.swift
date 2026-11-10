@@ -5,6 +5,7 @@ import Accelerate
 import AppKit
 import Combine
 import CoreAudio
+import CoreAudioTapCompat
 import Foundation
 
 /// Reads the current player's audio output and turns it into seven levels
@@ -289,14 +290,12 @@ private final class NotchAudioLevelReader {
         let objects = Self.processObjects(for: pid)
         guard !objects.isEmpty else { return false }
         tapped = objects
-        let description = CATapDescription(stereoMixdownOfProcesses: objects)
-        description.name = "Vorssaint Island Levels"
-        description.isPrivate = true
-        description.muteBehavior = .unmuted
         var tapID = AudioObjectID(0)
-        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else { return false }
+        guard let uuid = createPrivateAudioTap(.stereoMixdown, processes: objects as [NSNumber], deviceUID: nil,
+                                               name: "Vorssaint Island Levels", muteBehavior: .unmuted, id: &tapID)
+        else { return false }
         self.tapID = tapID
-        tapUID = description.uuid.uuidString
+        tapUID = uuid.uuidString
         var format = AudioStreamBasicDescription()
         if Self.read(tapID, kAudioTapPropertyFormat, &format), format.mChannelsPerFrame > 0 {
             tapChannels = Int(format.mChannelsPerFrame)
