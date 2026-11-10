@@ -522,6 +522,11 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
+        // agy 1.5 keeps the workspace in its own index, not in the transcript.
+        if provider == .antigravity, cursor.state.project.isEmpty,
+           let project = AgentAntigravityIndex.project(forTranscript: path) {
+            cursor.state.project = project
+        }
         var changed = false
         let now = Date()
         let consume: (Data) -> Void = { [self] line in
