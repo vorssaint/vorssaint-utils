@@ -364,6 +364,21 @@ enum ScreenshotSupport {
         return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
     }
 
+    /// Automatic copy reads on in Settings while either the toggle or an
+    /// after-capture action that copies is set. The editor's Save follows it,
+    /// so an edited capture reaches the clipboard as an unedited one does.
+    static func automaticCopyIsOn(copyToClipboard: Bool,
+                                  defaultAction: ScreenshotDefaultAction) -> Bool {
+        copyToClipboard || defaultAction.copiesToClipboard
+    }
+
+    static func automaticCopyIsOn(in defaults: UserDefaults = .standard) -> Bool {
+        let raw = defaults.string(forKey: DefaultsKey.screenshotDefaultAction) ?? ""
+        return automaticCopyIsOn(
+            copyToClipboard: defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard),
+            defaultAction: ScreenshotDefaultAction(rawValue: raw) ?? .none)
+    }
+
     /// Captures go to the shelf on their own only while the shelf is
     /// installed and on, so a switched-off shelf never fills up unseen.
     static func addsCapturesToShelf(in defaults: UserDefaults = .standard) -> Bool {
