@@ -38,16 +38,19 @@ enum CommandBarFeatureTests {
         static func linkEntries(_ links: [Int], bar: CommandBarFeatureStrings) -> [CommandBarEntry] { [] }
     }
 
-    /// Runs the production `copyAnswer` against a pasteboard that can refuse
-    /// the write and a HUD that records what it shows.
+    /// Runs the production answer row and its copy action against a test pasteboard and HUD.
     enum CopyAnswerHost {
         final class Pasteboard {
             enum Kind { case string }
             static let general = Pasteboard()
             var accepts = true
-            func clearContents() {}
+            var string: String?
+            func clearContents() { string = nil }
             func declareVorssaintSource() {}
-            func setString(_ value: String, forType: Kind) -> Bool { accepts }
+            func setString(_ value: String, forType: Kind) -> Bool {
+                if accepts { string = value }
+                return accepts
+            }
         }
         typealias NSPasteboard = Pasteboard
         final class Access {
@@ -1075,7 +1078,10 @@ enum CommandBarFeatureTests {
                 of: #"AppFeature\.uninstaller\.isAvailable,\s*UninstallerSupport\.selection\(for:\s*app\.url\) != nil"#,
                 options: .regularExpression) != nil,
                "the uninstall row is offered only for an app the uninstaller will take")
-        suite.expect(commandBarServiceSource.contains("uninstaller.select(appURL: url) || uninstaller.isRemoving"),
+        let appDelegateSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/App/AppDelegate.swift", encoding: .utf8)) ?? ""
+        suite.expect(commandBarServiceSource.contains("appDelegate()?.openUninstaller(for: url)")
+                && appDelegateSource.contains("uninstaller.select(appURL: appURL, trashMove: trashMove) || (trashMove == nil && uninstaller.isRemoving)"),
                "the uninstall row still opens the page on a removal already running")
         suite.expect(commandBarServiceSource.contains("UninstallerSupport.acceptedApplicationIDs(apps)")
                 && commandBarServiceSource.contains("uninstallable: uninstallableAppIDs"),
@@ -1368,6 +1374,43 @@ enum CommandBarFeatureTests {
                "the number and the unit do not need a space between them")
         suite.expect(unitValue("5 in to cm").map { abs($0 - 12.7) < 0.001 } == true,
                "the word that also means inches is read correctly on both sides")
+        for query in ["5ft 11 in cm", "5ft 11in in cm", "5ft11in to cm", "5 ft 11 in to cm", "5 feet 11 inches to cm",
+                      #"5'11" in cm"#, "5′ 11″ in cm", "5’11” in cm"] {
+            suite.expect(unitValue(query).map { abs($0 - 180.34) < 0.001 } == true,
+                         "\(query) converts five feet and eleven inches")
+        }
+        for (query, expected) in [("5' in cm", 152.4), ("5′ in cm", 152.4), ("11in in cm", 27.94),
+                                  ("11″ in cm", 27.94), ("-5ft 11in to in", -71), ("-0′6″ to in", -6),
+                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0)] {
+            suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
+                         "\(query) converts to \(expected)")
+        }
+        suite.expect(CommandBarUnits.convert("5 pés 11,5 polegadas em cm",
+                                             decimalSeparator: ",", groupingSeparator: ".",
+                                             locale: Locale(identifier: "pt_BR"))
+            .map { abs($0.value - 181.61) < 0.001 } == true,
+                     "mixed lengths use the same localized names and decimal parser as single units")
+        for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
+                      "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
+                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm"] {
+            suite.expect(units(query) == nil, "\(query) stays a search")
+        }
+
+        let heightTitle = CommandBarUnits.convert("71in in cm")?.formatted
+        for query in ["5ft 11 in cm", "5ft 11in in cm", #"5'11" in cm"#] {
+            let row = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
+            suite.expect(heightTitle != nil && row?.id == "units.result"
+                         && row?.isAnswer == true && row?.title == heightTitle,
+                         "the Command Bar presents \(query) as the same answer as 71 inches")
+            CopyAnswerHost.Pasteboard.general.accepts = true
+            CopyAnswerHost.Pasteboard.general.clearContents()
+            row?.run(nil)
+            suite.expect(heightTitle != nil && CopyAnswerHost.Pasteboard.general.string == heightTitle,
+                         "Return copies the displayed conversion for \(query)")
+        }
+        suite.expect(CopyAnswerHost.answerEntry(for: "5ft 11in cm", bar: englishBar) == nil
+                     && CopyAnswerHost.answerEntry(for: "5 in to cm", bar: englishBar)?.id == "units.result",
+                     "an attached inch mark cannot replace the connector and standalone inches still convert")
         suite.expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
                "hours become minutes")
         suite.expect(unitValue("1d to hr").map { abs($0 - 24) < 0.001 } == true,
@@ -1450,6 +1493,7 @@ enum CommandBarFeatureTests {
                 && units("1 millilitre to cups") == units("1 ml to cups"),
                "British spellings convert like the American ones, as metres and litres already do")
         suite.expect(units("8 fl oz to ml") != nil
+                && unitValue("5fl oz in ml").map { abs($0 - 147.8675) < 0.001 } == true
                 && units("8 fl oz to ml") == units("8 floz to ml")
                 && units("8 fluid ounces to ml") == units("8 floz to ml")
                 && units("1 fluid ounce to ml") == units("1 floz to ml")

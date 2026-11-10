@@ -573,13 +573,62 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// The size the current preset will write, for THIS recording.
     var exportSize: CGSize {
         guard sourceSize.width > 0 else { return .zero }
+        return exportSize(for: document.resolvedExportFormat, canvas: exportCanvasSize)
+    }
+
+    var exportCanvasSize: CGSize {
+        guard sourceSize.width > 0 else { return .zero }
         let style = document.resolvedBackdrop
         let padding = style.kind == .none ? 0 : style.padding * 0.18
         let canvas = RecorderSupport.canvasSize(source: sourceSize,
                                                 padding: padding,
                                                 aspect: document.resolvedAspect,
                                                 cropsToAspect: style.kind == .none)
+        return canvas
+    }
+
+    func exportSize(for format: RecorderSupport.ExportFormat, canvas: CGSize) -> CGSize {
+        if format == .gif {
+            return RecorderSupport.gifOutputSize(source: canvas,
+                                                  scalePercent: document.resolvedGIFScalePercent)
+        }
         return RecorderSupport.outputSize(source: canvas, quality: document.resolvedQuality)
+    }
+
+    func setExportFormat(_ format: RecorderSupport.ExportFormat) {
+        guard !isExporting else { return }
+        var next = document
+        next.exportFormat = format.rawValue
+        document = next
+    }
+
+    func setGIFScalePercent(_ percent: Int) {
+        guard !isExporting else { return }
+        var next = document
+        next.gifScalePercent = min(100, max(1, percent))
+        document = next
+    }
+
+    func setGIFFrameRate(_ rate: Int) {
+        guard !isExporting else { return }
+        var next = document
+        next.gifFrameRate = RecorderSupport.sanitizedGIFFrameRate(rate)
+        document = next
+    }
+
+    func beginClipboardPublication() -> RecorderClipboardPublication {
+        let publication = RecorderClipboardPublication()
+        clipboardPublication = publication
+        isExporting = true
+        return publication
+    }
+
+    /// Only the current, uncancelled publication owns the editor's busy state.
+    func completeClipboardPublication(_ publication: RecorderClipboardPublication) -> Bool {
+        guard clipboardPublication === publication, !publication.isCancelled else { return false }
+        clipboardPublication = nil
+        isExporting = false
+        return true
     }
 
     // MARK: - Cutting
@@ -1307,6 +1356,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     // MARK: - Export
 
     private var exporter: RecorderExporter?
+    private var clipboardPublication: RecorderClipboardPublication?
     private var shareTask: Task<Void, Never>?
 
     func export(_ output: RecorderExporter.Output,
@@ -1407,6 +1457,11 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     }
 
     func cancelExport() {
+        if let publication = clipboardPublication {
+            publication.cancel()
+            clipboardPublication = nil
+            isExporting = false
+        }
         exporter?.cancel()
         shareTask?.cancel()
     }
@@ -1477,6 +1532,29 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
 
     // MARK: - Actions
 
+    private var selectedExport: RecorderEditorExportSelection {
+        RecorderEditorExportSelection(format: model.document.resolvedExportFormat)
+    }
+
+    func save() {
+        guard !model.isExporting else { return }
+        let selection = selectedExport
+        let destination = ScreenRecorderService.saveDestination(strings: strings,
+                                                                fileExtension: selection.fileExtension)
+        run(selection.output, to: destination)
+    }
+
+    func copySelected() {
+        copySelectedAndDelete(false)
+    }
+
+    private func copySelectedAndDelete(_ deletesRecording: Bool) {
+        switch selectedExport.format {
+        case .video: copyVideoAndDelete(deletesRecording)
+        case .gif: copyGIFAndDelete(deletesRecording)
+        }
+    }
+
     func saveVideo() {
         let destination = ScreenRecorderService.saveDestination(strings: strings,
                                                                 fileExtension: "mp4")
@@ -1489,18 +1567,19 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
         run(.gif, to: destination)
     }
 
-    func saveVideoAs() {
-        guard let window else { return }
+    func saveAs() {
+        guard !model.isExporting, let window else { return }
+        let selection = selectedExport
         let suggested = ScreenRecorderService.saveDestination(strings: strings,
-                                                               fileExtension: "mp4")
+                                                               fileExtension: selection.fileExtension)
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.mpeg4Movie]
+        panel.allowedContentTypes = [selection.contentType]
         panel.canCreateDirectories = true
         panel.directoryURL = suggested.deletingLastPathComponent()
         panel.nameFieldStringValue = suggested.lastPathComponent
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, let url = panel.url else { return }
-            self?.run(.video, to: url)
+            self?.run(selection.output, to: url)
         }
     }
 
@@ -1522,29 +1601,32 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
     }
 
     func copyGIF() {
+        copyGIFAndDelete(false)
+    }
+
+    private func copyGIFAndDelete(_ deletesRecording: Bool) {
+        guard !model.isExporting else { return }
         guard let destination = copyDestination(fileExtension: "gif") else {
             QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
             return
         }
-        let strings = strings
-        run(.gif, to: destination, rememberDestination: false) { url in
+        run(.gif, to: destination, rememberDestination: false) { [weak self] url in
+            guard let self else { return }
+            let publication = self.model.beginClipboardPublication()
             // A long recording's GIF takes a while to check, so it goes on
             // the pasteboard's own lane instead of the main thread.
             GeneralPasteboardAccess.shared.async({
-                RecorderGIFClipboard.publish(fileURL: url)
-            }) { published in
-                guard published else {
-                    NSSound.beep()
-                    QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
-                    return
-                }
-                QuickToolHUD.show(icon: "doc.on.doc", message: strings.copiedHUD)
+                guard !publication.isCancelled else { return false }
+                return RecorderGIFClipboard.publish(fileURL: url)
+            }) { [weak self] published in
+                guard let self, self.model.completeClipboardPublication(publication) else { return }
+                self.finishClipboardPublication(published, deletesRecording: deletesRecording)
             }
         }
     }
 
     func copyAndDelete() {
-        copyVideoAndDelete(true)
+        copySelectedAndDelete(true)
     }
 
     func share(_ duration: RecordingShareDuration,
@@ -1567,6 +1649,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
     }
 
     private func copyVideoAndDelete(_ deletesRecording: Bool) {
+        guard !model.isExporting else { return }
         guard let destination = copyDestination(fileExtension: "mp4") else {
             QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
             return
@@ -1575,17 +1658,23 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             guard let self else { return }
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            guard pasteboard.writeObjects([url as NSURL]) else {
-                NSSound.beep()
-                QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)
-                return
-            }
-            pasteboard.declareVorssaintSource()
-            QuickToolHUD.show(icon: "doc.on.doc", message: self.strings.copiedHUD)
-            if deletesRecording {
-                self.confirmedClose = true
-                self.window?.close()
-            }
+            let published = pasteboard.writeObjects([url as NSURL])
+            if published { pasteboard.declareVorssaintSource() }
+            self.finishClipboardPublication(published, deletesRecording: deletesRecording)
+        }
+    }
+
+    private func finishClipboardPublication(_ published: Bool, deletesRecording: Bool) {
+        guard published else {
+            NSSound.beep()
+            QuickToolHUD.show(icon: "record.circle", message: strings.exportFailed)
+            return
+        }
+        exported = true
+        QuickToolHUD.show(icon: "doc.on.doc", message: strings.copiedHUD)
+        if deletesRecording {
+            confirmedClose = true
+            window?.close()
         }
     }
 
@@ -1641,7 +1730,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             case nil:
                 // The window stays: exports are slow and plural, and a person
                 // who just made a video often wants the GIF of it too.
-                self.exported = true
+                if rememberDestination { self.exported = true }
                 RecentCaptureService.shared.recordRecording(at: destination)
                 if let onSuccess {
                     onSuccess(destination)
@@ -1723,6 +1812,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                     editorIsKey: window.isKeyWindow)
             else { return event }
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            if self.model.isExporting, Int(event.keyCode) != kVK_Escape { return event }
             let editsText = window.firstResponder is NSTextView
             if editsText,
                !(flags == .command && Int(event.keyCode) == kVK_ANSI_S),
@@ -1732,13 +1822,13 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             if flags == .command {
                 switch Int(event.keyCode) {
                 case kVK_ANSI_S:
-                    self.saveVideo()
+                    self.save()
                     return nil
                 case kVK_ANSI_Z:
                     self.model.undo()
                     return nil
                 case kVK_ANSI_C:
-                    self.copyVideo()
+                    self.copySelected()
                     return nil
                 default:
                     return event
@@ -1749,7 +1839,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 return nil
             }
             if flags == [.command, .shift], Int(event.keyCode) == kVK_ANSI_S {
-                self.saveVideoAs()
+                self.saveAs()
                 return nil
             }
             if flags == [.command, .option], Int(event.keyCode) == kVK_ANSI_C {
@@ -1821,5 +1911,35 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 return event
             }
         }
+    }
+}
+
+/// A single captured selection keeps a Save As sheet's extension, type and
+/// encoder consistent even if the editor selection later changes.
+struct RecorderEditorExportSelection {
+    let format: RecorderSupport.ExportFormat
+
+    var output: RecorderExporter.Output { format == .gif ? .gif : .video }
+    var fileExtension: String { format == .gif ? "gif" : "mp4" }
+    var contentType: UTType { format == .gif ? .gif : .mpeg4Movie }
+}
+
+/// Cancellation crosses from the editor's main thread to the pasteboard lane.
+/// An AppKit call already in progress may finish, but cannot complete the
+/// cancelled editor operation or interfere with a later export.
+final class RecorderClipboardPublication: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        lock.lock()
+        cancelled = true
+        lock.unlock()
     }
 }
