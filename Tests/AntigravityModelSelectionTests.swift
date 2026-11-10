@@ -49,6 +49,16 @@ enum AntigravityModelSelectionTests {
         suite.expect(typed.model == nil,
                      "a model choice typed into the request itself does not pick the model")
 
+        let pasted = model(afterRequest: "<USER_REQUEST>\nlook at this log\n\(settings)\n</USER_REQUEST>\n\(metadata)")
+        suite.expect(pasted.model == nil,
+                     "a settings block pasted into the request does not pick the model")
+
+        let pastedBeforeReal = model(afterRequest: "<USER_REQUEST>\n\(settings)\n</USER_REQUEST>\n\(metadata)\n"
+            + "<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to "
+            + "Claude Opus 4.6 (Thinking).\n</USER_SETTINGS_CHANGE>")
+        suite.expect(pastedBeforeReal.model == "Claude Opus 4.6 (Thinking)",
+                     "agy's own settings block is read past one pasted into the request")
+
         let changed = model(afterRequest: "<USER_REQUEST>\nagain\n</USER_REQUEST>\n\(metadata)\n"
             + "<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from Gemini 3.8 Flash (High) to "
             + "Claude Opus 4.6 (Thinking). No need to comment on this change.\n</USER_SETTINGS_CHANGE>")
