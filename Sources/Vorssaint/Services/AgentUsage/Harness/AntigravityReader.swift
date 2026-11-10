@@ -191,15 +191,19 @@ struct AntigravityReader: AgentHarnessReader {
     private static func extractModelSelection(from content: String) -> String? {
         let marker = "changed setting `Model Selection` from "
         guard content.contains(marker) else { return nil }
+        // agy 1.5 writes the change in its own `<USER_SETTINGS_CHANGE>` block beside
+        // `<ADDITIONAL_METADATA>`; older builds put it inside the metadata block.
+        let systemTags = ["ADDITIONAL_METADATA", "USER_SETTINGS_CHANGE"]
         var slices: [Substring] = []
-        if content.contains("<ADDITIONAL_METADATA>") {
+        for tag in systemTags {
             var cursor = content.startIndex
-            while let open = content.range(of: "<ADDITIONAL_METADATA>", range: cursor..<content.endIndex) {
-                let end = content.range(of: "</ADDITIONAL_METADATA>", range: open.upperBound..<content.endIndex)
+            while let open = content.range(of: "<\(tag)>", range: cursor..<content.endIndex) {
+                let end = content.range(of: "</\(tag)>", range: open.upperBound..<content.endIndex)
                 slices.append(content[open.upperBound..<(end?.lowerBound ?? content.endIndex)])
                 cursor = end?.upperBound ?? content.endIndex
             }
-        } else if !content.contains("<USER_REQUEST>") {
+        }
+        if slices.isEmpty, !content.contains("<USER_REQUEST>") {
             slices.append(content[...])
         }
         var selected: String?
