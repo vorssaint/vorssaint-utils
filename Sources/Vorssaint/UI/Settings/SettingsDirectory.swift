@@ -460,6 +460,17 @@ enum SettingsDirectory {
                                                s.dockPreviewOrderByCreation, s.switcherCurrentSpaceOnly], feature: .dockPreview,
                                               when: state.on(DefaultsKey.dockPreviewEnabled)),
                                        ]),
+                SettingsDirectoryItem(
+                    page: .missionControl,
+                    title: FeatureStrings.missionControlActions(language).title,
+                    icon: AppFeature.missionControlActions.symbolName,
+                    keywords: [
+                        FeatureStrings.missionControlActions(language).enable,
+                        FeatureStrings.missionControlActions(language).rightClick,
+                        FeatureStrings.missionControlActions(language).middleClick,
+                        FeatureStrings.missionControlActions(language).keyboardShortcuts,
+                    ]
+                ),
                 SettingsDirectoryItem(page: .windowLayout,
                                       title: FeatureStrings.windowLayout(language).title,
                                       icon: "rectangle.3.group",
