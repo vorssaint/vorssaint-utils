@@ -649,8 +649,8 @@ enum SwitcherModelFeatureTests {
                 suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
-                       && BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                          writeOnlyPaths: Set(recheckedPaths)),
+                       && BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                          rememberedPaths: Set(recheckedPaths)),
                        "the checksum fix reopens cached paths with the paired recheck flag \(pairedRecheckCompleted)")
                 suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
                        == ["manual|port"]
@@ -663,8 +663,8 @@ enum SwitcherModelFeatureTests {
                 let laterPaths = migrationDefaults.stringArray(
                     forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
                 suite.expect(laterPaths == ["display|port"]
-                       && !BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                           writeOnlyPaths: Set(laterPaths)),
+                       && !BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                           rememberedPaths: Set(laterPaths)),
                        "the checksum recheck runs once and keeps later write-only verdicts")
             }
 
@@ -2596,6 +2596,12 @@ enum SwitcherModelFeatureTests {
                     == ScrollWheelSupport.defaultLinesPerNotch
                 && registeredDefaults[DefaultsKey.panelControlLinearScroll] as? Bool == true,
                "linear scrolling is opt-in, starts at the default notch and shows in the panel when installed")
+        suite.expect(registeredDefaults[DefaultsKey.scrollSpeedEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.scrollSpeedModifier] as? String
+                    == ScrollHorizontalModifier.option.rawValue
+                && registeredDefaults[DefaultsKey.scrollSpeedMultiplier] as? Int
+                    == ScrollWheelSupport.defaultSpeedMultiplier,
+               "modifier-held scroll speed is opt-in with Option and a 3× default")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceEnabled] as? Bool == false,
                "mouse click debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceWindowMs] as? Int
