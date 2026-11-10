@@ -1236,9 +1236,17 @@ final class KeepAwakeManager: ObservableObject {
         guard isActive,
               UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleEnabled),
               let original = Self.currentMouseLocation(),
-              let target = Self.mouseJiggleTarget(from: original)
+              let display = Self.display(containing: original),
+              let target = Self.mouseJiggleTarget(from: original, in: display.bounds)
         else {
             syncMouseJiggleTimer()
+            return
+        }
+
+        // A pointer move wakes a full-screen player's controls. The timer keeps
+        // running, so the next tick after full screen ends moves the pointer.
+        if UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeMouseJiggleSkipFullscreen),
+           Self.isFullscreen(display.id) {
             return
         }
 
@@ -1260,8 +1268,17 @@ final class KeepAwakeManager: ObservableObject {
         CGEvent(source: nil)?.location
     }
 
-    private static func mouseJiggleTarget(from original: CGPoint) -> CGPoint? {
-        guard let bounds = displayBounds(containing: original) else { return nil }
+    /// A native full-screen Space, or an app's own full screen (games, VLC),
+    /// read the same way the Dynamic Island hides in full screen.
+    private static func isFullscreen(_ displayID: CGDirectDisplayID) -> Bool {
+        if SpaceWindowBridge.topology()?.isFullscreen(on: displayID,
+                                                       separateSpaces: NSScreen.screensHaveSeparateSpaces) == true {
+            return true
+        }
+        return NotchAppFullscreen.coveredDisplays().contains(displayID)
+    }
+
+    private static func mouseJiggleTarget(from original: CGPoint, in bounds: CGRect) -> CGPoint? {
         let safeFrame = bounds.insetBy(dx: 2, dy: 2)
         let x = min(max(original.x, safeFrame.minX), safeFrame.maxX)
         let y = min(max(original.y, safeFrame.minY), safeFrame.maxY)
@@ -1281,7 +1298,7 @@ final class KeepAwakeManager: ObservableObject {
         return nil
     }
 
-    private static func displayBounds(containing point: CGPoint) -> CGRect? {
+    private static func display(containing point: CGPoint) -> (id: CGDirectDisplayID, bounds: CGRect)? {
         var count: UInt32 = 0
         guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else {
             return nil
@@ -1296,7 +1313,7 @@ final class KeepAwakeManager: ObservableObject {
             let bounds = CGDisplayBounds(display)
             if point.x >= bounds.minX, point.x <= bounds.maxX,
                point.y >= bounds.minY, point.y <= bounds.maxY {
-                return bounds
+                return (display, bounds)
             }
         }
         return nil

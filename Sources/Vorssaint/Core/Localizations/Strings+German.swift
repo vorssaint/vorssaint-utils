@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "Zeiger leicht bewegen",
         keepAwakeMouseJiggleCaption: "Bewegt den Zeiger während einer Sitzung im gewählten Intervall leicht.",
         keepAwakeMouseJiggleInterval: "Intervall",
+        keepAwakeMouseJiggleSkipFullscreen: "Im Vollbild pausieren",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Bewegt den Zeiger nicht, solange ein Video, Spiel oder eine andere App den Bildschirm füllt.",
         keepAwakeActiveIconLabel: "Aktives Symbol",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Kaffee",
