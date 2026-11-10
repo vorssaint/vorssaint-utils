@@ -147,11 +147,15 @@ enum DisplayRestorationTests {
         var knownDisplayFingerprints: [UInt32: String] = [:]
         var displayControlFailure: BrightnessService.DisplayControlFailure?
         var pendingDisplayIDs = Set<UInt32>()
+        func readSelectedAudioOutput() {}
+        func suspendSpeakerRoutes() {}
+        func forgetWriteOnlyRechecks() {}
         var displays: [BrightnessDisplay] = []
         var refreshes = 0
         var running = false
         var wakeObserversInstalled = false
         var wakeRebuild: DispatchWorkItem?
+        var ddcRetry: DispatchWorkItem?
         var displayPowerIsSuspended = false
         var rebuildGeneration = 0
         var rebuildingTopology: BrightnessSupport.DisplayTopology?
