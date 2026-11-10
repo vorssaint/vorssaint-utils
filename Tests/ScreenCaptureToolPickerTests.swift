@@ -17,7 +17,7 @@ enum ScreenCaptureToolPickerTests {
                 selection: .constant(.screenshot)))
             let narrow = picker.sizeThatFits(in: CGSize(width: narrowestRow, height: 200)).width
             suite.expect(narrow > 0 && narrow <= narrowestRow,
-                         "\(language.rawValue): the four capture tools fit the narrowest Settings page "
+                         "\(language.rawValue): the five capture tools fit the narrowest Settings page "
                          + "(\(Int(narrow)) of \(Int(narrowestRow)) points)")
             if language == .enUS {
                 let roomy = picker.sizeThatFits(in: CGSize(width: 2000, height: 200)).width
