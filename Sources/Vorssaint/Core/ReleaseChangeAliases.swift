@@ -72,7 +72,7 @@ enum ReleaseChangeAliases {
         case .scrollInverter: return ["scroll inverter", "invert mouse scrolling", "inverted mouse scrolling",
             "invert scrolling", "inverted scrolling", "scroll inversion"]
         case .scrollHorizontal: return ["scroll sideways", "horizontal scrolling"]
-        case .scrollZoom: return ["scroll zoom", "vertical zoom", "pinch zoom"]
+        case .scrollZoom: return ["scroll zoom", "pinch zoom"]
         case .focusFollowsMouse: return ["focus follows mouse", "focus follows the mouse"]
         case .smoothScroll: return ["smooth scrolling", "smooth scroll"]
         case .linearScroll: return ["linear scrolling", "linear scroll"]

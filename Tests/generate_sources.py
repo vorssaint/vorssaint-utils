@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "build/generated-tests"
 
 
-def declaration(path, prefix, scope=None):
+def declaration(path, prefix, scope=None, *, closing="}"):
     lines = (ROOT / path).read_text().splitlines(keepends=True)
     lower, upper = 0, len(lines)
     if scope is not None:
@@ -30,7 +30,7 @@ def declaration(path, prefix, scope=None):
         raise ValueError(f"Expected one declaration {prefix!r} in {path}")
     start = starts[0]
     indent = prefix[:len(prefix) - len(prefix.lstrip())]
-    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + "}")
+    end = next(i for i in range(start + 1, len(lines)) if lines[i].rstrip() == indent + closing)
     body = "".join(lines[start:end + 1])
     return f'#sourceLocation(file: {json.dumps(path)}, line: {start + 1})\n{body}\n#sourceLocation()\n'
 
@@ -47,6 +47,49 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    shortcut_row = "Sources/Vorssaint/UI/ShortcutRecorderButton.swift"
+    # Keep the registrars, takeover ownership and recording lifecycle intact.
+    # Only the existing preference-reader arguments point at the isolated suite;
+    # Carbon, WindowServer, windows and unrelated features are boundary doubles.
+    def shortcut_preferences(body):
+        if body.count(".assignedShortcut()") != 1:
+            raise ValueError("Expected one shortcut preference reader in the registrar")
+        return (body.replace(".assignedShortcut()",
+                             ".assignedShortcut(storedValue: { UserDefaults.standard.string(forKey: $0) })")
+                .replace("AppFeature.keepAwake.isAvailable",
+                         "AppFeature.keepAwake.isAvailable(in: UserDefaults.standard)")
+                .replace("AppFeature.textSnippets.isAvailable",
+                         "AppFeature.textSnippets.isAvailable(in: UserDefaults.standard)"))
+
+    row_actions = "".join(declaration(shortcut_row, prefix).replace("private func", "func", 1)
+                          for prefix in ["    private func clear()", "    private func reset()",
+                                         "    private func save(_ shortcut:"])
+    if row_actions.count("excluding: role,") != 1 or row_actions.count("includeInactive: includeInactiveConflicts)") != 1:
+        raise ValueError("Expected one injectable role-conflict lookup in the shortcut row")
+    row_actions = row_actions.replace(
+        "excluding: role,",
+        "excluding: role, isOn: { UserDefaults.standard.bool(forKey: $0) }, "
+        "isAvailable: { $0.isAvailable(in: UserDefaults.standard) },")
+    row_actions = row_actions.replace(
+        "includeInactive: includeInactiveConflicts)",
+        "includeInactive: includeInactiveConflicts, "
+        "radialMenuShortcuts: { [] }, "
+        "storedValue: { UserDefaults.standard.string(forKey: $0) })")
+    write("ShortcutClearing.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
+          + "extension ShortcutClearingTests {\n"
+          + shortcut_preferences(declaration("Sources/Vorssaint/Services/HotkeyManager.swift",
+                                              "final class HotkeyManager:"))
+          + declaration("Sources/Vorssaint/Services/QuickTools/QuickToolHotkey.swift", "final class QuickToolHotkey {")
+          + declaration("Sources/Vorssaint/Services/SystemShortcutTakeover.swift", "enum SystemShortcutTakeover {")
+          + declaration("Sources/Vorssaint/Services/ShortcutCapture.swift", "enum ShortcutCapture {")
+          + declaration(shortcut_row, "final class RecorderButton:")
+          + "final class Library: LibraryState {\nstatic let shared = Library()\n"
+          + shortcut_preferences(declaration("Sources/Vorssaint/Services/Snippets/SnippetLibraryService.swift",
+                                              "    func syncWithPreferences()"))
+          + "}\nfinal class Row: RowState {\n" + row_actions
+          + "}\nenum Backup {\n"
+          + declaration("Sources/Vorssaint/Services/SettingsBackup.swift", "    static func apply(settings:")
+          + "}\n}\n")
     write("SettingsCommandDispatch.swift", "import Foundation\n"
           + "extension SettingsFeatureTests.CommandDispatchHost {\nstatic func run() {\n"
           # Both app entry points are named main.swift. Keep diagnostics in
@@ -55,15 +98,29 @@ def main():
               "Sources/Vorssaint/main.swift", "if let command = SettingsBackupSupport.command(")
               .splitlines() if not line.startswith("#sourceLocation")) + "\n"
           + "}\n}\n")
+    backup = "Sources/Vorssaint/Services/SettingsBackup.swift"
+    write("SettingsFileContract.swift", "import AppKit\nimport Darwin\n"
+          + "extension SettingsFileTests {\nenum Backup {\n"
+          + "".join(declaration(backup, prefix) for prefix in [
+              "    static func write(to ", "    static func readSettings(at ",
+              "    static func apply(settings:", "    static var configFileURL:",
+              "    static func applyConfigFileAtLaunch(", "    static func anotherInstanceIsRunning("])
+          + "}\n}\n")
     slider_area = "Sources/Vorssaint/UI/SliderScrollArea.swift"
     slider_control = "Sources/Vorssaint/UI/Notch/NotchLevelSlider.swift"
     wheel_route = "Sources/Vorssaint/Services/HorizontalWheelScrolling.swift"
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
+    # Keep the representable, coordinator and cell together so native input
+    # tests exercise the same construction and tracking as the island.
+    (OUTPUT / "NotchLevelSlider.swift").unlink(missing_ok=True)
+    write("NotchLevelTrackingContract.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration(slider_control, "struct NotchLevelSlider:")
+          + declaration(slider_control, "private final class NotchLevelControl:")
+              .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
+          + declaration(slider_control, "private final class NotchLevelCell:"))
     write("SliderScrollRouting.swift", "import AppKit\n"
           + declaration(slider_area, "protocol SliderScrollTarget:")
           + declaration(slider_area, "extension SliderScroll {")
-          + declaration(slider_control, "private final class NotchLevelControl:")
-              .replace("private final class NotchLevelControl", "final class NotchLevelControl", 1)
           + "extension SliderScrollRoutingTests {\nenum Route {\n"
           + declaration(wheel_route, "    static func sidewaysStrip(")
           + declaration(wheel_route, "    private static func scrolls(")
@@ -107,6 +164,9 @@ def main():
                     .replace("private ", "", 1) for prefix in [
                         "    struct DisplayScope:", "    struct WindowList {", "    struct AppSnapshot:",
                         "    struct Snapshot:", "    static func enumerateSwitcherWindows(",
+                        "    static func beginSourcePrefetch(",
+                        "    private struct WalkApps {",
+                        "    private static func walkApps(",
                         "    static func listWindowsForCommandBar(",
                         "    private static func listWindows(appRules:",
                         "    private static func listWindows(filterPID:",
@@ -116,10 +176,23 @@ def main():
                         "    private static func appendWindowlessApps(",
                         "    private static func switchableFrame(", "    private static func frameIsSwitchable(",
                         "    private static func frameLooksFullscreen("])
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+                        "final class WindowServerWindowList {")
+              .replace("SpaceWindowBridge.windowIDList()",
+                       "SwitcherFullscreenScopeTests.Bridge.windowIDList()")
+              .replace("CGWindowListCreateDescriptionFromArray(",
+                       "SwitcherFullscreenScopeTests.Enumerator.CGWindowListCreateDescriptionFromArray(")
+              .replace("CGWindowListCopyWindowInfo(",
+                       "SwitcherFullscreenScopeTests.Enumerator.CGWindowListCopyWindowInfo(")
           + "}\nextension SwitcherFullscreenScopeTests.Bridge {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)
                     .replace("private ", "", 1) for prefix in [
                         "    private static func windowTags(of", "    static func isExcludedFromWindowCycle("])
+          + "}\n")
+    write("SwitcherHistoryReconcile.swift", "import Foundation\nimport CoreGraphics\n"
+          + "extension SwitcherQuickCommitTests.HistoryFixture {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
+                        "    func reconcile(")
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
@@ -208,6 +281,8 @@ def main():
           + "}\n")
     write("ScrollingCaptureLoop.swift", "import AppKit\nimport CoreGraphics\n"
           + "extension ScreenshotScrollingCaptureTests {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotAutomaticScroller.swift",
+                        "final class ScreenshotAutomaticScroller:").replace("event.post(tap:", "Desktop.record(event, tap:")
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotScrollingCapture.swift",
                         "enum ScreenshotScrollingCapture {").replace(
                             "    private static func stitch(", "    static func stitch(")
@@ -222,7 +297,20 @@ def main():
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
                         "    static func clipboardImage(")
           + "}\n")
+    write("ScreenshotImageImportFlow.swift", "import AppKit\nextension ScreenshotImageImportTests.Flow {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+                        "    private enum ImageImportSource:").replace("private enum", "enum", 1)
+          + "final class Host: State {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
+                        "    private func importImage(").replace("private func importImage", "func importImage", 1)
+          + "}\n}\n")
     editor = "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift"
+    write("ScreenshotImageFileOutput.swift", "import AppKit\nextension ScreenshotImageFileTests.Service {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift", prefix)
+                    for prefix in ["    static func dragItemProvider(", "    static func temporaryExportFile(",
+                                   "    static func saveDestination(",
+                                   "    private static func fileName("])
+          + "}\n")
     write("ScreenshotClipboard.swift", "import AppKit\nextension ScreenshotClipboardTests {\n"
           + "final class Editor: State {\n"
           + "".join(declaration(editor, prefix).replace(
@@ -334,8 +422,22 @@ def main():
               "    private struct Route", "    private enum DDCProbe"])
           + "final class Service: Fixture {\n"
           + declaration(brightness, "    private func step(").replace("private ", "", 1)
+          + declaration(brightness, "    private func commitStep(").replace("private ", "", 1)
+          + declaration(brightness, "    private func forcedSoftwarePaths(")
+          + declaration(brightness, "    func setSoftwareDimmingPreferred(")
+          + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
+          + "}\n}\n")
+    write("DisplaySpeakerService.swift", "import CoreAudio\nimport CoreGraphics\nimport Foundation\n"
+          + "extension DisplaySpeakerVolumeTests {\n"
+          + "".join(declaration(brightness, prefix).replace("private ", "", 1) for prefix in [
+              "    private struct AudioRoute", "    private struct PendingAudio", "    private enum DDCProbe"])
+          + "final class Service: Fixture {\nstatic var shared = Service()\n"
+          + "".join(declaration(brightness, prefix).replace("private func", "func", 1) for prefix in [
+              "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
+              "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
+              "    func monitorSpeakerOutput(", "    private func probeAudio("])
           + "}\n}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"
@@ -357,14 +459,22 @@ def main():
                                    "    static func prepareForRequest(", "    private static func isWindow("])
           + "}\n")
     write("SwitcherActivationBodies.swift", "import AppKit\nimport ApplicationServices\n"
+          + declaration(activator, "final class SwitcherActivationWriteGuard {")
+              .replace("NSEvent", "SwitcherActivationTests.InputEvent")
           + "extension SwitcherActivationTests.Activator {\n"
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    private static func activateApp(",
                                    "    static func activateAppCooperatively(",
-                                   "    private static func activateSource("])
+                                   "    private static func activateSource(",
+                                   "    static func activationMinimizedState(",
+                                   "    static func windowMinimizedState(target:"])
           + "}\nextension SwitcherActivationTests.HiddenSpaceActivator {\n"
           + "".join(declaration(activator, prefix).replace("private static", "static", 1)
                     for prefix in ["    static func raiseWindowOnHiddenSpace(",
+                                   "    private static func scheduleSourceStaging(",
+                                   "    private static func prepareWindowForActivation(",
+                                   "    private static func restoreWindowBeforeFocus(",
+                                   "    static func focusWindow(",
                                    "    private static func stageSourceBehindTargetIfNeeded("])
           + "}\nextension SwitcherActivationTests.Bridge {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Switcher/SpaceWindowBridge.swift", prefix)
@@ -393,8 +503,10 @@ def main():
           + "}\n")
     write("NowPlayingOpen.swift", "import AppKit\n"
           + "extension NowPlayingOpenContract.Application {\n"
-          + declaration("Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
-                        "    static func open(", scope="enum RadialNowPlayingApplication {")
+          + "".join(declaration("Sources/Vorssaint/Services/RadialMenu/RadialNowPlayingService.swift",
+                               prefix, scope="enum RadialNowPlayingApplication {")
+                    for prefix in ["    static func runningApplication(",
+                                   "    static func playerApplication(", "    static func open("])
           + "}\n")
     write("WindowServerCapture.swift", "import CoreGraphics\nimport Foundation\n"
           + "extension WindowServerCaptureContract.Provider {\n"
@@ -637,9 +749,10 @@ def main():
     write("ClipboardPanelPlacement.swift", "import AppKit\n"
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
           + "".join(declaration(clipboard, prefix).replace("private func", "func", 1) for prefix in [
+              "    private func observePanelGeometry(", "    private func savePanelPosition(",
               "    private func refreshQuickLayout(", "    private func panelMinimumContentSize(",
               "    private func preferredPanelSize(", "    private func savePanelSize(",
-              "    private func position("])
+              "    private func position(", "    private func resize("])
           + "}\nextension ClipboardFeatureTests {\n"
           + declaration(clipboard, "private final class ClipboardPanelSizeLimit").replace(
               "private final class", "final class", 1)
@@ -732,15 +845,22 @@ def main():
                     for prefix in ["    struct RowAction:", "    private func skinToneActions(",
                                    "    private func recordUsage(", "    private func finish("])
           + "}\n")
+    write("MixedStateCheckbox.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration("Sources/Vorssaint/UI/SharedUI.swift", "struct MixedStateCheckbox:"))
     write("UninstallerFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
           + "extension UninstallerFlowTests {\n"
           + declaration(uninstall, "    enum Phase:")
+          + declaration(uninstall, "    enum Category:")
           + declaration(bar, "    enum Mode:")
           + "final class Uninstaller: UninstallerState {\nstatic let shared = Uninstaller()\n"
+          + "".join(line + "\n" for line in (ROOT / uninstall).read_text().splitlines()
+                    if line.startswith(("    var selectedSize:", "    var totalSize:")))
           + "".join(declaration(uninstall, prefix) for prefix in [
+              "    var selectedHomebrewPackage:", "    var isRemovingWithHomebrew:",
               "    var isRemoving: Bool", "    var canRemoveSelected: Bool", "    func select(appURL:",
               "    func retryHomebrewCheck()",
-              "    func reset()", "    func setInclude(", "    struct HomebrewRemovalConfirmation",
+              "    func reset()", "    func setInclude(", "    func setAllIncluded(",
+              "    var bulkSelection:", "    struct HomebrewRemovalConfirmation",
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
@@ -751,7 +871,34 @@ def main():
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
+    # Run the whole selection and removal model. Only the platform inputs and
+    # the final Trash destination are redirected into the disposable home.
+    trash_model = declaration(uninstall, "final class AppUninstaller:")
+    for system, fixture in [
+        ("FileManager.default.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("fm.homeDirectoryForCurrentUser", "fixtureHome"),
+        ("NSHomeDirectory()", "fixtureHome.path"),
+        ("UninstallerSupport.searchFolders(", "fixtureFolders("),
+        ("roots: spotlightRoots(home: home)", "roots: []"),
+        ("!codeSignatureIsValid(at: appURL)", "fixtureGroups[appURL] == nil"),
+        ("= codeSigningIdentity(at:", "= fixtureSigningIdentity(at:"),
+        ("fm.trashItem(at: item.url, resultingItemURL: nil)", "moveToFixtureTrash(item.url)"),
+    ]:
+        if system not in trash_model:
+            raise ValueError(f"Uninstaller Trash fixture no longer redirects {system}")
+        trash_model = trash_model.replace(system, fixture)
+    write("UninstallerTrash.swift", "import AppKit\nimport Combine\nimport CoreServices\nimport Security\n"
+          + "extension UninstallerTrashTests {\n" + trash_model
+          + "enum Watcher {\n" + declaration("Sources/Vorssaint/Services/Uninstall/TrashAppWatcher.swift",
+                                            "    private func offer(").replace("private func offer(", "static func offer(")
+          + "}\nfinal class Delegate: WindowHost {\n"
+          + declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func openUninstaller(for ")
+          + "}\n}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
+    write("AppUpdatesOperationLog.swift", "extension HomebrewOperationLogRetentionTests.Updates {\n"
+          + declaration("Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
+                        "    private var operationLog:").replace("private var", "var", 1)
+          + "}\n")
     write("HomebrewOwnership.swift", "import Foundation\n"
           + "extension HomebrewOwnershipTests.Manager {\n"
           + declaration(homebrew, "    func packageManagingApplication(")
@@ -820,12 +967,20 @@ def main():
     # The raw wheel tap runs as shipped: linear scrolling's cap, carry and
     # write-back, then the direction change. Only the services it asks and
     # the defaults it reads are fixtures.
+    directory = "Sources/Vorssaint/UI/Settings/SettingsDirectory.swift"
     write("ZoomSettingsDirectory.swift", "import Foundation\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "struct SettingsDirectoryItem:")
+          + declaration(directory, "struct SettingsSearchState:")
+          + declaration(directory, "struct SettingsDirectoryItem:")
           + "enum SettingsDirectory {\n"
-          + declaration("Sources/Vorssaint/UI/Settings/SettingsDirectory.swift", "    static func sections(")
-              .replace("SuperKeyService.shared.source", ".capsLock")
-              .replace("$0.hubTitle(s, hub: FeatureStrings.hub(language))", "$0.rawValue")
+          + declaration(directory, "    static func sections(").replace("SuperKeyService.shared.source", ".capsLock")
+          + declaration(directory, "    static func searchItems(").replace("SuperKeyService.shared.source", ".capsLock")
+              .replace("state: SettingsSearchState = .current", "state: SettingsSearchState")
+          + "}\nextension SettingsFeatureTests.SearchCommands {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift", "    private static func settingsEntries(")
+              .replace("private static func", "static func", 1)
+          + "}\nextension SettingsFeatureTests.IslandSettings {\n"
+          + declaration("Sources/Vorssaint/UI/Settings/NotchSettings.swift", "    private func revealDestination()")
+              .replace("private func", "func", 1)
           + "}\n")
     wheel_tap = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func handle(type:",
                             scope="final class ScrollInverter:")
@@ -858,28 +1013,8 @@ def main():
                          .replace("down.post(tap: .cgSessionEventTap)", "recordReplay(down)")
                          .replace("if let proxy {", "if proxy != nil {")
           + "}\n")
-    write("ZoomTargetRefresh.swift", "import CoreGraphics\nimport Foundation\n"
-          + "extension LinearScrollTapTests.Refresher {\n"
-          + "".join(declaration("Sources/Vorssaint/Services/ScrollInverter.swift", prefix)
-                    .replace("private func", "func", 1)
-                    .replace("AXIsProcessTrusted()", "self.AXIsProcessTrusted()") for prefix in [
-                        "    private func startZoomTargetTimerLocked()",
-                        "    private func stopZoomTargetTimerLocked()"])
-          + "}\n")
-    zoom_post = declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    private func postKeyboardZoom(")
-    write("ZoomTargetRequest.swift", "import CoreGraphics\nimport Foundation\n"
-          + "extension LinearScrollTapTests.TargetResolver {\n"
-          + "".join(declaration("Sources/Vorssaint/Services/ScrollInverter.swift", prefix)
-                    .replace("private func", "func", 1) for prefix in [
-                        "    private func invalidateZoomTargetLocked()",
-                        "    private func requestZoomTargetLocked("])
-          + "}\n")
-    for name in ["down", "up", "restore"]:
-        zoom_post = zoom_post.replace(f"{name}.postToPid(targetProcessID)", f"recordZoomEvent({name}, to: targetProcessID)")
-    write("ZoomKeyboardPost.swift", "import CoreGraphics\nimport Carbon.HIToolbox\n"
-          + "extension LinearScrollTapTests.Inverter {\n"
-          + zoom_post.replace("private func", "func", 1) + "}\n")
     smooth = "Sources/Vorssaint/Services/SmoothScrollService.swift"
+    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
     write("ScrollZoomFocus.swift", "import AppKit\nimport ApplicationServices\n"
           + "extension ScrollZoomFocusTests {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowActivator.swift", "    static func focusWindow(")
@@ -891,7 +1026,10 @@ def main():
     if smooth_post.count("event.postToPid(target.processID)") != 1:
         raise ValueError("Expected one targeted smooth-scroll post")
     write("SmoothScrollRouting.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\n"
-          + "extension SmoothScrollRoutingTests.Service {\n"
+          + "extension SmoothScrollRoutingTests.Capture {\n"
+          + declaration(selection, "    static func steppedLoupeNeedsRawWheel(")
+          + declaration(selection, "    static func isActiveLoupeWindow(")
+          + "}\nextension SmoothScrollRoutingTests.Service {\n"
           + smooth_handler
           + declaration(smooth, "    private func stopGlide()").replace("private func", "func", 1)
           + declaration(smooth, "    private func emitFrame(at timestamp:").replace("private func", "func", 1)
@@ -995,6 +1133,11 @@ def main():
           + "let value = Float32(volume); Hardware.queries.append(value)\n"
           + "if let quantizes = Hardware.quantizes { return quantizes(value).map(Double.init) }; return Double(value)\n}\n"
           + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
+          + "private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }\n"
+          + "private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }\n"
+          + "var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil { didSet { republishSystemOutput() } }\n"
+          + "var outputIsMonitorSpeakers: Bool { monitorOutput != nil }\n"
+          + "typealias BrightnessService = DisplaySpeakerVolumeTests.Service\n"
           + "var outputControlListenerDevice: AudioObjectID?\n"
           + "var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []\n"
           + "var outputControlRefreshGeneration = 0\n"
@@ -1018,7 +1161,8 @@ def main():
           + "removeOutputControlListeners(); outputControlListenerDevice = device; applyOutputControls(volume: volume, muted: muted)\n}\n"
           + "func readSnapshot(volume: Double?, muted: Bool?) { applyOutputControls(volume: volume, muted: muted) }\n"
           + "".join(declaration(mixer, prefix) for prefix in [
-              "    func requestOutputAdjustment(", "    private func enqueueOutputAdjustment(", "    private func removeOutputControlListeners(",
+              "    func requestOutputAdjustment(", "    private func enqueueOutputAdjustment(",
+              "    private func republishSystemOutput(", "    private func removeOutputControlListeners(",
               "    func requestOutputStep(", "    func requestOutputMuteToggle(",
               "    private func enqueueOutputKey(", "    private func readOutputForQueuedKeys(",
               "    private func settleQueuedOutputSteps(",
@@ -1045,8 +1189,10 @@ def main():
           + "}\n")
     write("NotchVolumeRouting.swift", "import Foundation\nimport CoreGraphics\n"
           + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
-          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift",
-                        "    private func routeNotchVolume(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
+                        "    private static func applyMonitorVolumeKey("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
@@ -1055,10 +1201,14 @@ def main():
           + "}\n}\n")
     cleaner = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
     write("CleanerEligibilityBodies.swift", "import Foundation\nextension CleanerEligibilityTests {\n"
+          + declaration(cleaner, "    private static let leftoverRoots:", closing="]")
+          + declaration(cleaner, "    private static func isDirectLeftoverRootChild(")
+          + declaration(cleaner, "    private static func hasLivingOwner(")
+          + declaration(cleaner, "    private static func hasLivingLeftoverOwner(")
           + "".join(declaration(cleaner, "    private static func " + name)
                     .replace("private static func", "static func", 1)
-                    for name in ["appendLeftovers(", "scanCaches(", "scanLogs(",
-                                 "directorySize(", "fileSize(", "sorted(",
+                    for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
+                                 "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
                                  "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
@@ -1074,11 +1224,14 @@ def main():
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
-    write("SuperKeyTap.swift", "import CoreGraphics\nimport Foundation\n"
+    write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
           + "extension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
-                                   "    private func handle(", "    private static func classify("])
+                                   "    private func handle(", "    private static func classify(",
+                                   "    private func repairMappingIfStale(", "    private func clearUnmappedCapsLock(",
+                                   "    private func performSoloAction(", "    private func toggleCapsLock(",
+                                   "    private func finishStart()"])
             .replace("CGEvent.tapCreate(", "Tap.create(")
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
@@ -1262,10 +1415,10 @@ def main():
           + "extension NotchVolumeFeedbackTests {\nfinal class Service: State {\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func bindVolumeEvents(", "    private func volumeChanged(",
-              "    func showCurrentVolume(",
               "    func noteOwnLevelAdjustment(", "    private func ownsLevelAdjustment(",
               "    func showBrightness(", "    func showKeyboardLight("])
           + declaration(notch, "    func showVolume(").replace("    func", "    @discardableResult func", 1)
+          + declaration(notch, "    func showCurrentVolume(").replace("    func", "    @discardableResult func", 1)
           + "}\n}\n")
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
@@ -1406,12 +1559,20 @@ def main():
     write("NotchMusicVisibility.swift", "import Foundation\nextension NotchMusicVisibilityTests {\n"
           + "final class Service: State {\nfunc resignPanelKey() { panel?.resignKey() }\n"
           + music_visibility + "}\n}\n")
-    write("NotchScreenEdgeClicks.swift", "import AppKit\nextension NotchScreenEdgeClickTests {\nfinal class Service: State {\n"
-          + "func open() { openings += 1; expanded = true; syncScreenEdgeClicks() }\n"
+    write("NotchScreenEdgeClicks.swift", "import AppKit\nextension NotchScreenEdgeClickTests.State {\n"
+          + declaration(notch, "    func capsuleNoticeSurface(")
+          + declaration(notch, "    private func capsuleNoticeSize(").replace("private func", "func", 1)
+          + "}\nextension NotchScreenEdgeClickTests {\nfinal class Service: State {\n"
+          + "func open(_ module: NotchModule? = nil) { openings += 1; opened = module; expanded = true; syncScreenEdgeClicks() }\n"
+          + "func refreshPresentation(animated: Bool) { syncScreenEdgeClicks() }\n"
           + "".join(declaration(notch, prefix).replace("    private ", "    ", 1) for prefix in [
+              "    var stripNotice:", "    private var noticeCanPresent:", "    var acceptsUserInteraction:",
+              "    var acceptsSystemFeedback:", "    func activateNotice(",
+              "    private func applyMenuSpace(",
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
               "    private func removeScreenEdgeClickMonitors("])
+          .replace("NotchSupport.routes(selectedNotice.event)", "self.routesNotices")
           + "}\n}\n")
     write("NotchClickElsewhere.swift", "import AppKit\nextension NotchClickElsewhereTests {\nfinal class Service: State {\n"
           + declaration(notch, "    private func clickedElsewhere(").replace("    private ", "    ", 1)
@@ -1483,7 +1644,8 @@ def main():
               "    private func setCaptureSelectionInProgress(", "    func scheduleCaptureControlsCollapse(",
               "    private func updateCaptureControlsHover(", "    private func updateCaptureControlsClickThrough()",
               "    private func removeCaptureControlsClickThrough()", "    private func missionControlDidRestore()",
-              "    func endCaptureControls()"])
+              "    func endCaptureControls()", "    var stripNotice:", "    private var noticeCanPresent:",
+              "    private func dismissNotice(", "    private func endDeparture(", "    private func mutatePresentation("])
           + declaration(notch, "    func presentCaptureControls(")
               .replace("ScreenCaptureSelectionOptions", "CaptureOptions")
               .replace(".receive(on: DispatchQueue.main)", "")
@@ -1732,15 +1894,31 @@ def main():
               "    private func thumbnail<"])
           + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
+    menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
+          + declaration(menu_panel, "private struct OverlayScrollView<")
+          + declaration(menu_panel, "private final class HeightReportingHostingView<")
           + "extension MediaWorkspaceLayoutTests {\n"
           + "struct Workspace: View {\nlet compact = true\n@ObservedObject var fixture: Fixture\n"
           + "let onContentHeightChange: ((CGFloat) -> Void)?\n"
+          + "var scrollsContent = true\n"
           + "var header: some View { Color.clear.frame(height: 22) }\n"
-          + "var toolPicker: some View { Color.clear.frame(height: 24) }\n"
+          + "var toolPicker: some View { Color.clear.frame(height: 24).background(PickerMarker(fixture: fixture)) }\n"
           + "var content: some View { Color.clear.frame(height: fixture.height) }\n"
           + "var body: some View { layout }\n"
-          + declaration(media_workspace, "    private var layout:")
+          + declaration(media_workspace, "    @ViewBuilder private var layout:")
+          + declaration(media_workspace, "    private var workspaceContent:")
+          # Exercise the menu's real native scroll host, height reporting and
+          # sizing rule together; only its controls and chrome are fixtures.
+          + "}\nstruct FloatingPanel: View {\n@ObservedObject var fixture: Fixture\n"
+          + "@ObservedObject var budget: PanelBudget\n@State private var navigableContentHeight: CGFloat = 0\n"
+          + "let navigableChromeHeight: CGFloat = 180\nlet estimatedNavigableContentHeight: CGFloat = 500\n"
+          + "var maxHeight: CGFloat { budget.height + navigableChromeHeight }\n"
+          + "var body: some View {\nOverlayScrollView(measuredHeight: $navigableContentHeight) {\n"
+          + "VStack(spacing: 8) {\nColor.clear.frame(height: 24)\n"
+          + "Workspace(fixture: fixture, onContentHeightChange: nil, scrollsContent: false)\n"
+          + "}.frame(width: 308)\n}.frame(width: 308, height: navigableScrollHeight)\n}\n"
+          + declaration(menu_panel, "    private var navigableScrollHeight:")
           + "}\nstruct Input: View {\nlet inNotch: Bool\n@State var isDropTargeted = false\n"
           + "var inputSelector: some View { Color.clear.frame(width: 300, height: 70) }\n"
           + "func acceptDrop(_ providers: [NSItemProvider]) -> Bool { false }\n"
@@ -1764,6 +1942,50 @@ def main():
           + "}\n}\n")
     switcher = "Sources/Vorssaint/UI/Switcher/SwitcherView.swift"
     switcher_service = "Sources/Vorssaint/Services/Switcher/AppSwitcher.swift"
+    # Exercise the input and close paths themselves, with only OS effects,
+    # layout and scheduling supplied by the fixture. No app windows are shown.
+    click_bodies = re.findall(
+        r"(?:onCommit|onSelect): \{\n(\s+switcher\.select\(index: (?:index|entry\.offset)\)\n"
+        r"\s+switcher\.commitSession\(\)\n)\s*\}", (ROOT / switcher).read_text())
+    click_names = ["clickCard", "clickPreview", "clickTitle", "clickAppIcon", "clickWindowIcon"]
+    if len(click_bodies) != len(click_names):
+        raise ValueError("Expected all five switcher click callbacks")
+    write("SwitcherHoverSelection.swift", "import AppKit\nimport Combine\n"
+          + "extension SwitcherHoverSelectionTests {\n"
+          + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
+          + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
+          + "final class Service: Fixture, ObservableObject {\n"
+          + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
+          + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
+                    for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
+                                   "    func select(index:", "    func hoverSelect(index:",
+                                   "    func hoverSelectEnded(", "    func hoverSelectIconRow(index:",
+                                   "    func hoverSelectIconRowEnded(", "    private var selectedItemID:",
+                                   "    private func handleShiftBackNavigation(", "    private func consumesShiftBackChordTab(",
+                                   "    private func advanceSelection(", "    private func advanceAppSelection(",
+                                   "    private func advanceWindowInSelectedApp(", "    private func moveSelection(",
+                                   "    private func moveIconRowSelection(", "    private func printableSearchText(",
+                                   "    private func sanitizedSearchInput(", "    private func appendSearchText(",
+                                   "    private func removeLastSearchCharacter(", "    private func applySearchFilter(",
+                                   "    private func pinSearch(", "    func closeWindow(",
+                                   "    private func closeSelectedWindow(", "    private func finishClosingWindow(",
+                                   "    private func applyClosedWindowRemoval(", "    private func finishTrackingClose(",
+                                   "    func commitSession(", "    private func resumePendingCommitAfterClose(",
+                                   "    private func cancelSession(", "    private func endSession(",
+                                   "    private func dismissForClickOutsidePanel(", "    private var iconRowItemCount:",
+                                   "    private func iconRowIndex(", "    private func selectionIndex(forIconRowIndex",
+                                   "    private func revealSelectedIconInVisibleRow(", "    private func beginIconRowEdgeHoverIfNeeded(",
+                                   "    private func stepIconRowFromEdgeHover(", "    private func cancelIconRowEdgeHover("])
+          + "".join("func " + name + "(index: Int) {\n"
+                    + body.replace("switcher.", "self.").replace("entry.offset", "index") + "}\n"
+                    for name, body in zip(click_names, click_bodies))
+          + "}\n"
+          + "".join("struct " + name + " {\nlet window: SwitcherItem\nvar minimalPreviews = false\nvar isHovering = false\n"
+                    + declaration(switcher, "    private var showsCloseButton:", scope=scope).replace("private ", "", 1)
+                    + "}\n" for name, scope in [
+                        ("Card", "private struct WindowCard: View {"),
+                        ("Preview", "private struct SwitcherWindowPreviewTile: View {")])
+          + "}\n")
     write("SwitcherAllWindows.swift", "import AppKit\n"
           + "extension SwitcherAllWindowsTests.Model {\n"
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
@@ -1842,7 +2064,8 @@ def main():
     write("MenuPanelSectionGates.swift", "import Foundation\n\nextension MenuPanelSectionGateContract {\n"
           + declaration("Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift", "enum PanelSectionID:")
           + "".join(declaration(menu_panel, prefix).replace("private enum", "enum", 1)
-                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:"])
+                    for prefix in ["private enum UtilityPanelItem:", "private enum ControlPanelItem:",
+                                   "private enum ControlCategory:"])
           + declaration("Sources/Vorssaint/Services/QuickTools/QuickTogglesService.swift", "enum QuickToggleAction:")
           + "}\n")
 
@@ -1938,9 +2161,25 @@ def main():
                                    "    private var spotlightDimValue:"])
           + declaration(editor_view, "    private func updateHoverCursor(").replace("private func", "func", 1)
           + "}\n}\n")
-    selection = "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift"
+    capture_service = "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift"
+    def countdown_method(path, prefix):
+        return (declaration(path, prefix)
+                .replace("UserDefaults.standard", "ScreenshotCountdownTests.defaults")
+                .replace("fromShortcut: fromShortcut)", "fromShortcut: fromShortcut, defaults: ScreenshotCountdownTests.defaults)")
+                .replace("ScreenCaptureTool.available()", "ScreenCaptureTool.available(isAvailable: { _ in true })")
+                .replace("DispatchQueue.main.asyncAfter", "Clock.main.asyncAfter"))
+
+    write("ScreenshotCountdown.swift", "import Foundation\nextension ScreenshotCountdownTests {\n"
+          + "final class ScreenCaptureService: ChooserState {\nstatic let shared = ScreenCaptureService()\n"
+          + "".join(countdown_method(capture_service, prefix) for prefix in [
+              "    func capture(initial preferred:", "    func performAfterDelay(",
+              "    private func tickCountdown(", "    func cancelCountdownIfActive()"])
+          + "}\nfinal class ScreenshotService: ScreenshotState {\nstatic let shared = ScreenshotService()\n"
+          + countdown_method(screenshot_service, "    func captureScrolling()")
+          + countdown_method(screenshot_service, "    func captureFullScreen()") + "}\n}\n")
     refresh_methods = [
         "    private func screenCaptureToolDidChange()",
+        "    private func toggleScrollingCapture()",
         "    private func adoptCapturePolicy(",
         "    private func applySource(",
         "    private func loadLiveLoupeImages()",
@@ -1957,7 +2196,9 @@ def main():
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"
           + "extension ScreenshotSelectionRefreshContract.Chooser {\n"
           + declaration(selection, "    fileprivate func setSelectionInProgress(").replace("fileprivate func", "func", 1)
+          + declaration(selection, "    private var activeMode:").replace("private var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsCaptureInput:").replace("fileprivate var", "var", 1)
+          + declaration(selection, "    fileprivate var offersScrollingCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var offersFullScreenCapture:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    fileprivate var acceptsWindowClick:").replace("fileprivate var", "var", 1)
           + declaration(selection, "    func placeFullScreenControlBelowNotch(")
@@ -2184,6 +2425,7 @@ def main():
           + "extension SoftwareDimmingRouteContract {\n"
           + "final class Row {\nvar display = Display()\nvar chosen = false\nvar compact = false\n"
           + declaration(brightness_row, "    private var offered:").replace("private var", "var", 1)
+          + declaration(brightness_row, "    private var pictureDimmingOffered:").replace("private var", "var", 1)
           + "}\n}\n")
 
     brightness = "Sources/Vorssaint/Services/Display/BrightnessService.swift"
@@ -2195,6 +2437,7 @@ def main():
           + "var lastApplied: [CGDirectDisplayID: Double] = [:]\n"
           + "var levelKnownAt: [CGDirectDisplayID: Foundation.Date] = [:]\n"
           + "var pendingLevels: [CGDirectDisplayID: Double] = [:]\n"
+          + "var ddcPendingSteps: [CGDirectDisplayID: (request: UUID, delta: Double)] = [:]\n"
           + "var softwareDims: [(id: CGDirectDisplayID, value: Double)] = []\n"
           + "struct GammaTable { var red: [CGGammaValue] = [1]; var green: [CGGammaValue] = [1]; "
           + "var blue: [CGGammaValue] = [1]; var count: UInt32 = 1; var fingerprint: String }\n"
@@ -2277,7 +2520,8 @@ def main():
           + "func startBatteryWatch() {}\nfunc stopBatteryWatch() {}\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"
           + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("
-          + "systemAllowsSleep: policy, assertions: assertions) }\n"
+          + "systemAllowsSleep: policy, externalDisplayConnected: externalDisplay, "
+          + "connectedToPower: connectedToPower, assertions: assertions) }\n"
           + "".join(declaration(keep_awake, prefix).replace("private ", "", 1) for prefix in keep_awake_methods)
           + "}\n}\n"
           + "extension KeepAwakeLidSleepContract.Sudoers {\n"
@@ -2382,11 +2626,18 @@ def main():
               "    private static func seconds(of event: CGEvent)",
               "    private func handleEdgeSnapInput(",
               "    private func applyDelayedEdgeSnapIfMoved(",
+              "    private func finishEdgeSnapRelease(",
               "    private func edgeSnapWindowFollowed(",
               "    private func beginEdgeSnapResolve(",
               "    private func resolveEdgeSnapWindow(",
               "    private func makeEdgeSnapDrag(",
               "    private func updateEdgeSnapDrag(",
+              "    private func restoreSnappedWindowIfNeeded(",
+              "    private func canRestoreSnappedWindow(",
+              "    private func edgeSnapWindowIsEligible(",
+              "    private func finishSnappedWindowRestore(",
+              "    private func isSnapped(",
+              "    private func cancelSettle(",
               "    private func edgeSnapTarget(",
               "    private var edgeSnapLayout:",
               "    private func scheduleEdgeSnapStillCheck()",
@@ -2403,6 +2654,19 @@ def main():
               "    private func arm(",
               "    private func promote("])
           + "}\n}\n")
+    write("WindowGestureTargetRuntime.swift", "import AppKit\nimport ApplicationServices\nimport CoreGraphics\nimport Foundation\n"
+          + "extension WindowGestureTargetRuntimeTests {\n"
+          + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
+                    for prefix in ["private struct WindowPointerGesture {",
+                                   "private struct PendingWindowGesture {",
+                                   "private struct WindowGestureTarget {"])
+          + "final class Host: Fixture {\n"
+          + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
+                    for prefix in ["    private func arm(", "    private func gestureTarget("])
+          + "}\n}\nextension WindowGestureTargetRuntimeTests.AXWindowResolver {\n"
+          + "".join(declaration(resolver, prefix)
+                    for prefix in ["    static func publishedElement(", "    static func prepareForRequest("])
+          + "}\n")
     write("WindowGestureApplyRuntime.swift", "import AppKit\nimport CoreGraphics\nimport Foundation\n"
           + "extension WindowGestureApplyRuntimeTests {\n"
           + declaration(window_directional, "private struct WindowPointerGesture {").replace("private ", "", 1)
@@ -2521,6 +2785,36 @@ def main():
           + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
                         "    private func syncPolling(").replace("private func", "func", 1)
           + "}\n}\n")
+
+    recorder = "Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift"
+    write("RecorderExportControls.swift", "import Foundation\nimport CoreGraphics\nimport UniformTypeIdentifiers\n"
+          + declaration(recorder, "struct RecorderEditorExportSelection")
+          + declaration(recorder, "final class RecorderClipboardPublication:")
+          + "final class RecorderExportControlsFixture {\nvar document = RecorderEditDocument()\nvar isExporting = false\nvar sourceSize = CGSize(width: 1920, height: 1080)\n"
+          + "".join(declaration(recorder, prefix) for prefix in [
+              "    var exportSize:", "    var exportCanvasSize:", "    func exportSize(for",
+              "    func setExportFormat(", "    func setGIFScalePercent(", "    func setGIFFrameRate(",
+              "    func beginClipboardPublication()", "    func completeClipboardPublication(", "    func cancelExport()"])
+          + "var clipboardPublication: RecorderClipboardPublication?\nvar exporter: RecorderExporter?\nvar shareTask: Task<Void, Never>?\n"
+          + "var request: (RecorderExporter.Output, URL)?\nvar completion: ((RecorderExporter.Failure?) -> Void)?\n"
+          + "func export(_ output: RecorderExporter.Output, to destination: URL, rememberDestination: Bool, completion: @escaping (RecorderExporter.Failure?) -> Void) { request = (output, destination); self.completion = completion }\n"
+          + "}\nfinal class RecorderExportActionFixture {\n"
+          + "let model = RecorderExportControlsFixture()\nvar exported = false\nvar confirmedClose = false\n"
+          + "final class Window { var closes = 0; func close() { closes += 1 } }\nvar window: Window? = Window()\n"
+          + "let strings = FeatureStrings.recorder(.enUS)\nvar saved: (RecorderExporter.Output, URL)? { model.request }\nvar copied: (RecorderSupport.ExportFormat, Bool)?\n"
+          + "enum NSSound { static func beep() {} }\nenum QuickToolHUD { static func show(icon: String, message: String) {} }\n"
+          + "enum ScreenRecorderService { static func saveDestination(strings: RecorderFeatureStrings, fileExtension: String) -> URL { URL(fileURLWithPath: \"/tmp/recording.\" + fileExtension) } }\n"
+          + "struct RecentCaptureService { static let shared = RecentCaptureService(); func recordRecording(at url: URL) {} }\n"
+          + "struct RecorderGIFClipboard { static var publications = 0; static func publish(fileURL: URL) -> Bool { publications += 1; return true } }\n"
+          + "final class GeneralPasteboardAccess { static let shared = GeneralPasteboardAccess(); var pending: [(work: () -> Bool, completion: (Bool) -> Void)] = []; func async(_ work: @escaping () -> Bool, then completion: @escaping (Bool) -> Void) { pending.append((work, completion)) } }\n"
+          + "func copyDestination(fileExtension: String) -> URL? { URL(fileURLWithPath: \"/tmp/copy.\" + fileExtension) }\n"
+          + declaration(recorder, "    private func copyGIFAndDelete(").replace("private func copyGIFAndDelete", "func startGIFCopy", 1)
+          + "func copyVideoAndDelete(_ deletes: Bool) { copied = (.video, deletes) }\nfunc copyGIFAndDelete(_ deletes: Bool) { copied = (.gif, deletes) }\n"
+          + "".join(declaration(recorder, prefix).replace("private var", "var", 1).replace("private func", "func", 1) for prefix in [
+              "    private var selectedExport:", "    func save()", "    func copySelected()",
+              "    private func copySelectedAndDelete(", "    func copyAndDelete()",
+              "    private func finishClipboardPublication(", "    private func run(_ output:"])
+          + "}\n")
 
     # Same-file extensions exercise private routing and AppKit content without
     # widening production interfaces or presenting an application window.

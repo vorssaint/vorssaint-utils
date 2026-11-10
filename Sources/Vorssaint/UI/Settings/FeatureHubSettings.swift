@@ -1234,9 +1234,7 @@ extension AppFeature {
         case .quitWindowProtection: return FeatureStrings.quitProtection(L10n.shared.language).description
         case .scrollInverter: return hub.descScrollInverter
         case .scrollHorizontal: return L10n.shared.s.scrollHorizontalCaption
-        case .scrollZoom:
-            let s = L10n.shared.s
-            return [s.verticalZoom, s.pinchZoom].joined(separator: ", ")
+        case .scrollZoom: return L10n.shared.s.pinchZoom
         case .focusFollowsMouse: return L10n.shared.s.focusFollowsMouseCaption
         case .smoothScroll: return hub.descSmoothScroll
         case .linearScroll: return L10n.shared.s.linearScrollCaption

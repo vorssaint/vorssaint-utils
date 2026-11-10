@@ -246,8 +246,7 @@ extension AppFeature {
         case .scrollInverter: return [DefaultsKey.scrollInverterEnabled,
                                       DefaultsKey.scrollInverterHorizontalEnabled]
         case .scrollHorizontal: return [DefaultsKey.scrollHorizontalEnabled]
-        case .scrollZoom: return [DefaultsKey.verticalZoomEnabled,
-                                  DefaultsKey.pinchZoomEnabled]
+        case .scrollZoom: return [DefaultsKey.pinchZoomEnabled]
         case .focusFollowsMouse: return [DefaultsKey.focusFollowsMouseEnabled]
         case .smoothScroll: return [DefaultsKey.smoothScrollEnabled]
         case .linearScroll: return [DefaultsKey.linearScrollEnabled]
@@ -556,6 +555,7 @@ extension AppFeature {
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
+                    || (boolFor(DefaultsKey.displayVolumeKeysEnabled) && boolFor(DefaultsKey.brightnessControlEnabled))
                     || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)

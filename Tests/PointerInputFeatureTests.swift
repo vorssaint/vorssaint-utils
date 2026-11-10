@@ -2512,6 +2512,13 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        suite.expect(SuperKeySupport.hasNativeCapsLock(in: nil)
+                && SuperKeySupport.hasNativeCapsLock(in: [])
+                && SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.rightCommand.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["unrecognized": 1]])
+                && !SuperKeySupport.hasNativeCapsLock(in: "unrecognized"),
+               "a keyboard must have a native Caps Lock before its lock is cleared during repair")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",
@@ -3891,14 +3898,6 @@ enum PointerInputFeatureTests {
         suite.expect(smoothSchedulerCode.contains("ScrollInverter.shared.consumeZoom(event, direction: direction)")
                 && smoothSchedulerCode.contains("stopGlide()"),
                "Smooth Scrolling consumes configured zoom before creating a glide")
-        suite.expect(!scrollInverterSource.contains("eventTargetUnixProcessID")
-                && scrollInverterSource.contains("zoomTargetQueue.async")
-                && scrollInverterSource.contains("WindowActivator.focusedWindowID(for:")
-                && scrollInverterSource.contains("AppSwitcher.shared.scrollNavigationActive")
-                && scrollInverterSource.contains("postToPid(targetProcessID)")
-                && scrollInverterSource.contains("GlobalShortcut.keyboardLayoutDidChange")
-                && scrollInverterSource.contains("zoomInKeyStroke"),
-               "keyboard zoom resolves hovered focus off the tap and follows the active keyboard layout")
         suite.expect(scrollInverterSource.contains("pinchZoomLock")
                 && scrollInverterSource.contains("zoomState.update(direction.zoom)"),
                "pinch zoom ends under the same lock that guards the tap callback")
