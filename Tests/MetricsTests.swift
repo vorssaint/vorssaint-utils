@@ -41,6 +41,7 @@ struct MetricsTests {
                 ScrollHorizontalModifierTests.run(suite)
                 ScrollZoomFocusTests.run(suite)
             }),
+            ("scroll-speed", { ScrollSpeedTests.run(suite) }),
             ("linear-scroll", { LinearScrollTapTests.run(suite) }),
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
@@ -163,7 +164,10 @@ struct MetricsTests {
                 BrightnessStepTests.run(suite)
                 BrightnessKeyRoutingTests.run(suite)
             }),
-            ("speaker-volume", { DisplaySpeakerVolumeTests.run(suite) }),
+            ("speaker-volume", {
+                DisplaySpeakerVolumeTests.run(suite)
+                MonitorVolumeKeySettingsTests.run(suite)
+            }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", {
                 ScreenshotSelectionRefreshContract.run(suite)

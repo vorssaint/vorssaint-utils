@@ -812,6 +812,8 @@ def main():
     write("CommandBarCopyAnswer.swift", "import Foundation\n"
           + "extension CommandBarFeatureTests.CopyAnswerHost {\n"
           + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
+                        "    static func answerEntry(")
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift",
                         "    private static func copyAnswer(").replace("private static", "static", 1)
           + "}\n")
     write("CommandBarRunScript.swift", "import Foundation\n"
@@ -986,8 +988,14 @@ def main():
                             scope="final class ScrollInverter:")
     if wheel_tap.count("AppFeature.linearScroll.isAvailable") != 1:
         raise ValueError("Expected one linear scrolling availability read in ScrollInverter.handle")
+    wheel = "Sources/Vorssaint/Services/ScrollInverter.swift"
+    wheel_lifecycle = declaration(wheel, "    func syncWithPreferences()").replace(
+        "ScrollDirectionPreferences()", "ScrollDirectionPreferences(defaults: UserDefaults.standard)")
+    for setting in ["linearScrollWanted", "scrollSpeedWanted"]:
+        wheel_lifecycle += declaration(wheel, f"    private static var {setting}:").replace(
+            ".isAvailable\n", ".isAvailable(in: UserDefaults.standard)\n")
     write("LinearScrollTap.swift", "import CoreGraphics\nimport Foundation\nextension LinearScrollTapTests.Inverter {\n"
-          + wheel_tap.replace("private func", "func", 1)
+          + wheel_lifecycle + wheel_tap.replace("private func", "func", 1)
                      .replace("AppFeature.linearScroll.isAvailable", "AppFeature.linearScroll.isAvailable(in: defaults)")
           + declaration("Sources/Vorssaint/Services/ScrollInverter.swift", "    func consumeZoom(")
           + "".join(declaration("Sources/Vorssaint/Services/ScrollInverter.swift", prefix)
@@ -1225,7 +1233,10 @@ def main():
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
     write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
-          + "extension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
+          + "extension SuperKeyTapContract.State {\n"
+          + declaration(super_key, "    var keyboardTapForRecording:")
+            .replace("CGEvent.tapIsEnabled(tap: keyboard)", "CFMachPortIsValid(keyboard)")
+          + "}\nextension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
                     for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
                                    "    private func handle(", "    private static func classify(",

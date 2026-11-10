@@ -2880,6 +2880,7 @@ enum PointerInputFeatureTests {
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
                 && MouseExceptionScope.linearScroll.feature == .linearScroll
+                && MouseExceptionScope.scrollSpeed.feature == .scrollSpeed
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
@@ -3881,6 +3882,8 @@ enum PointerInputFeatureTests {
             .dropFirst().first?.components(separatedBy: "Permissions.shared.$screenRecording").first ?? ""
         suite.expect(accessibilitySink.contains(".quitWindowProtection"),
                "granting Accessibility starts quit protection without a relaunch")
+        suite.expect(accessibilitySink.contains(".scrollSpeed"),
+               "an Accessibility change re-syncs speed when it is the only installed wheel feature")
         let smoothSchedulerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
             encoding: .utf8)) ?? ""
