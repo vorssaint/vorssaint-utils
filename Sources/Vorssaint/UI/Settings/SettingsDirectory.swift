@@ -103,6 +103,9 @@ enum SettingsDirectory {
                             }
                             return feature.hubTitle(s, hub: hub, language: language)
                         }
+                    if pageItem.page == .screenshot {
+                        rows = SettingsSidebarSupport.screenshotRows(rows, language: language)
+                    }
                     if pageItem.page == .general {
                         rows.insert(SettingsSidebarItem(
                             id: .setting(.panelConfiguration),
@@ -204,6 +207,7 @@ enum SettingsDirectory {
             title: s.menuBarSection, icon: "menubar.rectangle",
             keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle,
                        FeatureStrings.generalSettings(language).iconMissingTitle, "SF Symbols"]))
+        items.append(SettingsSearchSupport.scrollingScreenshotItem(language: language))
         let alerts = FeatureStrings.monitorAlerts(language)
         items.append(SettingsSearchItem(
             id: .setting(.monitorAlerts), destination: FeatureSettingsDestination(.monitor, sectionAnchor: .monitorAlerts),

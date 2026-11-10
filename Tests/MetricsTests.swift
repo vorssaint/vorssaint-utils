@@ -165,7 +165,10 @@ struct MetricsTests {
             }),
             ("speaker-volume", { DisplaySpeakerVolumeTests.run(suite) }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
-            ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
+            ("capture", {
+                ScreenshotSelectionRefreshContract.run(suite)
+                ScreenshotCountdownTests.run(suite)
+            }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
