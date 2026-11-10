@@ -85,8 +85,8 @@ enum NotchLevelTrackingTests {
             window.contentView = nil
             window.close()
         }
-        func settle(until ready: () -> Bool) {
-            let deadline = Date().addingTimeInterval(0.25)
+        func settle(for seconds: Double = 0.25, until ready: () -> Bool) {
+            let deadline = Date().addingTimeInterval(seconds)
             repeat {
                 host.layoutSubtreeIfNeeded()
                 RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
@@ -273,6 +273,11 @@ enum NotchLevelTrackingTests {
             slider.scrollWheel(with: SliderScrollRoutingTests.event(phase, delta: dy, sideways: dx,
                                                                      momentum: momentum, units: units, timestamp: time))
         }
+        // A level from outside waits while the bar still glides after a scroll.
+        func resetAfterScroll(disabled: Bool = false) {
+            settle(for: NotchSliderGlide.hold + 0.05) { false }
+            reset(disabled: disabled)
+        }
         reset()
         scroll(.began, dx: 5)
         scroll(.changed, dy: 6)
@@ -284,23 +289,32 @@ enum NotchLevelTrackingTests {
         suite.expect(state.value == maximum / 2 && state.values.isEmpty,
                      "\(name): a sideways swipe, its vertical tail and momentum never write the audio binding")
         scroll(nil, dy: 1, units: .line)
-        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.05,
+        // A tick is a share of the level up to its 100% mark, not of the boost.
+        suite.expectClose(abs(state.value - maximum / 2), 0.05,
                           "\(name): an independent mouse wheel tick still adjusts the volume during the lift gap")
 
-        reset()
-        scroll(.began, dy: 4)
-        scroll(.changed, dy: 16)
-        scroll(.changed, dx: 40)
-        scroll(.ended)
-        scroll(nil, dy: 8)
-        scroll(nil, dy: 20, momentum: .begin)
-        scroll(nil, momentum: .end)
-        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.1,
-                          "\(name): a vertical swipe includes its first four points and ignores sideways drift")
+        func verticalSwipe(first: Int32, drift: Int32) -> Double {
+            resetAfterScroll()
+            scroll(.began, dy: first)
+            scroll(.changed, dy: 16)
+            scroll(.changed, dx: drift)
+            scroll(.ended)
+            scroll(nil, dy: 8)
+            scroll(nil, dy: 20, momentum: .begin)
+            scroll(nil, momentum: .end)
+            return state.value - maximum / 2
+        }
+        let straight = verticalSwipe(first: 4, drift: 0)
+        let shorter = verticalSwipe(first: 0, drift: 0)
+        let drifting = verticalSwipe(first: 4, drift: 40)
+        suite.expect(drifting > shorter && shorter > 0,
+                     "\(name): a vertical swipe includes its first four points (\(drifting) against \(shorter) without them)")
+        suite.expectClose(drifting, straight,
+                          "\(name): a vertical swipe ignores sideways drift")
         suite.expect(state.values.count == 1 && !state.wroteOutsideEdit,
                      "\(name): the volume binding receives one edit and no write from the tail")
         if maximum == 1 {
-            reset(disabled: true)
+            resetAfterScroll(disabled: true)
             scroll(.began, dy: 20)
             scroll(.ended)
             scroll(nil, dy: 1, units: .line)
