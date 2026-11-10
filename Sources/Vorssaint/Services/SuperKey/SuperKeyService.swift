@@ -30,10 +30,16 @@ final class SuperKeyService: ObservableObject {
     @Published private(set) var modifiers = SuperKeySupport.defaultModifiers
     @Published private(set) var source = SuperKeySource.capsLock
 
-    /// Read by the shortcut recording tap, which sits ahead of this one while a
-    /// field is listening and would otherwise see the bare trigger key instead
-    /// of the combination it stands for. Written and read on the main thread.
+    /// Published on the main thread after the system confirms the mapping.
     private(set) static var isEngaged = false
+
+    /// The recorder sits ahead of our tap. It must handle the same F18 events
+    /// as that tap, including ones that arrive before mapping readback finishes.
+    var keyboardTapForRecording: CFMachPort? {
+        guard let keyboard = lifecycleLock.withLock({ shouldStopTapThread ? nil : tap }),
+              CGEvent.tapIsEnabled(tap: keyboard) else { return nil }
+        return keyboard
+    }
 
     /// A held gesture can follow this virtual modifier. True means the key was
     /// released; false means the hold was cancelled by teardown or recovery.

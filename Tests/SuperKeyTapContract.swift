@@ -76,6 +76,7 @@ enum SuperKeyTapContract {
         static var heldKeyCode: Int64?
         static var drainingKeyCode: Int64?
         static var superState = SuperKeySupport.State()
+        static var superKeyTap: CFMachPort?
         static var observingSession = false
         static var handler: ((Int64, GlobalShortcutModifiers, CGEventFlags) -> Void)?
         static func AXIsProcessTrusted() -> Bool { true }
@@ -139,6 +140,7 @@ enum SuperKeyTapContract {
             State.isEngaged = false
             RecordingState.handler = nil
             RecordingState.superState.reset()
+            RecordingState.superKeyTap = nil
             RecordingState.heldKeyCode = nil
             RecordingState.drainingKeyCode = nil
             RecordingState.observingSession = false
@@ -197,6 +199,12 @@ enum SuperKeyTapContract {
         // presses that would otherwise switch layouts or post Escape.
         State.shared = service
         State.isEngaged = true
+        guard let keyboardPort = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil) else {
+            suite.expect(false, "the recorder fixture can allocate a local port")
+            return
+        }
+        defer { CFMachPortInvalidate(keyboardPort) }
+        service.tap = keyboardPort
         service.eventModifiers = [.control, .option, .command]
         var captured: [(Int64, GlobalShortcutModifiers)] = []
         let capture: (Int64, GlobalShortcutModifiers, CGEventFlags) -> Void = { code, modifiers, _ in
@@ -227,6 +235,41 @@ enum SuperKeyTapContract {
                 && leaked == 0 && service.soloHolds.isEmpty && !service.state.isHeld,
                      "recording owns Super key chords and solo taps after a remapper restart, preserves ordinary shortcuts, "
                      + "and leaks no keys to a later session listener")
+
+        // The kernel can already be sending F18 while readback is pending.
+        captured = []
+        State.isEngaged = false
+        recording.send(key(trigger))
+        recording.send(key(1))
+        recording.send(key(1, down: false))
+        recording.send(key(trigger, down: false))
+        suite.expect(captured.map { $0.0 } == [1] && captured.first?.1 == service.eventModifiers,
+                     "recording a chord before mapping confirmation captures the modifiers and never F18")
+
+        recording.send(key(trigger))
+        guard let replacementPort = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil) else {
+            suite.expect(false, "the recorder fixture can replace a local port")
+            return
+        }
+        defer { CFMachPortInvalidate(replacementPort) }
+        service.tap = replacementPort
+        recording.send(key(2))
+        recording.send(key(2, down: false))
+        suite.expect(captured.last?.0 == 2 && captured.last?.1 == [],
+                     "a replacement tap cannot inherit a held trigger whose release was lost")
+        service.shouldStopTapThread = true
+        recording.send(key(trigger))
+        recording.send(key(trigger, down: false))
+        suite.expect(captured.last?.0 == trigger && captured.last?.1 == [],
+                     "F18 remains recordable once the Super Key stops")
+        service.shouldStopTapThread = false
+        CFMachPortInvalidate(replacementPort)
+        captured = []
+        recording.send(key(trigger))
+        recording.send(key(trigger, down: false))
+        suite.expect(captured.map { $0.0 } == [trigger],
+                     "a disabled tap does not reserve F18")
+        service.tap = nil
 
         // HID hardware carries mach ticks; synthetic events carry nanoseconds.
         // Both must keep the same 500 ms tap/hold boundary on Apple Silicon.
