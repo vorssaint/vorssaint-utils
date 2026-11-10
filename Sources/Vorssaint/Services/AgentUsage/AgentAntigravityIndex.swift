@@ -74,10 +74,10 @@ enum AgentAntigravityIndex {
         // SQLite hands back a connection to close even when opening fails.
         defer { sqlite3_close(db) }
         // While agy runs, its newest rows are in the write-ahead log, which a
-        // read-only connection reads beside the `-shm` file agy keeps. agy
-        // removes both when it exits, and a read-only connection cannot make
-        // them again, so the plain file, which then holds everything, is
-        // opened as immutable.
+        // read-only connection reads through the `-shm` file beside it. agy
+        // removes both when it exits and leaves the database in WAL mode,
+        // which a read-only connection does not open without its log, so the
+        // plain file, which then holds everything, is opened as immutable.
         let running = FileManager.default.fileExists(atPath: path + "-wal")
         let location = running ? path : URL(fileURLWithPath: path).absoluteString + "?immutable=1"
         let flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX | (running ? 0 : SQLITE_OPEN_URI)
@@ -85,7 +85,7 @@ enum AgentAntigravityIndex {
         sqlite3_busy_timeout(db, 2000)
         var statement: OpaquePointer?
         let query = "SELECT conversation_id, workspace_uris FROM conversation_summaries "
-            + "WHERE workspace_uris != '' LIMIT \(maximumRows)"
+            + "WHERE workspace_uris != '' ORDER BY rowid DESC LIMIT \(maximumRows)"
         guard sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK else { return nil }
         defer { sqlite3_finalize(statement) }
         var projects: [String: String] = [:]
