@@ -21,6 +21,7 @@ enum NotchAgentTests {
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
         AntigravityAgentTests.run(suite)
+        AntigravityModelSelectionTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
