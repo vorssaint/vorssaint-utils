@@ -641,24 +641,10 @@ enum BrightnessSupport {
 
     // MARK: - Volume keys
 
-    /// The volume keys arrive as the same system-defined events the brightness
-    /// keys do. A press moves a sixteenth, as the system's own volume keys do;
-    /// with Option and Shift it moves a percent, the finest step asked for in
-    /// issue #367.
-    static let volumeKeyStep = 1.0 / 16.0
-    static let fineVolumeKeyStep = 1.0 / 100.0
-
-    /// Signed change for one volume key press: `direction` is +1 for up and
-    /// -1 for down.
-    static func volumeKeyDelta(direction: Int, fine: Bool) -> Double {
-        let step = fine ? fineVolumeKeyStep : volumeKeyStep
-        return direction >= 0 ? step : -step
-    }
-
     /// Which step a volume key press asks for, from the modifiers held with
     /// it. Same rule as the notch volume gate: Command or Control, and Option
     /// without Shift, leave the press alone; Option with Shift is the fine
-    /// percent step, and anything else is the coarse sixteenth.
+    /// percent step, and anything else uses the selected step.
     static func volumeKeyFineness(option: Bool, shift: Bool, commandOrControl: Bool) -> Bool? {
         guard !commandOrControl, !option || shift else { return nil }
         return option
@@ -892,7 +878,8 @@ enum BrightnessSupport {
     /// Runs on the DDC queue. Every successful result describes a level the
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
-        _ change: SpeakerChange, hasNativeMute: Bool, restore: inout SpeakerLevel?,
+        _ change: SpeakerChange, hasNativeMute: Bool, keySettings: MonitorVolumeKeySettings,
+        restore: inout SpeakerLevel?,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
         guard let initial = SpeakerLevel(read(audioVolumeCode)) else { return nil }
@@ -921,15 +908,17 @@ enum BrightnessSupport {
         case let .step(levels, raises):
             requestsLevel = true
             if muted == true && raises { target = 0 }
+            let start = target
             for step in levels {
                 let current = Double(target) / Double(initial.maximum)
                 let next = step(current)
                 guard next.isFinite else { return nil }
-                let rounded = deviceValue(for: next, maximum: initial.maximum)
-                if rounded != target { target = rounded }
-                else if next > current && target < initial.maximum { target += 1 }
-                else if next < current && target > 0 { target -= 1 }
+                if let bounded = keySettings.boundedStep(from: target, maximum: initial.maximum, to: next) {
+                    target = bounded
+                }
             }
+            let mutesAtZero = !raises && initial.raw == 0 && keySettings.minimumPercent == 0 && muted == false
+            guard target != start || mutesAtZero else { return (initial, muted) }
             desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
                                             to: Double(target) / Double(initial.maximum), raises: raises)
         case .toggleMute:
@@ -950,6 +939,13 @@ enum BrightnessSupport {
             target = restore.raw
         }
 
+        if case .toggleMute = change, desiredMute == false, target > 0 {
+            // The ceiling may have been lowered while muted. Confirm a quiet level
+            // before releasing native mute or restoring a volume-only monitor.
+            target = min(target, keySettings.ceiling(for: initial.maximum))
+            guard target > 0 else { return (initial, muted) }
+        }
+
         var confirmed = initial
         if target != initial.raw {
             guard write(audioVolumeCode, target),
@@ -967,7 +963,8 @@ enum BrightnessSupport {
             // Some firmware restores its own stored level on unmute. A level
             // change must still be present after that last command.
             let final = SpeakerLevel(read(audioVolumeCode))
-            guard let final, !requestsLevel || final == confirmed else {
+            guard let final, !requestsLevel || final == confirmed,
+                  final.raw <= keySettings.ceiling(for: final.maximum) else {
                 if muted == true { _ = setNativeMute(true) }
                 return nil
             }
