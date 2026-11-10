@@ -31,7 +31,7 @@ extension FeatureStrings {
             clearAll: "Clear All",
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
-            hideSystemBannerHint: "Hide the original while the Dynamic Island shows it.")
+            hideSystemBannerHint: "Hide the original while the Dynamic Island shows it. To mirror an app’s notifications, keep its desktop alerts on in macOS.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",
@@ -43,7 +43,7 @@ extension FeatureStrings {
             clearAll: "Limpar tudo",
             unavailable: "Esta notificação não aceita mais esta ação.",
             hideSystemBanner: "Esconder aviso do sistema",
-            hideSystemBannerHint: "Esconde o aviso original enquanto o Dynamic Island o mostra.")
+            hideSystemBannerHint: "Esconde o aviso original enquanto o Dynamic Island o mostra. Para ver os avisos de um app na ilha, mantenha os alertas desse app ativados na mesa do macOS.")
         case .es: return NotchNotificationStrings(
             title: "Notificaciones",
             description: "Nuevas notificaciones del sistema en el Dynamic Island.",
@@ -55,7 +55,7 @@ extension FeatureStrings {
             clearAll: "Borrar todo",
             unavailable: "Esta notificación ya no admite esta acción.",
             hideSystemBanner: "Ocultar el aviso del sistema",
-            hideSystemBannerHint: "Oculta el aviso original mientras el Dynamic Island lo muestra.")
+            hideSystemBannerHint: "Oculta el aviso original mientras el Dynamic Island lo muestra. Para ver las notificaciones de una app en la isla, mantén activados sus avisos en el escritorio de macOS.")
         case .sk: return NotchNotificationStrings(
             title: "Hlásenia",
             description: "Nové systémové hlásenia v Dynamic Island.",
@@ -67,7 +67,7 @@ extension FeatureStrings {
             clearAll: "Vymazať všetko",
             unavailable: "Toto hlásenie už túto akciu neumožňuje.",
             hideSystemBanner: "Skryť systémové hlásenie",
-            hideSystemBannerHint: "Skryje pôvodné hlásenie, kým ho zobrazuje Dynamic Island.")
+            hideSystemBannerHint: "Skryje pôvodné hlásenie, kým ho zobrazuje Dynamic Island. Pre apky, ktorých hlásenia chcete zrkadliť, nechajte v macOS zapnuté hlásenia na ploche.")
         case .de: return NotchNotificationStrings(
             title: "Mitteilungen",
             description: "Neue Systemmitteilungen im Dynamic Island.",
@@ -79,7 +79,7 @@ extension FeatureStrings {
             clearAll: "Alle löschen",
             unavailable: "Diese Mitteilung unterstützt diese Aktion nicht mehr.",
             hideSystemBanner: "Systemhinweis ausblenden",
-            hideSystemBannerHint: "Blendet den ursprünglichen Hinweis aus, solange die Dynamic Island ihn zeigt.")
+            hideSystemBannerHint: "Blendet den ursprünglichen Hinweis aus, solange die Dynamic Island ihn zeigt. Lass in macOS die Hinweise auf dem Schreibtisch für Apps aktiviert, deren Mitteilungen du hier sehen möchtest.")
         case .fr: return NotchNotificationStrings(
             title: "Notifications",
             description: "Les nouvelles notifications système dans le Dynamic Island.",
@@ -91,7 +91,7 @@ extension FeatureStrings {
             clearAll: "Tout effacer",
             unavailable: "Cette notification ne permet plus cette action.",
             hideSystemBanner: "Masquer la bannière système",
-            hideSystemBannerHint: "Masque la bannière d’origine pendant que la Dynamic Island l’affiche.")
+            hideSystemBannerHint: "Masque la bannière d’origine pendant que la Dynamic Island l’affiche. Pour y voir les notifications d’une app, laissez ses alertes sur le bureau activées dans macOS.")
         case .it: return NotchNotificationStrings(
             title: "Notifiche",
             description: "Nuove notifiche di sistema nel Dynamic Island.",
@@ -103,7 +103,7 @@ extension FeatureStrings {
             clearAll: "Cancella tutto",
             unavailable: "Questa notifica non consente più questa azione.",
             hideSystemBanner: "Nascondi l’avviso di sistema",
-            hideSystemBannerHint: "Nasconde l’avviso originale mentre il Dynamic Island lo mostra.")
+            hideSystemBannerHint: "Nasconde l’avviso originale mentre il Dynamic Island lo mostra. Per vedere le notifiche di un’app nell’isola, lascia attivi i suoi avvisi sulla scrivania di macOS.")
         case .ru: return NotchNotificationStrings(
             title: "Уведомления",
             description: "Новые системные уведомления в вырезе экрана.",
@@ -115,7 +115,7 @@ extension FeatureStrings {
             clearAll: "Очистить все",
             unavailable: "Это уведомление больше не поддерживает данное действие.",
             hideSystemBanner: "Скрывать системное уведомление",
-            hideSystemBannerHint: "Скрывает исходное уведомление, пока его показывает Dynamic Island.")
+            hideSystemBannerHint: "Скрывает исходное уведомление, пока его показывает Dynamic Island. Чтобы видеть здесь уведомления приложения, оставьте включённым их показ на рабочем столе macOS.")
         case .tr: return NotchNotificationStrings(
             title: "Bildirimler",
             description: "Yeni sistem bildirimleri çentikte.",
@@ -127,7 +127,7 @@ extension FeatureStrings {
             clearAll: "Tümünü temizle",
             unavailable: "Bu bildirim artık bu işlemi desteklemiyor.",
             hideSystemBanner: "Sistem bildirimini gizle",
-            hideSystemBannerHint: "Dynamic Island gösterirken asıl bildirimi gizler.")
+            hideSystemBannerHint: "Dynamic Island gösterirken asıl bildirimi gizler. Bir uygulamanın bildirimlerini adada görmek için macOS’te o uygulamanın masaüstü uyarılarını açık bırakın.")
         case .ja: return NotchNotificationStrings(
             title: "通知",
             description: "新しいシステム通知をDynamic Islandに表示します。",
@@ -139,7 +139,7 @@ extension FeatureStrings {
             clearAll: "すべて消去",
             unavailable: "この通知では、この操作を実行できなくなりました。",
             hideSystemBanner: "システムの通知を隠す",
-            hideSystemBannerHint: "Dynamic Islandに表示している間、元の通知を隠します。")
+            hideSystemBannerHint: "Dynamic Islandに表示している間、元の通知を隠します。通知を表示したいアプリは、macOSの通知設定でデスクトップへの通知をオンにしてください。")
         case .ko: return NotchNotificationStrings(
             title: "알림",
             description: "새 시스템 알림을 Dynamic Island에서 확인하세요.",
@@ -151,7 +151,7 @@ extension FeatureStrings {
             clearAll: "모두 지우기",
             unavailable: "이 알림에서는 더 이상 이 동작을 사용할 수 없습니다.",
             hideSystemBanner: "시스템 알림 숨기기",
-            hideSystemBannerHint: "Dynamic Island에 표시되는 동안 원래 알림을 숨깁니다.")
+            hideSystemBannerHint: "Dynamic Island에 표시되는 동안 원래 알림을 숨깁니다. 앱 알림을 Dynamic Island에서 보려면 macOS 알림 설정에서 해당 앱의 데스크탑 알림을 켜 두세요.")
         case .zhHans: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系统通知。",
@@ -163,7 +163,7 @@ extension FeatureStrings {
             clearAll: "全部清除",
             unavailable: "此通知已无法执行此操作。",
             hideSystemBanner: "隐藏系统通知",
-            hideSystemBannerHint: "在Dynamic Island中显示时隐藏原通知。")
+            hideSystemBannerHint: "在Dynamic Island中显示时隐藏原通知。要在岛上查看某个应用的通知，请在 macOS 的通知设置中为该应用开启桌面提醒。")
         case .zhTW: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系統通知。",
@@ -175,7 +175,7 @@ extension FeatureStrings {
             clearAll: "全部清除",
             unavailable: "此通知已無法執行此操作。",
             hideSystemBanner: "隱藏系統通知",
-            hideSystemBannerHint: "在Dynamic Island中顯示時隱藏原通知。")
+            hideSystemBannerHint: "在Dynamic Island中顯示時隱藏原通知。若要在島上查看某個 App 的通知，請在 macOS 的通知設定中為該 App 開啟桌面提示。")
         case .zhHK: return NotchNotificationStrings(
             title: "通知",
             description: "在Dynamic Island中查看新的系統通知。",
@@ -187,7 +187,7 @@ extension FeatureStrings {
             clearAll: "全部清除",
             unavailable: "此通知已無法執行此操作。",
             hideSystemBanner: "隱藏系統通知",
-            hideSystemBannerHint: "在Dynamic Island顯示時隱藏原通知。")
+            hideSystemBannerHint: "在Dynamic Island顯示時隱藏原通知。如要在島上查看某個 App 的通知，請在 macOS 的通知設定中為該 App 開啟桌面提示。")
         case .uk: return NotchNotificationStrings(
             title: "Сповіщення",
             description: "Нові системні сповіщення у Dynamic Island.",
@@ -199,7 +199,7 @@ extension FeatureStrings {
             clearAll: "Очистити все",
             unavailable: "Це сповіщення більше не підтримує цю дію.",
             hideSystemBanner: "Приховувати системний банер",
-            hideSystemBannerHint: "Приховує оригінальний банер, поки його показує Dynamic Island.")
+            hideSystemBannerHint: "Приховує оригінальний банер, поки його показує Dynamic Island. Щоб бачити тут сповіщення програми, залиште для неї ввімкненими сповіщення на робочому столі macOS.")
         }
     }
 }
