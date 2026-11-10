@@ -602,6 +602,10 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.linearScrollLines)
                 && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
                "linear scrolling preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.scrollSpeedEnabled)
+                && backupKeys.contains(DefaultsKey.scrollSpeedModifier)
+                && backupKeys.contains(DefaultsKey.scrollSpeedMultiplier),
+               "modifier-held scroll speed preferences travel with the settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelControlSmoothScroll] as? Bool == true
                 && backupKeys.contains(DefaultsKey.smoothScrollEnabled)
                 && backupKeys.contains(DefaultsKey.panelControlSmoothScroll),
