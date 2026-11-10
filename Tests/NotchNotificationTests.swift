@@ -161,6 +161,9 @@ enum NotchNotificationTests {
         defaults.set(true, forKey: DefaultsKey.notchNotificationsEnabled)
         suite.expect(NotchSupport.routes(.systemNotification, in: defaults), "turning message mirroring back on enables new banners")
         suite.expect(!NotchNotificationSupport.dismissesNative(in: defaults), "native banners remain intact by default")
+        let hintWords = FeatureStrings.notchNotifications(.enUS).hideSystemBannerHint.lowercased().split { !$0.isLetter }
+        expect(hintWords.contains("desktop") && (hintWords.contains("app") || hintWords.contains("apps")),
+               "the banner setting names the per-app desktop alerts needed for mirroring")
         defaults.set(true, forKey: DefaultsKey.notchDismissNativeNotifications)
         suite.expect(NotchNotificationSupport.dismissesNative(in: defaults), "native closing requires both notification opt-ins")
         defaults.set(false, forKey: AppFeature.notchNotifications.availabilityKey)

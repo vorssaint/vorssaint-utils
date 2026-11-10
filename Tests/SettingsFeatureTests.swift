@@ -22,25 +22,271 @@ enum SettingsFeatureTests {
         }
     }
 
-    static func run(_ suite: TestSuite) {
+    /// Boundaries of the production command closures and the island view.
+    enum SearchCommands {
+        static let router = SettingsRouter()
+
+        static func openSettings(at destination: FeatureSettingsDestination, targetFeature: AppFeature?,
+                                 sidebarFeature: AppFeature?) {
+            router.request(destination, targetFeature: targetFeature, sidebarFeature: sidebarFeature)
+        }
+    }
+
+    final class IslandSettings {
+        let router: SettingsRouter
+        var tab = NotchSettingsTab.layout
+        var selectedModule = NotchModule.controls
+
+        init(router: SettingsRouter) { self.router = router }
+    }
+
+    private static func search(_ suite: TestSuite) {
+        let domain = "vorss.tests.settings-search." + UUID().uuidString
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.setPersistentDomain([
+            DefaultsKey.notchIdleContent: NotchIdleContent.battery.rawValue,
+            DefaultsKey.notchLowBatteryTint: true, DefaultsKey.notchLowBatteryEarly: true,
+            DefaultsKey.notchLyricsEnabled: true, DefaultsKey.notchShelf: true,
+            DefaultsKey.notchClipboardWindow: true, DefaultsKey.monitorAlertDisk: true,
+            DefaultsKey.monitorAlertBattery: true, DefaultsKey.monitorAlertBatteryTemperature: true,
+        ], forName: domain)
+
+        func state(battery: Bool = true) -> SettingsSearchState {
+            SettingsSearchState(defaults: defaults, hardware: .init(
+                battery: battery, notchedDisplay: true, plainDisplay: false,
+                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true))
+        }
         for (language, strings) in LocalizationTests.languages {
-            let mouse = SettingsDirectory.sections(strings, language: language)
+            let mouse = SettingsDirectory.sections(strings, language: language, state: state())
                 .flatMap(\.items).first { $0.page == .mouse }!
-            let zoomKeywords = zip(mouse.keywords, mouse.keywordFeatures)
-                .filter { $0.1 == .scrollZoom }.map(\.0)
+            let zoomKeywords = mouse.terms.filter { $0.feature == .scrollZoom }.flatMap(\.titles)
             suite.expect(zoomKeywords == [strings.zoomSection,
                                            strings.pinchZoom],
                          "settings discovery includes every Zoom row in \(language.rawValue)")
             for query in [strings.zoomSection, strings.pinchZoom] {
-                suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: mouse.keywords),
+                suite.expect(SettingsSearchSupport.matches(query: query, title: mouse.title, keywords: zoomKeywords),
                              "search finds a localized Zoom option on the Mouse page")
             }
             let sidebar = SettingsSidebarSupport.items(page: .mouse, title: mouse.title, icon: mouse.icon,
-                preferredFeatures: mouse.keywordFeatures.compactMap { $0 }, includePage: false,
+                preferredFeatures: mouse.terms.compactMap(\.feature), includePage: false,
                 isAvailable: { _ in true }, featureTitle: { $0.rawValue })
             suite.expect(sidebar.prefix(3).map(\.id) == [.feature(.scrollInverter), .feature(.scrollHorizontal), .feature(.scrollZoom)],
                          "the sidebar places Zoom beside scrolling in \(language.rawValue)")
         }
+        for (language, strings) in LocalizationTests.languages {
+            let captureRows = SettingsSidebarSupport.items(
+                page: .screenshot, title: "Screen capture", icon: "camera.viewfinder",
+                preferredFeatures: [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+                includePage: false, isAvailable: { _ in true }, featureTitle: { $0.rawValue })
+            let rows = SettingsSidebarSupport.screenshotRows(captureRows, language: language)
+            let destination = ScreenCaptureTool.scrolling.settingsDestination
+            suite.expect(rows.prefix(3).map(\.id)
+                    == [.feature(.screenshot), .setting(.screenshotScrolling), .feature(.screenRecorder)]
+                    && rows[1].title == FeatureStrings.screenshot(language).scrollingCaptureTitle
+                    && SettingsSidebarSupport.selection(for: destination, in: rows)
+                        == .setting(.screenshotScrolling),
+                         "scrolling screenshot has a localized sidebar row beside Screenshot")
+            let hiddenRows = SettingsSidebarSupport.items(
+                page: .screenshot, title: "Screen capture", icon: "camera.viewfinder",
+                preferredFeatures: [.screenRecorder], includePage: false,
+                isAvailable: { $0 == .screenRecorder }, featureTitle: { $0.rawValue })
+            suite.expect(!SettingsSidebarSupport.screenshotRows(hiddenRows, language: language)
+                .contains { $0.id == .setting(.screenshotScrolling) },
+                         "removing Screenshot also hides its scrolling sidebar row")
+            let search = SettingsSearchSupport.scrollingScreenshotItem(language: language)
+            suite.expect(search.destination == destination && search.destination.hasValidSectionAnchor
+                    && SettingsSearchSupport.matches(query: search.title, title: search.title)
+                    && SettingsSearchSupport.route(for: search, isAvailable: { _ in false })
+                        .targetFeature == .screenshot,
+                         "scrolling screenshot search opens its own tool or its installation page")
+            suite.expect(GlobalShortcutRole.captureRoles(in:
+                GlobalShortcutRole.availableRoles(isAvailable: { $0 == .screenshot }))
+                    .contains(.screenshotScrolling)
+                    && ScreenCaptureTool.scrolling.settingsTitle(strings, language: language) == search.title,
+                         "Keyboard shortcuts includes scrolling screenshot among installed capture tools")
+        }
+        let captureRouter = SettingsRouter()
+        captureRouter.request(ScreenCaptureTool.screenshot.settingsDestination)
+        captureRouter.request(ScreenCaptureTool.scrolling.settingsDestination)
+        captureRouter.goBack()
+        suite.expect(captureRouter.destination == ScreenCaptureTool.screenshot.settingsDestination,
+                     "Back returns from scrolling screenshot to Screenshot")
+        captureRouter.goForward()
+        suite.expect(captureRouter.destination == ScreenCaptureTool.scrolling.settingsDestination,
+                     "Forward restores scrolling screenshot and its sidebar selection")
+        func directory(battery: Bool) -> [SettingsSearchItem] {
+            SettingsDirectory.searchItems(.enUS, language: .enUS, state: state(battery: battery))
+        }
+        let alerts = FeatureStrings.monitorAlerts(.enUS)
+        for query in ["storage", "low storage", "free space", "warn"] {
+            let groups = SettingsSearchSupport.groupedMatchingItems(
+                query: query, items: directory(battery: true), isAvailable: { _ in true })
+            let monitor = groups.first { $0.id == .monitor }
+            suite.expect(monitor?.suggestions.contains {
+                [alerts.disk, alerts.diskThreshold, alerts.section].contains($0.title)
+            } == true, "searching \"\(query)\" offers the Monitor disk space alert")
+        }
+        suite.expect(SettingsSearchSupport.groupedMatchingItems(
+            query: "storage", items: directory(battery: true), isAvailable: { $0 != .monitorDisk })
+            .first { $0.id == .monitor }?.suggestions.contains { $0.title == alerts.disk } != true,
+                     "the disk alert is not offered while disk monitoring is off")
+        // The pages a search opens when it offers `label`. Another page can
+        // show a row of the same name, such as the island's own shortcut.
+        func pages(of label: String, query: String? = nil, battery: Bool = true,
+                   without missing: Set<AppFeature> = []) -> Set<SettingsPage> {
+            let isAvailable = { (feature: AppFeature) in !missing.contains(feature) }
+            return Set(SettingsSearchSupport.groupedMatchingItems(
+                query: query ?? label, items: directory(battery: battery), isAvailable: isAvailable)
+                .flatMap(\.suggestions).filter { $0.title == label }
+                .map { SettingsSearchSupport.route(for: $0, isAvailable: isAvailable).destination.page })
+        }
+        let music = FeatureStrings.notchMusicExtras(.enUS)
+        let notch = FeatureStrings.notch(.enUS)
+        let lowBattery = NotchLowBatteryStrings.localized(.enUS)
+        let captureTools: Set<AppFeature> = [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        // Each label is offered on its page with the `shownWithout` features
+        // off, and hidden once `hiddenWithout` goes too or the Mac has no battery.
+        let visibility: [(label: String, page: SettingsPage, shownWithout: Set<AppFeature>,
+                          hiddenWithout: Set<AppFeature>?, needsBattery: Bool)] = [
+            (music.enableLyrics, .notch, [.notchLyrics], nil, false),
+            (music.enableQueue, .notch, [.notchQueue], nil, false),
+            (music.online, .notch, [], [.notchLyrics], false),
+            (FeatureStrings.notchClipboardSize(.enUS).entrySize, .notch, [], [.clipboardHistory], false),
+            (notch.clipboardActivity, .notch, [], [.clipboardHistory], false),
+            (notch.dragReveal, .notch, [], [.shelf], false),
+            (FeatureStrings.notchCalendar(.enUS).weekNumbers, .notch, [], [.notchCalendar], false),
+            (FeatureStrings.notchActivities(.enUS).hideTimerCountdown, .notch, [], [.notchTimer], false),
+            (notch.captureActivity, .notch, captureTools.subtracting([.colorPicker]), captureTools, false),
+            (lowBattery.title, .notch, [], [.monitorPower], true),
+            (lowBattery.early, .notch, [], [.monitorPower], true),
+            (lowBattery.menuBar, .notch, [], [.monitorPower], true),
+            (Strings.enUS.globalHotkeySection, .general, [], [.keepAwake], false),
+            (Strings.enUS.batteryDisableBelow, .energy, [], [.keepAwake], true),
+            (alerts.battery, .monitor, [], [.monitorPower], true),
+            (alerts.batteryThreshold, .monitor, [], [.monitorPower], true),
+            (alerts.batteryTemperature, .monitor, [], [.monitorPower], true),
+            // The CPU alert shares this name.
+            (alerts.batteryTemperatureThreshold, .monitor, [.monitorCPU], [.monitorPower], true),
+        ]
+        for row in visibility {
+            suite.expect(pages(of: row.label, without: row.shownWithout).contains(row.page),
+                         "search offers \"\(row.label)\" on \(row.page) while Settings shows it")
+            if let hidden = row.hiddenWithout {
+                suite.expect(!pages(of: row.label, without: row.shownWithout.union(hidden)).contains(row.page),
+                             "search hides \"\(row.label)\" on \(row.page) without \(hidden.map(\.rawValue).sorted())")
+            }
+            if row.needsBattery {
+                suite.expect(!pages(of: row.label, battery: false, without: row.shownWithout).contains(row.page),
+                             "search hides \"\(row.label)\" on \(row.page) on a Mac without a battery")
+            }
+        }
+        suite.expect(pages(of: Strings.enUS.keepAwakeMouseJiggle, query: "jiggle").contains(.energy),
+                     "searching \"jiggle\" offers the Keep Awake pointer movement")
+        suite.expect(pages(of: Strings.enUS.monitorIntervalLabel, query: "interval").contains(.monitor),
+                     "searching \"interval\" offers the Monitor update interval")
+        func verify(_ label: String, query: String? = nil, opens destination: FeatureSettingsDestination,
+                    commandID: String, shown: Bool = true, without missing: Set<AppFeature> = [],
+                    language: AppLanguage = .enUS) {
+            let strings = Strings.localized(language)
+            let items = SettingsDirectory.searchItems(strings, language: language, state: state())
+            let available = { (feature: AppFeature) in !missing.contains(feature) }
+            let query = query ?? label
+            let suggestions = SettingsSearchSupport.groupedMatchingItems(query: query, items: items, isAvailable: available)
+                .flatMap(\.suggestions).filter { $0.title == label }
+            let routes = suggestions.map { SettingsSearchSupport.route(for: $0, isAvailable: available).destination }
+            suite.expect(routes.contains(destination) == shown, "Settings visibility and route for \(query) (shown: \(shown))")
+
+            var actions = [CommandBarEntry(id: "action.openSettings", title: "Open Settings",
+                                           subtitle: "", icon: .symbol("gearshape"), run: { _ in
+                SearchCommands.router.request(FeatureSettingsDestination(.general))
+            })]
+            let entries = SearchCommands.settingsEntries(items, language: language, settingsTitle: strings.settingsTitle,
+                                                        actions: &actions, isAvailable: available) + actions
+            suite.expect(Set(entries.map(\.id)).count == entries.count, "each settings command has one stable id")
+            let command = entries.first {
+                $0.id == commandID && CommandBarSearch.matches(title: $0.title, keywords: $0.keywords, query: query)
+            }
+            suite.expect((command != nil) == shown, "command bar visibility for \(query) (shown: \(shown))")
+            if shown, let command {
+                SearchCommands.router.request(FeatureSettingsDestination(.about))
+                command.run(nil)
+                suite.expect(SearchCommands.router.destination == destination, "running \(command.id) opens \(destination)")
+                if let location = destination.notchLocation {
+                    let island = IslandSettings(router: SearchCommands.router)
+                    island.revealDestination()
+                    suite.expect(island.tab == location.tab, "the island reveals the requested tab")
+                    if case .module(let module) = location {
+                        suite.expect(island.selectedModule == module, "the island reveals \(module) inside Content")
+                    }
+                }
+            }
+        }
+
+        let monitor = FeatureSettingsDestination(.monitor)
+        let displays = FeatureStrings.brightness(.enUS)
+        for (enabled, speakers) in [(false, true), (true, false), (true, true)] {
+            defaults.set(enabled, forKey: DefaultsKey.brightnessControlEnabled)
+            defaults.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            verify(displays.volumeToggle, opens: AppFeature.brightness.settingsDestination,
+                   commandID: "settings.feature.brightness", shown: enabled)
+            verify(displays.volumeKeysToggle, opens: AppFeature.brightness.settingsDestination,
+                   commandID: "settings.feature.brightness", shown: enabled && speakers)
+        }
+        let colors = FeatureStrings.menuBarAppearance(.enUS)
+        for bars in [false, true, false] {
+            defaults.set(bars ? "bars" : "values", forKey: DefaultsKey.menuBarMetricAppearance)
+            verify(colors.normalColor, opens: monitor, commandID: "settings.monitor", shown: bars)
+            verify(Strings.enUS.monitorCombineTemperatures, opens: monitor, commandID: "settings.monitor", shown: !bars)
+        }
+
+        let monitorAlerts = FeatureSettingsDestination(.monitor, sectionAnchor: .monitorAlerts)
+        let alertID = "settings.setting.monitorAlerts"
+        verify(alerts.disk, query: "ssd", opens: monitorAlerts, commandID: alertID)
+        verify(alerts.disk, query: "ssd", opens: monitorAlerts, commandID: alertID, shown: false, without: [.monitorDisk])
+        verify(alerts.diskThreshold, opens: monitorAlerts, commandID: alertID)
+        defaults.set(false, forKey: DefaultsKey.monitorAlertDisk)
+        verify(alerts.diskThreshold, opens: monitorAlerts, commandID: alertID, shown: false)
+        verify(alerts.disk, opens: monitorAlerts, commandID: alertID)
+
+        let musicDestination = FeatureSettingsDestination(notch: .module(.music))
+        verify(music.online, opens: musicDestination, commandID: "settings.feature.notchLyrics")
+        defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
+        verify(music.online, opens: musicDestination, commandID: "settings.feature.notchLyrics", shown: false)
+        verify(music.enableLyrics, opens: musicDestination, commandID: "settings.notch.content.music", without: [.notchLyrics])
+        for language in [AppLanguage.ptBR, .enUS] {
+            let lead = FeatureStrings.notchCalendar(language).countdownLead
+            let destination = FeatureSettingsDestination(notch: .module(.calendar))
+            verify(lead, opens: destination, commandID: "settings.feature.notchCalendar", language: language)
+            verify(lead, opens: destination, commandID: "settings.feature.notchCalendar", shown: false,
+                   without: [.notchCalendar], language: language)
+        }
+        verify(Strings.enUS.hotkeyToggle, opens: FeatureSettingsDestination(.general), commandID: "action.openSettings")
+        verify(Strings.enUS.hotkeyToggle, opens: FeatureSettingsDestination(.general), commandID: "action.openSettings",
+               shown: false, without: [.keepAwake])
+        suite.expect(pages(of: Strings.enUS.hotkeyToggle) == [.general],
+                     "the Keep Awake switch in General does not lead to Shortcuts")
+        let speakers = FeatureStrings.brightness(.enUS)
+        defaults.set(true, forKey: DefaultsKey.brightnessControlEnabled)
+        defaults.set(true, forKey: DefaultsKey.displayVolumeEnabled)
+        for enabled in [false, true, false] {
+            defaults.set(enabled, forKey: DefaultsKey.displayVolumeKeysEnabled)
+            for label in [speakers.speakersStep, speakers.speakersMinimum, speakers.speakersMaximum] {
+                suite.expect(pages(of: label).contains(.energy) == enabled,
+                             "speaker key settings are searchable while the controls are visible")
+            }
+        }
+        let keys = FeatureStrings.brightness(.enUS).keyboardBrightnessShortcuts
+        let keyDestination = FeatureSettingsDestination(.shortcuts, sectionAnchor: .keyboardBrightnessShortcuts)
+        verify(keys, opens: keyDestination, commandID: "settings.setting.keyboardBrightnessShortcuts")
+        verify(keys, opens: keyDestination, commandID: "settings.setting.keyboardBrightnessShortcuts",
+               shown: false, without: [.brightness])
+        suite.expect(pages(of: keys, without: [.brightness]).isEmpty,
+                     "a missing utility has a Features row but its shortcut control has none")
+    }
+
+    static func run(_ suite: TestSuite) {
+        search(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
         }
@@ -262,6 +508,9 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
                "window layout choices travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.screenshotScrollingAutoScroll)
+                && Defaults.registeredDefaults[DefaultsKey.screenshotScrollingAutoScroll] as? Bool == false,
+               "automatic scrolling is optional and travels with the screenshot settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
                 && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)
@@ -353,6 +602,14 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.linearScrollLines)
                 && backupKeys.contains(DefaultsKey.panelControlLinearScroll),
                "linear scrolling preferences travel with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.scrollSpeedEnabled)
+                && backupKeys.contains(DefaultsKey.scrollSpeedModifier)
+                && backupKeys.contains(DefaultsKey.scrollSpeedMultiplier),
+               "modifier-held scroll speed preferences travel with the settings backup")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelControlSmoothScroll] as? Bool == true
+                && backupKeys.contains(DefaultsKey.smoothScrollEnabled)
+                && backupKeys.contains(DefaultsKey.panelControlSmoothScroll),
+               "smooth scrolling is visible when installed and its panel visibility travels with settings backups")
         suite.expect(MouseExceptionScope.allCases.allSatisfy { backupKeys.contains($0.defaultsKey) },
                "the apps each mouse feature leaves alone travel with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryIgnoredApps),
@@ -441,6 +698,7 @@ enum SettingsFeatureTests {
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
+                && !backupKeys.contains(DefaultsKey.keepAwakeSessionEnd)
                 && !backupKeys.contains(DefaultsKey.micMuteActive)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedVolumes)
                 && !backupKeys.contains(DefaultsKey.micMuteSavedChannelVolumes)
@@ -712,12 +970,14 @@ enum SettingsFeatureTests {
                "a file without the version envelope is rejected")
         let tampered: [String: Any] = [
             SettingsBackupSupport.formatVersionKey: 1,
-            SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true] as [String: Any],
+            SettingsBackupSupport.settingsKey: ["evilKey": "x", DefaultsKey.autoQuitEnabled: true,
+                                                DefaultsKey.keepAwakeSessionEnd: ["end": 0.0, "minutes": 0]] as [String: Any],
         ]
         let filteredImport = SettingsBackupSupport.sanitizedSettings(from: tampered)
         suite.expect(filteredImport?["evilKey"] == nil
+                && filteredImport?[DefaultsKey.keepAwakeSessionEnd] == nil
                 && filteredImport?[DefaultsKey.autoQuitEnabled] as? Bool == true,
-               "unknown keys are dropped on import")
+               "unknown keys and live Keep Awake sessions are dropped on import")
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: [
             SettingsBackupSupport.formatVersionKey: 99,
             SettingsBackupSupport.settingsKey: [String: Any](),
@@ -737,6 +997,43 @@ enum SettingsFeatureTests {
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: stringVersionBackup)?[DefaultsKey.smoothScrollStep] as? Int == 60,
                "a backup with a string-encoded format version restores correctly")
 
+        // MARK: Settings file (issue #497)
+        SettingsFileTests.run(suite)
+        let configHome = URL(fileURLWithPath: "/Users/someone", isDirectory: true)
+        let configPath: ([String: String], Bool) -> String = {
+            SettingsBackupSupport.configFileURL(environment: $0, home: configHome, isDeveloperBuild: $1).path
+        }
+        suite.expect(configPath([:], false) == "/Users/someone/.config/vorssaint/settings.plist",
+               "without XDG_CONFIG_HOME the settings file lives in ~/.config")
+        suite.expect(configPath(["XDG_CONFIG_HOME": "/Users/someone/dotfiles"], false)
+                == "/Users/someone/dotfiles/vorssaint/settings.plist",
+               "an absolute XDG_CONFIG_HOME holds the settings file")
+        suite.expect(configPath(["XDG_CONFIG_HOME": ""], false) == configPath([:], false)
+                && configPath(["XDG_CONFIG_HOME": "dotfiles"], false) == configPath([:], false),
+               "an empty or relative XDG_CONFIG_HOME is ignored, as the XDG spec asks")
+        suite.expect(configPath([:], true) == "/Users/someone/.config/vorssaint-dev/settings.plist",
+               "the Developer build never reads the official app's settings file")
+        let binary = "/Applications/Vorssaint.app/Contents/MacOS/Vorssaint"
+        suite.expect(SettingsBackupSupport.appliesConfigFile(arguments: [binary])
+                && SettingsBackupSupport.appliesConfigFile(arguments: [binary, "-NSDocumentRevisionsDebugMode", "YES"]),
+               "a plain launch applies the settings file")
+        suite.expect(["--uninstall", "--selftest", "--mouse-acceleration-cleanup",
+                      SuperKeyMappingGuard.cleanupArgument, SettingsBackupSupport.importFlag].allSatisfy {
+                    !SettingsBackupSupport.appliesConfigFile(arguments: [binary, $0])
+                }, "cleanup, diagnostic and backup modes never apply the settings file")
+        let localLogo: [String: Any] = [
+            DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.logo.rawValue,
+        ]
+        suite.expect(SettingsBackupSupport.keepingLocalMediaLogos(
+                    [DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.off.rawValue],
+                    local: localLogo)[DefaultsKey.mediaImageWatermarkKind] as? String
+                == MediaImageWatermarkKind.logo.rawValue,
+               "a file exported on this Mac keeps its local logo watermark")
+        suite.expect(SettingsBackupSupport.keepingLocalMediaLogos(
+                    [DefaultsKey.mediaImageWatermarkKind: MediaImageWatermarkKind.text.rawValue],
+                    local: localLogo)[DefaultsKey.mediaImageWatermarkKind] as? String
+                == MediaImageWatermarkKind.text.rawValue,
+               "a watermark the file chose itself still wins over the local logo")
         // A backup file can be edited by hand, and a value of the wrong shape
         // would reach code that trusts its own settings.
         let wrongShapes: [String: Any] = [

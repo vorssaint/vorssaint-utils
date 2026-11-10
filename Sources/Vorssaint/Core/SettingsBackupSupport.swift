@@ -216,6 +216,8 @@ enum SettingsBackupSupport {
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.
         DefaultsKey.brightnessDDCWriteOnlyPaths,
+        // Speaker probe verdicts: the same stated reason as the write-only paths.
+        DefaultsKey.displayAudioSilentPaths,
         // Restoring it would skip the one-time recheck of the cache above on
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
@@ -286,6 +288,73 @@ enum SettingsBackupSupport {
         var result = settings
         if let mode = result[DefaultsKey.notchDisplay] as? String, NotchDisplay(rawValue: mode) == nil {
             result[DefaultsKey.notchDisplay] = NotchDisplay.automatic.rawValue
+        }
+        return result
+    }
+
+    /// An optional settings file the app reads at launch (issue #497): `$XDG_CONFIG_HOME/vorssaint/settings.plist`, or
+    /// `~/.config` in its place when the variable is unset, empty or relative,
+    /// as the XDG spec asks. The Developer build reads its own folder.
+    static func configFileURL(environment: [String: String],
+                              home: URL,
+                              isDeveloperBuild: Bool) -> URL {
+        var base = home.appendingPathComponent(".config", isDirectory: true)
+        if let xdg = environment["XDG_CONFIG_HOME"], xdg.hasPrefix("/") {
+            base = URL(fileURLWithPath: xdg, isDirectory: true)
+        }
+        var folder = "vorssaint"
+        if isDeveloperBuild {
+            folder += "-dev"
+        }
+        return base
+            .appendingPathComponent(folder, isDirectory: true)
+            .appendingPathComponent("settings.plist")
+    }
+
+    /// Every cleanup, diagnostic and backup mode is a `--` flag, and none of
+    /// them should take on the file's settings; only a plain launch does.
+    static func appliesConfigFile(arguments: [String]) -> Bool {
+        !arguments.dropFirst().contains { $0.hasPrefix("--") }
+    }
+
+    /// These keys have no registered type for the ordinary backup validator
+    /// to inspect. A damaged declaration must leave the local choice intact.
+    static func configOverrides(from settings: [String: Any]) -> [String: Any] {
+        let availability = AppFeature.availabilityDefaults
+        var values = settings.filter { key, value in
+            if availability[key] != nil { return isBoolean(value) }
+            switch key {
+            case DefaultsKey.textSnippets:
+                guard let data = value as? Data else { return false }
+                return (try? JSONDecoder().decode([TextSnippet].self, from: data)) != nil
+            case DefaultsKey.appVolumes:
+                guard let levels = value as? [String: Any] else { return false }
+                let validUnit = settings[DefaultsKey.appVolumesArePositions].map(isBoolean) ?? true
+                return validUnit && levels.values.allSatisfy(isNumber)
+            default: return true
+            }
+        }
+        if values[DefaultsKey.appVolumes] == nil {
+            values.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        }
+        return values
+    }
+
+    /// The portable form leaves out media logos, which name files on one Mac.
+    /// Where the file holds exactly that form of this Mac's value, this Mac's
+    /// value stays, so applying the file where it was exported keeps the logo.
+    static func keepingLocalMediaLogos(_ settings: [String: Any],
+                                       local: [String: Any]) -> [String: Any] {
+        var result = settings
+        let kindKey = DefaultsKey.mediaImageWatermarkKind
+        let text = local[DefaultsKey.mediaImageWatermarkText] as? String ?? ""
+        if let raw = local[kindKey] as? String, let kind = MediaImageWatermarkKind(rawValue: raw),
+           settings[kindKey] as? String == kind.withoutLogo(text: text).rawValue {
+            result[kindKey] = raw
+        }
+        let profilesKey = DefaultsKey.mediaImageProfiles
+        if let portable = settings[profilesKey] as? String, let saved = local[profilesKey] as? String {
+            result[profilesKey] = MediaSupport.restoringProfileLogos(portable, local: saved)
         }
         return result
     }
@@ -430,16 +499,9 @@ enum SettingsBackupSupport {
         guard let kind = settings[DefaultsKey.mediaImageWatermarkKind] as? String else {
             return settings
         }
-        let hasText = ((settings[DefaultsKey.mediaImageWatermarkText] as? String) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
-        switch MediaImageWatermarkKind.sanitized(kind) {
-        case .logo:
-            settings[DefaultsKey.mediaImageWatermarkKind] = MediaImageWatermarkKind.off.rawValue
-        case .textAndLogo:
-            settings[DefaultsKey.mediaImageWatermarkKind] = hasText
-                ? MediaImageWatermarkKind.text.rawValue : MediaImageWatermarkKind.off.rawValue
-        case .off, .text:
-            break
+        if let known = MediaImageWatermarkKind(rawValue: kind) {
+            let text = settings[DefaultsKey.mediaImageWatermarkText] as? String ?? ""
+            settings[DefaultsKey.mediaImageWatermarkKind] = known.withoutLogo(text: text).rawValue
         }
         return settings
     }
