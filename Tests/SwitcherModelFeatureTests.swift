@@ -649,8 +649,8 @@ enum SwitcherModelFeatureTests {
                 suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
-                       && BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                          writeOnlyPaths: Set(recheckedPaths)),
+                       && BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                          rememberedPaths: Set(recheckedPaths)),
                        "the checksum fix reopens cached paths with the paired recheck flag \(pairedRecheckCompleted)")
                 suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
                        == ["manual|port"]
@@ -663,8 +663,8 @@ enum SwitcherModelFeatureTests {
                 let laterPaths = migrationDefaults.stringArray(
                     forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
                 suite.expect(laterPaths == ["display|port"]
-                       && !BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                           writeOnlyPaths: Set(laterPaths)),
+                       && !BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                           rememberedPaths: Set(laterPaths)),
                        "the checksum recheck runs once and keeps later write-only verdicts")
             }
 
@@ -823,6 +823,30 @@ enum SwitcherModelFeatureTests {
         }
         suite.expect(SettingsBackupSupport.sanitizedSettings(from: instantSelectionBackup)?[DefaultsKey.switcherInstantSelection] as? Bool == true,
                "App Switcher restores the instant selection choice from a settings backup")
+        suite.expect(registeredDefaults[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == false
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.switcherIgnoreHoverSelection),
+               "App Switcher keeps hover selection by default and carries ignore-hover selection in backups")
+        for value in [false, true] {
+            let ignoreHoverBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.switcherIgnoreHoverSelection ? value : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: ignoreHoverBackup)?[DefaultsKey.switcherIgnoreHoverSelection] as? Bool == value,
+                   "App Switcher restores either ignore-hover selection choice from a settings backup")
+        }
+        for value in ["true", 1, [true]] as [Any] {
+            let invalidBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.switcherIgnoreHoverSelection ? value : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: invalidBackup)?[DefaultsKey.switcherIgnoreHoverSelection] == nil,
+                   "App Switcher rejects non-boolean ignore-hover selection values in backups")
+        }
+        let oldBackup = SettingsBackupSupport.payload(appVersion: "test") { _ in nil }
+        suite.expect(SettingsBackupSupport.sanitizedSettings(from: oldBackup)?[DefaultsKey.switcherIgnoreHoverSelection] == nil
+                     && SettingsBackupSupport.keysToClear(whenImporting: [:]).contains(DefaultsKey.switcherIgnoreHoverSelection),
+                     "an older backup clears the ignore-hover choice back to its registered false default")
+        suite.expect(SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: false)
+               && !SwitcherSupport.hoverMovesSelection(ignoreHoverSelection: true),
+               "hover moves the highlight until ignore-hover selection is on, and then leaves it")
         suite.expect(SwitcherSupport.appearanceDelayMillisecondsRange
                .contains(SwitcherSupport.defaultAppearanceDelayMilliseconds),
                "the default App Switcher appearance delay is one the slider accepts")
@@ -2572,6 +2596,12 @@ enum SwitcherModelFeatureTests {
                     == ScrollWheelSupport.defaultLinesPerNotch
                 && registeredDefaults[DefaultsKey.panelControlLinearScroll] as? Bool == true,
                "linear scrolling is opt-in, starts at the default notch and shows in the panel when installed")
+        suite.expect(registeredDefaults[DefaultsKey.scrollSpeedEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.scrollSpeedModifier] as? String
+                    == ScrollHorizontalModifier.option.rawValue
+                && registeredDefaults[DefaultsKey.scrollSpeedMultiplier] as? Int
+                    == ScrollWheelSupport.defaultSpeedMultiplier,
+               "modifier-held scroll speed is opt-in with Option and a 3× default")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceEnabled] as? Bool == false,
                "mouse click debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceWindowMs] as? Int

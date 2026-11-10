@@ -4,14 +4,58 @@
 import AppKit
 import SwiftUI
 
-struct HomebrewOperationStatusView: View {
+struct HomebrewOperationOutputView: View {
+    @ObservedObject var homebrew: HomebrewManager
+    let output: HomebrewOperationOutput
+    let compact: Bool
+    @ObservedObject private var l10n = L10n.shared
+    @State private var showingLastLog = false
+
+    var body: some View {
+        switch output {
+        case .status(let status):
+            card(status, archived: false)
+                .onAppear { showingLastLog = false }
+        case .lastLog(let status):
+            VStack(alignment: .leading, spacing: compact ? 5 : 8) {
+                Button {
+                    showingLastLog.toggle()
+                } label: {
+                    HStack {
+                        Label(showingLastLog ? l10n.s.homebrewLastLogHide : l10n.s.homebrewLastLogView,
+                              systemImage: "doc.text")
+                        if let package = status.package {
+                            Text(package.displayName).lineLimit(1)
+                        }
+                    }
+                    .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                if showingLastLog { card(status, archived: true) }
+            }
+        }
+    }
+
+    private func card(_ status: HomebrewOperationStatus, archived: Bool) -> some View {
+        HomebrewOperationStatusView(status: status, log: homebrew.log,
+                                    terminalFallbackCommand: homebrew.terminalFallbackCommand,
+                                    compact: compact, archived: archived,
+                                    onCancel: homebrew.cancelOperation, onClear: homebrew.clearLog,
+                                    onOpenTerminal: homebrew.openTerminalFallback)
+            .id(status.startedAt)
+    }
+}
+
+private struct HomebrewOperationStatusView: View {
     @ObservedObject private var l10n = L10n.shared
 
     let status: HomebrewOperationStatus
     let log: String
     let terminalFallbackCommand: String?
     let compact: Bool
-    @Binding var showDetails: Bool
+    let archived: Bool
+    @State private var showDetails = false
     var onCancel: () -> Void
     var onClear: () -> Void
     var onOpenTerminal: () -> Void
@@ -30,12 +74,15 @@ struct HomebrewOperationStatusView: View {
             if status.result == .needsTerminal {
                 terminalFallback
             }
-            if !log.isEmpty {
+            if !archived && !log.isEmpty {
                 detailsToggle
             }
-            if showDetails && !log.isEmpty {
+            if (archived || showDetails) && !log.isEmpty {
                 technicalLog
             }
+        }
+        .onChange(of: status.result, initial: true) { _, result in
+            if result == .failed || result == .needsTerminal { showDetails = true }
         }
     }
 
@@ -60,9 +107,14 @@ struct HomebrewOperationStatusView: View {
                         Text(phaseText)
                         Text("|")
                     }
-                    TimelineView(.periodic(from: status.startedAt, by: 1)) { context in
+                    if let finishedAt = status.finishedAt {
                         Text(String(format: l10n.s.homebrewOperationElapsedFormat,
-                                    elapsedText(now: context.date)))
+                                    elapsedText(now: finishedAt)))
+                    } else {
+                        TimelineView(.periodic(from: status.startedAt, by: 1)) { context in
+                            Text(String(format: l10n.s.homebrewOperationElapsedFormat,
+                                        elapsedText(now: context.date)))
+                        }
                     }
                 }
                 .font(.system(size: compact ? 9.5 : 11))
