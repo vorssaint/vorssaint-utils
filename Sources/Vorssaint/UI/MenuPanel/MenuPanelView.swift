@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, pomodoro
 
     var id: String { rawValue }
 
@@ -582,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .pomodoro: return .pomodoro
         }
     }
 }
@@ -618,6 +619,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityPomodoro) private var showPomodoro = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -782,6 +784,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .pomodoro: return showPomodoro
         }
     }
 
@@ -1026,6 +1029,20 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .pomodoro:
+            let p = PomodoroService.shared
+            let strings = FeatureStrings.pomodoro(l10n.language)
+            let caption = p.state == .idle ? strings.hubDescription : "\(p.currentPhase.emoji) \(p.formattedTime) (\(p.completedCycles) \(strings.completedCycles))"
+            UtilityActionButton(title: strings.title,
+                                caption: caption,
+                                systemImage: "timer",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showPomodoro,
+                                shortcutHint: shortcutHint(.pomodoro),
+                                action: {
+                                    PomodoroService.shared.toggle()
+                                })
         }
     }
 
@@ -1103,6 +1120,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showPomodoro = true
     }
 
     private func grantAccessibility() {
