@@ -1,8 +1,9 @@
 {
   "schema": 1,
-  "updated": "2026-10-31",
+  "updated": "2026-11-10",
   "sources": [
     "https://ai.google.dev/gemini-api/docs/pricing",
+    "https://blog.google/innovation-and-ai/models-and-research/gemini-models/introducing-gemini-4-carbon/",
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://platform.claude.com/docs/en/models/overview",
     "https://platform.claude.com/docs/en/models/sonnet-5-5/overview",
@@ -120,12 +121,13 @@
     "Copilot Business costs 19 USD/seat/month and contributes 1900 credits to a shared pool; Enterprise costs 39 and contributes 3900. Copilot access has no included allowance: it has no additional seat charge for licensed GitHub Enterprise Cloud users or costs 10 USD/seat/month for Copilot Standalone. Additional usage is billed at the published token rates after allowances are exhausted, subject to budgets. These plans and credit pools are not supported by the app's plan objects.",
     "Copilot prices gpt-5.6-luna long context above 200K input tokens, versus 272K in the direct OpenAI API. The app uses the direct API threshold. Copilot's paid-plan auto-selection discount is 10% in Chat and cloud agent; Fusion has a 30% discount through 2026-11-30. Review after that date. The app does not apply these discounts, credits or GitHub Actions charges for code review.",
     "Existing annual Copilot Pro/Pro+ subscriptions may retain legacy request-based billing: 300/1500 premium requests monthly, 0.04 USD per additional request, and model-specific request multipliers. Those multipliers are not API fast-mode prices and must not be stored as fastMultiplier.",
-    "Google Gemini Developer API Standard Paid Tier text token prices are included under gemini; unlisted Gemini models (such as experimental or Live audio models) remain unpriced. Models outside Anthropic/OpenAI/Gemini remain outside this list's coverage, including Grok, MAI-Code, Kimi, GLM, DeepSeek, Qwen, MiniMax, MiMo, Muse, Mistral, LongCat, Step, Hy, Nemotron and anonymous/free models in OpenCode or Copilot. Do not substitute another manufacturer's price. OpenCode's Gemini 4 Argon 50% promotion ends 2026-11-30; Copilot's Gemini 4 Argon promotion ends 2026-12-01 and Gemini 3.8 Flash promotion ends 2026-12-31. Review the provider catalogs after these dates."
+    "Google Gemini Developer API Standard Paid Tier text token prices are included under gemini; unlisted Gemini models (such as experimental or Live audio models) remain unpriced. Gemini 4 Carbon is not on that page yet and is priced from Google's launch announcement, at the introductory price it shares with Gemini 4 Argon; the announcement gives 4 USD input and 20 USD output per 1M tokens once the introductory period ends. Review it when the pricing page lists the model. Models outside Anthropic/OpenAI/Gemini remain outside this list's coverage, including Grok, MAI-Code, Kimi, GLM, DeepSeek, Qwen, MiniMax, MiMo, Muse, Mistral, LongCat, Step, Hy, Nemotron and anonymous/free models in OpenCode or Copilot. Do not substitute another manufacturer's price. OpenCode's Gemini 4 Argon 50% promotion ends 2026-11-30; Copilot's Gemini 4 Argon promotion ends 2026-12-01 and Gemini 3.8 Flash promotion ends 2026-12-31. Review the provider catalogs after these dates."
   ],
   "claude": {
     "webSearch": 0.01,
     "usOnlyMultiplier": 1.1,
     "models": [
+      { "id": "claude-fable-5-2", "input": 8, "output": 40, "cacheRead": 0.2, "cacheWrite": 10, "cacheWriteLong": 16, "fastMultiplier": 2 },
       { "id": "claude-fable-5-1", "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWriteLong": 20 },
       { "id": "claude-mythos-5-1", "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWriteLong": 20 },
       { "id": "claude-fable-5", "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5, "cacheWriteLong": 20 },
@@ -270,6 +272,7 @@
   },
   "gemini": {
     "models": [
+      { "id": "gemini-4-carbon", "input": 2, "output": 10, "cacheRead": 0.1 },
       { "id": "gemini-4-argon", "input": 2, "output": 10, "cacheRead": 0.1 },
       { "id": "gemini-3.8-flash", "input": 0.75, "output": 3.75, "cacheRead": 0.075 },
       { "id": "gemini-3.6-flash", "input": 0.75, "output": 3.75, "cacheRead": 0.075 },
