@@ -52,10 +52,11 @@ enum SettingsFeatureTests {
             DefaultsKey.monitorAlertBattery: true, DefaultsKey.monitorAlertBatteryTemperature: true,
         ], forName: domain)
 
+        var speakerSetup = true
         func state(battery: Bool = true) -> SettingsSearchState {
             SettingsSearchState(defaults: defaults, hardware: .init(
                 battery: battery, notchedDisplay: true, plainDisplay: false,
-                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true))
+                keyboardLight: true, bluetoothSleep: true, brightnessOSD: true, speakerSetup: speakerSetup))
         }
         for (language, strings) in LocalizationTests.languages {
             let mouse = SettingsDirectory.sections(strings, language: language, state: state())
@@ -191,6 +192,11 @@ enum SettingsFeatureTests {
                    commandID: "settings.feature.brightness", shown: enabled)
             verify(displays.volumeKeysToggle, opens: AppFeature.brightness.settingsDestination,
                    commandID: "settings.feature.brightness", shown: enabled && speakers)
+            for available in [true, false] {
+                speakerSetup = available
+                verify(displays.monitorToggle, opens: AppFeature.brightness.settingsDestination,
+                       commandID: "settings.feature.brightness", shown: enabled && speakers && available)
+            }
         }
         let colors = FeatureStrings.menuBarAppearance(.enUS)
         for bars in [false, true, false] {

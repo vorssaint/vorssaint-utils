@@ -6,7 +6,7 @@ import Foundation
 /// Only values that change which controls exist belong in the search cache key.
 struct SettingsSearchState: Equatable {
     struct Hardware: Equatable {
-        let battery, notchedDisplay, plainDisplay, keyboardLight, bluetoothSleep, brightnessOSD: Bool
+        let battery, notchedDisplay, plainDisplay, keyboardLight, bluetoothSleep, brightnessOSD, speakerSetup: Bool
     }
 
     let hardware: Hardware
@@ -43,12 +43,15 @@ struct SettingsSearchState: Equatable {
 
 extension SettingsSearchState {
     static var current: Self {
-        Self(defaults: .standard, hardware: Hardware(
+        let brightnessEnabled = AppFeature.brightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
+        return Self(defaults: .standard, hardware: Hardware(
             battery: PowerSampler.hasInternalBattery, notchedDisplay: NotchSupport.hasNotchedDisplay,
             plainDisplay: NotchSupport.hasDisplayWithoutNotch, keyboardLight: BrightnessService.keyboardLightIsSupported,
             bluetoothSleep: BluetoothSleepService.isSupported,
-            brightnessOSD: AppFeature.brightness.isAvailable && UserDefaults.standard.bool(forKey: DefaultsKey.brightnessControlEnabled)
-                && BrightnessService.shared.brightnessOSDSupported))
+            brightnessOSD: brightnessEnabled && BrightnessService.shared.brightnessOSDSupported,
+            speakerSetup: brightnessEnabled && UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeEnabled)
+                && BrightnessService.shared.displays.contains { $0.isActive && $0.speakerSetup != nil }))
     }
 }
 
@@ -361,6 +364,9 @@ enum SettingsDirectory {
                                               feature: .brightness, when: state.on(DefaultsKey.brightnessControlEnabled)),
                                         .init([brightness.volumeKeysToggle], feature: .brightness,
                                               when: state.on(DefaultsKey.brightnessControlEnabled) && state.on(DefaultsKey.displayVolumeEnabled)),
+                                        .init([brightness.monitorToggle], feature: .brightness,
+                                              when: state.hardware.speakerSetup && state.on(DefaultsKey.brightnessControlEnabled)
+                                                  && state.on(DefaultsKey.displayVolumeEnabled)),
                                         .init([brightness.osdToggle], feature: .brightness,
                                               when: state.hardware.brightnessOSD && state.on(DefaultsKey.brightnessControlEnabled)),
                                         .init([bluetooth.enable], feature: .bluetoothSleep, when: state.hardware.bluetoothSleep),

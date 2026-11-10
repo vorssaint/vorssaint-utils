@@ -18,8 +18,8 @@ struct MonitorVolumeSettingsRow: View {
     }
 
     var body: some View {
-        SettingsRow(symbol: "display", title: "\(strings.monitorToggle): \(name)",
-                    caption: setup.writeOnly ? strings.manualVolumeCaption : nil) {
+        SettingsRow(symbol: "display", title: strings.monitorToggle,
+                    caption: setup.writeOnly ? "\(name)\n\(strings.manualVolumeCaption)" : name) {
             if setup.writeOnly, !setup.enabled {
                 TextField(setup.reference.map { "\($0)%" } ?? "1–100%", text: $enteredPercent)
                     .textFieldStyle(.roundedBorder)
