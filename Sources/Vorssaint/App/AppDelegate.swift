@@ -1118,8 +1118,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func installPopoverDismissMonitor() {
         removePopoverDismissMonitor()
-        // A global monitor only sees events delivered to OTHER apps, so a click in
-        // another app or on the desktop dismisses the panel.
+        // A global monitor only sees events delivered to OTHER apps — with one
+        // proven exception: while Vorssaint is inactive (the first panel open
+        // after a while), a click on the panel itself is an activation click
+        // and still arrives here, stamped with the panel's own window number.
+        // A click that belongs to the panel never dismisses it (#1513, #3245,
+        // #3687); anything else in another app or on the desktop does.
         popoverDismissMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
@@ -1127,6 +1131,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
             let point = NSEvent.mouseLocation
             guard self.statusController.containsStatusItem(at: point) == false else { return }
+            if let window = self.popover.contentViewController?.view.window,
+               StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: event.windowNumber,
+                                                        panelWindowNumber: window.windowNumber,
+                                                        panelFrame: window.frame,
+                                                        mouseLocation: point) {
+                return
+            }
             self.logPanelDismissal(source: "outside", event: event, location: point)
             self.closePopover(reason: .outsideClick)
         }

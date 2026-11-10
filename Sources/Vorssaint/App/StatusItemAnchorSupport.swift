@@ -93,6 +93,22 @@ enum StatusItemAnchorSupport {
         return CGRect(origin: .zero, size: lastFrame.size).contains(event.locationInWindow)
     }
 
+    /// Whether a click seen by the dismissal monitor belongs to the open panel.
+    /// When Vorssaint is not the active app — the first open after a while — a
+    /// click on the panel itself is an activation click and still surfaces in
+    /// the global monitor, stamped with the panel's own window number; the
+    /// live mouse location can also already sit inside the panel by the time
+    /// the handler runs. Either signal means the click is the panel's own
+    /// business and never an outside dismissal (#1513, #3245, #3687: the
+    /// first interaction closed the panel instead of reaching the control).
+    static func isPanelSelfClick(eventWindowNumber: Int,
+                                 panelWindowNumber: Int?,
+                                 panelFrame: CGRect?,
+                                 mouseLocation: NSPoint) -> Bool {
+        if eventWindowNumber > 0, eventWindowNumber == panelWindowNumber { return true }
+        return panelFrame?.contains(mouseLocation) == true
+    }
+
     /// Opening the panel activates Vorssaint so its controls take keys, which
     /// makes it the frontmost app for as long as nothing else claims focus.
     /// Once the panel is gone, the app that was in front before it opened gets
