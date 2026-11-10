@@ -328,6 +328,8 @@ enum DefaultsKey {
     static let urlCleanerDisabledParameters = "urlCleanerDisabledParameters" // built-in host|name pairs switched off
     static let windowMaximizeEnabled = "windowMaximizeEnabled"
     static let windowMaximizeExcludedApps = "windowMaximizeExcludedApps" // [bundle id] whose green button stays native
+    static let functionKeysMicMuteEnabled = "functionKeysMicMuteEnabled" // F5 (the dictation key) toggles microphone mute
+    static let functionKeysSleepEnabled = "functionKeysSleepEnabled"     // F6 (the Do Not Disturb key) sleeps the Mac
     static let keyboardDebounceEnabled = "keyboardDebounceEnabled"
     static let keyboardDebounceWindowMs = "keyboardDebounceWindowMs"
     static let keyboardDebounceKeyWindows = "keyboardDebounceKeyWindows" // comma-separated keyCode:ms
@@ -1615,6 +1617,8 @@ enum Defaults {
         DefaultsKey.radialMenuActivationMode: RadialMenuActivationMode.pressOrHold.rawValue,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.windowMaximizeExcludedApps: [String](),
+        DefaultsKey.functionKeysMicMuteEnabled: false,
+        DefaultsKey.functionKeysSleepEnabled: false,
         DefaultsKey.keyboardDebounceEnabled: false,
         DefaultsKey.keyboardDebounceWindowMs: defaultKeyboardDebounceWindowMs,
         DefaultsKey.keyboardDebounceKeyWindows: "",

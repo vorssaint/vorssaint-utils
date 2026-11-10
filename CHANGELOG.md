@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Give the dictation key (F5) and the Do Not Disturb key (F6) another job: mute or unmute the microphone, or put the Mac to sleep. Each key is its own switch, off until you turn it on. F6 beeps instead of staying silent when sleep is disabled on the Mac.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
