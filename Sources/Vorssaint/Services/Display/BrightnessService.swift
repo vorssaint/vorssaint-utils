@@ -63,8 +63,8 @@ struct BrightnessDisplay: Identifiable, Equatable {
 /// when turned off. Pending restores keep wake and lid observation until they
 /// succeed. Keyboard light state is read when Quick toggles opens or one of
 /// its global shortcuts is pressed.
-/// While display control is on, the standing resources are one screen change
-/// observer and sleep/wake observers, and no standing timers; everything else
+/// While display control is on, the service observes screen changes, unlock
+/// and sleep/wake events, with no standing timers. Everything else
 /// happens when a slider moves, a panel opens or the Mac wakes. All I2C work
 /// runs on a serial queue with the pacing displays need, and slider drags
 /// coalesce to the newest value per display.
@@ -155,6 +155,7 @@ final class BrightnessService: ObservableObject {
     private var lidNotificationPort: IONotificationPortRef?
     private var lidNotification: io_object_t = 0
     private var screenObserver: NSObjectProtocol?
+    private var screenUnlockObserver: NSObjectProtocol?
     private var rebuildDebounce: DispatchWorkItem?
     private var wakeObservers: [NSObjectProtocol] = []
     private var wakeRebuild: DispatchWorkItem?
@@ -648,6 +649,7 @@ final class BrightnessService: ObservableObject {
             object: nil, queue: .main) { [weak self] _ in
             self?.screensChanged()
         }
+        screenUnlockObserver = observeScreenUnlock(in: DistributedNotificationCenter.default())
         installWakeObservers()
         refresh()
     }
@@ -669,6 +671,8 @@ final class BrightnessService: ObservableObject {
         removeAudioOutputObserver()
         if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
         screenObserver = nil
+        if let screenUnlockObserver { DistributedNotificationCenter.default().removeObserver(screenUnlockObserver) }
+        screenUnlockObserver = nil
         removeWakeObservers()
         rebuildDebounce?.cancel()
         rebuildDebounce = nil
@@ -1913,6 +1917,19 @@ final class BrightnessService: ObservableObject {
 
     // MARK: - Screen changes
 
+    private func observeScreenUnlock(in center: NotificationCenter) -> NSObjectProtocol {
+        center.addObserver(forName: Notification.Name("com.apple.screenIsUnlocked"),
+                           object: nil, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            let hasDisabledPanel = self.stateLock.withLock {
+                self.managedDisabledDisplays.values.contains(where: \.isBuiltIn)
+            }
+            // Unlock can leave the display list unchanged. Retry the saved
+            // choice through the same checks as a screen change.
+            if hasDisabledPanel { self.screensChanged() }
+        }
+    }
+
     /// EDR ramps fire this notification in storms with no topology change
     /// (over a hundred times in two seconds, measured). Use one fixed settle
     /// window from the first event: resetting it for every notification made
@@ -2152,6 +2169,13 @@ final class BrightnessService: ObservableObject {
             let topology = Self.currentTopology()
             let drawable = Self.drawableDisplayIDs(online: topology.online, active: topology.active)
             guard BrightnessSupport.canDisableDisplay(drawableDisplayIDs: drawable, target: id) else { continue }
+            if display.isBuiltIn {
+                // An active HDMI display may still be coming back while the
+                // lock screen is on the built-in panel. Leave that panel up
+                // until the user has unlocked, even on late topology changes.
+                guard let session = CGSessionCopyCurrentDictionary() as? [String: Any],
+                      !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session) else { continue }
+            }
             let result = Self.configureDisplay(id, enabled: false)
             guard result == .success else {
                 Self.log.error("could not reapply disabled state for display \(id); keeping the saved choice")
