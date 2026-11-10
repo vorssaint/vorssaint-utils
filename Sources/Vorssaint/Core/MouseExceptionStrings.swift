@@ -143,6 +143,7 @@ extension MouseExceptionStrings {
         removeButton: "Elimina",
         captionSmoothScroll: "En aquestes apps, la roda manté els passos normals; és per a les apps que la interpreten a la seva manera, com les eines de 3D i de disseny.",
         captionLinearScroll: "En aquestes apps, la roda manté el ritme que li dona el macOS; és per als jocs i les eines de 3D que compten els passos pel seu compte.",
+        captionScrollSpeed: "En aquestes apps, la roda conserva la velocitat normal encara que premis la tecla de modificació de velocitat.",
         captionScrollDirection: "En aquestes apps, la roda manté el sentit que li dona el macOS.",
         captionNavigation: "En aquestes apps, els botons laterals continuen fent el que ja feien.",
         captionButtonShortcuts: "En aquestes apps, els botons addicionals del ratolí no fan res i la pulsació arriba a l’app.",
