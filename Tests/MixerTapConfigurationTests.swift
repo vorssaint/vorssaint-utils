@@ -213,6 +213,7 @@ enum MixerTapConfigurationTests {
         notifications(suite, format: format)
         changes(suite, format: format)
         fallbackOutputFormat(suite, format: format)
+        pollDuringValidation(suite, format: format)
         notificationDuringRead(suite, format: format)
         for status in [noErr, kAudioHardwareBadObjectError, kAudioHardwareUnspecifiedError] {
             removal(suite, format: format, status: status)
@@ -383,6 +384,40 @@ enum MixerTapConfigurationTests {
         }
     }
 
+    private static func pollDuringValidation(_ suite: TestSuite, format: MixerTapFormat) {
+        HAL.reset()
+        let counter = Counter()
+        let watch = makeWatch(format: format, counter: counter)
+        watch.start()
+        defer { finish(watch, suite) }
+
+        let renderer = MixerRenderContinuityTests.Renderer(tapChannels: format.channels)
+        renderer.box.value = MixerRoutingSupport.gain(forVolume: 0)
+        let samples = Array(repeating: Float(0.25), count: 512 * format.channels)
+
+        func checkMutedCapture() {
+            HAL.duringRead = { _ in
+                HAL.duringRead = nil
+                watch.refresh(immediately: false)
+            }
+            watch.queue.runNext()
+            suite.expect(watch.canRender && watch.queue.count == 1,
+                         "a valid format resumes while a routine poll waits")
+            let cycles = renderer.cycles.value
+            renderer.configuration.canRender = watch.canRender
+            let output = renderer.render(samples, frames: 512, layout: [UInt32(format.channels)])
+            suite.expect(output.allSatisfy { $0 == 0 } && renderer.cycles.value == cycles + 1,
+                         "a playing app at zero gain stays silent and its tap still makes render progress")
+            watch.queue.run()
+            suite.expect(watch.canRender && !watch.requiresRebuild && counter.value == 0,
+                         "draining the periodic poll keeps the validated capture active")
+        }
+
+        checkMutedCapture()
+        HAL.announce(tap, kAudioTapPropertyFormat)
+        checkMutedCapture()
+    }
+
     private static func notificationDuringRead(_ suite: TestSuite, format: MixerTapFormat) {
         HAL.reset()
         let counter = Counter()
@@ -396,6 +431,7 @@ enum MixerTapConfigurationTests {
             // The read already captured the old value. The notification owns
             // a newer pass, so this result must not re-enable the callback.
             HAL.values[key] = asbd(rate: 96_000)
+            watch.refresh(immediately: false)
             HAL.announce(tap, kAudioTapPropertyFormat)
         }
         HAL.announce(tap, kAudioTapPropertyFormat)

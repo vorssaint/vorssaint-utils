@@ -3283,7 +3283,7 @@ private final class MixerTapConfiguration {
         let enqueue = lock.withLock {
             guard !stopped, !requiresRebuild else { return false }
             if suspend { rendering.value = 0 }
-            immediatePending = immediatePending || immediately
+            immediatePending = immediatePending || immediately || suspend
             guard !pending else { return false }
             pending = true
             return true
@@ -3305,9 +3305,9 @@ private final class MixerTapConfiguration {
                 if !unchanged {
                     rendering.value = 0
                     invalidated.value = 1
-                } else if !stopped, !pending, !requiresRebuild {
-                    // A notification arriving during a read owns another
-                    // pass and must not be cleared by this older result.
+                } else if !stopped, !immediatePending, !requiresRebuild {
+                    // A new format notification needs its own validation.
+                    // A periodic poll may skip its read and cannot resume audio for us.
                     rendering.value = 1
                 }
                 return notify
