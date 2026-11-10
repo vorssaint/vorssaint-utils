@@ -3027,6 +3027,8 @@ final class BrightnessService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled)
     }
 
+    var monitorVolumeKeySettings: MonitorVolumeKeySettings { MonitorVolumeKeySettings(in: .standard) }
+
     func requestSpeakers(_ change: BrightnessSupport.SpeakerChange,
                          target: BrightnessSupport.SpeakerTarget, requiresKeys: Bool = false,
                          completion: @escaping (Bool) -> Void = { _ in }) {
@@ -3132,14 +3134,20 @@ final class BrightnessService: ObservableObject {
         }
         guard current() else { return nil }
         var restore = speakerRestoreLevels[target.path]
+        let keySettings = pending.requiresKeys ? monitorVolumeKeySettings : MonitorVolumeKeySettings()
         let result = BrightnessSupport.applySpeakerChange(pending.change, hasNativeMute: route.hasNativeMute,
-            restore: &restore, read: { code in
+            keySettings: keySettings, restore: &restore, read: { code in
                 guard current(), case let .replied(value, maximum) = self.ddcProbe(code, for: id, service: route.service)
                 else { return nil }
                 return (value, maximum)
             }, write: { code, value in
-                self.ddcSend(to: id, service: route.service, packet: BrightnessSupport.writePacket(code: code, value: value),
-                             whileCurrent: current)
+                let packet = BrightnessSupport.writePacket(code: code, value: value)
+                return self.ddcSend(to: id, service: route.service, packet: packet) {
+                    // Settings can change while the bus is pacing a write. A
+                    // protective re-mute still belongs to the original target.
+                    let mutes = code == BrightnessSupport.audioMuteCode && value == BrightnessSupport.audioMutedValue
+                    return current() && (!pending.requiresKeys || mutes || self.monitorVolumeKeySettings == keySettings)
+                }
             })
         speakerRestoreLevels[target.path] = restore
         guard let result else { return nil }

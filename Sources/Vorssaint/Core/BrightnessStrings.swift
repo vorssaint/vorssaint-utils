@@ -50,6 +50,12 @@ struct BrightnessFeatureStrings {
     let islandPromptTitle: String
     let islandPromptMessage: String
     let islandPromptKeepOff: String
+    let speakersStep: String
+    let speakersStepStandard: String
+    let speakersMinimum: String
+    let speakersMinimumCaption: String
+    let speakersMaximum: String
+    let speakersMaximumCaption: String
 }
 
 extension FeatureStrings {
@@ -118,7 +124,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Extra dimming",
         islandPromptTitle: "Show brightness in the Dynamic Island?",
         islandPromptMessage: "The Dynamic Island shows brightness changes only while “Control displays” is on in Displays settings.",
-        islandPromptKeepOff: "Keep Off"
+        islandPromptKeepOff: "Keep Off",
+        speakersStep: "Volume step",
+        speakersStepStandard: "Standard (6.25%)",
+        speakersMinimum: "Minimum volume",
+        speakersMinimumCaption: "Volume down stops here. Mute still silences the monitor.",
+        speakersMaximum: "Maximum volume",
+        speakersMaximumCaption: "Volume up stops here."
     )
 
     static let ptBR = BrightnessFeatureStrings(
@@ -164,7 +176,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Escurecimento extra",
         islandPromptTitle: "Mostrar o brilho na Dynamic Island?",
         islandPromptMessage: "A Dynamic Island só mostra mudanças de brilho quando “Controlar telas” está ativado nos ajustes de Telas.",
-        islandPromptKeepOff: "Manter desativado"
+        islandPromptKeepOff: "Manter desativado",
+        speakersStep: "Passo do volume",
+        speakersStepStandard: "Padrão (6,25%)",
+        speakersMinimum: "Volume mínimo",
+        speakersMinimumCaption: "Diminuir o volume para aqui. Silenciar ainda deixa o monitor mudo.",
+        speakersMaximum: "Volume máximo",
+        speakersMaximumCaption: "Aumentar o volume para aqui."
     )
 
     static let tr = BrightnessFeatureStrings(
@@ -210,7 +228,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Ek karartma",
         islandPromptTitle: "Parlaklık Dynamic Island’da gösterilsin mi?",
         islandPromptMessage: "Dynamic Island, parlaklık değişikliklerini yalnızca Ekranlar ayarlarında “Ekranları denetle” açıkken gösterir.",
-        islandPromptKeepOff: "Kapalı kalsın"
+        islandPromptKeepOff: "Kapalı kalsın",
+        speakersStep: "Ses adımı",
+        speakersStepStandard: "Standart (%6,25)",
+        speakersMinimum: "En düşük ses",
+        speakersMinimumCaption: "Sesi azaltma burada durur. Sessiz tuşu monitörü yine de susturur.",
+        speakersMaximum: "En yüksek ses",
+        speakersMaximumCaption: "Sesi artırma burada durur."
     )
 
     static let ru = BrightnessFeatureStrings(
@@ -256,7 +280,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Дополнительное затемнение",
         islandPromptTitle: "Показывать яркость в Dynamic Island?",
         islandPromptMessage: "Dynamic Island показывает изменения яркости, только когда в настройках «Экраны» включено «Управлять экранами».",
-        islandPromptKeepOff: "Оставить выключенным"
+        islandPromptKeepOff: "Оставить выключенным",
+        speakersStep: "Шаг громкости",
+        speakersStepStandard: "Стандартный (6,25%)",
+        speakersMinimum: "Минимальная громкость",
+        speakersMinimumCaption: "Уменьшение громкости останавливается здесь. Выключение звука по-прежнему заглушает монитор.",
+        speakersMaximum: "Максимальная громкость",
+        speakersMaximumCaption: "Увеличение громкости останавливается здесь."
     )
 
     static let es = BrightnessFeatureStrings(
@@ -302,7 +332,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Atenuación adicional",
         islandPromptTitle: "¿Mostrar el brillo en el Dynamic Island?",
         islandPromptMessage: "El Dynamic Island solo muestra los cambios de brillo cuando “Controlar las pantallas” está activado en los ajustes de Pantallas.",
-        islandPromptKeepOff: "Mantener desactivado"
+        islandPromptKeepOff: "Mantener desactivado",
+        speakersStep: "Paso de volumen",
+        speakersStepStandard: "Estándar (6,25 %)",
+        speakersMinimum: "Volumen mínimo",
+        speakersMinimumCaption: "Bajar el volumen se detiene aquí. Silenciar sigue dejando el monitor mudo.",
+        speakersMaximum: "Volumen máximo",
+        speakersMaximumCaption: "Subir el volumen se detiene aquí."
     )
 
     static let sk = BrightnessFeatureStrings(
@@ -348,7 +384,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Ďalšie stmievanie",
         islandPromptTitle: "Zobrazovať jas v Dynamic Island?",
         islandPromptMessage: "Dynamic Island zobrazuje zmeny jasu, len keď je v nastaveniach Displeje zapnuté „Ovládať displeje“.",
-        islandPromptKeepOff: "Nechať vypnuté"
+        islandPromptKeepOff: "Nechať vypnuté",
+        speakersStep: "Krok hlasitosti",
+        speakersStepStandard: "Štandardný (6,25 %)",
+        speakersMinimum: "Minimálna hlasitosť",
+        speakersMinimumCaption: "Znižovanie hlasitosti sa zastaví tu. Stlmenie monitor aj tak umlčí.",
+        speakersMaximum: "Maximálna hlasitosť",
+        speakersMaximumCaption: "Zvyšovanie hlasitosti sa zastaví tu."
     )
 
     static let de = BrightnessFeatureStrings(
@@ -394,7 +436,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Zusätzliches Abdunkeln",
         islandPromptTitle: "Helligkeit in der Dynamic Island anzeigen?",
         islandPromptMessage: "Die Dynamic Island zeigt Helligkeitsänderungen nur, wenn „Displays steuern“ in den Displays-Einstellungen aktiviert ist.",
-        islandPromptKeepOff: "Aus lassen"
+        islandPromptKeepOff: "Aus lassen",
+        speakersStep: "Lautstärkeschritt",
+        speakersStepStandard: "Standard (6,25 %)",
+        speakersMinimum: "Mindestlautstärke",
+        speakersMinimumCaption: "Leiser stoppt hier. Stumm schaltet den Monitor trotzdem stumm.",
+        speakersMaximum: "Höchstlautstärke",
+        speakersMaximumCaption: "Lauter stoppt hier."
     )
 
     static let fr = BrightnessFeatureStrings(
@@ -440,7 +488,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Assombrissement supplémentaire",
         islandPromptTitle: "Afficher la luminosité dans la Dynamic Island ?",
         islandPromptMessage: "La Dynamic Island n’affiche les changements de luminosité que lorsque « Contrôler les écrans » est activé dans les réglages Écrans.",
-        islandPromptKeepOff: "Laisser désactivé"
+        islandPromptKeepOff: "Laisser désactivé",
+        speakersStep: "Pas du volume",
+        speakersStepStandard: "Standard (6,25 %)",
+        speakersMinimum: "Volume minimal",
+        speakersMinimumCaption: "La baisse du volume s’arrête ici. Le silence coupe toujours le son du moniteur.",
+        speakersMaximum: "Volume maximal",
+        speakersMaximumCaption: "La hausse du volume s’arrête ici."
     )
 
     static let it = BrightnessFeatureStrings(
@@ -486,7 +540,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Oscuramento extra",
         islandPromptTitle: "Mostrare la luminosità nella Dynamic Island?",
         islandPromptMessage: "La Dynamic Island mostra le variazioni di luminosità solo quando “Controlla gli schermi” è attivo nelle impostazioni Schermi.",
-        islandPromptKeepOff: "Lascia disattivato"
+        islandPromptKeepOff: "Lascia disattivato",
+        speakersStep: "Passo del volume",
+        speakersStepStandard: "Standard (6,25%)",
+        speakersMinimum: "Volume minimo",
+        speakersMinimumCaption: "Abbassare il volume si ferma qui. Il silenziamento azzera comunque il monitor.",
+        speakersMaximum: "Volume massimo",
+        speakersMaximumCaption: "Alzare il volume si ferma qui."
     )
 
     static let ja = BrightnessFeatureStrings(
@@ -532,7 +592,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "さらに暗くする",
         islandPromptTitle: "Dynamic Islandに明るさを表示しますか？",
         islandPromptMessage: "Dynamic Islandは、「ディスプレイ」設定で「ディスプレイを操作」がオンのときだけ明るさの変化を表示します。",
-        islandPromptKeepOff: "オフのままにする"
+        islandPromptKeepOff: "オフのままにする",
+        speakersStep: "音量のステップ",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最小音量",
+        speakersMinimumCaption: "音量を下げるとここで止まります。消音キーではモニタを消音できます。",
+        speakersMaximum: "最大音量",
+        speakersMaximumCaption: "音量を上げるとここで止まります。"
     )
 
     static let ko = BrightnessFeatureStrings(
@@ -578,7 +644,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "추가 어둡게",
         islandPromptTitle: "Dynamic Island에 밝기를 표시할까요?",
         islandPromptMessage: "Dynamic Island는 디스플레이 설정에서 “디스플레이 제어”가 켜져 있을 때만 밝기 변화를 표시합니다.",
-        islandPromptKeepOff: "끈 상태로 유지"
+        islandPromptKeepOff: "끈 상태로 유지",
+        speakersStep: "음량 단계",
+        speakersStepStandard: "표준(6.25%)",
+        speakersMinimum: "최소 음량",
+        speakersMinimumCaption: "음량을 줄이면 여기서 멈춥니다. 음소거는 여전히 모니터를 무음으로 만듭니다.",
+        speakersMaximum: "최대 음량",
+        speakersMaximumCaption: "음량을 높이면 여기서 멈춥니다."
     )
 
     static let zhHans = BrightnessFeatureStrings(
@@ -624,7 +696,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "进一步调暗",
         islandPromptTitle: "在Dynamic Island中显示亮度？",
         islandPromptMessage: "只有在“显示器”设置中打开“控制显示器”时，Dynamic Island才会显示亮度变化。",
-        islandPromptKeepOff: "保持关闭"
+        islandPromptKeepOff: "保持关闭",
+        speakersStep: "音量步长",
+        speakersStepStandard: "标准（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "降低音量时在此停止。静音仍会让显示器静音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "提高音量时在此停止。"
     )
 
     static let zhTW = BrightnessFeatureStrings(
@@ -670,7 +748,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "進一步調暗",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
-        islandPromptKeepOff: "保持關閉"
+        islandPromptKeepOff: "保持關閉",
+        speakersStep: "音量間距",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "降低音量時會停在這裡。靜音仍會讓顯示器靜音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "提高音量時會停在這裡。"
     )
 
     static let zhHK = BrightnessFeatureStrings(
@@ -716,7 +800,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "進一步調暗",
         islandPromptTitle: "要在Dynamic Island中顯示亮度嗎？",
         islandPromptMessage: "只有在「顯示器」設定中開啟「控制顯示器」時，Dynamic Island才會顯示亮度變化。",
-        islandPromptKeepOff: "保持關閉"
+        islandPromptKeepOff: "保持關閉",
+        speakersStep: "音量間距",
+        speakersStepStandard: "標準（6.25%）",
+        speakersMinimum: "最低音量",
+        speakersMinimumCaption: "調低音量時會停在這裡。靜音仍會令顯示器靜音。",
+        speakersMaximum: "最高音量",
+        speakersMaximumCaption: "調高音量時會停在這裡。"
     )
     static let uk = BrightnessFeatureStrings(
         pageTitle: "Дисплеї",
@@ -761,6 +851,12 @@ extension BrightnessFeatureStrings {
         extendedDimming: "Додаткове затемнення",
         islandPromptTitle: "Показувати яскравість у Dynamic Island?",
         islandPromptMessage: "Dynamic Island показує зміни яскравості, лише коли в налаштуваннях «Дисплеї» увімкнено «Керування дисплеями».",
-        islandPromptKeepOff: "Залишити вимкненим"
+        islandPromptKeepOff: "Залишити вимкненим",
+        speakersStep: "Крок гучності",
+        speakersStepStandard: "Стандартний (6,25%)",
+        speakersMinimum: "Мінімальна гучність",
+        speakersMinimumCaption: "Зменшення гучності зупиняється тут. Вимкнення звуку все одно глушить монітор.",
+        speakersMaximum: "Максимальна гучність",
+        speakersMaximumCaption: "Збільшення гучності зупиняється тут."
     )
 }

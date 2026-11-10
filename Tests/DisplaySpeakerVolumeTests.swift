@@ -43,6 +43,7 @@ enum DisplaySpeakerVolumeTests {
         var running = true
         var wantsMonitorVolume = true
         var wantsMonitorVolumeKeys = true
+        var monitorVolumeKeySettings = MonitorVolumeKeySettings()
         var displayPowerIsSuspended = false
         var displays: [BrightnessDisplay] = [] { didSet { onDisplayChange?() } }
         var onDisplayChange: (() -> Void)?
@@ -251,9 +252,10 @@ enum DisplaySpeakerVolumeTests {
                      && BrightnessSupport.volumeKeyEvent(subtype: 8, data1: keyData(0, state: 7)) == nil,
                      "brightness keys, other subtypes and other states are never volume keys")
 
-        suite.expect(BrightnessSupport.volumeKeyDelta(direction: 1, fine: false) == 1.0 / 16.0
-                     && BrightnessSupport.volumeKeyDelta(direction: -1, fine: true) == -1.0 / 100.0,
-                     "a plain key moves a sixteenth and Option+Shift a percent, in the key's direction")
+        let settings = MonitorVolumeKeySettings()
+        suite.expect(settings.requestedLevel(from: 0, direction: 1, fine: false) == 1.0 / 16.0
+                     && settings.requestedLevel(from: 0, direction: -1, fine: true) == -1.0 / 100.0,
+                     "default monitor keys move one sixteenth, or one percent with Option and Shift")
         suite.expect(BrightnessSupport.volumeKeyFineness(option: true, shift: true,
                         commandOrControl: false) == true
                      && BrightnessSupport.volumeKeyFineness(option: false, shift: false,
