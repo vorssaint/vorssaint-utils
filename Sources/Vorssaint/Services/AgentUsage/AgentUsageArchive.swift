@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 5
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -333,6 +333,9 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            string(value.antigravityNamedWorkspace)
+            bool(value.antigravitySubagent)
+            string(value.antigravityRoot)
         }
     }
 
@@ -490,6 +493,9 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            value.antigravityNamedWorkspace = try string()
+            value.antigravitySubagent = try bool()
+            value.antigravityRoot = try string()
             return value
         }
     }
