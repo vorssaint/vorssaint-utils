@@ -171,6 +171,9 @@ enum MixerRoutingSupport {
 
     static let systemDefaultSelectionID = "__system_default__"
     static let finderBundleIdentifier = "com.apple.finder"
+    static let otherAudioName = "Other / System audio"
+    static let otherAudioRowIdentity = MixerRowIdentity(rowID: otherAudioName,
+                                                        persistenceID: otherAudioName)
 
     private static let forbiddenScalars = CharacterSet.controlCharacters.union(.newlines)
 
