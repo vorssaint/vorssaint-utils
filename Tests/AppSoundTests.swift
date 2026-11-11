@@ -518,11 +518,10 @@ enum AppSoundTests {
     }
 
     private static func groups(_ suite: TestSuite) {
-        suite.expect(AppSoundGroup.capture.sounds == [.screenshotTaken, .recordingStarted, .recordingStopped]
+        suite.expect(AppSoundGroup.capture.sounds == [.screenshotTaken]
                         && AppSoundGroup.island.sounds == [.downloadFinished, .calendarEventSoon],
                      "capture and island moments sit in their own sections")
         suite.expect(AppSound.screenshotTaken.feature == .screenshot
-                        && AppSound.recordingStopped.feature == .screenRecorder
                         && AppSound.downloadFinished.feature == .notchDownloads
                         && AppSound.calendarEventSoon.feature == .notchCalendar,
                      "each moment shows only while the feature that plays it is installed")

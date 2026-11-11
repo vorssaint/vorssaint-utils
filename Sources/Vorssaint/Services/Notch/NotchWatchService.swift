@@ -60,7 +60,7 @@ final class NotchWatchService: ObservableObject {
     var isActive: Bool { target != nil && (state == .watching || state == .hidden) }
     /// An area without text shows itself in the closed island instead.
     var showsThumbnail: Bool { headline.isEmpty && preview != nil }
-    var isSelecting: Bool { selection != nil }
+    var isSelecting: Bool { choosing }
 
     private var tracker = NotchWatchTracker(condition: .changes)
     private var loop: Task<Void, Never>?
@@ -68,8 +68,8 @@ final class NotchWatchService: ObservableObject {
     private var fingerprint: [UInt8]?
     private var signature: String?
     private var readAt: Date?
-    private var regionCapture: ScreenshotCaptureEngine.RegionCapture?
-    private var selection: ScreenshotSelectionController?
+    private var regionCapture: ScreenRegionCapture.RegionCapture?
+    private var choosing = false
     /// A chosen area can still be preparing after its selector closes.
     /// Stopping or choosing again makes that preparation stale.
     private var choiceGeneration = UUID()
@@ -84,33 +84,27 @@ final class NotchWatchService: ObservableObject {
     // MARK: Choosing
 
     func chooseArea() {
-        guard NotchWatchSupport.isEnabled(), selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
+        guard NotchWatchSupport.isEnabled(), !choosing, !ScreenshotService.shared.isCapturing else { return }
         // Asked of the system: nothing keeps the shared state current for Watch.
         guard CGPreflightScreenCaptureAccess() else {
             Permissions.shared.requestScreenRecording()
             return
         }
-        let notch = NotchService.shared
-        let controller = ScreenshotSelectionController(
-            freeze: false, includePointer: false, showLastRegion: false, hideVorssaintWindows: true,
-            protectedWindowIDs: { notch.protectedWindowIDs.union(notch.captureChromeWindowIDs) },
-            purpose: FeatureStrings.notchWatch(L10n.shared.language).purpose, mode: .geometry)
         let choice = UUID()
         choiceGeneration = choice
-        selection = controller
-        controller.begin { [weak self] outcome in
+        choosing = true
+        ScreenshotService.shared.chooseArea { [weak self] region in
             guard let self, self.choiceGeneration == choice else { return }
-            self.selection = nil
-            guard case .region(let region) = outcome else { return }
+            self.choosing = false
+            guard let region else { return }
             Task { @MainActor [weak self] in await self?.watch(region, choice: choice) }
         }
     }
 
     @MainActor
-    private func watch(_ region: RecorderSupport.Region, choice: UUID) async {
+    private func watch(_ region: ScreenRegionCapture.Region, choice: UUID) async {
         guard choiceGeneration == choice, NotchWatchSupport.isEnabled() else { return }
         let notch = NotchService.shared
-        let protected = notch.protectedWindowIDs.union(notch.captureChromeWindowIDs)
         let picked: (id: CGWindowID, crop: CGRect)?
         if let windowID = region.windowID, let bounds = Self.windowInfo(windowID)?.bounds {
             picked = (windowID, CGRect(origin: .zero, size: bounds.size))
@@ -120,8 +114,7 @@ final class NotchWatchService: ObservableObject {
             let mainHeight = NSScreen.screens.first?.frame.height ?? 0
             let area = CGRect(x: region.anchorRect.minX, y: mainHeight - region.anchorRect.maxY,
                               width: region.anchorRect.width, height: region.anchorRect.height)
-            let windows = ScreenshotCaptureEngine.pickableWindows(hideVorssaintWindows: true,
-                                                                  protectedWindowIDs: protected)
+            let windows = ScreenRegionCapture.otherAppWindows()
             picked = NotchWatchSupport.windowCrop(for: area, windows: windows)
         }
         let target: NotchWatchTarget
@@ -134,9 +127,8 @@ final class NotchWatchService: ObservableObject {
             // part of the display as it is.
             // Beside the camera the island would read itself opening and
             // closing as a change, so it stays out whatever captures show.
-            guard let capture = await ScreenshotCaptureEngine.prepareDisplayRegion(
-                displayID: region.displayID, pixelRect: region.pixelRect, includePointer: false,
-                hideVorssaintWindows: true, protectedWindowIDs: protected, keepsIslandOut: true) else { return }
+            guard let capture = await ScreenRegionCapture.prepareDisplayRegion(
+                displayID: region.displayID, pixelRect: region.pixelRect) else { return }
             guard choiceGeneration == choice, NotchWatchSupport.isEnabled() else { return }
             regionCapture = capture
             target = NotchWatchTarget(windowID: nil, displayID: region.displayID, crop: region.pixelRect,
@@ -164,9 +156,10 @@ final class NotchWatchService: ObservableObject {
 
     func stop() {
         choiceGeneration = UUID()
-        let choosing = selection
-        selection = nil
-        choosing?.cancel()
+        if choosing {
+            choosing = false
+            ScreenshotService.shared.cancelAreaChoice()
+        }
         cancelLoop()
         target = nil
         state = .idle
@@ -301,7 +294,7 @@ final class NotchWatchService: ObservableObject {
                 // server already answered above, and asking it again would
                 // only add another permission check (issue #1863).
                 captured = await WindowPreviewProvider.captureViaScreenCaptureKit {
-                    await ScreenshotCaptureEngine.captureIndependentWindow(windowID, scale: 2)
+                    await ScreenRegionCapture.captureIndependentWindow(windowID, scale: 2)
                 }.flatMap { Self.wholeWindow($0, size: info.bounds.size) }
             }
             image = captured.flatMap { full in
@@ -336,10 +329,10 @@ final class NotchWatchService: ObservableObject {
         let (area, recognized) = await Task.detached(priority: .utility) { () -> (CGImage, String) in
             let area = NotchWatchSupport.standalone(image)
             let source = Self.scaledForRecognition(area) ?? area
-            switch ScreenTextService.outcome(for: source, detectQRCodes: false, removeLineBreaks: false,
-                                             fallbackLanguages: languages) {
+            switch ImageTextRecognizer.outcome(for: source, removeLineBreaks: false,
+                                               fallbackLanguages: languages) {
             case .text(let text): return (area, text)
-            case .qr, .empty: return (area, "")
+            case .empty: return (area, "")
             }
         }.value
         // Kept only once read: a reading dropped halfway must not leave the

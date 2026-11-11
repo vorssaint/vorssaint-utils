@@ -301,84 +301,6 @@ enum NotchTests {
                      "a page with nothing for the row starts as far from the top as it ends from the bottom")
     }
 
-    private static func captureControlsLayoutContracts(_ suite: TestSuite) {
-        func titleWidth(_ language: AppLanguage) -> CGFloat {
-            NotchCaptureControlsLayout.titleWidth(FeatureStrings.screenshot(language).screenCaptureTitle)
-        }
-        for language in AppLanguage.allCases {
-            let host = NSHostingView(rootView: Text(FeatureStrings.screenshot(language).screenCaptureTitle)
-                .font(Font(NotchCaptureControlsLayout.titleFont as CTFont)).fixedSize())
-            host.layoutSubtreeIfNeeded()
-            suite.expect(host.fittingSize.width <= titleWidth(language),
-                         "the measured capture title covers the \(language.rawValue) title as drawn (\(host.fittingSize.width))")
-        }
-        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
-        var geometries: [NotchGeometry] = []
-        for camera: CGFloat in [180, 185, 210, 240] {
-            for cameraHeight: CGFloat in [32, 38] {
-                for layout: NotchSize in [.compact, .spacious] {
-                    geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight,
-                                                    cameraWidth: camera, layout: layout))
-                }
-                for width in stride(from: NotchSize.widthRange.lowerBound, through: NotchSize.widthRange.upperBound, by: 10) {
-                    geometries.append(NotchGeometry(screen: screen, safeAreaTop: cameraHeight, cameraWidth: camera,
-                                                    layout: .custom, customWidth: width))
-                }
-            }
-        }
-        let clearance = NotchCaptureControlsLayout.cameraClearance
-        for geometry in geometries {
-            let previousHeight = geometry.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16
-            for language in AppLanguage.allCases {
-                let title = titleWidth(language)
-                let layout = NotchCaptureControlsLayout(geometry: geometry, titleWidth: title, capturesAudio: false)
-                suite.expect(layout.size.width == geometry.expandedWidth
-                             && layout.headerTop + layout.headerHeight + 12 >= geometry.cameraHeight,
-                             "capture tools keep the island's width and begin below the camera")
-                if layout.cameraGap > 0 {
-                    suite.expect(layout.headerTop == 0 && layout.headerHeight == geometry.headerRowHeight
-                                 && layout.cameraGap == geometry.cameraWidth
-                                 && layout.sideWidth * 2 + layout.cameraGap == geometry.contentWidth,
-                                 "capture controls beside the camera share the open header's row and sides")
-                    suite.expect(title + clearance <= layout.sideWidth
-                                 && NotchCaptureControlsLayout.narrowButtonsWidth + clearance <= layout.sideWidth,
-                                 "the \(language.rawValue) capture title and buttons stay clear of the camera")
-                    suite.expect(layout.size.height < previousHeight,
-                                 "capture controls beside the camera cover less of the screen")
-                } else {
-                    suite.expect(layout.headerTop == geometry.safeContentTop
-                                 && layout.headerHeight == NotchCaptureControlsLayout.rowHeight
-                                 && layout.size.height == previousHeight,
-                                 "a capture title too wide for the camera's side keeps its row below the camera")
-                }
-            }
-        }
-        for layout: NotchSize in [.compact, .spacious] {
-            for camera: CGFloat in [185, 210] {
-                let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera, layout: layout)
-                suite.expect(NotchCaptureControlsLayout(geometry: geometry, titleWidth: titleWidth(.enUS),
-                                                        capturesAudio: false).cameraGap == camera,
-                             "both presets put the English capture title beside the camera")
-            }
-        }
-        let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .spacious)
-        suite.expect(AppLanguage.allCases.allSatisfy {
-            NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth($0), capturesAudio: false).cameraGap > 0
-        }, "every capture title fits beside a narrow camera in the spacious preset")
-        let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 210, layout: .compact)
-        suite.expect(NotchCaptureControlsLayout(geometry: crowded, titleWidth: titleWidth(.es),
-                                                capturesAudio: false).cameraGap == 0,
-                     "the longest capture title keeps its row below a wide camera in the compact preset")
-        let audio = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: true)
-        let silent = NotchCaptureControlsLayout(geometry: roomy, titleWidth: titleWidth(.enUS), capturesAudio: false)
-        suite.expect(audio.size.height == silent.size.height + 40, "recording keeps room for its audio switches")
-        let simulated = NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0, layout: .spacious)
-        let top = NotchCaptureControlsLayout(geometry: simulated, titleWidth: titleWidth(.es), capturesAudio: false)
-        suite.expect(top.headerTop == 0 && top.cameraGap == 0 && top.headerHeight == NotchLayout.headerHeight
-                     && top.size.height < simulated.safeContentTop + 28 + 12 + NotchLayout.shortcutHeight + 16,
-                     "without a camera the capture title and buttons take the top row, as the open header does")
-    }
-
     /// The island names no page: its top row holds the page's own controls,
     /// wrapping the camera wherever each side keeps a 100-point wing, and a
     /// row below the camera elsewhere. A page with nothing for the row starts
@@ -475,7 +397,7 @@ enum NotchTests {
         let home = NotchLayout.naturalContentWidth(.controls, controls: shortcuts, within: 504)
         suite.expect(home == 5 * NotchLayout.shortcutWidth + 4 * NotchLayout.shortcutSpacing,
                      "the home page is as wide as its one row of shortcuts: \(home ?? 0)")
-        suite.expect(NotchLayout.naturalContentWidth(.controls, controls: shortcuts + [.screenshot, .recording, .speedTest,
+        suite.expect(NotchLayout.naturalContentWidth(.controls, controls: shortcuts + [.screenshot, .scratchpad, .speedTest,
                                                                                       .panel, .commandBar], within: 424) == nil,
                      "a home page whose shortcuts wrap keeps the chosen width")
         var custom = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1710, height: 1112), safeAreaTop: 32, cameraWidth: 210,
@@ -692,7 +614,7 @@ enum NotchTests {
     private static func homeRailContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
         let levels: [NotchControlItem] = [.volume, .brightness, .keyboardLight]
-        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot, .recording,
+        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot,
                                          .speedTest, .panel, .commandBar, .scratchpad]
         let tile = NotchLayout.shortcutWidth, spacing = NotchLayout.shortcutSpacing
         var sizes: [(NotchSize, Double, Double)] = [(.compact, NotchSize.defaultWidth, NotchSize.defaultHeight),
@@ -792,7 +714,7 @@ enum NotchTests {
     private static func homeRailRowContracts(_ suite: TestSuite) {
         let screen = CGRect(x: 0, y: 0, width: 1710, height: 1112)
         let levels: [NotchControlItem] = [.volume, .brightness, .keyboardLight]
-        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot, .recording,
+        let tiles: [NotchControlItem] = [.mixer, .keepAwake, .timer, .calendar, .microphone, .screenshot,
                                          .speedTest, .panel, .commandBar, .scratchpad]
         let tile = NotchLayout.shortcutWidth, row = NotchLayout.shortcutHeight, spacing = NotchLayout.shortcutSpacing
         var sizes: [(NotchSize, Double, Double)] = [(.compact, NotchSize.defaultWidth, NotchSize.defaultHeight),
@@ -1766,7 +1688,6 @@ enum NotchTests {
         railContracts(suite)
         musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
-        captureControlsLayoutContracts(suite)
         pageTopContracts(suite)
         pageWidthContracts(suite)
         sectionsButtonContracts(suite)
@@ -1797,7 +1718,6 @@ enum NotchTests {
         WindowVisibilityTests.run { suite.expect($0, $1) }
         NotchLyricsTimelineTests.run { suite.expect($0, $1) }
         NotchUpdateTests.run(suite)
-        NotchCaptureKeyboardTests.run(suite)
         NotchKeyMonitorTests.run(suite)
         NotchCommandBarHeightTests.run(suite)
         NotchDownloadProgressTests.run(suite)
@@ -1912,7 +1832,7 @@ enum NotchTests {
                                 DefaultsKey.notchLyricsEnabled, DefaultsKey.notchQueueEnabled,
                                 DefaultsKey.notchKeyboardLight, DefaultsKey.notchMicrophone,
                                 DefaultsKey.notchAccessoriesEnabled, DefaultsKey.notchClipboard,
-                                DefaultsKey.notchCapture, DefaultsKey.notchTrackChange]
+                                DefaultsKey.notchTrackChange]
         suite.expect(enabledByDefault.allSatisfy { firstDefaults[$0] as? Bool == true },
                      "installed island sections and activity indicators start enabled")
         suite.expect(firstDefaults[DefaultsKey.notchLiveEqualizer] as? Bool == false,
@@ -2031,7 +1951,7 @@ enum NotchTests {
                "a reading on the home page's full row leaves every level its narrowest, or covers them where both cannot fit")
 
         suite.expect(!NotchSupport.routesAppPanel(in: defaults) && !NotchSupport.routesQuickPanel(in: defaults)
-               && !NotchSupport.routesShelf(in: defaults) && !NotchSupport.routesCaptureControls(in: defaults)
+               && !NotchSupport.routesShelf(in: defaults)
                && !NotchSupport.routesClipboardWindow(in: defaults),
                "separate panels remain the default until the notch is explicitly enabled")
         suite.expect(NotchSupport.showsInCaptures(in: defaults), "notch appears in screenshots and recordings by default")
@@ -2104,8 +2024,7 @@ enum NotchTests {
         suite.expect(NotchSupport.closeDelay(in: defaults) == 0.18,
                      "removing the closing preference restores the original delay")
         suite.expect(!NotchSupport.routesAppPanel(in: defaults) && NotchSupport.routesQuickPanel(in: defaults)
-               && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults)
-               && NotchSupport.routesCaptureControls(in: defaults),
+               && NotchSupport.routesClipboardWindow(in: defaults) && NotchSupport.routesShelf(in: defaults),
                "enabling a fresh island keeps the app panel separate and routes the other available panels into it")
         suite.expect(NotchSupport.routes(.track, in: defaults), "a new song shows by default while music is on")
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
@@ -2341,7 +2260,6 @@ enum NotchTests {
         defaults.set(savedHiddenControls, forKey: DefaultsKey.notchHiddenControls)
         defaults.set(savedBrightness, forKey: AppFeature.brightness.availabilityKey)
         suite.expect(NotchControlItem.brightness.setupRequirement == .feature(.brightness)
-                     && NotchControlItem.recording.setupRequirement == .feature(.screenRecorder)
                      && NotchControlItem.scratchpad.setupRequirement == .feature(.scratchpad),
                      "feature-gated controls lead to the matching feature in the hub")
         suite.expect(NotchControlItem.music.setupRequirement == .page(.music, feature: nil)
@@ -2540,18 +2458,8 @@ enum NotchTests {
         let plainGeometry = NotchGeometry(screen: idleGeometry.screen, safeAreaTop: 0, cameraWidth: 0, compactSideRoom: 0)
         suite.expect(plainGeometry.activationArea(in: plainGeometry.compactActivitySize, hasHeader: false, compactActivity: true).width == plainGeometry.cameraWidth,
                "the simulated camera leaves the activity controls beside it independently clickable")
-        suite.expect(ScreenshotSupport.selectionDimAlpha(notchControls: true, isFrozen: true, isDragging: false) == 0,
-               "opening capture controls in the notch does not darken the desktop")
-        suite.expect(ScreenshotSupport.selectionDimAlpha(notchControls: true, isFrozen: true, isDragging: true) > 0,
-               "dragging a capture region retains visual selection feedback")
-        suite.expect(ScreenshotSupport.selectionDimAlpha(notchControls: false, isFrozen: true, isDragging: false) == 0.22,
-               "the standalone capture chooser keeps its existing contrast")
-        for tool in ScreenCaptureTool.allCases {
-            suite.expect(tool.capturesAudio == (tool == .recording),
-                   "only screen recording shows microphone and system-audio controls: \(tool.rawValue)")
-        }
-        suite.expect(!NotchSupport.routes(.clipboard, in: defaults) && NotchSupport.routes(.capture, in: defaults),
-               "clipboard activity still needs history capture while installed captures start enabled")
+        suite.expect(!NotchSupport.routes(.clipboard, in: defaults),
+               "clipboard activity still needs history capture")
         defaults.set(true, forKey: DefaultsKey.clipboardHistoryEnabled)
         suite.expect(NotchSupport.routes(.clipboard, in: defaults), "installed clipboard activity starts once history capture is enabled")
         suite.expect(NotchSupport.routesScratchpad(in: defaults), "Scratchpad defaults to its visible island page")
@@ -2573,7 +2481,7 @@ enum NotchTests {
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
-        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
+        suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],
                "module order ignores unknown ids and duplicates, preserving newly added modules")
         suite.expect(NotchSupport.routesShelf(in: defaults) && NotchSupport.revealsShelfDrag(in: defaults),
                "the enabled notch replaces the file destination and reveals active drags")
@@ -2584,8 +2492,6 @@ enum NotchTests {
         suite.expect(NotchSupport.showsFiles(in: defaults) && !NotchSupport.routesShelf(in: defaults),
                "choosing a separate window keeps the choice on offer while the shelf stays out of the island")
         defaults.set(true, forKey: DefaultsKey.notchShelf)
-        defaults.set(false, forKey: DefaultsKey.notchCaptureControls)
-        suite.expect(!NotchSupport.routesCaptureControls(in: defaults), "capture controls retain an independent destination")
         defaults.set(false, forKey: AppFeature.quickLauncher.availabilityKey)
         suite.expect(!NotchSupport.modules(in: defaults).contains(.tools) && !NotchSupport.routesQuickPanel(in: defaults),
                "removing the quick panel also removes its embedded tools and shortcut routing")
@@ -2601,13 +2507,13 @@ enum NotchTests {
 
         let keys: Set<String> = [DefaultsKey.notchShowPlayingMusic, DefaultsKey.notchIncludeOtherPlayers, DefaultsKey.notchShowInCaptures, DefaultsKey.notchIdleContent, DefaultsKey.notchHiddenControls, DefaultsKey.notchControlOrder, DefaultsKey.notchSize, DefaultsKey.notchOutlineEnabled, DefaultsKey.notchHideMenuBarGap, DefaultsKey.notchShelf, DefaultsKey.notchDragReveal,
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
-                                DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
+                                DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchCloseDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
                                 DefaultsKey.notchMicrophone, DefaultsKey.notchBrightness, DefaultsKey.notchBattery,
-                                DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow, DefaultsKey.notchCapture,
+                                DefaultsKey.notchClipboard, DefaultsKey.notchClipboardWindow,
                                 DefaultsKey.notchTrackChange, DefaultsKey.notchMusicActivity, DefaultsKey.notchHideInCaptures, DefaultsKey.panelControlNotch,
                                 AppFeature.notch.availabilityKey]
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys), "every portable notch preference travels in backup")
@@ -3348,25 +3254,6 @@ enum NotchTests {
         }
         let mediaGeometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180)
         for layout in NotchSize.allCases {
-            for customHeight in [400.0, 640.0] {
-                let geometry = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
-                                             layout: layout, customHeight: customHeight)
-                let history = geometry.expandedSize(module: .captures)
-                let preview = geometry.expandedSize(module: .captures, capturePreviewHeight: 210)
-                let shared = geometry.expandedSize(module: .captures, capturePreviewHeight: 268)
-                suite.expect(geometry.contentSize(for: preview).height == 214
-                       && geometry.contentSize(for: history).height == geometry.contentBudget,
-                       "a single capture reserves its measured preview and scroll inset while the history fills the strip in every layout")
-                suite.expect(shared.height - preview.height == 58,
-                       "sharing adds only the link row and removing it restores the compact preview height")
-                suite.expect(geometry.expandedSize(module: .timer, capturePreviewHeight: 210)
-                       == geometry.expandedSize(module: .timer),
-                       "a retained capture preview does not change another section's height")
-                suite.expect(menuScreen.contains(geometry.frame(for: shared)) && shared.height <= customHeight,
-                       "the capture preview preserves the screen edge and respects the custom height limit")
-            }
-        }
-        for layout in NotchSize.allCases {
             let fitting = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         layout: layout, customHeight: 640)
             for measured: CGFloat in [120, 280, 370, 480] {
@@ -3483,7 +3370,6 @@ enum NotchTests {
                "the Displays without a notch card offers All displays only while the chosen display keeps the island off them")
         suite.expect(NotchSupport.shouldReplace(.volume, with: .brightness), "continuous controls can replace each other")
         suite.expect(!NotchSupport.shouldReplace(.volume, with: .clipboard), "copy does not interrupt a volume adjustment")
-        suite.expect(NotchSupport.shouldReplace(.battery, with: .capture), "a capture takes precedence over passive battery status")
         suite.expect(NotchSupport.volumeLevel(current: 0.99, direction: 1, fine: false) == 1
                && NotchSupport.volumeLevel(current: 0, direction: -1, fine: false) == 0,
                "hardware volume steps clamp to audible limits")

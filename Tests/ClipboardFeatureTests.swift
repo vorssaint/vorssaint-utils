@@ -302,14 +302,14 @@ enum ClipboardFeatureTests {
                      "a picture past the area bound keeps nearly all of that area")
         suite.expect(ClipboardImageRecognition.scaledSize(width: 6_016, height: 3_384) == nil,
                      "a 6K capture in a screenshot preview is read whole")
-        let longCaptureHeight = ScreenshotSupport.scrollingCaptureMaximumPixels / 3_000
+        let longCaptureHeight = 60_000_000 / 3_000
         let longCapture = ClipboardImageRecognition.scaledSize(width: 3_000, height: longCaptureHeight)
         let longCapturePixels = (longCapture?.width ?? 0) * (longCapture?.height ?? 0)
         suite.expect(longCapture?.height == ClipboardImageRecognition.decodeMaxPixelSize(
                         width: 3_000, height: longCaptureHeight)
                      && longCapturePixels <= ClipboardImageRecognition.maxPixels
                      && Double(longCapturePixels) > 0.99 * Double(ClipboardImageRecognition.maxPixels),
-                     "the largest scrolling capture in a preview is scaled to the area bound before recognition")
+                     "a very tall picture is scaled to the area bound before recognition")
 
         // MARK: Clipboard history search tokens and highlight ranges
 
@@ -1528,7 +1528,6 @@ enum ClipboardFeatureTests {
         }
 
         ClipboardHistoryWriteTests.run(suite)
-        ClipboardHistoryImageEditorTests.run(suite)
         ClipboardHistoryAccessTests.run(suite)
 
         let pasteboardAccess = GeneralPasteboardAccess(label: "Vorssaint.Tests.PasteboardAccess")

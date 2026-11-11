@@ -201,7 +201,7 @@ enum ReleaseDigestTests {
             ("Fixed", "AI Agents follows OpenCode 2, including databases upgraded from OpenCode 1 and the cost of compactions.", [.notchAgents]),
             ("Changed", "App sliders in the Volume mixer follow perceived loudness, so 50% sounds clearly quieter. Saved levels keep how loud each app plays.", [.mixer]),
             ("Changed", "Command Bar opens and searches faster, with the same matching and ranking rules.", [.commandBar]),
-            ("Changed", "Save as GIF and Copy as GIF work for recordings of any length.", [.screenRecorder]),
+            ("Changed", "Save as GIF and Copy as GIF work for recordings of any length.", []),
             ("Fixed", "Mouse navigation handles quick changes between Back and Forward when the app's menu state has not caught up.", [.mouseNavigation]),
             ("Fixed", "Watch reads the complete percentage, including values above 999%, spaces between thousands and negative signs.", [.notchWatch]),
             ("Dynamic Island", "Calendar adds countdowns to the events you choose, the time left in the current event, week numbers and a choice of calendars.", [.notch, .notchCalendar]),

@@ -984,14 +984,6 @@ enum ClipboardHistoryBatch {
     }
 }
 
-enum ClipboardHistoryCapturePolicy {
-    static func isCopiedScreenshot(_ paths: [String], in directory: URL?) -> Bool {
-        guard paths.count == 1,
-              let directory else { return false }
-        return ScreenshotSupport.isCopiedScreenshot(URL(fileURLWithPath: paths[0]), in: directory)
-    }
-}
-
 enum ClipboardHistoryPasteboardText {
     static func preferredText(webURLString: String?, plainText: String?) -> String? {
         let plain = trimmed(plainText)

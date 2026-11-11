@@ -771,9 +771,6 @@ final class RadialMenuService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             switch tool {
             case .screenshot: ScreenshotService.shared.capture()
-            case .screenRecorder: ScreenRecorderService.shared.toggle()
-            case .colorPicker: ColorSamplerService.shared.pick()
-            case .screenOCR: ScreenTextService.shared.capture()
             case .micMute: MicMuteService.shared.toggle()
             case .clipboardHistory: ClipboardHistoryService.shared.showHistoryWindow()
             case .quickLauncher: QuickLauncherService.shared.show()

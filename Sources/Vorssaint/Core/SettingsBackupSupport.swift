@@ -186,8 +186,10 @@ enum SettingsBackupSupport {
         DefaultsKey.notchDownloadsFolderBookmark,
         DefaultsKey.wallpaperOwnBookmarks,
         DefaultsKey.wallpaperExcludedOwnPaths,
-        DefaultsKey.recorderSaveFolder,
-        DefaultsKey.screenshotSaveFolder,
+        DefaultsKey.shotFolder,
+        DefaultsKey.shotLastFolder,
+        // Where the last selection sat only means something on this Mac's displays.
+        DefaultsKey.shotLastSelection,
         DefaultsKey.musicBlockReplacementPath,
         // A local watermark file is authority on this Mac, not portable data.
         DefaultsKey.mediaImageWatermarkLogoPath,
@@ -195,21 +197,11 @@ enum SettingsBackupSupport {
         DefaultsKey.simulateRestingUsage,
         DefaultsKey.updateShowcaseIntroVersion,
         DefaultsKey.updateShowcaseMediaOverride,
-        DefaultsKey.unifiedScreenCaptureShortcutMigrated,
-        DefaultsKey.restoredScreenCaptureShortcutsMigrated,
-        DefaultsKey.orphanedCaptureShortcutMigrated,
         DefaultsKey.notchAgentsOptInMigrated,
         DefaultsKey.settingsWindowWidth,
         DefaultsKey.settingsWindowHeight,
         DefaultsKey.clipboardHistoryWindowWidth,
         DefaultsKey.clipboardHistoryWindowHeight,
-        // The last magnifier level is session history; its remembered/default
-        // policy remains portable, but another Mac need not inherit the value.
-        DefaultsKey.screenshotLoupeLastZoom,
-        DefaultsKey.screenshotSharingDeveloperEndpoint,
-        // Whether the audio system let a recording hear the Mac's sound is a
-        // grant this Mac gave, not a setting.
-        DefaultsKey.recorderSystemAudioTapVerified,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
         // Control left running on one Mac must not start fans on another.
@@ -394,33 +386,6 @@ enum SettingsBackupSupport {
 
     private static func portableMediaSettings(_ source: [String: Any]) -> [String: Any] {
         var settings = source
-        if let raw = settings[DefaultsKey.screenshotWatermarkStyle] as? String {
-            var style = raw.data(using: .utf8).flatMap {
-                try? JSONDecoder().decode(ScreenshotSupport.WatermarkStyle.self, from: $0)
-            } ?? ScreenshotSupport.WatermarkStyle()
-            style.imagePath = nil
-            settings[DefaultsKey.screenshotWatermarkStyle] = style.encoded()
-        }
-        if let raw = settings[DefaultsKey.screenshotWatermarkPresets] as? String {
-            let portable = ScreenshotSupport.decodedWatermarkPresets(raw)
-                .filter { $0.kind != .image }
-                .map { style in
-                    var style = style
-                    style.imagePath = nil
-                    return style
-                }
-            settings[DefaultsKey.screenshotWatermarkPresets] =
-                ScreenshotSupport.encodedWatermarkPresets(portable)
-        }
-        // Preset pictures are private files on this Mac. A backup carries the
-        // visual settings, never authority to read a caller-supplied image path.
-        if let data = settings[DefaultsKey.recorderEditorPresets] as? Data,
-           var presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: data) {
-            for index in presets.indices where presets[index].images?.isEmpty == false {
-                presets[index].images = nil
-            }
-            settings[DefaultsKey.recorderEditorPresets] = try? JSONEncoder().encode(presets)
-        }
         if let rawProfiles = settings[DefaultsKey.mediaImageProfiles] as? String {
             if let portableProfiles = MediaSupport.portableImageProfiles(rawProfiles) {
                 settings[DefaultsKey.mediaImageProfiles] = portableProfiles
@@ -443,45 +408,6 @@ enum SettingsBackupSupport {
             break
         }
         return settings
-    }
-
-    /// Only a choice already made on this Mac can supply an image. A portable
-    /// image style keeps its appearance, but cannot select a file on another Mac.
-    static func restoredScreenshotWatermark(restored: String?, local: String?) -> String {
-        var style = restored?.data(using: .utf8).flatMap {
-            try? JSONDecoder().decode(ScreenshotSupport.WatermarkStyle.self, from: $0)
-        } ?? ScreenshotSupport.WatermarkStyle()
-        style.imagePath = ScreenshotSupport.WatermarkStyle.decoded(local).imagePath
-        return style.sanitized().encoded()
-    }
-
-    /// Image presets stay on their original Mac. Reserve their places before
-    /// taking portable text presets, so a restore never discards a local image.
-    static func restoredScreenshotWatermarkPresets(restored: String?, local: String?) -> String {
-        let pictures = ScreenshotSupport.decodedWatermarkPresets(local).filter { $0.kind == .image }
-        let text = ScreenshotSupport.decodedWatermarkPresets(restored)
-            .filter { $0.kind == .text }
-            .map { style in
-                var style = style
-                style.imagePath = nil
-                return style
-            }
-        return ScreenshotSupport.encodedWatermarkPresets(
-            Array(text.suffix(ScreenshotSupport.backdropPresetLimit - pictures.count)) + pictures)
-    }
-
-    /// Restoring settings on the same Mac keeps the pictures already owned by
-    /// matching presets, just as mouse exceptions keep their local paths.
-    static func preservingLocalPresetImages(restored: Data, local: Data?) -> Data {
-        guard var presets = try? JSONDecoder().decode([RecorderEditPreset].self, from: restored),
-              let local,
-              let localPresets = try? JSONDecoder().decode([RecorderEditPreset].self, from: local)
-        else { return restored }
-        for index in presets.indices where presets[index].images == nil {
-            let id = presets[index].id
-            presets[index].images = localPresets.first { $0.id == id }?.images
-        }
-        return (try? JSONEncoder().encode(presets)) ?? restored
     }
 
     /// A backup is a file the user can hand around and edit, so a value has to

@@ -81,22 +81,6 @@ struct NotchView: View {
     @ViewBuilder private var surface: some View {
         if service.fullscreenCompact {
             Color.clear.accessibilityHidden(true)
-        } else if let options = service.captureControls {
-            if service.captureControlsCollapsed, floats {
-                NotchCapsuleCaptureStrip(symbol: options.selectedTool.systemImageName, geometry: service.geometry,
-                                         size: service.surfaceSize)
-            } else if service.captureControlsCollapsed {
-                HStack(spacing: 0) {
-                    Image(systemName: options.selectedTool.systemImageName).frame(width: 28)
-                    Color.clear.frame(width: service.geometry.cameraWidth)
-                    Image(systemName: "chevron.down").frame(width: 28)
-                }
-                .font(.system(size: 10, weight: .semibold))
-                .frame(maxHeight: .infinity)
-                .accessibilityHidden(true)
-            } else {
-                NotchCaptureControlsView(options: options, service: service, layout: service.captureControlsLayout)
-            }
         } else if service.expanded {
             if service.showingCommandBar {
                 commandBarPage
@@ -511,7 +495,6 @@ struct NotchView: View {
     private var scrollsVertically: Bool {
         guard !service.showingAppPanel else { return false }
         return contentOverflows || service.selectedMetric != nil
-            || (service.selected == .captures && service.captureContent != nil)
             || (service.selected == .tools && launcher.isEditing && launcher.activeUtility == nil)
     }
 
@@ -591,15 +574,6 @@ struct NotchView: View {
                     // Below the top bar the player no longer sits beside the camera.
                     .transformEnvironment(\.notchBand) { if service.geometry.topBarHeight > 0 { $0.besideCamera = false } }
             case .clipboard: NotchClipboardView(service: service, size: pageSize)
-            case .captures:
-                if let capture = service.captureContent {
-                    // The capture's own toolbar takes a full row, below a camera.
-                    capture.frame(maxWidth: .infinity)
-                        .notchBand(trailing: { service.captureActions?.fixedSize() })
-                } else {
-                    RecentCapturesView(onClose: nil, notchSize: pageSize)
-                        .notchBand(trailing: { NotchClearCapturesButton() })
-                }
             case .files: NotchFilesView(service: service)
             case .system:
                 NotchSystemView(size: pageSize) { service.showMetric($0) }
@@ -614,18 +588,6 @@ struct NotchView: View {
             case .battery: NotchBatteryPage(size: pageSize)
             }
         }
-    }
-}
-
-/// Observes the history on its own, so a new capture does not redraw the island.
-struct NotchClearCapturesButton: View {
-    @ObservedObject private var history = RecentCaptureService.shared
-    @ObservedObject private var l10n = L10n.shared
-
-    var body: some View {
-        NotchIconButton(symbol: "trash", title: FeatureStrings.recentCaptures(l10n.language).clear,
-                        action: RecentCapturesView.confirmClearAboveIsland)
-            .disabled(RecentCapturesView.visible(history.entries).isEmpty)
     }
 }
 
@@ -841,7 +803,6 @@ extension NotchModule: PanelOrderItem {
         case .mixer: return Strings.localized(language).mixerSection
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
-        case .captures: return FeatureStrings.recentCaptures(language).title
         case .files: return FeatureStrings.notch(language).files
         case .system: return FeatureStrings.notch(language).system
         case .tools: return FeatureStrings.notch(language).tools

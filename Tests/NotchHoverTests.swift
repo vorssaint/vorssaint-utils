@@ -100,7 +100,7 @@ enum NotchHoverTests {
         var pinned = false, heldDrag = false, keepsWorkingSurface = false
         var expanded = false, peeking = false, dragPlaceholder = false, openedByHover = false
         var pointerReachedOpening = false, showingCommandBar = false
-        var captureControls: Bool?, notice: NotchNotice?
+        var notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
         var departingNotice: NotchNotice?
@@ -123,7 +123,7 @@ enum NotchHoverTests {
         var openedActivities: [NotchModule] = []
         func openActivity(_ module: NotchModule) { openedActivities.append(module) }
         var compactMusicIsVisible: Bool {
-            !fullscreenCompact && !expanded && !peeking && !dragPlaceholder && notice == nil && captureControls == nil
+            !fullscreenCompact && !expanded && !peeking && !dragPlaceholder && notice == nil
                 && compactActivity == .music
         }
         var capsuleMusicRefreshes = 0
@@ -136,9 +136,6 @@ enum NotchHoverTests {
         var hoverExitMonitors: [Any] = []
         var hoverWork: DispatchWorkItem?
         var shelfDragExitWork: DispatchWorkItem?
-        var captureHover: ((Bool) -> Void)?
-        func updateCaptureControlsHover(wasInside: Bool) {}
-        func updateCaptureControlsClickThrough() {}
         var childWindowFrames: [CGRect] = []
         func pointerOverChildWindow(_ point: CGPoint) -> Bool { childWindowFrames.contains { $0.contains(point) } }
         var windowHost: Host? = Host()
@@ -232,9 +229,6 @@ enum NotchHoverTests {
                 picker.inside = true
                 suite.expect(!picker.showsCompactActivityPicker, "the chooser does not cover an open page")
                 picker.expanded = false
-                picker.captureControls = true
-                suite.expect(!picker.showsCompactActivityPicker, "capture controls retain priority")
-                picker.captureControls = nil
                 picker.notice = volume
                 suite.expect(!picker.showsCompactActivityPicker, "system notices retain priority")
                 picker.notice = nil
@@ -465,34 +459,6 @@ enum NotchHoverTests {
         leavingFullscreen.syncHiddenHoverMonitoring()
         suite.expect(NSEvent.global.isEmpty && NSEvent.local.isEmpty,
                      "leaving full screen hands hover back to the island's own window")
-        // A timed capture still attached to the closed island keeps its
-        // dismissal while the pointer moves elsewhere, and hears only the
-        // pointer reaching the hidden island's place or leaving it.
-        let heldFullscreen = fixture()
-        UserDefaults.standard.fullscreenHover = true
-        var heldPreviewHovered: [Bool] = []
-        heldFullscreen.captureHover = { heldPreviewHovered.append($0) }
-        heldFullscreen.hiddenInFullscreen = true
-        heldFullscreen.windowHost?.visible = false
-        heldFullscreen.syncHiddenHoverMonitoring()
-        let heldAway = CGPoint(x: heldFullscreen.geometry.screen.minX, y: heldFullscreen.geometry.screen.minY)
-        let heldTop = CGPoint(x: heldFullscreen.geometry.screen.midX, y: heldFullscreen.geometry.screen.maxY)
-        for point in [heldAway, CGPoint(x: heldAway.x + 40, y: heldAway.y + 40)] {
-            NSEvent.mouseLocation = point
-            for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
-        }
-        suite.expect(heldPreviewHovered.isEmpty,
-                     "moves followed over a simulated cutout hidden in full screen leave a held capture's dismissal alone")
-        for point in [heldTop, CGPoint(x: heldTop.x + 4, y: heldTop.y)] {
-            NSEvent.mouseLocation = point
-            for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
-        }
-        suite.expect(heldPreviewHovered == [true] && heldFullscreen.hoverWork != nil,
-                     "the pointer reaching a simulated cutout hidden in full screen pauses its held capture once")
-        NSEvent.mouseLocation = heldAway
-        for handler in Array(NSEvent.global.values) { handler(NSEvent()) }
-        suite.expect(heldPreviewHovered == [true, false],
-                     "the pointer leaving a simulated cutout hidden in full screen lets its held capture dismiss again")
         for physical in [false, true] {
             let service = fixture(physical: physical)
             let resting = service.surfaceSize
@@ -602,17 +568,6 @@ enum NotchHoverTests {
             suite.expect(expands ? visible.openings == 1 : visible.peeking,
                          "the restored hover opens the island after its normal delay")
         }
-        let capturePreview = fixture()
-        capturePreview.expanded = true
-        capturePreview.updateBounds()
-        var previewHovered: Bool?
-        capturePreview.captureHover = { previewHovered = $0 }
-        capturePreview.windowHost?.isConcealedForMissionControl = true
-        capturePreview.windowHost?.isConcealedForMissionControl = false
-        capturePreview.missionControlDidRestore()
-        suite.expect(previewHovered == true,
-                     "restoring with the pointer over a capture preview keeps its auto-dismiss paused")
-
         let departed = fixture()
         departed.hover(true)
         DispatchQueue.main.advance(0.26)
@@ -825,58 +780,6 @@ enum NotchHoverTests {
                 }
             }
         }
-        // A timed capture still attached to the closed island would hear each
-        // followed move as the pointer leaving and restart its dismissal.
-        do {
-            let attached = fixture()
-            UserDefaults.standard.enabled = false
-            var previewHovered: Bool?
-            attached.captureHover = { previewHovered = $0 }
-            let top = attached.windowHost!.rect
-            NSEvent.mouseLocation = CGPoint(x: top.midX, y: top.maxY - 1)
-            attached.hover(true)
-            suite.expect(attached.hoverEmphasized && previewHovered == true
-                            && NSEvent.global.isEmpty && NSEvent.local.isEmpty,
-                         "the closed island holding a capture keeps it paused and does not follow the pointer")
-        }
-        // Hidden until hover, the island follows every move on screen to see
-        // the pointer arrive. A timed capture still attached to it would hear
-        // each one as an entry and never dismiss while the island stays hidden.
-        for local in [false, true] {
-            let hidden = fixture()
-            UserDefaults.standard.hides = true
-            hidden.windowHost?.visible = false
-            var heard: [Bool] = []
-            hidden.captureHover = { heard.append($0) }
-            hidden.syncHiddenHoverMonitoring()
-            let top = CGPoint(x: hidden.geometry.screen.midX, y: hidden.geometry.screen.maxY)
-            let away = CGPoint(x: hidden.geometry.screen.midX, y: hidden.geometry.screen.midY)
-            follow(to: away, local: local)
-            follow(to: CGPoint(x: away.x + 40, y: away.y - 40), local: local)
-            suite.expect(heard.isEmpty, "moves away from the hidden island never tell its timed capture the pointer entered")
-            follow(to: top, local: local)
-            follow(to: CGPoint(x: top.x + 4, y: top.y), local: local)
-            suite.expect(heard == [true], "the pointer reaching the hidden island's place pauses its timed capture once")
-            follow(to: away, local: local)
-            suite.expect(heard == [true, false],
-                         "the pointer leaving the hidden island's place lets its timed capture dismiss again")
-        }
-        // Closed under the pointer, the island hides with its capture paused,
-        // and the pointer moving on from its place lets the capture go.
-        do {
-            let closed = fixture()
-            UserDefaults.standard.hides = true
-            var heard: [Bool] = []
-            closed.captureHover = { heard.append($0) }
-            closed.open(takeFocus: true)
-            closed.hover(true)
-            closed.collapse()
-            closed.windowHost?.visible = false
-            closed.syncHiddenHoverMonitoring()
-            follow(to: CGPoint(x: closed.geometry.screen.midX, y: closed.geometry.screen.midY))
-            suite.expect(heard == [true, false],
-                         "a capture paused over the open island resumes once it hides and the pointer moves away")
-        }
         // Set to show activity, a hidden island beside a simulated cutout
         // draws one only with room from the menus. With none it stays out of
         // sight, so it keeps following the pointer to open where it waits.
@@ -1057,7 +960,7 @@ enum NotchHoverTests {
 
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
-            { $0.captureControls = true }, { $0.hoverState.close(pointerInside: true) },
+            { $0.hoverState.close(pointerInside: true) },
             { $0.notice = volume }, { $0.dragPlaceholder = true }, { $0.suspended = true }, { $0.running = false },
             { _ in UserDefaults.standard.enabled = false }
         ] {
@@ -1073,7 +976,7 @@ enum NotchHoverTests {
         }
         for protect: (Service) -> Void in [
             { $0.pinned = true }, { $0.heldDrag = true }, { $0.keepsWorkingSurface = true },
-            { $0.captureControls = true }, { $0.suspended = true }, { $0.running = false }
+            { $0.suspended = true }, { $0.running = false }
         ] {
             let protected = fixture()
             protected.open(nil, takeFocus: false)
@@ -1081,7 +984,7 @@ enum NotchHoverTests {
             protect(protected)
             DispatchQueue.main.advance(1)
             suite.expect(protected.closures == 0 && protected.hoverWork == nil,
-                   "a pending departure cannot interrupt pinning, dragging, capture, a menu or suspension")
+                   "a pending departure cannot interrupt pinning, dragging, a menu or suspension")
         }
         let clicked = fixture()
         clicked.open(nil, takeFocus: true)
@@ -1549,7 +1452,7 @@ enum NotchHoverTests {
         expect(preview.musicStripAnswers(.cover) && preview.musicStripAnswers(.bars),
                "an island that only previews on hover keeps its strip's answers")
         for block: (Service) -> Void in [{ $0.expanded = true }, { $0.peeking = true }, { $0.dragPlaceholder = true },
-                                         { $0.captureControls = true }, { $0.compactActivity = .timer },
+                                         { $0.compactActivity = .timer },
                                          { $0.hiddenInFullscreen = true },
                                          { $0.notice = NotchNotice(event: .volume, title: "Volume", detail: "50%",
                                                                    symbol: "speaker.wave.2.fill", level: 0.5) }] {

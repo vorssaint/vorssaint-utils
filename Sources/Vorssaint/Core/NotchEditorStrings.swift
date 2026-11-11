@@ -84,7 +84,6 @@ struct NotchEditorStrings {
         case .mixer: return mixerSummary
         case .music: return musicSummary
         case .clipboard: return clipboardSummary
-        case .captures: return capturesSummary
         case .files: return filesSummary
         case .system: return systemSummary
         case .tools: return toolsSummary

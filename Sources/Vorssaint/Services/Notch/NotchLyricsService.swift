@@ -347,7 +347,7 @@ final class NotchLyricsService: ObservableObject {
         return visible && track == expected && NotchLyricsSupport.isEnabled()
             && notch.acceptsUserInteraction && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .music && !notch.showingAppPanel
-            && notch.selectedMetric == nil && notch.captureControls == nil
+            && notch.selectedMetric == nil
     }
 }
 

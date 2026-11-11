@@ -291,31 +291,10 @@ enum UpdateFeatureTests {
                "settings search finds a page by an option living inside it")
         suite.expect(!SettingsSearchSupport.matches(query: "lid", title: "Energy", keywords: []),
                "without keywords the same query stays a miss")
-        suite.expect(SettingsSearchSupport.matches(
-            query: "preview position",
-            title: FeatureStrings.screenshot(.enUS).pageTitle,
-            keywords: [FeatureStrings.screenshot(.enUS).previewPositionLabel]),
-               "preview position is a searchable Screenshot keyword")
         suite.expect(SettingsSearchSupport.matches(query: "hide",
                                              title: Strings.enUS.tabSwitcher,
                                              keywords: [Strings.enUS.dockClickHide]),
                "Dock hiding is findable through a localized Settings keyword")
-        let captureSearchKeywords = SettingsSearchSupport.screenCaptureKeywords(
-            Strings.enUS, language: .enUS)
-        suite.expect(SettingsSearchSupport.matches(
-                    query: "screenshot",
-                    title: FeatureStrings.screenshot(.enUS).screenCaptureTitle,
-                    keywords: captureSearchKeywords)
-                && SettingsSearchSupport.matches(
-                    query: "screen recording",
-                    title: FeatureStrings.screenshot(.enUS).screenCaptureTitle,
-                    keywords: captureSearchKeywords)
-                && SettingsSearchSupport.matches(
-                    query: "line breaks",
-                    title: FeatureStrings.screenshot(.enUS).screenCaptureTitle,
-                    keywords: captureSearchKeywords),
-               "Screen capture tools and their options find the one settings page")
-
         let quickToolFeatures: [AppFeature] = [.quickLauncher, .micMute, .scratchpad, .cleaningMode]
         let quickToolRows = SettingsSidebarSupport.items(
             page: .quickTools, title: "Quick panel", icon: "wand.and.rays",
@@ -447,7 +426,6 @@ enum UpdateFeatureTests {
         let settingsFeatureTitles: [AppFeature: String] = [
             .homebrew: "Homebrew",
             .cameraPreview: "Camera Preview",
-            .screenRecorder: "Screen Recorder",
             .micMute: "Mic Mute",
             .diskImageInstaller: "Disk Image Installer",
         ]
@@ -457,7 +435,6 @@ enum UpdateFeatureTests {
         let expectedFeatureSearchDestinations: [(AppFeature, FeatureSettingsDestination)] = [
             (.homebrew, FeatureSettingsDestination(.homebrew)),
             (.cameraPreview, FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)),
-            (.screenRecorder, FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)),
             (.micMute, FeatureSettingsDestination(.quickTools, sectionAnchor: .micMute)),
             (.diskImageInstaller, FeatureSettingsDestination(.features)),
         ]

@@ -70,7 +70,6 @@ enum NotchCapsuleTests {
             ("long download", Layout.downloadSurface(name: long, hasProgress: false, geometry: geometry, language: language)),
             ("calendar", Layout.calendarSurface(title: "Design review", time: "· 19:15", geometry: geometry)),
             ("long calendar", Layout.calendarSurface(title: long, time: "→ 19:15", geometry: geometry)),
-            ("capture", Layout.captureSurface(geometry: geometry)),
         ]
         for (title, detail, level) in [("Volume", "60%", true), ("Charging", "80%", false),
                                        ("Connected", "Wireless Headphones Pro", false), (long, long, false)] {
@@ -372,10 +371,6 @@ enum NotchCapsuleTests {
             suite.expect(geometry.safeContentTop - gap == geometry.peek.height - geometry.safeContentTop - 36 - gap
                          && geometry.safeContentTop == NotchLayout.bottomInset,
                          "a peek, a drop or a notification card keeps even margins inside the capsule")
-            let controls = NotchCaptureControlsLayout(geometry: geometry, titleWidth: 120, capturesAudio: false)
-            suite.expect(controls.headerTop == geometry.headerTopInset && controls.headerHeight == geometry.headerRowHeight
-                         && controls.cameraGap == 0,
-                         "capture controls take the capsule's header row, below its top edge")
         }
     }
 

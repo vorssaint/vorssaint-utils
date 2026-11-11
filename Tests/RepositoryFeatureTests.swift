@@ -222,8 +222,6 @@ enum RepositoryFeatureTests {
             "Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift",
             "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift",
             "Sources/Vorssaint/Services/Metrics/DiskSampler.swift",
-            "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
-            "Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift",
             "Sources/Vorssaint/Services/SelfUninstall.swift",
             "Sources/Vorssaint/Services/Shelf/ShelfService.swift",
             "Sources/Vorssaint/Services/URLCleanerService.swift",
@@ -1854,9 +1852,7 @@ enum RepositoryFeatureTests {
         let ownershipGuards = ["isShelfOwnedFile", "discardablePaths", "ownedPayloadURLs",
                                "isRegularFile", "tempDir", "legacyDir", "root", "uuidString",
                                "storeRoot", "contentsOfDirectory"]
-        for path in ["Sources/Vorssaint/Services/Shelf/ShelfService.swift",
-                     "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
-                     "Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift"] {
+        for path in ["Sources/Vorssaint/Services/Shelf/ShelfService.swift"] {
             let lines = repository.lines(at: path)
             suite.expect(!lines.isEmpty, "the store source reads back for its deletion check")
             for (index, line) in lines.enumerated() where line.contains("removeItem(at:") {

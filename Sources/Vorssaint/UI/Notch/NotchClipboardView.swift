@@ -392,9 +392,6 @@ struct NotchClipboardView: View {
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             if active {
                 HStack(spacing: 2) {
-                    if entry.kind == .image, AppFeature.screenshot.isAvailable {
-                        NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
-                    }
                     NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
                                     title: copiedID == entry.id ? text.copied : text.copy) { copy(entry) }
                     NotchIconButton(symbol: entry.isPinned ? "pin.fill" : "pin",
@@ -453,9 +450,6 @@ struct NotchClipboardView: View {
                         .font(.system(size: 9.5, weight: .medium)).monospacedDigit()
                         .foregroundStyle(.tertiary)
                         .accessibilityHidden(true)
-                }
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
-                    NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
                 }
                 NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
                                 title: copiedID == entry.id ? text.copied : text.copy) { copy(entry) }

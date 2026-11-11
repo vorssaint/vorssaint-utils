@@ -1062,16 +1062,10 @@ enum NotchActivityTests {
         for key in preferenceKeys { defaults.set(true, forKey: key) }
         suite.expect(NotchTimerSupport.isEnabled(in: defaults) && NotchCameraSupport.isEnabled(in: defaults)
                && NotchAccessorySupport.isEnabled(in: defaults), "turning them back on restores their activity")
-        suite.expect(NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false,
-            captureControls: false, in: defaults), "the mirror can start only on its selected, expanded surface")
-        suite.expect(!NotchCameraSupport.canPresent(expanded: false, selected: .camera, appPanel: false,
-            captureControls: false, in: defaults)
-            && !NotchCameraSupport.canPresent(expanded: true, selected: .music, appPanel: false,
-                captureControls: false, in: defaults)
-            && !NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: true,
-                captureControls: false, in: defaults)
-            && !NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false,
-                captureControls: true, in: defaults), "collapse, section changes and replacement surfaces all stop embedded capture")
+        suite.expect(NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: false, in: defaults), "the mirror can start only on its selected, expanded surface")
+        suite.expect(!NotchCameraSupport.canPresent(expanded: false, selected: .camera, appPanel: false, in: defaults)
+            && !NotchCameraSupport.canPresent(expanded: true, selected: .music, appPanel: false, in: defaults)
+            && !NotchCameraSupport.canPresent(expanded: true, selected: .camera, appPanel: true, in: defaults), "collapse, section changes and the app panel all stop embedded capture")
         defaults.set("timer,camera", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchTimerSupport.isEnabled(in: defaults) && !NotchCameraSupport.isEnabled(in: defaults),
                "hidden activity modules release their resources")

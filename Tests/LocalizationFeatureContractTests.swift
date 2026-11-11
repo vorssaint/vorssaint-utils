@@ -467,7 +467,6 @@ enum LocalizationFeatureContractTests {
         let defaultShortcuts: [(String, GlobalShortcut)] = [
             ("cameraPreviewDefault", GlobalShortcut.cameraPreviewDefault),
             ("clipboardDefault", GlobalShortcut.clipboardDefault),
-            ("colorPickerDefault", GlobalShortcut.colorPickerDefault),
             ("commandBarDefault", GlobalShortcut.commandBarDefault),
             ("finderRenameDefault", GlobalShortcut.finderRenameDefault),
             ("keepAwakeDefault", GlobalShortcut.keepAwakeDefault),
@@ -478,12 +477,8 @@ enum LocalizationFeatureContractTests {
             ("quickLauncherDefault", GlobalShortcut.quickLauncherDefault),
             ("radialMenuDefault", GlobalShortcut.radialMenuDefault),
             ("scratchpadDefault", GlobalShortcut.scratchpadDefault),
-            ("screenOCRDefault", GlobalShortcut.screenOCRDefault),
-            ("screenRecorderDefault", GlobalShortcut.screenRecorderDefault),
-            ("screenshotClipboardDefault", GlobalShortcut.screenshotClipboardDefault),
             ("screenshotDefault", GlobalShortcut.screenshotDefault),
             ("screenshotFullScreenDefault", GlobalShortcut.screenshotFullScreenDefault),
-            ("screenshotLastCaptureDefault", GlobalShortcut.screenshotLastCaptureDefault),
             ("shelfDefault", GlobalShortcut.shelfDefault),
             ("snippetLibraryDefault", GlobalShortcut.snippetLibraryDefault),
             ("soundOutputSwitcherDefault", GlobalShortcut.soundOutputSwitcherDefault),
@@ -508,7 +503,7 @@ enum LocalizationFeatureContractTests {
             ("windowLayoutTopLeftDefault", GlobalShortcut.windowLayoutTopLeftDefault),
             ("windowLayoutTopRightDefault", GlobalShortcut.windowLayoutTopRightDefault),
         ]
-        suite.expect(defaultShortcuts.count == 42, "every default shortcut is in the round trip")
+        suite.expect(defaultShortcuts.count == 37, "every default shortcut is in the round trip")
         var brokenShortcuts: [String] = []
         for (name, shortcut) in defaultShortcuts {
             guard let restored = GlobalShortcut(storageValue: shortcut.storageValue),

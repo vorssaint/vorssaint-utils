@@ -45,9 +45,7 @@ enum AppSound: String, CaseIterable, Identifiable {
     /// A screenshot is taken, by any capture mode.
     case screenshotTaken
     /// A screen recording begins capturing.
-    case recordingStarted
     /// A screen recording ends with its take written.
-    case recordingStopped
     /// A download in the island's folder finishes.
     case downloadFinished
     /// A timed event is about to start.
@@ -62,7 +60,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .timerFinished, .watchFinished, .screenLock: return .alerts
         case .snippetExpanded: return .typing
         case .batteryLow, .chargerConnected, .chargerDisconnected, .keepAwakeEnded: return .power
-        case .screenshotTaken, .recordingStarted, .recordingStopped: return .capture
+        case .screenshotTaken: return .capture
         case .downloadFinished, .calendarEventSoon: return .island
         }
     }
@@ -79,7 +77,6 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .batteryLow, .chargerConnected, .chargerDisconnected: return .monitorPower
         case .keepAwakeEnded: return .keepAwake
         case .screenshotTaken: return .screenshot
-        case .recordingStarted, .recordingStopped: return .screenRecorder
         case .downloadFinished: return .notchDownloads
         case .calendarEventSoon: return .notchCalendar
         }
@@ -104,8 +101,6 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .chargerDisconnected: return "bolt.slash"
         case .keepAwakeEnded: return "cup.and.saucer"
         case .screenshotTaken: return "camera.viewfinder"
-        case .recordingStarted: return "record.circle"
-        case .recordingStopped: return "stop.circle"
         case .downloadFinished: return "arrow.down.circle"
         case .calendarEventSoon: return "calendar.badge.clock"
         }
@@ -137,8 +132,6 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .chargerDisconnected: return "tone:Modern/Keys"
         case .keepAwakeEnded: return "tone:Classic/Descent"
         case .screenshotTaken: return "tone:Classic/Swish"
-        case .recordingStarted: return "tone:EncoreInfinitum/Portal-EncoreInfinitum"
-        case .recordingStopped: return "tone:EncoreInfinitum/Passage-EncoreInfinitum"
         case .downloadFinished: return "tone:EncoreInfinitum/Droplet-EncoreInfinitum"
         case .calendarEventSoon: return "tone:Modern/Circles"
         }
@@ -152,7 +145,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .batteryLow: return 1.5
         case .chargerConnected, .chargerDisconnected, .keepAwakeEnded: return 1
         case .calendarEventSoon: return 1.5
-        case .screenshotTaken, .recordingStarted, .recordingStopped, .downloadFinished: return 1
+        case .screenshotTaken, .downloadFinished: return 1
         }
     }
 
@@ -166,7 +159,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .agentFinished, .agentStarted, .agentsAllDone, .agentNeedsInput, .agentInterrupted,
              .agentLimitWarning, .agentLimitReset, .agentBudgetReached, .screenLock, .snippetExpanded,
              .batteryLow, .chargerConnected, .chargerDisconnected, .keepAwakeEnded,
-             .screenshotTaken, .recordingStarted, .recordingStopped, .downloadFinished, .calendarEventSoon: return false
+             .screenshotTaken, .downloadFinished, .calendarEventSoon: return false
         }
     }
 
@@ -179,7 +172,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .agentFinished, .agentStarted, .agentsAllDone, .agentNeedsInput, .agentInterrupted,
              .agentLimitWarning, .agentLimitReset, .agentBudgetReached, .timerFinished, .watchFinished,
              .batteryLow, .chargerConnected, .chargerDisconnected, .keepAwakeEnded,
-             .screenshotTaken, .recordingStarted, .recordingStopped, .downloadFinished, .calendarEventSoon: return false
+             .screenshotTaken, .downloadFinished, .calendarEventSoon: return false
         }
     }
 
@@ -190,7 +183,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .agentFinished, .agentStarted, .agentsAllDone, .agentNeedsInput, .agentInterrupted,
              .agentLimitWarning, .agentLimitReset, .agentBudgetReached,
              .batteryLow, .chargerConnected, .chargerDisconnected, .keepAwakeEnded,
-             .screenshotTaken, .recordingStarted, .recordingStopped, .downloadFinished, .calendarEventSoon: return AppSoundSupport.minimumGap
+             .screenshotTaken, .downloadFinished, .calendarEventSoon: return AppSoundSupport.minimumGap
         case .timerFinished, .watchFinished, .screenLock, .snippetExpanded: return 0
         }
     }
@@ -209,7 +202,7 @@ enum AppSound: String, CaseIterable, Identifiable {
         case .agentFinished, .agentStarted, .agentsAllDone, .agentNeedsInput, .agentInterrupted,
              .agentLimitWarning, .agentLimitReset, .agentBudgetReached,
              .batteryLow, .chargerConnected, .chargerDisconnected, .keepAwakeEnded,
-             .screenshotTaken, .recordingStarted, .recordingStopped, .downloadFinished, .calendarEventSoon: return nil
+             .screenshotTaken, .downloadFinished, .calendarEventSoon: return nil
         }
     }
 

@@ -29,11 +29,6 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/QuickTools/QuickToolHUD.swift",
             "Sources/Vorssaint/Services/QuickTools/QuickLauncherService.swift",
             "Sources/Vorssaint/Services/QuickTools/CameraPreviewService.swift",
-            "Sources/Vorssaint/Services/QuickTools/RecentCaptureService.swift",
-            "Sources/Vorssaint/Services/QuickTools/ScreenshotSelectionController.swift",
-            "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
-            "Sources/Vorssaint/Services/QuickTools/ScreenshotPinController.swift",
-            "Sources/Vorssaint/Services/QuickTools/QRResultController.swift",
             "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift",
             "Sources/Vorssaint/Services/Snippets/SnippetLibraryService.swift",
             "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift",
@@ -47,7 +42,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/Finder/FinderCutPaste.swift",
             "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
             "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift",
-            "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift",
+            "Sources/Vorssaint/UI/Screenshot/ShotOverlay.swift",
         ]
         for path in surfaces {
             let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""

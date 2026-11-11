@@ -555,8 +555,8 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // to allCases). Screenshot leads in 3.1.13; existing orders that predate it
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
-         uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         uninstaller, cleanURL, cleaning, cameraPreview, scratchpad,
+         commandBar, portManager
 
     var id: String { rawValue }
 
@@ -574,10 +574,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .uninstaller: return .uninstaller
         case .cleanURL: return .urlCleaner
         case .cleaning: return .cleaningMode
-        case .screenOCR: return .screenOCR
-        case .colorPicker: return .colorPicker
         case .screenshot: return .screenshot
-        case .screenRecorder: return .screenRecorder
         case .cameraPreview: return .cameraPreview
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
@@ -597,7 +594,6 @@ struct UtilitiesSection: View {
     @State private var showAppUpdatesPanel = false
     @State private var showMediaPanel = false
     @State private var showClipboardPanel = false
-    @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
@@ -609,16 +605,12 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityMedia) private var showMedia = true
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showClipboard = true
     @AppStorage(DefaultsKey.panelUtilityWindowLayout) private var showWindowLayout = true
-    @AppStorage(DefaultsKey.panelUtilityScreenOCR) private var showScreenOCR = true
     @AppStorage(DefaultsKey.panelUtilityScreenshot) private var showScreenshot = true
     @AppStorage(DefaultsKey.panelUtilityQuickLauncher) private var showQuickLauncher = true
-    @AppStorage(DefaultsKey.panelUtilityColorPicker) private var showColorPicker = true
     @AppStorage(DefaultsKey.panelUtilityCameraPreview) private var showCameraPreview = true
     @AppStorage(DefaultsKey.panelUtilityScratchpad) private var showScratchpad = true
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
-    @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
-    @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -655,11 +647,6 @@ struct UtilitiesSection: View {
                 PanelClipboardView {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showClipboardPanel = false
-                }
-            } else if showRecentCapturesPanel {
-                PanelRecentCapturesView {
-                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showRecentCapturesPanel = false
                 }
             } else if showWindowLayoutPanel {
                 PanelWindowLayoutView {
@@ -713,7 +700,6 @@ struct UtilitiesSection: View {
         if showHomebrewPanel { return .homebrew }
         if showMediaPanel { return .media }
         if showClipboardPanel { return .clipboard }
-        if showRecentCapturesPanel { return .screenshot }
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
@@ -725,7 +711,7 @@ struct UtilitiesSection: View {
     /// elsewhere in the app must not dismiss it.
     private var isHostingUtility: Bool {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
-            || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
+            || showMediaPanel || showClipboardPanel
             || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
     }
 
@@ -773,14 +759,11 @@ struct UtilitiesSection: View {
         case .cleaner: return showCleanerAction
         case .cleanURL: return showCleanURL
         case .cleaning: return showCleaning
-        case .screenOCR: return showScreenOCR
-        case .colorPicker: return showColorPicker
         case .cameraPreview: return showCameraPreview
         case .scratchpad: return showScratchpad
         case .commandBar: return showCommandBar
         case .quickLauncher: return showQuickLauncher
         case .screenshot: return showScreenshot
-        case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
         }
     }
@@ -883,23 +866,6 @@ struct UtilitiesSection: View {
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: cleaningNeedsAccessibility ? grantAccessibility : nil,
                                 action: startCleaning)
-        case .screenOCR:
-            UtilityActionButton(title: l10n.s.ocrName,
-                                caption: ocrCaption,
-                                systemImage: "text.viewfinder",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showScreenOCR,
-                                needsAttention: !permissions.screenRecording,
-                                permissionButtonTitle: l10n.s.permissionRequest,
-                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
-                                shortcutHint: shortcutHint(.screenOCR),
-                                action: {
-                                    appDelegate()?.closePopover()
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                        ScreenTextService.shared.capture()
-                                    }
-                                })
         case .screenshot:
             UtilityActionButton(title: FeatureStrings.screenshot(l10n.language).pageTitle,
                                 caption: screenshotCaption,
@@ -911,50 +877,10 @@ struct UtilitiesSection: View {
                                 permissionButtonTitle: l10n.s.permissionRequest,
                                 permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
                                 shortcutHint: shortcutHint(.screenshot),
-                                accessoryTitle: FeatureStrings.recentCaptures(l10n.language).title,
-                                accessorySystemImage: "clock.arrow.circlepath",
-                                accessoryAction: showRecentCaptures,
                                 action: {
                                     appDelegate()?.closePopover()
                                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                                         ScreenshotService.shared.capture()
-                                    }
-                                })
-        case .screenRecorder:
-            UtilityActionButton(title: screenRecorderTitle,
-                                caption: screenRecorderCaption,
-                                systemImage: recorder.isRecording ? "stop.circle" : "record.circle",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showScreenRecorder,
-                                needsAttention: !permissions.screenRecording,
-                                captionStaysVisible: recorder.isRecording,
-                                permissionButtonTitle: l10n.s.permissionRequest,
-                                permissionAction: permissions.screenRecording ? nil : grantScreenRecordingPermission,
-                                shortcutHint: shortcutHint(.screenRecorder),
-                                accessoryTitle: recorder.isRecording
-                                    ? nil
-                                    : FeatureStrings.recentCaptures(l10n.language).title,
-                                accessorySystemImage: "clock.arrow.circlepath",
-                                accessoryAction: recorder.isRecording ? nil : showRecentCaptures,
-                                action: {
-                                    appDelegate()?.closePopover()
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                        ScreenRecorderService.shared.toggle()
-                                    }
-                                })
-        case .colorPicker:
-            UtilityActionButton(title: l10n.s.colorPickerName,
-                                caption: l10n.s.colorPickerCaption,
-                                systemImage: "eyedropper",
-                                isEditing: editing,
-                                showsDragHandle: true,
-                                visibility: $showColorPicker,
-                                shortcutHint: shortcutHint(.colorPicker),
-                                action: {
-                                    appDelegate()?.closePopover()
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                                        ColorSamplerService.shared.pick()
                                     }
                                 })
         case .cameraPreview:
@@ -1040,29 +966,6 @@ struct UtilitiesSection: View {
         return role.savedShortcut.displayString
     }
 
-    private var ocrCaption: String {
-        permissions.screenRecording
-            ? l10n.s.ocrCaption
-            : "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
-    }
-
-    /// While a recording runs the tile becomes the way to end it, so the
-    /// panel never shows an action the person cannot take.
-    private var screenRecorderTitle: String {
-        let strings = FeatureStrings.recorder(l10n.language)
-        return recorder.isRecording ? strings.stopButton : strings.pageTitle
-    }
-
-    private var screenRecorderCaption: String {
-        guard permissions.screenRecording else {
-            return "\(l10n.s.permissionRequired): \(l10n.s.permissionScreenRecording)"
-        }
-        let strings = FeatureStrings.recorder(l10n.language)
-        return recorder.isRecording
-            ? RecorderSupport.elapsedLabel(seconds: recorder.elapsedSeconds)
-            : strings.panelCaption
-    }
-
     private var screenshotCaption: String {
         permissions.screenRecording
             ? FeatureStrings.screenshot(l10n.language).panelCaption
@@ -1079,10 +982,6 @@ struct UtilitiesSection: View {
         Permissions.shared.requestScreenRecording()
     }
 
-    private func showRecentCaptures() {
-        showRecentCapturesPanel = true
-    }
-
     private func resetPanelDefaults() {
         PanelLayout.resetItemOrder(key: DefaultsKey.panelUtilityOrder)
         utilityOrderRaw = ""
@@ -1095,9 +994,7 @@ struct UtilitiesSection: View {
         showCleanerAction = true
         showCleanURL = true
         showCleaning = true
-        showScreenOCR = true
         showScreenshot = true
-        showColorPicker = true
         showCameraPreview = true
         showScratchpad = true
         showQuickLauncher = true

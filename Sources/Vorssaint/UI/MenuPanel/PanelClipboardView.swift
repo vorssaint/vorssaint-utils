@@ -271,16 +271,6 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
-                    Button { history.editImage(entry) } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 10, weight: .bold))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
-                    .help(text.edit)
-                    .accessibilityLabel(text.edit)
-                }
                 Button {
                     // A copied recent entry moves to the top, so the second
                     // click of a double click would copy whichever entry took

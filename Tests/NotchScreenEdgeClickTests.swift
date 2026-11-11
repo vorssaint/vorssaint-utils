@@ -49,7 +49,7 @@ enum NotchScreenEdgeClickTests {
     }
     class State {
         var running = true, suspended = false, expanded = false, peeking = false
-        var captureControls: Bool?, notice: Bool?
+        var notice: Bool?
         var dragPlaceholder = false, heldDrag = false, compactActivityIsVisible = false, keepsWorkingSurface = false
         var panel: Panel? = Panel()
         var windowHost: Host? = Host()
@@ -125,7 +125,7 @@ enum NotchScreenEdgeClickTests {
         for disable in [
             { (s: Service) in s.running = false }, { $0.suspended = true }, { $0.expanded = true },
             { $0.panel?.isVisible = false }, { $0.panel?.ignoresMouseEvents = true },
-            { $0.captureControls = true }, { $0.notice = true }, { $0.dragPlaceholder = true }, { $0.heldDrag = true }
+            { $0.notice = true }, { $0.dragPlaceholder = true }, { $0.heldDrag = true }
         ] {
             let service = Service()
             service.syncScreenEdgeClicks()

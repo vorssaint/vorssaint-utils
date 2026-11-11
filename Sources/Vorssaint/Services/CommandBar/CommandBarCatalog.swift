@@ -357,58 +357,6 @@ enum CommandBarCatalog {
                 shortcut: roleShortcut(.screenshot),
                 trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenshotService.shared.capture() } }))
-            entries.append(CommandBarEntry(
-                id: "action.scrollingScreenshot",
-                title: screenshot.scrollingCaptureTitle,
-                subtitle: area(.screenshot, under: screenshot.pageTitle),
-                icon: .symbol("rectangle.stack"),
-                trouble: Permissions.shared.screenRecording && Permissions.shared.accessibility
-                    ? nil : .needsPermission,
-                run: { _ in afterBeat { ScreenshotService.shared.captureScrolling() } }))
-        }
-        if AppFeature.screenRecorder.isAvailable {
-            let recorder = FeatureStrings.recorder(language)
-            let running = ScreenRecorderService.shared.isRecording
-            entries.append(CommandBarEntry(
-                id: "action.screenRecorder",
-                title: running ? recorder.stopButton : recorder.pageTitle,
-                subtitle: area(.screenRecorder, under: recorder.pageTitle),
-                icon: .symbol(running ? "stop.circle" : "record.circle"),
-                shortcut: roleShortcut(.screenRecorder),
-                trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
-                run: { _ in afterBeat { ScreenRecorderService.shared.toggle() } }))
-        }
-        if AppFeature.screenshot.isAvailable || AppFeature.screenRecorder.isAvailable {
-            let recent = FeatureStrings.recentCaptures(language)
-            entries.append(CommandBarEntry(
-                id: "action.recentCaptures",
-                title: recent.title,
-                subtitle: groupTitle(.tools, hub: hub),
-                keywords: [recent.screenshot, recent.recording,
-                           RecentCaptureStrings.enUS.title].joined(separator: " "),
-                icon: .symbol("clock.arrow.circlepath"),
-                run: { _ in afterBeat(0.1) {
-                    RecentCaptureService.shared.showHistoryWindow()
-                } }))
-        }
-        if AppFeature.screenOCR.isAvailable {
-            entries.append(CommandBarEntry(
-                id: "action.screenOCR",
-                title: s.ocrName,
-                subtitle: area(.screenOCR, under: s.ocrName),
-                icon: .symbol("text.viewfinder"),
-                shortcut: roleShortcut(.screenOCR),
-                trouble: Permissions.shared.screenRecording ? nil : .needsPermission,
-                run: { _ in afterBeat { ScreenTextService.shared.capture() } }))
-        }
-        if AppFeature.colorPicker.isAvailable {
-            entries.append(CommandBarEntry(
-                id: "action.colorPicker",
-                title: s.colorPickerName,
-                subtitle: area(.colorPicker, under: s.colorPickerName),
-                icon: .symbol("eyedropper"),
-                shortcut: roleShortcut(.colorPicker),
-                run: { _ in afterBeat { ColorSamplerService.shared.pick() } }))
         }
         if AppFeature.clipboardHistory.isAvailable {
             let clipboard = FeatureStrings.clipboard(language)

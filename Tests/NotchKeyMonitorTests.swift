@@ -76,11 +76,9 @@ enum NotchKeyMonitorTests {
         var eventMonitors: [Any] = []
         var clickedSinceOpening = false
         var showsKeyboardFocus = false
-        var keepsSurfaceOnClick = false, showsCapturePreview = false
-        var captureDismiss: (() -> Void)?
+        var keepsSurfaceOnClick = false
         let panel: Panel? = Panel()
         var windowHost: Host? = Host()
-        var captureControls: Int?
         var modules = NotchModule.allCases
         var selected = NotchModule.controls
         var showingAppPanel = false
@@ -120,18 +118,16 @@ enum NotchKeyMonitorTests {
         let mirror = Mirror()
         mirror.host.underPointer = true
         service.mirrors[1] = mirror
-        service.showsCapturePreview = true
-        var dismissals = 0
-        service.captureDismiss = { dismissals += 1 }
         let mirrorClick = NSEvent(type: .leftMouseDown, window: Panel(), keyCode: 0)
+        let collapsesBefore = actions.filter { $0 == "collapse" }.count
         _ = NSEvent.handler?(mirrorClick)
-        suite.expect(dismissals == 0, "the local click monitor preserves a screenshot on a visible island copy")
+        suite.expect(actions.filter { $0 == "collapse" }.count == collapsesBefore,
+                     "the local click monitor keeps the island open for a click on a visible island copy")
         mirror.model.shown = false
         _ = NSEvent.handler?(mirrorClick)
-        suite.expect(dismissals == 1, "the local click monitor dismisses a screenshot at a hidden copy's old position")
-        service.showsCapturePreview = false
+        suite.expect(actions.filter { $0 == "collapse" }.count == collapsesBefore + 1,
+                     "the local click monitor closes the island for a click at a hidden copy's old position")
         service.mirrors = [:]
-        service.captureDismiss = nil
         let tab = NSEvent(window: service.panel, keyCode: 48)
         suite.expect(NSEvent.handler?(tab) != nil && service.showsKeyboardFocus,
                      "Tab restores visible focus and still reaches the controls for navigation")
