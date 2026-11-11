@@ -33,7 +33,7 @@ This update fixes a startup crash on macOS Sonoma 14.0 and 14.1. It also adds vo
 - When a closed-lid Keep Awake session ends, Vorssaint skips the sleep request if the Mac is plugged in and using an external display. On battery it requests sleep if macOS allows it. Thanks to @ruvelro.
 - The window switcher opens faster and flashes less when restoring minimized windows. Its shortcuts also work during secure input, including All windows. Quit and close stay disabled in that mode. Thanks to @zhanghao87 and @phatina.
 - Focus follows mouse can recover keyboard focus without raising the window. Drag and resize still work when an app can’t identify the control under the pointer. Thanks to @jerome-queck and @carlhuareforge.
-- Tapping Caps Lock toggles capitals when that’s its Super Key solo action. Shortcut recording also recognizes Super Key combinations while the keyboard mapping starts. Thanks to @iva-zhu and @roypadina.
+- Tapping Caps Lock toggles capitals when that’s its Super Key solo action. Fixed a crash when Super Key reapplied the keyboard mapping at startup. Shortcut recording also recognizes Super Key combinations while the mapping starts. Thanks to @iva-zhu and @roypadina.
 - Mic Mute lowers input volume to zero on supported microphones and reapplies mute if another app changes it. It remembers each channel’s level across upgrades and reconnects. Thanks to @samueljim.
 - Per-app volume changes sound smoother. Mute takes effect immediately across audio interruptions, and routine mixer checks preserve per-app levels. Thanks to @Chubi01 and @meowvan666.
 - Brightness controls read the correct range from DDC monitors and refresh previously saved ranges. Thanks to @nikigan.
