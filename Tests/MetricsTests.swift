@@ -106,6 +106,8 @@ struct MetricsTests {
                 ScreenshotSpotlightEditingTests.run(suite)
                 ScreenshotShareCompletionTests.run(suite)
                 ScreenshotAutoShelfTests.run(suite)
+                ScreenshotAutoPinTests.run(suite)
+                ScreenshotPinZoomTests.run(suite)
                 ScreenshotScrollingCaptureTests.run(suite)
                 ScreenshotAttachedCaptureTests.run(suite)
                 ScreenCaptureToolPickerTests.run(suite)

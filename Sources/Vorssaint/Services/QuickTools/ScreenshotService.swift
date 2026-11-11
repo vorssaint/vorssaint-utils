@@ -336,13 +336,13 @@ final class ScreenshotService: ObservableObject {
             QuickToolHUD.dismissScrollingCapture()
             switch result {
             case .success(let capture):
-                self.route(capture)
+                self.route(capture, kind: .scrolling)
             case .partial(let capture):
-                self.route(capture)
+                self.route(capture, kind: .scrolling)
                 QuickToolHUD.show(icon: "rectangle.stack",
                                   message: self.strings.scrollingCapturePartialHUD)
             case .limited(let capture):
-                self.route(capture)
+                self.route(capture, kind: .scrolling)
                 QuickToolHUD.show(icon: "rectangle.stack",
                                   message: self.strings.scrollingCaptureTooLongHUD)
             case .cancelled:
@@ -369,13 +369,15 @@ final class ScreenshotService: ObservableObject {
     }
 
     /// A finished capture runs its configured after-capture action first, then
-    /// either stays quiet, shows a confirmation/recovery preview, or opens the
-    /// editor directly.
+    /// either pins the image, stays quiet, shows a confirmation/recovery preview,
+    /// or opens the editor directly. Auto-pin skips the editor and successful
+    /// confirmations, but keeps other automatic outputs and recovery controls.
     ///
     /// The clipboard copy happens first and independently, so it also reaches
     /// the captures that open straight in the editor, where no preview button
     /// exists to reach for.
-    private func route(_ capture: ScreenshotSelectionController.Capture) {
+    private func route(_ capture: ScreenshotSelectionController.Capture,
+                       kind: ScreenshotSupport.CaptureKind = .standard) {
         beginLatestCapture(capture)
         // The island's companion blinks hard, as a flash, if it is there to see.
         NotchService.shared.reactMascot(.flash, patience: 1)
@@ -386,7 +388,8 @@ final class ScreenshotService: ObservableObject {
             autoCopy(capture)
         }
         let defaultAction = ScreenshotDefaultAction.current
-        if defaultAction == .edit {
+        let autoPin = kind.autoPins(in: defaults)
+        if defaultAction == .edit, !autoPin {
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.
             openEditor(with: capture)
@@ -394,6 +397,15 @@ final class ScreenshotService: ObservableObject {
         }
         let result = runDefaultAction(defaultAction, capture: capture)
         autoShelve(capture, saved: result.saved?.url)
+        if autoPin {
+            ScreenshotPinController.shared.pin(image: capture.image, scale: capture.scale)
+            // A failed save or copy still needs the preview's recovery tools.
+            if defaultAction == .none || defaultAction == .edit
+                || ScreenshotSupport.automaticActionSucceeded(
+                    defaultAction, saved: result.saved != nil, copied: result.performed.contains(.copy)) {
+                return
+            }
+        }
         guard case .shown(let dismissInterval) = ScreenshotSupport.quickPreviewPresentation(
             defaultAction: defaultAction,
             saved: result.saved != nil,
