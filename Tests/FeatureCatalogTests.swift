@@ -391,7 +391,7 @@ enum FeatureCatalogTests {
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
-            "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "scrollSpeed", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller",
@@ -589,6 +589,7 @@ enum FeatureCatalogTests {
                 },
                "every feature an update already had stays installed and every other one ships uninstalled")
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.scrollSpeed.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.fanControl.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false
@@ -717,6 +718,9 @@ enum FeatureCatalogTests {
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(onboardingViewSource.contains("let features = Set(AppFeature.allCases.filter(\\.isAvailable))")
+                && onboardingViewSource.contains("_selectedFeatures = State(initialValue: features)"),
+               "the first setup screen starts with the prepared features, including the settings file's selections")
         let additionalPermissionsAlignment =
             #"DisclosureGroup\(isExpanded: \$showingOtherPermissions\) \{\s+"#
             + #"VStack\(alignment: \.leading, spacing: 14\)"#
@@ -1601,6 +1605,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        let displayKeys: Set<String> = [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayVolumeKeysEnabled]
+        suite.expect(!activeSet(.accessibility, on: displayKeys).contains(.brightness)
+                && activeSet(.accessibility, on: displayKeys.union([DefaultsKey.displayVolumeEnabled])).contains(.brightness),
+               "a remembered volume key setting requires accessibility only while monitor speakers are enabled")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
@@ -2088,18 +2096,24 @@ enum FeatureCatalogTests {
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+                                    DefaultsKey.brightnessKeyStep, DefaultsKey.displayVolumeEnabled,
+                                    DefaultsKey.displayVolumeKeysEnabled]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
         func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+                              step: BrightnessSupport.KeyStep = .standard, speakers: Bool = false,
+                              speakerKeys: Bool = false) -> FeatureEnergyProfile {
             UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
             UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
             UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            UserDefaults.standard.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            UserDefaults.standard.set(speakerKeys, forKey: DefaultsKey.displayVolumeKeysEnabled)
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
                 && brightnessEnergy(followsPointer: true) == .keyboard
                 && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(speakerKeys: true) == .idle
+                && brightnessEnergy(speakers: true, speakerKeys: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
@@ -2257,10 +2271,12 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts,
+                    .panelConfiguration, .keyboardBrightnessShortcuts, .monitorAlerts, .screenshotScrolling,
                 ])
                 && SettingsSectionAnchor.panelConfiguration.page == .general
-                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,
+                && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts
+                && SettingsSectionAnchor.screenshotScrolling.page == .screenshot
+                && SettingsSectionAnchor.monitorAlerts.page == .monitor,
                "feature anchors and standalone Settings anchors reach their pages")
         suite.expect(AppFeature.dockPreview.settingsDestination
                 == FeatureSettingsDestination(.dock, sectionAnchor: .dock)
@@ -2557,6 +2573,17 @@ enum FeatureCatalogTests {
         staleReply.append(staleReply.reduce(UInt8(0x50)) { $0 ^ $1 })
         suite.expect(BrightnessSupport.parseReply(staleReply, code: 0x10) == nil,
                "a reply for another control reads as no reply instead of that control's value")
+        var staleMute: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x8D, 0x00, 0x00, 0x02, 0x00, 0x02]
+        staleMute.append(staleMute.reduce(UInt8(0x50)) { $0 ^ $1 })
+        suite.expect(BrightnessSupport.parseReply(staleMute, code: 0x62) == nil,
+               "a valid reply to an earlier mute request reads as no reply to a volume request")
+        suite.expect(BrightnessSupport.parseReply(staleMute, code: 0x8D)?.current == 2,
+               "the same reply reads normally when mute was the control asked")
+        var wrongOpcode = ddcReply
+        wrongOpcode[2] = 0x03
+        wrongOpcode[10] = wrongOpcode[0..<10].reduce(UInt8(0x50)) { $0 ^ $1 }
+        suite.expect(BrightnessSupport.parseReply(wrongOpcode, code: 0x10) == nil,
+               "a checksummed packet that is not a Get VCP reply reads as no reply")
 
         suite.expect(BrightnessSupport.sanitizedMaximum(0) == 100 && BrightnessSupport.sanitizedMaximum(255) == 255,
                "a display reporting no range falls back to the conventional scale")
@@ -2674,23 +2701,23 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.ddcPathKey(displayFingerprint: "1507:9218:245",
                                             ioDisplayLocation: "") == nil,
                "a display without a stable connection path is never cached")
-        let rememberedPaths = BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["old", "same", "other", "same"], path: "same", isWriteOnly: true, limit: 3)
+        let rememberedPaths = BrightnessSupport.updatedRememberedPaths(
+            ["old", "same", "other", "same"], path: "same", remembered: true, limit: 3)
         suite.expect(rememberedPaths == ["old", "other", "same"],
                "remembering a write-only path deduplicates it and makes it newest")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            rememberedPaths, path: "other", isWriteOnly: false, limit: 3) == ["old", "same"],
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            rememberedPaths, path: "other", remembered: false, limit: 3) == ["old", "same"],
                "a changed DDC result invalidates the remembered path")
-        suite.expect(BrightnessSupport.updatedWriteOnlyDDCPaths(
-            ["one", "two", "three"], path: "four", isWriteOnly: true, limit: 3)
+        suite.expect(BrightnessSupport.updatedRememberedPaths(
+            ["one", "two", "three"], path: "four", remembered: true, limit: 3)
             == ["two", "three", "four"],
                "the write-only path cache remains bounded")
-        suite.expect(!BrightnessSupport.shouldProbeDDC(
-            pathKey: ddcPath, writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: "another", writeOnlyPaths: [ddcPath!])
-                && BrightnessSupport.shouldProbeDDC(
-                    pathKey: nil, writeOnlyPaths: [ddcPath!]),
+        suite.expect(!BrightnessSupport.shouldProbe(
+            pathKey: ddcPath, rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: "another", rememberedPaths: [ddcPath!])
+                && BrightnessSupport.shouldProbe(
+                    pathKey: nil, rememberedPaths: [ddcPath!]),
                "only the same physical display path skips future DDC probes")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(
             DefaultsKey.brightnessDDCWriteOnlyPaths),
