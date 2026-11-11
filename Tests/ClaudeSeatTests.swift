@@ -48,6 +48,19 @@ enum ClaudeSeatTests {
     }
 
     private static func profiles(_ suite: TestSuite) {
+        // Moving a seat from the page: it changes places with its neighbour
+        // among the seats shown, and hidden seats keep their places.
+        let saved = ["a", "b", "c", "d"].map { ClaudeSeatProfile(id: $0, directory: "/tmp/.claude-" + $0) }
+        func order(_ id: String, _ offset: Int, _ shown: [String]) -> String {
+            ClaudeSeatProfile.moving(saved, id: id, by: offset, among: shown).map(\.id).joined()
+        }
+        suite.expect(order("b", -1, ["a", "b", "c", "d"]) == "bacd" && order("b", 1, ["a", "b", "c", "d"]) == "acbd",
+                     "a seat moves one place left or right")
+        suite.expect(order("a", -1, ["a", "b", "c", "d"]) == "abcd" && order("d", 1, ["a", "b", "c", "d"]) == "abcd"
+                        && order("x", 1, ["a", "b", "c", "d"]) == "abcd" && order("b", 1, ["a", "c"]) == "abcd",
+                     "the first seat does not move left, the last not right, and one the page leaves out not at all")
+        suite.expect(order("a", 1, ["a", "c", "d"]) == "cbad" && order("d", -1, ["a", "c", "d"]) == "abdc",
+                     "with a seat hidden, a move swaps the two shown neighbours and the hidden one stays put")
         let manager = FileManager.default
         let root = manager.temporaryDirectory.appendingPathComponent("claude-seats-" + UUID().uuidString)
         defer { try? manager.removeItem(at: root) }

@@ -65,6 +65,18 @@ struct ClaudeSeatProfile: Codable, Equatable, Identifiable {
             }
     }
 
+    /// The saved order after moving a seat one place left (-1) or right (+1)
+    /// among the seats `shown`, by id: it changes places with its neighbour
+    /// there, and seats the page leaves out keep theirs. Unchanged at an edge.
+    static func moving(_ profiles: [Self], id: String, by offset: Int, among shown: [String]) -> [Self] {
+        guard let place = shown.firstIndex(of: id), shown.indices.contains(place + offset),
+              let from = profiles.firstIndex(where: { $0.id == id }),
+              let to = profiles.firstIndex(where: { $0.id == shown[place + offset] }) else { return profiles }
+        var moved = profiles
+        moved.swapAt(from, to)
+        return moved
+    }
+
     /// What a person types in Terminal to sign a new seat in, in the next
     /// free `~/.claude-seatN`.
     static func signInCommand(existing: [Self], home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {

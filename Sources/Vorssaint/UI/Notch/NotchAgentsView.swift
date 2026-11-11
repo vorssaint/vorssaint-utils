@@ -105,7 +105,7 @@ struct NotchAgentsView: View {
         if let seats {
             NotchAgentClaudeSeatsCard(snapshot: snapshot, seats: seats, now: now, display: shown, text: text,
                                       columns: NotchAgentSupport.seatColumns(seats.count, width: size.width),
-                                      showsAPI: showsAPI, wide: wide)
+                                      showsAPI: showsAPI, wide: wide, manages: !preview)
         } else if showsAPI {
             NotchAgentClaudeBillingCard(snapshot: snapshot, now: now, display: shown, text: text, wide: wide)
         } else {
@@ -828,11 +828,15 @@ struct NotchAgentClaudeSeatsCard: View {
     var showsSessions = true
     /// The sessions' slots side by side.
     var wide = true
+    /// The island's own page: a button that adds a seat, and a menu on each
+    /// seat that moves it a place left or right.
+    var manages = false
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchAgentsClaudeOrgLabel) private var organization = ""
 
     private let provider = AgentProvider.claude
     private var seatText: ClaudeSeatStrings { FeatureStrings.claudeSeats(l10n.language) }
+    private var menuText: AgentSeatMenuStrings { FeatureStrings.agentSeatMenu(l10n.language) }
 
     var body: some View {
         NotchAgentCardChrome {
@@ -863,7 +867,12 @@ struct NotchAgentClaudeSeatsCard: View {
         }
         if showsAPI && columns == 1 && !wide {
             VStack(alignment: .leading, spacing: 4) {
-                chips.frame(height: 17)
+                HStack(spacing: 6) {
+                    chips
+                    Spacer(minLength: 4)
+                    if manages { addSeat }
+                }
+                .frame(height: 17)
                 NotchAgentClaudeAPIPill(snapshot: snapshot, now: now, text: text)
             }
         } else {
@@ -871,8 +880,52 @@ struct NotchAgentClaudeSeatsCard: View {
                 chips
                 Spacer(minLength: 4)
                 if showsAPI { NotchAgentClaudeAPIPill(snapshot: snapshot, now: now, text: text) }
+                if manages { addSeat }
             }
             .frame(height: 17)
+        }
+    }
+
+    /// A seat is signed in from Terminal, which the seats' settings walk
+    /// through, so the button leads there.
+    private var addSeat: some View {
+        Button {
+            NotchService.shared.openSettings(showing: .agents)
+        } label: {
+            Label(menuText.addSeat, systemImage: "plus")
+                .labelStyle(NotchAgentInlineLabel())
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(1)
+                .fixedSize()
+                .padding(.horizontal, 7)
+                .frame(height: 17)
+                .background(.white.opacity(0.1), in: Capsule(style: .continuous))
+                .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9, lifts: false))
+        .accessibilityIdentifier("notch.agentAddSeat")
+    }
+
+    /// Changes places with the seat beside it, among those the page shows.
+    private func move(_ seat: ClaudeSeat, by offset: Int) {
+        let defaults = UserDefaults.standard
+        let saved = ClaudeSeatProfile.decode(defaults.string(forKey: DefaultsKey.notchAgentsClaudeSeats) ?? "")
+        let moved = ClaudeSeatProfile.moving(saved, id: seat.id, by: offset, among: seats.map(\.id))
+        guard moved != saved else { return }
+        defaults.set(ClaudeSeatProfile.encode(moved), forKey: DefaultsKey.notchAgentsClaudeSeats)
+        AgentUsageService.shared.syncWithPreferences()
+    }
+
+    /// Right-click a seat to move it; the edges offer only the way inward.
+    @ViewBuilder private func moveMenu(_ seat: ClaudeSeat) -> some View {
+        if let place = seats.firstIndex(where: { $0.id == seat.id }) {
+            if place > 0 {
+                Button { move(seat, by: -1) } label: { Label(menuText.moveLeft, systemImage: "arrow.left") }
+            }
+            if place < seats.count - 1 {
+                Button { move(seat, by: 1) } label: { Label(menuText.moveRight, systemImage: "arrow.right") }
+            }
         }
     }
 
@@ -891,8 +944,14 @@ struct NotchAgentClaudeSeatsCard: View {
                                 .frame(maxHeight: .infinity)
                         }
                         if slot < row.count {
-                            NotchAgentClaudeSeatColumn(seat: row[slot], now: now, display: display, text: text)
+                            let column = NotchAgentClaudeSeatColumn(seat: row[slot], now: now, display: display, text: text)
                                 .frame(maxWidth: .infinity, alignment: .topLeading)
+                            if manages && seats.count > 1 {
+                                // The whole column answers, not only its text.
+                                column.contentShape(Rectangle()).contextMenu { moveMenu(row[slot]) }
+                            } else {
+                                column
+                            }
                         } else {
                             Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
                         }
@@ -1168,7 +1227,7 @@ private struct NotchAgentSpendCard: View {
                     multiple(snapshot.usage(.month))
                 }
                 VStack(alignment: .leading, spacing: 1) {
-                    Text((lifetime.fullyPriced ? "" : "≥ ") + AgentFormat.cost(lifetime.total.cost))
+                    Text(NotchAgentSupport.costText(lifetime.total))
                         .agentAmount()
                         .font(.system(size: 22, weight: .medium, design: .rounded))
                         .monospacedDigit()
@@ -1183,17 +1242,46 @@ private struct NotchAgentSpendCard: View {
                         .minimumScaleFactor(0.8)
                 }
                 .help(lifetime.fullyPriced ? text.valueNote : text.unpriced)
+                periods
                 models(lifetime)
                 Spacer(minLength: 0)
             }
         }
     }
 
-    /// The models that did most of the work.
+    /// Today, the last seven days and the last thirty, side by side.
+    private var periods: some View {
+        HStack(alignment: .top, spacing: 6) {
+            ForEach(AgentPeriod.allCases, id: \.self) { period in
+                let totals = snapshot.usage(period).total
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(text.period(period))
+                        .font(.system(size: 8.5, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(NotchAgentSupport.costText(totals))
+                        .agentAmount()
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(agentSpendTint(totals.cost))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .help(totals.unpriced > 0 ? text.unpriced : text.valueNote)
+            }
+        }
+        .padding(.top, 1)
+    }
+
+    /// The models that did most of the work, always in dollars. One the
+    /// price list does not know keeps a row with its tokens instead.
     @ViewBuilder private func models(_ usage: AgentPeriodUsage) -> some View {
-        let shown = Array(usage.models.prefix(4))
-        let byCost = usage.fullyPriced
-        let peak = shown.map { $0.totals.weight(byCost: byCost) }.max() ?? 0
+        let shown = NotchAgentSupport.spendModels(usage.models)
+        let peak = shown.map(\.totals.cost).max() ?? 0
+        let noPrice = FeatureStrings.agentSeatMenu(l10n.language).noPrice
         if !shown.isEmpty {
             VStack(alignment: .leading, spacing: 3) {
                 Text(text.modelsCard.uppercased())
@@ -1207,15 +1295,31 @@ private struct NotchAgentSpendCard: View {
                             .font(.system(size: 10, weight: .medium))
                             .lineLimit(1)
                             .frame(width: 70, alignment: .leading)
-                        NotchAgentMeter(value: peak > 0 ? share.totals.weight(byCost: byCost) / peak : 0,
-                                        tint: AgentProvider.claude.tint, height: 3)
-                        Text(byCost ? AgentFormat.cost(share.totals.cost) : AgentFormat.tokens(share.totals.tokens.total))
-                            .agentAmount()
-                            .font(.system(size: 10, weight: .medium))
-                            .monospacedDigit()
-                            .lineLimit(1)
-                            .frame(minWidth: 34, alignment: .trailing)
+                        if NotchAgentSupport.isUnpriced(share.totals) {
+                            Text(noPrice)
+                                .font(.system(size: 9, weight: .medium))
+                                .foregroundStyle(.orange.opacity(0.85))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(text.tokens(AgentFormat.tokens(share.totals.tokens.total)))
+                                .font(.system(size: 10, weight: .medium))
+                                .monospacedDigit()
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(minWidth: 34, alignment: .trailing)
+                        } else {
+                            NotchAgentMeter(value: peak > 0 ? share.totals.cost / peak : 0,
+                                            tint: AgentProvider.claude.tint, height: 3)
+                            Text(NotchAgentSupport.costText(share.totals))
+                                .agentAmount()
+                                .font(.system(size: 10, weight: .medium))
+                                .monospacedDigit()
+                                .lineLimit(1)
+                                .frame(minWidth: 34, alignment: .trailing)
+                        }
                     }
+                    .help(NotchAgentSupport.isUnpriced(share.totals) ? text.unpriced : text.valueNote)
                 }
             }
         }
@@ -1250,7 +1354,9 @@ private struct NotchAgentTrendCard: View {
     }
 
     var body: some View {
-        let byCost = snapshot.usage(period).fullyPriced
+        // Always dollars: a model without a price makes a total a minimum
+        // and leaves a day a marked stub, never a card counted in tokens.
+        let byCost = true
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 // Half a row has no room for the reading beside the picker:
@@ -1317,7 +1423,7 @@ private struct NotchAgentTrendCard: View {
     }
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
-        byCost ? AgentFormat.cost(totals.cost) : text.tokens(AgentFormat.tokens(totals.tokens.total))
+        byCost ? NotchAgentSupport.costText(totals) : text.tokens(AgentFormat.tokens(totals.tokens.total))
     }
 
     private func label(_ date: Date, long: Bool) -> String {
@@ -1378,7 +1484,7 @@ private struct NotchAgentActivityCard: View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
-                    Text(text.yearTotal(AgentFormat.cost(grid.total, locale: locale)))
+                    Text(text.yearTotal((grid.unpriced ? "≥ " : "") + AgentFormat.cost(grid.total, locale: locale)))
                         .agentAmount()
                         .font(.system(size: 9.5, weight: .medium))
                         .monospacedDigit()
@@ -1450,7 +1556,8 @@ private struct NotchAgentActivityCard: View {
                 }
                 .frame(width: cell, height: cell)
                 .help(day.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day().year().locale(locale))
-                      + " · " + AgentFormat.cost(day.cost, locale: locale))
+                      + " · " + (day.unpriced ? FeatureStrings.agentSeatMenu(L10n.shared.language).noPrice
+                                 : AgentFormat.cost(day.cost, locale: locale)))
         } else {
             Color.clear.frame(width: cell, height: cell)
         }
