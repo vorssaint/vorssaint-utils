@@ -103,6 +103,9 @@ struct NotchAgentActivityGrid: Equatable {
         let cost: Double
         let level: Int
         let isToday: Bool
+        /// Only models without a known price worked that day: it counts as
+        /// active at the lowest level, with no value to show.
+        var unpriced = false
     }
 
     /// A month's name over the first column whose week begins in it.
@@ -117,6 +120,8 @@ struct NotchAgentActivityGrid: Equatable {
     let months: [Month]
     let total: Double
     let activeDays: Int
+    /// Some of the year's work has no known price, so `total` is a minimum.
+    var unpriced = false
 }
 
 enum NotchAgentSupport {
@@ -665,7 +670,12 @@ enum NotchAgentSupport {
         let todayRow = (calendar.component(.weekday, from: today) + 6) % 7
         let first = calendar.date(byAdding: .day, value: -((activityWeeks - 1) * 7 + todayRow), to: today) ?? today
         var costs: [Date: Double] = [:]
-        for day in days { costs[calendar.startOfDay(for: day.start), default: 0] += max(0, day.cost) }
+        var unpriced = Set<Date>()
+        for day in days {
+            let start = calendar.startOfDay(for: day.start)
+            costs[start, default: 0] += max(0, day.cost)
+            if day.unpriced > 0 { unpriced.insert(start) }
+        }
         var dates: [[Date?]] = []
         for column in 0..<activityWeeks {
             dates.append((0..<7).map { row in
@@ -684,7 +694,10 @@ enum NotchAgentSupport {
         func cell(_ date: Date?) -> NotchAgentActivityGrid.Day? {
             guard let date else { return nil }
             let cost = costs[date] ?? 0
-            return NotchAgentActivityGrid.Day(start: date, cost: cost, level: level(cost), isToday: date == today)
+            // A day whose only work has no price is still a day of work.
+            let unknown = cost <= 0 && unpriced.contains(date)
+            return NotchAgentActivityGrid.Day(start: date, cost: cost, level: unknown ? 1 : level(cost),
+                                              isToday: date == today, unpriced: unknown)
         }
         let weeks = dates.map { $0.map(cell) }
         // A month's name stands over the first week that begins in it; the
@@ -698,8 +711,38 @@ enum NotchAgentSupport {
             }
         }
         if months.count > 1, months[0].column == 0, months[1].column < 3 { months.removeFirst() }
+        let unknownDays = shown.filter { (costs[$0] ?? 0) <= 0 && unpriced.contains($0) }.count
         return NotchAgentActivityGrid(weeks: weeks, months: months, total: shown.reduce(0.0) { $0 + (costs[$1] ?? 0) },
-                                      activeDays: active.count)
+                                      activeDays: active.count + unknownDays,
+                                      unpriced: shown.contains(where: unpriced.contains))
+    }
+
+    // MARK: Models
+
+    /// Spending's model rows: the costliest first, then every model the
+    /// price list does not know, which has tokens but no value. Such a model
+    /// always keeps a row, at most two of them, so new work never vanishes
+    /// behind the priced models; a model with nothing counted is left out.
+    static func spendModels(_ shares: [AgentShare], limit: Int = 4) -> [AgentShare] {
+        let unknown = shares.filter { isUnpriced($0.totals) }
+            .sorted { $0.totals.tokens.total != $1.totals.tokens.total
+                ? $0.totals.tokens.total > $1.totals.tokens.total : $0.name < $1.name }
+            .prefix(min(2, max(0, limit)))
+        let priced = shares.filter { $0.totals.cost > 0 }
+            .sorted { $0.totals.cost != $1.totals.cost ? $0.totals.cost > $1.totals.cost : $0.name < $1.name }
+            .prefix(max(0, limit - unknown.count))
+        return Array(priced) + Array(unknown)
+    }
+
+    /// Work with tokens and no value at all: none of it could be priced.
+    static func isUnpriced(_ totals: AgentTotals) -> Bool {
+        totals.unpriced > 0 && totals.cost <= 0
+    }
+
+    /// An amount at API prices, marked as a minimum while some of the work
+    /// behind it has no known price.
+    static func costText(_ totals: AgentTotals, locale: Locale = .autoupdatingCurrent) -> String {
+        (totals.unpriced > 0 ? "≥ " : "") + AgentFormat.cost(totals.cost, locale: locale)
     }
 
     // MARK: Month

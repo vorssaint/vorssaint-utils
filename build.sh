@@ -290,6 +290,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/AgentSyncedLogStrings.swift
         Sources/Vorssaint/Core/ClaudeBillingStrings.swift
         Sources/Vorssaint/Core/ClaudeSeatStrings.swift
+        Sources/Vorssaint/Core/AgentSeatMenuStrings.swift
         Sources/Vorssaint/Core/SoundStrings.swift
         Sources/Vorssaint/Core/AgentSoundStrings.swift
         Sources/Vorssaint/Core/AlertMomentSoundStrings.swift

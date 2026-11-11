@@ -124,12 +124,13 @@ final class AgentUsageLedger {
         let today = calendar.startOfDay(for: now)
         return (0..<max(0, count)).reversed().compactMap { back -> AgentDayValue? in
             guard let start = calendar.date(byAdding: .day, value: -back, to: today) else { return nil }
-            var cost = 0.0
+            var cost = 0.0, unpriced = 0
             for entry in (days[Self.key(start, calendar: calendar)] ?? [:]).values {
                 guard let provider = AgentProvider(rawValue: entry.provider), providers.contains(provider) else { continue }
                 cost += entry.cost
+                unpriced += max(0, entry.unpriced)
             }
-            return AgentDayValue(start: start, cost: cost)
+            return AgentDayValue(start: start, cost: cost, unpriced: unpriced)
         }
     }
 

@@ -120,6 +120,64 @@ enum NotchAgentTests {
                      "a dated snapshot or an alias keeps its model's price")
         suite.expect(AgentPricing.price(for: "claude-mythos-preview")?.output == 125,
                      "specialized models priced apart get their own price")
+        // Fable 5.2 and Mythos 5.2: https://platform.claude.com/docs/en/about-claude/pricing
+        let fable = AgentPricing.price(for: "claude-fable-5-2")
+        suite.expect(fable == AgentPrice(input: 8, output: 40, cacheRead: 0.2, cacheWrite: 10, cacheWriteLong: 16,
+                                         fastMultiplier: 2)
+                        && AgentPricing.price(for: "claude-mythos-5-2") == fable,
+                     "Fable 5.2 and Mythos 5.2 carry their published prices, not 5.1's")
+        suite.expect(AgentPricing.price(for: "claude-fable-5-2-20261101") == fable
+                        && AgentPricing.price(for: "claude-fable-5-2[1m]") == fable
+                        && AgentPricing.price(for: "claude-mythos-5-2-20261101[1m]") == fable
+                        && AgentPricing.price(for: "claude-fable-5.2") == fable
+                        && AgentPricing.price(for: "us.anthropic.claude-fable-5-2-20261101-v1:0") == fable,
+                     "a dated, tagged or prefixed Fable 5.2 id is the same model")
+        suite.expect(AgentPricing.price(for: "claude-fable-5-1")?.input == 10 && AgentPricing.price(for: "claude-fable-5")?.cacheRead == 1
+                        && AgentPricing.price(for: "claude-fable-5-3") == nil,
+                     "5.2 leaves 5.1 and 5 their own prices, and a later version waits for the list")
+        suite.expect(AgentPricing.displayName("claude-fable-5-2") == "Fable 5.2"
+                        && AgentPricing.displayName("claude-mythos-5-2") == "Mythos 5.2"
+                        && AgentPricing.displayName("claude-fable-5-2-20261101") == "Fable 5.2"
+                        && AgentPricing.displayName("claude-fable-5-2[1m]") == "Fable 5.2"
+                        && AgentPricing.displayName("claude-fable-5-3") == "Fable 5.3",
+                     "Fable 5.2 and Mythos 5.2 read by name, and so does a version no list knows")
+        // A model the list does not know keeps a row and its tokens.
+        func share(_ name: String, cost: Double, tokens: Int, unpriced: Int = 0) -> AgentShare {
+            AgentShare(id: "claude:" + name, name: name, provider: .claude,
+                       totals: AgentTotals(tokens: AgentTokens(input: tokens), cost: cost, requests: 1, unpriced: unpriced))
+        }
+        let known = [share("Opus 5.5", cost: 900, tokens: 9_000), share("Sonnet 5.5", cost: 40, tokens: 800),
+                     share("Haiku 5.5", cost: 3, tokens: 700), share("Opus 4.8", cost: 1, tokens: 20),
+                     share("Sonnet 5", cost: 0.5, tokens: 10)]
+        let newer = share("Fable 5.3", cost: 0, tokens: 50, unpriced: 12)
+        suite.expect(NotchAgentSupport.spendModels(known).map(\.name) == ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "Opus 4.8"],
+                     "priced models rank by cost, four to the card")
+        suite.expect(NotchAgentSupport.spendModels(known + [newer]).map(\.name)
+                        == ["Opus 5.5", "Sonnet 5.5", "Haiku 5.5", "Fable 5.3"]
+                        && NotchAgentSupport.spendModels([newer] + known).last?.name == "Fable 5.3",
+                     "a model without a price keeps a row however little it weighs")
+        suite.expect(NotchAgentSupport.spendModels([newer, share("Aaa 9", cost: 0, tokens: 90, unpriced: 1),
+                                                    share("Bbb 9", cost: 0, tokens: 5, unpriced: 1)] + known).map(\.name)
+                        == ["Opus 5.5", "Sonnet 5.5", "Aaa 9", "Fable 5.3"],
+                     "at most two unpriced rows, the most tokens first, and the priced ones give them room")
+        suite.expect(NotchAgentSupport.spendModels([share("Idle", cost: 0, tokens: 0)]).isEmpty
+                        && NotchAgentSupport.isUnpriced(newer.totals) && !NotchAgentSupport.isUnpriced(known[0].totals)
+                        && !NotchAgentSupport.isUnpriced(share("Mixed", cost: 2, tokens: 5, unpriced: 3).totals),
+                     "a model with nothing counted has no row, and one partly priced still shows its value")
+        suite.expect(NotchAgentSupport.costText(newer.totals, locale: Locale(identifier: "en_US")) == "≥ $0.00"
+                        && NotchAgentSupport.costText(known[1].totals, locale: Locale(identifier: "en_US")) == "$40.00"
+                        && NotchAgentSupport.costText(share("Mixed", cost: 2, tokens: 5, unpriced: 3).totals,
+                                                      locale: Locale(identifier: "en_US")) == "≥ $2.00",
+                     "an amount with unpriced work behind it reads as a minimum")
+        let unknownCost = AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1_000, output: 500)), model: "claude-fable-5-3")
+        var unknownTotals = AgentTotals()
+        unknownTotals.add(AgentUsageRecord(provider: .claude, date: Date(timeIntervalSince1970: 1_800_000_000),
+                                           model: "claude-fable-5-3", project: "", session: "s",
+                                           tokens: AgentTokens(input: 1_000, output: 500),
+                                           cost: unknownCost.cost, savings: unknownCost.savings))
+        suite.expect(unknownCost.cost == nil && unknownTotals.unpriced == 1 && unknownTotals.tokens.total == 1_500
+                        && unknownTotals.cost == 0 && NotchAgentSupport.isUnpriced(unknownTotals),
+                     "an unknown model's response has no cost, and its tokens and its response still count")
         let plain = AgentBillable(tokens: AgentTokens(input: 1_000_000))
         var fast = plain
         fast.fast = true
@@ -1405,6 +1463,16 @@ enum NotchAgentTests {
                         }
                         && grid.months.allSatisfy { grid.weeks[$0.column][0]?.start == $0.start },
                      "each month is named over the first week that begins in it")
+        // A day whose only work has no known price is still a day of work.
+        let unknown = NotchAgentSupport.activityGrid(
+            values + [AgentDayValue(start: day(30), cost: 0, unpriced: 4), AgentDayValue(start: day(2), cost: 3, unpriced: 1)],
+            now: now, calendar: utc)
+        let quiet = unknown.weeks.joined().compactMap { $0 }.first { $0.start == day(30) }
+        suite.expect(quiet?.level == 1 && quiet?.unpriced == true && quiet?.cost == 0
+                        && unknown.activeDays == 9 && unknown.total == 39 && unknown.unpriced
+                        && unknown.weeks.joined().compactMap { $0 }.first { $0.start == day(2) }?.unpriced == false
+                        && !grid.unpriced && grid.weeks.joined().compactMap { $0 }.allSatisfy { !$0.unpriced },
+                     "a day of unpriced work is active at the lowest level, and makes the year's total a minimum")
         let empty = NotchAgentSupport.activityGrid([], now: now, calendar: utc)
         suite.expect(empty.total == 0 && empty.activeDays == 0
                         && empty.weeks.joined().allSatisfy { $0 == nil || $0?.level == 0 },
