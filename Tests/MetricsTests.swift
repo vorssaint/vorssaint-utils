@@ -215,6 +215,9 @@ struct MetricsTests {
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
             }),
+            ("downloads", {
+                DownloadRoutingTests.run(suite)
+            }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)
                 HomebrewOperationLogRetentionTests.run(suite)
