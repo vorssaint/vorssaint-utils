@@ -40,6 +40,9 @@ struct AgentLogState: Equatable {
     var lastTotal: AgentTokens?
     /// Codex runs the thread on the fast tier, which bills at a premium.
     var fast = false
+    /// Skills loaded that the next response is charged with.
+    var pendingSkills: [AgentSkill: Int] = [:]
+    var turnSkills: Set<String> = []
     /// A Codex subagent, review or memory task owns no turn. Only the log's
     /// metadata says so: a reverted thread goes on in a log named after both
     /// the thread and a new rollout.
