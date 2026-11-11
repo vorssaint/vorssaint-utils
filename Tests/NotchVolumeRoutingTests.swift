@@ -19,6 +19,11 @@ enum NotchVolumeRoutingTests {
             key == DefaultsKey.preciseVolumeRollerEnabled && precise
         }
     }
+    enum AppFeature {
+        case mixer
+        static var mixerAvailable = true
+        var isAvailable: Bool { Self.mixerAvailable }
+    }
     enum NotchSupport {
         enum Module { case volume }
         static func routes(_ module: Module) -> Bool { true }
@@ -31,14 +36,21 @@ enum NotchVolumeRoutingTests {
         let acceptsSystemFeedback = true
         let showsSystemFeedback = true
         var shownLevels: [Double] = []
-        func showCurrentVolume() {
+        @discardableResult func showCurrentVolume() -> Bool {
             let mixer = AppVolumeMixer.shared
             if let level = mixer.systemOutputVolume {
                 shownLevels.append(mixer.systemOutputMuted == true ? 0 : level)
+                return true
             }
+            return false
         }
     }
-    struct NSEvent { let data1: Int }
+    struct NSEvent {
+        struct Subtype { let rawValue = 8 }
+        let subtype = Subtype()
+        let data1: Int
+    }
+    typealias BrightnessService = DisplaySpeakerVolumeTests.Service
     final class CGEvent {
         var flags: CGEventFlags = []
         var marker: Int64?
@@ -48,6 +60,8 @@ enum NotchVolumeRoutingTests {
         func post(tap: CGEventTapLocation) { posts += 1 }
     }
     class State {
+        var monitorVolumeKeysHeld: [BrightnessSupport.VolumeKeyAction: BrightnessSupport.SpeakerTarget] = [:]
+        static func showMonitorFeedback() { NotchService.shared.showCurrentVolume() }
         var notchKeyGate = NotchVolumeKeyGate()
         var gate = PreciseVolumeRollerGate()
         var feedbackStep = 0
@@ -256,5 +270,57 @@ enum NotchVolumeRoutingTests {
         suite.expect(!press(.mute, service: service, event: unsupportedMute)
                      && DispatchQueue.main.jobs.isEmpty && Hardware.writes.isEmpty && unsupportedMute.posts == 0,
                      "initially unsupported mute passes through without scheduling or reposting")
+
+        service = reset()
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: nil)
+        let monitorUp = CGEvent()
+        suite.expect(!press(.volumeUp, service: service, event: monitorUp)
+                     && monitorUp.posts == 0 && DispatchQueue.main.jobs.isEmpty && Hardware.writes.isEmpty,
+                     "monitor speakers with keys off pass volume keys through to macOS")
+        service = reset()
+        AppVolumeMixer.shared.monitorOutput = BrightnessSupport.MonitorSpeakerOutput(target: .init(displayID: 7, path: "port-a"), volume: 0.4, muted: false)
+        let monitorMute = CGEvent()
+        suite.expect(!press(.mute, service: service, event: monitorMute)
+                     && monitorMute.posts == 0 && DispatchQueue.main.jobs.isEmpty,
+                     "monitor speakers with keys off pass mute through to macOS")
+
+        service = reset()
+        let speakers = DisplaySpeakerVolumeTests.connect(AppVolumeMixer.shared, raw: 2)
+        func monitorPress(_ data: Int, flags: CGEventFlags = []) -> Bool {
+            service.routeMonitorVolume(NSEvent(data1: data), flags: flags)
+        }
+        let fine: CGEventFlags = [.maskAlternate, .maskShift]
+        suite.expect(monitorPress(0x0a00, flags: fine), "the matched display claims the fine volume key")
+        speakers.finish()
+        suite.expect(speakers.raw == 3 && NotchService.shared.shownLevels == [0.03],
+                     "monitor feedback uses the confirmed fine level")
+        speakers.selectedAudioOutput = (32, "Monitor B")
+        speakers.actualDevice = 32
+        speakers.audioRoutes[8] = .init(path: "port-b", fingerprint: "fixture-identity",
+                                        service: NSObject(), hasNativeMute: true)
+        speakers.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: .init(displayID: 8, path: "port-b"), volume: 0.4, muted: false)))
+        suite.expect(monitorPress(0x0a01) && monitorPress(0x0b00), "the old hold owns its repeats and release")
+        speakers.finish()
+        suite.expect(speakers.writes.count == 1 && NotchService.shared.shownLevels.count == 1,
+                     "a held key does not transfer writes or feedback to the new monitor")
+        suite.expect(monitorPress(0x0a00, flags: fine) && monitorPress(0x0b00),
+                     "a fresh press can start on the newly selected monitor")
+        speakers.finish()
+        suite.expect(speakers.writtenIDs == [7, 8] && NotchService.shared.shownLevels.last == 0.04,
+                     "the new press and its feedback use the new selection")
+        speakers.displays[0].name = "Monitor B"
+        suite.expect(!monitorPress(0x0a00) && !monitorPress(0x0a01) && !monitorPress(0x0b00),
+                     "identical names pass a whole press through even if only one endpoint can write")
+        speakers.finish()
+        speakers.displays[0].name = "Monitor A"
+        speakers.selectedAudioOutput = (31, "Monitor A")
+        speakers.actualDevice = 31
+        AppVolumeMixer.shared.monitorOutput = speakers.monitorSpeakerOutput()
+        speakers.rejectVolume = true
+        suite.expect(monitorPress(0x0a00, flags: fine), "the current target can claim a new press")
+        speakers.finish()
+        suite.expect(NotchService.shared.shownLevels.count == 2 && Hardware.writes.isEmpty,
+                     "a rejected DDC transaction never announces a new level or writes HAL")
+
     }
 }
