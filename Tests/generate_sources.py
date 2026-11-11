@@ -427,6 +427,7 @@ def main():
           + declaration(brightness, "    private func forcedSoftwarePaths(")
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
+          + declaration(brightness, "    private func writeDDCLuminance(").replace("private ", "", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
           + "}\n}\n")
@@ -2466,13 +2467,16 @@ def main():
           + "softwareDims.append((id, value)); events.append(\"picture:\\(value)\")\n"
           + "if softwareSucceeds { if value >= 0.999 { dimmedDisplays.remove(id) } else { dimmedDisplays.insert(id) } }\n"
           + "return softwareSucceeds\n}\n"
-          + "func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8]) -> Bool {\n"
+          + "func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {\n"
+          + "guard whileCurrent() else { return false }\n"
           + "let value = UInt16(packet[3]) << 8 | UInt16(packet[4])\n"
           + "events.append(\"ddc:\\(value)\"); return ddcSucceeds\n}\n"
           + "func refresh(force: Bool = false) { refreshes += 1 }\n"
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func restoreAllGamma(").replace("private func", "func", 1)
+          + declaration(brightness, "    private func forcedSoftwarePaths(")
+          + declaration(brightness, "    private func writeDDCLuminance(")
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private func", "func", 1)
           + "}\n}\n")
 
