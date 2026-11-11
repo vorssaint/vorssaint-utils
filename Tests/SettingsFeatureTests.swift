@@ -344,6 +344,11 @@ enum SettingsFeatureTests {
                      "a real cleanup invocation remains on its normal startup path")
         let startup = (try? String(contentsOfFile: "Sources/Vorssaint/main.swift", encoding: .utf8)) ?? ""
         let backupDispatch = startup.range(of: "if let command = SettingsBackupSupport.command(")
+        if let migrate = startup.range(of: "Defaults.register()"),
+           let overlay = startup.range(of: "SettingsBackup.applyConfigFileAtLaunch()") {
+            suite.expect(migrate.lowerBound < overlay.lowerBound,
+                         "local preferences migrate before applying a partial startup declaration")
+        } else { suite.expect(false, "startup runs local migrations and declarative settings") }
         suite.expect(backupDispatch != nil && ["SuperKeyMappingGuard.", "Defaults.register()",
                      "MouseAccelerationGuard.", "MouseAccelerationService.", "SelfTest.", "Uninstaller."]
             .allSatisfy { name in

@@ -718,6 +718,9 @@ enum FeatureCatalogTests {
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(onboardingViewSource.contains("let features = Set(AppFeature.allCases.filter(\\.isAvailable))")
+                && onboardingViewSource.contains("_selectedFeatures = State(initialValue: features)"),
+               "the first setup screen starts with the prepared features, including the settings file's selections")
         let additionalPermissionsAlignment =
             #"DisclosureGroup\(isExpanded: \$showingOtherPermissions\) \{\s+"#
             + #"VStack\(alignment: \.leading, spacing: 14\)"#
