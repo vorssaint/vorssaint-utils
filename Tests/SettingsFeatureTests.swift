@@ -262,30 +262,26 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutPreviousDisplay)
                 && backupKeys.contains(DefaultsKey.windowLayoutShortcutMarginMaximize),
                "window layout choices travel with the settings backup")
-        suite.expect(backupKeys.contains(DefaultsKey.screenshotFreeze)
-                && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcutEnabled)
-                && backupKeys.contains(DefaultsKey.screenshotFullScreenShortcut)
-                && backupKeys.contains(DefaultsKey.screenshotShowLastRegion)
-                && backupKeys.contains(DefaultsKey.screenshotHighlightWindows)
-                && backupKeys.contains(DefaultsKey.screenshotToolOrder)
-                && backupKeys.contains(DefaultsKey.screenshotToolShortcutsEnabled)
-                && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcutEnabled)
-                && backupKeys.contains(DefaultsKey.screenshotLastCaptureShortcut)
-                && backupKeys.contains(DefaultsKey.recentCapturesShortcutEnabled)
-                && backupKeys.contains(DefaultsKey.recentCapturesShortcut)
-                && backupKeys.contains(DefaultsKey.screenshotClipboardShortcutEnabled)
-                && backupKeys.contains(DefaultsKey.screenshotClipboardShortcut)
-                && backupKeys.contains(DefaultsKey.screenshotPreviewPosition)
-                && backupKeys.contains(DefaultsKey.screenshotPreviewTakesFocus)
-                && backupKeys.contains(DefaultsKey.screenshotLoupeRememberZoom)
-                && backupKeys.contains(DefaultsKey.screenshotLoupeDefaultZoom)
-                && backupKeys.contains(DefaultsKey.screenshotLoupeSteppedZoomByDefault)
+        suite.expect(backupKeys.contains(DefaultsKey.shotShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.shotShortcut)
+                && backupKeys.contains(DefaultsKey.shotFullScreenShortcutEnabled)
+                && backupKeys.contains(DefaultsKey.shotFullScreenShortcut)
+                && backupKeys.contains(DefaultsKey.shotFileNamePattern)
+                && backupKeys.contains(DefaultsKey.shotFormat)
+                && backupKeys.contains(DefaultsKey.shotJPEGQuality)
+                && backupKeys.contains(DefaultsKey.shotAutoCopy)
+                && backupKeys.contains(DefaultsKey.shotNotify)
+                && backupKeys.contains(DefaultsKey.shotKeepSelection)
+                && backupKeys.contains(DefaultsKey.shotCaptureCursor)
+                && backupKeys.contains(DefaultsKey.shotMagnifier)
+                && backupKeys.contains(DefaultsKey.shotColor)
                 && backupKeys.contains(DefaultsKey.panelUtilityScreenshot),
                "screenshot preferences travel with the settings backup")
-        suite.expect(!backupKeys.contains(DefaultsKey.screenshotSaveFolder),
-               "the chosen screenshot save folder does not travel with the settings backup, being authority on one Mac")
-        suite.expect(!backupKeys.contains(DefaultsKey.screenshotLoupeLastZoom),
-               "the magnifier's last session zoom stays on its own Mac")
+        suite.expect(!backupKeys.contains(DefaultsKey.shotFolder)
+                && !backupKeys.contains(DefaultsKey.shotLastFolder),
+               "the screenshot folders do not travel with the settings backup, being authority on one Mac")
+        suite.expect(!backupKeys.contains(DefaultsKey.shotLastSelection),
+               "where the last selection sat stays on its own Mac")
         suite.expect(backupKeys.contains(DefaultsKey.whatsAppDownloadsEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsAutomaticEnabled)
                 && backupKeys.contains(DefaultsKey.whatsAppDownloadsCategories)
@@ -434,8 +430,6 @@ enum SettingsFeatureTests {
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.fanControlResume] as? Bool == false,
                "resuming fan control after a restart or sleep is opt-in")
-        suite.expect(backupKeys.contains(DefaultsKey.screenshotSharingEnabled),
-               "the temporary screenshot links preference travels with settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
@@ -446,8 +440,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
                 && !backupKeys.contains(DefaultsKey.displaysSwitchedOff)
-                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints)
-                && !backupKeys.contains(DefaultsKey.screenshotSharingDeveloperEndpoint),
+                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints),
                "backup never carries private content, live state or machine markers")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOff] == nil,
                "a display switched off is a repair note for this machine, not a setting")

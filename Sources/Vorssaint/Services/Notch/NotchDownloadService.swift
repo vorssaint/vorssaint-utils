@@ -151,7 +151,7 @@ final class NotchDownloadService: ObservableObject {
             && NotchSupport.modules().contains(.downloads) && notch.acceptsUserInteraction
             && notch.presentationWindow === window && window.isVisible
             && notch.expanded && notch.selected == .downloads && !notch.showingAppPanel
-            && notch.selectedMetric == nil && notch.captureControls == nil
+            && notch.selectedMetric == nil
     }
 
     func forgetFolder() {

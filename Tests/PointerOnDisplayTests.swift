@@ -132,31 +132,6 @@ enum PointerOnDisplayContract {
         func CGWarpMouseCursorPosition(_ point: CGPoint) { warps.append(point) }
     }
 
-    /// One display's capture overlay deciding whether its guide shows.
-    final class Overlay {
-        typealias NSEvent = Event
-        struct Options { let controlsInNotch: Bool }
-        final class Controller {
-            var currentPointerLocation: CGPoint?
-            var selectionInProgress = false
-        }
-        final class Panel {
-            let screenFrame: CGRect
-            init(_ screenFrame: CGRect) { self.screenFrame = screenFrame }
-        }
-        final class Guide { var isHidden = false }
-        let screenCaptureOptions: Options? = nil
-        let controller: Controller? = Controller()
-        let panel: Panel?
-        let guideHost = Guide()
-        let isCapturePending = false
-        let displayID: CGDirectDisplayID
-        init(_ screen: Screen) {
-            panel = Panel(screen.frame)
-            displayID = screen.displayID
-        }
-    }
-
     /// `DockPreviewService` deciding whether the pointer is close enough to
     /// the Dock to be worth an Accessibility hit test.
     final class Dock {
@@ -211,12 +186,6 @@ enum PointerOnDisplayContract {
                 suite.expect(hop.warps == expected && Bridge.presses == 1,
                              "a Space hop \(behavior), found warps \(hop.warps) and \(Bridge.presses) presses")
             }
-            // The capture guide follows the pointer to its display and no other.
-            let overlays = Screen.screens.map(Overlay.init)
-            overlays.forEach { $0.refreshGuideVisibility() }
-            let shown = overlays.filter { !$0.guideHost.isHidden }.map(\.displayID)
-            suite.expect(shown == [under.displayID],
-                         "the capture guide shows only on display \(under.displayID) for \(place), found \(shown)")
         }
         // Issue #1503: unhiding an app that is not hidden raises every one of
         // its windows, so a hop shows its app again only when it was hidden.

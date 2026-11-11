@@ -29,12 +29,6 @@ enum AgentSessionPlaceTests {
         }
         suite.expect(turn(app: true)?.place == .app && turn(app: false)?.place == .terminal,
                      "a Claude turn runs in the app when its responses come from the Claude app, else in the terminal")
-
-        let store = AgentUsageStore()
-        let started = Date(timeIntervalSince1970: 1_790_088_000)
-        _ = store.apply([.turnBegan(started), .turnPlace(.app)], file: "codex.jsonl", provider: .codex,
-                        tracksTurns: true, modified: now, now: now)
-        suite.expect(store.live.first?.place == .app, "a Codex turn takes the place its thread names")
     }
 
     private static func workingLayout(_ suite: TestSuite) {
@@ -44,11 +38,10 @@ enum AgentSessionPlaceTests {
                              tokens: AgentTokens(), cost: 0, place: place)
         }
         // Oldest first, as the snapshot keeps them.
-        let live = [session(.claude, .terminal, 0), session(.codex, .app, 10), session(.claude, .terminal, 20),
-                    session(.claude, .app, 30)]
+        let live = [session(.claude, .terminal, 0), session(.claude, .terminal, 20), session(.claude, .app, 30)]
         let layout = NotchAgentWorkingLayout(live, budget: 20)
         suite.expect(layout?.provider == .claude && layout?.terminal == 2 && layout?.app == 1 && layout?.stacked == true,
-                     "the island follows the longest-working agent and counts its sessions by place")
+                     "the island counts Claude's sessions by place")
         suite.expect(NotchAgentWorkingLayout([], budget: 20) == nil, "nothing working draws no mark")
         if let layout {
             suite.expect(layout.width > layout.ring
@@ -60,7 +53,7 @@ enum AgentSessionPlaceTests {
                             && layout.badgeHeight < layout.ring / 2,
                          "with both places working the terminal sits above the app on the ring, both smaller")
         }
-        let alone = NotchAgentWorkingLayout(provider: .codex, terminal: 0, app: 1, budget: 30)
+        let alone = NotchAgentWorkingLayout(provider: .claude, terminal: 0, app: 1, budget: 30)
         suite.expect(alone.ring == 22 && !alone.stacked && alone.width <= 44 - 11
                         && alone.anchor(.app).x > alone.ring / 2 && alone.anchor(.app).y > alone.ring / 2,
                      "the ring never outgrows the wing, and a lone badge sits at 4:30 inside a 44-point wing")
@@ -101,24 +94,20 @@ enum AgentSessionPlaceTests {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "UTC")!
         let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 2, hour: 12))!
-        func day(_ month: Int, _ day: Int, claude: Double, api: Double, codex: Double) -> AgentBucket {
+        func day(_ month: Int, _ day: Int, claude: Double, api: Double) -> AgentBucket {
             var bucket = AgentBucket(start: calendar.date(from: DateComponents(year: 2026, month: month, day: day))!)
             bucket.byProvider[.claude] = AgentTotals(cost: claude)
-            bucket.byProvider[.codex] = AgentTotals(cost: codex)
             bucket.claudeAPI = AgentTotals(cost: api)
             return bucket
         }
         var snapshot = AgentUsageSnapshot()
-        snapshot.days = [day(9, 30, claude: 100, api: 0, codex: 100), day(10, 1, claude: 30, api: 10, codex: 5),
-                         day(10, 2, claude: 20, api: 5, codex: 1)]
+        snapshot.days = [day(9, 30, claude: 100, api: 0), day(10, 1, claude: 30, api: 10),
+                         day(10, 2, claude: 20, api: 5)]
         suite.expect(NotchAgentSupport.monthDays(snapshot, now: now, calendar: calendar).count == 2,
                      "the month starts on its first day, not thirty days back")
         suite.expect(NotchAgentSupport.claudePlanMonth(snapshot, splitsBilling: true, now: now, calendar: calendar) == 35
                         && NotchAgentSupport.claudePlanMonth(snapshot, splitsBilling: false, now: now, calendar: calendar) == 50,
                      "the plan's month leaves out what the API key paid for, and counts everything without one")
-        suite.expect(NotchAgentSupport.monthTotal(snapshot, providers: [.claude, .codex], now: now, calendar: calendar) == 56
-                        && NotchAgentSupport.monthTotal(snapshot, providers: [.claude], now: now, calendar: calendar) == 50,
-                     "Spending counts every agent shown this month")
         let start = Date(timeIntervalSince1970: 0)
         snapshot.claudeBlock = AgentBlock(start: start, end: start.addingTimeInterval(18_000), totals: AgentTotals(cost: 9))
         snapshot.claudeAppBlock = AgentBlock(start: start, end: start.addingTimeInterval(18_000), totals: AgentTotals(cost: 4))
@@ -135,16 +124,16 @@ enum AgentSessionPlaceTests {
         calendar.timeZone = TimeZone(identifier: "UTC")!
         func snapshot(_ days: [(Int, Double, Double)]) -> AgentUsageSnapshot {
             var snapshot = AgentUsageSnapshot()
-            for (day, opus, codex) in days {
+            for (day, opus, sonnet) in days {
                 snapshot.days.append(AgentBucket(start: calendar.date(from: DateComponents(year: 2026, month: 10, day: day))!))
                 var models: [String: AgentShare] = [:]
                 if opus > 0 {
                     models["claude:Opus"] = AgentShare(id: "claude:Opus", name: "Opus", provider: .claude,
                                                        totals: AgentTotals(tokens: AgentTokens(input: Int(opus)), cost: opus))
                 }
-                if codex > 0 {
-                    models["codex:GPT"] = AgentShare(id: "codex:GPT", name: "GPT", provider: .codex,
-                                                     totals: AgentTotals(tokens: AgentTokens(input: Int(codex)), cost: codex))
+                if sonnet > 0 {
+                    models["claude:Sonnet"] = AgentShare(id: "claude:Sonnet", name: "Sonnet", provider: .claude,
+                                                         totals: AgentTotals(tokens: AgentTokens(input: Int(sonnet)), cost: sonnet))
                 }
                 snapshot.dayModels.append(models)
             }
@@ -159,14 +148,20 @@ enum AgentSessionPlaceTests {
         // Day 1's logs are gone and day 2 lost a log; today keeps streaming.
         ledger.merge(snapshot([(2, 20, 0), (3, 30, 5)]), calendar: calendar)
         ledger.merge(snapshot([(2, 20, 0), (3, 40, 5)]), calendar: calendar)
-        let usage = ledger.usage(providers: [.claude, .codex])
-        suite.expect(usage.total.cost == 205 && usage.byProvider[.claude]?.cost == 190 && usage.byProvider[.codex]?.cost == 15,
+        let usage = ledger.usage(providers: [.claude])
+        suite.expect(usage.total.cost == 205 && usage.byProvider[.claude]?.cost == 205,
                      "the lifetime keeps days whose logs are gone and takes the latest of a growing day: \(usage.total.cost)")
-        suite.expect(usage.models.map(\.name) == ["Opus", "GPT"] && usage.models.first?.totals.cost == 190,
+        suite.expect(usage.models.map(\.name) == ["Opus", "Sonnet"] && usage.models.first?.totals.cost == 190,
                      "lifetime models add up every day, largest first")
-        suite.expect(ledger.usage(providers: [.codex]).total.cost == 15, "the lifetime counts only the agents asked for")
+        suite.expect(ledger.usage(providers: []).total.cost == 0, "the lifetime counts only the agents asked for")
+        let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 3, hour: 12))!
+        let year = ledger.dailyCosts(providers: [.claude], days: 4, now: now, calendar: calendar)
+        suite.expect(year.map(\.cost) == [0, 110, 50, 45] && year.last?.start == calendar.startOfDay(for: now),
+                     "the activity map's days come from the ledger, oldest first and ending today: \(year.map(\.cost))")
+        suite.expect(ledger.dailyCosts(providers: [], days: 4, now: now, calendar: calendar).allSatisfy { $0.cost == 0 },
+                     "the activity map counts only the agents asked for")
         ledger.save()
-        suite.expect(AgentUsageLedger(url: url).usage(providers: [.claude, .codex]) == usage,
+        suite.expect(AgentUsageLedger(url: url).usage(providers: [.claude]) == usage,
                      "the lifetime survives a relaunch")
     }
 }

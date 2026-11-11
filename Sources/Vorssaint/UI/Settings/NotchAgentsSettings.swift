@@ -8,12 +8,6 @@ import SwiftUI
 struct NotchAgentsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
-    @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
-    @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
-    @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
-    @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
-    @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
-    @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = NotchAgentSupport.defaultHiddenCards
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
     @AppStorage(DefaultsKey.notchAgentsLimitFocus) private var limitFocus = NotchAgentLimitFocus.mostUsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsRestingLayout) private var restingLayout = NotchAgentRestingLayout.single.rawValue
@@ -36,8 +30,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsClaudeCreditsSince) private var claudeCreditsSince = 0.0
     /// The balance being typed, kept apart until it is saved.
     @State private var creditsDraft = ""
-    @State private var dragging: NotchAgentCard?
-    @State private var roots: [AgentProvider: Bool] = [:]
+    @State private var claudeFound = false
     @State private var claudeApp: URL?
     /// Read from the file while the section is off and the service is idle.
     @State private var claudeAppFileCheck: Date?
@@ -47,47 +40,18 @@ struct NotchAgentsSettingsControls: View {
     private var billingText: ClaudeBillingStrings { FeatureStrings.claudeBilling(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
-    @AppStorage(DefaultsKey.notchAgentsClaudeSeats) private var claudeSeats = ""
-    private var orderedCards: [NotchAgentCard] {
-        NotchAgentSupport.orderedCards(cardOrder, claudeSeats: claude && !ClaudeSeatProfile.decode(claudeSeats).isEmpty)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(text.settingsDescription)
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            providerRow(.claude, isOn: $claude)
-            providerRow(.codex, isOn: $codex)
-            providerRow(.opencode, isOn: $opencode)
-            providerRow(.copilot, isOn: $copilot)
-            if claude { ClaudeSeatsSettings() }
-            if codex { CodexAccountsSettings() }
-            NotchLimitVisibilitySettings(claude: claude, codex: codex)
+            claudeRow
+            ClaudeSeatsSettings()
+            NotchLimitVisibilitySettings()
+            AgentSyncedFoldersSettings()
 
             Divider()
-            Text(text.cardsTitle).font(.subheadline.weight(.medium))
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
-                ForEach(orderedCards) { card in
-                    PanelReorderableItem(item: card,
-                                         order: Binding(get: { orderedCards },
-                                                        set: { cardOrder = $0.map(\.rawValue).joined(separator: ",") }),
-                                         dragging: $dragging) {
-                        NotchEditorItem(symbol: card.symbol, title: text.card(card), included: cardBinding(card)) {
-                            cardBinding(card).wrappedValue.toggle()
-                        }
-                        .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveUp) { moveCard(card, by: -1) }
-                        .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveDown) { moveCard(card, by: 1) }
-                    }
-                }
-            }
-            Text(text.cardsHint).font(.caption).foregroundStyle(.secondary)
-            // The card that makes Codex ask the default account, said where it is chosen.
-            if codex, cardBinding(.resets).wrappedValue {
-                Text(text.resetsHelp).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
             SettingsChoiceRow(symbol: NotchAgentCard.limits.symbol, title: text.limitsAs, selection: $limitDisplay) {
                 Text(text.remaining).tag(NotchAgentLimitDisplay.remaining.rawValue)
                 Text(text.used).tag(NotchAgentLimitDisplay.used.rawValue)
@@ -114,7 +78,7 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
-                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : .copilot)
+                                      provider: .claude)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -164,29 +128,24 @@ struct NotchAgentsSettingsControls: View {
                 Toggle(text.priceUpdates, isOn: $priceUpdates).labelsHidden().toggleStyle(.switch)
             }
 
-            if claude {
-                Divider()
-                Text(text.claudeLimitsTitle).font(.subheadline.weight(.medium))
-                TimelineView(.periodic(from: .now, by: 30)) { context in
-                    claudeLimitsStatus(now: context.date)
-                }
-                if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
-                Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                claudeBillingGroup
+            Divider()
+            Text(text.claudeLimitsTitle).font(.subheadline.weight(.medium))
+            TimelineView(.periodic(from: .now, by: 30)) { context in
+                claudeLimitsStatus(now: context.date)
             }
+            if usage.claudeAccountChecking { ProgressView().controlSize(.small) }
+            Text(text.claudeLimitsPrivacy).font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            claudeBillingGroup
         }
         .toggleStyle(.switch)
         .onAppear {
             findRoots()
-            // An agent turned off is not read at all, not even for its status.
-            if claude { findClaudeApp() }
+            findClaudeApp()
         }
-        .onChange(of: claude) { _, on in if on { findClaudeApp() } }
-        // Cards and agents set the page's height, and the live reading the
-        // closed island's width, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus, claudeBilling]) { _, _ in
+        // The API key's figures set the page's height, and the live reading
+        // the closed island's width, which the island follows.
+        .onChange(of: [String(liveActivity), readout, limitDisplay, limitFocus, claudeBilling]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -246,17 +205,13 @@ struct NotchAgentsSettingsControls: View {
         creditsDraft = ""
     }
 
-    /// Agents switched on that report a plan allowance, the ones that can rest.
-    private var restable: [AgentProvider] {
-        let on: [AgentProvider: Bool] = [.claude: claude, .codex: codex, .opencode: opencode, .copilot: copilot]
-        return AgentProvider.allCases.filter { on[$0] == true && $0.reportsLimits }
-    }
+    /// The agents that can rest: Claude.
+    private let restable = AgentProvider.allCases
 
     /// How the resting island shows the allowances: the layout, the agents
     /// that rest, and the strip as it will look. "Limit to show" above picks
     /// the limit each meter shows.
     @ViewBuilder private var restingGroup: some View {
-        let layout = NotchAgentRestingLayout(rawValue: restingLayout) ?? .single
         Text(text.atRest).font(.subheadline.weight(.medium)).padding(.top, 4)
         SettingsMenuRow(symbol: "rectangle.split.3x1", title: text.restingLayout, selection: $restingLayout) {
             ForEach(NotchAgentRestingLayout.allCases) { option in
@@ -265,10 +220,6 @@ struct NotchAgentsSettingsControls: View {
         }
         Text(text.restingFocusCaption).font(.caption).foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
-        if layout == .split, restable.filter({ !restingHiddenSet.contains($0) }).count > 2 {
-            Text(text.restingSplitCaption).font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
         if !restable.isEmpty {
             Text(text.showAtRest).font(.callout).foregroundStyle(.secondary)
             ForEach(restable) { provider in
@@ -312,7 +263,7 @@ struct NotchAgentsSettingsControls: View {
                                  usedPercent: example.session, resetsAt: now.addingTimeInterval(3600)),
                 AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
                                  usedPercent: example.weekly, resetsAt: now.addingTimeInterval(86_400))],
-                observedAt: now, source: .sessionLog)
+                observedAt: now, source: .account)
         }
         return snapshot
     }
@@ -386,30 +337,28 @@ struct NotchAgentsSettingsControls: View {
         }
     }
 
-    /// Laid out like every other row, with the agent's own mark for an icon.
-    private func providerRow(_ provider: AgentProvider, isOn: Binding<Bool>) -> some View {
-        HStack(spacing: 12) {
+    /// Laid out like every other row, with Claude's own mark for an icon,
+    /// and whether Claude Code's logs are on this Mac.
+    private var claudeRow: some View {
+        let provider = AgentProvider.claude
+        return HStack(spacing: 12) {
             NotchAgentMark(provider: provider, size: 13)
                 .frame(width: 26, height: 26)
                 .background(provider.tint.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName)
-                Text(roots[provider] == true ? text.found : text.notFound)
+                Text(claudeFound ? text.found : text.notFound)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
-            // One agent stays on; turning the section off stops all.
-            Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
         }
     }
 
     /// Where the logs live is checked when the page opens, not on every draw.
     private func findRoots() {
-        let found = AgentLogRoot.all().filter(\.exists).map(\.provider)
-        roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
+        claudeFound = AgentLogRoot.all().contains(where: \.exists)
     }
 
     private func switchRow(_ symbol: String, _ title: String, isOn: Binding<Bool>) -> some View {
@@ -418,26 +367,7 @@ struct NotchAgentsSettingsControls: View {
         }
     }
 
-    private func cardBinding(_ card: NotchAgentCard) -> Binding<Bool> {
-        Binding {
-            !hiddenCards.split(separator: ",").contains(Substring(card.rawValue))
-        } set: { shown in
-            var hidden = Set(hiddenCards.split(separator: ",").map(String.init))
-            if shown { hidden.remove(card.rawValue) } else { hidden.insert(card.rawValue) }
-            hiddenCards = hidden.sorted().joined(separator: ",")
-        }
-    }
-
-    /// VoiceOver's way to reorder the cards, which otherwise only drag.
-    private func moveCard(_ card: NotchAgentCard, by offset: Int) {
-        var order = orderedCards
-        guard let index = order.firstIndex(of: card), order.indices.contains(index + offset) else { return }
-        order.swapAt(index, index + offset)
-        cardOrder = order.map(\.rawValue).joined(separator: ",")
-    }
 }
-
-extension NotchAgentCard: PanelOrderItem {}
 
 /// The closed island while an agent works, drawn small beside its option:
 /// the mark on one side of the camera and the chosen reading on the other.

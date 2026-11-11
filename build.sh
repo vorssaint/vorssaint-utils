@@ -287,7 +287,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchGestureStrings.swift
         Sources/Vorssaint/Core/NotchAgentStrings.swift
         Sources/Vorssaint/Core/NotchAgentPlaceStrings.swift
-        Sources/Vorssaint/Core/CodexAccountStrings.swift
+        Sources/Vorssaint/Core/AgentSyncedLogStrings.swift
         Sources/Vorssaint/Core/ClaudeBillingStrings.swift
         Sources/Vorssaint/Core/ClaudeSeatStrings.swift
         Sources/Vorssaint/Core/SoundStrings.swift
@@ -308,13 +308,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
         Sources/Vorssaint/Services/AgentUsage/AgentAttention.swift
         Sources/Vorssaint/Services/AgentUsage/AgentPricing.swift
-        Sources/Vorssaint/Services/AgentUsage/AgentLogObject.swift
         Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/AgentHarnessReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/ClaudeReader.swift
-        Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
-        Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
-        Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageLedger.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
@@ -324,10 +320,6 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeServer.swift
         Sources/Vorssaint/Services/AgentUsage/ClaudeSeatProfile.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeBilling.swift
-        Sources/Vorssaint/Services/AgentUsage/AgentCodexServer.swift
-        Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
-        Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
-        Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
@@ -364,9 +356,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/MediaImageStrings.swift
         Sources/Vorssaint/Core/QuickToggleStrings.swift
         Sources/Vorssaint/Core/ScreenshotStrings.swift
-        Sources/Vorssaint/Core/RecentCaptureStrings.swift
+        Sources/Vorssaint/Core/ShotStrings.swift
+        Sources/Vorssaint/Services/Screenshot/ShotGeometry.swift
+        Sources/Vorssaint/Services/Screenshot/ShotModel.swift
         Sources/Vorssaint/Core/RecorderStrings.swift
-        Sources/Vorssaint/Core/RecorderShareStrings.swift
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
@@ -402,33 +395,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScratchpadSupport.swift
         Sources/Vorssaint/Services/QuickTools/ScratchpadStore.swift
         Sources/Vorssaint/Services/KillProcess/KillProcessSupport.swift
-        Sources/Vorssaint/Services/Recorder/RecorderSupport.swift
-        Sources/Vorssaint/Services/Recorder/RecorderSampleTiming.swift
-        Sources/Vorssaint/Services/Recorder/RecorderWriter.swift
-        Sources/Vorssaint/Services/Recorder/RecorderCaptureEngine.swift
-        Sources/Vorssaint/Core/RecorderExportStrings.swift
-        Sources/Vorssaint/Services/Recorder/RecorderComposer.swift
-        Sources/Vorssaint/Services/Recorder/RecorderComposerPlan.swift
-        Sources/Vorssaint/Services/Recorder/RecorderCursorSprite.swift
-        Sources/Vorssaint/Services/Recorder/RecorderTextRenderer.swift
-        Sources/Vorssaint/Services/Recorder/RecorderImageRenderer.swift
-        Sources/Vorssaint/Services/Recorder/RecorderExporter.swift
-        Sources/Vorssaint/Services/Recorder/RecorderGIFClipboard.swift
-        Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift
-        Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
-        Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
-        Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift
-        Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift
-        Sources/Vorssaint/Services/Recorder/RecorderPresetImageStore.swift
-        Sources/Vorssaint/Services/Recorder/RecorderMotion.swift
-        Sources/Vorssaint/Services/Recorder/RecorderPointerTrack.swift
-        Sources/Vorssaint/Services/Recorder/RecorderTypingTrack.swift
-        Sources/Vorssaint/Services/Recorder/RecorderTimeline.swift
-        Sources/Vorssaint/Services/Recorder/RecorderTextOverlay.swift
-        Sources/Vorssaint/Services/Recorder/RecorderImageOverlay.swift
-        Sources/Vorssaint/Services/Recorder/RecorderBlurRegion.swift
-        Sources/Vorssaint/Services/Recorder/RecorderEditDocument.swift
         Sources/Vorssaint/Core/AppInfo.swift
         Sources/Vorssaint/Core/GlobalShortcut.swift
         Sources/Vorssaint/Core/SymbolicHotKeys.swift
@@ -532,15 +499,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/SpotlightNamesSupport.swift
         Sources/Vorssaint/Services/QuickTools/MicMuteSupport.swift
         Sources/Vorssaint/Services/QuickTools/QuickTogglesSupport.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotCapturePolicy.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotSupport.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotCanvasSupport.swift
-        Sources/Vorssaint/UI/Settings/ScreenCaptureToolPicker.swift
         Sources/Vorssaint/UI/Settings/MonitorToken.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotImageLayerRendering.swift
-        Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift

@@ -35,11 +35,6 @@ enum NotchMusicVisibilityTests {
         static let shared = CameraPreviewService()
         func hideEmbedded() {}
     }
-    struct CaptureControls {
-        struct Tool { let capturesAudio = false }
-        let selectedTool = Tool()
-        var onSelectionProgressChange: ((Bool) -> Void)?
-    }
     enum NotchContentTransition { case none, dismiss }
     struct Host { func containsHover(_ point: CGPoint) -> Bool { false } }
     struct Panel {
@@ -77,14 +72,6 @@ enum NotchMusicVisibilityTests {
         var selected: NotchModule = .controls
         var selectedMetric: Metric?
         var modules: [NotchModule] = []
-        var captureControls: CaptureControls?
-        var captureControlsCollapsed = false
-        var captureSelectionInProgress = false
-        var captureControlsWork: DispatchWorkItem?
-        var captureControlsSubscription: Bool?
-        var captureControlsCancel: (() -> Void)?
-        var captureClose: (() -> Void)?
-        var captureClosesOnCollapse = false
         var notice: NotchNotice?
         var noticeExpanded = false
         var noticeWork: DispatchWorkItem?
@@ -128,17 +115,9 @@ enum NotchMusicVisibilityTests {
         var namedMusicWings: NotchNoticeWings?
         var musicStripHeldSong: NotchPlaybackContext?
         var showsCopies = false
-        var captureControlsLayout: NotchCaptureControlsLayout {
-            NotchCaptureControlsLayout(geometry: geometry, titleWidth: 90, capturesAudio: false)
-        }
         func syncMenuSpaceMonitoring() {}
-        func removeCaptureControlsClickThrough() {}
         func refreshPresentation() {}
         func removeEventMonitors() {}
-        func clearCapture() {
-            captureClose = nil
-            captureClosesOnCollapse = false
-        }
         func mutatePresentation(transitionContent: NotchContentTransition, _ change: () -> Void) { change() }
     }
 
@@ -185,25 +164,6 @@ enum NotchMusicVisibilityTests {
         devices.releaseMonitor()
         suite.expect(!SystemMonitor.shared.detailNeeds.connectedDevices,
                      "releasing the island stops its connected device sampling demand")
-
-        let persistentCapture = Service()
-        var persistentCloseCount = 0
-        persistentCapture.expanded = true
-        persistentCapture.captureClose = { persistentCloseCount += 1 }
-        persistentCapture.captureClosesOnCollapse = true
-        persistentCapture.collapse()
-        persistentCapture.collapse()
-        suite.expect(persistentCloseCount == 1 && persistentCapture.captureClose == nil
-                     && !persistentCapture.captureClosesOnCollapse,
-                     "collapsing a persistent capture closes and detaches it exactly once")
-
-        let timedCapture = Service()
-        var timedCloseCount = 0
-        timedCapture.expanded = true
-        timedCapture.captureClose = { timedCloseCount += 1 }
-        timedCapture.collapse()
-        suite.expect(timedCloseCount == 0 && timedCapture.captureClose != nil,
-                     "collapsing a timed capture leaves its timer-owned close path intact")
 
         // The clipboard's pinned filter sits in the header now, which shows
         // it only under the pointer; like the page that kept it, it lasts one opening.
@@ -338,23 +298,9 @@ enum NotchMusicVisibilityTests {
             service.collapse()
             suite.expect(!reader.running && service.hiddenUntilHover,
                    "closing hidden music controls releases their reader again")
-            // The capture presenter sets this state and synchronizes consumers;
-            // cancellation below executes the production teardown method.
-            service.captureControls = CaptureControls()
-            service.syncVisibleConsumers()
-            suite.expect(reader.running, "visible capture controls can retain enabled resting music")
-            service.endCaptureControls()
-            suite.expect(service.captureControls == nil && service.hiddenUntilHover && !reader.running,
-                   "canceling capture returns hidden mode to rest without retaining the music reader")
-            service.endCaptureControls()
-            suite.expect(!reader.running, "a repeated capture cleanup cannot restart hidden music")
             defaults.set(false, forKey: DefaultsKey.notchHideUntilHover)
             service.syncVisibleConsumers()
             suite.expect(reader.running, "returning to a visible mode resumes the resting music reader")
-            service.captureControls = CaptureControls()
-            service.syncVisibleConsumers()
-            service.endCaptureControls()
-            suite.expect(reader.running, "ending capture in a visible mode preserves enabled resting music")
             defaults.set(NotchIdleContent.battery.rawValue, forKey: DefaultsKey.notchIdleContent)
             defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
             service.syncVisibleConsumers()

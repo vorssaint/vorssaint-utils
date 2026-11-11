@@ -251,24 +251,6 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.string(forKey: DefaultsKey.panelUtilityOrder)
                    == "homebrew,screenshot,cleaner",
                    "utility migration preserves a screenshot position already chosen")
-            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
-            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
-            suite.expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
-                   == ScreenshotDefaultAction.edit.rawValue
-                   && migrationDefaults.bool(forKey: DefaultsKey.screenshotOpenEditorDirectly) == false,
-                   "direct-to-editor migrates into the Edit after-capture action")
-            migrationDefaults.set(true, forKey: DefaultsKey.screenshotOpenEditorDirectly)
-            migrationDefaults.set(ScreenshotDefaultAction.save.rawValue,
-                                  forKey: DefaultsKey.screenshotDefaultAction)
-            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
-            suite.expect(migrationDefaults.string(forKey: DefaultsKey.screenshotDefaultAction)
-                   == ScreenshotDefaultAction.save.rawValue,
-                   "direct-to-editor migration never overrides a newer picker choice")
-            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotOpenEditorDirectly)
-            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotDefaultAction)
-            Defaults.migrateScreenshotOpenEditorDirectly(in: migrationDefaults)
-            suite.expect(migrationDefaults.object(forKey: DefaultsKey.screenshotDefaultAction) == nil,
-                   "a setup that never used direct-to-editor keeps asking after capture")
             migrationDefaults.set(false, forKey: DefaultsKey.switcherShowWindowlessFinder)
             Defaults.migrateSwitcherWindowlessFinder(in: migrationDefaults)
             suite.expect(migrationDefaults.string(forKey: DefaultsKey.switcherWindowlessApps)
@@ -357,80 +339,6 @@ enum SwitcherModelFeatureTests {
             suite.expect(migrationDefaults.string(forKey: hiddenControlsKey) == "microphone,panel,scratchpad",
                    "an old backup restored after the first launch still hides the new Scratchpad tile")
 
-            migrationDefaults.removeObject(
-                forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated)
-            migrationDefaults.set(false, forKey: DefaultsKey.screenshotShortcutEnabled)
-            migrationDefaults.set(true, forKey: DefaultsKey.recorderShortcutEnabled)
-            migrationDefaults.set("control+option:42", forKey: DefaultsKey.recorderShortcut)
-            Defaults.migrateUnifiedScreenCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
-                   && migrationDefaults.string(forKey: DefaultsKey.screenshotShortcut)
-                        == "control+option:42"
-                   && migrationDefaults.bool(
-                        forKey: DefaultsKey.unifiedScreenCaptureShortcutMigrated),
-                   "the combined capture shortcut preserves an enabled recording shortcut")
-            Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
-            suite.expect(!migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
-                   && migrationDefaults.bool(forKey: DefaultsKey.recorderShortcutEnabled)
-                   && migrationDefaults.bool(
-                        forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated),
-                   "restoring dedicated shortcuts removes the duplicate general registration")
-            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
-            migrationDefaults.set("command:12", forKey: DefaultsKey.recorderShortcut)
-            Defaults.migrateUnifiedScreenCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.string(forKey: DefaultsKey.screenshotShortcut)
-                   == "control+option:42",
-                   "the capture shortcut migration runs once and preserves later choices")
-            migrationDefaults.removeObject(
-                forKey: DefaultsKey.restoredScreenCaptureShortcutsMigrated)
-            Defaults.migrateRestoredScreenCaptureShortcuts(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
-                   "a distinct general capture shortcut stays enabled when dedicated ones return")
-            migrationDefaults.set(true, forKey: AppFeature.screenRecorder.availabilityKey)
-            migrationDefaults.set(true, forKey: AppFeature.screenOCR.availabilityKey)
-            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
-                        == "control+option:42"
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
-                   && migrationDefaults.string(forKey: DefaultsKey.recorderShortcut)
-                        == "command:12",
-                   "an orphaned capture shortcut moves to the first available tool without its own")
-            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
-            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
-            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled),
-                   "the orphaned capture shortcut migration runs once")
-            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
-            migrationDefaults.set(true, forKey: AppFeature.screenshot.availabilityKey)
-            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled)
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-                   && migrationDefaults.bool(
-                        forKey: DefaultsKey.orphanedCaptureShortcutMigrated),
-                   "a setup that kept the screenshot tool keeps its capture shortcut untouched")
-            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
-            migrationDefaults.removeObject(forKey: DefaultsKey.screenshotShortcut)
-            migrationDefaults.removeObject(forKey: DefaultsKey.screenOCRShortcut)
-            migrationDefaults.set(false, forKey: AppFeature.screenshot.availabilityKey)
-            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-                   && migrationDefaults.string(forKey: DefaultsKey.screenOCRShortcut)
-                        == GlobalShortcut.screenshotDefault.storageValue
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
-                   "a never-customized capture combination moves as the default combination")
-            migrationDefaults.removeObject(forKey: DefaultsKey.orphanedCaptureShortcutMigrated)
-            migrationDefaults.set(true, forKey: DefaultsKey.screenshotShortcutEnabled)
-            migrationDefaults.set(false, forKey: DefaultsKey.screenOCRShortcutEnabled)
-            migrationDefaults.set(true, forKey: AppFeature.colorPicker.availabilityKey)
-            Defaults.migrateOrphanedCaptureShortcut(in: migrationDefaults)
-            suite.expect(migrationDefaults.bool(forKey: DefaultsKey.colorPickerShortcutEnabled)
-                   && migrationDefaults.string(forKey: DefaultsKey.colorPickerShortcut)
-                        == GlobalShortcut.screenshotDefault.storageValue
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenOCRShortcutEnabled)
-                   && !migrationDefaults.bool(forKey: DefaultsKey.screenshotShortcutEnabled),
-                   "a switched-off but customized shortcut is kept and the next tool takes over")
             migrationDefaults.removePersistentDomain(forName: shortcutSuite)
         } else {
             suite.expect(false, "test suite defaults are available")
@@ -2293,12 +2201,6 @@ enum SwitcherModelFeatureTests {
                "panel Dock hide control is visible by default")
         suite.expect(registeredDefaults[DefaultsKey.panelControlCutPaste] as? Bool == true,
                "panel cut and paste control is visible by default")
-        suite.expect(registeredDefaults[DefaultsKey.colorPickerBareHex] as? Bool == false,
-               "color picker keeps the # prefix by default")
-        suite.expect(registeredDefaults[DefaultsKey.screenOCRRemoveLineBreaks] as? Bool == false,
-               "copy text from screen keeps line breaks by default")
-        suite.expect(registeredDefaults[DefaultsKey.screenOCRDetectQRCodes] as? Bool == true,
-               "copy text from screen reads QR codes by default")
         suite.expect(registeredDefaults[DefaultsKey.micMuteMenuBarIndicator] as? Bool == true,
                "mic mute menu bar indicator ships on by default (badge only shows while muted)")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricSpacing] as? String == "compact",
@@ -3129,16 +3031,23 @@ enum SwitcherModelFeatureTests {
             }, "display controls and custom brightness shortcuts survive JSON backup and restore, enabled=\(enabled)")
         }
 
-        suite.expect(registeredDefaults[DefaultsKey.screenshotOpenEditorDirectly] as? Bool == false,
-               "capture keeps showing the preview unless the user opts into the editor")
-        suite.expect(registeredDefaults[DefaultsKey.screenshotDefaultAction] as? String == "",
-               "captures keep asking what to do until an after-capture action is chosen")
-        suite.expect(registeredDefaults[DefaultsKey.screenshotSaveSubfolder] as? String == ""
-                && registeredDefaults[DefaultsKey.screenshotFileNamePattern] as? String == "",
-               "subfolder and file name patterns arrive empty, keeping the stock naming")
-        suite.expect(registeredDefaults[DefaultsKey.screenshotFileNumberStart] as? Int == 1
-                && registeredDefaults[DefaultsKey.screenshotFileNumberNext] as? Int == 1,
-               "the file number sequence starts counting at 1")
+        suite.expect(registeredDefaults[DefaultsKey.shotShortcutEnabled] as? Bool == true
+                && registeredDefaults[DefaultsKey.shotShortcut] as? String
+                    == GlobalShortcut(keyCode: Int64(kVK_ANSI_S), modifiers: [.shift, .command]).storageValue
+                && registeredDefaults[DefaultsKey.shotFullScreenShortcutEnabled] as? Bool == false,
+               "the screenshot tool answers Command-Shift-S from the start, and the whole-screen save stays off")
+        suite.expect(registeredDefaults[DefaultsKey.shotFileNamePattern] as? String == ShotFiles.defaultPattern
+                && registeredDefaults[DefaultsKey.shotFormat] as? String == "png"
+                && registeredDefaults[DefaultsKey.shotJPEGQuality] as? Int == 90
+                && registeredDefaults[DefaultsKey.shotFolder] as? String == "",
+               "screenshots save as PNG under a dated name in Pictures/Screenshots until changed")
+        suite.expect(registeredDefaults[DefaultsKey.shotNotify] as? Bool == true
+                && registeredDefaults[DefaultsKey.shotMagnifier] as? Bool == true
+                && registeredDefaults[DefaultsKey.shotAutoCopy] as? Bool == false
+                && registeredDefaults[DefaultsKey.shotKeepSelection] as? Bool == false
+                && registeredDefaults[DefaultsKey.shotCaptureCursor] as? Bool == false
+                && registeredDefaults[DefaultsKey.shotColor] as? String == "FF0000",
+               "the capture screen confirms and magnifies by default, draws in red and leaves the rest off")
         suite.expect(registeredDefaults[DefaultsKey.panelShowUtilities] as? Bool == true,
                "Utilities panel section is shown by default")
         suite.expect(registeredDefaults[DefaultsKey.panelShowControls] as? Bool == true,

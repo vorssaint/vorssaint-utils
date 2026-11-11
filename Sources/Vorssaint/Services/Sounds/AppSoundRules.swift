@@ -36,14 +36,9 @@ enum AppSoundRules {
         "com.todesktop.230313mzl4w4u92", "com.exafunction.windsurf", "dev.zed.Zed",
     ]
 
-    /// An agent's own app, as `AgentClaudeAppUsage` and `AgentCodexServer`
-    /// know them.
+    /// Claude's own app, as `AgentClaudeAppUsage` knows it.
     static func apps(of provider: AgentProvider) -> Set<String> {
-        switch provider {
-        case .claude: return ["com.anthropic.claudefordesktop"]
-        case .codex: return ["com.openai.codex", "com.openai.chat"]
-        case .opencode, .copilot: return []
-        }
+        [AgentClaudeAppUsage.bundleIdentifier]
     }
 
     /// The apps an agent's session shows in. Where it runs is not always

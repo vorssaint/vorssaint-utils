@@ -66,7 +66,7 @@ enum ClaudeSeatTests {
             try folder(".claude-seat2", account: "b")
             try folder(".claude-seat1", account: "a")
             try folder(".claude-signedout", account: nil)
-            try folder(".codex-work", account: "c")
+            try folder(".other-work", account: "c")
             try folder(".claude", account: "usual")
             let found = ClaudeSeatProfile.discover(home: root)
             suite.expect(found.map { URL(fileURLWithPath: $0.directory).lastPathComponent } == [".claude-seat1", ".claude-seat2"],
@@ -108,10 +108,12 @@ enum ClaudeSeatTests {
             "oauthAccount": ["accountUuid": "a", "organizationUuid": "org"],
             "cachedUsageUtilization": ["accountUuid": "a", "fetchedAtMs": now.timeIntervalSince1970 * 1_000 - 30_000,
                                        "utilization": ["five_hour": ["utilization": 64, "resets_at": "2026-10-23T11:30:00Z"],
-                                                       "seven_day": NSNull()]]]
+                                                       "seven_day": ["utilization": 31, "resets_at": "2026-10-27T08:00:00Z"],
+                                                       "seven_day_opus": NSNull()]]]
         let cache = AgentClaudeServer.cache(profile, now: now)
-        suite.expect(cache?.limits.windows.map(\.usedPercent) == [64] && cache?.organization == "org",
-                     "a seat's saved usage reads its session and skips the weeks a Team seat lacks")
+        suite.expect(cache?.limits.windows.map(\.usedPercent) == [64, 31]
+                        && cache?.limits.windows.last?.kind == .weekly && cache?.organization == "org",
+                     "a seat's saved usage reads its session and its week, and skips a week it lacks")
         var other = profile
         other["oauthAccount"] = ["accountUuid": "b", "organizationUuid": "org"]
         suite.expect(AgentClaudeServer.cache(other, now: now) == nil,
@@ -170,28 +172,17 @@ enum ClaudeSeatTests {
     }
 
     private static func layout(_ suite: TestSuite) {
-        let cards = NotchAgentSupport.orderedCards("", claudeSeats: true).filter { !$0.retired }
-        suite.expect(Array(cards.prefix(6)) == [.limits, .spend, .projects, .trend, .resets, .activity]
-                        && NotchAgentSupport.orderedCards("", claudeSeats: false).prefix(3) == [.limits, .spend, .trend]
-                        && NotchAgentSupport.orderedCards("trend,spend", claudeSeats: true).prefix(2) == [.trend, .spend],
-                     "with seats a new page pairs Spending with Codex, Projects with Trend and Resets with Activity, and a saved order is kept")
-        let tiles = NotchAgentSupport.tiles(cards: [.limits, .trend, .spend, .projects, .resets, .activity],
-                                            providers: [.claude, .codex], claudeUsesAPI: true, claudeSeats: 2)
-        let rows = NotchAgentSupport.rows(tiles, width: 600)
-        suite.expect(rows.map { $0.map(\.card) } == [[.limits], [.limits, .trend], [.spend, .projects], [.resets, .activity]]
-                        && rows[0].first?.claudeSeats == true && rows[0].first?.seatsShowAPI == true
-                        && rows[0].first?.seatCount == 2 && !tiles.contains(where: \.claudeAPI)
-                        && rows[1].first?.provider == .codex && Set(tiles.map(\.id)).count == tiles.count,
-                     "seats take the first row with the API key's figures in its header, Codex pairs with Trend and Resets with Activity")
-        suite.expect(NotchAgentSupport.height(of: rows[0], width: 600) == NotchAgentSupport.seatsBaseHeight + NotchAgentSupport.seatRowHeight
-                        && NotchAgentSupport.height(of: rows[0], width: 360)
-                            == NotchAgentSupport.stackedSeatsBaseHeight + 2 * NotchAgentSupport.stackedSeatHeight
-                                + NotchAgentSupport.stackedAPILineHeight
-                        && NotchAgentSupport.height(of: rows[1], width: 600) == NotchAgentSupport.sessionCardHeight
-                        && NotchAgentSupport.height(of: rows[3], width: 600) == NotchAgentSupport.pairedActivityHeight
-                        && rows[3].allSatisfy { !$0.fullWidth }
-                        && NotchAgentSupport.rows(tiles, width: 360).allSatisfy { $0.count == 1 },
-                     "the seats' row and its pairs have room for what they show, and a narrow page stacks every card")
+        let wide = NotchAgentSupport.pageLayout(width: 600, claudeSeats: 2, claudeUsesAPI: true, live: [])
+        let narrow = NotchAgentSupport.pageLayout(width: 360, claudeSeats: 2, claudeUsesAPI: true, live: [])
+        suite.expect(wide.limits == NotchAgentSupport.seatsBaseHeight + NotchAgentSupport.seatRowHeight
+                        && narrow.limits == NotchAgentSupport.stackedSeatsBaseHeight + 2 * NotchAgentSupport.stackedSeatHeight
+                            + NotchAgentSupport.stackedAPILineHeight,
+                     "the seats' card across the top has room for every seat, stacked where the page is narrow")
+        suite.expect(wide.square == (600 - NotchAgentSupport.spacing) / 2
+                        && wide.total == wide.limits + wide.square + wide.activity + 2 * NotchAgentSupport.spacing
+                        && NotchAgentSupport.pageLayout(width: 600, claudeSeats: nil, claudeUsesAPI: false, live: []).limits
+                            == NotchAgentSupport.sessionCardHeight,
+                     "Trend and Spending share a row as squares, and without seats Claude keeps its own card")
         suite.expect(NotchAgentSupport.seatColumns(3, width: 504) == 3 && NotchAgentSupport.seatColumns(3, width: 420) == 2
                         && NotchAgentSupport.seatColumns(3, width: 360) == 1 && NotchAgentSupport.seatColumns(1, width: 600) == 1
                         && NotchAgentSupport.seatColumns(4, width: 504) == 2
@@ -200,15 +191,6 @@ enum ClaudeSeatTests {
                         && NotchAgentSupport.seatsCardHeight(3, width: 420, api: true)
                             == NotchAgentSupport.seatsBaseHeight + 2 * NotchAgentSupport.seatRowHeight,
                      "three seats share one row where they fit and go two and one where they do not")
-        suite.expect(NotchAgentSupport.tiles(cards: [.limits], providers: [.claude], claudeUsesAPI: false, claudeSeats: 2)
-                        .map(\.seatsShowAPI) == [false],
-                     "the API key's figures show only when an API key pays for Claude Code")
-        let without = NotchAgentSupport.tiles(cards: [.limits, .trend, .spend], providers: [.claude, .codex],
-                                              claudeUsesAPI: true)
-        suite.expect(without.first?.splitsBilling == true && without.first(where: { $0.card == .trend })?.fullWidth == true
-                        && NotchAgentSupport.tiles(cards: [.activity], providers: [.claude]).first?.fullWidth == true
-                        && NotchAgentSupport.tiles(cards: [.limits], providers: [.codex], claudeSeats: 2).allSatisfy { !$0.claudeSeats },
-                     "without seats, or without Claude, the page is today's")
     }
 
     private static func resting(_ suite: TestSuite) {
@@ -216,21 +198,18 @@ enum ClaudeSeatTests {
         snapshot.claudeSeats = [seat("one", account: "a", used: 64, active: true), seat("two", account: "b", used: 96),
                                 seat("three", account: "c", used: nil)]
         snapshot.limits[.claude] = limits(64)
-        snapshot.limits[.codex] = AgentLimits(provider: .codex, windows: [AgentLimitWindow(
-            id: "codex.primary", kind: .session, minutes: 300, scope: nil, usedPercent: 20, resetsAt: nil)],
-            observedAt: now, source: .account)
         let cycle = NotchAgentSupport.restingSequence(snapshot, layout: .cycle, providers: AgentProvider.allCases,
                                                       hidden: [], focus: .session, now: now)
-        suite.expect(cycle.map(\.id) == ["claude.two", "claude.one", "codex"]
+        suite.expect(cycle.map(\.id) == ["claude.two", "claude.one"]
                         && cycle.first?.email == "two@example.com" && cycle.first?.window.usedPercent == 96,
-                     "Rotate shows each seat in turn, the most spent first, and Codex after them")
+                     "Rotate shows each seat in turn, the most spent first")
         let single = NotchAgentSupport.restingSequence(snapshot, layout: .single, providers: AgentProvider.allCases,
                                                        hidden: [], focus: .session, now: now)
         suite.expect(single.map(\.id) == ["claude.one"] && single.first?.seat == "one",
                      "Single shows the seat the Claude app is signed in to")
         let hidden = NotchAgentSupport.restingSequence(snapshot, layout: .cycle, providers: AgentProvider.allCases,
                                                        hidden: [.claude], focus: .session, now: now)
-        suite.expect(hidden.map(\.id) == ["codex"], "leaving Claude out at rest leaves out every seat")
+        suite.expect(hidden.isEmpty, "leaving Claude out at rest leaves out every seat")
         let speech = NotchAgentSupport.restingSpeech(Array(cycle.prefix(1)), used: true,
                                                      text: FeatureStrings.notchAgents(.enUS), locale: Locale(identifier: "en_US"),
                                                      now: now)

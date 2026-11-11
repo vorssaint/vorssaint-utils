@@ -3880,11 +3880,6 @@ enum PointerInputFeatureTests {
         let smoothSchedulerCode = smoothSchedulerSource.components(separatedBy: "\n")
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        let steppedLoupeBypass = smoothSchedulerCode
-            .components(separatedBy: "if ScreenshotSelectionController.steppedLoupeNeedsRawWheel(")
-            .dropFirst().first?.components(separatedBy: "return").first ?? ""
-        suite.expect(steppedLoupeBypass.contains("stopGlide()"),
-               "entering stepped magnifier zoom cancels the fast glide before passing the raw notch")
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""

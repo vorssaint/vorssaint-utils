@@ -89,8 +89,8 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         case .fanControl: return [.fanControl]
         case .utilities: return [.quickLauncher, .cleaner, .homebrew, .appUpdates, .mediaTools,
                                  .clipboardHistory,
-                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
-                                 .colorPicker, .screenshot, .screenRecorder,
+                                 .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, 
+                                 .screenshot, 
                                  .cameraPreview, .scratchpad, .commandBar, .portManager]
         case .controls: return [.scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
                                 .finderCutPaste, .autoQuit,

@@ -318,36 +318,6 @@ enum SettingsSearchSupport {
         builder.suggestions.append(suggestion)
     }
 
-    /// Every former screen-tool page remains discoverable after those settings
-    /// move behind the single Screen capture destination.
-    static func screenCaptureKeywords(_ strings: Strings,
-                                       language: AppLanguage) -> [String] {
-        screenCaptureFeatureKeywords(strings, language: language).flatMap(\.titles)
-    }
-
-    static func screenCaptureFeatureKeywords(_ strings: Strings,
-                                              language: AppLanguage)
-        -> [(feature: AppFeature, titles: [String])] {
-        let screenshot = FeatureStrings.screenshot(language)
-        let recorder = FeatureStrings.recorder(language)
-        return [
-            (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
-                           screenshot.highlightWindowsToggle, screenshot.highlightWindowsCaption,
-                           screenshot.loupeStartsOnToggle,
-                           screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
-                           screenshot.previewFocusToggle, screenshot.confirmationPreviewToggle,
-                           screenshot.confirmationPreviewDurationLabel,
-                           screenshot.copyImageOnlyToggle,
-                           screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
-                           screenshot.toolArrow, screenshot.addToShelfToggle]),
-            (.screenRecorder, [recorder.pageTitle, recorder.startButton,
-                               recorder.systemAudioToggle, recorder.microphoneToggle,
-                               recorder.qualityLabel, recorder.frameRateLabel]),
-            (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle]),
-            (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel]),
-        ]
-    }
-
     /// Keeps only the sections that still have items for the query, so an
     /// empty section never renders just its header.
     static func filteredIndices(query: String,

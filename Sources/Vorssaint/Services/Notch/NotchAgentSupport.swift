@@ -4,39 +4,22 @@
 import CoreGraphics
 import Foundation
 
-/// The cards the AI page can show, in the order a person arranges them. Raw
-/// values are stored in the saved order, so cases are never renamed.
+/// The AI page's cards, which it lays out the same way every time: Claude's
+/// limits across the page, Trend and Spending side by side, and the year's
+/// activity under them.
 enum NotchAgentCard: String, CaseIterable, Identifiable {
-    // The order is the page's default. Sessions now sit in the limits cards
-    // and models in Spending, so Now and Models are retired: the cases stay
-    // only so saved orders still read.
-    case limits, spend, trend, projects, resets, activity, live, models
+    case limits, trend, spend, activity
 
     var id: String { rawValue }
-
-    /// Cards the page no longer shows, whatever the saved settings say. A
-    /// page whose hidden cards were saved before they retired would
-    /// otherwise list the sessions and models a second time.
-    var retired: Bool { self == .live || self == .models }
 
     var symbol: String {
         switch self {
         case .limits: return "gauge.with.dots.needle.33percent"
-        case .spend: return "dollarsign.circle"
-        case .live: return "waveform.path.ecg"
         case .trend: return "chart.bar.xaxis"
-        case .models: return "cpu"
-        case .projects: return "folder"
+        case .spend: return "dollarsign.circle"
         case .activity: return "square.grid.3x3.fill"
-        case .resets: return "arrow.counterclockwise.circle"
         }
     }
-
-    /// Charts need the island's width; everything else pairs up.
-    var fullWidth: Bool { self == .trend || self == .activity }
-
-    /// Cards that cover the period chosen in the island's top row.
-    var followsPeriod: Bool { self == .trend || self == .models || self == .projects }
 }
 
 /// What the AI page keeps back where anyone can read it, as on the lock
@@ -99,37 +82,41 @@ struct NotchAgentRestingReset: Equatable {
     let short: String
 }
 
-struct NotchAgentTile: Identifiable, Equatable {
-    let card: NotchAgentCard
-    /// The account a limits card belongs to.
-    let provider: AgentProvider?
-    /// An added Codex home's card; nil for the one the logs feed.
-    var accountID: String? = nil
-    /// The Resets card beside added Codex homes, which says whose resets they are.
-    var namesDefaultAccount = false
-    /// Claude's limits card beside the API key's spending, which takes a row.
-    var splitsBilling = false
-    /// Claude's seats side by side, which take a row.
-    var claudeSeats = false
-    /// How many seats the seats' card shows; none leaves its header and sessions.
-    var seatCount = 0
-    /// The seats' card carries the API key's figures in its header.
-    var seatsShowAPI = false
-    /// The API key's spending on its own, with Claude's plan left out.
-    var claudeAPI = false
-    /// Trend or Activity beside another card, as they sit once seats take
-    /// the first row.
-    var paired = false
-    var id: String {
-        card.rawValue + (provider.map { "." + $0.rawValue } ?? "") + (accountID.map { "." + $0 } ?? "")
-            + (claudeSeats ? ".seats" : "") + (claudeAPI ? ".api" : "")
+/// The heights of the AI page's three rows at one width. Trend and Spending
+/// share the middle row as two squares.
+struct NotchAgentPageLayout: Equatable {
+    /// Claude's limits: the seats' card, or Claude's own card without seats.
+    let limits: CGFloat
+    /// Trend's and Spending's side, which is also the row's height.
+    let square: CGFloat
+    let activity: CGFloat
+
+    var total: CGFloat { limits + square + activity + NotchAgentSupport.spacing * 2 }
+}
+
+/// The activity map's year as GitHub draws a contribution graph: a column a
+/// week, Sunday on top, the last column holding today, and each day's level
+/// from 0, nothing, to 4, among the busiest quarter of active days.
+struct NotchAgentActivityGrid: Equatable {
+    struct Day: Equatable {
+        let start: Date
+        let cost: Double
+        let level: Int
+        let isToday: Bool
     }
-    var fullWidth: Bool { (card.fullWidth && !paired) || splitsBilling || claudeSeats }
-    /// Claude's and Codex's own limits cards list the sessions they pay for,
-    /// a row each, and keep one row while none runs.
-    var showsSessions: Bool {
-        card == .limits && accountID == nil && !claudeAPI && (provider == .claude || provider == .codex)
+
+    /// A month's name over the first column whose week begins in it.
+    struct Month: Equatable {
+        let column: Int
+        let start: Date
     }
+
+    /// `NotchAgentSupport.activityWeeks` columns of seven days; nil after
+    /// today.
+    let weeks: [[Day?]]
+    let months: [Month]
+    let total: Double
+    let activeDays: Int
 }
 
 enum NotchAgentSupport {
@@ -152,54 +139,16 @@ enum NotchAgentSupport {
             && NotchSupport.modules(in: defaults).contains(.agents)
     }
 
-    static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
-        AgentProvider.allCases.filter {
-            defaults.object(forKey: key(for: $0)) as? Bool ?? true
-        }
+    /// The folders of logs synced from other computers, as saved.
+    static func syncedLogFolders(in defaults: UserDefaults = .standard) -> [String] {
+        parseSyncedFolders(defaults.string(forKey: DefaultsKey.notchAgentsSyncedFolders) ?? "")
     }
 
-    static func key(for provider: AgentProvider) -> String {
-        switch provider {
-        case .claude: return DefaultsKey.notchAgentsClaude
-        case .codex: return DefaultsKey.notchAgentsCodex
-        case .opencode: return DefaultsKey.notchAgentsOpenCode
-        case .copilot: return DefaultsKey.notchAgentsCopilot
-        }
-    }
-
-    /// Every card in the saved order; cards added later join at the end.
-    static func orderedCards(in defaults: UserDefaults = .standard, claudeSeats: Bool = false) -> [NotchAgentCard] {
-        orderedCards(defaults.string(forKey: DefaultsKey.notchAgentsCardOrder) ?? "", claudeSeats: claudeSeats)
-    }
-
-    /// The page's order once Claude's seats take the first row:
-    /// Spending beside Codex, Projects beside Trend, and Resets beside Activity.
-    static let claudeSeatsOrder = "limits,spend,projects,trend,resets,activity"
-
-    /// The cards a saved order lists, without retired or repeated ones.
-    static func orderedCards(_ saved: String, claudeSeats: Bool = false) -> [NotchAgentCard] {
-        let order = saved.isEmpty && claudeSeats ? claudeSeatsOrder : saved
-        let stored = order.split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) }
-        var seen = Set<NotchAgentCard>()
-        return (stored + NotchAgentCard.allCases).filter { !$0.retired && seen.insert($0).inserted }
-    }
-
-    /// Cards a new page leaves out until the person shows them.
-    static let defaultHiddenCards = "live,models"
-
-    static func hiddenCards(in defaults: UserDefaults = .standard) -> Set<NotchAgentCard> {
-        Set((defaults.string(forKey: DefaultsKey.notchAgentsHiddenCards) ?? defaultHiddenCards)
-            .split(separator: ",").compactMap { NotchAgentCard(rawValue: String($0)) })
-    }
-
-    static func cards(in defaults: UserDefaults = .standard, claudeSeats: Bool = false) -> [NotchAgentCard] {
-        let hidden = hiddenCards(in: defaults)
-        return orderedCards(in: defaults, claudeSeats: claudeSeats).filter { !hidden.contains($0) }
-    }
-
-    /// Added Codex accounts have cards only in the Limits card's place.
-    static func showsCodexAccounts(in defaults: UserDefaults = .standard) -> Bool {
-        providers(in: defaults).contains(.codex) && !hiddenCards(in: defaults).contains(.limits)
+    static func parseSyncedFolders(_ saved: String) -> [String] {
+        var seen = Set<String>()
+        return saved.split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && seen.insert($0).inserted }
     }
 
     static func period(in defaults: UserDefaults = .standard) -> AgentPeriod {
@@ -270,7 +219,7 @@ enum NotchAgentSupport {
     }
 
     /// The Developer build's stand-in usage, so the resting colors can be
-    /// checked by eye: `claude.session=0.86,codex.weekly=0.97`. Anything
+    /// checked by eye: `claude.session=0.86,claude.weekly=0.97`. Anything
     /// malformed is skipped, and a release build never reads the key.
     static func simulatedRestingUsage(in defaults: UserDefaults = .standard,
                                       developer: Bool = AppInfo.isDeveloperBuild) -> [AgentProvider: [AgentLimitWindow.Kind: Double]] {
@@ -494,19 +443,19 @@ enum NotchAgentSupport {
     }
 
     /// Whether anything shows or alerts on the plan limits: their alerts, the
-    /// live reading when it shows a limit, the resting island's allowance or,
-    /// while the AI page shows, its Limits card. Nothing asks for them otherwise.
+    /// live reading when it shows a limit, the resting island's allowance or
+    /// the AI page, which always shows them. Nothing asks for them otherwise.
     static func limitsInUse(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
         limitThreshold(in: defaults) != nil
             || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
             || NotchSupport.idleContent(in: defaults) == .agents
-            || (pageShown && !hiddenCards(in: defaults).contains(.limits))
+            || pageShown
     }
 
     /// Whether a limit is on screen, the page's or the closed island's,
     /// which keeps Claude's account check at its shortest wait.
     static func limitsOnScreen(pageShown: Bool, in defaults: UserDefaults = .standard) -> Bool {
-        (pageShown && !hiddenCards(in: defaults).contains(.limits))
+        pageShown
             || NotchSupport.idleContent(in: defaults) == .agents
             || (showsLiveActivity(in: defaults) && readout(in: defaults) == .limit)
     }
@@ -574,7 +523,7 @@ enum NotchAgentSupport {
                                  usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
                 AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
                                  usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
-            ], observedAt: now, source: .sessionLog)
+            ], observedAt: now, source: .account)
         }
         return sample
     }
@@ -596,16 +545,6 @@ enum NotchAgentSupport {
     // MARK: Layout
 
     static let spacing: CGFloat = 10
-    static let cardHeight: CGFloat = 96
-    static let chartHeight: CGFloat = 118
-    /// Activity beside another card: its map across the card's width, and a
-    /// line of figures under it.
-    static let pairedActivityHeight: CGFloat = 176
-    /// An account card also says when it was checked, and the Resets card
-    /// beside account cards names the account its resets belong to.
-    static let accountCardHeight: CGFloat = 116
-    /// An account card's reading, checked every five minutes, has missed two.
-    static let accountStaleness: TimeInterval = 10 * 60
     /// Claude's split card: the plan and the API key side by side, or one
     /// above the other where cards do not pair. Each size holds one session
     /// row per slot; a card grows a row for every session past the first.
@@ -615,112 +554,52 @@ enum NotchAgentSupport {
     /// sessions, the slots side by side or one above the other.
     static let seatsBaseHeight: CGFloat = 92
     static let stackedSeatsBaseHeight: CGFloat = 144
-    /// A row of seats, each with a line under its meter for a note, and one
-    /// seat where they stack.
-    static let seatRowHeight: CGFloat = 104
-    static let stackedSeatHeight: CGFloat = 108
+    /// A row of seats, each with its session's and its week's meters and a
+    /// line under them for a note, and one seat where they stack.
+    static let seatRowHeight: CGFloat = 130
+    static let stackedSeatHeight: CGFloat = 134
     /// The API key's figures take a line of their own where seats stack.
     static let stackedAPILineHeight: CGFloat = 20
-    /// The API key's half of Claude's card on its own.
-    static let claudeAPIHeight: CGFloat = 116
-    /// A limits card with one row of sessions under the meters.
+    /// Claude's own limits card, with one row of sessions under the meters.
     static let sessionCardHeight: CGFloat = 156
     /// One running session in a limits card.
     static let sessionRowHeight: CGFloat = 26
-    /// Below this width every card takes a row of its own.
+    /// A seat's reading, checked every five minutes, has missed two.
+    static let accountStaleness: TimeInterval = 10 * 60
+    /// Below this width the seats and the sessions' slots stack.
     static let pairWidth: CGFloat = 390
+    /// Claude's sessions show in two slots: the Claude app and the terminal.
+    static let sessionPlaces: [AgentSessionPlace] = [.app, .terminal]
 
-    /// Codex homes the person added take the place of Codex's one limits
-    /// card, the usual home among them when they add it.
-    /// `claudeSeats` is how many seats the page shows, nil without any set
-    /// up; `claudeUsesAPI` says the API key's spending shows. An account the
-    /// page leaves out has no card, and the cards after it close up.
-    static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = [], claudeUsesAPI: Bool = false,
-                      claudeSeats: Int? = nil, claudeShown: Bool = true, codexShown: Bool = true) -> [NotchAgentTile] {
-        let seats = claudeSeats != nil && providers.contains(.claude)
-        return cards.flatMap { card -> [NotchAgentTile] in
-            switch card {
-            case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                // The seats take a row, the API key's figures in its header.
-                if provider == .claude, let count = claudeSeats {
-                    guard count > 0 || claudeUsesAPI else { return [] }
-                    return [NotchAgentTile(card: .limits, provider: provider, claudeSeats: true, seatCount: count,
-                                           seatsShowAPI: claudeUsesAPI)]
-                }
-                if provider == .claude, !claudeShown {
-                    return claudeUsesAPI ? [NotchAgentTile(card: .limits, provider: provider, claudeAPI: true)] : []
-                }
-                if provider == .codex, !codexShown { return [] }
-                guard provider == .codex, !codexAccounts.isEmpty else {
-                    return [NotchAgentTile(card: .limits, provider: provider,
-                                           splitsBilling: provider == .claude && claudeUsesAPI)]
-                }
-                return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
-            }
-            // Banked resets belong to a Codex account: the default one, which
-            // the card names once others have cards.
-            case .resets: return providers.contains(.codex)
-                ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
-            case .trend, .activity: return [NotchAgentTile(card: card, provider: nil, paired: seats)]
-            default: return [NotchAgentTile(card: card, provider: nil)]
-            }
+    /// The page at `width`: `claudeSeats` is how many seats the page shows,
+    /// nil without any set up; `claudeUsesAPI` says the API key's spending
+    /// shows beside the plan's limits.
+    static func pageLayout(width: CGFloat, claudeSeats: Int?, claudeUsesAPI: Bool,
+                           live: [AgentLiveSession]) -> NotchAgentPageLayout {
+        let stacked = width < pairWidth
+        let limits: CGFloat
+        if let seats = claudeSeats {
+            limits = seatsCardHeight(seats, width: width, api: claudeUsesAPI)
+                + sessionGrowth(live: live, stacked: stacked)
+        } else if claudeUsesAPI {
+            limits = (stacked ? stackedSplitHeight : splitHeight) + sessionGrowth(live: live, stacked: stacked)
+        } else {
+            limits = sessionCardHeight + sessionGrowth(live: live, stacked: false)
         }
+        return NotchAgentPageLayout(limits: limits, square: max(0, (width - spacing) / 2),
+                                    activity: activityHeight(width: width))
     }
 
-    /// The page's tiles as the island shows them: the seats and accounts it
-    /// keeps, so the page and its height read the same.
-    static func pageTiles(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider], codexAccounts: [String],
-                          claudeUsesAPI: Bool, defaults: UserDefaults = .standard) -> [NotchAgentTile] {
-        let seats = !snapshot.claudeSeats.isEmpty
-        let accounts = codexAccounts.filter { NotchLimitVisibility.shows(.profile($0), in: .island, defaults: defaults) }
-        return tiles(cards: cards(in: defaults, claudeSeats: seats), providers: providers, codexAccounts: accounts,
-                     claudeUsesAPI: claudeUsesAPI && NotchLimitVisibility.shows(.claudeAPI, in: .island, defaults: defaults),
-                     claudeSeats: seats ? NotchLimitVisibility.seats(snapshot, in: .island, defaults: defaults).count : nil,
-                     claudeShown: NotchLimitVisibility.shows(.claude, in: .island, defaults: defaults),
-                     // Added homes stand for Codex: none shown leaves it out.
-                     codexShown: codexAccounts.isEmpty
-                        ? NotchLimitVisibility.shows(.codex, in: .island, defaults: defaults) : !accounts.isEmpty)
-    }
-
-    /// Cards pair up in reading order; a chart, or a card left without a
-    /// partner, takes the whole row.
-    static func rows(_ tiles: [NotchAgentTile], width: CGFloat) -> [[NotchAgentTile]] {
-        let pairs = width >= pairWidth
-        var rows: [[NotchAgentTile]] = []
-        var waiting: NotchAgentTile?
-        for tile in tiles {
-            if tile.fullWidth || !pairs {
-                if let waiting { rows.append([waiting]) }
-                waiting = nil
-                rows.append([tile])
-            } else if let partner = waiting {
-                rows.append([partner, tile])
-                waiting = nil
-            } else {
-                waiting = tile
-            }
-        }
-        if let waiting { rows.append([waiting]) }
-        return rows
-    }
-
-    /// A row's cards share its height, so a card beside a taller one, such
-    /// as Spending beside Codex's sessions, grows with it.
-    static func height(of row: [NotchAgentTile], width: CGFloat = .infinity, live: [AgentLiveSession] = []) -> CGFloat {
-        let growth = row.map { sessionGrowth($0, live: live, width: width) }.max() ?? 0
-        if row.contains(where: \.splitsBilling) { return (width >= pairWidth ? splitHeight : stackedSplitHeight) + growth }
-        if let seats = row.first(where: \.claudeSeats) {
-            return seatsCardHeight(seats.seatCount, width: width, api: seats.seatsShowAPI) + growth
-        }
-        if row.contains(where: \.fullWidth) { return chartHeight }
-        // Activity's map fills a half card, about as tall as it is wide.
-        if row.contains(where: { $0.card == .activity }) { return pairedActivityHeight }
-        let height = row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
-        // Spending lists its top models under the total.
-        let tall = row.contains { $0.showsSessions || $0.card == .spend || $0.paired }
-        let api = row.contains(where: \.claudeAPI) ? claudeAPIHeight : 0
-        return max(tall ? max(height, sessionCardHeight) : height, api) + growth
+    /// The page as the island shows it: the seats it keeps, and the API
+    /// key's spending when an API key pays for Claude Code and the island
+    /// keeps that too, so the page and its height read the same.
+    static func pageLayout(_ snapshot: AgentUsageSnapshot, width: CGFloat, claudeUsesAPI: Bool,
+                           defaults: UserDefaults = .standard) -> NotchAgentPageLayout {
+        pageLayout(width: width,
+                   claudeSeats: snapshot.claudeSeats.isEmpty
+                    ? nil : NotchLimitVisibility.seats(snapshot, in: .island, defaults: defaults).count,
+                   claudeUsesAPI: claudeUsesAPI && NotchLimitVisibility.shows(.claudeAPI, in: .island, defaults: defaults),
+                   live: snapshot.live)
     }
 
     /// Seats side by side, as many as fit at a readable width: three need
@@ -743,26 +622,84 @@ enum NotchAgentSupport {
         return seatsBaseHeight + CGFloat((count + columns - 1) / columns) * seatRowHeight
     }
 
-    /// Where a limits card's sessions show: the app and the terminal for
-    /// Claude, the app alone for Codex unless its command line is working too.
-    static func sessionPlaces(_ provider: AgentProvider, live: [AgentLiveSession]) -> [AgentSessionPlace] {
-        provider == .codex && !live.contains { $0.provider == .codex && $0.place == .terminal }
-            ? [.app] : [.app, .terminal]
-    }
-
     /// A slot's rows: one for each session, or one saying none is running.
-    static func sessionRows(provider: AgentProvider, place: AgentSessionPlace, live: [AgentLiveSession]) -> Int {
-        max(1, live.filter { $0.provider == provider && $0.place == place }.count)
+    static func sessionRows(place: AgentSessionPlace, live: [AgentLiveSession]) -> Int {
+        max(1, live.filter { $0.place == place }.count)
     }
 
-    /// How much a card grows past its one-row size to list every session:
-    /// slots side by side by the fuller one's rows, Claude's split card
-    /// stacked by both.
-    static func sessionGrowth(_ tile: NotchAgentTile, live: [AgentLiveSession], width: CGFloat) -> CGFloat {
-        guard tile.showsSessions, let provider = tile.provider else { return 0 }
-        let extra = sessionPlaces(provider, live: live).map { sessionRows(provider: provider, place: $0, live: live) - 1 }
-        let rows = (tile.splitsBilling || tile.claudeSeats) && width < pairWidth ? extra.reduce(0, +) : extra.max() ?? 0
-        return CGFloat(rows) * sessionRowHeight
+    /// How much the limits card grows past its one-row size to list every
+    /// session: slots side by side by the fuller one's rows, stacked by both.
+    static func sessionGrowth(live: [AgentLiveSession], stacked: Bool) -> CGFloat {
+        let extra = sessionPlaces.map { sessionRows(place: $0, live: live) - 1 }
+        return CGFloat(stacked ? extra.reduce(0, +) : extra.max() ?? 0) * sessionRowHeight
+    }
+
+    // MARK: Activity
+
+    /// A year of weeks, as GitHub shows: 53 columns, so the first is whole.
+    static let activityWeeks = 53
+    static let activityGap: CGFloat = 2
+    /// Room for the weekday names on the left.
+    static let activityLabelWidth: CGFloat = 26
+    /// The card's padding, its header, the months' row, the footer and the
+    /// space between them.
+    static let activityChrome: CGFloat = 20 + 17 + 6 + 11 + 3 + 6 + 13
+
+    /// The side of a day's cell, so 53 weeks fill the card's width.
+    static func activityCell(width: CGFloat) -> CGFloat {
+        let grid = width - 24 - activityLabelWidth
+        return max(2, (grid - activityGap * CGFloat(activityWeeks - 1)) / CGFloat(activityWeeks))
+    }
+
+    static func activityHeight(width: CGFloat) -> CGFloat {
+        activityChrome + 7 * activityCell(width: width) + 6 * activityGap
+    }
+
+    /// Lays `days`, the ledger's daily values, into the year's weeks ending
+    /// with today's. A day is levelled against the quartiles of the active
+    /// days, so one heavy day does not wash out the rest.
+    static func activityGrid(_ days: [AgentDayValue], now: Date,
+                             calendar: Calendar = .autoupdatingCurrent) -> NotchAgentActivityGrid {
+        let today = calendar.startOfDay(for: now)
+        // Sunday is weekday 1 in every Gregorian calendar, whatever the region's first day.
+        let todayRow = (calendar.component(.weekday, from: today) + 6) % 7
+        let first = calendar.date(byAdding: .day, value: -((activityWeeks - 1) * 7 + todayRow), to: today) ?? today
+        var costs: [Date: Double] = [:]
+        for day in days { costs[calendar.startOfDay(for: day.start), default: 0] += max(0, day.cost) }
+        var dates: [[Date?]] = []
+        for column in 0..<activityWeeks {
+            dates.append((0..<7).map { row in
+                calendar.date(byAdding: .day, value: column * 7 + row, to: first).flatMap { $0 <= today ? $0 : nil }
+            })
+        }
+        let shown = dates.joined().compactMap { $0 }
+        let active = shown.map { costs[$0] ?? 0 }.filter { $0 > 0 }.sorted()
+        let quartiles: [Double] = active.isEmpty ? [] : [0.25, 0.5, 0.75].map {
+            active[min(active.count - 1, Int(Double(active.count) * $0))]
+        }
+        func level(_ cost: Double) -> Int {
+            guard cost > 0 else { return 0 }
+            return min(4, 1 + quartiles.filter { cost > $0 }.count)
+        }
+        func cell(_ date: Date?) -> NotchAgentActivityGrid.Day? {
+            guard let date else { return nil }
+            let cost = costs[date] ?? 0
+            return NotchAgentActivityGrid.Day(start: date, cost: cost, level: level(cost), isToday: date == today)
+        }
+        let weeks = dates.map { $0.map(cell) }
+        // A month's name stands over the first week that begins in it; the
+        // first column's only when the next name is far enough not to touch it.
+        var months: [NotchAgentActivityGrid.Month] = []
+        for column in 0..<activityWeeks {
+            guard let start = dates[column][0] else { continue }
+            let previous = column > 0 ? dates[column - 1][0] : nil
+            if previous.map({ calendar.component(.month, from: $0) != calendar.component(.month, from: start) }) ?? true {
+                months.append(NotchAgentActivityGrid.Month(column: column, start: start))
+            }
+        }
+        if months.count > 1, months[0].column == 0, months[1].column < 3 { months.removeFirst() }
+        return NotchAgentActivityGrid(weeks: weeks, months: months, total: shown.reduce(0.0) { $0 + (costs[$1] ?? 0) },
+                                      activeDays: active.count)
     }
 
     // MARK: Month
@@ -784,47 +721,22 @@ enum NotchAgentSupport {
         }
     }
 
-    /// Every agent's work this month at API prices.
-    static func monthTotal(_ snapshot: AgentUsageSnapshot, providers: [AgentProvider], now: Date,
-                           calendar: Calendar = .autoupdatingCurrent) -> Double {
-        monthDays(snapshot, now: now, calendar: calendar).reduce(0) { total, day in
-            total + providers.reduce(0) { $0 + (day.byProvider[$1]?.cost ?? 0) }
-        }
-    }
-
     /// The open five-hour window's value: the Claude app's share when an API
     /// key pays for Claude Code elsewhere. Nil once the window has closed.
     static func claudeSessionValue(_ snapshot: AgentUsageSnapshot, splitsBilling: Bool) -> Double? {
         (splitsBilling ? snapshot.claudeAppBlock : snapshot.claudeBlock)?.totals.cost
     }
 
-    /// An account card's line in place of its windows while it has none, or
-    /// under them: a failure takes one of the two, never both.
-    static func accountNotes(hasWindows: Bool, checking: Bool, failure: String?, hint: String, loading: String,
-                             updated: String?) -> (placeholder: String?, caption: String?) {
-        guard hasWindows else { return (checking ? loading : failure ?? hint, nil) }
-        return (nil, failure ?? updated)
-    }
-
-    /// A reading old enough to have missed use elsewhere shows quieter: an
-    /// account card's after missed checks, and among the others only
-    /// Claude's, which the Claude app or Claude Code took a while ago.
-    static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
+    /// A reading old enough to have missed use elsewhere shows quieter: a
+    /// seat's after missed checks, and Claude's own once the Claude app or
+    /// Claude Code took it a while ago.
+    static func limitsAreStale(_ limits: AgentLimits?, seat: Bool, now: Date) -> Bool {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
-        if account { return age >= accountStaleness }
-        return provider == .claude && age >= AgentClaudeAppUsage.freshness
-    }
-
-    static func contentHeight(_ rows: [[NotchAgentTile]], width: CGFloat = .infinity,
-                              live: [AgentLiveSession] = []) -> CGFloat {
-        guard !rows.isEmpty else { return 0 }
-        return rows.map { height(of: $0, width: width, live: live) }.reduce(0, +) + spacing * CGFloat(rows.count - 1)
+        return age >= (seat ? accountStaleness : AgentClaudeAppUsage.freshness)
     }
 }
 
-/// Numbers in the reader's region; costs in US dollars, the currency both
-/// providers list their prices in.
 /// The closed island's mark while agents work: the agent whose turn runs
 /// longest inside its limit ring, and on the ring a badge for each place it
 /// works, the app at 4:30 and the terminal at 1:30 beside it, with a count
@@ -892,6 +804,8 @@ struct NotchAgentWorkingLayout: Equatable {
     }
 }
 
+/// Numbers in the reader's region; costs in US dollars, the currency
+/// Anthropic lists its prices in.
 enum AgentFormat {
     /// Spending colors: green under $100, yellow to $500, red beyond.
     enum SpendLevel: Equatable {

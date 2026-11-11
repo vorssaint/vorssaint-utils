@@ -92,10 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // quitting to relaunch under the new name, so skip the rest of startup.
         if BundleMigration.run() { return }
 
-        DispatchQueue.global(qos: .utility).async {
-            RecorderGIFWorkspace.sweep()
-        }
-
         // Shape a clean install before any feature can create a listener,
         // timer or shortcut. The onboarding can replace this set after the
         // person chooses what they actually want.
@@ -203,7 +199,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             .removeDuplicates()
             .receive(on: DispatchQueue.main)
             .sink { _ in
-                FeatureRuntime.shared.sync([.dockPreview, .screenRecorder])
+                FeatureRuntime.shared.sync([.dockPreview])
             }
             .store(in: &cancellables)
 
@@ -317,7 +313,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
         CommandBarService.shared.restoreBorrowedInputSource()
-        if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
+        if AppFeature.notch.isAvailable { NotchService.shared.stop() }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()
         if AppFeature.brightness.isAvailable {

@@ -291,7 +291,7 @@ struct ClipboardEntryPreviewSidebar: View {
                         beginEditing(entry)
                     }
                 }
-                if AppFeature.screenOCR.isAvailable, let url = imageURL(entry) {
+                if let url = imageURL(entry) {
                     Button(FeatureStrings.screenshot(l10n.language).copyTextButton) {
                         copyText(in: url, of: entry)
                     }
@@ -324,11 +324,10 @@ struct ClipboardEntryPreviewSidebar: View {
     private func copyText(in url: URL, of entry: ClipboardHistoryEntry) {
         recognizingEntryID = entry.id
         let languages = MediaSupport.recognitionLanguages(for: l10n.language.rawValue)
-        let removeLineBreaks = UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks)
         let pasteboardChangeCount = NSPasteboard.general.changeCount
         let strings = l10n.s
         Task { @MainActor in
-            let outcome = await Task.detached(priority: .userInitiated) { () -> ScreenTextService.Outcome in
+            let outcome = await Task.detached(priority: .userInitiated) { () -> ImageTextRecognizer.Outcome in
                 // Full size, as Screen OCR reads its capture, so small text
                 // survives; only a picture past the area bound is scaled down.
                 guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -341,18 +340,16 @@ struct ClipboardEntryPreviewSidebar: View {
                                kCGImageSourceCreateThumbnailWithTransform: true,
                                kCGImageSourceThumbnailMaxPixelSize: maxPixelSize] as CFDictionary
                 guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return .empty }
-                return ScreenTextService.outcome(for: image, detectQRCodes: false,
-                                                 removeLineBreaks: removeLineBreaks,
-                                                 fallbackLanguages: languages)
+                return ImageTextRecognizer.outcome(for: image, removeLineBreaks: false,
+                                                   fallbackLanguages: languages)
             }.value
             // A recognition started later, or anything copied meanwhile, is
             // newer than this answer, and Screen OCR turned off drops it.
             let isLatest = recognizingEntryID == entry.id
             if isLatest { recognizingEntryID = nil }
-            guard isLatest, pasteboardChangeCount == NSPasteboard.general.changeCount,
-                  AppFeature.screenOCR.isAvailable else { return }
+            guard isLatest, pasteboardChangeCount == NSPasteboard.general.changeCount else { return }
             if case .text(let recognized) = outcome {
-                ScreenTextService.copyToPasteboard(recognized)
+                ImageTextRecognizer.copyToPasteboard(recognized)
                 QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
             } else {
                 QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)

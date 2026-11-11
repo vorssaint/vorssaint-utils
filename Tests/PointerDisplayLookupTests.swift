@@ -29,42 +29,6 @@ enum PointerDisplayLookupContract {
     }
     enum Event { static var mouseLocation = NSPoint.zero }
 
-    /// `ScreenshotService` with a capture engine that records the display.
-    final class Capturer {
-        typealias NSScreen = Screen
-        typealias NSEvent = Event
-        enum ScreenshotSelectionController {
-            static let isSessionOnScreen = false
-            struct Capture {
-                let image: CGImage
-                let scale: CGFloat
-                let anchorRect: CGRect
-            }
-        }
-        @MainActor enum ScreenshotCaptureEngine {
-            static var displays: [CGDirectDisplayID] = []
-            static func captureDisplay(_ displayID: CGDirectDisplayID, includePointer: Bool,
-                                       hideVorssaintWindows: Bool,
-                                       protectedWindowIDs: Set<CGWindowID>) async -> CGImage? {
-                displays.append(displayID)
-                return nil
-            }
-        }
-        enum QuickToolHUD { static func show(icon: String, message: String) {} }
-        enum UserDefaults {
-            static let standard = Preferences()
-            final class Preferences { func bool(forKey key: String) -> Bool { false } }
-        }
-        final class Preview { func close() {} }
-        struct Strings { let captureFailed = "" }
-        let strings = Strings()
-        var preview: Preview?
-        var directCaptureTask: Task<Void, Never>?
-        let hideVorssaintWindows = false
-        let protectedWindowIDs: Set<CGWindowID> = []
-        func route(_ capture: ScreenshotSelectionController.Capture) {}
-    }
-
     /// `SpaceWindowBridge` over a fixed Space topology.
     enum Bridge {
         typealias NSScreen = Screen
@@ -114,23 +78,6 @@ enum PointerDisplayLookupContract {
         let size = CGSize(width: 300, height: 48)
     }
 
-    /// `ScreenshotSelectionController` with one overlay per display and a
-    /// pointer warp that goes nowhere.
-    final class Chooser {
-        typealias NSScreen = Screen
-        typealias NSEvent = Event
-        final class View { func refreshPointerState(mouseLocation: CGPoint?) {} }
-        final class ScreenshotOverlayPanel {
-            let screenFrame: CGRect
-            let overlayView = View()
-            init(_ screen: Screen) { screenFrame = screen.frame }
-        }
-        let loupeAcceptsKeyboardActions = true
-        var currentPointerLocation: CGPoint?
-        let panels = Screen.screens.map(ScreenshotOverlayPanel.init)
-        func CGWarpMouseCursorPosition(_ point: CGPoint) {}
-    }
-
     /// `DockPreviewService` dropping a dragged window, with an activator that
     /// records where the window's top-left corner was sent.
     final class Dock {
@@ -177,27 +124,17 @@ enum PointerDisplayLookupContract {
             Screen.screens.first { $0.visibleFrame.contains(rect) }?.displayID
         }
         Event.mouseLocation = pointer
-        Capturer.ScreenshotCaptureEngine.displays = []
-        let capturer = Capturer()
-        capturer.beginFullScreenCapture()
-        await capturer.directCaptureTask?.value
         let layout = Layout()
         layout.showDirectionalIndicator(at: pointer, action: nil)
         let hud = HUD()
         hud.positionPanel(on: nil)
-        let chooser = Chooser()
-        chooser.currentPointerLocation = pointer
         Dock.WindowActivator.origins = []
         let window = CGSize(width: 400, height: 300)
         Dock().endWindowDrag(Dock.SwitcherItem(windowID: 1, frame: CGRect(origin: .zero, size: window)))
         return [
-            ("a full-display capture", Capturer.ScreenshotCaptureEngine.displays.first),
             ("the Space a dropped window joins", Bridge.visibleSpace(near: pointer).map { CGDirectDisplayID($0 / 10) }),
             ("the directional layout indicator", layout.directionalIndicatorPanel.flatMap { display(holding: $0.frame) }),
             ("the quit confirmation", hud.panel?.origin.flatMap { display(holding: CGRect(origin: $0, size: hud.size)) }),
-            ("a full-display capture from the capture overlay", chooser.panelUnderMouse().flatMap { panel in
-                Screen.screens.first { $0.frame == panel.screenFrame }?.displayID
-            }),
             ("a window dropped from a Dock preview", Dock.WindowActivator.origins.first.flatMap {
                 display(holding: CGRect(x: $0.x, y: $0.y - window.height, width: window.width, height: window.height))
             }),
@@ -233,34 +170,6 @@ enum PointerDisplayLookupContract {
                 suite.expect(found == expected.displayID,
                              "\(lookup) follows \(place) to display \(expected.displayID), found \(found.map(String.init) ?? "none")")
             }
-        }
-        // The loupe's arrow keys step by one device pixel of the display the
-        // pointer is on, and never jump to another display at its top edge.
-        for (pointer, expected, place) in edges {
-            Event.mouseLocation = pointer
-            let chooser = Chooser()
-            chooser.currentPointerLocation = pointer
-            chooser.nudgePointer(keyCode: kVK_RightArrow, fast: false)
-            let step = CGPoint(x: pointer.x + 1 / expected.backingScaleFactor, y: pointer.y)
-            suite.expect(chooser.currentPointerLocation == step,
-                         "an arrow key moves \(place) by one pixel of its own display, found \(chooser.currentPointerLocation.map { "\($0)" } ?? "none")")
-        }
-        // Past the outer edge of the desktop the pointer stops on the display's
-        // last row or column, where the overlay under the pointer still finds it.
-        let stops: [(NSPoint, Int, Bool, NSPoint, Screen, String)] = [
-            (NSPoint(x: 2000, y: 1), kVK_DownArrow, false, NSPoint(x: 2000, y: 1), right, "the bottom row of a display"),
-            (NSPoint(x: 700, y: 0.5), kVK_DownArrow, false, NSPoint(x: 700, y: 0.5), primary, "the bottom row of a Retina display"),
-            (NSPoint(x: 2000, y: 5), kVK_DownArrow, true, NSPoint(x: 2000, y: 1), right, "the bottom of a display with Shift held"),
-            (NSPoint(x: 3359, y: 500), kVK_RightArrow, false, NSPoint(x: 3359, y: 500), right, "the last column of a display"),
-        ]
-        for (pointer, key, fast, stop, expected, place) in stops {
-            Event.mouseLocation = pointer
-            let chooser = Chooser()
-            chooser.currentPointerLocation = pointer
-            chooser.nudgePointer(keyCode: key, fast: fast)
-            let found = chooser.panelUnderMouse()?.screenFrame
-            suite.expect(chooser.currentPointerLocation == stop && found == expected.frame,
-                         "an arrow key past \(place) stops the pointer on that display, found \(chooser.currentPointerLocation.map { "\($0)" } ?? "none") on \(found.map { "\($0)" } ?? "none")")
         }
         Screen.screens = []
         Screen.main = nil

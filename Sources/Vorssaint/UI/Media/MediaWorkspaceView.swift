@@ -116,11 +116,8 @@ struct MediaWorkspaceView: View {
     @State private var isDropTargeted = false
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
-    @State private var videoImportTask: Task<Void, Never>?
-    @State private var videoImportGeneration = 0
     @State private var profileName = ""
     @State private var imageMoreOptionsExpanded = false
-    @State private var isImportingVideo = false
     /// Read once per chosen file. Loading it in the body meant decoding the
     /// logo from disk on every redraw, so dragging the opacity slider was
     /// re-reading a file for each frame.
@@ -161,14 +158,9 @@ struct MediaWorkspaceView: View {
         MediaImageConverterStrings.localized(l10n.language)
     }
 
-    private var screenshotText: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
-
     private var selectedTool: MediaTool {
         get { workspace.tool ?? MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
-            cancelVideoImport()
             if preservesServiceState { workspace.tool = newValue }
             else { toolRaw = newValue.rawValue }
             inputImageSize = newValue == .imageCompressor
@@ -228,13 +220,11 @@ struct MediaWorkspaceView: View {
         .onDisappear {
             mediaDefaultsTask?.cancel()
             workspace.durationLoading.cancel()
-            cancelVideoImport()
         }
         .onChange(of: featureRuntime.revision) {
             if !AppFeature.mediaTools.isAvailable {
                 mediaDefaultsTask?.cancel()
                 workspace.durationLoading.cancel()
-                cancelVideoImport()
             }
         }
     }
@@ -490,19 +480,6 @@ struct MediaWorkspaceView: View {
             }
             .buttonStyle(.borderedProminent)
             .disabled(inputURLs.isEmpty || isRunning)
-
-            if selectedTool == .videoCompressor {
-                Button {
-                    openVideoEditor()
-                } label: {
-                    Label(screenshotText.editButton, systemImage: "crop")
-                }
-                .disabled(inputURLs.count != 1 || isRunning || isImportingVideo)
-                if isImportingVideo {
-                    ProgressView()
-                        .controlSize(.small)
-                }
-            }
 
             if isRunning {
                 Button {
@@ -1411,7 +1388,6 @@ struct MediaWorkspaceView: View {
     }
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
-        cancelVideoImport()
         inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
             ? inputURL.flatMap { MediaSupport.imageDisplaySize(at: $0) }
@@ -1426,7 +1402,6 @@ struct MediaWorkspaceView: View {
     private func clearInput() {
         mediaDefaultsTask?.cancel()
         workspace.durationLoading.reset()
-        cancelVideoImport()
         inputURLs = []
         inputImageSize = nil
         outputURL = nil
@@ -1472,56 +1447,6 @@ struct MediaWorkspaceView: View {
         guard let duration = try? await AVURLAsset(url: url).load(.duration).seconds else { return nil }
         guard duration.isFinite, duration > 0 else { return nil }
         return duration
-    }
-
-    @MainActor
-    private func openVideoEditor() {
-        guard AppFeature.mediaTools.isAvailable, let url = inputURL,
-              !isImportingVideo else { return }
-        cancelVideoImport()
-        videoImportGeneration &+= 1
-        let generation = videoImportGeneration
-        isImportingVideo = true
-        localMessage = nil
-        videoImportTask = Task { @MainActor in
-            let asset = AVURLAsset(url: url)
-            let hasVideo = ((try? await asset.loadTracks(withMediaType: .video)) ?? []).isEmpty == false
-            guard !Task.isCancelled, videoImportGeneration == generation,
-                  inputURL == url, selectedTool == .videoCompressor,
-                  AppFeature.mediaTools.isAvailable else { return }
-            guard hasVideo else {
-                isImportingVideo = false
-                videoImportTask = nil
-                localMessage = l10n.s.mediaErrorNoVideo
-                return
-            }
-            let take = await Task.detached(priority: .userInitiated) {
-                RecorderTakeStore.shared.importVideo(at: url)
-            }.value
-            guard !Task.isCancelled, videoImportGeneration == generation,
-                  inputURL == url, selectedTool == .videoCompressor,
-                  AppFeature.mediaTools.isAvailable else {
-                if let take { RecorderTakeStore.shared.delete(take) }
-                return
-            }
-            isImportingVideo = false
-            videoImportTask = nil
-            guard let take else {
-                localMessage = l10n.s.mediaErrorUnsupported
-                return
-            }
-            if !ScreenRecorderService.shared.openEditor(with: take, owner: .mediaTools) {
-                RecorderTakeStore.shared.delete(take)
-            }
-        }
-    }
-
-    @MainActor
-    private func cancelVideoImport() {
-        videoImportGeneration &+= 1
-        videoImportTask?.cancel()
-        videoImportTask = nil
-        isImportingVideo = false
     }
 
     private func run() {

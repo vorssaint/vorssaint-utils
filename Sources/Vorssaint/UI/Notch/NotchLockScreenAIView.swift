@@ -3,25 +3,15 @@
 
 import SwiftUI
 
-/// The AI rail's colors for each agent's readings on the lock screen's
-/// violet: its own color, lightened to read as type.
+/// The AI rail's color for Claude's readings on the lock screen's violet:
+/// its own color, lightened to read as type.
 private extension AgentProvider {
-    var lockScreenTint: Color {
-        switch self {
-        case .claude: return Color(red: 0xEB / 255, green: 0xA1 / 255, blue: 0x84 / 255)
-        case .codex: return Color(red: 0xB3 / 255, green: 0xC3 / 255, blue: 1)
-        default: return tint
-        }
-    }
+    var lockScreenTint: Color { Color(red: 0xEB / 255, green: 0xA1 / 255, blue: 0x84 / 255) }
 }
 
-/// What the AI rail covers: the two agents with plan limits.
-private let notchLockScreenAgents: [AgentProvider] = [.claude, .codex]
-
 /// The AI rail's read-only cards: Claude's limits and what its API key
-/// spent, Codex's limits and the lifetime spending, as many as are shown and
-/// where the layout puts them. Codex and Lifetime share a row when they
-/// stand together. They take no input.
+/// spent, and the lifetime spending, as many as are shown and where the
+/// layout puts them. They take no input.
 struct NotchLockScreenAICards: View {
     let size: CGSize
     /// Each card's frame from the panel's top left.
@@ -67,9 +57,8 @@ struct NotchLockScreenAICards: View {
                         case .claude where claudeUsesAPI && showsAPI:
                             NotchAgentClaudeBillingCard(snapshot: snapshot, now: context.date, display: shown, text: text,
                                                         wide: true, showsSessions: false)
-                        case .claude, .codex:
-                            NotchAgentLimitsCard(provider: placed.widget == .claude ? .claude : .codex, snapshot: snapshot,
-                                                 now: context.date, display: shown, text: text)
+                        case .claude:
+                            NotchAgentLimitsCard(snapshot: snapshot, now: context.date, display: shown, text: text)
                         case .lifetime:
                             NotchLockScreenLifetimeCard(snapshot: snapshot, hidesAmounts: privacy.hidesAmounts)
                         default:
@@ -92,8 +81,8 @@ struct NotchLockScreenAICards: View {
     }
 }
 
-/// Every agent's work at API prices since the ledger began, Claude's and
-/// Codex's shares on a bar. With amounts hidden it counts tokens instead.
+/// Claude's work at API prices since the ledger began. With amounts hidden
+/// it counts tokens instead.
 private struct NotchLockScreenLifetimeCard: View {
     let snapshot: AgentUsageSnapshot
     let hidesAmounts: Bool
@@ -104,63 +93,33 @@ private struct NotchLockScreenLifetimeCard: View {
 
     var body: some View {
         let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
-        let parts = notchLockScreenAgents.map { snapshot.lifetime.byProvider[$0] ?? AgentTotals() }
-        let total = parts.reduce(into: AgentTotals()) { $0 += $1 }
+        let total = snapshot.lifetime.total
         let byCost = !hidesAmounts
         let priced = total.unpriced == 0
-        func value(_ totals: AgentTotals) -> String {
-            byCost ? AgentFormat.cost(totals.cost, locale: locale) : AgentFormat.tokens(totals.tokens.total, locale: locale)
-        }
-        let weights = parts.map { $0.weight(byCost: byCost) }
-        let sum = weights.reduce(0, +)
         return VStack(alignment: .leading, spacing: 6) {
             NotchLockScreenSection(title: text.lifetime, symbol: "dollarsign.circle")
             VStack(alignment: .leading, spacing: 0) {
-                Text((byCost && !priced ? "≥ " : "") + value(total))
+                Text((byCost && !priced ? "≥ " : "")
+                     + (byCost ? AgentFormat.cost(total.cost, locale: locale)
+                        : AgentFormat.tokens(total.tokens.total, locale: locale)))
                     .font(Tile.rounded(32))
                     .tracking(-0.8)
                     .monospacedDigit()
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)
-                Text(byCost ? FeatureStrings.notchAgentPlaces(l10n.language).allAgentsLifetime : text.tokensAllTime)
+                Text(byCost ? FeatureStrings.notchAgentPlaces(l10n.language).allTime : text.tokensAllTime)
                     .font(.system(size: 10))
                     .foregroundStyle(Tile.dim)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
-            GeometryReader { proxy in
-                HStack(spacing: 2) {
-                    if sum <= 0 {
-                        Capsule().fill(Tile.track)
-                    } else {
-                        ForEach(notchLockScreenAgents.indices, id: \.self) { index in
-                            if weights[index] > 0 {
-                                Capsule(style: .continuous).fill(notchLockScreenAgents[index].tint)
-                                    .frame(width: max(8, (proxy.size.width - 2) * weights[index] / sum))
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(height: 6)
-            HStack(spacing: 5) {
-                ForEach(notchLockScreenAgents.indices, id: \.self) { index in
-                    if index > 0 { Spacer(minLength: 4) }
-                    RoundedRectangle(cornerRadius: 2).fill(notchLockScreenAgents[index].tint).frame(width: 6, height: 6)
-                    Text(value(parts[index])).foregroundStyle(Tile.text)
-                }
-            }
-            .font(.system(size: 10, weight: .semibold))
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
         }
         .lockScreenTile(horizontal: 17, vertical: 13)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// Every Claude and Codex session running, longest first: where it runs,
+/// Every Claude session running, longest first: where it runs,
 /// its project, its model and how long it has worked. The list scrolls once
 /// it outgrows the card, with a fade at its foot.
 struct NotchLockScreenAgentsAtWork: View {
@@ -180,7 +139,7 @@ struct NotchLockScreenAgentsAtWork: View {
 
     var body: some View {
         let text = FeatureStrings.notchLockScreenWidgets(l10n.language)
-        let live = usage.snapshot.live.filter { notchLockScreenAgents.contains($0.provider) }
+        let live = usage.snapshot.live
         let overflows = CGFloat(live.count) * (Self.rowHeight + Self.rowGap) - Self.rowGap > size.height - Self.chrome
         VStack(alignment: .leading, spacing: 6) {
             NotchLockScreenSection(title: text.agentsAtWork, symbol: "sparkle") {
@@ -256,7 +215,7 @@ struct NotchLockScreenAgentsAtWork: View {
     }
 
     private func quiet(text: NotchLockScreenWidgetStrings) -> some View {
-        let last = notchLockScreenAgents.compactMap { usage.snapshot.lastActivity[$0] }.max()
+        let last = usage.snapshot.lastActivity[.claude]
         return VStack(alignment: .leading, spacing: 3) {
             Text(text.allQuiet)
                 .font(Tile.rounded(24))

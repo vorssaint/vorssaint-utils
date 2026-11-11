@@ -28,13 +28,6 @@ enum NotchPresentationRefreshContract {
             mutating func post(name: Name, object: Any?) { restYields += 1 }
         }
     }
-    final class CaptureOptions: ObservableObject {
-        enum Tool { case screenshot, text }
-        @Published var selectedTool: Tool = .screenshot
-        var hasFocusedControl = false
-        var onSelectionProgressChange: ((Bool) -> Void)?
-        var onCaptureControlsSurfaceChange: ((CGRect, CGFloat) -> Void)?
-    }
     enum UserDefaults {
         static var standard = Preferences()
         struct Preferences {
@@ -171,16 +164,6 @@ enum NotchPresentationRefreshContract {
         var mode = NotchTimerMode.timer
         var session = NotchTimerSession()
         var selected = NotchModule.timer
-        var captureID: UUID?
-        var captureActions: Bool?
-        var captureContent: Bool?
-        var captureContentHeight: CGFloat?
-        var captureFallback: (() -> Void)?
-        var captureClose: (() -> Void)?
-        var captureDismiss: (() -> Void)?
-        var captureHover: ((Bool) -> Void)?
-        var captureClosesOnCollapse = false
-        var routesCaptures = true
         var openedPages: [(module: NotchModule, takeFocus: Bool)] = []
         func open(_ module: NotchModule, pinned: Bool, takeFocus: Bool, feedback: Bool) {
             openedPages.append((module, takeFocus))
@@ -220,16 +203,7 @@ enum NotchPresentationRefreshContract {
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
         var notice: Bool?
-        var captureControls: CaptureOptions?
-        var captureControlsCollapsed = false, captureSelectionInProgress = false
         var inside = false, trackingMenu = false
-        var captureControlsWork: DispatchWorkItem?
-        var captureControlsSubscription: AnyCancellable?
-        var captureControlsCancel: (() -> Void)?
-        var captureControlsMonitors: [Any] = []
-        func installCaptureControlsClickThrough() {
-            if captureControlsMonitors.isEmpty { captureControlsMonitors = [1] }
-        }
         func removeEventMonitors() {}
         func syncVisibleConsumers() {}
         var hoverWork: DispatchWorkItem?
@@ -245,10 +219,9 @@ enum NotchPresentationRefreshContract {
         var compactActivityGeometry: NotchGeometry { geometry.compactTimerGeometry(showsDownloads: false) }
         var surfaceSize: CGSize {
             if fullscreenCompact { return geometry.restingSize(showsContent: false) }
-            if captureControls != nil { return captureControlsCollapsed ? geometry.collapsed : geometry.peek }
             if !expanded, compactActivityIsVisible { return compactActivityGeometry.compactActivitySize }
             if !expanded { return geometry.collapsed }
-            return expandedGeometry.expandedSize(module: selected, capturePreviewHeight: captureContent == nil ? nil : captureContentHeight,
+            return expandedGeometry.expandedSize(module: selected,
                                          timerHasSession: session.hasSession,
                                          timerMode: session.hasSession ? session.mode : mode)
         }
@@ -445,18 +418,6 @@ enum NotchPresentationRefreshContract {
                                           safeAreaTop: 32, cameraWidth: 210, layout: .spacious)
         suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
                      "a standard wide page puts its top row beside the camera")
-        toolbar.selected = .captures
-        toolbar.captureActions = true
-        toolbar.captureContent = true
-        toolbar.captureContentHeight = 150
-        toolbar.refreshPresentation(animated: false)
-        suite.expect(toolbar.expandedGeometry.headerCameraGap == 0
-                     && toolbar.expandedGeometry.headerTopInset == 42
-                     && toolbar.windowHost?.activationRect.height == 42,
-                     "a capture toolbar keeps a full row below the camera without losing actions to the cutout")
-        toolbar.showingSections = true
-        suite.expect(toolbar.expandedGeometry.headerCameraGap == 210,
-                     "leaving capture editing puts the top row back beside the camera")
         let page = Service()
         suite.expect(page.expandedGeometry.headerCameraGap == 210 && page.expandedGeometry.headerTopInset == 0
                      && page.expandedGeometry.pageTopInset == 36 + NotchLayout.spacing,
@@ -464,7 +425,6 @@ enum NotchPresentationRefreshContract {
         page.expandedPageTop = .wrapsCamera
         suite.expect(page.expandedGeometry.headerCameraGap == 210 && page.expandedGeometry.pageTopInset == 0,
                      "a page that wraps the camera starts at the top of the row")
-        captureControlsChecks(suite)
         let picker = Service()
         picker.expanded = false
         picker.compactActivityIsVisible = true
@@ -514,15 +474,6 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
-        let relocatingCapture = Service()
-        relocatingCapture.captureControls = CaptureOptions()
-        relocatingCapture.captureSelectionInProgress = true
-        relocatingCapture.mirrorHeldForArrival = 2
-        relocatingCapture.panel?.isVisible = false
-        relocatingCapture.refreshPresentation(animated: false)
-        suite.expect(relocatingCapture.windowHost?.hideAnimations == [false]
-                     && relocatingCapture.panel?.isVisible == false && !relocatingCapture.edgeClicksEnabled,
-                     "selection during a relocation hides through the host, so a pending arrival cannot reveal controls")
         let countdown = Service()
         countdown.expanded = false
         countdown.compactActivityIsVisible = true
@@ -664,34 +615,6 @@ enum NotchPresentationRefreshContract {
         suite.expect(contentSize == service.surfaceSize && contentSize.height > activeSize.height && mismatches == 0,
                "canceling returns to the newly selected setup with synchronized content and window sizes")
 
-        let captureID = UUID()
-        service.selected = .captures
-        service.captureID = captureID
-        service.captureContent = true
-        service.captureContentHeight = 210
-        service.refreshPresentation()
-        let previewSize = contentSize
-        service.updateCaptureHeight(id: captureID, height: 268)
-        suite.expect(contentSize.height == previewSize.height + 58 && service.windowHost?.targetSize == contentSize,
-               "an embedded shared link expands both the capture content and its native window")
-        service.updateCaptureHeight(id: captureID, height: 210)
-        suite.expect(contentSize == previewSize, "removing a shared link restores the original preview height")
-        service.updateCaptureHeight(id: UUID(), height: 268)
-        suite.expect(contentSize == previewSize, "a replaced capture cannot resize its successor")
-        service.selected = .timer
-        service.refreshPresentation()
-        let timerSize = contentSize
-        service.updateCaptureHeight(id: captureID, height: 268)
-        suite.expect(contentSize == timerSize, "sharing completion in a hidden preview does not resize the visible timer")
-        service.selected = .captures
-        service.refreshPresentation()
-        service.pinned = true
-        service.removeCapture(id: captureID)
-        suite.expect(service.expanded && service.captureContentHeight == nil && service.captureContent == nil
-               && contentSize == service.geometry.expandedSize(module: .captures)
-               && service.windowHost?.targetSize == contentSize,
-               "dismissing a pinned capture clears the preview size and restores the full recent-captures area")
-
         let simulated = Service()
         simulated.expanded = false
         simulated.panel?.isVisible = false
@@ -759,12 +682,6 @@ enum NotchPresentationRefreshContract {
             suite.expect(hidden.windowHost?.revealFromHidden == true,
                    "opening a hidden island requests a reveal from the screen edge")
             hidden.expanded = false
-            hidden.captureControls = CaptureOptions()
-            hidden.refreshPresentation()
-            suite.expect(hidden.panel?.isVisible == true, "capture controls remain visible until dismissed")
-            suite.expect(hidden.windowHost?.revealFromHidden == false,
-                   "capture controls keep their own presentation in hidden-until-hover mode")
-            hidden.captureControls = nil
             hidden.dragPlaceholder = true
             hidden.refreshPresentation()
             suite.expect(hidden.panel?.isVisible == true, "an explicit file drag can still reveal its destination")

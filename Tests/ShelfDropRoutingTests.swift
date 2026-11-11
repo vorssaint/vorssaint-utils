@@ -55,7 +55,6 @@ enum ShelfDropRoutingContract {
     }
     class NotchState {
         var acceptsUserInteraction = true
-        var captureControls: Int?
         var modules: [NotchModule] = [.files]
         var heldDrag = true
         var dragPlaceholder = true
@@ -152,7 +151,7 @@ enum ShelfDropRoutingTests {
                        "an accepted panel drop notes interaction at drop time, before delivery")
             }
         }
-        for revoked in 0..<5 {
+        for revoked in 0..<4 {
             Context.AppFeature.shelf.isAvailable = true
             Context.UserDefaults.standard.enabled = true
             Context.ShelfService.shared = Context.ShelfService()
@@ -168,8 +167,7 @@ enum ShelfDropRoutingTests {
             case 0: Context.AppFeature.shelf.isAvailable = false
             case 1: Context.UserDefaults.standard.enabled = false
             case 2: notch.modules = []
-            case 3: notch.acceptsUserInteraction = false
-            default: notch.captureControls = 1
+            default: notch.acceptsUserInteraction = false
             }
             suite.expect(!canvas.finishDrop(board) && shelf.promisedAccepts == 0 && notch.opened.isEmpty,
                    "a destination disabled after hover cannot start an attachment delivery")
@@ -244,7 +242,7 @@ enum ShelfDropRoutingTests {
             suite.expect(Context.NotchFileToolsService.shared.mediaDropContent(for: board) == nil,
                    "a text companion prevents partial optimization of a mixed drag")
 
-            for revoked in 0..<9 {
+            for revoked in 0..<8 {
                 reset()
                 board.clearContents()
                 board.writeObjects([image as NSURL])
@@ -261,8 +259,7 @@ enum ShelfDropRoutingTests {
                 case 4: Context.NotchSupport.visibleModules = []
                 case 5: files.media.state = .running
                 case 6: files.isRunning = true
-                case 7: notch.acceptsUserInteraction = false
-                default: notch.captureControls = 1
+                default: notch.acceptsUserInteraction = false
                 }
                 suite.expect(!notch.accept(board) && files.inputs.isEmpty && Context.ShelfService.shared.ordinaryAccepts == 0,
                        "revoked access or running work rejects optimization without rerouting or replacing work")

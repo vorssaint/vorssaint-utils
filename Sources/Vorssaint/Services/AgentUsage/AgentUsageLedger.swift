@@ -5,7 +5,7 @@ import Foundation
 
 /// Every day's spending by model, kept after the logs it was read from are
 /// gone: Claude Code removes its own after thirty days, and the app reads
-/// thirteen weeks back at most. Only amounts per day and model are saved, no
+/// thirteen weeks back at most. The activity map's year comes from here. Only amounts per day and model are saved, no
 /// folder, session, prompt or reply. Unlike the progress archive it lives in
 /// Application Support, since no log could rebuild it.
 ///
@@ -115,6 +115,22 @@ final class AgentUsageLedger {
         }
         usage.models = AgentUsageSummary.sorted(Array(models.values), byCost: usage.fullyPriced)
         return usage
+    }
+
+    /// What each of the last `count` days, ending today, was worth at API
+    /// prices, oldest first; a day nothing was kept for is worth nothing.
+    func dailyCosts(providers: Set<AgentProvider>, days count: Int, now: Date,
+                    calendar: Calendar = .autoupdatingCurrent) -> [AgentDayValue] {
+        let today = calendar.startOfDay(for: now)
+        return (0..<max(0, count)).reversed().compactMap { back -> AgentDayValue? in
+            guard let start = calendar.date(byAdding: .day, value: -back, to: today) else { return nil }
+            var cost = 0.0
+            for entry in (days[Self.key(start, calendar: calendar)] ?? [:]).values {
+                guard let provider = AgentProvider(rawValue: entry.provider), providers.contains(provider) else { continue }
+                cost += entry.cost
+            }
+            return AgentDayValue(start: start, cost: cost)
+        }
     }
 
     func save() {

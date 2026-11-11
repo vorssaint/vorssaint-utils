@@ -8,7 +8,6 @@ import Foundation
 enum AgentAttentionTests {
     static func run(_ suite: TestSuite) {
         claudeParsing(suite)
-        codexParsing(suite)
         store(suite)
         records(suite)
         schedule(suite)
@@ -16,6 +15,12 @@ enum AgentAttentionTests {
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
     private static func at(_ seconds: TimeInterval) -> Date { Date(timeIntervalSince1970: seconds) }
+    /// A response from `project`, which names the turn it counts toward.
+    private static func usage(_ key: String, project: String = "app", at date: Date) -> AgentLogEntry {
+        .usage(key: key, record: AgentUsageRecord(provider: .claude, date: date, model: "m", project: project, session: "s",
+                                                  tokens: AgentTokens(output: 1), cost: nil, savings: 0),
+               billable: AgentBillable())
+    }
 
     private static func claudeParsing(_ suite: TestSuite) {
         let now = at(0)
@@ -56,50 +61,6 @@ enum AgentAttentionTests {
                      "a local command's output ends its turn without leaving work waiting")
     }
 
-    private static func codexParsing(_ suite: TestSuite) {
-        let now = at(0)
-        var state = AgentLogState()
-        func parse(_ json: String) -> [AgentLogEntry] { AgentLogParser.parseCodex(line(json), state: &state, now: now) }
-        _ = parse(#"{"type":"turn_context","timestamp":1790088000,"payload":{"model":"gpt-5","approval_policy":"never"}}"#)
-        _ = parse(#"{"type":"event_msg","timestamp":1790088000,"payload":{"type":"task_started"}}"#)
-        suite.expect(state.codexApprovalPolicy == "never", "Codex says when it never asks before running a command")
-        suite.expect(parse(#"{"type":"response_item","timestamp":1790088001,"payload":{"type":"custom_tool_call","status":"completed","call_id":"c1","name":"exec","input":"ls"}}"#).isEmpty
-                        && state.codexPendingCalls == ["c1"],
-                     "a Codex tool call is pending until its output")
-        suite.expect(parse(#"{"type":"response_item","timestamp":1790088002,"payload":{"type":"custom_tool_call_output","call_id":"c1","output":[{"type":"input_text","text":"\"call_id\":\"c9\""}]}}"#).isEmpty
-                        && state.codexPendingCalls.isEmpty,
-                     "its output answers it, read without the output itself")
-        _ = parse(#"{"type":"response_item","timestamp":1790088003,"payload":{"type":"function_call","name":"wait","arguments":"{}","call_id":"w1"}}"#)
-        suite.expect(state.codexPendingCalls.isEmpty, "waiting on its own background work is not pending on the person")
-        suite.expect(parse(#"{"type":"response_item","timestamp":1790088004,"payload":{"type":"function_call","name":"request_user_input","arguments":"{}","call_id":"q1"}}"#)
-                        == [.turnAwaiting(.question, at(1_790_088_004), inferred: false)],
-                     "a question that holds the turn waits on the person")
-        suite.expect(parse(#"{"type":"response_item","timestamp":1790088010,"payload":{"type":"function_call_output","call_id":"q1","output":"answer"}}"#)
-                        == [.turnActive(at(1_790_088_010))],
-                     "its answer is work going on")
-        _ = parse(#"{"type":"response_item","timestamp":1790088011,"payload":{"type":"function_call","name":"request_user_input_async","arguments":"{}","call_id":"q2"}}"#)
-        suite.expect(parse(#"{"type":"event_msg","timestamp":1790088020,"payload":{"type":"task_complete","completed_at":1790088020}}"#)
-                        == [.turnEnded(at(1_790_088_020), completed: false, duration: nil),
-                            .turnAwaiting(.question, at(1_790_088_020), inferred: false)],
-                     "a turn that ends on a question it posted waits for the answer instead of finishing")
-        _ = parse(#"{"type":"event_msg","timestamp":1790088030,"payload":{"type":"task_started"}}"#)
-        suite.expect(parse(#"{"type":"event_msg","timestamp":1790088040,"payload":{"type":"turn_aborted","reason":"interrupted","completed_at":1790088040}}"#)
-                        == [.turnEnded(at(1_790_088_040), completed: false, duration: nil),
-                            .turnAwaiting(.interrupted, at(1_790_088_040), inferred: false)],
-                     "an interrupted Codex turn leaves its work waiting")
-        _ = parse(#"{"type":"event_msg","timestamp":1790088050,"payload":{"type":"task_started"}}"#)
-        suite.expect(parse(#"{"type":"event_msg","timestamp":1790088060,"payload":{"type":"task_complete","completed_at":1790088060}}"#)
-                        == [.turnEnded(at(1_790_088_060), completed: true, duration: nil)],
-                     "a question posted in an earlier turn does not hold the next one")
-        var copilot = AgentLogState()
-        _ = AgentLogParser.parseCopilot(line(#"{"type":"user.message","timestamp":"2026-09-21T23:42:00.000Z","data":{"content":"go"}}"#),
-                                        state: &copilot, now: now)
-        suite.expect(AgentLogParser.parseCopilot(line(#"{"type":"abort","timestamp":"2026-09-21T23:43:00.000Z","data":{}}"#),
-                                                 state: &copilot, now: now).last
-                        == .turnAwaiting(.interrupted, AgentTimestamp.parse("2026-09-21T23:43:00.000Z")!, inferred: false),
-                     "a Copilot turn the person aborted leaves its work waiting")
-    }
-
     private static func store(_ suite: TestSuite) {
         let now = at(2_000_000)
         let store = AgentUsageStore()
@@ -118,7 +79,7 @@ enum AgentAttentionTests {
                      "history is never told")
 
         store.reportsTransitions = true
-        _ = apply([.turnContext(model: "m", project: "app"), .turnAwaiting(.question, now, inferred: false)])
+        _ = apply([usage("ctx", at: now.addingTimeInterval(-1)), .turnAwaiting(.question, now, inferred: false)])
         suite.expect(store.attention["a"].map { !$0.history && $0.project == "app" && $0.cause == .question } == true,
                      "a wait read as it happens is news, and names its project")
         _ = apply([.usage(key: "k", record: AgentUsageRecord(provider: .claude, date: now.addingTimeInterval(5), model: "m",
@@ -144,7 +105,7 @@ enum AgentAttentionTests {
         store.forget(file: "gone")
         suite.expect(store.attention["gone"] == nil, "a deleted session waits no longer")
 
-        _ = apply([.turnBegan(now), .turnContext(model: "m", project: "app"),
+        _ = apply([.turnBegan(now), usage("ctx-i", at: now),
                    .turnEnded(nil, completed: false, duration: nil), .turnAwaiting(.interrupted, now, inferred: false)], "i")
         suite.expect(store.attention["i"]?.project == "app" && interrupted == [.claude],
                      "an interruption keeps the project of the turn it ended, and is heard")
@@ -159,13 +120,13 @@ enum AgentAttentionTests {
                         && store.attention["f"] == nil,
                      "apply still returns only finished turns, and a finished turn waits on nothing")
 
-        _ = apply([.turnBegan(now.addingTimeInterval(-200))], "q", provider: .codex)
+        _ = apply([.turnBegan(now.addingTimeInterval(-200))], "q")
         store.inferQuietWaits(now: now, pending: ["q"], recorded: [])
         suite.expect(store.attention["q"].map { $0.inferred && $0.cause == .permission } == true,
                      "a call pending through a long quiet may wait on an approval")
         store.inferQuietWaits(now: now, pending: [], recorded: [])
         suite.expect(store.attention["q"] == nil, "a guess goes once its call comes back")
-        _ = apply([.turnActive(now.addingTimeInterval(-30))], "q", provider: .codex)
+        _ = apply([.turnActive(now.addingTimeInterval(-30))], "q")
         store.inferQuietWaits(now: now, pending: ["q"], recorded: [])
         suite.expect(store.attention["q"] == nil, "a call pending only briefly is not a guess")
     }
@@ -189,7 +150,7 @@ enum AgentAttentionTests {
 
         let store = AgentUsageStore()
         let files = ["s1": "/logs/s1.jsonl", "s2": "/logs/s2.jsonl"]
-        store.apply([.turnBegan(at(1_790_087_900)), .turnContext(model: "m", project: "app")], file: "/logs/s1.jsonl",
+        store.apply([.turnBegan(at(1_790_087_900)), usage("ctx", at: at(1_790_087_900))], file: "/logs/s1.jsonl",
                     provider: .claude, tracksTurns: true, modified: at(1_790_087_900), now: at(1_790_087_900))
         store.applyClaudeStatuses(registry, files: files, now: at(1_790_088_100))
         let wait = store.attention["/logs/s1.jsonl"]

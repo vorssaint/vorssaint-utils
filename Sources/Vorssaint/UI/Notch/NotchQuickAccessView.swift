@@ -68,7 +68,6 @@ struct NotchQuickAccessView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var microphone = MicMuteService.shared
-    @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
@@ -115,7 +114,6 @@ struct NotchQuickAccessView: View {
             if action == .pin { return service.pinned }
             if action == .control(.keepAwake) { return awake.isActive }
             if action == .control(.microphone) { return microphone.isMuted }
-            if action == .control(.recording) { return recorder.isRecording }
             if case .module(let module) = action {
                 return !service.showingSections && !service.showingAppPanel && service.selected == module
             }
@@ -132,7 +130,6 @@ struct NotchQuickAccessView: View {
             actionTitle = microphone.isMuted ? l10n.s.micUnmuteName : l10n.s.micMuteName
             if microphone.isMuted { symbol = "mic.slash.fill" }
         case .control(.keepAwake) where awake.isActive: symbol = "cup.and.saucer.fill"
-        case .control(.recording) where recorder.isRecording: symbol = "stop.circle.fill"
         default: break
         }
         let title = isBack ? l10n.s.obBack : button.label.isEmpty ? actionTitle : button.label

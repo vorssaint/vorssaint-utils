@@ -86,32 +86,8 @@ struct MetricsTests {
                 ReleaseDigestTests.run(suite)
             }),
             ("repository", { RepositoryFeatureTests.run(suite) }),
-            ("screenshots", {
-                ScreenshotClipboardTests.run(suite)
-                ScreenshotAutoCopyTests.run(suite)
-                ScreenshotCanvasSupportTests.run(suite)
-                ScreenshotImageLayerTests.run(suite)
-                ScreenshotCanvasModelTests.run(suite)
-                ScreenTextCompletionTests.run(suite)
-                ScreenshotOCRControlTests.run(suite)
-                ScreenshotPreviewHoverTests.run(suite)
-                ScreenshotWatermarkTests.run(suite)
-                ScreenshotFeatureTests.run(suite)
-                RecentCapturePanelTests.run(suite)
-                ScreenshotSpotlightEditingTests.run(suite)
-                ScreenshotShareCompletionTests.run(suite)
-                ScreenshotAutoShelfTests.run(suite)
-                ScreenshotScrollingCaptureTests.run(suite)
-                ScreenshotAttachedCaptureTests.run(suite)
-                ScreenCaptureToolPickerTests.run(suite)
-            }),
-            ("recorder", {
-                RecorderGIFWriterTests.run(suite)
-                RecorderFeatureTests.run(suite)
-                RecorderZoomAimingTests.run(suite)
-                RecorderExportSpeedTests.run(suite)
-                RecorderExportRenderingTests.run(suite)
-            }),
+            ("screenshots", { ScreenshotToolTests.run(suite) }),
+            ("quick-tools", { QuickToolFeatureTests.run(suite) }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)
@@ -155,15 +131,11 @@ struct MetricsTests {
                 BrightnessKeyRoutingTests.run(suite)
             }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
-            ("capture", { ScreenshotSelectionRefreshContract.run(suite) }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
-                ScreenshotToolShortcutTests.run(suite)
             }),
             ("storage", {
-                RecentCaptureStoreTests.run(suite)
-                RecorderPresetImageStoreTests.run(suite)
                 StorageFeatureTests.run(suite)
                 ScratchpadStoreContractTests.run(suite)
             }),
@@ -172,12 +144,6 @@ struct MetricsTests {
                 QuitProtectionRoutingContract.QuitProtectionService.routingChecks(suite)
             }),
             ("scratchpad", { ScratchpadMarkTests.run { suite.expect($0, $1) } }),
-            ("recording", {
-                RecorderPreparationTests.run(suite)
-                RecorderSampleTimingTests.run(suite)
-                RecorderWriterTests.run(suite)
-                RecorderExportChipTests.run { suite.expect($0, $1) }
-            }),
             ("network", {
                 NetworkFeatureTests.run(suite)
                 SpeedTestTests.run(suite)

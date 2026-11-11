@@ -40,7 +40,7 @@ enum FeatureHubLayoutTests {
             SettingsCard {
                 Text(group.rawValue)
                 ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                    if [.clipboardHistory, .mixer, .screenRecorder, .fanControl].contains(feature) {
+                    if [.clipboardHistory, .mixer, .screenshot, .fanControl].contains(feature) {
                         FeatureRow(feature: feature).frame(height: 44)
                     } else {
                         Text(feature.rawValue).frame(height: 44)
@@ -178,7 +178,7 @@ enum FeatureHubLayoutTests {
         }
         // Check the middle of the page as well as the last row: staying at
         // the document's bottom alone can hide a lost offscreen anchor.
-        for feature: AppFeature in [.clipboardHistory, .mixer, .screenRecorder, .fanControl] {
+        for feature: AppFeature in [.clipboardHistory, .mixer, .screenshot, .fanControl] {
             runtime.needsRestartToUnload = false
             runtime.offersNeverUsed = true
             settle()

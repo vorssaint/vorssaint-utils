@@ -25,10 +25,6 @@ struct ShortcutsSettings: View {
         }
     }
 
-    private var captureRoles: [GlobalShortcutRole] {
-        GlobalShortcutRole.captureRoles(in: availableRoles)
-    }
-
     private var visibleGroups: [FeatureGroup] {
         FeatureGroup.allCases.filter { group in
             availableRoles.contains { $0.group == group }
@@ -47,11 +43,7 @@ struct ShortcutsSettings: View {
             ForEach(visibleGroups, id: \.self) { group in
                 Section(groupTitle(group)) {
                     ForEach(featuresWithShortcuts(in: group), id: \.self) { feature in
-                        if feature == .screenshot {
-                            captureGroupRows
-                        } else {
-                            featureRows(feature, in: group)
-                        }
+                        featureRows(feature, in: group)
                     }
                 }
             }
@@ -80,33 +72,10 @@ struct ShortcutsSettings: View {
 
     private func featuresWithShortcuts(in group: FeatureGroup) -> [AppFeature] {
         AppFeature.allCases.filter { feature in
-            // The screenshot slot anchors the combined capture group; the
-            // other capture tools render inside it instead of on their own.
-            if feature == .screenshot { return group == .tools && !captureRoles.isEmpty }
-            if GlobalShortcutRole.captureFeatures.contains(feature) { return false }
             if feature == .windowLayout {
                 return group == .windowsDock && feature.isAvailable
             }
             return availableRoles.contains { $0.feature == feature && $0.group == group }
-        }
-    }
-
-    /// One group for every capture tool's shortcut. Rows keep each tool's own
-    /// icon; the group carries the shared page's name and symbol.
-    @ViewBuilder
-    private var captureGroupRows: some View {
-        let roles = captureRoles
-        disclosureHeader(
-            title: FeatureStrings.screenshot(l10n.language).screenCaptureTitle,
-            symbolName: AppFeature.screenshot.symbolName,
-            isActive: featureHasActiveShortcut(.screenshot, roles: roles),
-            count: roles.count,
-            isExpanded: expansionBinding(for: .screenshot, in: .tools))
-        if expandedFeatures[.tools, default: []].contains(.screenshot) {
-            ForEach(roles) { role in
-                roleRow(role, showsFeatureContext: false)
-                    .disclosureIndent()
-            }
         }
     }
 

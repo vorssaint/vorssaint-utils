@@ -115,8 +115,6 @@ enum ReleaseChangeAliases {
         case .quickLauncher: return ["quick panel", "quick launcher"]
         case .quickToggles: return ["quick toggles"]
         case .quitApps: return ["quit apps", "quit all apps"]
-        case .colorPicker: return ["color picker"]
-        case .screenOCR: return ["copy text from screen", "screen ocr"]
         case .cleaningMode: return ["cleaning mode"]
         case .mediaTools: return ["media tools", "image conversion", "video editor", "convert media",
             .exact("Media"), "image profiles", "video compression", "gif compression", "video and gif tools",
@@ -134,8 +132,6 @@ enum ReleaseChangeAliases {
         case .radialMenu: return ["radial menu", "radial menus"]
         case .scratchpad: return ["scratchpad"]
         case .commandBar: return ["command bar", "calculator"]
-        case .screenRecorder: return ["screen recording", "screen recordings", "recording", "recordings",
-            "recorder", "recording editor", "gif export", "gif exports"]
         case .wallpaper: return [.exact("Wallpaper"), "wallpaper gallery", "wallpapers"]
         case .killProcess: return ["kill process", "force kill", "process tree"]
         case .portManager: return ["port manager"]
@@ -157,8 +153,8 @@ enum ReleaseChangeAliases {
             "music bars that follow playback"]
         case .notchDownloads: return [.island("downloads"), .island("download"), "safari downloads",
             "downloads folder", "downloads page", "completed download", "completed downloads"]
-        case .notchAgents: return ["ai agents", "ai agent", "claude code", "claude code timer", "codex", "ai usage",
-            "opencode", "github copilot", .island("agent"), .island("agents")]
+        case .notchAgents: return ["ai agents", "ai agent", "claude code", "claude code timer", "ai usage",
+            .island("agent"), .island("agents")]
         case .notchWatch: return [.exact("Watch")]
         case .notchMascot: return ["companion"]
         case .monitorCPU: return ["cpu temperature", "cpu load", "cpu readings", "per core", "per-core",
