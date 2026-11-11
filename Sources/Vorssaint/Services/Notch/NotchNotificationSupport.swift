@@ -30,7 +30,8 @@ struct NotchSystemNotification: Equatable, Identifiable, Sendable {
 struct NotchNotificationInbox {
     struct ArrivalCheck: Equatable, Sendable {
         let id: UUID
-        let notBefore: TimeInterval
+        let openedAt: TimeInterval
+        var notBefore: TimeInterval { openedAt + NotchNotificationSupport.centerOpeningGrace }
 
         func delay(at now: TimeInterval) -> TimeInterval { max(0, notBefore - now) }
     }
@@ -46,7 +47,7 @@ struct NotchNotificationInbox {
     var arrivalCheck: ArrivalCheck? { pendingItems.isEmpty ? nil : opening }
 
     mutating func windowCreated(at now: TimeInterval) {
-        opening = ArrivalCheck(id: UUID(), notBefore: now + NotchNotificationSupport.centerOpeningGrace)
+        opening = ArrivalCheck(id: UUID(), openedAt: now)
     }
 
     mutating func update(_ live: [NotchSystemNotification]) -> [NotchSystemNotification] {
