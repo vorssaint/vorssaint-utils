@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.omp, ".omp/agent/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -555,7 +556,7 @@ final class AgentLogCursor {
     let provider: AgentProvider
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        provider == .claude || provider == .omp ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
     }
     /// The session log a Claude subagent works for.
     let parent: String?
@@ -579,8 +580,11 @@ final class AgentLogCursor {
     init(path: String, provider: AgentProvider) {
         self.path = path
         self.provider = provider
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
-        self.parent = parent
+        switch provider {
+        case .claude: parent = AgentLogCursor.parent(of: path)
+        case .omp: parent = AgentLogCursor.ompParent(of: path)
+        default: parent = nil
+        }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -682,6 +686,21 @@ final class AgentLogCursor {
         guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
         return String(path[..<range.lowerBound]) + ".jsonl"
     }
+
+    /// omp keeps a session's subagents in a folder named after the session,
+    /// beside its `<session>.jsonl`, and a subagent's own subagents in a
+    /// folder beside its log in turn. The outermost log owns the turn.
+    static func ompParent(of path: String, exists: (String) -> Bool = { FileManager.default.fileExists(atPath: $0) }) -> String? {
+        var folder = (path as NSString).deletingLastPathComponent
+        var found: String?
+        while folder.count > 1 {
+            let log = folder + ".jsonl"
+            guard exists(log) else { break }
+            found = log
+            folder = (folder as NSString).deletingLastPathComponent
+        }
+        return found
+    }
 }
 
 enum AgentLogReader {
@@ -736,7 +755,8 @@ enum AgentLogReader {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            let subagent = (root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil)
+                || (root.provider == .omp && AgentLogCursor.ompParent(of: url.path) != nil)
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {
