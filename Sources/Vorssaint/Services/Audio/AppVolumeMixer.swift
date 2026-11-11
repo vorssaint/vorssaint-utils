@@ -1793,8 +1793,10 @@ final class AppVolumeMixer: ObservableObject {
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
             // they play and stay put between sounds.
-            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else { continue }
-            let owner = app.processIdentifier
+            // Keyed by the owner's real pid: the app's own processIdentifier
+            // is -1 for some apps and would merge them (issue #3929).
+            guard let owner = ResponsibleProcess.regularAppOwnerPid(of: pid),
+                  let app = NSRunningApplication(processIdentifier: owner) else { continue }
             let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
             // Bypassed apps still get a row — hiding them read
             // as a bug (issue #177) — but they are never tapped: volume

@@ -31,24 +31,25 @@ enum ResponsibleProcess {
         return owner > 0 ? owner : pid
     }
 
-    /// The regular app to bill the process to, following the parent chain
-    /// when the responsibility API dead-ends on a helper that answers for
-    /// itself (browser audio helpers, issue #256). Nil when no ancestor is
+    /// The regular app to bill the process to: the process itself when it is
+    /// one, otherwise its responsible app, following the parent chain when the
+    /// responsibility API dead-ends on a helper that answers for itself
+    /// (browser audio helpers, issue #256). Nil when no ancestor is
     /// a regular app — daemons and login items stay unlisted.
     static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
-        let responsible = owner(of: pid)
-        let isRegular: (pid_t) -> Bool = { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular }
-        let parent: (pid_t) -> pid_t = parent(of:)
-        let resolved = MixerRoutingSupport.owningRegularAppPid(
-            responsiblePid: responsible,
-            isRegularApp: isRegular,
-            parentPid: parent
-        ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
-            responsiblePid: pid,
-            isRegularApp: isRegular,
-            parentPid: parent
-        ) : nil)
-        return resolved.flatMap(NSRunningApplication.init(processIdentifier:))
+        regularAppOwnerPid(of: pid).flatMap(NSRunningApplication.init(processIdentifier:))
+    }
+
+    /// The real pid of that regular app. Key and compare by this, not by the
+    /// returned app's `processIdentifier`: the workspace reports -1 for some
+    /// apps (Steam, Device Hub) even when looked up by their real pid
+    /// (issue #3929).
+    static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
+        MixerRoutingSupport.regularAppOwnerPid(
+            of: pid,
+            responsiblePid: owner(of: pid),
+            isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
+            parentPid: parent(of:))
     }
 
     private static func parent(of pid: pid_t) -> pid_t {
