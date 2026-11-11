@@ -149,6 +149,8 @@ enum SettingsFeatureTests {
         // off, and hidden once `hiddenWithout` goes too or the Mac has no battery.
         let visibility: [(label: String, page: SettingsPage, shownWithout: Set<AppFeature>,
                           hiddenWithout: Set<AppFeature>?, needsBattery: Bool)] = [
+            (FeatureStrings.screenshot(.enUS).scrollingAutoScrollToggle, .screenshot, [], [.screenshot], false),
+            (Strings.enUS.uninstallerWatchTrashToggle, .uninstaller, [], [.uninstaller], false),
             (music.enableLyrics, .notch, [.notchLyrics], nil, false),
             (music.enableQueue, .notch, [.notchQueue], nil, false),
             (music.online, .notch, [], [.notchLyrics], false),
