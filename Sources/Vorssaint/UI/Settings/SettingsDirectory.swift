@@ -246,6 +246,7 @@ enum SettingsDirectory {
         let notchMusic = FeatureStrings.notchMusicExtras(language)
         let notchCalendar = FeatureStrings.notchCalendar(language)
         let notchAgents = FeatureStrings.notchAgents(language)
+        let claudeBilling = FeatureStrings.claudeBilling(language)
         let notchLowBattery = NotchLowBatteryStrings.localized(language)
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
@@ -285,12 +286,13 @@ enum SettingsDirectory {
                   notch: .module(.clipboard), when: state.on(DefaultsKey.notchClipboardWindow)),
             .init(["camera"], feature: .cameraPreview, notch: .module(.camera)),
             .init([notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens", notchAgents.resetsCard,
-                   notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
+                   notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.restingLayout, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
-            .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,
+            .init([FeatureStrings.claudeAccount(language).title, claudeBilling.billsTo, claudeBilling.creditsTitle],
+                  feature: .notchAgents,
                   notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
             .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
                    notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
