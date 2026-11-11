@@ -1083,11 +1083,11 @@ enum SupportUpdateIntroInfo {
     /// The stable release that gets this invitation, and the patches after it,
     /// which share one completion marker. The next stable update also includes
     /// people who completed the previous invitation.
-    static let releaseVersion = "3.4.3"
+    static let releaseVersion = "3.4.4"
 
     // Older beta onboarding wrote the release version before this screen was
     // available. A distinct completion marker keeps those upgraders eligible.
-    static let seenVersion = "3.4.3-support"
+    static let seenVersion = "3.4.4-support"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
