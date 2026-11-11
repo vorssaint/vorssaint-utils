@@ -4234,7 +4234,7 @@ enum ScreenshotFeatureTests {
         suite.expect(micMuteServiceSource.contains("callAppOpenedTheMicrophone()")
                 && micMuteServiceSource.contains("apply(muted: true, announce: false, followingCallApps: true)")
                 && micMuteServiceSource.contains("self.apply(muted: false, announce: true)")
-                && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted && outcome.applied)"),
+                && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted)"),
                "a device change asks whether a call app opened the microphone, and each mute sweep records what it left quiet")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,

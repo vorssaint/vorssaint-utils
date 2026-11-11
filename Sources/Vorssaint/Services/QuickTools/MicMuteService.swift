@@ -210,13 +210,19 @@ final class MicMuteService: ObservableObject {
         }
     }
 
-    /// Runs on `halQueue`, right after a sweep. What the sweep verifiably left
-    /// quiet is the baseline a later change is measured against.
+    /// Runs on `halQueue`, right after a sweep. A device is remembered once it
+    /// has verifiably been left quiet, and stays remembered until the mute is
+    /// released: the read below can land after a call app has already opened
+    /// the microphone, and that must not erase what the sweep left behind.
     private func recordSweepBaseline(muted: Bool) {
-        silencedAfterSweep = []
-        engagedSwitchesAfterSweep = []
-        guard muted else { return }
+        guard muted else {
+            silencedAfterSweep = []
+            engagedSwitchesAfterSweep = []
+            return
+        }
         let owned = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? [])
+        silencedAfterSweep.formIntersection(owned)
+        engagedSwitchesAfterSweep.formIntersection(owned)
         for device in Self.inputDevices() where owned.contains(device.uid) {
             if Self.isSilenced(device.id) { silencedAfterSweep.insert(device.uid) }
             if Self.muteSwitchValue(of: device.id) == 1 { engagedSwitchesAfterSweep.insert(device.uid) }
@@ -248,7 +254,7 @@ final class MicMuteService: ObservableObject {
                 return
             }
             let outcome = Self.sweep(muted: muted)
-            self?.recordSweepBaseline(muted: muted && outcome.applied)
+            self?.recordSweepBaseline(muted: muted)
             if muted {
                 if outcome.applied { self?.syncDeviceListeners(muted: true) }
             } else if outcome.applied {
