@@ -104,6 +104,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
+    @AppStorage(DefaultsKey.notchHoverGrows) private var growsOnHover = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
     @State private var tab = NotchSettingsTab.layout
     @State private var selectedModule = NotchModule.controls
@@ -126,7 +127,7 @@ struct NotchSettings: View {
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
-         String(hoverExpand), String(hideUntilHover), String(hiddenShowsActivity), String(hideInFullscreen),
+         String(hoverExpand), String(growsOnHover), String(hideUntilHover), String(hiddenShowsActivity), String(hideInFullscreen),
          String(hoverInFullscreen), String(coversMenus),
          display, silhouette, String(hover), hidden, order, String(volume), String(inputSource),
          String(brightness), String(keyboardLight),
@@ -657,6 +658,10 @@ struct NotchSettings: View {
                     choice(editor.hoverPreview, symbol: "rectangle.topthird.inset.filled", selected: hover && !hoverExpand && !hideUntilHover) { hideUntilHover = false; hover = true; hoverExpand = false }
                     choice(editor.hoverExpand, symbol: "arrow.up.left.and.arrow.down.right", selected: hover && hoverExpand && !hideUntilHover) { hideUntilHover = false; hover = true; hoverExpand = true }
                     choice(editor.hiddenUntilHover, symbol: "eye.slash", selected: hover && hideUntilHover) { hover = true; hoverExpand = true; hideUntilHover = true }
+                }
+                // Only Click to open and Preview on hover grow the closed island under the pointer.
+                if !hover || (!hoverExpand && !hideUntilHover) {
+                    switchRow("arrow.up.and.down.and.arrow.left.and.right", editor.growOnHover, isOn: $growsOnHover)
                 }
                 if hover && hideUntilHover {
                     switchRow("sparkles", editor.hiddenShowsActivity,
