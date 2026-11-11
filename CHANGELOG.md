@@ -11,6 +11,8 @@ This update addresses a startup crash on early macOS Sonoma and improves window 
 
 ### Added
 - Adjust supported monitor speakers from Displays settings, the volume mixer or Dynamic Island. Thanks to @jairuspace, @sambet1997, @morhaf-ko and @ruvelro.
+- Choose the step size and minimum and maximum levels for the volume keys on supported monitor speakers. Thanks to @Wahab417.
+- Hold a modifier key to scroll faster with a mouse wheel. Choose a multiplier from 2× to 15× in Mouse settings. Thanks to @VlodekH.
 - Start a scrolling screenshot with a dedicated shortcut and optionally let Vorssaint scroll the selected window. Thanks to @EugeneCarldotme.
 - The uninstaller can offer to review leftovers when Finder moves the last installed copy of an app to the Trash. The option is off by default. You choose which files to remove and confirm the cleanup. Thanks to @zamai and @ilim-cell.
 - Vorssaint can load selected preferences from a read-only settings file at launch. Unlisted preferences and snippets stay local. Thanks to @whizzzkid.
@@ -61,7 +63,7 @@ This update addresses a startup crash on early macOS Sonoma and improves window 
 - The music player shows and opens the correct Safari/WebKit app instead of its audio helper. Thanks to @Zekuath.
 
 ### Contributors
-Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jankorbay, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
+Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jankorbay, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @VlodekH, @Wahab417, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
 
 ## [3.4.3] - 2026-10-29
 
