@@ -4343,8 +4343,9 @@ final class NotchService: ObservableObject {
         switch event {
         case .finished(let provider, let duration, let cost, _, _):
             show(NotchNotice(event: .agents, title: text.finished(provider.displayName),
-                             detail: [AgentFormat.duration(duration, locale: locale), cost > 0 ? AgentFormat.cost(cost) : ""]
-                                .filter { !$0.isEmpty }.joined(separator: " · "),
+                             detail: NotchAgentSupport.finishedDetail(duration: duration, cost: cost,
+                                                                      showsCost: NotchAgentSupport.showsFinishCost(),
+                                                                      locale: locale),
                              symbol: provider.symbol, agent: provider))
             // After the notice, the companion cheers the finished task.
             reactMascot(.celebrate)
