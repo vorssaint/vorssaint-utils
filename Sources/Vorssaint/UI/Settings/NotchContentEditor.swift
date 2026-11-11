@@ -163,8 +163,6 @@ struct NotchPagePreview: View {
         case .mixer: NotchMixerView(size: size)
         case .music: NotchMusicView(size: size, extrasHeight: notch.geometry.musicExtrasHeight)
         case .clipboard: NotchClipboardView(service: notch, size: size)
-        case .captures:
-            RecentCapturesView(onClose: nil, notchSize: size).notchBand(trailing: { NotchClearCapturesButton() })
         case .files: NotchFilesView(service: notch)
         case .system: NotchSystemView(size: size) { _ in }
         case .tools: QuickLauncherView(notchSize: size)
@@ -397,7 +395,6 @@ extension NotchModule {
         case .mixer: return .purple
         case .music: return .pink
         case .clipboard: return .brown
-        case .captures: return .indigo
         case .files: return .cyan
         case .system: return .green
         case .tools: return .gray

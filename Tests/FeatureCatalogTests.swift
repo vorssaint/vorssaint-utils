@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
+        suite.expect(AppFeature.allCases.count == 76, "feature catalog has 76 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -397,9 +397,9 @@ enum FeatureCatalogTests {
             "diskImageInstaller",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "quitApps", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
+            "radialMenu", "scratchpad", "commandBar", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices", "fanControl",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -572,9 +572,9 @@ enum FeatureCatalogTests {
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "mixer", "soundOutputSwitcher", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview", "radialMenu",
-            "scratchpad", "commandBar", "screenRecorder",
+            "scratchpad", "commandBar",
             "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories",
             "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -735,9 +735,6 @@ enum FeatureCatalogTests {
         suite.expect(AppFeature.screenshot.permissions == [.screenRecording]
                 && AppFeature.screenshot.onboardingPermissions == [.screenRecording],
                "screenshots only need the screen recording grant")
-        suite.expect(AppFeature.screenRecorder.onboardingPermissions
-                == [.screenRecording, .accessibility],
-               "the recorder choice explains both permissions it needs")
         suite.expect(AppFeature.cleaner.onboardingPermissions.isEmpty
                 && AppFeature.cameraPreview.onboardingPermissions.isEmpty
                 && AppFeature.notchWatch.onboardingPermissions.isEmpty,
@@ -1515,7 +1512,7 @@ enum FeatureCatalogTests {
         ]
         suite.expect(!AppFeature.windowLayout.monitorsPermissionChanges(boolFor: { _ in false })
                && !AppFeature.windowLayout.monitorsPermissionChanges {
-                   $0 == DefaultsKey.screenshotShortcutEnabled
+                   $0 == DefaultsKey.shotShortcutEnabled
                }
                && windowLayoutPollingKeys.allSatisfy { enabledKey in
                    AppFeature.windowLayout.monitorsPermissionChanges {
@@ -1523,7 +1520,6 @@ enum FeatureCatalogTests {
                    }
                }
                && !AppFeature.screenshot.monitorsPermissionChanges
-               && !AppFeature.screenRecorder.monitorsPermissionChanges
                && !AppFeature.notchWatch.monitorsPermissionChanges
                && AppFeature.switcher.monitorsPermissionChanges
                && AppFeature.focusFollowsMouse.monitorsPermissionChanges
@@ -1538,7 +1534,7 @@ enum FeatureCatalogTests {
                "Window Layout does not poll permissions when every snap zone is off")
 
         suite.expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.windowLayout, .cleaningMode, .commandBar],
                "with nothing enabled only on-demand features use accessibility")
         func radialMenuUsesAccessibility(_ profile: RadialMenuProfile, legacyItems: [RadialMenuItem]) -> Bool {
             let stored = [DefaultsKey.radialMenuProfiles: RadialMenuSupport.encodeProfiles([profile]),
@@ -1612,19 +1608,17 @@ enum FeatureCatalogTests {
                 == BrightnessSupport.KeyStep.standard.rawValue
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.brightnessKeyStep),
                "the brightness key step starts at the system's step and travels with a settings backup")
-        suite.expect(activeSet(.accessibility).contains(.screenRecorder),
-               "the recorder uses accessibility for anonymous typing timing while active")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
                "mixer uses accessibility only for precise volume roller")
         suite.expect(!activeSet(.accessibility).contains(.mixer),
                "mixer without precise volume roller does not use accessibility")
 
         suite.expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
-                == [.switcher, .screenOCR, .screenshot, .screenRecorder],
-               "switcher with previews uses screen recording; OCR, screenshots and recordings are on demand")
+                == [.switcher, .screenshot],
+               "switcher with previews uses screen recording; screenshots are on demand")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode])
-                == [.screenOCR, .screenshot, .screenRecorder],
+                == [.screenshot],
                "simple-mode switcher stops using screen recording")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])
@@ -1702,11 +1696,6 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         suite.expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
-        suite.expect(activeSet(.audioCapture, on: [DefaultsKey.recorderSystemAudio]) == [.mixer, .screenRecorder],
-               "the recorder uses audio capture only while the Mac's sound is a chosen source")
-        suite.expect(activeSet(.microphone).isEmpty
-                && activeSet(.microphone, on: [DefaultsKey.recorderMicrophone]) == [.screenRecorder],
-               "the recorder uses microphone access only when that optional source is on")
         suite.expect(activeSet(.camera) == [.cameraPreview],
                "the camera preview is the only on-demand camera user")
         suite.expect(activeSet(.camera, available: Set(AppFeature.allCases).subtracting([.cameraPreview])) == [],
@@ -1947,20 +1936,10 @@ enum FeatureCatalogTests {
             suite.expect(FeatureStrings.scratchpad(language).deletePadMessageFormat.contains("%@")
                     && FeatureStrings.scratchpad(language).padLimitFormat.contains("%d"),
                    "scratchpad dialog formats keep their placeholders (\(language.rawValue))")
-            suite.expect(FeatureStrings.recorder(language).countdownSecondsFormat.contains("%d"),
-                   "recorder countdown format keeps its specifier (\(language.rawValue))")
-            suite.expect(FeatureStrings.recorder(language).frameRateFormat.contains("%d"),
-                   "recorder frame rate format keeps its specifier (\(language.rawValue))")
-            suite.expect(FeatureStrings.recorder(language).savedHUDFormat.contains("%@"),
-                   "recorder saved format keeps its specifier (\(language.rawValue))")
-            suite.expect(FeatureStrings.screenshot(language).delaySecondsFormat.contains("%d"),
-                   "screenshot delay format keeps its specifier (\(language.rawValue))")
             suite.expect(FeatureStrings.screenshot(language).savedHUDFormat.contains("%@"),
                    "screenshot saved format keeps its specifier (\(language.rawValue))")
             suite.expect(FeatureStrings.screenshot(language).savedAndCopiedHUDFormat.contains("%@"),
                    "screenshot saved-and-copied format keeps its specifier (\(language.rawValue))")
-            suite.expect(FeatureStrings.screenshot(language).fileNumberNextFormat.contains("%d"),
-                   "screenshot next-number format keeps its specifier (\(language.rawValue))")
             let strings: Strings = {
                 switch language {
                 case .enUS: return .enUS
@@ -2054,7 +2033,7 @@ enum FeatureCatalogTests {
                 && AppFeature.switcher.energyProfile == .inputs
                 && AppFeature.finderRename.energyProfile == .keyboard
                 && AppFeature.musicBlock.energyProfile == .keyboard
-                && AppFeature.colorPicker.energyProfile == .idle
+                && AppFeature.screenshot.energyProfile == .idle
                 && AppFeature.keepAwake.energyProfile == .idle
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")

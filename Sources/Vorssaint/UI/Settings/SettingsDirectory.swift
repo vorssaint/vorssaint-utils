@@ -421,10 +421,8 @@ enum SettingsDirectory {
                                         (.cleaningMode, [s.cleaningMenuItem, s.cleaningKeepScreenVisibleToggle]),
                                        ]),
                 SettingsDirectoryItem(page: .screenshot,
-                                       title: FeatureStrings.screenshot(language).screenCaptureTitle,
-                                       icon: "camera.viewfinder",
-                                       featureKeywords: SettingsSearchSupport
-                                        .screenCaptureFeatureKeywords(s, language: language)),
+                                       title: FeatureStrings.screenshot(language).pageTitle,
+                                       icon: "camera.viewfinder"),
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .superKey,

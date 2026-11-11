@@ -162,12 +162,8 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 
 ### Capture and create
 
-- **Screen capture.** Switch between screenshots, recording, text recognition and color picking in one selector with a pixel magnifier.
-- **Screenshot.** Capture an area, window, screen or scrolling page. Annotate, crop, redact, add backgrounds and watermarks, pin captures, send them through the Share menu or share an expiring link.
-- **Screen recording.** Record with separate system-audio and microphone tracks. Trim, cut, add automatic zooms, blur private details and export video or GIFs, or share an expiring link.
+- **Screenshot.** Press Command-Shift-S to freeze the screen, drag over an area, then draw on it with a pen, lines, arrows, shapes, a highlighter, text and blur. Copy it, save it, print it or open it in Preview. Nothing is uploaded.
 - **Camera preview.** Check your camera in a floating mirror or Dynamic Island before a call.
-- **Copy text from screen.** Recognize text offline from any screen area, or read a QR code.
-- **Color picker.** Copy a screen color as HEX, RGB, HSL or SwiftUI code.
 - **Media tools.** Compress and edit videos, batch-convert images, add watermarks, make GIFs and extract text, all locally.
 
 ### App management
@@ -214,7 +210,7 @@ To remove Vorssaint completely, including its settings and permissions:
 
 ## Private by default
 
-Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, optional online lyric lookup, temporary screenshot or recording links and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
+Vorssaint is local-first, with no account, analytics or tracking. The network is touched only by things you can see: update checks, the speed test, Homebrew actions, optional online lyric lookup and feedback you explicitly send. The full story is in the [privacy notes](docs/PRIVACY.md).
 
 Permissions get the same treatment. Every one is optional, the app explains each in plain words, shows which features actually use it, and even tells you when a permission you granted is no longer needed by anything, with a shortcut to revoke it.
 

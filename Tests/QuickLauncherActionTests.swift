@@ -70,10 +70,7 @@ enum QuickLauncherContract {
     }
     enum KeepAwakeManager { static let shared = Spy(name: "keepAwake") }
     enum MicMuteService { static let shared = Spy(name: "micMute") }
-    enum ScreenTextService { static let shared = Spy(name: "screenOCR") }
     enum ScreenshotService { static let shared = Spy(name: "screenshot") }
-    enum ScreenRecorderService { static let shared = Spy(name: "recorder") }
-    enum ColorSamplerService { static let shared = Spy(name: "colorPicker") }
     enum CameraPreviewService { static let shared = Spy(name: "camera") }
     enum ScratchpadService { static let shared = Spy(name: "scratchpad") }
     enum ClipboardHistoryService { static let shared = Spy(name: "clipboard") }
@@ -93,10 +90,7 @@ enum QuickLauncherContract {
         let cases: [(QuickLauncherItem, AppFeature, String?, Double?)] = [
             (.keepAwake, .keepAwake, "keepAwake.toggle", nil),
             (.micMute, .micMute, "micMute.toggle", nil),
-            (.screenOCR, .screenOCR, "screenOCR.capture", 0.15),
             (.screenshot, .screenshot, "screenshot.capture", 0.15),
-            (.screenRecorder, .screenRecorder, "recorder.toggle", 0.15),
-            (.colorPicker, .colorPicker, "colorPicker.pick", 0.15),
             (.cameraPreview, .cameraPreview, "camera.show", 0.15),
             (.scratchpad, .scratchpad, "scratchpad.show", 0.15),
             (.clipboard, .clipboardHistory, "clipboard.showHistoryWindow", 0.1),
@@ -149,12 +143,7 @@ enum QuickLauncherContract {
         suite.expect(events == ["camera.notch", "hide"] && DispatchQueue.main.jobs.isEmpty,
                      "an embedded camera switches the notch before hiding the launcher, without a close-and-reopen delay")
         cameraInNotch = false
-        var tile = Tile()
-        suite.expect(tile.display(.screenRecorder) == ("record.circle", false),
-                     "an idle recording tile offers recording")
-        tile.recorder.isRecording = true
-        suite.expect(tile.display(.screenRecorder) == ("stop.circle", true),
-                     "an active recording tile offers stopping and shows its active state")
+        let tile = Tile()
         suite.expect(QuickLauncherItem.allCases.allSatisfy { !tile.display($0).0.isEmpty },
                      "every tile has an icon")
         presentationContracts(suite)

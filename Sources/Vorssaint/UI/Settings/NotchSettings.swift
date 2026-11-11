@@ -63,8 +63,6 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = true
     @AppStorage(DefaultsKey.notchClipboardWindow) private var clipboardWindow = true
     @AppStorage(DefaultsKey.notchClipboardCardSize) private var clipboardCardSize = NotchClipboardCardSize.comfortable.rawValue
-    @AppStorage(DefaultsKey.screenshotDefaultAction) private var captureAction = ""
-    @AppStorage(DefaultsKey.notchCapture) private var capture = true
     @AppStorage(DefaultsKey.notchTrackChange) private var trackChange = true
     @AppStorage(DefaultsKey.notchShowPlayingMusic) private var showPlayingMusic = true
     @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = true
@@ -103,7 +101,6 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var liquidGlass = false
     @AppStorage(DefaultsKey.notchShelf) private var shelfWindow = true
     @AppStorage(DefaultsKey.notchDragReveal) private var dragReveal = true
-    @AppStorage(DefaultsKey.notchCaptureControls) private var captureControls = true
     @AppStorage(DefaultsKey.notchQuickPanel) private var quickPanel = true
     @AppStorage(DefaultsKey.notchAppPanel) private var appPanel = false
     @AppStorage(DefaultsKey.notchHidesMenuBarIcon) private var hidesMenuBarIcon = false
@@ -134,13 +131,13 @@ struct NotchSettings: View {
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
-         String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
+         String(shelfWindow), String(dragReveal), String(quickPanel), String(appPanel),
          String(hoverExpand), String(hideUntilHover), String(hiddenShowsActivity), String(hideInFullscreen),
          String(hoverInFullscreen), String(coversMenus),
          display, silhouette, String(hover), hidden, order, String(volume), String(inputSource),
          String(brightness), String(keyboardLight),
          String(microphone), String(battery), String(clipboard), String(clipboardWindow), clipboardCardSize,
-         String(capture), String(trackChange), captureAction, String(showInCaptures),
+         String(trackChange), String(showInCaptures),
          String(returnHome), homeModule, String(opensActivity), String(pointerDriven), String(scratchpad),
          String(agentsEnabled), String(watchEnabled), String(keepAwakeActivity), String(shortcutEnabled)]
     }
@@ -545,12 +542,6 @@ struct NotchSettings: View {
                         .padding(.leading, settingsRowTextInset)
                 }
             }
-        case .captures:
-            SettingsFeatureSwitchRow(symbol: "camera.viewfinder", title: text.captureActivity, isOn: $capture, feature: .screenshot)
-            if capture, AppFeature.screenshot.isAvailable {
-                ScreenshotDefaultActionPicker(strings: FeatureStrings.screenshot(l10n.language), selection: $captureAction)
-                    .padding(.leading, settingsRowTextInset)
-            }
         case .scratchpad:
             destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad)
         case .agents:
@@ -600,10 +591,9 @@ struct NotchSettings: View {
                 let accessoriesAvailable = AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable
                 let clipboardAvailable = AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled
                     && NotchSupport.modules().contains(.clipboard)
-                let capturesAvailable = AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures)
                 let musicAvailable = NotchSupport.modules().contains(.music)
                 let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable,
-                                 batteryAvailable || !hasBattery, accessoriesAvailable, clipboardAvailable, capturesAvailable,
+                                 batteryAvailable || !hasBattery, accessoriesAvailable, clipboardAvailable,
                                  musicAvailable].allSatisfy { $0 }
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 116), spacing: 10)], spacing: 10) {
                     toggleCard(text.volume, symbol: "speaker.wave.2", value: $volume, available: volumeAvailable,
@@ -642,9 +632,6 @@ struct NotchSettings: View {
                     toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard,
                                available: clipboardAvailable, reason: clipboardFeedbackReason, reservesReason: reserves,
                                unavailableAction: { openClipboardFeedbackSetup() })
-                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: capturesAvailable,
-                               reason: pageReason(.captures, feature: .screenshot), reservesReason: reserves,
-                               unavailableAction: pageAction(.captures, feature: .screenshot))
                     toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
                                reason: pageReason(.music, feature: nil), reservesReason: reserves,
                                unavailableAction: pageAction(.music, feature: nil))
@@ -802,7 +789,6 @@ struct NotchSettings: View {
                 destination(text.tools, symbol: NotchModule.tools.symbol, value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
-                destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
                 destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
             }
             SettingsCard(title: editor.privacy) {
@@ -937,7 +923,7 @@ struct NotchSettings: View {
     /// The one feature a page needs; Captures and System accept any of several.
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
-        case .controls, .music, .captures, .system: return nil
+        case .controls, .music, .system: return nil
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf

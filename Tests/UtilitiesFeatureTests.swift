@@ -941,7 +941,6 @@ enum UtilitiesFeatureTests {
                "unknown quick-toggle slices cannot leave a dead action on the wheel")
         suite.expect(RadialMenuTool.allCases.allSatisfy { !$0.symbolName.isEmpty }
                 && RadialMenuTool.screenshot.feature == .screenshot
-                && RadialMenuTool.screenRecorder.feature == .screenRecorder
                 && RadialMenuTool.clipboardHistory.feature == .clipboardHistory
                 && RadialMenuTool.scratchpad.feature == .scratchpad
                 && RadialMenuTool.shelf.feature == .shelf
@@ -951,10 +950,10 @@ enum UtilitiesFeatureTests {
                 && RadialMenuTool.cleaningMode.feature == .cleaningMode
                 && RadialMenuTool.keepAwake.feature == .keepAwake,
                "every wheel tool maps to a real feature and symbol")
-        let addedWheelTools: [RadialMenuTool] = [.screenRecorder, .cleaner, .uninstaller, .appUpdates]
+        let addedWheelTools: [RadialMenuTool] = [.cleaner, .uninstaller, .appUpdates]
         suite.expect(addedWheelTools.allSatisfy {
             $0.isRunnable(isFeatureAvailable: { _ in true }, boolFor: { _ in false })
-        }, "recording and maintenance tools are selectable when their hub features are available")
+        }, "maintenance tools are selectable when their hub features are available")
         suite.expect(!RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in true },
                                                 boolFor: { _ in false })
                 && RadialMenuTool.shelf.isRunnable(isFeatureAvailable: { _ in true },
@@ -1565,17 +1564,6 @@ enum UtilitiesFeatureTests {
                "disk eject exclusions are registered as an empty string array")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.diskEjectExcludedVolumes),
                "disk eject exclusions travel in backups")
-
-        // MARK: A sleeping clock
-        for shareService in ["Sources/Vorssaint/Services/QuickTools/ScreenshotShareService.swift",
-                             "Sources/Vorssaint/Services/Recorder/RecordingShareService.swift"] {
-            let shareCode = ((try? String(contentsOfFile: shareService, encoding: .utf8)) ?? "")
-                .components(separatedBy: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                .joined(separator: "\n")
-            suite.expect(shareCode.contains("NSWorkspace.didWakeNotification"),
-                   "\(shareService) recomputes share link expiry on wake, which its sleeping clock missed")
-        }
 
         // The confirmation HUD is a hand-laid AppKit panel, so its width is
         // pinned as source shape. It used to be a fixed 300pt, which clipped

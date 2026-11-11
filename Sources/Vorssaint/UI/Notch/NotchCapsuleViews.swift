@@ -716,21 +716,3 @@ struct NotchCapsuleKeepAwakeStrip: View {
         .accessibilityIdentifier("notch.keepAwake")
     }
 }
-
-/// Screen capture controls folded while an area is chosen: the tool and the
-/// way back to the controls.
-struct NotchCapsuleCaptureStrip: View {
-    let symbol: String
-    let geometry: NotchGeometry
-    let size: CGSize
-
-    var body: some View {
-        NotchCapsuleRow(size: size, geometry: geometry) {
-            HStack(spacing: CapsuleLayout.spacing) {
-                NotchCapsuleSymbol(name: symbol)
-                NotchCapsuleSymbol(name: "chevron.down")
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}

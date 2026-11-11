@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
     // Pages only the top bar opens; the sections list leaves them out.
     case keepAwake, microphone, battery
     var id: String { rawValue }
@@ -32,7 +32,6 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .notifications: return "bell"
         case .calendar: return "calendar"
         case .clipboard: return "doc.on.clipboard"
-        case .captures: return "camera.viewfinder"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
         // The quick panel's own mark; the grid belongs to the sections button.
@@ -53,7 +52,6 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .mixer: return "v"
         case .music: return "m"
         case .clipboard: return "b"
-        case .captures: return "s"
         case .files: return "f"
         case .system: return "i"
         case .tools: return "t"
@@ -82,11 +80,6 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults)
         case .tools: return AppFeature.quickLauncher.isAvailable(in: defaults)
         case .clipboard: return AppFeature.clipboardHistory.isAvailable(in: defaults)
-        case .captures:
-            return AppFeature.screenshot.isAvailable(in: defaults)
-                || AppFeature.screenRecorder.isAvailable(in: defaults)
-                || AppFeature.screenOCR.isAvailable(in: defaults)
-                || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
@@ -1310,10 +1303,6 @@ enum NotchCapsuleLayout {
         return surface(content: symbolWidth + spacing + right, maximum: Maximum.activity, geometry: geometry)
     }
 
-    /// Screen capture controls folded while an area is chosen: the tool and a chevron.
-    static func captureSurface(geometry: NotchGeometry) -> CGSize {
-        surface(content: symbolWidth * 2 + spacing, maximum: Maximum.activity, geometry: geometry)
-    }
 }
 
 struct NotchActivityPickerLayout {
@@ -1342,54 +1331,6 @@ struct NotchActivityPickerLayout {
     }
 }
 
-/// Screen capture controls keep their title and buttons where the open
-/// island keeps its header: at the top, beside a physical camera when the
-/// title and the buttons each fit whole on their side, or in a row below it.
-struct NotchCaptureControlsLayout {
-    /// The row below a camera, as tall as its buttons.
-    static let rowHeight: CGFloat = 28
-    static let buttonSpacing: CGFloat = 6
-    /// The repeat key, collapse and close at their narrowest, as squares.
-    static let narrowButtonsWidth: CGFloat = 28 * 3 + buttonSpacing * 2
-    /// Room the title and the buttons keep from the camera.
-    static let cameraClearance: CGFloat = 8
-    /// The title's font: the window is sized from it and the view draws it.
-    static let titleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
-
-    static func titleWidth(_ title: String) -> CGFloat {
-        (title as NSString).size(withAttributes: [.font: titleFont]).width.rounded(.up)
-    }
-    /// From the top of the island to the top of the title row.
-    let headerTop: CGFloat
-    let headerHeight: CGFloat
-    /// The camera between the title and the buttons; 0 when one row holds both.
-    let cameraGap: CGFloat
-    /// Each side of the camera, from the island's inset to the cutout.
-    let sideWidth: CGFloat
-    let size: CGSize
-
-    /// `titleWidth` is measured with the title's font.
-    init(geometry: NotchGeometry, titleWidth: CGFloat, capturesAudio: Bool) {
-        let side = (geometry.contentWidth - geometry.headerCameraGap) / 2
-        let fits = max(titleWidth, Self.narrowButtonsWidth) + Self.cameraClearance <= side
-        // Without a camera one row spans the top, as the open header does,
-        // below a capsule's rounded top corners.
-        if geometry.headerTopInset == 0 || geometry.floats, geometry.headerCameraGap == 0 || fits {
-            headerTop = geometry.headerTopInset
-            headerHeight = geometry.headerRowHeight
-            cameraGap = geometry.headerCameraGap
-        } else {
-            headerTop = geometry.safeContentTop
-            headerHeight = Self.rowHeight
-            cameraGap = 0
-        }
-        sideWidth = cameraGap > 0 ? side : 0
-        size = CGSize(width: geometry.expandedWidth,
-                      height: headerTop + headerHeight + 12 + NotchLayout.shortcutHeight + 16
-                        + (capturesAudio ? 40 : 0))
-    }
-}
-
 enum NotchControlSetupRequirement: Equatable {
     case feature(AppFeature)
     case page(NotchModule, feature: AppFeature?)
@@ -1397,8 +1338,8 @@ enum NotchControlSetupRequirement: Equatable {
 }
 
 enum NotchControlItem: String, CaseIterable, Identifiable {
-    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, recording, speedTest, panel, commandBar, scratchpad
-    static let defaultHidden = "keyboardLight,microphone,screenshot,recording,speedTest,panel,commandBar,scratchpad"
+    case volume, brightness, keyboardLight, music, mixer, keepAwake, timer, calendar, microphone, screenshot, speedTest, panel, commandBar, scratchpad
+    static let defaultHidden = "keyboardLight,microphone,screenshot,speedTest,panel,commandBar,scratchpad"
     var id: String { rawValue }
 
     /// A level draws as a slider in the card row; everything else is a tile.
@@ -1418,7 +1359,6 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .keepAwake: return "cup.and.saucer"
         case .microphone: return "mic.fill"
         case .screenshot: return "camera.viewfinder"
-        case .recording: return "record.circle"
         case .speedTest: return "speedometer"
         // The app panel opens as a bubble under the menu bar icon.
         case .panel: return "bubble.middle.top"
@@ -1438,7 +1378,6 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .keepAwake: return .feature(.keepAwake)
         case .microphone: return .feature(.micMute)
         case .screenshot: return .feature(.screenshot)
-        case .recording: return .feature(.screenRecorder)
         case .commandBar: return .feature(.commandBar)
         case .scratchpad: return .feature(.scratchpad)
         case .panel: return .none
@@ -1459,7 +1398,6 @@ enum NotchControlItem: String, CaseIterable, Identifiable {
         case .keepAwake: return AppFeature.keepAwake.isAvailable(in: defaults)
         case .microphone: return AppFeature.micMute.isAvailable(in: defaults)
         case .screenshot: return AppFeature.screenshot.isAvailable(in: defaults)
-        case .recording: return AppFeature.screenRecorder.isAvailable(in: defaults)
         case .speedTest: return AppFeature.monitorNetwork.isAvailable(in: defaults) && NotchSupport.modules(in: defaults).contains(.system)
         case .commandBar: return AppFeature.commandBar.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
@@ -1719,7 +1657,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
 
     var preferenceKey: String {
         switch self {
@@ -1737,14 +1675,13 @@ enum NotchEvent: String, CaseIterable {
         case .brightness: return DefaultsKey.notchBrightness
         case .battery: return DefaultsKey.notchBattery
         case .clipboard: return DefaultsKey.notchClipboard
-        case .capture: return DefaultsKey.notchCapture
         }
     }
 
     var priority: Int {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
-        case .capture, .timer, .watch: return 2
+        case .timer, .watch: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
         }
@@ -1758,7 +1695,6 @@ enum NotchEvent: String, CaseIterable {
         case .agents: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
-        case .capture: return 12
         }
     }
 }
@@ -2190,9 +2126,6 @@ enum NotchSupport {
         case .clipboard:
             return modules(in: defaults).contains(.clipboard)
                 && defaults.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
-        case .capture:
-            return AppFeature.screenshot.isAvailable(in: defaults)
-                && modules(in: defaults).contains(.captures)
         case .track: return modules(in: defaults).contains(.music)
         // A layout notice needs no feature of its own, only its own toggle.
         case .inputSource: return true
@@ -2216,11 +2149,6 @@ enum NotchSupport {
 
     static func revealsShelfDrag(in defaults: UserDefaults = .standard) -> Bool {
         routesShelf(in: defaults) && defaults.bool(forKey: DefaultsKey.notchDragReveal)
-    }
-
-    static func routesCaptureControls(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCaptureControls)
-            && modules(in: defaults).contains(.captures)
     }
 
     static func routesQuickPanel(in defaults: UserDefaults = .standard) -> Bool {
@@ -2881,11 +2809,9 @@ struct NotchGeometry: Equatable {
                       musicShowsVolume: Bool = false,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
-                      capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
                       agentsHeight: CGFloat? = nil) -> CGSize {
         let budget = contentBudget
-        let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
         let contentHeight: CGFloat
         if detail, !panel, let detailHeight {
@@ -2896,8 +2822,6 @@ struct NotchGeometry: Equatable {
             // Measured surfaces keep their own height; the custom limit and
             // the display bound them below.
             contentHeight = max(0, fileMediaHeight ?? 0)
-        } else if showsCapturePreview {
-            contentHeight = max(0, capturePreviewHeight ?? 0) + 4
         } else {
             switch module {
             case .controls:
@@ -2936,7 +2860,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
+            case .mixer, .calendar, .clipboard, .files, .notifications, .downloads, .camera, .scratchpad, .watch,
                  .keepAwake, .microphone, .battery:
                 contentHeight = budget
             }

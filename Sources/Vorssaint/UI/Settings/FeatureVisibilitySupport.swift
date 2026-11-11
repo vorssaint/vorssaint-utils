@@ -46,9 +46,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case quickToggles
     case quitApps
     case screenshot
-    case screenRecorder
-    case colorPicker
-    case screenOCR
     case micMute
     case cameraPreview
     case wallpaper
@@ -75,7 +72,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad,
              .cleaningMode:
             return .quickTools
-        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
+        case .screenshot:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
         case .fanControl: return .monitor
@@ -356,10 +353,6 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .quickToggles)
         case .quitApps:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
-        case .colorPicker:
-            return FeatureSettingsDestination(.screenshot, sectionAnchor: .colorPicker)
-        case .screenOCR:
-            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenOCR)
         case .cleaningMode:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
         case .mediaTools: return FeatureSettingsDestination(.media)
@@ -381,9 +374,6 @@ extension AppFeature {
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
         case .commandBar: return FeatureSettingsDestination(.commandBar)
-        case .screenRecorder:
-            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenRecorder)
-
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return FeatureSettingsDestination(.monitor)
         case .fanControl:
@@ -429,7 +419,7 @@ enum FeatureVisibilitySupport {
         case .keyDebounce: return [.keyboardDebounce]
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
-        case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
+        case .screenshot: return [.screenshot]
         case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]
         case .notchMascot: return [.notchMascot]
         case .sounds: return Array(Set(AppSound.allCases.map(\.feature)))

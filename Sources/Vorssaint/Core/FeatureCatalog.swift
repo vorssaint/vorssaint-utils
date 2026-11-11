@@ -26,9 +26,9 @@ enum AppFeature: String, CaseIterable {
     // Energy and display
     case keepAwake, brightness, extraBrightness, bluetoothSleep
     // Tools
-    case quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
+    case quickLauncher, quickToggles, quitApps, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager
+         commandBar, wallpaper, killProcess, portManager
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
@@ -82,7 +82,7 @@ extension AppFeature {
                     ).isEmpty)
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
-        case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
+        case .cleaningMode, .screenshot, .commandBar, .wallpaper, .notchWatch,
              .notchMascot:
             return false
         default:
@@ -113,9 +113,9 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .quickLauncher, .quickToggles, .quitApps, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
+             .scratchpad, .commandBar, .wallpaper, .killProcess, .portManager:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -173,8 +173,6 @@ extension AppFeature {
         case .quickLauncher: return "wand.and.rays"
         case .quickToggles: return "togglepower"
         case .quitApps: return "xmark.app"
-        case .colorPicker: return "eyedropper"
-        case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
         case .mediaTools: return "photo.on.rectangle.angled"
         case .cleaner: return "sparkles"
@@ -182,7 +180,6 @@ extension AppFeature {
         case .homebrew: return "shippingbox"
         case .appUpdates: return "arrow.down.app"
         case .screenshot: return "camera.viewfinder"
-        case .screenRecorder: return "record.circle"
         case .cameraPreview: return "web.camera"
         case .wallpaper: return "photo.on.rectangle"
         case .notchGestures: return "hand.draw"
@@ -289,9 +286,9 @@ extension AppFeature {
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
-             .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .quickLauncher, .quickToggles, .quitApps, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
+             .commandBar, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices, .fanControl:
             return []
@@ -367,12 +364,10 @@ extension AppFeature {
         case .quickToggles: return [.automationFinder]
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
-        case .screenOCR: return [.screenRecording]
         case .screenshot: return [.screenRecording]
         // The sound of the Mac is read through an audio grant of its own.
         // Microphone access stays contextual, and Accessibility only keeps
         // typing timing.
-        case .screenRecorder: return [.screenRecording, .accessibility, .audioCapture, .microphone]
         case .cameraPreview: return [.camera]
         case .keepAwake: return [.accessibility]
         case .brightness: return [.accessibility]
@@ -386,7 +381,7 @@ extension AppFeature {
         case .monitorCPU, .monitorMemory, .monitorDisk, .monitorPower: return [.notifications]
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
-             .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
+             .extraBrightness, .bluetoothSleep, .quickLauncher, .micMute, .mediaTools,
              .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
              .portManager,
              // Each app gets the ordinary quit request it would from its own menu.
@@ -480,9 +475,9 @@ extension AppFeature {
              .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
              .mixer, .soundOutputSwitcher, .micMute, .musicBlock,
              .keepAwake, .brightness, .extraBrightness, .bluetoothSleep,
-             .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .quickLauncher, .quickToggles, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder,
+             .scratchpad, .commandBar,
              .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
@@ -578,10 +573,6 @@ extension AppFeature {
             case (.notchLiveEqualizer, .audioCapture):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")
-            case (.screenRecorder, .audioCapture):
-                return boolFor(DefaultsKey.recorderSystemAudio)
-            case (.screenRecorder, .microphone):
-                return boolFor(DefaultsKey.recorderMicrophone)
             default:
                 return true
             }

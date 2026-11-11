@@ -280,7 +280,6 @@ final class FeatureRuntime: ObservableObject {
             NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }
             MediaService.shared.cancel()
-            ScreenRecorderService.shared.closeEditors(ownedBy: .mediaTools)
         },
         .pastePlain: { PastePlainService.shared.syncWithPreferences() },
         .finderCutPaste: { FinderCutPaste.shared.syncWithPreferences() },
@@ -320,23 +319,7 @@ final class FeatureRuntime: ObservableObject {
         .extraBrightness: { ExtraBrightnessService.shared.syncWithPreferences() },
         .bluetoothSleep: { BluetoothSleepService.shared.syncWithPreferences() },
         .quickLauncher: { QuickLauncherService.shared.syncWithPreferences() },
-        .colorPicker: {
-            ScreenCaptureService.shared.syncWithPreferences()
-        },
-        .screenOCR: {
-            ScreenCaptureService.shared.syncWithPreferences()
-            ScreenTextService.shared.syncWithPreferences()
-        },
-        .screenshot: {
-            ScreenCaptureService.shared.syncWithPreferences()
-            ScreenshotService.shared.syncWithPreferences()
-            RecentCaptureService.shared.syncWithPreferences()
-        },
-        .screenRecorder: {
-            ScreenCaptureService.shared.syncWithPreferences()
-            ScreenRecorderService.shared.syncWithPreferences()
-            RecentCaptureService.shared.syncWithPreferences()
-        },
+        .screenshot: { ScreenshotService.shared.syncWithPreferences() },
         .cameraPreview: { CameraPreviewService.shared.syncWithPreferences() },
         .wallpaper: { WallpaperService.shared.syncWithPreferences() },
         .radialMenu: { RadialMenuService.shared.syncWithPreferences() },

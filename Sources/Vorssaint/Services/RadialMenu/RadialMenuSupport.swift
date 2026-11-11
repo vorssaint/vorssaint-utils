@@ -185,11 +185,11 @@ enum RadialMenuProfilePreset: String, CaseIterable, Identifiable {
         case .tools:
             return [
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenshot.rawValue),
-                RadialMenuItem(kind: .tool, payload: RadialMenuTool.colorPicker.rawValue),
-                RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenOCR.rawValue),
-                RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenRecorder.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.clipboardHistory.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.quickLauncher.rawValue),
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.micMute.rawValue),
                 RadialMenuItem(kind: .tool, payload: RadialMenuTool.scratchpad.rawValue),
+                RadialMenuItem(kind: .tool, payload: RadialMenuTool.keepAwake.rawValue),
             ]
         case .windowLayout:
             return [
@@ -347,7 +347,7 @@ private struct FailableRadialMenuItem: Decodable {
 /// Vorssaint tools a slice can trigger. Raw values persist inside the items
 /// blob; never rename them.
 enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
-    case screenshot, screenRecorder, colorPicker, screenOCR, micMute, clipboardHistory, quickLauncher,
+    case screenshot, micMute, clipboardHistory, quickLauncher,
          cameraPreview, scratchpad, shelf, cleaner, uninstaller, appUpdates, cleaningMode, keepAwake
 
     var id: String { rawValue }
@@ -355,9 +355,6 @@ enum RadialMenuTool: String, Codable, CaseIterable, Identifiable {
     var feature: AppFeature {
         switch self {
         case .screenshot: return .screenshot
-        case .screenRecorder: return .screenRecorder
-        case .colorPicker: return .colorPicker
-        case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .clipboardHistory: return .clipboardHistory
         case .quickLauncher: return .quickLauncher
@@ -775,7 +772,7 @@ enum RadialMenuSupport {
         RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.nextTrack.rawValue),
         RadialMenuItem(kind: .tool, payload: RadialMenuTool.screenshot.rawValue),
         RadialMenuItem(kind: .file, payload: "~/Downloads"),
-        RadialMenuItem(kind: .tool, payload: RadialMenuTool.colorPicker.rawValue),
+        RadialMenuItem(kind: .tool, payload: RadialMenuTool.clipboardHistory.rawValue),
         RadialMenuItem(kind: .media, payload: RadialMenuMediaKey.previousTrack.rawValue),
     ]
 
