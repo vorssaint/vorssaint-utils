@@ -34,8 +34,7 @@ struct NotchNotice: Equatable {
         return .event(event, title: title, detail: level == nil ? detail : nil)
     }
 
-    /// Each side as wide as what it shows, so neither ends in a band of
-    /// empty black: the island reaches further toward its wider side.
+    /// Track notices keep equal wings; other notices fit each side independently.
     var preferredWings: NotchNoticeWings { preferredWings(wrapsMessage: false) }
 
     /// The sides this notice takes beside a camera, as its strip draws them.
@@ -61,12 +60,18 @@ struct NotchNotice: Equatable {
             return NotchNoticeWings(leading: wing, trailing: wing)
         }
         // Long accessory names still use bounded truncation.
-        let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
+        let maximum: CGFloat = event == .track ? Self.trackMaximumWing
+            : event == .accessory && level == nil ? 160 : 240
         func fitted(_ content: CGFloat) -> CGFloat { min(maximum, max(Self.minimumWing, ceil(content) + 16 + cameraGap)) }
         // An empty title leaves the mark alone, without the space after it.
         let mark = fitted(leading > 0 ? leading + 18 + 8 : 18)
         guard level == nil else { return NotchNoticeWings(leading: mark, trailing: mark) }
-        return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: font]).width))
+        let trailing = fitted(measured(detail))
+        if event == .track {
+            let wing = max(mark, trailing)
+            return NotchNoticeWings(leading: wing, trailing: wing)
+        }
+        return NotchNoticeWings(leading: mark, trailing: trailing)
     }
 
     /// The wider side, for what still takes one width for both.
@@ -74,6 +79,9 @@ struct NotchNotice: Equatable {
 
     /// The narrowest side a text notice keeps: its curved end and some air.
     static let minimumWing: CGFloat = 36
+
+    /// Includes the artwork, padding and camera clearance on each side.
+    static let trackMaximumWing: CGFloat = 160
 
     /// Room a level keeps inside its curved ends, as wide as its wings had
     /// when they were a fixed 80 pt.

@@ -101,13 +101,20 @@ struct NotchNoticeView: View {
                     }
                 }
                 .frame(width: 18)
-                Text(notice.level == nil ? notice.title : notice.detail)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(textTint)
-                    .monospacedDigit()
-                    .lineLimit(1)
-                    .truncationMode(notice.event == .track ? .tail : .middle)
-                    .contentTransition(.numericText())
+                if notice.event == .track {
+                    NotchTrackText(text: notice.title,
+                                   width: wings.leading - notice.inset(wing: wings.leading) - notice.cameraGap - 26,
+                                   alignment: .leading, monospacedDigits: true)
+                        .id(notice.clickTarget)
+                } else {
+                    Text(notice.level == nil ? notice.title : notice.detail)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(textTint)
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .contentTransition(.numericText())
+                }
             }
             // A level's mark keeps its place while a shorter reading leaves
             // room it holds for the widest.
@@ -130,6 +137,12 @@ struct NotchNoticeView: View {
             NotchMeter(value: level, height: 5, tint: tint)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
                 .transaction { $0.disablesAnimations = false }
+        } else if notice.event == .track {
+            NotchTrackText(text: notice.detail,
+                           width: wings.trailing - notice.inset(wing: wings.trailing) - notice.cameraGap,
+                           alignment: .trailing)
+                .foregroundStyle(textTint.opacity(0.8))
+                .id(notice.clickTarget)
         } else {
             Text(notice.detail)
                 .font(.system(size: 11, weight: .medium))
@@ -138,6 +151,52 @@ struct NotchNoticeView: View {
                 .truncationMode(notice.event == .accessory ? .middle : .tail)
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
+    }
+}
+
+/// A new track scrolls once inside its allotted space without extending the notice's lifetime.
+private struct NotchTrackText: View {
+    let text: String
+    let width: CGFloat
+    let alignment: Alignment
+    var monospacedDigits = false
+    @State private var began = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var font: NSFont {
+        monospacedDigits ? .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+            : .systemFont(ofSize: 11, weight: .medium)
+    }
+
+    private func measured(_ value: String) -> CGFloat {
+        (value as NSString).size(withAttributes: [.font: font]).width.rounded(.up)
+    }
+
+    var body: some View {
+        let available = max(0, width)
+        let travel = max(0, measured(text) - available)
+        Group {
+            if travel > 0, !reduceMotion {
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+                    let moved = min(travel, max(0, context.date.timeIntervalSince(began)) * 24)
+                    let hasMore = moved < travel
+                    HStack(spacing: 0) {
+                        Text(text).lineLimit(1).fixedSize()
+                            .offset(x: -moved)
+                            .frame(width: max(0, available - (hasMore ? measured("…") : 0)), alignment: .leading)
+                            .clipped()
+                        if hasMore { Text("…").fixedSize() }
+                    }
+                }
+            } else {
+                Text(text).lineLimit(1).truncationMode(.tail)
+            }
+        }
+        .font(Font(font as CTFont))
+        .frame(width: available, alignment: alignment)
+        .clipped()
+        .onAppear { began = Date() }
+        .onChange(of: text) { _, _ in began = Date() }
     }
 }
 

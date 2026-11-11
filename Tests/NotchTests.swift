@@ -1090,6 +1090,35 @@ enum NotchTests {
         let size = narrow.noticeSize(wingWidth: long.preferredWingWidth)
         suite.expect(size.width <= narrow.screen.width - 24 && size.height == narrow.menuBarHeight,
                "long device names cannot push a notice past a narrow display")
+        let shortTrack = NotchNotice(event: .track, title: "Song", detail: "Artist", symbol: "music.note")
+        let titleHeavy = NotchNotice(event: .track, title: String(repeating: "Long title ", count: 20),
+                                    detail: "Artist", symbol: "music.note")
+        let artistHeavy = NotchNotice(event: .track, title: "Song",
+                                     detail: String(repeating: "Long artist ", count: 20), symbol: "music.note")
+        suite.expect(shortTrack.preferredWings.leading == shortTrack.preferredWings.trailing
+                     && shortTrack.preferredWingWidth < 160,
+                     "short tracks grow both sides together without taking the maximum width")
+        for track in [NotchNotice(event: .track, title: "Song for tonight", detail: "Artist", symbol: "music.note"),
+                      NotchNotice(event: .track, title: "Song", detail: "A longer artist name", symbol: "music.note")] {
+            let wings = track.preferredWings
+            suite.expect(wings.leading == wings.trailing && wings.widest > shortTrack.preferredWingWidth
+                         && wings.widest < 160,
+                         "either field grows both wings together before reaching the cap")
+        }
+        for track in [titleHeavy, artistHeavy] {
+            suite.expect(track.preferredWings == NotchNoticeWings(leading: 160, trailing: 160),
+                         "a long title or artist caps both New Track wings equally at 160 points")
+            for geometry in [narrow, NotchGeometry(screen: CGRect(x: 0, y: 0, width: 420, height: 480),
+                                                   safeAreaTop: 32, cameraWidth: 210),
+                             NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180),
+                             NotchGeometry(screen: screen, safeAreaTop: 0, cameraWidth: 0)] {
+                let wings = track.wings(in: geometry)
+                suite.expect(wings.leading == wings.trailing && geometry.noticeShift(wings) == 0
+                             && geometry.noticeSize(wings: wings).width <= geometry.screen.width - 24,
+                             "New Track stays centered and within physical and simulated display bounds")
+            }
+        }
+        suite.expect(NotchEvent.track.duration == 3, "New Track keeps its three-second preview")
         notificationBannerContracts(suite, screen: screen)
     }
 
