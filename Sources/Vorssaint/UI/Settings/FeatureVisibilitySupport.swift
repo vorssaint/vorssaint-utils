@@ -88,12 +88,13 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
 }
 
 enum NotchSettingsLocation: Hashable {
-    case layout, activity, behavior
+    case layout, navigation, activity, behavior
     case module(NotchModule)
 
     var tab: NotchSettingsTab {
         switch self {
         case .layout: return .layout
+        case .navigation: return .navigation
         case .activity: return .activity
         case .behavior: return .behavior
         case .module: return .content
@@ -103,6 +104,7 @@ enum NotchSettingsLocation: Hashable {
     var id: String {
         switch self {
         case .layout: return "layout"
+        case .navigation: return "navigation"
         case .activity: return "activity"
         case .behavior: return "behavior"
         case .module(let module): return "content." + module.rawValue
@@ -113,6 +115,7 @@ enum NotchSettingsLocation: Hashable {
         let editor = FeatureStrings.notchEditor(language)
         switch self {
         case .layout: return editor.layout
+        case .navigation: return NotchNavigationStrings.localized(language).tab
         case .activity: return editor.activity
         case .behavior: return editor.behavior
         case .module(let module): return module.title(language)
