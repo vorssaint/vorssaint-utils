@@ -186,20 +186,7 @@ final class MicMuteService: ObservableObject {
     /// come back.
     private func reapplyIfNeeded() {
         if wantsMute {
-            // The question is asked on the audio queue, behind any sweep in
-            // flight, so it sees what that sweep left and not its middle.
-            let generation = applyGeneration
-            halQueue.async { [weak self] in
-                guard let self else { return }
-                let opened = self.callAppOpenedTheMicrophone()
-                DispatchQueue.main.async {
-                    // A newer request has already decided what happens next.
-                    guard self.wantsMute, generation == self.applyGeneration else { return }
-                    // A call app that opened the microphone is followed: the
-                    // mute is released and said so. Anything else is put back.
-                    self.apply(muted: !opened, announce: opened)
-                }
-            }
+            apply(muted: true, announce: false, followingCallApps: true)
         } else if hasOutstandingClaims {
             apply(muted: false, announce: false)
         }
@@ -240,7 +227,7 @@ final class MicMuteService: ObservableObject {
 
     /// Hands the sweep to the audio queue and keeps the published state, the
     /// wanted state and the HUD on the main thread, where they belong.
-    private func apply(muted: Bool, announce: Bool) {
+    private func apply(muted: Bool, announce: Bool, followingCallApps: Bool = false) {
         wantsMute = muted
         inputVolumeLock.withLock {
             inputVolumeBlocked = muted
@@ -249,6 +236,17 @@ final class MicMuteService: ObservableObject {
         applyGeneration += 1
         let generation = applyGeneration
         halQueue.async { [weak self] in
+            // A re-assert asks first, in the same turn that would undo the
+            // change: a sweep queued behind another must not close the
+            // microphone a call app has just opened before anyone looks.
+            if muted, followingCallApps, let self, self.callAppOpenedTheMicrophone() {
+                DispatchQueue.main.async {
+                    guard self.wantsMute, generation == self.applyGeneration else { return }
+                    // The mute is released and said so; the level comes back.
+                    self.apply(muted: false, announce: true)
+                }
+                return
+            }
             let outcome = Self.sweep(muted: muted)
             self?.recordSweepBaseline(muted: muted && outcome.applied)
             if muted {

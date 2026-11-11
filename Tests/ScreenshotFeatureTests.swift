@@ -4229,10 +4229,11 @@ enum ScreenshotFeatureTests {
             .map(String.init) ?? ""
         suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
                 && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted"),
+                    "private func apply(muted: Bool, announce: Bool, followingCallApps: Bool = false) {\n        wantsMute = muted"),
                "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
         suite.expect(micMuteServiceSource.contains("callAppOpenedTheMicrophone()")
-                && micMuteServiceSource.contains("self.apply(muted: !opened, announce: opened)")
+                && micMuteServiceSource.contains("apply(muted: true, announce: false, followingCallApps: true)")
+                && micMuteServiceSource.contains("self.apply(muted: false, announce: true)")
                 && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted && outcome.applied)"),
                "a device change asks whether a call app opened the microphone, and each mute sweep records what it left quiet")
 
