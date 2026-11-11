@@ -248,6 +248,11 @@ final class FeatureRuntime: ObservableObject {
             WindowUseTracker.shared.syncWithFeatures()
             WindowLayoutService.shared.syncWithPreferences()
             PointerDisplayService.shared.syncWithPreferences()
+            // The hide-all and minimize-all keys live on DockClickService but
+            // follow Window Layout's availability: re-registering here picks up
+            // hub toggles and the re-sync after shortcut recording releases
+            // every key.
+            DockClickService.shared.syncWithPreferences()
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
         .spacesOrder: { SpacesOrderHold.shared.syncWithPreferences() },

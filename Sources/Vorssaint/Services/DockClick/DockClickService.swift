@@ -4,12 +4,15 @@
 import AppKit
 import ApplicationServices
 import Carbon.HIToolbox
+import Combine
 import CoreGraphics
 
 /// Adds optional actions when the active app's Dock icon is clicked: minimize
-/// its windows, hide the app, or cycle its windows. The Dock's native behavior
-/// remains untouched for every other click. Requires Accessibility.
-final class DockClickService {
+/// its windows, hide the app, or cycle its windows. Also hides every window
+/// from one hotkey, which reuses the click's hide bookkeeping. The Dock's
+/// native behavior remains untouched for every other click. Requires
+/// Accessibility for the click tap; the hide-all hotkey needs none.
+final class DockClickService: ObservableObject {
     static let shared = DockClickService()
 
     private struct ActionRecord {
@@ -59,12 +62,61 @@ final class DockClickService {
     /// (same magic the snippets tap uses for its synthetic events).
     private static let syntheticEventMarker: Int64 = 0x564F5253
     private var pendingSweeps: [pid_t: DispatchWorkItem] = [:]
+    /// Hide-everything hotkey. Id 90 sits free between the window-layout
+    /// pointer key (80) and the capture tool range (25-28). Hiding needs no
+    /// Accessibility, so this key lives apart from the tap and stays
+    /// registered while the tap is stopped.
+    private let hideAllHotkey = QuickToolHotkey(id: 90)
+    @Published private(set) var hideAllShortcutRegistrationFailed = false
+    /// Minimize-everything hotkey. Id 91 sits beside the hide-all key (90),
+    /// free of the capture tool range (25-28) and the pointer key (80).
+    /// Unlike hiding, minimizing drives Accessibility reads and the
+    /// frontmost app's menu, so this key follows the same permission gate as
+    /// the tap itself.
+    private let minimizeAllHotkey = QuickToolHotkey(id: 91)
+    @Published private(set) var minimizeAllShortcutRegistrationFailed = false
+    /// Unminimize-everything hotkey. Id 92 sits beside the minimize-all key
+    /// (91), free of the capture tool range (25-28) and the pointer key (80).
+    /// Like minimizing, unminimizing drives Accessibility reads, so this key
+    /// follows the same permission gate as the tap itself.
+    private let unminimizeAllHotkey = QuickToolHotkey(id: 92)
+    @Published private(set) var unminimizeAllShortcutRegistrationFailed = false
 
     private init() {
+        hideAllHotkey.onPress = { [weak self] in _ = self?.hideAllWindows() }
+        // Both bulk keys own their off-main enumeration inside the service
+        // method, so a hung app in the sweep never stalls the main queue.
+        minimizeAllHotkey.onPress = { [weak self] in self?.minimizeAllWindows(excludingFrontmost: true) }
+        unminimizeAllHotkey.onPress = { [weak self] in self?.unminimizeAllWindows() }
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
     }
 
     func syncWithPreferences() {
+        let hideAllEnabled = AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.hideAllWindowsShortcutEnabled)
+        // Hiding asks AppKit, not Accessibility: no permission gate here, so
+        // the hotkey stays live even while the click tap is stopped.
+        hideAllShortcutRegistrationFailed = !hideAllHotkey.sync(
+            enabled: hideAllEnabled,
+            shortcut: GlobalShortcutRole.hideAllWindows.savedShortcut,
+            storageKey: DefaultsKey.hideAllWindowsShortcut)
+        // Minimizing drives Accessibility reads and the frontmost app's menu,
+        // so this key follows the same permission gate as the tap: without a
+        // grant the enumeration behind it cannot run.
+        let minimizeAllEnabled = AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.minimizeAllWindowsShortcutEnabled)
+            && AXIsProcessTrusted()
+        minimizeAllShortcutRegistrationFailed = !minimizeAllHotkey.sync(
+            enabled: minimizeAllEnabled,
+            shortcut: GlobalShortcutRole.minimizeAllWindows.savedShortcut,
+            storageKey: DefaultsKey.minimizeAllWindowsShortcut)
+        let unminimizeAllEnabled = AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.unminimizeAllWindowsShortcutEnabled)
+            && AXIsProcessTrusted()
+        unminimizeAllShortcutRegistrationFailed = !unminimizeAllHotkey.sync(
+            enabled: unminimizeAllEnabled,
+            shortcut: GlobalShortcutRole.unminimizeAllWindows.savedShortcut,
+            storageKey: DefaultsKey.unminimizeAllWindowsShortcut)
         let minimizeEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickMinimize)
         let hideEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickHide)
         let cycleEnabled = UserDefaults.standard.bool(forKey: DefaultsKey.dockClickCycleWindows)
@@ -81,8 +133,15 @@ final class DockClickService {
 
     /// Force-stops the tap regardless of the preference. Used before the app
     /// resets its own permissions, so a revoked Accessibility grant can never
-    /// leave a live tap behind.
-    func suspend() { stop() }
+    /// leave a live tap behind. The hide-all key is permission-free, but it
+    /// still unregisters here: recording a shortcut releases every quick tool
+    /// key, and uninstalling must leave no global key held.
+    func suspend() {
+        stop()
+        hideAllHotkey.unregister()
+        minimizeAllHotkey.unregister()
+        unminimizeAllHotkey.unregister()
+    }
 
     private func start() {
         guard tap == nil else { return }
@@ -333,34 +392,7 @@ final class DockClickService {
                 Self.cycleWindows(pid: pid, windows: unminimized)
             }
         case .minimize:
-            lastAction[pid] = ActionRecord(kind: .minimize, time: now, targets: pending.unminimized)
-            // Captured while the windows are still up: this is the last
-            // moment their stacking exists anywhere.
-            minimizeZOrder[pid] = Self.onScreenWindowIDs(pid: pid)
-            // Entries normally leave when their restore consumes them; this
-            // clears the ones left by apps minimized from the Dock and then
-            // restored some other way. The bound is high enough that the
-            // lookups effectively never run on the tap.
-            if minimizeZOrder.count > 32 {
-                minimizeZOrder = minimizeZOrder.filter {
-                    NSRunningApplication(processIdentifier: $0.key) != nil
-                }
-            }
-            // The menu's Minimize All batches every window into one
-            // simultaneous animation, so it must act alone: an eager
-            // per-window set claims the app's main thread first and the menu
-            // action only lands after that window's genie finishes, which
-            // visibly minimized multi-window apps one window at a time. Apps
-            // whose menu action lies (reports success, windows untouched —
-            // the reason the sets used to fire eagerly) get the per-window
-            // pass a beat later; the settling sweep stays the last resort.
-            let targets = pending.unminimized
-            DispatchQueue.main.async { [weak self] in
-                DockPreviewService.shared.dockClickWasHandled()
-                self?.postMinimizeAll(pid: pid, fallbackWindows: targets, actionTime: now)
-            }
-            scheduleSweep(pid: pid, targets: targets, minimized: true,
-                          delay: DockClickSupport.minimizeSweepDelay)
+            performMinimize(pid: pid, targets: pending.unminimized, actionTime: now)
         case .restore:
             // A toggle right after a minimize also re-opens the captured
             // windows whose AX state hasn't flipped yet, so those go in the
@@ -383,7 +415,9 @@ final class DockClickService {
                 DockPreviewService.shared.dockClickWasHandled()
             }
         case .hide:
-            lastAction[pid] = ActionRecord(kind: .hide, time: now, targets: [])
+            recordHide(pid: pid, actionTime: now)
+            // Deferred like every other commit: this runs inside the event
+            // tap, which has to return before the Dock's own click resolves.
             DispatchQueue.main.async {
                 DockPreviewService.shared.dockClickWasHandled()
                 _ = pending.app.hide()
@@ -391,6 +425,167 @@ final class DockClickService {
         case .passThrough:
             break
         }
+    }
+
+    /// The click's minimize and the hotkey's minimize-all share this: the
+    /// record a follow-up Dock click reads to decide its toggle direction,
+    /// the stacking capture that is unrecoverable once the windows are down,
+    /// and the same menu press plus settling sweep. Written here once so the
+    /// two callers can never drift apart on the bookkeeping that ownsMinimize
+    /// and the restore walk depend on.
+    private func performMinimize(pid: pid_t, targets: [AXUIElement], actionTime: CFAbsoluteTime) {
+        lastAction[pid] = ActionRecord(kind: .minimize, time: actionTime, targets: targets)
+        // Captured while the windows are still up: this is the last
+        // moment their stacking exists anywhere.
+        minimizeZOrder[pid] = Self.onScreenWindowIDs(pid: pid)
+        // Entries normally leave when their restore consumes them; this
+        // clears the ones left by apps minimized from the Dock and then
+        // restored some other way. The bound is high enough that the
+        // lookups effectively never run on the tap.
+        if minimizeZOrder.count > 32 {
+            minimizeZOrder = minimizeZOrder.filter {
+                NSRunningApplication(processIdentifier: $0.key) != nil
+            }
+        }
+        // The menu's Minimize All batches every window into one
+        // simultaneous animation, so it must act alone: an eager
+        // per-window set claims the app's main thread first and the menu
+        // action only lands after that window's genie finishes, which
+        // visibly minimized multi-window apps one window at a time. Apps
+        // whose menu action lies (reports success, windows untouched —
+        // the reason the sets used to fire eagerly) get the per-window
+        // pass a beat later; the settling sweep stays the last resort.
+        DispatchQueue.main.async { [weak self] in
+            DockPreviewService.shared.dockClickWasHandled()
+            self?.postMinimizeAll(pid: pid, fallbackWindows: targets, actionTime: actionTime)
+        }
+        scheduleSweep(pid: pid, targets: targets, minimized: true,
+                      delay: DockClickSupport.minimizeSweepDelay)
+    }
+
+    /// Minimizes every app with a normal on-screen window, except the
+    /// frontmost one, so a user can collapse everything else and keep working
+    /// in what they are typing in. The enumeration runs off-main:
+    /// `standardWindows` performs cross-process Accessibility reads with a
+    /// 0.35 s timeout per app, and a sweep across every running app would
+    /// stall the main queue for seconds against one hung app. The bookkeeping
+    /// `performMinimize` writes hops back to main, where `lastAction` lives.
+    func minimizeAllWindows(excludingFrontmost: Bool) {
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var candidates: [(pid: pid_t, isFrontmost: Bool, hasVisibleWindow: Bool)] = []
+            for app in NSWorkspace.shared.runningApplications {
+                guard !app.isTerminated,
+                      app.activationPolicy == .regular,
+                      !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+                else { continue }
+                let pid = app.processIdentifier
+                // Launcher-style apps misreport isActive; the workspace's idea
+                // of the frontmost app is the tiebreaker, same as the tap's.
+                let isFrontmost = app.isActive || frontmostPID == pid
+                candidates.append((pid: pid, isFrontmost: isFrontmost,
+                                   hasVisibleWindow: Self.windowServerHasStandardWindows(pid: pid)))
+            }
+            var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
+            for pid in DockClickSupport.minimizeTargets(excludingFrontmost: excludingFrontmost, from: candidates) {
+                let unminimized = Self.standardWindows(pid: pid).unminimized
+                guard !unminimized.isEmpty else { continue }
+                perApp.append((pid: pid, windows: unminimized))
+            }
+            let now = CFAbsoluteTimeGetCurrent()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for entry in perApp {
+                    self.performMinimize(pid: entry.pid, targets: entry.windows, actionTime: now)
+                }
+            }
+        }
+    }
+
+    /// Unminimizes every app with minimized windows. Like `minimizeAllWindows`
+    /// the enumeration runs off-main and the `restoreBackToFront` bookkeeping
+    /// hops back to main, where `minimizeZOrder` lives.
+    func unminimizeAllWindows() {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            var perApp: [(pid: pid_t, windows: [AXUIElement])] = []
+            for app in NSWorkspace.shared.runningApplications {
+                guard !app.isTerminated,
+                      app.activationPolicy == .regular,
+                      !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+                else { continue }
+                let pid = app.processIdentifier
+                let minimized = Self.standardWindows(pid: pid).minimized
+                guard !minimized.isEmpty else { continue }
+                perApp.append((pid: pid, windows: minimized))
+            }
+            let now = CFAbsoluteTimeGetCurrent()
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                for entry in perApp {
+                    let frontToBack = self.minimizeZOrder[entry.pid] ?? []
+                    self.restoreBackToFront(entry.windows, pid: entry.pid,
+                                            frontToBack: frontToBack, actionTime: now)
+                }
+            }
+        }
+    }
+
+    /// The one thing the click's hide and the hotkey's hide must share: the
+    /// record a follow-up Dock click reads to decide its action, and the
+    /// preview panel's notice that its pre-click idea of minimized state went
+    /// stale. Written synchronously in both paths — a second click can arrive
+    /// inside the toggle window, and a record that only landed one main-queue
+    /// turn later would be missing exactly when it is most needed.
+    private func recordHide(pid: pid_t, actionTime: CFAbsoluteTime) {
+        lastAction[pid] = ActionRecord(kind: .hide, time: actionTime, targets: [])
+    }
+
+    /// Hides every app with a normal on-screen window, frontmost first, and
+    /// returns how many hides succeeded. Main thread only: `lastAction` is
+    /// main-thread-only and the hotkey press arrives on the main queue, so no
+    /// hop is needed. Hiding asks AppKit, not Accessibility — no permission
+    /// gate, no AX walk, just the AX-free window-server check the tap uses to
+    /// see through busy accessibility servers.
+    @discardableResult
+    func hideAllWindows() -> Int {
+        let frontmostPID = NSWorkspace.shared.frontmostApplication?.processIdentifier
+        let running = NSWorkspace.shared.runningApplications
+        var candidates: [(pid: pid_t, isActive: Bool, hasVisibleWindow: Bool, app: NSRunningApplication)] = []
+        candidates.reserveCapacity(running.count)
+        for app in running {
+            let pid = app.processIdentifier
+            guard !app.isTerminated,
+                  app.activationPolicy == .regular,
+                  !DockClickSupport.isOwnBundleIdentifier(app.bundleIdentifier)
+            else { continue }
+            // Launcher-style apps misreport isActive; the workspace's idea of
+            // the frontmost app is the tiebreaker, same as the tap's.
+            let isActive = app.isActive || frontmostPID == pid
+            guard Self.windowServerHasStandardWindows(pid: pid) else { continue }
+            candidates.append((pid: pid, isActive: isActive, hasVisibleWindow: true, app: app))
+        }
+        let order = DockClickSupport.pidsToHide(from: candidates.map {
+            (pid: $0.pid, isActive: $0.isActive, hasVisibleWindow: $0.hasVisibleWindow)
+        })
+        var byPID: [pid_t: NSRunningApplication] = [:]
+        byPID.reserveCapacity(candidates.count)
+        for candidate in candidates { byPID[candidate.pid] = candidate.app }
+        let now = CFAbsoluteTimeGetCurrent()
+        var hidden = 0
+        for pid in order {
+            guard let app = byPID[pid] else { continue }
+            recordHide(pid: pid, actionTime: now)
+            // Unlike the click, this is not deferred: a hotkey press is
+            // already on the main queue and waits on nothing, so the hide can
+            // report whether it actually took. An app that refuses — quitting,
+            // mid-launch, or AX-less in a way that matters — is left out of the
+            // count instead of inflating it.
+            DockPreviewService.shared.dockClickWasHandled()
+            if app.hide() { hidden += 1 }
+        }
+        return hidden
     }
 
     // MARK: - Settling sweep
@@ -460,7 +655,7 @@ final class DockClickService {
         case unavailable
     }
 
-    private func postMinimizeAll(pid: pid_t, fallbackWindows: [AXUIElement], actionTime: CFAbsoluteTime) {
+    func postMinimizeAll(pid: pid_t, fallbackWindows: [AXUIElement], actionTime: CFAbsoluteTime) {
         DispatchQueue.global(qos: .userInteractive).async { [weak self] in
             // Pressing the app's own Minimize All menu item beats synthesizing
             // ⌥⌘M: it targets the right app even if focus shifts, skips every
