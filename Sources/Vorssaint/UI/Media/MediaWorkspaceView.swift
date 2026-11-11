@@ -1409,15 +1409,16 @@ struct MediaWorkspaceView: View {
         }
         group.notify(queue: .main) {
             let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
-            let accepted = urls.filter { url in
-                let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-                return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
-            }
-            if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+            guard let inputs = MediaSupport.pasteAcceptedInputs(
+                urls,
+                inputTypes: inputTypes,
+                allowsMultiple: selectedTool == .imageCompressor,
+                contentType: { try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType }
+            ) else {
                 media.rejectUnsupportedInput()
-            } else {
-                setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+                return
             }
+            setInputs(inputs)
         }
         return true
     }
@@ -1440,15 +1441,16 @@ struct MediaWorkspaceView: View {
     }
 
     private func acceptPastedURLs(_ urls: [URL]) {
-        let accepted = urls.filter { url in
-            let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-            return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
-        }
-        if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+        guard let inputs = MediaSupport.pasteAcceptedInputs(
+            urls,
+            inputTypes: inputTypes,
+            allowsMultiple: selectedTool == .imageCompressor,
+            contentType: { try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType }
+        ) else {
             media.rejectUnsupportedInput()
-        } else {
-            setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+            return
         }
+        setInputs(inputs)
     }
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {

@@ -914,6 +914,20 @@ enum MediaSupport {
         return inputTypes.contains { contentType.conforms(to: $0) }
     }
 
+    /// The URLs a paste into the workspace can accept, or nil when the paste
+    /// must be rejected. Multi-input tools keep every matching URL and drop
+    /// mismatches; single-input tools require the whole paste to match and
+    /// keep only the first URL.
+    static func pasteAcceptedInputs(_ urls: [URL],
+                                    inputTypes: [UTType],
+                                    allowsMultiple: Bool,
+                                    contentType: (URL) -> UTType?) -> [URL]? {
+        let accepted = urls.filter { inputMatchesTool(contentType: contentType($0), inputTypes: inputTypes) }
+        guard !accepted.isEmpty else { return nil }
+        guard allowsMultiple || accepted.count == urls.count else { return nil }
+        return allowsMultiple ? accepted : Array(accepted.prefix(1))
+    }
+
     /// Whether the result deserves the "came out larger" caption: growth is
     /// normal (PDF wraps the image, high quality can beat the source) but a
     /// "compressor" should say so instead of looking broken. Unknown sizes
