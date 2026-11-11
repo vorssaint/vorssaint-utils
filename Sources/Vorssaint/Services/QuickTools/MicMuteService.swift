@@ -45,6 +45,10 @@ final class MicMuteService: ObservableObject {
     /// state it is replacing: read from the flag, a mute still being applied
     /// looked like "unmuted, with claims to release" and was silently undone.
     private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+    /// What the last mute sweep left verifiably quiet, by device. A later
+    /// change is judged against this, so only `halQueue` touches it.
+    private var silencedAfterSweep: Set<String> = []
+    private var engagedSwitchesAfterSweep: Set<String> = []
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -182,9 +186,53 @@ final class MicMuteService: ObservableObject {
     /// come back.
     private func reapplyIfNeeded() {
         if wantsMute {
-            apply(muted: true, announce: false)
+            // The question is asked on the audio queue, behind any sweep in
+            // flight, so it sees what that sweep left and not its middle.
+            let generation = applyGeneration
+            halQueue.async { [weak self] in
+                guard let self else { return }
+                let opened = self.callAppOpenedTheMicrophone()
+                DispatchQueue.main.async {
+                    // A newer request has already decided what happens next.
+                    guard self.wantsMute, generation == self.applyGeneration else { return }
+                    // A call app that opened the microphone is followed: the
+                    // mute is released and said so. Anything else is put back.
+                    self.apply(muted: !opened, announce: opened)
+                }
+            }
         } else if hasOutstandingClaims {
             apply(muted: false, announce: false)
+        }
+    }
+
+    /// Runs on `halQueue`. True when a microphone this app muted was opened by
+    /// something else while another process is recording from it.
+    private func callAppOpenedTheMicrophone() -> Bool {
+        let owned = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? [])
+        guard !owned.isEmpty, !silencedAfterSweep.isEmpty else { return false }
+        let captured = Self.devicesCapturedByOtherProcesses()
+        guard !captured.isEmpty else { return false }
+        return Self.inputDevices().contains { device in
+            guard owned.contains(device.uid) else { return false }
+            return MicMuteSupport.isExternalUnmute(
+                wasSilenced: silencedAfterSweep.contains(device.uid),
+                silenced: Self.isSilenced(device.id),
+                switchWasEngaged: engagedSwitchesAfterSweep.contains(device.uid),
+                muteSwitch: Self.muteSwitchValue(of: device.id),
+                capturedByOtherProcess: captured.contains(device.id))
+        }
+    }
+
+    /// Runs on `halQueue`, right after a sweep. What the sweep verifiably left
+    /// quiet is the baseline a later change is measured against.
+    private func recordSweepBaseline(muted: Bool) {
+        silencedAfterSweep = []
+        engagedSwitchesAfterSweep = []
+        guard muted else { return }
+        let owned = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? [])
+        for device in Self.inputDevices() where owned.contains(device.uid) {
+            if Self.isSilenced(device.id) { silencedAfterSweep.insert(device.uid) }
+            if Self.muteSwitchValue(of: device.id) == 1 { engagedSwitchesAfterSweep.insert(device.uid) }
         }
     }
 
@@ -202,6 +250,7 @@ final class MicMuteService: ObservableObject {
         let generation = applyGeneration
         halQueue.async { [weak self] in
             let outcome = Self.sweep(muted: muted)
+            self?.recordSweepBaseline(muted: muted && outcome.applied)
             if muted {
                 if outcome.applied { self?.syncDeviceListeners(muted: true) }
             } else if outcome.applied {
@@ -564,6 +613,36 @@ final class MicMuteService: ObservableObject {
             devices.append(InputDevice(id: deviceID, uid: uid))
         }
         return devices
+    }
+
+    /// Input devices some process other than this app is recording from right
+    /// now. Needs the per-process audio objects; without them nothing is
+    /// reported and the mute is simply held as it always was.
+    private static func devicesCapturedByOtherProcesses() -> Set<AudioDeviceID> {
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        var devices = Set<AudioDeviceID>()
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        for process in objectIDs(of: system, selector: kAudioHardwarePropertyProcessObjectList,
+                                 scope: kAudioObjectPropertyScopeGlobal) {
+            var pid: pid_t = 0
+            var running: UInt32 = 0
+            guard read(process, kAudioProcessPropertyPID, &pid), pid != ownPID,
+                  read(process, kAudioProcessPropertyIsRunningInput, &running), running != 0 else { continue }
+            devices.formUnion(objectIDs(of: process, selector: kAudioProcessPropertyDevices,
+                                        scope: kAudioObjectPropertyScopeInput))
+        }
+        return devices
+    }
+
+    private static func objectIDs(of object: AudioObjectID, selector: AudioObjectPropertySelector,
+                                  scope: AudioObjectPropertyScope) -> [AudioObjectID] {
+        var address = AudioObjectPropertyAddress(mSelector: selector, mScope: scope,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var size: UInt32 = 0
+        guard AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size) == noErr, size > 0 else { return [] }
+        var ids = [AudioObjectID](repeating: 0, count: Int(size) / MemoryLayout<AudioObjectID>.size)
+        guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &ids) == noErr else { return [] }
+        return ids
     }
 
     private static func hasInputStreams(_ deviceID: AudioDeviceID) -> Bool {
