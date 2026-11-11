@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-10-09",
+  "updated": "2026-11-11",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://platform.claude.com/docs/en/models/overview",
@@ -20,6 +20,8 @@
     "webSearch": 0.01,
     "usOnlyMultiplier": 1.1,
     "models": [
+      { "id": "claude-fable-5-2", "input": 8, "output": 40, "cacheRead": 0.2, "cacheWrite": 10, "cacheWriteLong": 16, "fastMultiplier": 2 },
+      { "id": "claude-mythos-5-2", "input": 8, "output": 40, "cacheRead": 0.2, "cacheWrite": 10, "cacheWriteLong": 16, "fastMultiplier": 2 },
       { "id": "claude-fable-5-1", "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWriteLong": 20 },
       { "id": "claude-mythos-5-1", "input": 10, "output": 50, "cacheRead": 0.25, "cacheWrite": 12.5, "cacheWriteLong": 20 },
       { "id": "claude-fable-5", "input": 10, "output": 50, "cacheRead": 1, "cacheWrite": 12.5, "cacheWriteLong": 20 },
