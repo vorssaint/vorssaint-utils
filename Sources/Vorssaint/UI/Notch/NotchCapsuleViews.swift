@@ -177,6 +177,7 @@ struct NotchCapsuleRestingView: View {
     @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
     @AppStorage(DefaultsKey.notchLowBatteryEarly) private var earlyBatteryWarning = false
     @AppStorage(DefaultsKey.notchLowBatteryEarlyThreshold) private var earlyBatteryThreshold = NotchSupport.defaultEarlyBatteryThreshold
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let size: CGSize
     /// Another display's capsule, when the island shows on every display.
@@ -233,7 +234,8 @@ struct NotchCapsuleRestingView: View {
                                         radius: CapsuleLayout.artworkSide(geometry) / 2)
                     }
                     if music.playback?.isPlaying == true {
-                        NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10, tint: music.artworkTint?.color ?? .white)
+                        NotchLiveEqualizerBars(bars: 3, barWidth: 2, height: 10,
+                                               tint: accentEnabled ? (music.artworkTint?.color ?? .white) : .white)
                     }
                 case .none:
                     EmptyView()
@@ -259,6 +261,7 @@ struct NotchCapsuleMusicStrip: View {
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchArtworkAccentEnabled) private var accentEnabled = true
 
     private var geometry: NotchGeometry { snapshot?.geometry ?? displayGeometry ?? service.geometry }
     /// A new song stays off the strip until its notice has shown it, and a
@@ -269,6 +272,7 @@ struct NotchCapsuleMusicStrip: View {
     private var playback: NotchPlayback? { shown?.playback ?? music.playback }
     private var artwork: NSImage? { shown == nil ? music.artwork : shown?.artwork }
     private var tint: NotchArtworkTint? { shown == nil ? music.artworkTint : shown?.tint }
+    private var accent: Color { accentEnabled ? (tint?.color ?? .white) : .white }
     private var title: String { playback?.track.title ?? FeatureStrings.radialMenu(l10n.language).mediaNowPlaying }
     private var live: Bool { interactive && snapshot == nil }
     private var showsControl: Bool { live && service.musicStripShowsControl }
@@ -300,10 +304,10 @@ struct NotchCapsuleMusicStrip: View {
                                            bars: NotchLayout.compactMusicBarCount,
                                            barWidth: NotchLayout.compactMusicBarWidth,
                                            height: CapsuleLayout.barsHeight(geometry),
-                                           tint: tint?.color ?? .white)
+                                           tint: accent)
                         .opacity(showsControl ? 0 : 1)
                     if showsControl {
-                        NotchMusicStripButton(playing: playing, tint: tint?.color ?? .white,
+                        NotchMusicStripButton(playing: playing, tint: accent,
                                               height: CapsuleLayout.barsHeight(geometry))
                             .transition(.opacity)
                     }
