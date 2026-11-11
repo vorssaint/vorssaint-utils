@@ -10,7 +10,7 @@ struct SettingsSearchState: Equatable {
     }
 
     let hardware: Hardware
-    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows: Bool
+    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows, pinBorder: Bool
     private let switches: Set<String>
 
     init(defaults: UserDefaults, hardware: Hardware) {
@@ -23,6 +23,7 @@ struct SettingsSearchState: Equatable {
             ?? .minimal) == .minimal
         groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
             ?? WindowSwitchMinimizedPlacement.normal.rawValue) != WindowSwitchMinimizedPlacement.normal.rawValue
+        pinBorder = defaults.string(forKey: DefaultsKey.alwaysOnTopBorder) != AlwaysOnTopBorder.none.rawValue
         switches = Set([
             DefaultsKey.clamshellPreferred, DefaultsKey.keepAwakeMouseJiggleEnabled, DefaultsKey.brightnessControlEnabled,
             DefaultsKey.displayVolumeEnabled, DefaultsKey.displayVolumeKeysEnabled,
@@ -482,7 +483,9 @@ enum SettingsDirectory {
                                                  FeatureStrings.autoQuitDockApps(language).caption]),
                 SettingsDirectoryItem(page: .alwaysOnTop, title: alwaysOnTop.title,
                                       icon: AppFeature.alwaysOnTop.symbolName,
-                                      keywords: [alwaysOnTop.enable, alwaysOnTop.reveal, alwaysOnTop.excludedTitle]),
+                                      keywords: [alwaysOnTop.enable, alwaysOnTop.reveal, alwaysOnTop.border,
+                                                 alwaysOnTop.excludedTitle],
+                                      terms: [.init([alwaysOnTop.borderColor], when: state.pinBorder)]),
                 SettingsDirectoryItem(page: .quitProtection,
                                       title: quitProtection.name,
                                       icon: "shield.lefthalf.filled",

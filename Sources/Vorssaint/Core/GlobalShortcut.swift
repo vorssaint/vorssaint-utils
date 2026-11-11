@@ -226,8 +226,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // P opens a copied image in the editor, beside the other screenshot tools.
     static let screenshotClipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_P),
                                                            modifiers: [.control, .option, .command])
-    // O for on top, on the same free control-option-command layer.
-    static let alwaysOnTopDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+    // A for always on top, on the same free control-option-command layer.
+    static let alwaysOnTopDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
                                                    modifiers: [.control, .option, .command])
     // Space for the wheel, on the same free control-option-command layer.
     static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
