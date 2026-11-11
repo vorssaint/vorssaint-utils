@@ -359,7 +359,10 @@ struct NotchAgentBars: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         if total <= 0 {
-                            Capsule().fill(.white.opacity(0.1)).frame(height: 2)
+                            // Work without a known price still shows as a
+                            // day of work: a brighter stub than an idle day's.
+                            let unknown = byCost && bucket.total.unpriced > 0
+                            Capsule().fill(.white.opacity(unknown ? 0.4 : 0.1)).frame(height: unknown ? 4 : 2)
                         } else {
                             RoundedRectangle(cornerRadius: min(3, width / 2), style: .continuous)
                                 .fill(AgentProvider.claude.tint.opacity(hovered == nil || hovered == bucket.start ? 0.95 : 0.5))

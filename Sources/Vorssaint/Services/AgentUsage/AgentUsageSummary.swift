@@ -81,6 +81,9 @@ struct AgentBucket: Equatable, Identifiable {
 struct AgentDayValue: Equatable, Identifiable {
     let start: Date
     let cost: Double
+    /// Responses that day from a model without a known price, left out of
+    /// `cost`: the day was still active, and its value is a minimum.
+    var unpriced = 0
     var id: Date { start }
 }
 
