@@ -31,6 +31,8 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
+    @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked)
+    private var keepAwakeAllowDisplaySleepOnlyWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakePauseWhenLocked) private var keepAwakePauseWhenLocked = false
     @AppStorage(DefaultsKey.keepAwakeAutomationRequireAll) private var keepAwakeAutomationRequireAll = false
     @AppStorage(DefaultsKey.showCountdown) private var showCountdown = false
@@ -233,6 +235,14 @@ struct EnergySettings: View {
             SettingsRow(symbol: "display", title: displaySleepStrings.allowDisplaySleep,
                         caption: displaySleepStrings.allowDisplaySleepCaption) {
                 Toggle(displaySleepStrings.allowDisplaySleep, isOn: $keepAwakeAllowDisplaySleep).labelsHidden()
+            }
+            if keepAwakeAllowDisplaySleep {
+                SettingsRow(symbol: "lock.display", title: displaySleepStrings.onlyWhileLocked,
+                            caption: displaySleepStrings.onlyWhileLockedCaption) {
+                    Toggle(displaySleepStrings.onlyWhileLocked,
+                           isOn: $keepAwakeAllowDisplaySleepOnlyWhenLocked).labelsHidden()
+                }
+                .padding(.leading, settingsRowTextInset)
             }
             SettingsRow(symbol: "cursorarrow.motionlines", title: l10n.s.keepAwakeMouseJiggle,
                         caption: l10n.s.keepAwakeMouseJiggleCaption) {

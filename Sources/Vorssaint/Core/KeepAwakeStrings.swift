@@ -42,6 +42,8 @@ struct KeepAwakeAutomationStrings {
 struct KeepAwakeDisplaySleepStrings {
     let allowDisplaySleep: String
     let allowDisplaySleepCaption: String
+    let onlyWhileLocked: String
+    let onlyWhileLockedCaption: String
 }
 
 extension FeatureStrings {
@@ -89,76 +91,106 @@ extension FeatureStrings {
 extension KeepAwakeDisplaySleepStrings {
     static let enUS = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Allow the display to sleep",
-        allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer."
+        allowDisplaySleepCaption: "Keeps the Mac awake while the display follows its normal sleep timer.",
+        onlyWhileLocked: "Only while the Mac is locked",
+        onlyWhileLockedCaption: "Keeps the display on while you work and lets it sleep normally once the Mac is locked."
     )
 
     static let ptBR = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Permitir que a tela apague",
-        allowDisplaySleepCaption: "Mantém o Mac acordado enquanto a tela segue o tempo de repouso normal."
+        allowDisplaySleepCaption: "Mantém o Mac acordado enquanto a tela segue o tempo de repouso normal.",
+        onlyWhileLocked: "Somente enquanto o Mac estiver bloqueado",
+        onlyWhileLockedCaption: "Mantém a tela ligada enquanto você usa o Mac e deixa que ela apague normalmente após o bloqueio."
     )
 
     static let tr = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Ekranın uyumasına izin ver",
-        allowDisplaySleepCaption: "Mac uyanık kalırken ekran normal uyku süresini izler."
+        allowDisplaySleepCaption: "Mac uyanık kalırken ekran normal uyku süresini izler.",
+        onlyWhileLocked: "Yalnızca Mac kilitliyken",
+        onlyWhileLockedCaption: "Mac’i kullanırken ekranı açık tutar, Mac kilitlendiğinde ekranın normal şekilde uyumasına izin verir."
     )
 
     static let ru = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Разрешить дисплею выключаться",
-        allowDisplaySleepCaption: "Mac остаётся активным, а дисплей выключается по обычному таймеру."
+        allowDisplaySleepCaption: "Mac остаётся активным, а дисплей выключается по обычному таймеру.",
+        onlyWhileLocked: "Только пока Mac заблокирован",
+        onlyWhileLockedCaption: "Дисплей остаётся включённым во время работы и выключается как обычно, когда Mac заблокирован."
     )
 
     static let es = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Permitir que la pantalla se apague",
-        allowDisplaySleepCaption: "Mantiene el Mac activo mientras la pantalla sigue su temporizador de reposo habitual."
+        allowDisplaySleepCaption: "Mantiene el Mac activo mientras la pantalla sigue su temporizador de reposo habitual.",
+        onlyWhileLocked: "Solo mientras el Mac esté bloqueado",
+        onlyWhileLockedCaption: "Mantiene la pantalla encendida mientras usas el Mac y deja que se apague con normalidad al bloquearlo."
     )
 
     static let sk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Povoliť uspatie displeja",
-        allowDisplaySleepCaption: "Udržiava Mac v bdelom stave, zatiaľ čo displej sa riadi bežným časovačom uspávania."
+        allowDisplaySleepCaption: "Udržiava Mac v bdelom stave, zatiaľ čo displej sa riadi bežným časovačom uspávania.",
+        onlyWhileLocked: "Iba keď je Mac uzamknutý",
+        onlyWhileLockedCaption: "Počas používania Macu nechá displej zapnutý a po uzamknutí ho nechá uspať ako zvyčajne."
     )
 
     static let de = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Display-Ruhezustand erlauben",
-        allowDisplaySleepCaption: "Hält den Mac wach, während sich das Display nach der üblichen Zeit ausschaltet."
+        allowDisplaySleepCaption: "Hält den Mac wach, während sich das Display nach der üblichen Zeit ausschaltet.",
+        onlyWhileLocked: "Nur, solange der Mac gesperrt ist",
+        onlyWhileLockedCaption: "Das Display bleibt während der Arbeit an und schaltet sich nach dem Sperren wie gewohnt aus."
     )
 
     static let fr = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Autoriser l’écran à s’éteindre",
-        allowDisplaySleepCaption: "Garde le Mac éveillé pendant que l’écran suit son délai d’extinction habituel."
+        allowDisplaySleepCaption: "Garde le Mac éveillé pendant que l’écran suit son délai d’extinction habituel.",
+        onlyWhileLocked: "Uniquement lorsque le Mac est verrouillé",
+        onlyWhileLockedCaption: "Garde l’écran allumé pendant l’utilisation et le laisse s’éteindre normalement une fois le Mac verrouillé."
     )
 
     static let it = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Consenti lo spegnimento dello schermo",
-        allowDisplaySleepCaption: "Mantiene attivo il Mac mentre lo schermo segue il normale timer di stop."
+        allowDisplaySleepCaption: "Mantiene attivo il Mac mentre lo schermo segue il normale timer di stop.",
+        onlyWhileLocked: "Solo quando il Mac è bloccato",
+        onlyWhileLockedCaption: "Mantiene acceso lo schermo mentre usi il Mac e lo lascia spegnere normalmente quando il Mac è bloccato."
     )
 
     static let ja = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "ディスプレイのスリープを許可",
-        allowDisplaySleepCaption: "Macをスリープさせず、ディスプレイは通常の時間で消灯します。"
+        allowDisplaySleepCaption: "Macをスリープさせず、ディスプレイは通常の時間で消灯します。",
+        onlyWhileLocked: "Macのロック中のみ",
+        onlyWhileLockedCaption: "使用中はディスプレイをオンのままにし、Macをロックすると通常どおり消灯します。"
     )
 
     static let ko = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "디스플레이 잠자기 허용",
-        allowDisplaySleepCaption: "Mac은 깨어 있는 상태를 유지하고 디스플레이는 평소 시간에 꺼집니다."
+        allowDisplaySleepCaption: "Mac은 깨어 있는 상태를 유지하고 디스플레이는 평소 시간에 꺼집니다.",
+        onlyWhileLocked: "Mac이 잠겨 있는 동안에만",
+        onlyWhileLockedCaption: "사용하는 동안에는 디스플레이를 켜 두고, Mac이 잠기면 평소처럼 꺼지도록 합니다."
     )
 
     static let zhHans = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允许显示器休眠",
-        allowDisplaySleepCaption: "Mac 保持唤醒，显示器仍按正常时间关闭。"
+        allowDisplaySleepCaption: "Mac 保持唤醒，显示器仍按正常时间关闭。",
+        onlyWhileLocked: "仅在 Mac 锁定时",
+        onlyWhileLockedCaption: "使用时保持显示器开启，Mac 锁定后显示器按正常时间关闭。"
     )
 
     static let zhTW = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
-        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會依正常時間關閉。"
+        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會依正常時間關閉。",
+        onlyWhileLocked: "僅在 Mac 鎖定時",
+        onlyWhileLockedCaption: "使用時保持顯示器開啟，Mac 鎖定後顯示器會依正常時間關閉。"
     )
 
     static let zhHK = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "允許顯示器進入睡眠",
-        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。"
+        allowDisplaySleepCaption: "Mac 保持喚醒，顯示器仍會按正常時間關閉。",
+        onlyWhileLocked: "僅在 Mac 鎖定時",
+        onlyWhileLockedCaption: "使用時保持顯示器開啟，Mac 鎖定後顯示器會按正常時間關閉。"
     )
     static let uk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Дозволити дисплею засинати",
-        allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
+        allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну.",
+        onlyWhileLocked: "Лише коли Mac заблоковано",
+        onlyWhileLockedCaption: "Дисплей залишається увімкненим під час роботи й вимикається як зазвичай, коли Mac заблоковано."
     )
 }
 
