@@ -1127,6 +1127,15 @@ extension Strings {
         spacesOrderName: "スペースの順序を固定",
         spacesOrderCaption: "最近の使用状況に応じてmacOSがスペースを並べ替えないようにし、設定した順序を保ちます。オフにすると以前の設定に戻ります。変更を適用するためにDockが一度再起動することがあります。",
         quitAppsName: "アプリを終了",
-        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。"
+        quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。",
+        nativeHiDPI: "ネイティブ HiDPI",
+        virtualHiDPI: "仮想 HiDPI",
+        standardResolution: "標準解像度 (1x)",
+        recoveryKeep: "設定を保持",
+        recoveryRevert: "元に戻す",
+        recoveryCountdownTitle: "このディスプレイ設定を保持しますか？",
+        recoveryCountdownRemaining: { "\($0)秒後に自動で元に戻します" },
+        recoveryFailedMessage: "以前の HiDPI モードを復元できませんでした",
+        toggleHiDPICaption: "Retina HiDPI スケーリングの切り替え"
     )
 }

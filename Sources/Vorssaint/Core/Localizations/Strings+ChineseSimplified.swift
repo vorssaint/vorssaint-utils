@@ -1127,6 +1127,15 @@ extension Strings {
         spacesOrderName: "固定空间顺序",
         spacesOrderCaption: "阻止 macOS 按最近使用情况重新排列空间，让它们保持你设定的顺序。关闭此选项后会恢复之前的设置。为应用更改，Dock 可能会重新启动一次。",
         quitAppsName: "退出应用",
-        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。"
+        quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。",
+        nativeHiDPI: "原生 HiDPI",
+        virtualHiDPI: "虚拟 HiDPI",
+        standardResolution: "标准分辨率 (1x)",
+        recoveryKeep: "保留设置",
+        recoveryRevert: "还原",
+        recoveryCountdownTitle: "保留这个显示设置？",
+        recoveryCountdownRemaining: { "\($0) 秒后自动恢复" },
+        recoveryFailedMessage: "无法恢复先前的 HiDPI 模式",
+        toggleHiDPICaption: "切换 Retina HiDPI 缩放"
     )
 }

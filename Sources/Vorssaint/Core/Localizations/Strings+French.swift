@@ -1127,6 +1127,15 @@ extension Strings {
         spacesOrderName: "Garder les Espaces dans un ordre fixe",
         spacesOrderCaption: "Empêche macOS de réorganiser les Espaces selon leur utilisation récente, pour qu’ils restent dans l’ordre choisi. Votre réglage précédent revient quand cette option est désactivée. Le Dock peut redémarrer une fois pour appliquer le changement.",
         quitAppsName: "Quitter des apps",
-        quitAppsCaption: "Liste vos apps ouvertes pour les quitter une par une, toutes à la fois ou toutes sauf celle au premier plan. La liste s’affiche toujours avant toute fermeture."
+        quitAppsCaption: "Liste vos apps ouvertes pour les quitter une par une, toutes à la fois ou toutes sauf celle au premier plan. La liste s’affiche toujours avant toute fermeture.",
+        nativeHiDPI: "HiDPI natif",
+        virtualHiDPI: "HiDPI virtuel",
+        standardResolution: "Résolution standard (1x)",
+        recoveryKeep: "Conserver les réglages",
+        recoveryRevert: "Rétablir",
+        recoveryCountdownTitle: "Conserver ces réglages d’affichage\u{00A0}?",
+        recoveryCountdownRemaining: { "Rétablissement automatique dans \($0)\u{00A0}s" },
+        recoveryFailedMessage: "Impossible de rétablir le mode HiDPI précédent",
+        toggleHiDPICaption: "Basculer la mise à l’échelle Retina HiDPI"
     )
 }
