@@ -240,6 +240,14 @@ enum ShelfInteractionSupport {
         removeAfterDrop && !dragIncludesPinned && !dragIncludesPackageContent
     }
 
+    /// Whether a drag must be offered copy-only outside the app because one of
+    /// its files may belong to a package. A file whose package answer has not
+    /// been read yet counts as package content: copying it out cannot damage
+    /// the package that owns it, while a move could take it away (#4014).
+    static func dragProtectsPackageContent(knownStates: [Bool?]) -> Bool {
+        knownStates.contains { $0 != false }
+    }
+
     /// Only ancestors count: a whole package or a symlink itself can move.
     /// Resolve the parent so a directory symlink cannot hide package contents.
     static func isInsidePackage(_ url: URL, isPackage: (URL) -> Bool) -> Bool {

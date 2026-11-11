@@ -203,6 +203,10 @@ enum ShelfDragCompletionTests {
                 let service = Context.Service.shared
                 let entry = item(url)
                 service.items = [entry]
+                // A drag reads the package answer cached when the item
+                // arrived; resolve it here the way the probe does, so the
+                // drag path itself never touches the disk (#4014).
+                service.packageContentByPath[url.path] = Context.Service.packageContent(of: url)
                 let tile = Context.Tile(item: entry)
                 tile.beginItemDrag(with: Context.NSEvent())
                 let writer = tile.draggingItems.first?.item as? NSURL
@@ -269,9 +273,20 @@ enum ShelfDragCompletionTests {
             let exportedTile = Context.Tile(item: savedInside)
             exportedTile.beginItemDrag(with: Context.NSEvent())
             let exportedWriter = exportedTile.draggingItems.first?.item as? NSURL
-            suite.expect(exportedWriter.map { ($0 as URL).standardizedFileURL.path } == exported.standardizedFileURL.path
-                    && exportedService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
-                   "a bookmark moved out of a package regains ordinary move behavior")
+            suite.expect(exportedWriter.map { ($0 as URL).standardizedFileURL.path } == exported.standardizedFileURL.path,
+                   "a bookmark heals into the drag even outside its package")
+            // The moved path has no cached answer yet, and a drag may not
+            // read the disk to get one: it stays copy-only for this drag.
+            suite.expect(exportedService.sourceOperationMask(for: .outsideApplication) == .copy,
+                   "an unprobed path keeps the conservative copy-only drag")
+            exportedService.completeInternalDrag(dropAccepted: false)
+            // Once the probe has landed, the ordinary move comes back. The
+            // bookmark resolves through the /var symlink, so the probe would
+            // cache the resolved path the drag itself uses.
+            exportedService.packageContentByPath[exportedWriter?.path ?? exported.path] = false
+            exportedTile.beginItemDrag(with: Context.NSEvent())
+            suite.expect(exportedService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
+                   "a bookmark moved out of a package regains ordinary move behavior once probed")
             exportedService.completeInternalDrag(dropAccepted: false)
 
             // Batch flattening and mixed selections use the same copy-only
@@ -283,6 +298,7 @@ enum ShelfDragCompletionTests {
                                             icon: NSImage(), isImage: false)
             let batchService = Context.Service.shared
             batchService.items = [batch]
+            batchService.packageContentByPath[inside.path] = Context.Service.packageContent(of: inside)
             batchService.selection = [batch.id]
             let batchTile = Context.Tile(item: batch)
             batchTile.beginItemDrag(with: Context.NSEvent())
@@ -291,6 +307,7 @@ enum ShelfDragCompletionTests {
                    "a mixed batch protects its package content while retaining every leaf")
             batchService.completeInternalDrag(dropAccepted: false)
             let link = item(fileLink)
+            batchService.packageContentByPath[fileLink.path] = Context.Service.packageContent(of: fileLink)
             batchService.beginInternalDrag(items: [link], from: Context.Window())
             suite.expect(batchService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
                    "a subsequent ordinary drag does not retain the previous package protection")

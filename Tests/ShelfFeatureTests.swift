@@ -138,6 +138,13 @@ enum ShelfFeatureTests {
         suite.expect(!ShelfInteractionSupport.offersMoveOutside(removeAfterDrop: true, dragIncludesPinned: false,
                                                                 dragIncludesPackageContent: true),
                "a drag holding package content only offers a copy outside the app")
+        suite.expect(!ShelfInteractionSupport.dragProtectsPackageContent(knownStates: [false, false])
+                && !ShelfInteractionSupport.dragProtectsPackageContent(knownStates: []),
+               "a drag of known ordinary files offers a move outside the app")
+        suite.expect(ShelfInteractionSupport.dragProtectsPackageContent(knownStates: [false, true])
+                && ShelfInteractionSupport.dragProtectsPackageContent(knownStates: [nil])
+                && ShelfInteractionSupport.dragProtectsPackageContent(knownStates: [nil, false]),
+               "package content and a file whose package state is unknown both keep a drag copy-only")
         let packages: (URL) -> Bool = { ["photoslibrary", "app"].contains($0.pathExtension) }
         suite.expect(ShelfInteractionSupport.isInsidePackage(URL(fileURLWithPath:
             "/Users/me/Pictures/Photos Library.photoslibrary/resources/derivatives/E/photo.jpeg"),

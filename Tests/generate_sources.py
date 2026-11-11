@@ -1369,6 +1369,7 @@ def main():
           + declaration(shelf, "    struct Item:")
           + "var items: [Item] = []\nvar selection: Set<UUID> = []\n"
           + "var activeInternalDragIDs: [UUID] = []\nvar internalDragHoldsPackageContent = false\n"
+          + "var packageContentByPath: [String: Bool] = [:]\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
           + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
           + "var isPinned = false\nvar isVisible = false\nvar dockedVisible = false\n"
@@ -1386,6 +1387,7 @@ def main():
               "    func livingDragItems(", "    private static func resolvedBookmarkPath(",
               "    private func rebookedItem(", "    func pasteboardWriter(",
               "    func sourceOperationMask("])
+          + declaration(shelf, "    static func packageContent(")
           + declaration(shelf, "    func beginInternalDrag(")
           + declaration(shelf, "    func internalDragMoved(")
           + declaration(shelf, "    func finishInternalDrag(")
