@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "Ukončenie aplikácií",
         quitAppsCaption: "Zobrazí otvorené aplikácie, aby ste ich mohli ukončiť jednu po druhej, všetky naraz alebo všetky okrem tej vpredu. Zoznam sa vždy zobrazí skôr, než sa čokoľvek ukončí.",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "Widget CPU",
+        widgetGPU: "Widget GPU",
+        widgetRAM: "Widget RAM",
+        widgetDisk: "Widget disku",
+        widgetNetwork: "Widget siete",
+        widgetUnited: "Kombinovaný widget",
+        widgetCPUDescription: "Zobrazuje štatistiky CPU",
+        widgetGPUDescription: "Zobrazuje štatistiky GPU",
+        widgetRAMDescription: "Zobrazuje štatistiky RAM",
+        widgetDiskDescription: "Zobrazuje štatistiky disku",
+        widgetNetworkDescription: "Zobrazuje štatistiky siete",
+        widgetUnitedDescription: "Zobrazuje štatistiky CPU, GPU, RAM a disku",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "Disk",
+        widgetSystem: "Systém",
+        widgetUser: "Používateľ",
+        widgetUsage: "Využitie",
+        widgetRenderer: "Vykresľovanie",
+        widgetTiler: "Dlaždicovanie",
+        widgetUsed: "Použitá",
+        widgetFree: "Voľná",
+        widgetPressureLevel: "Úroveň tlaku",
+        widgetDownload: "Sťahovanie",
+        widgetUpload: "Odosielanie",
+        widgetStatus: "Stav",
+        widgetInterface: "Rozhranie",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "結束 App",
         quitAppsCaption: "列出開啟中的 App，可逐一結束、全部結束，或結束最前方 App 以外的所有 App。結束任何 App 前一律會先顯示清單。",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "CPU 小工具",
+        widgetGPU: "GPU 小工具",
+        widgetRAM: "RAM 小工具",
+        widgetDisk: "磁碟小工具",
+        widgetNetwork: "網絡小工具",
+        widgetUnited: "統一小工具",
+        widgetCPUDescription: "顯示 CPU 統計資料",
+        widgetGPUDescription: "顯示 GPU 統計資料",
+        widgetRAMDescription: "顯示記憶體統計資料",
+        widgetDiskDescription: "顯示磁碟統計資料",
+        widgetNetworkDescription: "顯示網絡統計資料",
+        widgetUnitedDescription: "顯示 CPU、GPU、記憶體及磁碟統計資料",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "磁碟",
+        widgetSystem: "系統",
+        widgetUser: "使用者",
+        widgetUsage: "使用量",
+        widgetRenderer: "渲染器",
+        widgetTiler: "分塊器",
+        widgetUsed: "已使用",
+        widgetFree: "可使用",
+        widgetPressureLevel: "壓力等級",
+        widgetDownload: "下載",
+        widgetUpload: "上傳",
+        widgetStatus: "狀態",
+        widgetInterface: "介面",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

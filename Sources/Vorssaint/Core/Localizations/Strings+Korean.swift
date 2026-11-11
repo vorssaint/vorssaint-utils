@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "앱 종료",
         quitAppsCaption: "열려 있는 앱을 나열해 하나씩, 한 번에 모두, 또는 맨 앞의 앱을 제외하고 모두 종료할 수 있습니다. 무엇이든 종료하기 전에 항상 목록을 먼저 보여 줍니다.",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "CPU 위젯",
+        widgetGPU: "GPU 위젯",
+        widgetRAM: "RAM 위젯",
+        widgetDisk: "디스크 위젯",
+        widgetNetwork: "네트워크 위젯",
+        widgetUnited: "통합 위젯",
+        widgetCPUDescription: "CPU 통계를 표시합니다",
+        widgetGPUDescription: "GPU 통계를 표시합니다",
+        widgetRAMDescription: "RAM 통계를 표시합니다",
+        widgetDiskDescription: "디스크 통계를 표시합니다",
+        widgetNetworkDescription: "네트워크 통계를 표시합니다",
+        widgetUnitedDescription: "CPU, GPU, RAM 및 디스크 통계를 표시합니다",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "디스크",
+        widgetSystem: "시스템",
+        widgetUser: "사용자",
+        widgetUsage: "사용량",
+        widgetRenderer: "렌더러",
+        widgetTiler: "타일러",
+        widgetUsed: "사용",
+        widgetFree: "여유",
+        widgetPressureLevel: "압력 수준",
+        widgetDownload: "다운로드",
+        widgetUpload: "업로드",
+        widgetStatus: "상태",
+        widgetInterface: "인터페이스",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

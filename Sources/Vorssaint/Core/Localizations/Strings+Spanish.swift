@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "Salir de apps",
         quitAppsCaption: "Muestra tus apps abiertas para salir de ellas una a una, todas a la vez o todas menos la del frente. La lista siempre aparece antes de que se cierre alguna.",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "Widget de CPU",
+        widgetGPU: "Widget de GPU",
+        widgetRAM: "Widget de RAM",
+        widgetDisk: "Widget de disco",
+        widgetNetwork: "Widget de red",
+        widgetUnited: "Widget combinado",
+        widgetCPUDescription: "Muestra las estadísticas de la CPU",
+        widgetGPUDescription: "Muestra las estadísticas de la GPU",
+        widgetRAMDescription: "Muestra las estadísticas de la RAM",
+        widgetDiskDescription: "Muestra las estadísticas del disco",
+        widgetNetworkDescription: "Muestra las estadísticas de la red",
+        widgetUnitedDescription: "Muestra las estadísticas de CPU, GPU, RAM y disco",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "Disco",
+        widgetSystem: "Sistema",
+        widgetUser: "Usuario",
+        widgetUsage: "Uso",
+        widgetRenderer: "Renderizador",
+        widgetTiler: "Tiler",
+        widgetUsed: "Usado",
+        widgetFree: "Libre",
+        widgetPressureLevel: "Nivel de presión",
+        widgetDownload: "Descarga",
+        widgetUpload: "Subida",
+        widgetStatus: "Estado",
+        widgetInterface: "Interfaz",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

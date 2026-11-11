@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "退出应用",
         quitAppsCaption: "列出打开的应用，可逐个退出、全部退出，或退出最前面应用以外的所有应用。退出任何应用前都会先显示列表。",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "CPU 小组件",
+        widgetGPU: "GPU 小组件",
+        widgetRAM: "RAM 小组件",
+        widgetDisk: "磁盘小组件",
+        widgetNetwork: "网络小组件",
+        widgetUnited: "综合小组件",
+        widgetCPUDescription: "显示 CPU 统计信息",
+        widgetGPUDescription: "显示 GPU 统计信息",
+        widgetRAMDescription: "显示内存统计信息",
+        widgetDiskDescription: "显示磁盘统计信息",
+        widgetNetworkDescription: "显示网络统计信息",
+        widgetUnitedDescription: "显示 CPU、GPU、内存和磁盘统计信息",
+        widgetMemoryLabel: "内存",
+        widgetDiskLabel: "磁盘",
+        widgetSystem: "系统",
+        widgetUser: "用户",
+        widgetUsage: "使用量",
+        widgetRenderer: "渲染器",
+        widgetTiler: "平铺器",
+        widgetUsed: "已用",
+        widgetFree: "可用",
+        widgetPressureLevel: "压力等级",
+        widgetDownload: "下载",
+        widgetUpload: "上传",
+        widgetStatus: "状态",
+        widgetInterface: "网络接口",
+        widgetIP: "IP",
+        widgetUp: "已连接",
+        widgetDown: "未连接"
     )
 }

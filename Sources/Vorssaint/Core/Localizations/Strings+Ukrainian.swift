@@ -1333,5 +1333,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "Закриття програм",
         quitAppsCaption: "Показує відкриті програми, щоб закрити їх по одній, усі одразу або всі, крім активної. Список завжди з’являється до того, як щось закриється.",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "Віджет ЦП",
+        widgetGPU: "Віджет ГП",
+        widgetRAM: "Віджет ОЗП",
+        widgetDisk: "Віджет диска",
+        widgetNetwork: "Віджет мережі",
+        widgetUnited: "Загальний віджет",
+        widgetCPUDescription: "Показує статистику ЦП",
+        widgetGPUDescription: "Показує статистику ГП",
+        widgetRAMDescription: "Показує статистику ОЗП",
+        widgetDiskDescription: "Показує статистику диска",
+        widgetNetworkDescription: "Показує статистику мережі",
+        widgetUnitedDescription: "Показує статистику ЦП, ГП, ОЗП і диска",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "Диск",
+        widgetSystem: "Система",
+        widgetUser: "Користувач",
+        widgetUsage: "Використання",
+        widgetRenderer: "Рендеринг",
+        widgetTiler: "Тайлінг",
+        widgetUsed: "Використовується",
+        widgetFree: "Вільно",
+        widgetPressureLevel: "Рівень тиску",
+        widgetDownload: "Завантаження",
+        widgetUpload: "Віддача",
+        widgetStatus: "Статус",
+        widgetInterface: "Інтерфейс",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

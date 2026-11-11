@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "アプリを終了",
         quitAppsCaption: "開いているアプリを一覧表示し、1つずつ、すべてまとめて、または最前面以外をすべて終了できます。何かを終了する前に必ず一覧を表示します。",
+
+        // MARK: Feature — monitor widgets
+        widgetCPU: "CPUウィジェット",
+        widgetGPU: "GPUウィジェット",
+        widgetRAM: "RAMウィジェット",
+        widgetDisk: "ディスクウィジェット",
+        widgetNetwork: "ネットワークウィジェット",
+        widgetUnited: "統合ウィジェット",
+        widgetCPUDescription: "CPUの統計を表示します",
+        widgetGPUDescription: "GPUの統計を表示します",
+        widgetRAMDescription: "RAMの統計を表示します",
+        widgetDiskDescription: "ディスクの統計を表示します",
+        widgetNetworkDescription: "ネットワークの統計を表示します",
+        widgetUnitedDescription: "CPU、GPU、RAM、ディスクの統計を表示します",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "ディスク",
+        widgetSystem: "システム",
+        widgetUser: "ユーザー",
+        widgetUsage: "使用率",
+        widgetRenderer: "レンダラー",
+        widgetTiler: "タイラー",
+        widgetUsed: "使用済み",
+        widgetFree: "空き",
+        widgetPressureLevel: "圧力レベル",
+        widgetDownload: "ダウンロード",
+        widgetUpload: "アップロード",
+        widgetStatus: "状態",
+        widgetInterface: "インターフェイス",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

@@ -1332,5 +1332,36 @@ extension Strings {
         // MARK: Feature — quit applications
         quitAppsName: "Uygulamaları kapat",
         quitAppsCaption: "Açık uygulamalarınızı tek tek, hepsini birden ya da öndeki dışında hepsini kapatmak için listeler. Herhangi biri kapanmadan önce listeyi her zaman gösterir.",
+
+        // MARK: Feature - widgets
+        widgetCPU: "CPU widget’ı",
+        widgetGPU: "GPU widget’ı",
+        widgetRAM: "RAM widget’ı",
+        widgetDisk: "Disk widget’ı",
+        widgetNetwork: "Ağ widget’ı",
+        widgetUnited: "Birleşik widget",
+        widgetCPUDescription: "CPU istatistiklerini gösterir",
+        widgetGPUDescription: "GPU istatistiklerini gösterir",
+        widgetRAMDescription: "RAM istatistiklerini gösterir",
+        widgetDiskDescription: "Disk istatistiklerini gösterir",
+        widgetNetworkDescription: "Ağ istatistiklerini gösterir",
+        widgetUnitedDescription: "CPU, GPU, RAM ve disk istatistiklerini gösterir",
+        widgetMemoryLabel: "RAM",
+        widgetDiskLabel: "Disk",
+        widgetSystem: "Sistem",
+        widgetUser: "Kullanıcı",
+        widgetUsage: "Kullanım",
+        widgetRenderer: "Oluşturucu",
+        widgetTiler: "Döşeyici",
+        widgetUsed: "Kullanılan",
+        widgetFree: "Boş",
+        widgetPressureLevel: "Basınç seviyesi",
+        widgetDownload: "İndirme",
+        widgetUpload: "Yükleme",
+        widgetStatus: "Durum",
+        widgetInterface: "Arayüz",
+        widgetIP: "IP",
+        widgetUp: "UP",
+        widgetDown: "DOWN"
     )
 }

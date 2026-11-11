@@ -1491,4 +1491,35 @@ struct Strings {
     // MARK: Feature — quit applications
     let quitAppsName: String
     let quitAppsCaption: String
+
+    // MARK: Feature — monitor widgets
+    let widgetCPU: String
+    let widgetGPU: String
+    let widgetRAM: String
+    let widgetDisk: String
+    let widgetNetwork: String
+    let widgetUnited: String
+    let widgetCPUDescription: String
+    let widgetGPUDescription: String
+    let widgetRAMDescription: String
+    let widgetDiskDescription: String
+    let widgetNetworkDescription: String
+    let widgetUnitedDescription: String
+    let widgetMemoryLabel: String
+    let widgetDiskLabel: String
+    let widgetSystem: String
+    let widgetUser: String
+    let widgetUsage: String
+    let widgetRenderer: String
+    let widgetTiler: String
+    let widgetUsed: String
+    let widgetFree: String
+    let widgetPressureLevel: String
+    let widgetDownload: String
+    let widgetUpload: String
+    let widgetStatus: String
+    let widgetInterface: String
+    let widgetIP: String
+    let widgetUp: String
+    let widgetDown: String
 }
