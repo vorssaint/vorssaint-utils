@@ -2979,6 +2979,18 @@ enum NotchTests {
         suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
             menuItems: [CGRect(x: 690, y: 924, width: 80, height: 32)], statusItems: []) == nil,
                "a menu occupying the island's center still hides it")
+        let shortMenu = CGRect(x: 0, y: 924, width: 300, height: 32)
+        let crowdedStatus = CGRect(x: 860, y: 924, width: 610, height: 32)
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [crowdedStatus]) == 27,
+               "short app menus do not let the island cover status items beside the camera")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [CGRect(x: 0, y: 924, width: 610, height: 32)],
+            statusItems: [primaryStatus, CGRect(x: 700, y: 924, width: 30, height: 32)]) == 27,
+               "a status item parked wholly behind the camera leaves the gaps unchanged")
+        suite.expect(NotchMenuBarLayout.measuredSideRoom(screen: menuScreen, cameraWidth: 180, barHeight: 32,
+            menuItems: [shortMenu], statusItems: [CGRect(x: 810, y: 924, width: 40, height: 32)]) == nil,
+               "a status item partly beside the camera still hides the island")
         let constrained = NotchGeometry(screen: menuScreen, safeAreaTop: 32, cameraWidth: 180,
                                         menuBarHeight: 24, compactSideRoom: freeRoom)
         suite.expect(constrained.collapsed.height == 32 && constrained.musicStrip.height == 32,
