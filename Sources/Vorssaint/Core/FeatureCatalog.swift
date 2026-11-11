@@ -553,7 +553,7 @@ extension AppFeature {
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)
-                    || (boolFor(DefaultsKey.displayVolumeKeysEnabled) && boolFor(DefaultsKey.brightnessControlEnabled))
+                    || (boolFor(DefaultsKey.displayVolumeEnabled) && boolFor(DefaultsKey.displayVolumeKeysEnabled))
                     || BrightnessSupport.KeyStep.sanitized(stringFor(DefaultsKey.brightnessKeyStep)) != .standard
             case (.monitorCPU, .notifications):
                 return boolFor(DefaultsKey.monitorAlertCPU) || boolFor(DefaultsKey.monitorAlertCPUTemperature)

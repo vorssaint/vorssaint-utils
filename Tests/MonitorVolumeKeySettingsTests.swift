@@ -75,6 +75,14 @@ enum MonitorVolumeKeySettingsTests {
         press(.volumeUp)
         service.finish()
         suite.expect(service.writes == [Write(volume, 50)], "a plain key uses the configured ten-percent grid")
+        service = connect(raw: 40, settings: limits)
+        Keys.AppFeature.mixerAvailable = false
+        Keys.UserDefaults.precise = true
+        press(.volumeUp)
+        service.finish()
+        suite.expect(service.writes == [Write(volume, 50)],
+                     "a disabled mixer's saved fine-step preference cannot override the monitor's key step")
+        Keys.AppFeature.mixerAvailable = true
         service = connect(raw: 29, settings: .init(stepPercent: 2))
         press(.volumeDown)
         service.finish()
