@@ -10,7 +10,7 @@ struct SettingsSearchState: Equatable {
     }
 
     let hardware: Hardware
-    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows: Bool
+    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows, topBar: Bool
     private let switches: Set<String>
 
     init(defaults: UserDefaults, hardware: Hardware) {
@@ -19,6 +19,7 @@ struct SettingsSearchState: Equatable {
         batteryRest = defaults.string(forKey: DefaultsKey.notchIdleContent) == NotchIdleContent.battery.rawValue
         capsule = defaults.string(forKey: DefaultsKey.notchSilhouette) != NotchSilhouette.notch.rawValue
         customSize = defaults.string(forKey: DefaultsKey.notchSize) == NotchSize.custom.rawValue
+        topBar = NotchNavigationStyle.current(in: defaults) == .topBar
         minimalMascot = (NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "")
             ?? .minimal) == .minimal
         groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
@@ -248,6 +249,7 @@ enum SettingsDirectory {
         let notchAgents = FeatureStrings.notchAgents(language)
         let claudeBilling = FeatureStrings.claudeBilling(language)
         let notchLowBattery = NotchLowBatteryStrings.localized(language)
+        let navigation = NotchNavigationStrings.localized(language)
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
@@ -271,6 +273,8 @@ enum SettingsDirectory {
             .init([notch.withoutNotch], notch: .layout, when: state.hardware.plainDisplay),
             .init([notch.capsuleFit, notch.width, notch.height, notch.fromTop],
                   notch: .layout, when: state.hardware.plainDisplay && state.capsule),
+            .init([navigation.styleTitle], notch: .navigation),
+            .init([navigation.itemsTitle, navigation.secondaryClick], notch: .navigation, when: state.topBar),
             .init([activities.keepAwakeActivity], notch: .module(.controls)),
             .init([notch.playingMusic, notchMusic.includeOtherPlayers, notchMusic.showVolume, notchMusic.preferredPlayer,
                    notchMusic.enableLyrics, notchMusic.browserCovers, notchMusic.enableQueue, notchMusic.liveEqualizer,
