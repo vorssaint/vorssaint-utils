@@ -390,7 +390,9 @@ enum SwitcherModelFeatureTests {
             && guarded.allSatisfy { $0.modifiers.contains(.command) }
             && !guarded.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [])),
             "session guards are bounded and never claim bare password letters")
+        var labelReads = 0
         let localized = SwitcherSupport.secureInputActionShortcuts(for: commandTab, keyLabel: { code, command, shift in
+            labelReads += 1
             if command && code == 0 { return shift ? "Q" : "q" }
             if command && code == 6 { return "W" }
             return nil
@@ -398,6 +400,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(localized.contains(GlobalShortcut(keyCode: 0, modifiers: [.command, .shift]))
             && localized.contains(GlobalShortcut(keyCode: 6, modifiers: [.command])),
             "secure action guards follow the layout's Command Q/W positions")
+        suite.expect(labelReads <= 2 * 128,
+            "opening Command-Tab under secure input scans each Command/Shift table at most once")
         let optionGuards = SwitcherSupport.secureInputActionShortcuts(for: optionTab, keyLabel: { _, _, _ in nil })
         suite.expect(optionGuards.allSatisfy { $0.modifiers.contains(.option) }
             && optionGuards.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.option, .command])),
