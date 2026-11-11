@@ -721,13 +721,14 @@ enum NotchAgentSupport {
 
     /// Spending's model rows: the costliest first, then every model the
     /// price list does not know, which has tokens but no value. Such a model
-    /// always keeps a row, at most two of them, so new work never vanishes
-    /// behind the priced models; a model with nothing counted is left out.
+    /// always keeps a row, up to half the rows and two at most, so new work
+    /// never vanishes behind the priced models; a model with nothing counted
+    /// is left out. PC Essentials picks its rows the same way.
     static func spendModels(_ shares: [AgentShare], limit: Int = 4) -> [AgentShare] {
         let unknown = shares.filter { isUnpriced($0.totals) }
             .sorted { $0.totals.tokens.total != $1.totals.tokens.total
                 ? $0.totals.tokens.total > $1.totals.tokens.total : $0.name < $1.name }
-            .prefix(min(2, max(0, limit)))
+            .prefix(min(2, max(0, limit) / 2))
         let priced = shares.filter { $0.totals.cost > 0 }
             .sorted { $0.totals.cost != $1.totals.cost ? $0.totals.cost > $1.totals.cost : $0.name < $1.name }
             .prefix(max(0, limit - unknown.count))
