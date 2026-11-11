@@ -155,25 +155,101 @@ enum CommandBarLinks {
         return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
+    /// Finds the end index of the link name in the query, matching
+    /// case-insensitively, diacritic-insensitively, and width-insensitively.
+    private static func nameEndIndex(in query: String, name: String) -> String.Index? {
+        let trimmedName = name.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return nil }
+        if let range = query.range(of: trimmedName,
+                                   options: [.caseInsensitive, .diacriticInsensitive,
+                                             .widthInsensitive, .anchored]) {
+            return range.upperBound
+        }
+        // Match word by word to tolerate whitespace differences within multi-word names.
+        let nameWords = trimmedName.split(whereSeparator: \.isWhitespace)
+        guard !nameWords.isEmpty else { return nil }
+        var current = query.startIndex
+        for (i, word) in nameWords.enumerated() {
+            if i > 0 {
+                while current < query.endIndex, query[current].isWhitespace {
+                    current = query.index(after: current)
+                }
+            }
+            guard let range = query[current...].range(
+                of: word,
+                options: [.caseInsensitive, .diacriticInsensitive,
+                          .widthInsensitive, .anchored]) else {
+                return nil
+            }
+            current = range.upperBound
+        }
+        return current
+    }
+
     /// What the person typed after the name of a link, which is what a search
     /// link opens with. Nil when the query does not name this link at all.
     ///
     /// The name is matched whole and case-insensitively, so "gh vorssaint"
-    /// finds the link called "gh" and "ghost" does not.
+    /// finds the link called "gh" and "ghost" does not. When a saved link
+    /// name ends with a non-alphanumeric separator such as "/" or ":", or
+    /// when the query follows the link name immediately with a non-alphanumeric
+    /// boundary (e.g. "go/mr" or "go:mr"), the separator stands in for the space.
     static func trailingArgument(query: String, name: String) -> String? {
         let normalizedName = CommandBarSearch.normalized(name)
         guard !normalizedName.isEmpty else { return nil }
         let normalizedQuery = CommandBarSearch.normalized(query)
-        guard normalizedQuery.hasPrefix(normalizedName + " ") else { return nil }
-        // The remainder comes from the ORIGINAL text: what someone searches for
-        // keeps its capitals and its accents. Splitting on any whitespace — not
-        // just the ASCII space — keeps a full-width space (U+3000), which some
-        // input methods produce, in step with the width-insensitive prefix check
-        // above.
-        let words = query.split(whereSeparator: \.isWhitespace)
-        let nameWords = normalizedName.split(separator: " ").count
-        guard words.count > nameWords else { return nil }
-        return words.dropFirst(nameWords).joined(separator: " ")
+
+        // Standard whitespace separator: "gh vorssaint utils" -> "vorssaint utils".
+        if normalizedQuery.hasPrefix(normalizedName + " ") {
+            let words = query.split(whereSeparator: \.isWhitespace)
+            let nameWords = normalizedName.split(separator: " ").count
+            guard words.count > nameWords else { return nil }
+            return words.dropFirst(nameWords).joined(separator: " ")
+        }
+
+        // Non-whitespace separator: either the name ends with a separator (e.g. "go/"),
+        // or the query follows the name immediately with a non-alphanumeric boundary
+        // (e.g. "go/mr" or "go:mr").
+        guard normalizedQuery.hasPrefix(normalizedName) else { return nil }
+        let nameEndsWithSeparator = normalizedName.last.map {
+            !$0.isLetter && !$0.isNumber && !$0.isWhitespace
+        } ?? false
+
+        guard let end = nameEndIndex(in: query, name: name) else { return nil }
+
+        if nameEndsWithSeparator {
+            let argument = query[end...].trimmingCharacters(in: .whitespaces)
+            return argument.isEmpty ? nil : argument
+        } else {
+            let afterIndex = normalizedQuery.index(normalizedQuery.startIndex,
+                                                   offsetBy: normalizedName.count)
+            guard afterIndex < normalizedQuery.endIndex else { return nil }
+            let sep = normalizedQuery[afterIndex]
+            guard !sep.isLetter && !sep.isNumber else { return nil }
+
+            let after = query[end...]
+            guard let firstChar = after.first, !firstChar.isLetter && !firstChar.isNumber else {
+                return nil
+            }
+            let remainder = firstChar.isWhitespace ? after : after.dropFirst()
+            let argument = remainder.trimmingCharacters(in: .whitespaces)
+            return argument.isEmpty ? nil : argument
+        }
+    }
+
+    /// Whether the query names this link, either with an argument or as the
+    /// name followed immediately by a separator (such as "go/").
+    static func matchesPrefix(query: String, name: String) -> Bool {
+        if trailingArgument(query: query, name: name) != nil { return true }
+        let normalizedName = CommandBarSearch.normalized(name)
+        guard !normalizedName.isEmpty else { return false }
+        let normalizedQuery = CommandBarSearch.normalized(query)
+        guard normalizedQuery.hasPrefix(normalizedName) else { return false }
+        if normalizedQuery.count == normalizedName.count { return true }
+        let afterIndex = normalizedQuery.index(normalizedQuery.startIndex,
+                                               offsetBy: normalizedName.count)
+        let sep = normalizedQuery[afterIndex]
+        return !sep.isLetter && !sep.isNumber
     }
 
     /// What a link's row is scored against. Its own name works until the
@@ -184,7 +260,7 @@ enum CommandBarLinks {
     /// the same place no matter what follows its name keeps answering to the
     /// name, so it never leads a list it has no answer for.
     static func rankingTitle(name: String, query: String) -> String {
-        trailingArgument(query: query, name: name) != nil ? query : name
+        matchesPrefix(query: query, name: name) ? query : name
     }
 
     /// What a script would run with for this query, or nil when the query does
