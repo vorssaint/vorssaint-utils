@@ -58,11 +58,12 @@ enum SwitcherScrollContract {
     struct SwitcherWindowPreviewTile: View {
         let window: Item
         let preview: Int?
+        let cardSize: CGSize
         let isSelected: Bool
         let instantSelection: Bool
         let onCommit: () -> Void
         let onClose: () -> Void
-        var body: some View { Color.clear.frame(width: SwitcherIconRowLayout.previewCardWidth, height: SwitcherIconRowLayout.previewCardHeight) }
+        var body: some View { Color.clear.frame(width: cardSize.width, height: cardSize.height) }
     }
     struct SwitcherWindowTitleChip: View {
         let window: Item
@@ -124,7 +125,7 @@ enum SwitcherScrollContract {
                         return false
                     }
                     let width = model.simple ? SwitcherIconRowLayout.simpleTitleChipMaxWidth
-                        : SwitcherIconRowLayout.previewCardWidth
+                        : model.iconRowLayout.previewCardWidth
                     let spacing = model.simple ? SwitcherIconRowLayout.simpleTitleSpacing
                         : SwitcherIconRowLayout.spacing
                     let padding = model.simple ? SwitcherIconRowLayout.simpleTitleScrollPadding : 0
@@ -146,7 +147,7 @@ enum SwitcherScrollContract {
                 }
                 let selected = model.windows[model.selectedIndex]
                 let localIndex = model.windows.filter { $0.pid == selected.pid }.firstIndex { $0.id == selected.id }!
-                let width = model.simple ? SwitcherIconRowLayout.simpleTitleChipMaxWidth : SwitcherIconRowLayout.previewCardWidth
+                let width = model.simple ? SwitcherIconRowLayout.simpleTitleChipMaxWidth : model.iconRowLayout.previewCardWidth
                 let spacing = model.simple ? SwitcherIconRowLayout.simpleTitleSpacing : SwitcherIconRowLayout.spacing
                 let padding = model.simple ? SwitcherIconRowLayout.simpleTitleScrollPadding : 0
                 let start = padding + CGFloat(localIndex) * (width + spacing)
@@ -158,7 +159,7 @@ enum SwitcherScrollContract {
                 }
                 if !model.simple && model.sessionScope == .frontmostApp && model.screenWidth >= 1440 {
                     let count = model.windows.filter { $0.pid == selected.pid }.count
-                    let naturalWidth = SwitcherIconRowLayout.naturalPreviewWidth(cardCount: count)
+                    let naturalWidth = model.iconRowLayout.naturalPreviewWidth(cardCount: count)
                     suite.expect(clip.minX <= 0.5 && clip.maxX >= naturalWidth - 0.5,
                                  "\(name)/\(step): all focused-app previews fit together")
                 }

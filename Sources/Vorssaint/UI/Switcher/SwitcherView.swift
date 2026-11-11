@@ -345,6 +345,8 @@ struct SwitcherView: View {
                                 ForEach(appWindows, id: \.element.id) { index, window in
                                     SwitcherWindowPreviewTile(window: window,
                                                               preview: window.previewWindowID.flatMap { switcher.previews[$0] },
+                                                              cardSize: CGSize(width: switcher.iconRowLayout.previewCardWidth,
+                                                                               height: switcher.iconRowLayout.previewCardHeight),
                                                               isSelected: index == switcher.selectedIndex,
                                                               instantSelection: instantSelection,
                                                               onCommit: {
@@ -364,11 +366,11 @@ struct SwitcherView: View {
                                         }
                                     }
                                 }
-                            .frame(height: SwitcherIconRowLayout.previewCardHeight, alignment: .center)
+                            .frame(height: switcher.iconRowLayout.previewCardHeight, alignment: .center)
                         }
                         .scrollDisabled(switcher.iconRowLayout.previewFitsWithoutScrolling(cardCount: appWindows.count))
                         .frame(width: switcher.iconRowLayout.previewContentWidth,
-                               height: SwitcherIconRowLayout.previewCardHeight)
+                               height: switcher.iconRowLayout.previewCardHeight)
                         .onAppear { revealSelection(in: proxy, animated: false) }
                         .onChange(of: switcher.selectedIndex) { _, _ in
                             revealSelection(in: proxy, animated: true)
@@ -385,7 +387,7 @@ struct SwitcherView: View {
                 }
                 .padding(SwitcherIconRowLayout.previewPanelPadding)
                 .frame(width: switcher.iconRowLayout.previewSurfaceWidth,
-                       height: SwitcherIconRowLayout.previewHeight)
+                       height: switcher.iconRowLayout.previewHeight)
                 .background(
                     SwitcherIconRowSurface(cornerRadius: 18,
                                            fill: SwitcherIconStyle.surfaceRaised,
@@ -395,7 +397,7 @@ struct SwitcherView: View {
                 .offset(x: placement.leading)
             }
             .frame(width: placement.contentWidth,
-                   height: SwitcherIconRowLayout.previewHeight,
+                   height: switcher.iconRowLayout.previewHeight,
                    alignment: .topLeading)
         }
     }
@@ -866,6 +868,7 @@ private struct SwitcherIconTile: View {
 private struct SwitcherWindowPreviewTile: View {
     let window: SwitcherItem
     let preview: CGImage?
+    let cardSize: CGSize
     let isSelected: Bool
     let instantSelection: Bool
     let onCommit: () -> Void
@@ -932,8 +935,8 @@ private struct SwitcherWindowPreviewTile: View {
                     Spacer()
                 }
             }
-            .frame(width: SwitcherIconRowLayout.previewCardWidth - 16,
-                   height: SwitcherIconRowLayout.previewCardHeight - (minimalPreviews ? 16 : 38))
+            .frame(width: cardSize.width - 16,
+                   height: cardSize.height - (minimalPreviews ? 16 : 38))
 
             // The header above already names the app. A window with no name of
             // its own would only say it again under its own thumbnail, and two
@@ -944,12 +947,12 @@ private struct SwitcherWindowPreviewTile: View {
                     .foregroundStyle(isSelected ? SwitcherIconStyle.text : SwitcherIconStyle.secondaryText)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                    .frame(maxWidth: SwitcherIconRowLayout.previewCardWidth - 20)
+                    .frame(maxWidth: cardSize.width - 20)
             }
         }
         .padding(8)
-        .frame(width: SwitcherIconRowLayout.previewCardWidth,
-               height: SwitcherIconRowLayout.previewCardHeight)
+        .frame(width: cardSize.width,
+               height: cardSize.height)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(isSelected ? SwitcherIconStyle.tileSelected : (minimalPreviews ? Color.clear : SwitcherIconStyle.tile))
