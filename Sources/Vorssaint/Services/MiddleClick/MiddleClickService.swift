@@ -558,6 +558,7 @@ final class MiddleClickService: ObservableObject {
             let count = fingerCount
             let age = now - lastFrameUptime
             let settledFor = now - fingerCountSince
+            let tapEnabled = tapFingers > 0
             stateLock.unlock()
             let sinceLastTransformEnd = tapStateLock.withLock { lastTransformEnd }
             let action = MiddleClickSupport.actionForClick(
@@ -565,7 +566,8 @@ final class MiddleClickService: ObservableObject {
                 frameAge: age,
                 settledFor: settledFor,
                 sinceLastTransformEnd: sinceLastTransformEnd.map { now - $0 },
-                systemDragGestureEnabled: dragGestureEnabled(now: now)
+                systemDragGestureEnabled: dragGestureEnabled(now: now),
+                tapEnabled: tapEnabled
             )
             switch action {
             case .passThrough:
