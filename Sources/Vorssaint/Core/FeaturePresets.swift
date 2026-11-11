@@ -144,7 +144,8 @@ extension AppFeature {
             let defaults = UserDefaults.standard
             return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
-                || defaults.bool(forKey: DefaultsKey.displayVolumeKeysEnabled)
+                || (defaults.bool(forKey: DefaultsKey.displayVolumeEnabled)
+                    && defaults.bool(forKey: DefaultsKey.displayVolumeKeysEnabled))
                 || BrightnessSupport.KeyStep.sanitized(
                     defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
                 ? .keyboard : .idle

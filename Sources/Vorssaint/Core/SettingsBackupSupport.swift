@@ -239,17 +239,17 @@ enum SettingsBackupSupport {
                 settings[key] = value
             }
         }
-        settings = portableNotchDisplay(settings)
-        settings = portableMediaSettings(settings)
-        settings = portableMouseExceptions(settings)
-        settings = portableWindowLayoutIgnoredApps(settings)
-        settings = portableThumbnailPauseLists(settings)
-        settings = exportedAppVolumes(settings)
         return [
             formatVersionKey: formatVersion,
             appVersionKey: appVersion,
-            settingsKey: settings,
+            settingsKey: portableSettings(settings),
         ]
+    }
+
+    static func portableSettings(_ settings: [String: Any]) -> [String: Any] {
+        let media = portableMediaSettings(portableNotchDisplay(settings))
+        let exceptions = portableWindowLayoutIgnoredApps(portableMouseExceptions(media))
+        return exportedAppVolumes(portableThumbnailPauseLists(exceptions))
     }
 
     /// Validates an incoming file and returns only the keys this build knows
@@ -324,9 +324,17 @@ enum SettingsBackupSupport {
         var values = settings.filter { key, value in
             if availability[key] != nil { return isBoolean(value) }
             switch key {
+            case DefaultsKey.autoQuitEnabled, DefaultsKey.shelfEnabled, DefaultsKey.finderCutPasteEnabled,
+                 DefaultsKey.hasOnboarded:
+                return isBoolean(value)
+            case DefaultsKey.onboardingStep:
+                return isInteger(value)
             case DefaultsKey.textSnippets:
                 guard let data = value as? Data else { return false }
                 return (try? JSONDecoder().decode([TextSnippet].self, from: data)) != nil
+            case DefaultsKey.recorderEditorPresets:
+                guard let data = value as? Data else { return false }
+                return data.isEmpty || (try? JSONDecoder().decode([RecorderEditPreset].self, from: data)) != nil
             case DefaultsKey.appVolumes:
                 guard let levels = value as? [String: Any] else { return false }
                 let validUnit = settings[DefaultsKey.appVolumesArePositions].map(isBoolean) ?? true
@@ -336,6 +344,16 @@ enum SettingsBackupSupport {
         }
         if values[DefaultsKey.appVolumes] == nil {
             values.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        }
+        // These retired switches name choices in the current pickers. Resolve
+        // them in the file so they cannot retrigger a Mac migration next time.
+        if values.removeValue(forKey: DefaultsKey.switcherShowWindowlessFinder) as? Bool == false,
+           values[DefaultsKey.switcherWindowlessApps] == nil {
+            values[DefaultsKey.switcherWindowlessApps] = SwitcherWindowlessApps.migrated(showsWindowlessFinder: false).rawValue
+        }
+        if values.removeValue(forKey: DefaultsKey.screenshotOpenEditorDirectly) as? Bool == true,
+           (values[DefaultsKey.screenshotDefaultAction] as? String ?? "").isEmpty {
+            values[DefaultsKey.screenshotDefaultAction] = ScreenshotDefaultAction.edit.rawValue
         }
         return values
     }

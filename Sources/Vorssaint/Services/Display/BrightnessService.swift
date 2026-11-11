@@ -2685,16 +2685,13 @@ final class BrightnessService: ObservableObject {
                 }
                 let deviceValue = BrightnessSupport.deviceValue(for: value,
                                                                 maximum: route.maximum)
-                let packet = BrightnessSupport.writePacket(
-                    code: BrightnessSupport.luminanceCode,
-                    value: deviceValue)
-                writeSucceeded = ddcSend(to: id, service: service, packet: packet)
+                writeSucceeded = writeDDCLuminance(deviceValue, to: id, route: route, service: service)
             case .software:
                 writeSucceeded = applySoftwareDim(id, value: value)
             }
             Self.log.log("wrote display \(id) route \(String(describing: route.method), privacy: .public) level \(value) ok \(writeSucceeded)")
             if route.method == .ddc, !writeSucceeded, route.ddcReadable == false,
-               let pathKey = route.ddcPathKey {
+               let pathKey = route.ddcPathKey, !forcedSoftwarePaths().contains(pathKey) {
                 forgetWriteOnlyDDCPath(pathKey)
                 DispatchQueue.main.async { [weak self] in
                     self?.refresh(force: true)
@@ -2753,23 +2750,27 @@ final class BrightnessService: ObservableObject {
 
         let deviceValue = BrightnessSupport.deviceValue(for: components.hardware,
                                                         maximum: route.maximum)
-        var hardwareSucceeded = true
         if route.lastDDCValue != deviceValue {
-            let packet = BrightnessSupport.writePacket(code: BrightnessSupport.luminanceCode,
-                                                       value: deviceValue)
-            hardwareSucceeded = ddcSend(to: id, service: service, packet: packet)
-            if hardwareSucceeded {
-                stateLock.lock()
-                if routes[id]?.ddcPathKey == route.ddcPathKey,
-                   routes[id]?.extendedDimming == true {
-                    routes[id]?.lastDDCValue = deviceValue
-                }
-                stateLock.unlock()
+            guard writeDDCLuminance(deviceValue, to: id, route: route, service: service) else { return false }
+            stateLock.lock()
+            if routes[id]?.ddcPathKey == route.ddcPathKey,
+               routes[id]?.extendedDimming == true {
+                routes[id]?.lastDDCValue = deviceValue
             }
+            stateLock.unlock()
         }
-        let pictureSucceeded = components.picture >= 0.999
-            || applySoftwareDim(id, value: components.picture)
-        return hardwareSucceeded && pictureSucceeded
+        return components.picture >= 0.999 || applySoftwareDim(id, value: components.picture)
+    }
+
+    private func writeDDCLuminance(_ value: UInt16, to id: CGDirectDisplayID,
+                                   route: Route, service: CFTypeRef) -> Bool {
+        let packet = BrightnessSupport.writePacket(code: BrightnessSupport.luminanceCode, value: value)
+        return ddcSend(to: id, service: service, packet: packet) {
+            // A dequeued write can still be waiting for the bus when the user
+            // switches to software dimming. Recheck before every physical send.
+            guard let path = route.ddcPathKey else { return true }
+            return !self.forcedSoftwarePaths().contains(path)
+        }
     }
 
     // MARK: - Software dimming (work queue)
