@@ -21,7 +21,8 @@ enum RecorderGIFClipboard {
 
     static func publish(fileURL: URL,
                         to pasteboard: NSPasteboard = .general,
-                        inlineByteLimit: Int = inlineByteLimit) -> Bool {
+                        inlineByteLimit: Int = inlineByteLimit,
+                        shouldPublish: () -> Bool = { true }) -> Bool {
         guard let bytes = try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
               let source = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
               CGImageSourceGetType(source) as String? == UTType.gif.identifier,
@@ -34,7 +35,7 @@ enum RecorderGIFClipboard {
         }
         // A file URL lets attachment-oriented apps keep the original name,
         // while the native GIF flavor above remains the primary image payload.
-        guard item.setString(fileURL.absoluteString, forType: .fileURL) else { return false }
+        guard item.setString(fileURL.absoluteString, forType: .fileURL), shouldPublish() else { return false }
         pasteboard.clearContents()
         guard pasteboard.writeObjects([item]) else { return false }
         pasteboard.declareVorssaintSource()

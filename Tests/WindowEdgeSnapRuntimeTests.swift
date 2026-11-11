@@ -27,6 +27,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var mainAXWhileHeld = 0
     static var mainAXAfterRelease = 0
     static var mainLookupsAfterRelease = 0
+    static var serverFrameReads = 0
     /// Seconds since the test began, on which events are stamped and timers
     /// come due. Only a test or a timer moves it.
     static var clock: TimeInterval = 0
@@ -202,7 +203,8 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowServerSupport {
         static func frame(ofWindowID id: CGWindowID) -> CGRect? {
-            windowExists && id == windowID ? currentFrame : nil
+            serverFrameReads += 1
+            return windowExists && id == windowID ? currentFrame : nil
         }
     }
     final class NSRunningApplication {
@@ -410,6 +412,7 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static func reset() {
+        serverFrameReads = 0
         accessibilityGranted = true
         canBePlaced = true
         currentFrame = initialFrame
@@ -582,6 +585,20 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static func runRestoreTests(_ suite: TestSuite) {
+        for drift in [0, 3] {
+            reset()
+            let click = Host()
+            prepareRestore(click)
+            let start = CGPoint(x: snappedFrame.midX, y: snappedFrame.minY + 15)
+            let end = CGPoint(x: start.x + CGFloat(drift), y: start.y)
+            hand(click, .leftMouseDown, start)
+            currentFrame = snappedFrame.offsetBy(dx: CGFloat(drift), dy: 0)
+            if drift > 0 { hand(click, .leftMouseDragged, end) }
+            send(click, .leftMouseUp, end)
+            suite.expect(serverFrameReads == 0 && sizeWrites.isEmpty && click.restoreFrames[restoreKey] != nil,
+                         "a click within drag slop neither probes nor restores a snapped window")
+        }
+
         reset()
         let ordinary = Host()
         prepareRestore(ordinary)
