@@ -51,6 +51,7 @@ enum DockPreviewPositionTests {
         var screenVisibleFrame = CGRect.zero
         var visibilityWatchRequests = 0
         var revealedDockHit: DockHit?
+        var openDelay: TimeInterval = 0.2
         func ensurePanel() -> Panel { panel! }
         func visibleFrameForScreen(containing rect: CGRect) -> CGRect { screenVisibleFrame }
         func appKitPoint(fromAX point: CGPoint) -> CGPoint { point }
