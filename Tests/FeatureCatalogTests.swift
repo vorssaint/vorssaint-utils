@@ -1602,6 +1602,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        let displayKeys: Set<String> = [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayVolumeKeysEnabled]
+        suite.expect(!activeSet(.accessibility, on: displayKeys).contains(.brightness)
+                && activeSet(.accessibility, on: displayKeys.union([DefaultsKey.displayVolumeEnabled])).contains(.brightness),
+               "a remembered volume key setting requires accessibility only while monitor speakers are enabled")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
@@ -2089,18 +2093,24 @@ enum FeatureCatalogTests {
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+                                    DefaultsKey.brightnessKeyStep, DefaultsKey.displayVolumeEnabled,
+                                    DefaultsKey.displayVolumeKeysEnabled]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
         func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+                              step: BrightnessSupport.KeyStep = .standard, speakers: Bool = false,
+                              speakerKeys: Bool = false) -> FeatureEnergyProfile {
             UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
             UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
             UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            UserDefaults.standard.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            UserDefaults.standard.set(speakerKeys, forKey: DefaultsKey.displayVolumeKeysEnabled)
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
                 && brightnessEnergy(followsPointer: true) == .keyboard
                 && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(speakerKeys: true) == .idle
+                && brightnessEnergy(speakers: true, speakerKeys: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
