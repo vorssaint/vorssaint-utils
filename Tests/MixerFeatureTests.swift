@@ -917,6 +917,15 @@ enum MixerFeatureTests {
                                                ownerPid: 501,
                                                displayName: "  ").persistenceID == nil,
                "blank identifiers are not identities")
+        suite.expect(MixerRoutingSupport.otherAudioName == "Other / System audio",
+               "the fallback mixer entry for unowned processes uses the expected display name")
+        suite.expect(MixerRoutingSupport.otherAudioRowIdentity.rowID == "Other / System audio"
+               && MixerRoutingSupport.otherAudioRowIdentity.persistenceID == "Other / System audio",
+               "the fallback mixer entry uses its display name as its row and persistence identity")
+        suite.expect(mixerCode.contains("unownedAudioObjects.append(object)")
+                     && mixerCode.contains("MixerRoutingSupport.otherAudioRowIdentity")
+                     && mixerCode.contains("MixerRoutingSupport.otherAudioName"),
+                     "unowned active audio processes holding output are grouped into the fallback mixer entry")
 
         suite.expect(MixerRoutingSupport.restorableInputDeviceUID(originalUID: "BuiltInMicrophoneDevice",
                                                             appliedUID: "USBMicrophone",
