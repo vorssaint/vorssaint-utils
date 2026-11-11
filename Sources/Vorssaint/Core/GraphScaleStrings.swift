@@ -12,6 +12,7 @@ struct GraphScaleStrings {
         case .ru: return .init(title: "Показывать шкалу графиков")
         case .es: return .init(title: "Mostrar escala de las gráficas")
         case .sk: return .init(title: "Zobraziť mierku grafov")
+        case .cs: return .init(title: "Zobrazit měřítko grafů")
         case .de: return .init(title: "Diagrammskala anzeigen")
         case .fr: return .init(title: "Afficher l’échelle des graphiques")
         case .it: return .init(title: "Mostra la scala dei grafici")

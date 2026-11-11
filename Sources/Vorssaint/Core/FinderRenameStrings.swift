@@ -21,6 +21,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -87,6 +88,15 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Použiť skratku na premenovanie",
         caption: "Skratka funguje iba vo Finderi a nezasahuje do textových polí. F2 funguje ako bežný kláves, na klávesniciach, kde ovláda jas, použite Fn-F2 alebo zvoľte inú skratku.",
         shortcutLabel: "Premenovať"
+    )
+
+    static let cs = FinderRenameFeatureStrings(
+        pageTitle: "Zkratky Finderu",
+        hubTitle: "Zkratka pro přejmenování",
+        hubDescription: "Přejmenujte vybraný soubor nebo složku zkratkou, kterou si zvolíte.",
+        enableLabel: "Použít zkratku pro přejmenování",
+        caption: "Zkratka funguje pouze ve Finderu a nezasahuje do textových polí. F2 funguje jako běžná klávesa, na klávesnicích, kde ovládá jas, použijte Fn-F2 nebo zvolte jinou zkratku.",
+        shortcutLabel: "Přejmenovat"
     )
 
     static let de = FinderRenameFeatureStrings(

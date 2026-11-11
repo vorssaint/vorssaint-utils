@@ -67,6 +67,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -391,6 +392,58 @@ extension BrightnessFeatureStrings {
         speakersMinimumCaption: "Znižovanie hlasitosti sa zastaví tu. Stlmenie monitor aj tak umlčí.",
         speakersMaximum: "Maximálna hlasitosť",
         speakersMaximumCaption: "Zvyšovanie hlasitosti sa zastaví tu."
+    )
+
+    static let cs = BrightnessFeatureStrings(
+        pageTitle: "Displeje",
+        hubDescription: "Jas a zapínání všech displejů",
+        enable: "Ovládat displeje",
+        enableCaption: "Ovládání jasu a zapínání vestavěného displeje a externích monitorů, zde i v panelu na liště.",
+        externalCaption: "Externí monitory se upravují stejným protokolem jako jejich vlastní tlačítka. Když ho připojení nedokáže přenést, například u HDMI adaptérů, posuvník místo toho ztmaví obraz, takže ovládání jasu funguje vždy.",
+        noDisplays: "Nebyl nalezen žádný displej.",
+        displayOff: "Vypnutý",
+        turnOffDisplay: "Vypnout displej",
+        turnOnDisplay: "Zapnout displej",
+        lastDisplayCaption: "Alespoň jeden displej musí zůstat zapnutý.",
+        switchUnavailable: "Přepínání displejů není na tomto Macu dostupné.",
+        switchFailed: "Tento displej se nepodařilo změnit.",
+        openLidToEnable: "Otevřete víko, abyste zapnuli vestavěný displej.",
+        keysToggle: "Klávesy jasu sledují kurzor",
+        keysCaption: "Klávesy jasu na klávesnici mění displej pod kurzorem.",
+        keyStep: "Krok kláves jasu",
+        keyStepCaption: "Menší kroky při každém stisknutí kláves jasu a klávesových zkratek pro jas displeje.",
+        keyStepStandard: "Standardní",
+        keyStepHalf: "Poloviční krok",
+        keyStepQuarter: "Čtvrtinový krok",
+        osdToggle: "Zobrazit jas při úpravě",
+        osdCaption: "Zobrazuje procento jasu při použití kláves nebo posuvníků jasu.",
+        displayBrightnessShortcuts: "Používat klávesové zkratky pro jas displeje",
+        displayBrightnessShortcutCaption: "Zkratky upravují hlavní displej, nebo displej pod kurzorem, pokud je zapnuté sledování kurzoru.",
+        displayBrightnessDecrease: "Snížit jas displeje",
+        displayBrightnessIncrease: "Zvýšit jas displeje",
+        keyboardLight: "Podsvícení klávesnice",
+        keyboardLightCaption: "Zapíná nebo vypíná podsvícení klávesnice.",
+        volumeToggle: "Reproduktory monitoru",
+        volumeCaption: "Monitory s vlastními reproduktory tu dostanou posuvník hlasitosti přes stejný kanál, jaký používají jejich tlačítka. Displeje bez reproduktorů žádný nezobrazují.",
+        volumeLabel: "Hlasitost",
+        mute: "Ztlumit",
+        unmute: "Zrušit ztlumení",
+        volumeKeysToggle: "Klávesy hlasitosti ovládají reproduktory monitoru",
+        volumeKeysCaption: "Dokud zvuk jde z monitoru, klávesy hlasitosti na klávesnici upravují tento monitor místo úrovně, kterou macOS nemůže změnit.",
+        keyboardBrightnessShortcuts: "Používat klávesové zkratky pro jas klávesnice",
+        keyboardBrightnessDecrease: "Snížit jas klávesnice",
+        keyboardBrightnessIncrease: "Zvýšit jas klávesnice",
+        softwareDimming: "Ztmavit obraz",
+        extendedDimming: "Další ztmavení",
+        islandPromptTitle: "Zobrazovat jas v Dynamic Island?",
+        islandPromptMessage: "Dynamic Island zobrazuje změny jasu, jen když je v nastavení Displeje zapnuto „Ovládat displeje“.",
+        islandPromptKeepOff: "Nechat vypnuté",
+        speakersStep: "Krok hlasitosti",
+        speakersStepStandard: "Standardní (6,25 %)",
+        speakersMinimum: "Minimální hlasitost",
+        speakersMinimumCaption: "Snižování hlasitosti se zastaví zde. Ztlumení monitor i tak umlčí.",
+        speakersMaximum: "Maximální hlasitost",
+        speakersMaximumCaption: "Zvyšování hlasitosti se zastaví zde."
     )
 
     static let de = BrightnessFeatureStrings(

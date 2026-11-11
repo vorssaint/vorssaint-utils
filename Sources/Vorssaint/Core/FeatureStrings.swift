@@ -12,6 +12,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -32,6 +33,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -52,6 +54,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -72,6 +75,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -92,6 +96,7 @@ enum FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -128,6 +133,8 @@ struct MixerFeatureStrings {
     static let ru = MixerFeatureStrings(hideInactiveApps: "Скрывать неактивные приложения", pin: "Закрепить сверху", unpin: "Открепить", moveUp: "Переместить вверх", moveDown: "Переместить вниз", pinFirst: "Закрепить в начале", moveLeft: "Переместить влево", moveRight: "Переместить вправо", arrange: "Удерживайте Command и перетащите для изменения порядка", actions: "Действия")
     static let es = MixerFeatureStrings(hideInactiveApps: "Ocultar apps inactivas", pin: "Fijar arriba", unpin: "Desfijar", moveUp: "Mover hacia arriba", moveDown: "Mover hacia abajo", pinFirst: "Fijar al principio", moveLeft: "Mover a la izquierda", moveRight: "Mover a la derecha", arrange: "Mantén pulsado Command y arrastra para reordenar", actions: "Acciones")
     static let sk = MixerFeatureStrings(hideInactiveApps: "Skryť neaktívne aplikácie", pin: "Pripnúť navrch", unpin: "Odopnúť", moveUp: "Presunúť nahor", moveDown: "Presunúť nadol", pinFirst: "Pripnúť dopredu", moveLeft: "Presunúť doľava", moveRight: "Presunúť doprava", arrange: "Podržte Command a presuňte myšou pre zmenu poradia", actions: "Akcie")
+
+    static let cs = MixerFeatureStrings(hideInactiveApps: "Skrýt neaktivní aplikace", pin: "Připnout nahoru", unpin: "Odepnout", moveUp: "Přesunout nahoru", moveDown: "Přesunout dolů", pinFirst: "Připnout dopředu", moveLeft: "Přesunout doleva", moveRight: "Přesunout doprava", arrange: "Podržte Command a přetáhněte myší pro změnu pořadí", actions: "Akce")
     static let de = MixerFeatureStrings(hideInactiveApps: "Inaktive Apps ausblenden", pin: "Oben anheften", unpin: "Loslösen", moveUp: "Nach oben bewegen", moveDown: "Nach unten bewegen", pinFirst: "Vorne anheften", moveLeft: "Nach links bewegen", moveRight: "Nach rechts bewegen", arrange: "Zum Anordnen Command gedrückt halten und ziehen", actions: "Aktionen")
     static let fr = MixerFeatureStrings(hideInactiveApps: "Masquer les apps inactives", pin: "Épingler en haut", unpin: "Désépingler", moveUp: "Déplacer vers le haut", moveDown: "Déplacer vers le bas", pinFirst: "Épingler au début", moveLeft: "Déplacer vers la gauche", moveRight: "Déplacer vers la droite", arrange: "Maintenez Command et faites glisser pour réorganiser", actions: "Actions")
     static let it = MixerFeatureStrings(hideInactiveApps: "Nascondi le app inattive", pin: "Fissa in alto", unpin: "Rimuovi fissaggio", moveUp: "Sposta su", moveDown: "Sposta giù", pinFirst: "Fissa all’inizio", moveLeft: "Sposta a sinistra", moveRight: "Sposta a destra", arrange: "Tieni premuto Command e trascina per riordinare", actions: "Azioni")
@@ -409,6 +416,15 @@ struct SettingsCategoryStrings {
         utilities: "Pomôcky",
         app: "Apka",
         appManagement: "Správa aplikácií"
+    )
+
+    static let cs = SettingsCategoryStrings(
+        essentials: "Základní",
+        windowsControls: "Okna a ovládání",
+        files: "Soubory",
+        utilities: "Pomůcky",
+        app: "Aplikace",
+        appManagement: "Správa aplikací"
     )
 
     static let de = SettingsCategoryStrings(
@@ -934,6 +950,72 @@ struct ClipboardFeatureStrings {
         historyLayoutCards: "Karty",
         historyLayoutList: "Zoznam",
         showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
+    )
+
+    static let cs = ClipboardFeatureStrings(
+        title: "Schránka",
+        enable: "Ukládat historii schránky",
+        caption: "Ukládá zkopírovaný text, abyste ho mohli později znovu použít. Vše zůstává místně a můžete to kdykoli smazat.",
+        localNote: "Vše zůstává jen na tomto Macu. Příliš velké položky se ignorují.",
+        skipSensitive: "Přeskočit text, který vypadá citlivě",
+        skipSensitiveCaption: "Může přeskočit i běžný text, který připomíná hesla nebo tokeny. Obsah označený zdrojovou aplikací jako důvěrný se vždy vyloučí.",
+        limit: "Limit",
+        limitUnlimited: "Bez omezení",
+        showInPanel: "Zobrazit v panelu",
+        shortcut: "Zkratka historie",
+        shortcutCaption: "Otevře rychlé okno s vyhledáváním, připnutými položkami a zkratkami ⌘1 až ⌘9 pro vložení do předchozí aplikace.",
+        shortcutHint: "Kliknutím na řádek ho vložíte do předchozí aplikace. ⌘-klik vybere více položek, ⌘C zkopíruje bez vložení.",
+        clickRowShortcut: "Kliknutí na řádek",
+        commandClickShortcut: "⌘ klik",
+        pinned: "Připnuté",
+        recent: "Nedávné",
+        pin: "Připnout",
+        unpin: "Odepnout",
+        clearRecent: "Smazat nepřipnuté",
+        clearRecentKeywords: "Smazat nedávné",
+        empty: "Žádný uložený text",
+        disabled: "Zapněte historii, aby se začal ukládat zkopírovaný text.",
+        search: "Hledat ve zkopírovaném textu",
+        copy: "Kopírovat",
+        copied: "Zkopírováno",
+        delete: "Smazat položku",
+        selectMultiple: "Přidat na hromádku",
+        unselectMultiple: "Odebrat z hromádky",
+        selectShortcutAction: "Vybrat",
+        pasteSelectedFormat: "Vložit %d",
+        copySelectedFormat: "Kopírovat %d",
+        clearSelection: "Zrušit výběr",
+        moveUp: "Přesunout nahoru",
+        moveDown: "Přesunout dolů",
+        noResults: "Žádné výsledky",
+        active: "Ukládá se nový text",
+        includeImagesFiles: "Ukládat i zkopírované obrázky a soubory",
+        includeImagesFilesCaption: "Obrázky se přidají do historie a soubory se zapamatují jako odkazy na jejich umístění. Připínejte a vkládejte je jako jakýkoli text.",
+        imageEntryLabel: "Obrázek",
+        fileCountFormat: "Soubory: %d",
+        pasteImageAsFile: "Vkládat zkopírované obrázky jako soubory",
+        pasteImageAsFileCaption: "Když je aktivní Finder, ⌘V uloží zkopírovaný obrázek jako PNG do aktuální složky.",
+        previewLabel: "Náhled",
+        edit: "Upravit",
+        cancel: "Zrušit",
+        save: "Uložit",
+        autoClearEnable: "Automaticky vymazat schránku se zpožděním",
+        autoClearSecondsSuffix: "sekund",
+        autoClearOnSleep: "Vymazat schránku při uspání Macu",
+        autoClearOnDisplaySleep: "Vymazat schránku při vypnutí displeje",
+        autoClearOnScreenLock: "Vymazat schránku při zamknutí obrazovky",
+        autoClearCaption: "Vymaže pouze systémovou schránku. Již uložené položky zůstanou v historii.",
+        deleteSelectedFormat: "Smazat %d",
+        menuBarPreview: "Zobrazit poslední kopii na liště",
+        menuBarPreviewCaption: "Zobrazí zkrácený náhled poslední kopie vedle ikony. Kliknutím na něj otevřete historii.",
+        menuBarPreviewLength: "Délka náhledu",
+        menuBarPreviewLengthSuffix: "znaků",
+        clearRecentConfirmFormat: "Smazat nepřipnuté (%d)?",
+        clearRecentConfirmMessage: "Připnuté položky zůstanou, stejně jako vše, co zkopírujete potom. Nelze to vrátit zpět.",
+        historyLayout: "Rozložení historie",
+        historyLayoutCards: "Karty",
+        historyLayoutList: "Seznam",
+        showSourceAppIconsInList: "Zobrazit ikony zdrojových aplikací v seznamu"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -2049,6 +2131,99 @@ struct WindowLayoutFeatureStrings {
         gapExtraLarge: "Extra veľká"
     )
 
+    static let cs = WindowLayoutFeatureStrings(
+        title: "Rozložení oken",
+        caption: "Uspořádejte okna do oblastí obrazovky nebo je přesouvejte a měňte jim velikost trackpadem či myší.",
+        showInPanel: "Zobrazit v panelu",
+        gestureSection: "Tažení oken",
+        gestureEnable: "Přesouvat a měnit velikost tažením",
+        gestureCaption: "Na trackpadu nebo myši podržte zobrazené klávesy a táhněte kdekoli uvnitř okna.",
+        gestureModifiers: "Klávesy pro přesun",
+        gestureMove: "Tažením přesunete",
+        gestureResize: "Přidejte Shift a tažením změníte velikost",
+        gestureResizeHint: "Počáteční bod určí nejbližší okraj nebo roh. Na myši změní velikost i tažení pravým tlačítkem.",
+        gestureRaiseWindow: "Přesunout tažené okno dopředu",
+        shortcuts: "Zkratky",
+        shortcutsCaption: "Pomocí globálních zkratek uspořádejte aktivní okno bez otevření panelu.",
+        permissionCaption: "Zpřístupnění se používá pouze k přesouvání a změně velikosti oken.",
+        noWindow: "Nebylo nalezeno žádné aktivní okno.",
+        missingPermission: "K přesouvání oken povolte Zpřístupnění.",
+        failed: "Toto okno se nepodařilo přesunout.",
+        done: "Okno uspořádáno.",
+        restored: "Okno obnoveno.",
+        noRestore: "Žádné předchozí rozložení k obnovení.",
+        target: "Aktivní okno",
+        halves: "Poloviny",
+        thirds: "Třetiny",
+        quarterRows: "Čtvrtinové řádky",
+        quarterColumns: "Čtvrtinové sloupce",
+        sixths: "Šestiny",
+        corners: "Rohy",
+        other: "Akce",
+        leftHalf: "Vlevo",
+        rightHalf: "Vpravo",
+        topHalf: "Nahoře",
+        bottomHalf: "Dole",
+        centerHalf: "Prostřední polovina",
+        leftThird: "Levá 1/3",
+        centerThird: "Prostřední 1/3",
+        rightThird: "Pravá 1/3",
+        leftTwoThirds: "Levé 2/3",
+        rightTwoThirds: "Pravé 2/3",
+        centerTwoThirds: "Prostřední 2/3",
+        topThird: "Horní 1/3",
+        middleThird: "Prostřední 1/3",
+        bottomThird: "Dolní 1/3",
+        topTwoThirds: "Horní 2/3",
+        bottomTwoThirds: "Dolní 2/3",
+        topQuarter: "Horní 1/4",
+        upperMiddleQuarter: "Horní prostřední 1/4",
+        lowerMiddleQuarter: "Dolní prostřední 1/4",
+        bottomQuarter: "Dolní 1/4",
+        leftQuarter: "Levá 1/4",
+        leftMiddleQuarter: "Levá prostřední 1/4",
+        rightMiddleQuarter: "Pravá prostřední 1/4",
+        rightQuarter: "Pravá 1/4",
+        topLeftSixth: "Horní levá 1/6",
+        topCenterSixth: "Horní prostřední 1/6",
+        topRightSixth: "Horní pravá 1/6",
+        bottomLeftSixth: "Dolní levá 1/6",
+        bottomCenterSixth: "Dolní prostřední 1/6",
+        bottomRightSixth: "Dolní pravá 1/6",
+        topLeft: "Vlevo nahoře",
+        topRight: "Vpravo nahoře",
+        bottomLeft: "Vlevo dole",
+        bottomRight: "Vpravo dole",
+        maximize: "Maximalizovat",
+        center: "Vycentrovat",
+        nextDisplay: "Další displej",
+        restore: "Obnovit",
+        fullScreen: "Celá obrazovka",
+        previousDisplay: "Předchozí displej",
+        edgeSnapEnable: "Přichytávat okna k okrajům obrazovky",
+        edgeSnapCaption: "Zapněte to a přetáhněte záhlaví okna na jednu ze zvýrazněných oblastí níže. Okno přesouvané s podrženými modifikačními klávesami se také přichytí. Kliknutím na oblast vyberete, kam se okno umístí.",
+        edgeSnapSystemConflict: "macOS používá stejné okraje. V nastavení Plocha a Dock vypněte dlaždicování oken, aby to mohl převzít Vorssaint.",
+        edgeSnapOpenSystemSettings: "Otevřít Plochu a Dock",
+        edgeSnapWaitingForSystem: "Zapnuto ve Vorssaint. Začne fungovat hned po vypnutí dlaždicování v macOS.",
+        edgeSnapUseCorner: "Používat tento roh",
+        edgeSnapUseEdge: "Používat tento okraj",
+        edgeSnapAreasOnEdge: "Oblasti na tomto okraji",
+        marginMaximize: "Maximalizovat s okrajem",
+        marginPerEdge: "Okraj na každé straně",
+        gapsSection: "Mezery",
+        gapsCaption: "Prostor mezi přichycenými okny a mezi okny a okrajem obrazovky.",
+        windowGap: "Mezera mezi okny",
+        screenGap: "Mezera od okraje obrazovky",
+        sideRepeatCycle: "Opakováním „Vlevo“ nebo „Vpravo“ střídat velikosti",
+        sideRepeatCycleCaption: "Polovina, potom dvě třetiny, potom jedna třetina na stejném displeji. Když je to vypnuté a máte více než jeden displej, opakování přesune okno na další displej na té straně.",
+        gapNone: "Žádná",
+        gapTiny: "Drobná",
+        gapSmall: "Malá",
+        gapMedium: "Střední",
+        gapLarge: "Velká",
+        gapExtraLarge: "Extra velká"
+    )
+
     static let de = WindowLayoutFeatureStrings(
         title: "Fensterlayout",
         caption: "Ordne Fenster in Bildschirmbereiche ein oder verschiebe und skaliere sie mit Trackpad oder Maus.",
@@ -2943,6 +3118,41 @@ struct MonitorAlertFeatureStrings {
         batteryTemperatureThreshold: "Teplota nad",
         batteryTemperatureTitle: "Horúca batéria",
         batteryTemperatureBodyFormat: "Batéria dosiahla %@."
+    )
+
+    static let cs = MonitorAlertFeatureStrings(
+        section: "Oznámení",
+        caption: "Upozornění se spustí po dosažení vybraných limitů. Upozornění na vytížení a teplotu CPU ignorují výkyvy kratší než přibližně 12 sekund. Nastavení opakování omezuje pouze opakování stejného upozornění.",
+        notificationsDenied: "Oznámení pro Vorssaint jsou vypnutá v Nastavení systému, takže se nemohou zobrazit.",
+        cpu: "Vysoké vytížení CPU",
+        cpuTemperature: "Vysoká teplota CPU",
+        memory: "Kritické zatížení paměti",
+        disk: "Málo místa na disku",
+        battery: "Slabá baterie",
+        cpuThreshold: "CPU nad",
+        cpuTemperatureThreshold: "Teplota nad",
+        diskThreshold: "Volné místo pod",
+        batteryThreshold: "Baterie pod",
+        cooldown: "Zopakovat stejné upozornění po",
+        cooldown2: "2 minuty",
+        cooldown5: "5 minut",
+        cooldown15: "15 minut",
+        cooldown30: "30 minut",
+        cooldown60: "1 hodina",
+        cpuTitle: "Vysoké vytížení CPU",
+        cpuBodyFormat: "Využití CPU bylo několik sekund nad %d%%.",
+        cpuTemperatureTitle: "Horké CPU",
+        cpuTemperatureBodyFormat: "CPU dosáhlo %@.",
+        memoryTitle: "Kritická paměť",
+        memoryBody: "Zatížení paměti dosáhlo kritické úrovně.",
+        diskTitle: "Málo místa na disku",
+        diskBodyFormat: "%@ má méně než %d%% volného místa.",
+        batteryTitle: "Slabá baterie",
+        batteryBodyFormat: "Baterie je na %d%%.",
+        batteryTemperature: "Vysoká teplota baterie",
+        batteryTemperatureThreshold: "Teplota nad",
+        batteryTemperatureTitle: "Horká baterie",
+        batteryTemperatureBodyFormat: "Baterie dosáhla %@."
     )
 
     static let de = MonitorAlertFeatureStrings(
