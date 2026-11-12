@@ -20,6 +20,41 @@ enum WindowLayoutFeatureTests {
         WindowEdgeSnapRestoreTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
         WindowGestureTargetRuntimeTests.run(suite)
+        // One pointer tap now serves the pointer layout, the move and resize
+        // gesture and edge snapping, so the route decides who sees an event and
+        // in what order instead of three masks each voting on its own.
+        let everyPointerConsumer: WindowLayoutPointerDemand = [.directional, .gesture, .edgeSnap]
+        suite.expect(WindowLayoutPointerRoute.consumers(for: .leftMouseDown,
+                                                        active: everyPointerConsumer)
+                == [.directional, .gesture, .edgeSnap],
+                     "a press reaches the pointer layout, the gesture and edge snapping in that order")
+        suite.expect(WindowLayoutPointerRoute.consumers(for: .scrollWheel, active: everyPointerConsumer)
+                == [.directional]
+                && WindowLayoutPointerRoute.consumers(for: .keyDown, active: everyPointerConsumer)
+                == [.directional]
+                && WindowLayoutPointerRoute.consumers(for: .leftMouseDragged,
+                                                      active: everyPointerConsumer) == [.gesture, .edgeSnap]
+                && WindowLayoutPointerRoute.consumers(for: .rightMouseUp, active: everyPointerConsumer)
+                == [.gesture],
+                     "each consumer still sees exactly the events its own tap watched")
+        for disabled in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+            suite.expect(WindowLayoutPointerRoute.consumers(for: disabled, active: everyPointerConsumer)
+                    == [.directional, .gesture, .edgeSnap]
+                    && WindowLayoutPointerRoute.consumers(for: disabled, active: .edgeSnap) == [.edgeSnap],
+                         "a tap the system switched off reaches every consumer left to recover from it")
+        }
+        suite.expect(WindowLayoutPointerRoute.consumers(for: .leftMouseDown, active: []) == []
+                && WindowLayoutPointerRoute.consumers(for: .leftMouseDown, active: .edgeSnap) == [.edgeSnap]
+                && WindowLayoutPointerRoute.consumers(for: .leftMouseDragged, active: .directional) == [],
+                     "an idle layout routes nothing and a stopped consumer never borrows another's events")
+        suite.expect(WindowLayoutPointerRoute.consumers(for: .flagsChanged,
+                                                        active: everyPointerConsumer) == [],
+                     "the modifier chord keeps its own passive tap and stays out of the shared one")
+        suite.expect(WindowLayoutPointerRoute.sharedEventMask
+                == WindowLayoutPointerConsumer.directional.eventMask
+                    | WindowLayoutPointerConsumer.gesture.eventMask
+                    | WindowLayoutPointerConsumer.edgeSnap.eventMask,
+                     "the shared tap watches the union of the three masks it replaced")
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
         suite.expect(modifierTrigger?.displayString == "⌃⌘"
                 && modifierTrigger?.storageValue == "modifiers:control+command",
