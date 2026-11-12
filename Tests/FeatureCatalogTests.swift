@@ -2557,6 +2557,19 @@ enum FeatureCatalogTests {
                "DDC read request's checksum covers the source address")
         suite.expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
+        // A Dell P2715Q on the built-in HDMI port of an M1 Max MacBook Pro
+        // took writes at 0x37 without changing, and answered a luminance read
+        // only at 0xB7, with the same packets.
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPMCDP29XX") == 0xB7,
+               "DDC behind the built-in HDMI port's converter goes to the converter's address")
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: nil) == 0x37
+                && BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPDPTXProxy") == 0x37,
+               "every other DDC service keeps the standard address")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
+            DefaultsKey.brightnessDDCHDMIConverterRechecked)
+                && !SettingsBackupSupport.exportKeys().contains(
+                    DefaultsKey.brightnessDDCHDMIConverterRechecked),
+               "the HDMI converter recheck marker stays on the Mac that ran it")
 
         var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
         ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })

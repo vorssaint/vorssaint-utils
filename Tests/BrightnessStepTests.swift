@@ -76,7 +76,10 @@ enum BrightnessStepTests {
         func refresh(force: Bool = false) { refreshes += 1 }
         func applySoftwareDim(_ id: UInt32, value: Double) -> Bool { true }
         var beforeDDCWrite: (() -> Void)?
-        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {
+        var ddcChips: [UInt32] = []
+        func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
+                     whileCurrent: () -> Bool) -> Bool {
+            ddcChips.append(chip)
             beforeDDCWrite?()
             guard whileCurrent() else { return false }
             writes.append(UInt16(packet[3]) << 8 | UInt16(packet[4]))
@@ -88,9 +91,10 @@ enum BrightnessStepTests {
             committed.append(value)
             pendingLevels[displayID] = value
         }
-        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef,
+        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef, chip: UInt32,
                       classifyingChannel: Bool = false) -> DDCProbe {
-            .replied(current: reply.current, maximum: reply.maximum)
+            ddcChips.append(chip)
+            return .replied(current: reply.current, maximum: reply.maximum)
         }
         func forgetWriteOnlyDDCPath(_ path: String?) {}
         func rememberWriteOnlyDDCPath(_ path: String?) {}
@@ -120,6 +124,25 @@ enum BrightnessStepTests {
                      && !BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: true, shown: [], focused: nil)
                      && !BrightnessSupport.sliderShowsFocusedDisplay(controlEnabled: false, shown: [1], focused: 1),
                      "the island's brightness slider shows a key's display only when it is on and can show that display")
+
+        // A monitor behind the built-in HDMI port's converter only hears its
+        // own address: both the read before a step and the write must use it.
+        let converter = Service()
+        converter.routes[2] = Route(method: .ddc, service: "monitor" as CFString, maximum: 100,
+                                    ddcReadable: true, ddcPathKey: "path",
+                                    chipAddress: BrightnessSupport.hdmiConverterChipAddress)
+        converter.displays = [BrightnessDisplay(id: 2, brightness: 0.5)]
+        converter.reply = (80, 100)
+        converter.step(2, method: .ddc, delta: 0.1, showOSD: false)
+        converter.workQueue.drain()
+        DispatchQueue.main.drain()
+        _ = converter.writeDDCLuminance(50, to: 2, route: converter.routes[2]!, service: "monitor" as CFString)
+        suite.expect(converter.ddcChips == [0xB7, 0xB7],
+                     "a monitor behind the HDMI converter is read and written at the converter's address")
+        let standard = Service()
+        let standardRoute = Route(method: .ddc, service: "monitor" as CFString, maximum: 100, ddcPathKey: "path")
+        _ = standard.writeDDCLuminance(50, to: 2, route: standardRoute, service: "monitor" as CFString)
+        suite.expect(standard.ddcChips == [0x37], "other monitors keep the standard DDC address")
 
         service.levelKnownAt[2] = nil
         service.step(2, method: .ddc, delta: 0.1, showOSD: false)
