@@ -2178,6 +2178,40 @@ enum ClipboardPreviewContract {
         service.removeSelectedQuickEntries()
         suite.expect(service.entries == [fresh, a, c] && service.selectedQuickEntry == c,
                      "deleting the highlighted entry highlights the one that took its place")
+
+        let pins = (1...10).map { ClipboardHistoryEntry(text: "Pinned example \($0)", pinnedAt: Date()) }
+        let opening = Service()
+        opening.setEntries(pins + [a, b, c])
+        suite.expect(opening.selectedQuickEntry == a,
+                     "with ten pins, Return and preview default to the first recent copy")
+        opening.moveQuickSelection(1)
+        suite.expect(opening.selectedQuickEntry == a,
+                     "the first arrow reveals the default recent selection")
+        opening.moveQuickSelection(-1)
+        suite.expect(opening.selectedQuickEntry == pins.last,
+                     "Up from the first recent copy reaches the last pin")
+        opening.moveQuickSelection(1)
+        opening.moveQuickSelection(1)
+        suite.expect(opening.selectedQuickEntry == b,
+                     "Down walks recent copies in their existing order")
+
+        let searching = Service()
+        let matchingRecent = ClipboardHistoryEntry(text: "Pinned example recent")
+        searching.setEntries(pins + [matchingRecent])
+        searching.quickQuery = "Pinned example"
+        suite.expect(searching.filteredQuickEntries.count == 11
+                     && searching.filteredQuickEntries.first?.isPinned == true
+                     && searching.selectedQuickEntry == searching.filteredQuickEntries.first,
+                     "search still defaults to its highest-ranked match")
+        searching.quickQuery = "  \n"
+        suite.expect(searching.selectedQuickEntry == matchingRecent,
+                     "a whitespace-only query defaults to recent copies")
+        searching.setEntries(pins)
+        suite.expect(searching.selectedQuickEntry == pins.first,
+                     "a pins-only history falls back to its first pin")
+        searching.setEntries([])
+        suite.expect(searching.selectedQuickEntry == nil,
+                     "an empty history has no default paste target")
     }
 
     /// #1885: typing searches the history once per keystroke, so the folded

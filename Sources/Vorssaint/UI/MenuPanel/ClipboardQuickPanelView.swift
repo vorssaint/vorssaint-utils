@@ -11,6 +11,7 @@ struct ClipboardQuickPanelView: View {
     @State private var previewSelection = QuickPreviewSelection()
     @State private var previewIsEditing = false
     @State private var clearingIDs: [UUID: Date]?
+    @State private var pinnedScrollRequest = 0
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -78,6 +79,16 @@ struct ClipboardQuickPanelView: View {
             TextField(text.search, text: $history.quickQuery)
                 .textFieldStyle(.roundedBorder)
                 .focused($searchFocused)
+            if canReorderEntries, !history.pinnedEntries.isEmpty {
+                Button {
+                    pinnedScrollRequest += 1
+                } label: {
+                    Label("\(text.pinned) (\(history.pinnedEntries.count))", systemImage: "pin.fill")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(text.pinned)
+            }
             Button {
                 history.toggleQuickPreview()
             } label: {
@@ -147,6 +158,9 @@ struct ClipboardQuickPanelView: View {
                     }
                 }
                 .background(ScrollBounceDisabler())
+                .onAppear {
+                    scrollToOpeningPosition(with: proxy)
+                }
                 .onChange(of: history.quickSelectionID) { _, _ in
                     scrollSelectedEntry(with: proxy)
                 }
@@ -154,7 +168,10 @@ struct ClipboardQuickPanelView: View {
                     scrollSelectedEntry(with: proxy)
                 }
                 .onChange(of: history.quickQuery) { _, _ in
-                    scrollSelectedEntry(with: proxy)
+                    scrollToOpeningPosition(with: proxy)
+                }
+                .onChange(of: pinnedScrollRequest) { _, _ in
+                    proxy.scrollTo(Self.topAnchorID, anchor: layout == .list ? .top : .leading)
                 }
                 // The preview takes its width out of the strip, so a card
                 // near the trailing edge would slide out of view under it.
@@ -163,11 +180,10 @@ struct ClipboardQuickPanelView: View {
                     guard layout == .cards else { return }
                     DispatchQueue.main.async { scrollSelectedEntry(with: proxy) }
                 }
-                // The window is only hidden between uses, so without this it
-                // reopens wherever it was scrolled, while the selection and
-                // ⌘1 to ⌘9 already start from the first entries.
+                // The window is hidden between uses. Reset both first opens
+                // and reopens to recent copies, even after browsing the pins.
                 .onChange(of: history.quickWindowPresentationID) { _, _ in
-                    proxy.scrollTo(Self.topAnchorID, anchor: layout == .list ? .top : .leading)
+                    scrollToOpeningPosition(with: proxy)
                 }
             }
         }
@@ -182,10 +198,9 @@ struct ClipboardQuickPanelView: View {
     private static let listInset: CGFloat = 16
     private static let cardSpacing: CGFloat = 12
 
-    /// The list's top inset, above the first section's header that
-    /// scrolling to the first row would leave cut off, or the strip's
-    /// leading inset. Scrolling it into place lands exactly where a first
-    /// open starts.
+    /// The full list's top inset, including its first section header, or the
+    /// strip's leading inset. Used to browse all pins and to open histories
+    /// with only one section or a search query.
     private static let topAnchorID = "clipboard-list-top"
 
     private var topAnchor: some View {
@@ -324,6 +339,22 @@ struct ClipboardQuickPanelView: View {
 
     private func shortcutIndex(for entry: ClipboardHistoryEntry) -> Int? {
         filtered.prefix(9).firstIndex(where: { $0.id == entry.id })
+    }
+
+    private func scrollToOpeningPosition(with proxy: ScrollViewProxy) {
+        // Wait for a query change or first presentation to lay out its rows.
+        // A little of the pinned section stays above/before the recent entry;
+        // the toolbar's pin count also provides a way back to the full section.
+        DispatchQueue.main.async {
+            if canReorderEntries, !history.pinnedEntries.isEmpty,
+               let recent = history.recentEntries.first {
+                proxy.scrollTo(recent.id, anchor: layout == .list
+                               ? UnitPoint(x: 0, y: 0.22)
+                               : UnitPoint(x: 0.22, y: 0))
+            } else {
+                proxy.scrollTo(Self.topAnchorID, anchor: layout == .list ? .top : .leading)
+            }
+        }
     }
 
     private func scrollSelectedEntry(with proxy: ScrollViewProxy) {

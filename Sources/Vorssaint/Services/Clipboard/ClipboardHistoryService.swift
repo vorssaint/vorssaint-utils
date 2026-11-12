@@ -430,7 +430,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     var selectedQuickEntry: ClipboardHistoryEntry? {
         let matches = filteredQuickEntries
-        return matches.first { $0.id == quickSelectionID } ?? matches.first
+        return matches.isEmpty ? nil : matches[selectedQuickIndex(in: matches)]
     }
 
     func isQuickBatchSelected(_ entry: ClipboardHistoryEntry) -> Bool {
@@ -1686,9 +1686,11 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    /// A highlighted entry that left the results falls back to the first.
+    /// A missing highlight falls back to the opening target: the first recent
+    /// copy without a query, or the highest-ranked search result.
     private func selectedQuickIndex(in matches: [ClipboardHistoryEntry]) -> Int {
-        matches.firstIndex { $0.id == quickSelectionID } ?? 0
+        matches.firstIndex { $0.id == quickSelectionID }
+            ?? ClipboardHistorySelection.defaultIndex(in: matches, query: quickQuery) ?? 0
     }
 }
 
