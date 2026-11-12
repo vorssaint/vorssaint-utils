@@ -266,7 +266,9 @@ enum AgentUsageReadTests {
     /// Both products use ~/.gemini, and can independently use the same
     /// session/message ids. Discovery, watching and replay must stay isolated.
     private static func mixedGeminiProviders(_ suite: TestSuite, folder: URL) {
-        let roots = AgentLogRoot.all(home: folder).filter { [.antigravity, .gemini].contains($0.provider) }
+        // Directory enumeration and FSEvents return real paths on macOS.
+        let home = AgentLogRoot.canonical(folder.deletingLastPathComponent()).appending(path: folder.lastPathComponent)
+        let roots = AgentLogRoot.all(home: home).filter { [.antigravity, .gemini].contains($0.provider) }
         guard let antigravity = roots.first(where: { $0.provider == .antigravity }),
               let gemini = roots.first(where: { $0.provider == .gemini }) else {
             suite.expect(false, "both Gemini products have log roots")
