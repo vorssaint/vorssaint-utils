@@ -123,8 +123,7 @@ struct NotchAgentsView: View {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
-                                     accountName: provider == .claude ? claudeAccountName : nil,
-                                     period: shown)
+                                     accountName: provider == .claude ? claudeAccountName : nil)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -257,7 +256,6 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
-    var period: AgentPeriod = .today
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -485,53 +483,9 @@ private struct NotchAgentLimitsCard: View {
                 Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 lastUsed
             }
-        } else if provider == .antigravity {
-            antigravityDashboard
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
-        }
-    }
-
-    /// Dedicated Antigravity dashboard displaying period cost, tokens, and live status.
-    @ViewBuilder private var antigravityDashboard: some View {
-        let periodUsage = snapshot.usage(period).byProvider[.antigravity]
-        if let usage = periodUsage, usage.tokens.total > 0 || usage.requests > 0 || usage.cost > 0 {
-            let costText: String = {
-                if usage.unpriced > 0 {
-                    return usage.cost > 0 ? "≥ " + AgentFormat.cost(usage.cost) : "—"
-                }
-                return AgentFormat.cost(usage.cost)
-            }()
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 5) {
-                    Text(text.period(period))
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
-                    Spacer(minLength: 2)
-                    Text(costText)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
-                .help(usage.unpriced > 0 ? text.unpriced : text.valueNote)
-                HStack(spacing: 4) {
-                    Text(AgentFormat.tokens(usage.tokens.total))
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
-                    if let rate = usage.tokens.cacheHitRate, rate > 0 {
-                        Text("· " + text.cached(AgentFormat.percent(rate)))
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.tertiary)
-                    }
-                    Spacer()
-                    lastUsed
-                }
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                lastUsed
-            }
         }
     }
 
