@@ -55,14 +55,15 @@ extension RecorderComposer {
 
         let showsPointer = document.showsPointer && !track.samples.isEmpty
         let segments = document.activeZoomSegments(duration: duration)
-        let needsCanvas = scale != 1 || hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
+        let changesCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
+        let needsCanvas = scale != 1 || changesCanvas
         let hasCuts = !document.cuts.isEmpty
         let texts = RecorderTextOverlay.normalized(document.texts, duration: duration)
         let images = RecorderImageOverlay.normalized(document.images, duration: duration)
         let blurs = RecorderBlurRegion.normalized(document.blurs, duration: duration)
-        guard showsPointer || !segments.isEmpty || needsCanvas || hasCuts || !texts.isEmpty
-            || !images.isEmpty || !blurs.isEmpty
-        else { return nil }
+        let hasEdits = showsPointer || !segments.isEmpty || changesCanvas || hasCuts
+            || !texts.isEmpty || !images.isEmpty || !blurs.isEmpty
+        guard hasEdits || scale != 1 else { return nil }
 
         // Everything the pointer track knows is in the RECORDING's own time,
         // and every frame drawn is in the FINISHED video's time. The path is
@@ -233,6 +234,7 @@ extension RecorderComposer {
 
         return Plan(sourceSize: RecorderSupport.evenSize(sourceSize),
                     canvasSize: canvas,
+                    isScaleOnly: !hasEdits,
                     cardRect: card,
                     frameRate: frameRate,
                     positions: positions,

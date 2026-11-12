@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreAudio
+import CoreAudioTapCompat
 import Foundation
 
 /// The production configuration watch is extracted whole. These queues and
@@ -175,8 +176,32 @@ enum MixerTapConfigurationTests {
                                    mBitsPerChannel: 32, mReserved: 0)
     }
 
+    @available(macOS 14.4, *)
+    private static func tapDescriptions(_ suite: TestSuite) {
+        let objects: [NSNumber] = [41, 42]
+        let mix = VorssaintPrivateTapDescription(.stereoMixdown, objects, nil, "Levels", .unmuted)
+        // Read the ObjC properties. The Swift processes and stream accessors
+        // come from the same optional overlay as the convenience initializers.
+        suite.expect(mix?.isMixdown == true && mix?.isMono == false && mix?.isExclusive == false
+                        && (mix?.value(forKey: "processes") as? [NSNumber]) == objects
+                        && mix?.isPrivate == true && mix?.name == "Levels" && mix?.muteBehavior == .unmuted,
+                     "a private stereo tap includes only the requested processes and leaves them audible")
+        let global = VorssaintPrivateTapDescription(.stereoGlobalExcluding, objects, nil, "Recorder", .unmuted)
+        suite.expect(global?.isMixdown == true && global?.isExclusive == true
+                        && (global?.value(forKey: "processes") as? [NSNumber]) == objects,
+                     "whole-system recording excludes the supplied processes")
+        let device = VorssaintPrivateTapDescription(.deviceStream, objects, "test-output", nil, .mutedWhenTapped)
+        suite.expect(device?.deviceUID == "test-output" && (device?.value(forKey: "stream") as? NSNumber)?.intValue == 0
+                        && (device?.value(forKey: "processes") as? [NSNumber]) == objects
+                        && device?.isPrivate == true && device?.muteBehavior == .mutedWhenTapped,
+                     "the mixer targets stream zero of its output and mutes only while tapped")
+        suite.expect(VorssaintPrivateTapDescription(.deviceStream, objects, nil, nil, .mutedWhenTapped) == nil,
+                     "a missing output UID cannot become a device tap")
+    }
+
     static func run(_ suite: TestSuite) {
         guard #available(macOS 14.4, *) else { return }
+        tapDescriptions(suite)
         formats(suite)
         selection(suite)
         recovery(suite)
@@ -188,6 +213,7 @@ enum MixerTapConfigurationTests {
         notifications(suite, format: format)
         changes(suite, format: format)
         fallbackOutputFormat(suite, format: format)
+        pollDuringValidation(suite, format: format)
         notificationDuringRead(suite, format: format)
         for status in [noErr, kAudioHardwareBadObjectError, kAudioHardwareUnspecifiedError] {
             removal(suite, format: format, status: status)
@@ -358,6 +384,40 @@ enum MixerTapConfigurationTests {
         }
     }
 
+    private static func pollDuringValidation(_ suite: TestSuite, format: MixerTapFormat) {
+        HAL.reset()
+        let counter = Counter()
+        let watch = makeWatch(format: format, counter: counter)
+        watch.start()
+        defer { finish(watch, suite) }
+
+        let renderer = MixerRenderContinuityTests.Renderer(tapChannels: format.channels)
+        renderer.box.value = MixerRoutingSupport.gain(forVolume: 0)
+        let samples = Array(repeating: Float(0.25), count: 512 * format.channels)
+
+        func checkMutedCapture() {
+            HAL.duringRead = { _ in
+                HAL.duringRead = nil
+                watch.refresh(immediately: false)
+            }
+            watch.queue.runNext()
+            suite.expect(watch.canRender && watch.queue.count == 1,
+                         "a valid format resumes while a routine poll waits")
+            let cycles = renderer.cycles.value
+            renderer.configuration.canRender = watch.canRender
+            let output = renderer.render(samples, frames: 512, layout: [UInt32(format.channels)])
+            suite.expect(output.allSatisfy { $0 == 0 } && renderer.cycles.value == cycles + 1,
+                         "a playing app at zero gain stays silent and its tap still makes render progress")
+            watch.queue.run()
+            suite.expect(watch.canRender && !watch.requiresRebuild && counter.value == 0,
+                         "draining the periodic poll keeps the validated capture active")
+        }
+
+        checkMutedCapture()
+        HAL.announce(tap, kAudioTapPropertyFormat)
+        checkMutedCapture()
+    }
+
     private static func notificationDuringRead(_ suite: TestSuite, format: MixerTapFormat) {
         HAL.reset()
         let counter = Counter()
@@ -371,6 +431,7 @@ enum MixerTapConfigurationTests {
             // The read already captured the old value. The notification owns
             // a newer pass, so this result must not re-enable the callback.
             HAL.values[key] = asbd(rate: 96_000)
+            watch.refresh(immediately: false)
             HAL.announce(tap, kAudioTapPropertyFormat)
         }
         HAL.announce(tap, kAudioTapPropertyFormat)
