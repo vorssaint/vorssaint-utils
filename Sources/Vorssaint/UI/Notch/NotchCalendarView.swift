@@ -89,24 +89,36 @@ struct NotchCalendarView: View {
 
     private func monthView(now: Date) -> some View {
         NotchCalendarMonthView(month: focus, selectedDay: selectedDay, now: now,
-                               events: calendar.events, text: text, select: select)
+                               events: calendar.events, text: text, select: select,
+                               browse: prefetch, settled: browse)
     }
 
     private func weekStrip(now: Date) -> some View {
         NotchCalendarWeekStrip(focus: focus, selectedDay: selectedDay, now: now,
-                               events: calendar.events, text: text, select: select) {
+                               events: calendar.events, text: text, select: select, week: {
             selectedDay = nil
             focus = now
-        }
+        }, browse: browse)
     }
 
     /// Picking a day lands back on the strip with that day.
     private func monthGrid(now: Date) -> some View {
         NotchCalendarMonthGrid(month: focus, selectedDay: selectedDay, now: now, height: size.height,
-                               events: calendar.events, text: text) { date in
+                               events: calendar.events, text: text, select: { date in
             select(date)
             showingMonth = false
-        }
+        }, browse: prefetch, settled: browse)
+    }
+
+    private func prefetch(_ date: Date) {
+        guard ownsMonth else { return }
+        calendar.showMonth(date)
+    }
+
+    private func browse(_ date: Date) {
+        // The native scroll coordinator recognizes this readback and keeps its offset.
+        selectedDay = Calendar.current.startOfDay(for: date)
+        focus = date
     }
 
     /// The month the page shows, named in the language's own words: in full
