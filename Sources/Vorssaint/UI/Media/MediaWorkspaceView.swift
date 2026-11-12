@@ -304,12 +304,8 @@ struct MediaWorkspaceView: View {
     }
 
     @ViewBuilder private var inputDropTarget: some View {
-        if inNotch {
-            inputSelector
-        } else {
-            inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
-                acceptDrop(providers)
-            }
+        inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
+            acceptDrop(providers)
         }
     }
 
