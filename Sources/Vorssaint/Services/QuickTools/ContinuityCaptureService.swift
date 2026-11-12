@@ -42,8 +42,12 @@ final class ContinuityCaptureService: ObservableObject {
         let currentApp = NSWorkspace.shared.frontmostApplication
         Task { @MainActor [weak self] in
             guard let self else { return }
+            let previousTarget = self.targetApp
+            self.dismiss(restoreTarget: false)
             if let currentApp, currentApp.processIdentifier != ProcessInfo.processInfo.processIdentifier {
                 self.targetApp = currentApp
+            } else {
+                self.targetApp = previousTarget
             }
             self.performCapture()
         }
@@ -51,8 +55,6 @@ final class ContinuityCaptureService: ObservableObject {
 
     @MainActor
     private func performCapture() {
-        dismiss(restoreTarget: false)
-
         NSApp.activate(ignoringOtherApps: true)
 
         let mouse = NSEvent.mouseLocation
@@ -153,6 +155,7 @@ final class ContinuityCaptureService: ObservableObject {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.writeObjects([image])
+        pasteboard.declareVorssaintSource()
 
         let message = FeatureStrings.cameraPreview(L10n.shared.language).continuityCaptureHUD
         QuickToolHUD.show(icon: "iphone.and.arrow.forward", message: message)
@@ -161,14 +164,16 @@ final class ContinuityCaptureService: ObservableObject {
         self.targetApp = nil
         dismiss(restoreTarget: false)
 
-        if let target, target.processIdentifier != ProcessInfo.processInfo.processIdentifier {
+        if let target, !target.isTerminated,
+           target.processIdentifier != ProcessInfo.processInfo.processIdentifier {
             // Restore origin application focus so cursor reappears in input field
-            target.activate()
+            restoreFocus(to: target)
 
             let autoPaste = UserDefaults.standard.bool(forKey: DefaultsKey.continuityCaptureAutoPasteEnabled)
             if autoPaste {
                 if AXIsProcessTrusted() {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+                        guard !target.isTerminated else { return }
                         TransientPaste.shared.pasteCurrentContents()
                     }
                 } else {
@@ -191,8 +196,18 @@ final class ContinuityCaptureService: ObservableObject {
         panel?.close()
         panel = nil
 
-        if restoreTarget, let target, target.processIdentifier != ProcessInfo.processInfo.processIdentifier {
-            target.activate()
+        if restoreTarget, let target {
+            restoreFocus(to: target)
+        }
+    }
+
+    @MainActor
+    private func restoreFocus(to target: NSRunningApplication) {
+        guard !target.isTerminated,
+              target.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return }
+        ActivationHandoff.yield(to: target)
+        if !target.activate(from: NSRunningApplication.current, options: []) {
+            target.activate(options: [])
         }
     }
 }

@@ -247,7 +247,7 @@ extension CameraPreviewFeatureStrings {
         permExplain: "只在預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會離開你的 Mac。",
         continuityCaptureButton: "從 iPhone 拍照",
         continuityCaptureShortcutTitle: "從 iPhone 拍照快速鍵",
-        continuityCaptureHUD: "照片已拷貝到剪貼板",
+        continuityCaptureHUD: "照片已拷貝到剪貼簿",
         continuityCaptureAutoPaste: "拍照後直接貼上至游標處"
     )
 
