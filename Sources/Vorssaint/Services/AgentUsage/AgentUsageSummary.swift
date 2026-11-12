@@ -444,7 +444,7 @@ enum AgentLimitSupport {
             guard window.usedPercent >= threshold else { return false }
             guard let previous, let before = previous.windows.first(where: { $0.id == window.id }) else { return false }
             return before.usedPercent < threshold || renewed(before, to: window, observedAt: current.observedAt)
-                || current.source == .account && began(window, after: previous.observedAt)
+                || (current.source == .account || current.source == .opencodeAccount) && began(window, after: previous.observedAt)
         }
     }
 
