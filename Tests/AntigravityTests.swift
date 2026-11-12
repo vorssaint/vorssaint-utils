@@ -167,6 +167,15 @@ enum AntigravityTests {
         suite.expect(store.apply([.confirmationNeeded(later, project: "p", detail: "Continue?")],
                                  file: "transcript", provider: .antigravity, tracksTurns: true, modified: later, now: later).count == 1,
                      "a later request for the same confirmation still shows its own notice")
+        let saved = AgentUsageArchive.Contents(providers: [.antigravity], store: store.saved, cursors: [])
+        let archive = AgentUsageArchive.encode(saved, build: "confirmation-privacy")
+        let decoded = AgentUsageArchive.decode(archive, build: "confirmation-privacy")
+        let restored = AgentUsageStore(saved: decoded?.store ?? .init())
+        restored.reportsTransitions = true
+        suite.expect(decoded == saved && archive.range(of: Data("Continue?".utf8)) == nil
+                     && restored.apply(question, file: "new-launch", provider: .antigravity, tracksTurns: true, modified: now, now: now).count == 1,
+                     "archiving keeps neither confirmation text nor its transient suppression state")
+
         suite.expect(store.apply([.confirmationNeeded(now.addingTimeInterval(-301), project: "p", detail: "old"),
                                   .confirmationNeeded(now.addingTimeInterval(10), project: "p", detail: "future")],
                                  file: "f", provider: .antigravity, tracksTurns: true, modified: now, now: now).isEmpty,
