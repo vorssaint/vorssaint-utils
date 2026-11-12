@@ -608,6 +608,13 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        resetState()
+    }
+
+    /// Antigravity does not repeat its conversation ID in every line. The
+    /// first read and a rotated file both restart at the identity in its path.
+    private func resetState() {
+        state = AgentLogState()
         if provider == .antigravity {
             state.session = URL(fileURLWithPath: path)
                 .deletingLastPathComponent().deletingLastPathComponent()
@@ -660,7 +667,7 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
+        resetState()
         fingerprinted = nil
         codexParentSearch = -1
     }

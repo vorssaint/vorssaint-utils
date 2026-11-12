@@ -153,6 +153,25 @@ enum AntigravityTests {
         let discovered = AgentLogReader.discover(existingRoots, since: .distantPast)
         suite.expect(discovered.count == 6 && discovered.allSatisfy { $0.provider == .antigravity },
                      "AGY shallow discovery reaches both transcript names inside hidden system log folders")
+        let transcript = roots[0].url.appending(path: "session/.system_generated/logs/transcript.jsonl")
+        let response = Data(#"{"type":"PLANNER_RESPONSE","status":"DONE","step_index":1,"created_at":"2026-11-12T10:00:00Z","input_tokens":100,"output_tokens":10}"#.utf8) + Data([0x0A])
+        try? response.write(to: transcript, options: .atomic)
+        let cursor = AgentLogCursor(path: transcript.path, provider: .antigravity)
+        let transcriptStore = AgentUsageStore()
+        func readTranscript() {
+            AgentLogReader.readAppended(cursor) { line in
+                let entries = AntigravityReader().parse(line, state: &cursor.state, now: Date())
+                transcriptStore.apply(entries, file: transcript.path, provider: .antigravity,
+                                      tracksTurns: true, modified: cursor.modified)
+            }
+        }
+        readTranscript()
+        suite.expect(transcriptStore.records.count == 1 && transcriptStore.records.first?.session == "session",
+                     "the real first file read preserves the AGY conversation ID without inline metadata")
+        try? response.write(to: transcript, options: .atomic)
+        readTranscript()
+        suite.expect(transcriptStore.records.count == 1 && cursor.state.session == "session",
+                     "replacing an AGY transcript preserves its identity and never counts the response twice")
         let info = AntigravityLogInfo.read(home: home)
         suite.expect(info.conversations == 1 && info.folder?.path == roots.first.map { AgentLogRoot.canonical($0.url).path },
                      "AGY Settings counts conversations with transcripts once across CLI and IDE copies")
