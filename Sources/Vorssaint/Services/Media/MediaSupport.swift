@@ -783,7 +783,9 @@ enum MediaSupport {
             watermark.logoPath = ""
             profiles[index].options.watermark = watermark
         }
-        guard let portableData = try? JSONEncoder().encode(profiles) else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let portableData = try? encoder.encode(profiles) else { return nil }
         return String(data: portableData, encoding: .utf8)
     }
 
