@@ -104,7 +104,8 @@ enum BrightnessStepTests {
         UserDefaults.standard = UserDefaults.Store()
         let service = Service()
         service.routes[2] = Route(method: .ddc, service: "monitor" as CFString, maximum: 100,
-                                          ddcReadable: true, ddcPathKey: "path")
+                                          ddcReadable: true, ddcPathKey: "path",
+                                          chipAddress: BrightnessSupport.chipAddress)
         service.displays = [BrightnessDisplay(id: 2, brightness: 0.5)]
         service.reply = (80, 100)
 
@@ -140,7 +141,8 @@ enum BrightnessStepTests {
         suite.expect(converter.ddcChips == [0xB7, 0xB7],
                      "a monitor behind the HDMI converter is read and written at the converter's address")
         let standard = Service()
-        let standardRoute = Route(method: .ddc, service: "monitor" as CFString, maximum: 100, ddcPathKey: "path")
+        let standardRoute = Route(method: .ddc, service: "monitor" as CFString, maximum: 100, ddcPathKey: "path",
+                                  chipAddress: BrightnessSupport.chipAddress)
         _ = standard.writeDDCLuminance(50, to: 2, route: standardRoute, service: "monitor" as CFString)
         suite.expect(standard.ddcChips == [0x37], "other monitors keep the standard DDC address")
 
@@ -231,7 +233,8 @@ enum BrightnessStepTests {
             UserDefaults.standard = UserDefaults.Store()
             let service = Service()
             service.routes[2] = Route(method: .ddc, service: "monitor" as CFString, maximum: 100,
-                                     ddcReadable: true, ddcPathKey: "path")
+                                     ddcReadable: true, ddcPathKey: "path",
+                                     chipAddress: BrightnessSupport.chipAddress)
             service.displays = [BrightnessDisplay(id: 2, brightness: 0.5)]
             service.lastApplied[2] = 0.5
             service.reply = (50, 100)
@@ -268,7 +271,8 @@ enum BrightnessStepTests {
                              "choosing software discards old-scale writes and the pending DDC step")
                 if !readFinished { late.workQueue.drain() }
                 if rebuilt {
-                    late.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+                    late.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path",
+                                           chipAddress: BrightnessSupport.chipAddress)
                     late.displays[0].method = .software
                     late.displays[0].brightness = 1
                 }
@@ -284,7 +288,8 @@ enum BrightnessStepTests {
         transition.step(2, method: .ddc, delta: -delta, showOSD: false)
         suite.expect(transition.workQueue.jobs.isEmpty && transition.committed.isEmpty,
                      "keys cannot start another DDC step while the software rebuild is queued")
-        transition.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+        transition.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path",
+                                     chipAddress: BrightnessSupport.chipAddress)
         transition.step(2, method: .ddc, delta: -delta, showOSD: false)
         transition.step(2, method: .software, delta: -delta, showOSD: false)
         suite.expect(transition.committed.isEmpty,
@@ -298,7 +303,8 @@ enum BrightnessStepTests {
         let replacedRoute = readableService()
         replacedRoute.step(2, method: .ddc, delta: -delta, showOSD: false)
         replacedRoute.workQueue.drain()
-        replacedRoute.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path")
+        replacedRoute.routes[2] = Route(method: .software, service: nil, maximum: 100, ddcPathKey: "path",
+                                        chipAddress: BrightnessSupport.chipAddress)
         DispatchQueue.main.drain()
         suite.expect(replacedRoute.committed.isEmpty,
                      "an automatic route change rejects a DDC reply even on the same connection")
@@ -321,7 +327,8 @@ enum BrightnessStepTests {
 
         let separate = readableService()
         separate.routes[3] = Route(method: .ddc, service: "other monitor" as CFString, maximum: 100,
-                                  ddcReadable: true, ddcPathKey: "other-path")
+                                  ddcReadable: true, ddcPathKey: "other-path",
+                                  chipAddress: BrightnessSupport.chipAddress)
         separate.displays.append(BrightnessDisplay(id: 3, brightness: 0.5))
         separate.step(2, method: .ddc, delta: -delta, showOSD: false)
         separate.step(3, method: .ddc, delta: delta, showOSD: false)

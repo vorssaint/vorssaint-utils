@@ -53,11 +53,12 @@ enum BrightnessSupport {
     static let chipAddress: UInt32 = 0x37
     /// Sub-address DDC hosts write through.
     static let dataAddress: UInt32 = 0x51
-    /// Address that reaches the monitor through the DisplayPort to HDMI
-    /// converter (MCDP29XX) behind the built-in HDMI port of Apple Silicon
-    /// Macs. The converter accepts writes to the standard address and passes
-    /// none of them on, so they report success while the monitor never moves.
-    /// The packets themselves, checksum included, stay the same.
+    /// Address that reaches the monitor through an MCDP29XX DisplayPort to
+    /// HDMI converter, which sits behind the built-in HDMI port of at least
+    /// the M1 Max MacBook Pro. The converter accepts writes to the standard
+    /// address and passes none of them on, so they report success while the
+    /// monitor never moves. The packets themselves, checksum included, stay
+    /// the same.
     static let hdmiConverterChipAddress: UInt32 = 0xB7
     /// EPIC provider class of a DDC service that sits behind that converter.
     static let hdmiConverterProviderClass = "AppleDCPMCDP29XX"

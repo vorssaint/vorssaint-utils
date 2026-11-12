@@ -150,7 +150,7 @@ final class BrightnessService: ObservableObject {
         var ddcPathKey: String?
         var extendedDimming = false
         var lastDDCValue: UInt16?
-        var chipAddress = BrightnessSupport.chipAddress
+        var chipAddress: UInt32
     }
 
     private var deferredRestoration = BrightnessSupport.DeferredDisplayRestoration()
@@ -2272,7 +2272,8 @@ final class BrightnessService: ObservableObject {
                 built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: isBuiltIn,
                                                method: .system, isActive: true,
                                                brightness: trusted, readable: !asleep))
-                newRoutes[id] = Route(method: .system, service: nil, maximum: 100)
+                newRoutes[id] = Route(method: .system, service: nil, maximum: 100,
+                                      chipAddress: BrightnessSupport.chipAddress)
                 if !asleep {
                     stateLock.lock()
                     levelKnownAt[id] = Date()
@@ -2533,7 +2534,8 @@ final class BrightnessService: ObservableObject {
                 method: .software, isActive: true, brightness: value, readable: true,
                 canChooseDimming: softwarePathKeys[id] != nil)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
-                                  ddcPathKey: softwarePathKeys[id])
+                                  ddcPathKey: softwarePathKeys[id],
+                                  chipAddress: BrightnessSupport.chipAddress)
             if value < 0.999 || dimmedDisplays.contains(id) {
                 _ = applySoftwareDim(id, value: value)
             }
@@ -3426,7 +3428,7 @@ final class BrightnessService: ObservableObject {
                 results.append(ExternalService(
                     identity: pending, service: service,
                     chipAddress: BrightnessSupport.ddcChipAddress(
-                        epicProviderClass: Self.parentProperty(entry, "EPICProviderClass") as? String)))
+                        epicProviderClass: Self.ancestorProperty(entry, "EPICProviderClass") as? String)))
             }
         }
         return results
@@ -3434,14 +3436,10 @@ final class BrightnessService: ObservableObject {
 
     /// The EPIC endpoint a proxy hangs from names the hardware behind it,
     /// which tells a service behind the HDMI converter apart from the rest.
-    private static func parentProperty(_ entry: io_service_t, _ key: String) -> AnyObject? {
-        var parent = io_registry_entry_t()
-        guard IORegistryEntryGetParentEntry(entry, kIOServicePlane, &parent) == KERN_SUCCESS else {
-            return nil
-        }
-        defer { IOObjectRelease(parent) }
-        return IORegistryEntryCreateCFProperty(parent, key as CFString, kCFAllocatorDefault, 0)?
-            .takeRetainedValue()
+    /// Search upward rather than trust one exact registry shape.
+    private static func ancestorProperty(_ entry: io_service_t, _ key: String) -> AnyObject? {
+        IORegistryEntrySearchCFProperty(entry, kIOServicePlane, key as CFString, kCFAllocatorDefault,
+                                        IOOptionBits(kIORegistryIterateRecursively | kIORegistryIterateParents))
     }
 
     private static func property(_ entry: io_service_t, _ key: String) -> AnyObject? {

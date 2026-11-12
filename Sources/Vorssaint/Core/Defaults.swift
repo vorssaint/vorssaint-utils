@@ -254,8 +254,8 @@ enum DefaultsKey {
     // The read checksum fix needs its own recheck even if the paired-request
     // migration already ran and cached the monitor as write-only again.
     static let brightnessDDCReadChecksumRechecked = "brightnessDDCReadChecksumRechecked"
-    // Monitors on the built-in HDMI port were probed at an address its
-    // converter swallows; recheck them once now that it is addressed.
+    // Monitors behind an MCDP29XX HDMI converter were probed at an address
+    // it swallows; recheck them once now that it is addressed.
     static let brightnessDDCHDMIConverterRechecked = "brightnessDDCHDMIConverterRechecked"
     /// A beta already installed the companion for this Command Bar user, once.
     static let notchMascotBetaInstalled = "notchMascotBetaInstalled"
@@ -2221,10 +2221,9 @@ enum Defaults {
         defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
     }
 
-    /// A monitor on the built-in HDMI port of an Apple Silicon Mac was probed
-    /// at the standard DDC address, which the port's converter accepts and
-    /// drops, so it was cached as write-only and pinned to writes that never
-    /// arrive. Drop the cache once so it is probed at the converter's address;
+    /// A monitor behind an MCDP29XX HDMI converter was probed at the
+    /// standard DDC address, which the converter accepts and drops, so it was
+    /// cached as write-only and pinned to writes that never arrive. Drop the cache once so it is probed at the converter's address;
     /// later verdicts stand.
     static func recheckBrightnessDDCHDMIConverterPaths(in defaults: UserDefaults) {
         guard !defaults.bool(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked) else { return }

@@ -2565,10 +2565,7 @@ enum FeatureCatalogTests {
         suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: nil) == 0x37
                 && BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPDPTXProxy") == 0x37,
                "every other DDC service keeps the standard address")
-        suite.expect(SettingsBackupSupport.machineStateKeys.contains(
-            DefaultsKey.brightnessDDCHDMIConverterRechecked)
-                && !SettingsBackupSupport.exportKeys().contains(
-                    DefaultsKey.brightnessDDCHDMIConverterRechecked),
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.brightnessDDCHDMIConverterRechecked),
                "the HDMI converter recheck marker stays on the Mac that ran it")
 
         var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]

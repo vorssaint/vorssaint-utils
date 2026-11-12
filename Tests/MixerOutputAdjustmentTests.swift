@@ -1116,6 +1116,19 @@ enum MixerOutputAdjustmentContract {
                      && sliderDone == true && mixer.systemOutputVolume == 0.05 && mixer.systemOutputMuted == false
                      && Hardware.writes.isEmpty, "a verified low volume can safely lift a native mute")
 
+        // Speakers behind the built-in HDMI port's converter only hear its
+        // address, from discovery through every read and write of a change.
+        mixer = make()
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true,
+                                                     chip: BrightnessSupport.hdmiConverterChipAddress)
+        sliderDone = nil
+        mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+        speakers.finish()
+        suite.expect(sliderDone == true && speakers.writes == [SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2)]
+                     && speakers.chips.count > 2
+                     && speakers.chips.allSatisfy { $0 == BrightnessSupport.hdmiConverterChipAddress },
+                     "monitor speakers behind the HDMI converter are probed and changed at its address")
+
         for rejects in [true, false] {
             speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
             speakers.rejectVolume = rejects
