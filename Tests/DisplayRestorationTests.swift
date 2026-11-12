@@ -1037,7 +1037,7 @@ enum DisplayRestorationTests {
                          "successful early disable stops polling and preserves the brightness settle delay")
         }
 
-        for reason in ["sleeping", "inactive", "offline", "virtual", "AirPlay", "disabled", "closed", "unknown", "off", "override", "pending"] {
+        for reason in ["sleeping", "inactive", "offline", "virtual", "AirPlay", "disabled", "closed", "unknown", "off", "override", "pending", "locked", "unreadable"] {
             service = makeWake()
             switch reason {
             case "sleeping": Hardware.asleep = [2]
@@ -1051,6 +1051,8 @@ enum DisplayRestorationTests {
             case "off": service.automaticDisplayPolicyEnabled = false
             case "override": service.builtInDisplayManualOverride = true
             case "pending": service.pendingDisplayIDs = [1]
+            case "locked": Hardware.session = ["CGSSessionScreenIsLocked": true]
+            case "unreadable": Hardware.session = nil
             default: break
             }
             service.displaysWokeUp()
@@ -1058,6 +1060,25 @@ enum DisplayRestorationTests {
             DispatchQueue.main.advance(by: 2.99)
             suite.expect(Hardware.transactions == 0, "early wake refuses \(reason) eligibility")
         }
+
+        // Locked wake: the panel keeps the lock screen, then goes off once unlocked.
+        service = makeWake()
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 0.5)
+        suite.expect(Hardware.transactions == 0, "a locked wake leaves the built-in panel on")
+        Hardware.session = [:]
+        DispatchQueue.main.advance(by: 0.1)
+        suite.expect(Hardware.transactions == 1 && service.automaticallyDisabledDisplayID == 1,
+                     "unlocking inside the wake window disables the built-in panel")
+        service = makeWake()
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        service.displaysWokeUp()
+        DispatchQueue.main.advance(by: 3)
+        suite.expect(Hardware.transactions == 0, "a wake that stays locked never disables the panel")
+        Hardware.session = [:]
+        service.displaysWokeUp()
+        suite.expect(Hardware.transactions == 1, "a later unlock retries the automatic disable")
 
         service = makeWake()
         Hardware.topology = BrightnessSupport.DisplayTopology(online: [1], active: [1])

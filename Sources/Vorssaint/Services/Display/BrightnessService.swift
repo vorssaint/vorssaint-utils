@@ -2005,6 +2005,9 @@ final class BrightnessService: ObservableObject {
     private func disableBuiltInDisplayIfReady(topology: BrightnessSupport.DisplayTopology) -> Bool? {
         guard automaticDisplayPolicyEnabled, !builtInDisplayManualOverride,
               Self.lidClosed() == false,
+              // Like the saved-choice reapply: keep the lock screen on the panel (#4022).
+              let session = CGSessionCopyCurrentDictionary() as? [String: Any],
+              !KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: session),
               let id = topology.online.sorted().first(where: {
                   CGDisplayIsBuiltin($0) != 0 && topology.active.contains($0)
               }), !pendingDisplayIDs.contains(id) else { return nil }
