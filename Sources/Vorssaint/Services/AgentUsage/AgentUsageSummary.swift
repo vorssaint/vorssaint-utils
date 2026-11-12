@@ -22,13 +22,15 @@ struct AgentTotals: Equatable {
     var savings = 0.0
     var requests = 0
     /// Responses from a model without a known price, left out of `cost`.
+    /// A response whose log has no tokens, like Antigravity's, has no cost
+    /// to miss and does not count.
     var unpriced = 0
 
     mutating func add(_ record: AgentUsageRecord) {
         tokens += record.tokens
         requests += max(0, record.requests)
         savings += record.savings
-        if let price = record.cost { cost += price } else { unpriced += 1 }
+        if let price = record.cost { cost += price } else if record.tokens.total > 0 { unpriced += 1 }
     }
 
     static func += (lhs: inout AgentTotals, rhs: AgentTotals) {
@@ -375,7 +377,7 @@ final class AgentUsageSummaryCache {
             delta.cost -= previous.cost ?? 0
             delta.savings -= previous.savings
             delta.requests -= previous.requests
-            delta.unpriced -= previous.cost == nil ? 1 : 0
+            delta.unpriced -= (previous.cost == nil && previous.tokens.total > 0) ? 1 : 0
         }
         history!.days[day].byProvider[record.provider, default: AgentTotals()] += delta
         if day == starts.count - 1, let hour = AgentUsageSummary.index(of: record.date, in: hourStarts) {
