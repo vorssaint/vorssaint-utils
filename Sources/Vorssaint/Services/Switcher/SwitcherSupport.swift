@@ -2210,13 +2210,21 @@ enum SwitcherSupport {
         }
     ) -> [GlobalShortcut] {
         var shortcuts: [GlobalShortcut] = []
+        var actionKeysByLayout: [GlobalShortcutModifiers: [Int64]] = [:]
         for mask in 1...GlobalShortcutModifiers.validMask.rawValue {
             let modifiers = GlobalShortcutModifiers(rawValue: mask)
             guard modifiers.intersection(shortcut.modifiers) == shortcut.modifiers else { continue }
-            for keyCode in Int64(0)...127 {
-                let label = keyLabel(keyCode, modifiers.contains(.command), modifiers.contains(.shift))?.lowercased()
-                guard keyCode == USKeyPosition.q || keyCode == USKeyPosition.w || label == "q" || label == "w"
-                else { continue }
+            // Control and Option do not select a different character table.
+            // Resolve each table once before this Carbon callback returns.
+            let layout = modifiers.intersection([.command, .shift])
+            if actionKeysByLayout[layout] == nil {
+                actionKeysByLayout[layout] = (Int64(0)...127).filter { keyCode in
+                    if keyCode == USKeyPosition.q || keyCode == USKeyPosition.w { return true }
+                    let label = keyLabel(keyCode, layout.contains(.command), layout.contains(.shift))?.lowercased()
+                    return label == "q" || label == "w"
+                }
+            }
+            for keyCode in actionKeysByLayout[layout] ?? [] {
                 let action = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
                 if !registered.contains(action) { shortcuts.append(action) }
             }

@@ -25,6 +25,7 @@ final class RecorderComposer {
     struct Plan {
         let sourceSize: CGSize
         let canvasSize: CGSize
+        let isScaleOnly: Bool
         let cardRect: CGRect
         let frameRate: Int
         let positions: [CGPoint]

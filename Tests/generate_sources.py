@@ -414,7 +414,8 @@ def main():
               "    private func performHeadlessDisplayRestoration(",
               "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
               "    private func displaysWillSleep(", "    private func displaysWokeUp(",
-              "    private func reapplyManagedDisplayDisables(", "    private func screensChanged("])
+              "    private func reapplyManagedDisplayDisables(", "    private func observeScreenUnlock(",
+              "    private func screensChanged("])
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
@@ -426,6 +427,7 @@ def main():
           + declaration(brightness, "    private func forcedSoftwarePaths(")
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
+          + declaration(brightness, "    private func writeDDCLuminance(").replace("private ", "", 1)
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private ", "", 1)
           + declaration(brightness, "    private static func writeSystemBrightness(").replace("private ", "", 1)
           + "}\n}\n")
@@ -2465,13 +2467,16 @@ def main():
           + "softwareDims.append((id, value)); events.append(\"picture:\\(value)\")\n"
           + "if softwareSucceeds { if value >= 0.999 { dimmedDisplays.remove(id) } else { dimmedDisplays.insert(id) } }\n"
           + "return softwareSucceeds\n}\n"
-          + "func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8]) -> Bool {\n"
+          + "func ddcSend(to id: CGDirectDisplayID, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {\n"
+          + "guard whileCurrent() else { return false }\n"
           + "let value = UInt16(packet[3]) << 8 | UInt16(packet[4])\n"
           + "events.append(\"ddc:\\(value)\"); return ddcSucceeds\n}\n"
           + "func refresh(force: Bool = false) { refreshes += 1 }\n"
           + declaration(brightness, "    func setSoftwareDimmingPreferred(")
           + declaration(brightness, "    func setExtendedDimmingPreferred(")
           + declaration(brightness, "    private func restoreAllGamma(").replace("private func", "func", 1)
+          + declaration(brightness, "    private func forcedSoftwarePaths(")
+          + declaration(brightness, "    private func writeDDCLuminance(")
           + declaration(brightness, "    private func writeExtendedBrightness(").replace("private func", "func", 1)
           + "}\n}\n")
 
@@ -2833,7 +2838,7 @@ def main():
           + "enum NSSound { static func beep() {} }\nenum QuickToolHUD { static func show(icon: String, message: String) {} }\n"
           + "enum ScreenRecorderService { static func saveDestination(strings: RecorderFeatureStrings, fileExtension: String) -> URL { URL(fileURLWithPath: \"/tmp/recording.\" + fileExtension) } }\n"
           + "struct RecentCaptureService { static let shared = RecentCaptureService(); func recordRecording(at url: URL) {} }\n"
-          + "struct RecorderGIFClipboard { static var publications = 0; static func publish(fileURL: URL) -> Bool { publications += 1; return true } }\n"
+          + "struct RecorderGIFClipboard { static var publications = 0; static func publish(fileURL: URL, shouldPublish: () -> Bool) -> Bool { guard shouldPublish() else { return false }; publications += 1; return true } }\n"
           + "final class GeneralPasteboardAccess { static let shared = GeneralPasteboardAccess(); var pending: [(work: () -> Bool, completion: (Bool) -> Void)] = []; func async(_ work: @escaping () -> Bool, then completion: @escaping (Bool) -> Void) { pending.append((work, completion)) } }\n"
           + "func copyDestination(fileExtension: String) -> URL? { URL(fileURLWithPath: \"/tmp/copy.\" + fileExtension) }\n"
           + declaration(recorder, "    private func copyGIFAndDelete(").replace("private func copyGIFAndDelete", "func startGIFCopy", 1)

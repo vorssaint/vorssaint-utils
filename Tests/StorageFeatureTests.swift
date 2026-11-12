@@ -54,6 +54,12 @@ enum StorageFeatureTests {
                    "\(path) names what the removal left behind")
             suite.expect(!source.contains("\"checkmark.circle.fill\""),
                    "\(path) takes its done symbol from UninstallerSupport")
+            if path.hasSuffix("/Uninstall/UninstallerView.swift") {
+                let emptyPage = source.components(separatedBy: "case .empty:").last?
+                    .components(separatedBy: "case .scanning:").first ?? ""
+                suite.expect(emptyPage.contains("ScrollView {") && emptyPage.contains("emptyState.frame("),
+                       "the Settings uninstaller scrolls the entire empty page, including the permission buttons")
+            }
         }
         let sharedUISource = (try? String(contentsOfFile: "Sources/Vorssaint/UI/SharedUI.swift",
                                           encoding: .utf8)) ?? ""
