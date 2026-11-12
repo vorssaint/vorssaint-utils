@@ -96,11 +96,15 @@ enum WindowEnumerator {
     }
 
     struct WindowList {
-        let items: [SwitcherItem]
+        var items: [SwitcherItem]
         /// Unfiltered source context keeps activation and panel placement tied
         /// to the foreground window even when it belongs to another display.
         let sourceItems: [SwitcherItem]
         var activationSnapshot: SwitcherWindowServerSnapshot? = nil
+        var bundleIdentifiers: [pid_t: String] = [:]
+        var nativeFullscreenWindowIDs: Set<CGWindowID> = []
+        var observedWindowIDs: Set<CGWindowID> = []
+        var accessibilityElements: [CGWindowID: AXUIElement] = [:]
     }
 
     struct AppSnapshot: Sendable {
@@ -251,11 +255,8 @@ enum WindowEnumerator {
             beforeRead: { windowServerCapture.waitForWindowIDs(isCancelled: isCancelled) })
     }
 
-    /// Copies all AppKit-owned enumeration inputs into values that can safely
-    /// cross to the serial enumeration queue.
-    static func snapshot() -> Snapshot {
-        dispatchPrecondition(condition: .onQueue(.main))
-        let runningApps = NSWorkspace.shared.runningApplications.compactMap { app -> AppSnapshot? in
+    static func runningApplications() -> [AppSnapshot] {
+        NSWorkspace.shared.runningApplications.compactMap { app -> AppSnapshot? in
             guard !app.isTerminated else { return nil }
             return AppSnapshot(pid: app.processIdentifier,
                                bundleIdentifier: app.bundleIdentifier,
@@ -265,6 +266,12 @@ enum WindowEnumerator {
                                bundlePath: app.bundleURL?.path,
                                executablePath: app.executableURL?.path)
         }
+    }
+
+    /// Copies all AppKit-owned enumeration inputs into values that can safely
+    /// cross to the serial enumeration queue.
+    static func snapshot(includingRunningApps: Bool = true) -> Snapshot {
+        dispatchPrecondition(condition: .onQueue(.main))
         var ownWindowTitles: [CGWindowID: String] = [:]
         for window in NSApp.windows {
             guard window.windowNumber > 0,
@@ -277,7 +284,7 @@ enum WindowEnumerator {
             ownWindowTitles[windowID] = window.title.isEmpty ? AppInfo.name : window.title
         }
         return Snapshot(accessibilityGranted: Permissions.shared.accessibility,
-                        runningApps: runningApps,
+                        runningApps: includingRunningApps ? runningApplications() : [],
                         ownWindowTitles: ownWindowTitles,
                         screenFrames: NSScreen.screens.map(\.frame),
                         displayIDsByUUID: SpaceWindowBridge.displayIDsByUUID())
@@ -324,6 +331,28 @@ enum WindowEnumerator {
             isCancelled: isCancelled
         )
         return result
+    }
+
+    static func rememberSwitcherWindows(
+        snapshot: Snapshot,
+        filterPID: pid_t? = nil,
+        isCancelled: @escaping () -> Bool
+    ) -> WindowList {
+        listWindows(filterPID: filterPID,
+                    maximumCount: .max,
+                    windowlessApps: .all,
+                    appRules: [:],
+                    groupByApp: false,
+                    minimizedPlacement: .normal,
+                    treatHiddenAppsLikeMinimized: false,
+                    showFullscreenWindows: true,
+                    preservingGroupedWindows: false,
+                    currentSpaceOnly: false,
+                    includesFullscreenAcrossSpaces: true,
+                    marksHiddenSpaces: true,
+                    snapshot: snapshot,
+                    remembersWindows: true,
+                    isCancelled: isCancelled)
     }
 
     /// The Command Bar shares the window walk, not the Switcher's visibility
@@ -450,6 +479,7 @@ enum WindowEnumerator {
                                     sourcePrefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil,
                                     windowServerCapture: WindowServerWindowList? = nil,
                                     resolveSource: (([SwitcherItem]) -> SwitcherItem?)? = nil,
+                                    remembersWindows: Bool = false,
                                     isCancelled: @escaping () -> Bool = { false }) -> WindowList {
         guard !isCancelled() else {
             return WindowList(items: [], sourceItems: [])
@@ -480,7 +510,7 @@ enum WindowEnumerator {
             return WindowList(items: [], sourceItems: [])
         }
         let windowServerSnapshot = SwitcherWindowServerSnapshot(
-            windowInfo: raw, capturesActivationBaseline: sourcePID != nil)
+            windowInfo: raw, capturesActivationBaseline: sourcePID != nil || remembersWindows)
         let normalLevelWindowIDs = windowServerSnapshot.normalLevelWindowIDs
         let windowOwnerPIDs = windowServerSnapshot.normalLevelOwnerPIDs
         // Snapshot apps plus regular owners the window server named and the
@@ -816,6 +846,69 @@ enum WindowEnumerator {
                              ownPID: pid_t(ownPid),
                              withheldPIDs: withheldPIDs,
                              appRules: appRules)
+        var list = selectWindows(
+            windows,
+            maximumCount: maximumCount,
+            windowlessApps: windowlessApps,
+            groupByApp: groupByApp,
+            minimizedPlacement: minimizedPlacement,
+            treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized,
+            showFullscreenWindows: showFullscreenWindows,
+            preservingGroupedWindows: preservingGroupedWindows,
+            currentSpaceOnly: currentSpaceOnly,
+            windowsOnly: windowsOnly,
+            scopedToFrontmostPID: scopedToFrontmostPID,
+            displayScope: displayScope,
+            frontToBack: frontToBack,
+            isOnHiddenSpace: isOnHiddenSpace,
+            resolveSource: resolveSource,
+            isCancelled: isCancelled)
+        // Space lookups are comparatively expensive. Resolve badges only for
+        // the entries whose apps survived grouping and the visible cap.
+        if marksHiddenSpaces {
+            list.items = list.items.map { window in
+                guard let windowID = window.windowID else { return window }
+                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
+            }
+        }
+        list.activationSnapshot = sourcePID != nil || remembersWindows ? windowServerSnapshot : nil
+        if remembersWindows {
+            list.bundleIdentifiers = bundleIdentifiers
+            list.observedWindowIDs = normalLevelWindowIDs
+            for item in list.items {
+                if let id = item.windowID,
+                   let element = accessibilityWindows[item.windowOwnerPID]?.byID[id]?.element {
+                    list.accessibilityElements[id] = element
+                }
+            }
+            list.nativeFullscreenWindowIDs = Set(list.items.compactMap { item in
+                guard let id = item.windowID,
+                      accessibilityWindows[item.windowOwnerPID]?.byID[id]?.isNativeFullscreen == true
+                        || isOnFullscreenSpace(id) else { return nil }
+                return id
+            })
+        }
+        return list
+    }
+
+    static func selectWindows(
+        _ windows: [SwitcherItem],
+        maximumCount: Int,
+        windowlessApps: SwitcherWindowlessApps,
+        groupByApp: Bool,
+        minimizedPlacement: WindowSwitchMinimizedPlacement,
+        treatHiddenAppsLikeMinimized: Bool,
+        showFullscreenWindows: Bool,
+        preservingGroupedWindows: Bool,
+        currentSpaceOnly: Bool,
+        windowsOnly: Bool,
+        scopedToFrontmostPID: pid_t?,
+        displayScope: DisplayScope?,
+        frontToBack: WindowUseTracker.FrontToBack,
+        isOnHiddenSpace: (CGWindowID) -> Bool,
+        resolveSource: (([SwitcherItem]) -> SwitcherItem?)?,
+        isCancelled: () -> Bool = { false }
+    ) -> WindowList {
         let affectedByMinimizedPlacement = { (item: SwitcherItem) in
             item.isMinimizedForPlacement(treatHiddenAppsLikeMinimized: treatHiddenAppsLikeMinimized)
         }
@@ -900,16 +993,7 @@ enum WindowEnumerator {
                 orderedWindows: backingOrdered,
                 representatives: result)
         }
-        // Space lookups are comparatively expensive. Resolve badges only for
-        // the entries whose apps survived grouping and the visible cap.
-        if marksHiddenSpaces {
-            result = result.map { window in
-                guard let windowID = window.windowID else { return window }
-                return window.withHiddenSpaceState(isOnHiddenSpace(windowID))
-            }
-        }
-        return WindowList(items: result, sourceItems: sourceCandidates,
-                          activationSnapshot: sourcePID == nil ? nil : windowServerSnapshot)
+        return WindowList(items: result, sourceItems: sourceCandidates)
     }
 
     /// WindowServer can keep stale, titled surfaces around after some apps close
@@ -925,6 +1009,7 @@ enum WindowEnumerator {
         let isFullscreen: Bool
         /// Desktop scope needs native fullscreen state, not the frame heuristic.
         let isNativeFullscreen: Bool
+        var element: AXUIElement? = nil
     }
 
     private struct AccessibilityWindowSnapshotList {
@@ -1179,12 +1264,13 @@ enum WindowEnumerator {
             if reading == .userFacing, !isCancelled(), let id = AXWindowResolver.windowID(for: window) {
                 let frame = attributes.frame
                 let isNativeFullscreen = attributes.isNativeFullscreen
-                let snapshot = AccessibilityWindowSnapshot(
+                var snapshot = AccessibilityWindowSnapshot(
                     title: attributes.string(.title) ?? "",
                     frame: frame,
                     isMinimized: attributes.bool(.minimized),
                     isFullscreen: isNativeFullscreen || frameLooksFullscreen(frame, screenFrames: screenFrames),
                     isNativeFullscreen: isNativeFullscreen)
+                snapshot.element = window
                 byID[id] = snapshot
                 ordered.append((id, snapshot))
             }

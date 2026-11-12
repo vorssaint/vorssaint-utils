@@ -170,9 +170,7 @@ enum WindowActivator {
             targetWindowElement(windowID: windowID,
                                 pid: windowOwnerPID)
         }
-        let liveMinimizedRead = activationMinimizedState(target: targetWindow,
-                                                         pid: windowOwnerPID)
-        let liveMinimizedState = liveMinimizedRead.state
+        let liveMinimizedState = SpaceWindowBridge.minimizedState(of: windowID)
         let targetStartedMinimized = liveMinimizedState ?? itemReportedMinimized
         // A window parked on a Space that is not visible cannot be reached by
         // the Accessibility passes below; the hop travels there first and then
@@ -188,49 +186,93 @@ enum WindowActivator {
         if spaceHopStarted {
             return
         }
-        // Keep the baseline before prepare/front. A current all-ID query can
-        // validate the earlier complete owner map without copying every
-        // window's properties again. Any new ID or missing target falls back.
-        let initialSnapshotTaken = retry || sourceWasFullscreen || item.isFullscreen
-        var knownWindowIDs: Set<CGWindowID> = []
-        var usedValidatedSnapshot = false
-        if initialSnapshotTaken, !targetStartedMinimized,
-           !sourceWasFullscreen, !item.isFullscreen,
-           let windowServerSnapshot {
-            let currentIDs = SpaceWindowBridge.allWindowIDs()
-            if let currentIDs,
-               let validated = windowServerSnapshot.activationWindowIDs(
-                   ownerPID: windowOwnerPID, targetWindowID: windowID,
-                   currentWindowIDs: currentIDs) {
-                knownWindowIDs = validated
-                usedValidatedSnapshot = true
-            }
-        }
-        if initialSnapshotTaken, !usedValidatedSnapshot {
-            knownWindowIDs = windowIDs(ownerPID: windowOwnerPID, options: .optionAll)
-        }
-        watchTargetMinimizeIfNeeded(windowID: windowID,
-                                    targetPID: item.pid,
-                                    targetWindowOwnerPID: windowOwnerPID,
-                                    sourcePID: sourcePID,
-                                    sourceWindowID: sourceWindowID,
-                                    sourceWindowOwnerPID: sourceWindowOwnerPID,
-                                    activationPlan: activationPlan,
-                                    generation: generation,
-                                    targetWindow: targetWindow)
+        let writeGuard = SwitcherActivationWriteGuard()
         // Preparing a minimized window here would deminiaturize it while its
         // app is still in the background. The window server shows the
         // restoring window above the old app, then drops it beneath that app
         // again until activation, which reads as a flash. Leave the window
         // alone: the exact-window front below activates its app, and the
         // focus pass restores and focuses the window once the app is front.
-        if !targetStartedMinimized {
-            prepareWindowForActivation(windowID: windowID, pid: windowOwnerPID,
-                                       generation: generation,
-                                       target: targetWindow)
-        }
-        let writeGuard = SwitcherActivationWriteGuard()
-        if sourceWasFullscreen || item.isFullscreen {
+        activateApp(app,
+                    plan: activationPlan,
+                    windowID: windowID,
+                    windowOwnerPID: windowOwnerPID,
+                    generation: generation,
+                    writeGuard: writeGuard)
+        DispatchQueue.main.async {
+            guard isCurrentActivation(generation), writeGuard.isActive else { return }
+            let initialSnapshotTaken = retry || sourceWasFullscreen || item.isFullscreen
+            var knownWindowIDs: Set<CGWindowID> = []
+            var usedValidatedSnapshot = false
+            if initialSnapshotTaken, !targetStartedMinimized,
+               !sourceWasFullscreen, !item.isFullscreen,
+               let windowServerSnapshot {
+                let currentIDs = SpaceWindowBridge.allWindowIDs()
+                if let currentIDs,
+                   let validated = windowServerSnapshot.activationWindowIDs(
+                       ownerPID: windowOwnerPID, targetWindowID: windowID,
+                       currentWindowIDs: currentIDs) {
+                    knownWindowIDs = validated
+                    usedValidatedSnapshot = true
+                }
+            }
+            if initialSnapshotTaken, !usedValidatedSnapshot {
+                knownWindowIDs = windowIDs(ownerPID: windowOwnerPID, options: .optionAll)
+            }
+            watchTargetMinimizeIfNeeded(windowID: windowID,
+                                        targetPID: item.pid,
+                                        targetWindowOwnerPID: windowOwnerPID,
+                                        sourcePID: sourcePID,
+                                        sourceWindowID: sourceWindowID,
+                                        sourceWindowOwnerPID: sourceWindowOwnerPID,
+                                        activationPlan: activationPlan,
+                                        generation: generation,
+                                        targetWindow: targetWindow)
+            if sourceWasFullscreen || item.isFullscreen {
+                let retryState = SwitcherWindowFocusRetryState(
+                    targetWindowID: windowID,
+                    targetStartedMinimized: targetStartedMinimized,
+                    targetWasObservedRestored: liveMinimizedState == false,
+                    knownWindowIDs: knownWindowIDs
+                )
+                scheduleInitialMinimizedStateObservation(
+                    retryState,
+                    windowID: windowID,
+                    pid: windowOwnerPID,
+                    generation: generation)
+                let retryDelays = retry
+                    ? Self.fullscreenFocusRetryDelays
+                    : [Self.fullscreenFocusRetryDelays[0]]
+                scheduleFocusRetries(windowID: windowID,
+                                     targetPID: item.pid,
+                                     targetWindowOwnerPID: windowOwnerPID,
+                                     sourcePID: sourcePID,
+                                     retrySourcePID: retrySourcePID,
+                                     sourceWindowID: sourceWindowID,
+                                     sourceWindowOwnerPID: sourceWindowOwnerPID,
+                                     state: retryState,
+                                     stagingState: stagingState,
+                                     activationPlan: activationPlan,
+                                     generation: generation,
+                                     writeGuard: writeGuard,
+                                     delays: retryDelays,
+                                     stopsWhenTargetFocused: false)
+                return
+            }
+
+            scheduleSourceStaging(targetWindowID: windowID,
+                                  targetPID: item.pid,
+                                  targetWindowOwnerPID: windowOwnerPID,
+                                  sourcePID: sourcePID,
+                                  sourceWindowID: sourceWindowID,
+                                  sourceWindowOwnerPID: sourceWindowOwnerPID,
+                                  activationPlan: activationPlan,
+                                  generation: generation,
+                                  writeGuard: writeGuard,
+                                  stagingState: stagingState,
+                                  observedFrontmostPID: nil)
+
+            guard retry else { return }
             let retryState = SwitcherWindowFocusRetryState(
                 targetWindowID: windowID,
                 targetStartedMinimized: targetStartedMinimized,
@@ -242,15 +284,6 @@ enum WindowActivator {
                 windowID: windowID,
                 pid: windowOwnerPID,
                 generation: generation)
-            activateApp(app,
-                        plan: activationPlan,
-                        windowID: windowID,
-                        windowOwnerPID: windowOwnerPID,
-                        generation: generation,
-                        writeGuard: writeGuard)
-            let retryDelays = retry
-                ? Self.fullscreenFocusRetryDelays
-                : [Self.fullscreenFocusRetryDelays[0]]
             scheduleFocusRetries(windowID: windowID,
                                  targetPID: item.pid,
                                  targetWindowOwnerPID: windowOwnerPID,
@@ -263,57 +296,9 @@ enum WindowActivator {
                                  activationPlan: activationPlan,
                                  generation: generation,
                                  writeGuard: writeGuard,
-                                 delays: retryDelays,
-                                 stopsWhenTargetFocused: false)
-            return
+                                 delays: [focusRetryDelay],
+                                 stopsWhenTargetFocused: true)
         }
-
-        activateApp(app,
-                    plan: activationPlan,
-                    windowID: windowID,
-                    windowOwnerPID: windowOwnerPID,
-                    generation: generation,
-                    writeGuard: writeGuard)
-        // The first staging of an activation has nothing to skip yet, and no
-        // foreground observation: the source app is the one in front.
-        scheduleSourceStaging(targetWindowID: windowID,
-                              targetPID: item.pid,
-                              targetWindowOwnerPID: windowOwnerPID,
-                              sourcePID: sourcePID,
-                              sourceWindowID: sourceWindowID,
-                              sourceWindowOwnerPID: sourceWindowOwnerPID,
-                              activationPlan: activationPlan,
-                              generation: generation,
-                              writeGuard: writeGuard,
-                              stagingState: stagingState,
-                              observedFrontmostPID: nil)
-
-        guard retry else { return }
-        let retryState = SwitcherWindowFocusRetryState(
-            targetWindowID: windowID,
-            targetStartedMinimized: targetStartedMinimized,
-            targetWasObservedRestored: liveMinimizedState == false,
-            knownWindowIDs: knownWindowIDs
-        )
-        scheduleInitialMinimizedStateObservation(
-            retryState,
-            windowID: windowID,
-            pid: windowOwnerPID,
-            generation: generation)
-        scheduleFocusRetries(windowID: windowID,
-                              targetPID: item.pid,
-                              targetWindowOwnerPID: windowOwnerPID,
-                              sourcePID: sourcePID,
-                              retrySourcePID: retrySourcePID,
-                              sourceWindowID: sourceWindowID,
-                              sourceWindowOwnerPID: sourceWindowOwnerPID,
-                              state: retryState,
-                              stagingState: stagingState,
-                              activationPlan: activationPlan,
-                              generation: generation,
-                              writeGuard: writeGuard,
-                              delays: [focusRetryDelay],
-                              stopsWhenTargetFocused: true)
     }
 
     static func activate(pid: pid_t,
@@ -1329,17 +1314,25 @@ enum WindowActivator {
             return
         }
 
-        // The element is resolved here, after the guard, so a switch that
-        // never installs the observer does not ask the app for its window
-        // list at all.
-        pendingMinimizeRestore = SwitcherWindowMinimizeRestore(windowID: windowID,
-                                                               targetPID: targetPID,
-                                                               targetWindowOwnerPID: targetWindowOwnerPID,
-                                                               sourcePID: sourcePID,
-                                                               sourceWindowID: sourceWindowID,
-                                                               sourceWindowOwnerPID: sourceWindowOwnerPID,
-                                                               generation: generation,
-                                                               axWindow: targetWindow.element())
+        runObservation {
+            guard isCurrentActivation(generation) else { return }
+            let observer = SwitcherWindowMinimizeRestore(windowID: windowID,
+                                                         targetPID: targetPID,
+                                                         targetWindowOwnerPID: targetWindowOwnerPID,
+                                                         sourcePID: sourcePID,
+                                                         sourceWindowID: sourceWindowID,
+                                                         sourceWindowOwnerPID: sourceWindowOwnerPID,
+                                                         generation: generation,
+                                                         axWindow: targetWindow.element())
+            DispatchQueue.main.async {
+                guard isCurrentActivation(generation) else {
+                    observer?.invalidate()
+                    return
+                }
+                pendingMinimizeRestore = observer
+                observer?.start()
+            }
+        }
     }
 
     fileprivate static func cancelPendingMinimizeRestore() {
@@ -2119,7 +2112,6 @@ fileprivate final class SwitcherWindowMinimizeRestore {
             return nil
         }
 
-        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
         let focusedAddResult = AXObserverAddNotification(observer,
                                                          axApp,
                                                          kAXFocusedWindowChangedNotification as CFString,
@@ -2139,6 +2131,11 @@ fileprivate final class SwitcherWindowMinimizeRestore {
                                                                     refcon)
             _ = minimizeButtonAddResult
         }
+    }
+
+    func start() {
+        guard let observer else { return }
+        CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
         workspaceObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
