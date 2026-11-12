@@ -109,7 +109,40 @@ enum ScreenshotCanvasModelTests {
                      "escape in expand canvas at rest leaves the tool like crop, without changing the canvas")
     }
 
+    /// A crop owns its pixels instead of pointing into the frame it came from,
+    /// with the same size, colour space and pixels.
+    private static func cropOwnsItsPixels(_ suite: TestSuite) {
+        let parent = ScreenshotImageLayerTests.solid(
+            NSColor(deviceRed: 0.2, green: 0.5, blue: 0.8, alpha: 1), width: 1200, height: 800)
+        let rect = CGRect(x: 100, y: 60, width: 800, height: 600)
+        func buffer(_ image: CGImage) -> Int {
+            (image.dataProvider?.data as Data?)?.count ?? 0
+        }
+        guard let window = parent.cropping(to: rect),
+              let independent = ScreenshotSupport.independentImage(window)
+        else {
+            suite.expect(false, "a crop is copied into pixels of its own")
+            return
+        }
+        suite.expect(independent.width == 800 && independent.height == 600,
+                     "the copy keeps the crop's size")
+        if let space = independent.colorSpace, let source = parent.colorSpace {
+            suite.expect(CFEqual(space, source), "the copy keeps the crop's colour space")
+        } else {
+            suite.expect(false, "both the crop and its parent carry a colour space")
+        }
+        suite.expect(buffer(window) > buffer(independent) && buffer(independent) == 800 * 600 * 4,
+                     "the crop holds its own buffer instead of the parent's: \(buffer(window)) then \(buffer(independent)) bytes")
+        suite.expect(independent.bytesPerRow == 800 * 4,
+                     "the copy stops reading rows of the parent")
+        let bounds = CGRect(x: 0, y: 0, width: 800, height: 600)
+        suite.expect(ScreenshotImageLayerTests.bytes(independent, in: bounds)
+                     == ScreenshotImageLayerTests.bytes(window, in: bounds),
+                     "the copy keeps every pixel")
+    }
+
     static func run(_ suite: TestSuite) {
+        cropOwnsItsPixels(suite)
         counterSizeAfterExpansion(suite)
         samplesAfterExpansion(suite)
         pasteFromClipboard(suite)

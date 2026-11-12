@@ -1275,11 +1275,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             draft,
             within: CGRect(origin: .zero, size: imageSize))
         guard cropRect.width >= 8, cropRect.height >= 8,
-              let cropped = baseImage.cropping(to: cropRect)
+              let crop = baseImage.cropping(to: cropRect)
         else {
             tool = .select
             return
         }
+        // The crop keeps its own pixels, so the frame it came from can go.
+        let cropped = ScreenshotSupport.independentImage(crop) ?? crop
         registerUndo()
         let previousImage = baseImage
         baseImage = cropped
