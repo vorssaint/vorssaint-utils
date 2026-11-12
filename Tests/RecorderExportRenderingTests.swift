@@ -29,6 +29,7 @@ enum RecorderExportRenderingTests {
             .appendingPathComponent("recorder-export-test-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
+        try opaqueScaledGIFs(suite, folder: folder)
         let take = RecorderTakeStore.Take(id: UUID(), folder: folder)
         let writer = try AVAssetWriter(outputURL: take.videoURL, fileType: .mov)
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
@@ -62,6 +63,30 @@ enum RecorderExportRenderingTests {
         input.markAsFinished()
         await writer.finishWriting()
         suite.expect(writer.status == .completed, "the synthetic 60 fps master is written")
+        // AVFoundation's Core Image handler kept compiling GPU programs for
+        // frame after frame of an export with a moving pointer (#3578), so an
+        // edited recording is drawn by a compositor of its own.
+        var edited = RecorderEditDocument()
+        edited.blurs = [RecorderBlurRegion(start: 0, end: 1, rect: CGRect(x: 0, y: 0, width: 0.5, height: 0.5))]
+        let master = AVURLAsset(url: take.videoURL)
+        if let masterTrack = try await master.loadTracks(withMediaType: .video).first,
+           let plan = RecorderComposer.makePlan(document: edited, track: RecorderPointerTrack(),
+                                                sourceSize: CGSize(width: 128, height: 128),
+                                                frameRate: 60, duration: 2) {
+            let composer = RecorderComposer(plan: plan)
+            let composition = await RecorderComposer.videoComposition(
+                track: masterTrack, asset: master, duration: CMTime(value: 2, timescale: 1), frameRate: 60,
+                composer: composer, sourceSize: CGSize(width: 128, height: 128), outputSize: composer.canvasSize)
+            let masterDuration = try await master.load(.duration)
+            // The handler's compositions name a compositor too, AVFoundation's own.
+            let compositor = composition?.customVideoCompositorClass.map { NSStringFromClass($0) } ?? "none"
+            suite.expect(compositor != "none" && !compositor.hasPrefix("AV")
+                    && composition?.instructions.count == 1
+                    && composition?.instructions.first?.timeRange.duration == masterDuration,
+                   "an edited recording is drawn by its own compositor over the whole timeline: \(compositor)")
+        } else {
+            suite.expect(false, "the edited fixture builds a plan")
+        }
         // 120 frames, each appended far sooner than the editor should redraw.
         var plainDocument = RecorderEditDocument()
         plainDocument.showsPointer = false
@@ -72,7 +97,13 @@ enum RecorderExportRenderingTests {
             progress: videoProgress.record)
         suite.expect(plainFailure == nil, "the progress fixture exports")
         expectThrottledProgress(suite, videoProgress.entries, frameReportsUpTo: 0.9, "video export")
+        try await gifRetainsExportSpeed(suite, take: take, folder: folder)
         try await audioAndGIF(suite, take: take)
+        try await gifQuality(suite, folder: folder)
+        try await gifCaptionScale(suite, folder: folder)
+        try await composedEdges(suite, take: take)
+        try await orientedImports(suite, take: take)
+        try await gifOrientation(suite, folder: folder)
         // The last case ends protection in the removed interval. The frame
         // held immediately before the splice must retain the pre-cut blur.
         let cases: [(cuts: Bool, blurStart: Double, blurEnd: Double, protectedTime: Double, clearTime: Double)] = [
@@ -117,7 +148,662 @@ enum RecorderExportRenderingTests {
                     suite.expect(protected ? contrast < 40 : contrast > 100,
                         "privacy coverage \(protected) at \(speed)x with cuts \(hasCuts), contrast \(contrast)")
                 }
+                if let gifRate = [0.5: 8, 1.0: 12, 1.37: 15][speed] {
+                    doc.gifFrameRate = gifRate
+                    let gifURL = output.deletingPathExtension().appendingPathExtension("gif")
+                    let gifFailure = await RecorderExporter().export(take: take, document: doc,
+                        output: .gif, to: gifURL, progress: { _ in })
+                    let gif = CGImageSourceCreateWithURL(gifURL as CFURL, nil)
+                    suite.expect(gifFailure == nil && gif != nil,
+                                 "edited GIF exports at \(speed)x and \(gifRate) fps")
+                    guard let gif else { continue }
+                    suite.expect(CGImageSourceGetCount(gif)
+                                    == RecorderSupport.gifFrameCount(duration: doc.exportDuration(duration: 2),
+                                                                     fps: gifRate),
+                                 "edited GIF retains its retimed frame count")
+                    for (editedTime, protected) in [(scenario.protectedTime, true), (scenario.clearTime, false)] {
+                        let index = Int(floor(editedTime / speed * Double(gifRate)))
+                        guard let image = CGImageSourceCreateImageAtIndex(gif, index, nil) else {
+                            suite.expect(false, "edited GIF frame decodes")
+                            continue
+                        }
+                        let contrast = contrast(of: image)
+                        suite.expect(protected ? contrast < 40 : contrast > 100,
+                            "GIF privacy coverage \(protected) at \(speed)x with cuts \(hasCuts), contrast \(contrast)")
+                    }
+                }
             }
+        }
+    }
+
+    private static func gifOrientation(_ suite: TestSuite, folder: URL) async throws {
+        let take = RecorderTakeStore.Take(id: UUID(), folder: folder.appendingPathComponent("rotated"))
+        try FileManager.default.createDirectory(at: take.folder, withIntermediateDirectories: true)
+        for transform in [CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 128, ty: 0),
+                          CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 128, ty: 0)] {
+            try await writePhaseVideo(to: take.videoURL, seconds: 1, movingSquare: true,
+                                      transform: transform)
+            for edited in [false, true] {
+                var document = RecorderEditDocument()
+                document.showsPointer = false
+                document.zoomEnabled = false
+                document.gifScalePercent = 100
+                if edited {
+                    document.blurs = [RecorderBlurRegion(start: 0.5, end: 0.9,
+                        rect: CGRect(x: 0, y: 0, width: 1, height: 1))]
+                }
+                let destination = take.folder.appendingPathComponent("oriented.gif")
+                let failure = await RecorderExporter().export(take: take, document: document,
+                    output: .gif, to: destination, progress: { _ in })
+                let generator = AVAssetImageGenerator(asset: AVURLAsset(url: take.videoURL))
+                generator.appliesPreferredTrackTransform = true
+                generator.requestedTimeToleranceBefore = .zero
+                generator.requestedTimeToleranceAfter = .zero
+                let reference = try await generator.image(at: .zero).image
+                guard failure == nil,
+                      let gif = CGImageSourceCreateWithURL(destination as CFURL, nil),
+                      let image = CGImageSourceCreateImageAtIndex(gif, 0, nil) else {
+                    suite.expect(false, "oriented GIF exports and decodes")
+                    continue
+                }
+                let context = CIContext()
+                func pixels(_ image: CGImage) -> [UInt8] {
+                    var bytes = [UInt8](repeating: 0, count: 128 * 128 * 4)
+                    context.render(CIImage(cgImage: image), toBitmap: &bytes, rowBytes: 128 * 4,
+                        bounds: CGRect(x: 0, y: 0, width: 128, height: 128),
+                        format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+                    return bytes
+                }
+                let difference = zip(pixels(image), pixels(reference))
+                    .reduce(0.0) { $0 + Double(abs(Int($1.0) - Int($1.1))) } / Double(128 * 128 * 4)
+                suite.expect(difference < 6,
+                             "GIF rotation and mirroring match the displayed source, difference \(difference)")
+            }
+        }
+    }
+
+    private static func opaqueScaledGIFs(_ suite: TestSuite, folder: URL) throws {
+        let sourceSize = CGSize(width: 192, height: 130)
+        let sourceBounds = CGRect(origin: .zero, size: sourceSize)
+        let opaque = CIImage(color: CIColor(red: 1, green: 0, blue: 0)).cropped(to: sourceBounds)
+        let context = CIContext()
+        for scale in [100, 75, 50, 1] {
+            var document = RecorderEditDocument(gifScalePercent: scale)
+            document.backdrop = ""
+            document.showsPointer = false
+            document.zoomEnabled = false
+            let plain = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                sourceSize: sourceSize, frameRate: 60, duration: 1,
+                outputScale: CGFloat(document.outputScale(for: .gif)), outputFormat: .gif)
+            suite.expect(scale == 100 ? plain == nil : plain?.isScaleOnly == true,
+                         "an unedited GIF only needs composition when resized")
+            // Force the compositor just as a pointer, overlay or cut does in a real recording.
+            document.cuts = [.init(start: 0.4, end: 0.5)]
+            guard let plan = RecorderComposer.makePlan(document: document,
+                track: RecorderPointerTrack(), sourceSize: sourceSize,
+                frameRate: 60, duration: 1, outputScale: CGFloat(document.outputScale(for: .gif)), outputFormat: .gif) else {
+                suite.expect(false, "opaque scaling fixture creates a compositor")
+                continue
+            }
+            suite.expect(!plan.isScaleOnly, "scaling a cut recording preserves its edited decoding path")
+            let bounds = CGRect(origin: .zero, size: plan.canvasSize)
+            let composer = RecorderComposer(plan: plan)
+            let rendered = composer.render(opaque, at: 0)
+            let width = Int(bounds.width), height = Int(bounds.height)
+            var pixels = [UInt8](repeating: 0, count: width * height * 4)
+            context.render(rendered, toBitmap: &pixels, rowBytes: width * 4,
+                           bounds: bounds, format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+            suite.expect(stride(from: 3, to: pixels.count, by: 4).allSatisfy { pixels[$0] == 255 },
+                "\(scale) percent scaling cannot introduce transparent edges into an opaque recording")
+            guard let image = context.createCGImage(rendered, from: bounds) else { throw FixtureFailure.writeFailed }
+            let url = folder.appendingPathComponent("opaque-\(scale).gif")
+            let writer = try RecorderGIFWriter(url: url, fps: 12)
+            for _ in 0..<24 { try writer.append(image) }
+            try writer.finish()
+            let chunk = try RecorderGIFWriter.chunk(from: Data(contentsOf: url))
+            suite.expect(chunk.frames.count == 24,
+                "scaled opaque GIF keeps all playback frames")
+            if scale > 1 {
+                suite.expect(chunk.frames.dropFirst().allSatisfy { $0.width * $0.height < width * height / 4 },
+                    "\(scale) percent unchanged screen frames use small deltas instead of clearing the canvas")
+            }
+            let transparent = CIImage(color: CIColor(red: 1, green: 0, blue: 0, alpha: 0)).cropped(to: sourceBounds)
+            context.render(composer.render(transparent, at: 0), toBitmap: &pixels,
+                rowBytes: width * 4, bounds: bounds, format: .RGBA8,
+                colorSpace: CGColorSpaceCreateDeviceRGB())
+            suite.expect(stride(from: 3, to: pixels.count, by: 4).allSatisfy { pixels[$0] == 0 },
+                "intentional source transparency survives \(scale) percent scaling")
+        }
+    }
+
+    private static func gifQuality(_ suite: TestSuite, folder: URL) async throws {
+        let folder = folder.appendingPathComponent("gif-quality")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let take = RecorderTakeStore.Take(id: UUID(), folder: folder)
+        try await writePhaseVideo(to: take.videoURL, seconds: 1, width: 768, height: 128)
+        var videoDocument = RecorderEditDocument(quality: "balanced", gifScalePercent: 37)
+        videoDocument.showsPointer = false
+        videoDocument.zoomEnabled = false
+        let videoURL = folder.appendingPathComponent("balanced.mp4")
+        let videoFailure = await RecorderExporter().export(take: take, document: videoDocument,
+            output: .video, to: videoURL, progress: { _ in })
+        suite.expect(videoFailure == nil, "Balanced video exports independently of GIF scale")
+        if videoFailure == nil {
+            let tracks = try await AVURLAsset(url: videoURL).loadTracks(withMediaType: .video)
+            let size = try await tracks.first?.load(.naturalSize)
+            suite.expect(size == CGSize(width: 768, height: 128),
+                "Balanced video bytes retain full source resolution")
+        }
+        let cases: [(RecorderSupport.Quality, Int, String, Int, Int, Int)] = [
+            (.high, 50, "original", 384, 64, 8),
+            (.small, 75, "original", 576, 96, 12),
+            (.balanced, 100, "original", 768, 128, 15),
+            (.high, 37, "original", 284, 46, 24),
+            (.small, 1, "original", 192, 32, 8),
+            (.balanced, 75, "square", 96, 96, 8),
+        ]
+        for (quality, scale, aspect, width, height, fps) in cases {
+            var document = RecorderEditDocument(quality: quality.rawValue,
+                gifScalePercent: scale, gifFrameRate: fps)
+            document.backdrop = ""
+            document.aspect = aspect
+            document.showsPointer = false
+            document.zoomEnabled = false
+            let url = folder.appendingPathComponent("\(quality.rawValue)-\(scale)-\(aspect).gif")
+            let failure = await RecorderExporter().export(take: take, document: document,
+                output: .gif, to: url, progress: { _ in })
+            suite.expect(failure == nil, "GIF exports at \(scale) percent, \(fps) FPS and \(aspect) shape")
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else {
+                suite.expect(false, "independently scaled GIF decodes")
+                continue
+            }
+            suite.expect(image.width == width && image.height == height,
+                "\(quality.rawValue) \(aspect) GIF uses the editor's \(width)×\(height) dimensions, got \(image.width)×\(image.height)")
+            suite.expect(CGImageSourceGetCount(source) == fps,
+                "GIF bytes preserve the independently selected frame rate")
+        }
+    }
+
+    private static func gifCaptionScale(_ suite: TestSuite, folder: URL) async throws {
+        let folder = folder.appendingPathComponent("gif-caption-scale")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let take = RecorderTakeStore.Take(id: UUID(), folder: folder)
+        try await writePhaseVideo(to: take.videoURL, seconds: 1, width: 768, height: 432)
+        let sourceSize = CGSize(width: 768, height: 432)
+        var document = RecorderEditDocument(showsPointer: false, zoomEnabled: false,
+            texts: [.init(text: "this caption fits the preview at the selected size", start: 0, end: 1)])
+        let asset = AVURLAsset(url: take.videoURL)
+        let duration = try await asset.load(.duration)
+        guard let track = try await asset.loadTracks(withMediaType: .video).first,
+              let plan = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                  sourceSize: sourceSize, frameRate: 60, duration: duration.seconds),
+              let composition = await RecorderComposer.videoComposition(track: track, asset: asset,
+                  duration: duration, frameRate: 60, composer: RecorderComposer(plan: plan),
+                  sourceSize: sourceSize, outputSize: sourceSize)
+        else { throw FixtureFailure.writeFailed }
+        let preview = AVAssetImageGenerator(asset: asset)
+        defer { preview.cancelAllCGImageGeneration() }
+        preview.videoComposition = composition
+        preview.requestedTimeToleranceBefore = .zero
+        preview.requestedTimeToleranceAfter = .zero
+        let reference = try await preview.image(at: CMTime(value: 1, timescale: 2)).image
+        let context = CIContext()
+        func captionBounds(in image: CGImage) -> CGRect? {
+            let width = image.width, height = image.height
+            var pixels = [UInt8](repeating: 0, count: width * height * 4)
+            context.render(CIImage(cgImage: image), toBitmap: &pixels, rowBytes: width * 4,
+                bounds: CGRect(x: 0, y: 0, width: width, height: height),
+                format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
+            var minX = width, minY = height, maxX = -1, maxY = -1
+            for y in 0..<height { for x in 0..<width {
+                let offset = (y * width + x) * 4
+                // At 0.5 s the fixture is blue and black; only the caption
+                // has all three channels lit. Include its antialiased edges.
+                if pixels[offset] > 64 && pixels[offset + 1] > 64 && pixels[offset + 2] > 64 {
+                    minX = min(minX, x); minY = min(minY, y)
+                    maxX = max(maxX, x); maxY = max(maxY, y)
+                }
+            } }
+            guard maxX >= minX, maxY >= minY else { return nil }
+            return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+        }
+        guard let expected = captionBounds(in: reference) else { throw FixtureFailure.writeFailed }
+        suite.expect(expected.minX > 0 && expected.maxX < sourceSize.width,
+            "the caption fits completely in the production preview")
+        let cases: [(Int, Int, Int)] = [
+            (100, 768, 432), (75, 576, 324), (50, 384, 216), (25, 192, 108), (1, 56, 32),
+        ]
+        for (scale, width, height) in cases {
+            document.gifScalePercent = scale
+            let url = folder.appendingPathComponent("caption-\(scale).gif")
+            let failure = await RecorderExporter().export(take: take, document: document,
+                output: .gif, to: url, progress: { _ in })
+            suite.expect(failure == nil, "captioned GIF exports at \(scale) percent")
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let frame = CGImageSourceCreateImageAtIndex(source, 6, nil),
+                  let actual = captionBounds(in: frame) else {
+                suite.expect(false, "\(scale) percent GIF contains the caption at 0.5 seconds")
+                continue
+            }
+            suite.expect(frame.width == width && frame.height == height
+                && CGImageSourceGetCount(source) == 12,
+                "caption scaling preserves GIF dimensions and frame rate at \(scale) percent")
+            // Compare decoded GIF pixels with the full-sized preview, not
+            // font-size calculations. A fresh 8 px font at 25% clips this
+            // caption; resizing the preview's layout keeps it inside the frame.
+            let scaled = expected.applying(CGAffineTransform(
+                scaleX: CGFloat(width) / sourceSize.width, y: CGFloat(height) / sourceSize.height))
+            suite.expect(abs(actual.minX - scaled.minX) <= 3
+                && abs(actual.maxX - scaled.maxX) <= 3
+                && abs(actual.minY - scaled.minY) <= 3
+                && abs(actual.maxY - scaled.maxY) <= 3,
+                "\(scale) percent GIF keeps the preview caption's proportional size and anchor, got \(actual), expected \(scaled)")
+        }
+    }
+
+    private static func gifRetainsExportSpeed(_ suite: TestSuite, take: RecorderTakeStore.Take,
+                                            folder: URL) async throws {
+        var document = RecorderEditDocument(trimStart: 0.25, trimEnd: 1.75,
+            gifFrameRate: 20, showsPointer: false, zoomEnabled: false,
+            cuts: [.init(start: 0.8, end: 1)],
+            blurs: [.init(start: 0.4, end: 0.75, rect: CGRect(x: 0, y: 0, width: 1, height: 1))])
+        var referenceFrames: [Data] = []
+        for speed in [1.0, 2.0] {
+            document.exportSpeed = speed
+            let snapshot = document
+            let gifURL = folder.appendingPathComponent("retimed-\(speed).gif")
+            let failure = await RecorderExporter().export(take: take, document: document,
+                output: .gif, to: gifURL, progress: { _ in })
+            suite.expect(failure == nil, "GIF exports at selected speed \(speed)x")
+            suite.expect(document == snapshot, "GIF export preserves the document and stored video speed")
+            guard let source = CGImageSourceCreateWithURL(gifURL as CFURL, nil) else {
+                suite.expect(false, "retimed GIF decodes")
+                continue
+            }
+            let count = CGImageSourceGetCount(source)
+            suite.expect(count == Int(26 / speed), "GIF FPS samples the speed-scaled trim and cuts")
+            var frames: [Data] = []
+            var delays: [Double] = []
+            for index in 0..<count {
+                if let image = CGImageSourceCreateImageAtIndex(source, index, nil) {
+                    var pixels = Data(count: image.width * image.height * 4)
+                    let rendered = pixels.withUnsafeMutableBytes { buffer -> Bool in
+                        guard let context = CGContext(data: buffer.baseAddress,
+                            width: image.width, height: image.height, bitsPerComponent: 8,
+                            bytesPerRow: image.width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+                        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+                        return true
+                    }
+                    if rendered { frames.append(pixels) }
+                }
+                let properties = CGImageSourceCopyPropertiesAtIndex(source, index, nil) as NSDictionary?
+                let gif = properties?[kCGImagePropertyGIFDictionary] as? NSDictionary
+                delays.append((gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue ?? -1)
+            }
+            suite.expect(frames.count == count, "every retimed GIF frame decodes")
+            suite.expectClose(delays.reduce(0, +), 1.3 / speed, "GIF bytes retain selected speed", tol: 0.001)
+            if speed == 1 {
+                referenceFrames = frames
+            } else {
+                let sampledReference = referenceFrames.enumerated().compactMap { index, frame in
+                    index.isMultiple(of: 2) ? frame : nil
+                }
+                suite.expect(frames == sampledReference,
+                    "2x GIF samples every second 1x frame, retaining trim, cuts and timed blur clock")
+            }
+            let videoURL = folder.appendingPathComponent("independent-speed-\(speed).mp4")
+            let videoFailure = await RecorderExporter().export(take: take, document: document,
+                output: .video, to: videoURL, progress: { _ in })
+            suite.expect(videoFailure == nil, "video retains its independent speed \(speed)x")
+            if videoFailure == nil {
+                let duration = try await AVURLAsset(url: videoURL).load(.duration).seconds
+                suite.expectClose(duration, 1.3 / speed, "video bytes retain saved speed", tol: 1.0 / 60 + 0.001)
+            }
+        }
+    }
+
+    /// What the recorder's own compositor has to get right that AVFoundation's
+    /// Core Image handler did for it: audio that outlasts the video, and
+    /// frames that leave nothing of an earlier one behind.
+    private static func composedEdges(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {
+        let folder = take.folder.appendingPathComponent("edges")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let edgeTake = RecorderTakeStore.Take(id: UUID(), folder: folder)
+        let raw = folder.appendingPathComponent("raw.mov")
+        let (width, height) = (640, 360)
+        let writer = try AVAssetWriter(outputURL: raw, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        ])
+        let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+            kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+        ])
+        writer.add(input)
+        writer.startWriting()
+        writer.startSession(atSourceTime: .zero)
+        let rows = [0, 1].map { phase in
+            (0..<width).flatMap { x -> [UInt8] in
+                let value: UInt8 = (x / 4 + phase) % 2 == 0 ? 30 : 220
+                return [value, value, value, 255]
+            }
+        }
+        for frame in 0..<120 {
+            while !input.isReadyForMoreMediaData { try await Task.sleep(nanoseconds: 1_000_000) }
+            var maybe: CVPixelBuffer?
+            CVPixelBufferPoolCreatePixelBuffer(nil, adapter.pixelBufferPool!, &maybe)
+            let pixel = maybe!
+            CVPixelBufferLockBaseAddress(pixel, [])
+            let base = CVPixelBufferGetBaseAddress(pixel)!
+            let stride = CVPixelBufferGetBytesPerRow(pixel)
+            for y in 0..<height {
+                rows[(y / 4) % 2].withUnsafeBytes { base.advanced(by: y * stride).copyMemory(from: $0.baseAddress!, byteCount: width * 4) }
+            }
+            CVPixelBufferUnlockBaseAddress(pixel, [])
+            guard adapter.append(pixel, withPresentationTime: CMTime(value: Int64(frame), timescale: 60))
+            else { throw FixtureFailure.writeFailed }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        // Audio half a second longer than the video, as a recording can end.
+        let composition = AVMutableComposition()
+        let master = AVURLAsset(url: raw)
+        let video = try await master.loadTracks(withMediaType: .video)[0]
+        let videoTrack = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try videoTrack.insertTimeRange(try await video.load(.timeRange), of: video, at: .zero)
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 1)!
+        let count = AVAudioFrameCount(2.5 * 48_000)
+        let silence = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: count)!
+        silence.frameLength = count
+        let wav = folder.appendingPathComponent("system.wav")
+        do {
+            let file = try AVAudioFile(forWriting: wav, settings: [
+                AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 48_000,
+                AVNumberOfChannelsKey: 1, AVLinearPCMBitDepthKey: 16,
+                AVLinearPCMIsFloatKey: false, AVLinearPCMIsNonInterleaved: false,
+            ])
+            try file.write(from: silence)
+        }
+        let audio = AVURLAsset(url: wav)
+        let audioTrack = composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)!
+        try audioTrack.insertTimeRange(CMTimeRange(start: .zero, duration: try await audio.load(.duration)),
+                                       of: try await audio.loadTracks(withMediaType: .audio)[0], at: .zero)
+        let mux = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetPassthrough)!
+        mux.outputURL = edgeTake.videoURL
+        mux.outputFileType = .mov
+        await mux.export()
+        guard mux.status == .completed else {
+            suite.expect(false, "the fixture whose audio outlasts its video is written")
+            return
+        }
+        // The right half kept unreadable: one sharp half and one blurred half.
+        var document = RecorderEditDocument()
+        document.showsPointer = false
+        document.zoomEnabled = false
+        document.gifSize = RecorderSupport.GIFSize.small.rawValue
+        document.blurs = [RecorderBlurRegion(start: 0, end: 2.5, rect: CGRect(x: 0.5, y: 0, width: 0.5, height: 1))]
+        let movie = folder.appendingPathComponent("edges.mp4")
+        let failure = await RecorderExporter().export(take: edgeTake, document: document, output: .video,
+                                                      to: movie, progress: { _ in })
+        suite.expect(failure == nil, "an edited recording whose audio outlasts its video still exports")
+        if failure == nil {
+            let duration = try await AVURLAsset(url: movie).load(.duration).seconds
+            suite.expect(duration > 2.4, "that export keeps the audio's length, \(duration)")
+        }
+        var gifs: [Data] = []
+        for run in 0..<2 {
+            let url = folder.appendingPathComponent("edges-\(run).gif")
+            let gifFailure = await RecorderExporter().export(take: edgeTake, document: document, output: .gif,
+                                                             to: url, progress: { _ in })
+            if gifFailure == nil, let data = try? Data(contentsOf: url) { gifs.append(data) }
+        }
+        suite.expect(gifs.count == 2 && gifs[0] == gifs[1],
+                     "an edited GIF comes out the same every time, with nothing left from earlier frames")
+        if let data = gifs.first, let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let frame = CGImageSourceCreateImageAtIndex(source, CGImageSourceGetCount(source) / 2, nil) {
+            let sharp = spread(of: frame, x: 0.15...0.35)
+            let blurred = spread(of: frame, x: 0.65...0.85)
+            suite.expect(frame.width < width && sharp > 50 && blurred < 25,
+                         "the edited GIF shows the recording and its blur, \(frame.width) wide, sharp \(sharp), blurred \(blurred)")
+        } else {
+            suite.expect(false, "the edited GIF decodes")
+        }
+    }
+
+    /// The spread of brightness across a vertical band of an image.
+    private static func spread(of image: CGImage, x band: ClosedRange<Double>) -> Double {
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8,
+                                      bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return 0 }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let samples = (Int(Double(height) * 0.3)..<Int(Double(height) * 0.7)).flatMap { y in
+            (Int(Double(width) * band.lowerBound)..<Int(Double(width) * band.upperBound)).map { x in
+                Double(bytes[(y * width + x) * 4])
+            }
+        }
+        let mean = samples.reduce(0, +) / Double(max(1, samples.count))
+        return (samples.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(max(1, samples.count))).squareRoot()
+    }
+
+    /// Imported phone movies can store their orientation in the track rather
+    /// than in the encoded pixels. A blur is picked on the displayed picture,
+    /// so orientation must be applied before the composer reads that area.
+    private static func orientedImports(_ suite: TestSuite, take: RecorderTakeStore.Take) async throws {
+        let orientations: [(String, CGAffineTransform)] = [
+            ("identity", .identity),
+            ("clockwise", CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 192, ty: 0)),
+            ("half-turn", CGAffineTransform(a: -1, b: 0, c: 0, d: -1, tx: 256, ty: 192)),
+            ("counter-clockwise", CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 256)),
+            ("mirrored", CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 256, ty: 0)),
+        ]
+        let time = CMTime(value: 12, timescale: 60)
+        for (name, transform) in orientations {
+            let folder = take.folder.appendingPathComponent("orientation-\(name)")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let imported = RecorderTakeStore.Take(id: UUID(), folder: folder)
+            try await writeOrientationVideo(to: imported.videoURL, transform: transform)
+            let asset = AVURLAsset(url: imported.videoURL)
+            let duration = try await asset.load(.duration)
+            guard let sourceTrack = try await asset.loadTracks(withMediaType: .video).first
+            else { throw FixtureFailure.writeFailed }
+            let storedTransform = try await sourceTrack.load(.preferredTransform)
+            suite.expect(storedTransform == transform, "\(name) fixture stores its track orientation")
+            // The oracle is AVFoundation's ordinary display transform, not
+            // the transform being tested in the custom compositor.
+            let reference = AVAssetImageGenerator(asset: asset)
+            reference.appliesPreferredTrackTransform = true
+            let expected = try await reference.image(at: time).image
+            let size = CGSize(width: expected.width, height: expected.height)
+            var document = RecorderEditDocument()
+            document.backdrop = ""
+            document.showsPointer = false
+            document.zoomEnabled = false
+            document.quality = RecorderSupport.Quality.high.rawValue
+            // Compare orientation at native size; GIF scaling has separate coverage.
+            document.gifScalePercent = 100
+            guard let timeline = await RecorderComposition.build(from: asset,
+                ranges: document.keptRanges(duration: duration.seconds), includesAudio: false),
+                let track = try await timeline.asset.loadTracks(withMediaType: .video).first
+            else {
+                suite.expect(false, "\(name) builds the edited preview timeline")
+                continue
+            }
+            var previews: [CGImage] = [], movies: [CGImage] = [], gifs: [CGImage] = []
+            // Even the old Core Image handler changes this coloured
+            // checkerboard's contrast, and encoding changes it again. Compare
+            // active/inactive blur through the same compositor AND format.
+            // A future blur keeps the control on the edited path at 0.2 s.
+            for (mode, start) in [("control", 0.25), ("blurred", 0.0)] {
+                document.blurs = [RecorderBlurRegion(start: start, end: duration.seconds,
+                    rect: CGRect(x: 0, y: 0, width: 0.5, height: 1))]
+                guard let plan = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                    sourceSize: size, frameRate: 60, duration: duration.seconds)
+                else {
+                    suite.expect(false, "\(name) \(mode) builds an edited plan")
+                    continue
+                }
+                let composer = RecorderComposer(plan: plan)
+                guard let composition = await RecorderComposer.videoComposition(
+                    track: track, asset: timeline.asset, duration: timeline.duration, frameRate: 60,
+                    composer: composer, sourceSize: size, outputSize: composer.canvasSize)
+                else {
+                    suite.expect(false, "\(name) \(mode) builds the edited preview composition")
+                    continue
+                }
+                // Exercise the preview's production composition offscreen.
+                // AVPlayer playback and window teardown remain runtime checks.
+                let preview = AVAssetImageGenerator(asset: timeline.asset)
+                preview.videoComposition = composition
+                preview.requestedTimeToleranceBefore = .zero
+                preview.requestedTimeToleranceAfter = .zero
+                previews.append(try await preview.image(at: time).image)
+
+                let movie = folder.appendingPathComponent("\(mode).mp4")
+                let movieFailure = await RecorderExporter().export(take: imported, document: document,
+                    output: .video, to: movie, progress: { _ in })
+                suite.expect(movieFailure == nil, "\(name) \(mode) exports an edited video")
+                if movieFailure == nil {
+                    let exported = AVAssetImageGenerator(asset: AVURLAsset(url: movie))
+                    exported.appliesPreferredTrackTransform = true
+                    exported.requestedTimeToleranceBefore = .zero
+                    exported.requestedTimeToleranceAfter = .zero
+                    movies.append(try await exported.image(at: time).image)
+                }
+                let gif = folder.appendingPathComponent("\(mode).gif")
+                let gifFailure = await RecorderExporter().export(take: imported, document: document,
+                    output: .gif, to: gif, progress: { _ in })
+                suite.expect(gifFailure == nil, "\(name) \(mode) exports an edited GIF")
+                if gifFailure == nil,
+                   let source = CGImageSourceCreateWithURL(gif as CFURL, nil),
+                   let frame = CGImageSourceCreateImageAtIndex(source, 0, nil) {
+                    gifs.append(frame)
+                } else {
+                    suite.expect(false, "\(name) \(mode) edited GIF decodes")
+                }
+            }
+            for (route, frames) in [("preview composition", previews), ("video export", movies), ("GIF export", gifs)] {
+                suite.expect(frames.count == 2, "\(name) \(route) produces both contrast controls")
+                guard frames.count == 2 else { continue }
+                expectOrientedFrame(suite, frames[1], control: frames[0], reference: expected, "\(name) \(route)")
+            }
+        }
+    }
+
+    private static func writeOrientationVideo(to url: URL, transform: CGAffineTransform) async throws {
+        let (width, height) = (256, 192)
+        let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
+        ])
+        input.transform = transform
+        let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
+            ])
+        writer.add(input)
+        guard writer.startWriting() else { throw FixtureFailure.writeFailed }
+        writer.startSession(atSourceTime: .zero)
+        for frame in 0..<30 {
+            while !input.isReadyForMoreMediaData {
+                guard writer.status == .writing else { throw FixtureFailure.writeFailed }
+                try await Task.sleep(nanoseconds: 1_000_000)
+            }
+            var maybe: CVPixelBuffer?
+            guard let pool = adapter.pixelBufferPool,
+                  CVPixelBufferPoolCreatePixelBuffer(nil, pool, &maybe) == kCVReturnSuccess,
+                  let pixel = maybe else { throw FixtureFailure.writeFailed }
+            CVPixelBufferLockBaseAddress(pixel, [])
+            let bytes = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
+            let stride = CVPixelBufferGetBytesPerRow(pixel)
+            for y in 0..<height { for x in 0..<width {
+                let value: UInt8 = (x / 4 + y / 4) % 2 == 0 ? 30 : 180
+                let offset = y * stride + x * 4
+                // Four corner colours distinguish rotations and reflections.
+                // Every channel carries the checkerboard's luminance detail
+                // through H.264 chroma subsampling. Fixed offsets keep the
+                // corner colours distinct without relying on saturated red.
+                bytes[offset] = value + (y < height / 2 ? 0 : 60)
+                bytes[offset + 1] = value + (x < width / 2 ? 0 : 60)
+                bytes[offset + 2] = value
+                bytes[offset + 3] = 255
+            } }
+            CVPixelBufferUnlockBaseAddress(pixel, [])
+            guard adapter.append(pixel, withPresentationTime: CMTime(value: Int64(frame), timescale: 60))
+            else { throw FixtureFailure.writeFailed }
+        }
+        input.markAsFinished()
+        await writer.finishWriting()
+        guard writer.status == .completed else { throw FixtureFailure.writeFailed }
+    }
+
+    private static func expectOrientedFrame(_ suite: TestSuite, _ image: CGImage,
+                                            control: CGImage, reference: CGImage, _ label: String) {
+        suite.expect(image.width == reference.width && image.height == reference.height
+                && control.width == reference.width && control.height == reference.height,
+                     "\(label) keeps the displayed dimensions")
+        let actual = orientationSamples(image)
+        let unprotected = orientationSamples(control)
+        let expected = orientationSamples(reference)
+        guard actual.count == 4, unprotected.count == 4, expected.count == 4 else {
+            suite.expect(false, "\(label) has four readable corners")
+            return
+        }
+        for index in 0..<4 {
+            let sharp = index % 2 == 1
+            suite.expect(expected[index].spread > 60,
+                         "\(label) source corner \(index) has detail to protect, spread \(expected[index].spread)")
+            // The control must have detail beyond the accepted blur ceiling,
+            // so a flat frame cannot satisfy a relative contrast comparison.
+            let baseline = unprotected[index].spread
+            suite.expect(baseline > 25,
+                         "\(label) control corner \(index) remains outside the blurred range, spread \(baseline)")
+            let controlError = zip(unprotected[index].rgb, expected[index].rgb).map { abs($0 - $1) }.max() ?? .infinity
+            suite.expect(controlError < 30,
+                         "\(label) control keeps source corner \(index) in place, colour error \(controlError)")
+            if sharp {
+                // Compare like-for-like encoded output rather than imposing
+                // the decoded source's contrast on MP4/GIF or CI rendering.
+                suite.expectClose(actual[index].spread, baseline,
+                    "\(label) leaves unprotected corner \(index) unchanged", tol: max(2, baseline * 0.1))
+                let error = zip(actual[index].rgb, expected[index].rgb).map { abs($0 - $1) }.max() ?? .infinity
+                suite.expect(error < 30,
+                             "\(label) keeps source corner \(index) in place, colour error \(error)")
+            } else {
+                suite.expect(actual[index].spread < 25 && actual[index].spread < baseline * 0.25,
+                    "\(label) protects corner \(index), spread \(actual[index].spread), control \(baseline)")
+            }
+        }
+    }
+
+    /// Sample well inside each quadrant, in row order. Comparing with the
+    /// normally displayed source catches a reversed turn as well as a missing
+    /// transform, while allowing the compositor's small colour differences.
+    private static func orientationSamples(_ image: CGImage) -> [(rgb: [Double], spread: Double)] {
+        let width = image.width, height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(data: &bytes, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return [] }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return (0..<4).map { corner in
+            let column = corner % 2, row = corner / 2
+            let xs = ((column * 8 + 3) * width / 16)..<((column * 8 + 5) * width / 16)
+            let ys = ((row * 8 + 3) * height / 16)..<((row * 8 + 5) * height / 16)
+            var totals = [Double](repeating: 0, count: 3)
+            var squaredRed = 0.0
+            for y in ys { for x in xs {
+                let offset = (y * width + x) * 4
+                for channel in 0..<3 { totals[channel] += Double(bytes[offset + channel]) }
+                squaredRed += pow(Double(bytes[offset]), 2)
+            } }
+            let count = Double(max(1, xs.count * ys.count))
+            let means = totals.map { $0 / count }
+            return (means, max(0, squaredRed / count - means[0] * means[0]).squareRoot())
         }
     }
 
@@ -201,7 +887,7 @@ enum RecorderExportRenderingTests {
         let gifDocument = RecorderEditDocument(trimStart: 0.5, trimEnd: 1.5, exportSpeed: 2)
         let gifFailure = await RecorderExporter().export(take: gifTake,
             document: gifDocument, output: .gif, to: gifURL, progress: { _ in })
-        suite.expect(gifFailure == nil, "GIF uses the current trim and retimed composition")
+        suite.expect(gifFailure == nil, "GIF uses the current trim and selected export speed")
         let ordinaryURL = folder.appendingPathComponent("ordinary-file")
         try Data([0]).write(to: ordinaryURL)
         func mode(_ url: URL) -> Int? {
@@ -228,9 +914,34 @@ enum RecorderExportRenderingTests {
                     || ($0.blue > $0.red * 2 && $0.blue > $0.green * 2)
             }, "trimmed GIF excludes the red opening and white closing phases")
         } else { suite.expect(false, "exported GIF decodes") }
+        // A GIF follows the editor's GIF scale: a recording wider than the
+        // old 800-pixel cap keeps every pixel at 100% and shrinks only by the
+        // chosen percentage.
+        let wideFolder = folder.appendingPathComponent("gif-full-size-source")
+        try FileManager.default.createDirectory(at: wideFolder, withIntermediateDirectories: true)
+        let wideTake = RecorderTakeStore.Take(id: UUID(), folder: wideFolder)
+        try await writePhaseVideo(to: wideTake.videoURL, seconds: 1, width: 1_000, height: 1_000)
+        for (percent, side) in [(100, 1_000), (50, 500)] {
+            var document = RecorderEditDocument()
+            document.showsPointer = false
+            document.zoomEnabled = false
+            document.gifScalePercent = percent
+            let url = folder.appendingPathComponent("full-size-\(percent).gif")
+            let failure = await RecorderExporter().export(take: wideTake, document: document,
+                                                          output: .gif, to: url, progress: { _ in })
+            let image = CGImageSourceCreateWithURL(url as CFURL, nil)
+                .flatMap { CGImageSourceCreateImageAtIndex($0, 0, nil) }
+            suite.expect(failure == nil && image?.width == side && image?.height == side,
+                         "a \(percent)% GIF is \(side) px, got \(image.map { "\($0.width)x\($0.height)" } ?? "none")")
+        }
         let pasteboard = NSPasteboard.withUniqueName()
         pasteboard.clearContents()
         pasteboard.setString("keep me", forType: .string)
+        let originalChangeCount = pasteboard.changeCount
+        suite.expect(!RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard, shouldPublish: { false })
+                        && pasteboard.changeCount == originalChangeCount
+                        && pasteboard.string(forType: .string) == "keep me",
+                     "cancelling after GIF preparation leaves the clipboard untouched")
         suite.expect(RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard),
                      "the production GIF publishes to a private pasteboard")
         let nativeGIFType = NSPasteboard.PasteboardType("com.compuserve.gif")
@@ -439,9 +1150,12 @@ enum RecorderExportRenderingTests {
         document.showsPointer = false
         document.zoomEnabled = false
         let destination = folder.appendingPathComponent("damaged.gif")
+        document.gifScalePercent = 100
         // 2 s of red, green, blue and white at 60 fps, sampled at 12 fps:
         // GIF frame i shows source frame 5i.
-        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        // Qualify for sequential decoding so a stopped reader has to retry
+        // through the generator before it can recover the later pictures.
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true, width: 512, height: 512)
         try await zeroFrames(Array(0...29) + Array(60...64) + Array(110...119), in: take.videoURL)
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: take.videoURL))
         generator.requestedTimeToleranceBefore = .zero
@@ -476,7 +1190,7 @@ enum RecorderExportRenderingTests {
 
         let previous = Data("previous gif".utf8)
         try previous.write(to: destination)
-        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true)
+        try await writePhaseVideo(to: take.videoURL, everyFrameKey: true, width: 512, height: 512)
         try await zeroFrames(Array(0...119), in: take.videoURL)
         let nothing = await RecorderExporter().export(take: take, document: document, output: .gif,
                                                       to: destination, progress: { _ in })
@@ -570,20 +1284,23 @@ enum RecorderExportRenderingTests {
 
     private static func writePhaseVideo(to url: URL, seconds: Int = 2,
                                         movingSquare: Bool = false,
-                                        everyFrameKey: Bool = false) async throws {
+                                        everyFrameKey: Bool = false,
+                                        width: Int = 128, height: Int = 128,
+                                        transform: CGAffineTransform = .identity) async throws {
         try? FileManager.default.removeItem(at: url)
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
         var settings: [String: Any] = [
-            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 128, AVVideoHeightKey: 128,
+            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: width, AVVideoHeightKey: height,
         ]
         if everyFrameKey {
             settings[AVVideoCompressionPropertiesKey] = [AVVideoMaxKeyFrameIntervalKey: 1]
         }
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.transform = transform
         let adapter = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
             sourcePixelBufferAttributes: [
                 kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                kCVPixelBufferWidthKey as String: 128, kCVPixelBufferHeightKey as String: 128,
+                kCVPixelBufferWidthKey as String: width, kCVPixelBufferHeightKey as String: height,
             ])
         writer.add(input)
         writer.startWriting()
@@ -596,7 +1313,7 @@ enum RecorderExportRenderingTests {
             CVPixelBufferLockBaseAddress(pixel, [])
             let pointer = CVPixelBufferGetBaseAddress(pixel)!.assumingMemoryBound(to: UInt8.self)
             let stride = CVPixelBufferGetBytesPerRow(pixel)
-            for y in 0..<128 { for x in 0..<128 {
+            for y in 0..<height { for x in 0..<width {
                 let value: UInt8 = ((x / 4 + y / 4) % 2 == 0) ? 0 : 255
                 let offset = y * stride + x * 4
                 if movingSquare {
@@ -629,9 +1346,11 @@ enum RecorderExportRenderingTests {
 
     private static func meanRGB(of image: CGImage) -> (red: Double, green: Double, blue: Double) {
         let context = CIContext()
-        var bytes = [UInt8](repeating: 0, count: 128 * 128 * 4)
-        context.render(CIImage(cgImage: image), toBitmap: &bytes, rowBytes: 128 * 4,
-                       bounds: CGRect(x: 0, y: 0, width: 128, height: 128),
+        let width = image.width
+        let height = image.height
+        var bytes = [UInt8](repeating: 0, count: width * height * 4)
+        context.render(CIImage(cgImage: image), toBitmap: &bytes, rowBytes: width * 4,
+                       bounds: CGRect(x: 0, y: 0, width: width, height: height),
                        format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB())
         var red = 0.0
         var green = 0.0
@@ -641,7 +1360,7 @@ enum RecorderExportRenderingTests {
             green += Double(bytes[offset + 1])
             blue += Double(bytes[offset + 2])
         }
-        let count = Double(128 * 128)
+        let count = Double(width * height)
         return (red / count, green / count, blue / count)
     }
 }
