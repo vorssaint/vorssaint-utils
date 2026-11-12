@@ -71,37 +71,19 @@ enum AgentAntigravityServer {
     }
 
     static func parseVersion(_ text: String) -> [Int]? {
-        let bytes = Array(text.utf8)
-        var index = 0
-        while index < bytes.count {
-            guard (0x30...0x39).contains(bytes[index]) else {
-                index += 1
-                continue
-            }
-            let start = index
-            var parts: [Int] = []
-            var cursor = index
-            while true {
-                var value = 0
-                var digits = 0
-                while cursor < bytes.count, (0x30...0x39).contains(bytes[cursor]) {
-                    let next = Int(bytes[cursor] - 0x30)
-                    if value <= (Int.max - next) / 10 { value = value * 10 + next }
-                    digits += 1
-                    cursor += 1
-                }
-                guard digits > 0 else { break }
-                parts.append(value)
-                guard cursor < bytes.count, bytes[cursor] == 0x2E,
-                      cursor + 1 < bytes.count, (0x30...0x39).contains(bytes[cursor + 1]) else { break }
-                cursor += 1
-            }
-            if parts.count >= 3, start == 0 || bytes[start - 1] != 0x2E {
-                return Array(parts.prefix(3))
-            }
-            index = max(start + 1, cursor)
+        // Accept the CLI's bare version or its named banner. A dependency
+        // version in an error or diagnostic must never authorize print mode.
+        var version = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        for prefix in ["Antigravity CLI ", "agy "] where version.hasPrefix(prefix) {
+            version.removeFirst(prefix.count)
+            break
         }
-        return nil
+        guard let token = version.split(separator: " ").first else { return nil }
+        let release = token.hasPrefix("v") ? token.dropFirst() : token[...]
+        let parts = release.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts.allSatisfy({ !$0.isEmpty && $0.utf8.allSatisfy { (48...57).contains($0) } }),
+              let major = Int(parts[0]), let minor = Int(parts[1]), let patch = Int(parts[2]) else { return nil }
+        return [major, minor, patch]
     }
 
     static func isSupportedVersion(_ version: [Int]) -> Bool {

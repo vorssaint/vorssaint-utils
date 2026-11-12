@@ -96,6 +96,7 @@ enum NotchAgentSupport {
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
         case .antigravity: return DefaultsKey.notchAgentsAntigravity
+        case .gemini: return DefaultsKey.notchAgentsGemini
         }
     }
 
@@ -350,6 +351,7 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
+        if row.contains(where: { $0.card == .live }) { return 140 }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
 

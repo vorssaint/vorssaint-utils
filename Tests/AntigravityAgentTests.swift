@@ -652,6 +652,8 @@ enum AntigravityAgentTests {
 
         // Version parsing and comparison.
         suite.expect(AgentAntigravityServer.parseVersion("Antigravity CLI v1.1.11 (darwin-arm64)") == [1, 1, 11]
+                        && AgentAntigravityServer.parseVersion("1.5.7") == [1, 5, 7]
+                        && AgentAntigravityServer.parseVersion("diagnostic: backend 2.0.1") == nil
                         && AgentAntigravityServer.isSupportedVersion([1, 1, 11])
                         && AgentAntigravityServer.isSupportedVersion([1, 2, 0])
                         && !AgentAntigravityServer.isSupportedVersion([1, 1, 10])

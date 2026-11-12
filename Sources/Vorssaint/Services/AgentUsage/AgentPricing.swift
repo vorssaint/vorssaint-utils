@@ -298,8 +298,9 @@ enum AgentPricing {
     }
 
     /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
-    /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
-    /// model no list knows yet still reads well.
+    /// "gpt-6-astra" reads "GPT-6 Astra" and "gemini-4-argon-b" reads
+    /// "Gemini 4 Argon B". Built from the name itself, so a model no list
+    /// knows yet still reads well.
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }

@@ -311,14 +311,18 @@ final class AgentUsageStore {
     /// A turn whose last step ended expecting more, with nothing after it
     /// for a while, stopped there, as when OpenCode's loop stops on a
     /// rejected tool call: it ends without a notice, since nothing finished.
-    /// True when one was showing.
+    /// A Gemini CLI turn goes quiet this way after its last reply, which no
+    /// line tells from one whose tools still run: it waits aside, and work
+    /// that follows goes on with it. True when one was showing.
     @discardableResult
     func closeSettledTurns(now: Date) -> Bool {
         var removed = false
-        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.openCodeSettle {
+        for (file, date) in settled where now.timeIntervalSince(date) >= AgentLogParser.settle {
             settled[file] = nil
-            waiting[file] = nil
-            if turns.removeValue(forKey: file) != nil { removed = true }
+            let quiet = waiting.removeValue(forKey: file)
+            guard let turn = turns.removeValue(forKey: file) ?? quiet else { continue }
+            if quiet == nil { removed = true }
+            if turn.provider == .gemini { waiting[file] = turn }
         }
         return removed
     }
@@ -403,8 +407,13 @@ final class AgentUsageStore {
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { $0.provider != .opencode && settled[$0.id] == nil }.sorted { $0.id < $1.id },
+                     // The wait after a step that may have been the turn's
+                     // last is not kept: the turn comes back quiet, and work
+                     // that follows goes on with it.
+                     waiting: (waiting.values.filter { $0.provider != .opencode }
+                               + turns.values.filter { $0.provider != .opencode && settled[$0.id] != nil })
+                        .sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -487,6 +496,8 @@ struct AgentLogRoot: Equatable {
             (.antigravity, ".gemini/antigravity/brain"),
             (.antigravity, ".gemini/antigravity-ide/brain"),
             (.antigravity, ".gemini/antigravity-cli/brain"),
+            // Gemini CLI in macOS's sandbox uses the cache folder instead.
+            (.gemini, ".gemini/tmp"), (.gemini, ".cache/.gemini/tmp"),
         ]
         return claude + pairs.map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
@@ -512,14 +523,21 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        if provider == .antigravity {
-            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+        switch provider {
+        case .antigravity:
             return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
                 && parts[1] == ".system_generated" && parts[2] == "logs" && parts[3] == "transcript.jsonl"
+        case .copilot:
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        case .gemini:
+            // `<project>/chats/<session>.jsonl`, and a subagent's in a folder
+            // named after the session that started it.
+            return (3...4).contains(parts.count) && parts[1] == "chats"
+                && parts.allSatisfy { !$0.isEmpty && !$0.hasPrefix(".") }
+        case .claude, .codex, .opencode:
+            return true
         }
-        guard provider == .copilot else { return true }
-        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
     }
 }
 
@@ -572,7 +590,8 @@ final class AgentLogCursor {
     let provider: AgentProvider
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .antigravity ? !state.antigravitySubagent : (provider == .codex ? !state.codexSubagent : true))
+        if provider == .gemini { return !GeminiReader.isSubagent(path) }
+        return provider == .claude ? parent == nil : (provider == .antigravity ? !state.antigravitySubagent : (provider == .codex ? !state.codexSubagent : true))
     }
     private let claudeParent: String?
     private let antigravitySession: String?
@@ -584,6 +603,8 @@ final class AgentLogCursor {
         }
         return nil
     }
+    /// What the log tells about itself before its first line.
+    private let initial: AgentLogState
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
     var offset: UInt64 = 0
@@ -600,6 +621,9 @@ final class AgentLogCursor {
     /// there were when it was looked for. Not saved: a relaunch looks again.
     private var codexParentLog: String?
     private var codexParentSearch = -1
+    /// The same for a Gemini CLI subagent, whose folder names its session.
+    private var geminiParentLog: String?
+    private var geminiParentSearch = -1
 
     init(path: String, provider: AgentProvider) {
         self.path = path
@@ -607,7 +631,10 @@ final class AgentLogCursor {
         self.claudeParent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         let session = provider == .antigravity ? AgentLogCursor.antigravitySession(of: path) : nil
         self.antigravitySession = session
-        if let session { state.session = session }
+        var initial = provider.reader.initialState(forLog: path)
+        if let session { initial.session = session }
+        self.initial = initial
+        state = initial
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -623,6 +650,20 @@ final class AgentLogCursor {
                 .max { $0.modified < $1.modified }?.path
         }
         return codexParentLog
+    }
+
+    /// The log of the session a Gemini CLI subagent works for, looked for
+    /// again when a log turns up or the one found goes away.
+    func geminiParent(among cursors: [String: AgentLogCursor]) -> String? {
+        guard provider == .gemini, !tracksTurns else { return nil }
+        if geminiParentSearch != cursors.count || geminiParentLog.map({ cursors[$0] == nil }) == true {
+            geminiParentSearch = cursors.count
+            let session = GeminiReader.parentSession(of: path)
+            geminiParentLog = cursors.values
+                .filter { $0.provider == .gemini && $0.tracksTurns && $0.state.session == session }
+                .max(by: { $0.modified < $1.modified })?.path
+        }
+        return geminiParentLog
     }
 
     /// Where reading stopped, at a line boundary: a line still being written
@@ -655,10 +696,10 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
-        if let session = antigravitySession { state.session = session }
+        state = initial
         fingerprinted = nil
         codexParentSearch = -1
+        geminiParentSearch = -1
     }
 
     func fingerprintRead() {
@@ -776,9 +817,9 @@ enum AgentLogReader {
     }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state. Claude subagents come after every session,
-    /// so the turn each one works for already stands when its responses are
-    /// read.
+    /// on the most recent state. Claude, Antigravity and Gemini CLI subagents come after
+    /// every session, so the turn each one works for already stands when its
+    /// responses are read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
@@ -786,7 +827,8 @@ enum AgentLogReader {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            let subagent = root.provider == .claude ? AgentLogCursor.parent(of: url.path) != nil
+                : root.provider == .gemini && GeminiReader.isSubagent(url.path)
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {
@@ -831,6 +873,25 @@ enum AgentLogReader {
                         }
                     }
                     found.append((transcript.path, root.provider, modified, subagent))
+                }
+                continue
+            }
+            // Gemini CLI keeps checkpoints, plans and shell history beside
+            // each project's chats; only the chats and their subagent folders
+            // are listed.
+            if root.provider == .gemini {
+                func entries(_ url: URL) -> [URL] {
+                    (try? FileManager.default.contentsOfDirectory(
+                        at: url, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles])) ?? []
+                }
+                for project in entries(root.url) {
+                    for entry in entries(project.appending(path: "chats")) {
+                        if (try? entry.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true {
+                            entries(entry).forEach { include($0, from: root) }
+                        } else {
+                            include(entry, from: root)
+                        }
+                    }
                 }
                 continue
             }
