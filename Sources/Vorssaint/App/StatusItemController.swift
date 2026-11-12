@@ -22,6 +22,9 @@ final class StatusItemController {
     private var clipboardPreviewStatusItem: NSStatusItem?
     private var metricStatusItems: [String: NSStatusItem] = [:]
     private var metricStatusItemFocus: [String: MenuBarMetric] = [:]
+    /// Ranges of the readings combined into the main item's title. Only
+    /// populated while the separate-items option is off.
+    private var combinedMetricHitRuns: [CombinedMetricHitRun] = []
     private var cancellables = Set<AnyCancellable>()
     private var titleTimer: Timer?
     private var defaultsObserver: NSObjectProtocol?
@@ -69,6 +72,14 @@ final class StatusItemController {
         let metrics: [MenuBarMetric]
         let focusMetric: MenuBarMetric
         let title: String
+    }
+
+    /// One reading drawn inside the combined menu bar item, as a character
+    /// range in the main button's title. A click landing in the range opens
+    /// that reading's detail instead of the last panel section.
+    private struct CombinedMetricHitRun {
+        let metric: MenuBarMetric
+        let range: NSRange
     }
 
     /// Cached so the countdown tooltip doesn't allocate a DateFormatter (expensive)
@@ -420,9 +431,53 @@ final class StatusItemController {
     @objc private func clicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             onRightClick?(statusItem.button)
-        } else {
-            onLeftClick?()
+            return
         }
+        if let button = statusItem.button, let window = button.window {
+            // The action can arrive with a current event that is not the click
+            // itself; the pointer is still over the item on mouse-up, so read
+            // its screen position instead of trusting that event's location.
+            let point = button.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+            if let metric = combinedMetric(at: point, in: button) {
+                onMetricClick?(metric, button)
+                return
+            }
+        }
+        onLeftClick?()
+    }
+
+    /// Maps a click inside the combined title to the reading drawn under it.
+    /// The glyph, the countdown and the gaps between readings are not runs, so
+    /// clicking them keeps the item's normal panel behavior.
+    private func combinedMetric(at point: NSPoint,
+                                in button: NSStatusBarButton) -> MenuBarMetric? {
+        guard !combinedMetricHitRuns.isEmpty,
+              let cell = button.cell as? NSButtonCell else { return nil }
+        let title = button.attributedTitle
+        let titleRect = cell.titleRect(forBounds: button.bounds)
+        guard titleRect.width > 0, titleRect.height > 0,
+              point.x >= titleRect.minX, point.x <= titleRect.maxX,
+              point.y >= button.bounds.minY, point.y <= button.bounds.maxY else { return nil }
+
+        let storage = NSTextStorage(attributedString: title)
+        let layout = NSLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: NSSize(width: ceil(title.size().width) + 8,
+                                                     height: titleRect.height))
+        container.lineFragmentPadding = 0
+        container.maximumNumberOfLines = 1
+        layout.addTextContainer(container)
+        layout.ensureLayout(for: container)
+
+        for run in combinedMetricHitRuns where NSMaxRange(run.range) <= title.length {
+            let glyphs = layout.glyphRange(forCharacterRange: run.range, actualCharacterRange: nil)
+            let rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            if point.x >= titleRect.minX + rect.minX,
+               point.x <= titleRect.minX + rect.maxX {
+                return run.metric
+            }
+        }
+        return nil
     }
 
     /// The item a right-click menu opens from: the main one while it is in
@@ -482,20 +537,29 @@ final class StatusItemController {
             title.append(NSAttributedString(string: countdown))
             includesCountdown = true
         }
+        var metricHitRuns: [CombinedMetricHitRun] = []
         if separateMetrics {
             refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
         } else {
             removeMetricStatusItems(except: Set<String>())
             renderedMetricItemCount = 0
-        }
-        if !separateMetrics, !metrics.isEmpty {
-            let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
-                                                          metrics: metrics,
-                                                          allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
-            if metricsTitle.length > 0 {
-                if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
-                title.append(metricsTitle)
+            if !metrics.isEmpty {
+                let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
+                                                              metrics: metrics,
+                                                              allowStacked: !includesCountdown,
+                                                              linePrefix: " ")
+                if metricsTitle.length > 0 {
+                    if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
+                    let metricsStart = title.length
+                    title.append(metricsTitle)
+                    metricHitRuns = Self.combinedMetricHitRuns(for: metrics,
+                                                               snapshot: snapshot,
+                                                               strings: strings,
+                                                               allowStacked: !includesCountdown,
+                                                               linePrefix: " ",
+                                                               expected: metricsTitle,
+                                                               startOffset: metricsStart)
+                }
             }
         }
 
@@ -514,6 +578,7 @@ final class StatusItemController {
             if button.imagePosition != .imageOnly {
                 button.imagePosition = .imageOnly
             }
+            combinedMetricHitRuns = []
         } else {
             // The leading space separates the glyph from the text; with the
             // glyph hidden by the metrics-only option or by Dynamic Island it
@@ -559,6 +624,15 @@ final class StatusItemController {
             }
             if button.imagePosition != .imageLeading {
                 button.imagePosition = .imageLeading
+            }
+            // The runs were measured against the countdown-and-metrics title;
+            // the button prepends its glyph space, so move them into the
+            // title's final coordinates.
+            let prefixLength = full.length - title.length
+            combinedMetricHitRuns = metricHitRuns.map {
+                CombinedMetricHitRun(metric: $0.metric,
+                                     range: NSRange(location: $0.range.location + prefixLength,
+                                                    length: $0.range.length))
             }
         }
 
@@ -699,6 +773,43 @@ final class StatusItemController {
         }
 
         return groups
+    }
+
+    /// Rebuilds the combined title one reading group at a time so each run's
+    /// character range is known. The renderer draws the same groups in the same
+    /// order when handed the whole list, so the runs line up with the title the
+    /// app actually shows; the length and text check keeps a future renderer
+    /// change from turning a stale run into a wrong click.
+    private static func combinedMetricHitRuns(for metrics: [MenuBarMetric],
+                                              snapshot: SystemSnapshot,
+                                              strings: Strings,
+                                              allowStacked: Bool,
+                                              linePrefix: String,
+                                              expected: NSAttributedString,
+                                              startOffset: Int) -> [CombinedMetricHitRun] {
+        let groups = metricStatusGroups(for: metrics, strings: strings)
+        let glue = MenuBarSpacingSupport.blockGlue(readableStyle: false,
+                                                   spacing: MenuBarMetricSpacing.current)
+        let composed = NSMutableAttributedString()
+        var runs: [CombinedMetricHitRun] = []
+        for group in groups {
+            let part = MenuBarRenderer.attributed(for: snapshot,
+                                                  metrics: group.metrics,
+                                                  allowStacked: allowStacked,
+                                                  linePrefix: linePrefix)
+            guard part.length > 0 else { continue }
+            if composed.length > 0 {
+                composed.append(NSAttributedString(string: glue))
+            }
+            runs.append(CombinedMetricHitRun(metric: group.focusMetric,
+                                             range: NSRange(location: startOffset + composed.length,
+                                                            length: part.length)))
+            composed.append(part)
+        }
+        guard composed.length == expected.length, composed.string == expected.string else {
+            return []
+        }
+        return runs
     }
 
     private func installMetricStatusItem(for group: MetricStatusGroup) -> NSStatusItem {
