@@ -32,8 +32,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
-    /// Gemini CLI keeps its quota in memory only.
+    /// Whether this integration can display plan limits for the provider.
     var reportsLimits: Bool { self != .copilot && self != .gemini }
 }
 

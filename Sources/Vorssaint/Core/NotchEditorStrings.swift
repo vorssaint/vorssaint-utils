@@ -234,7 +234,7 @@ extension FeatureStrings {
             cameraSummary: "Um espelho para se ver antes de uma chamada.",
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
-            agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode, do GitHub Copilot e do Gemini CLI, Antigravity.",
+            agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode, do GitHub Copilot, do Gemini CLI e do Antigravity.",
             watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar."
         )
         case .es: return NotchEditorStrings(
@@ -914,7 +914,7 @@ extension FeatureStrings {
             cameraSummary: "通话前照一照的镜子。",
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
-            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot, Gemini CLI 和 Antigravity 的用量、限额和费用。",
+            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot、Gemini CLI 和 Antigravity 的用量、限额和费用。",
             watchSummary: "实时读取窗口的任意部分，变化时提醒你。"
         )
         case .zhTW: return NotchEditorStrings(
@@ -982,7 +982,7 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot, Gemini CLI 和 Antigravity 的用量、限額和費用。",
+            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot、Gemini CLI 和 Antigravity 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
         case .zhHK: return NotchEditorStrings(
@@ -1050,7 +1050,7 @@ extension FeatureStrings {
             cameraSummary: "通話前照一照的鏡子。",
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
-            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot, Gemini CLI 和 Antigravity 的用量、限額和費用。",
+            agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot、Gemini CLI 和 Antigravity 的用量、限額和費用。",
             watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
         )
         case .uk: return NotchEditorStrings(
