@@ -62,14 +62,22 @@ enum DisplayRestorationTests {
     }
     enum DispatchQueue { static var main = Queue() }
     enum Hardware {
-        static var topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
+        static var online: Set<UInt32> = [1, 2]
+        static var active: Set<UInt32> = [1, 2]
+        static var virtual: Set<UInt32> = []
+        static var mirrorSources: [UInt32: UInt32] = [:]
+        static var topology: BrightnessSupport.DisplayTopology {
+            get { BrightnessSupport.DisplayTopology(online: online, active: active, mirrorSources: mirrorSources) }
+            set { (online, active, mirrorSources) = (newValue.online, newValue.active, newValue.mirrorSources) }
+        }
         static var asleep = Set<UInt32>()
         static var info: [UInt32: NSDictionary] = [:]
         static var onComplete: (() -> Void)?
-        static var mirrors: [UInt32: UInt32] = [:]
         static var lid: Bool? = true
+        static var session: [String: Any]? = [:]
         static var succeeds = true
         static var transactions = 0
+        static var configurations: [(id: UInt32, enabled: Bool)] = []
         static var registrations = 0
         static var destroyedPorts = 0
         static var released: [UInt32] = []
@@ -124,11 +132,14 @@ enum DisplayRestorationTests {
         }
     }
     enum DisplayConfigurationBridge {
-        static var configureEnabled: ((Int, UInt32, Bool) -> Int32)? = { _, _, _ in 0 }
+        static var configureEnabled: ((Int, UInt32, Bool) -> Int32)? = { _, id, enabled in
+            Hardware.configurations.append((id, enabled))
+            return 0
+        }
     }
-    static func CGDisplayMirrorsDisplay(_ id: UInt32) -> UInt32 { Hardware.mirrors[id] ?? 0 }
     static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { Hardware.asleep.contains(id) ? 1 : 0 }
     static func CGDisplayIsBuiltin(_ id: UInt32) -> UInt32 { id == 1 ? 1 : 0 }
+    static func CGSessionCopyCurrentDictionary() -> CFDictionary? { Hardware.session as CFDictionary? }
     static func CGBeginDisplayConfiguration(_ reference: inout Int?) -> CGError {
         Hardware.transactions += 1
         reference = 1
@@ -166,9 +177,12 @@ enum DisplayRestorationTests {
         var automaticallyDisabledDisplayID: UInt32?
         var builtInDisplayManualOverride = false
         var observedAutomaticLidClosed: Bool?
-        var automaticPolicySuspended = false
         var automaticDisplayPolicyEnabled = false
         static func currentTopology() -> BrightnessSupport.DisplayTopology { Hardware.topology }
+        static func drawableDisplayIDs(online: Set<UInt32>, active: Set<UInt32>) -> Set<UInt32> {
+            BrightnessSupport.drawableDisplayIDs(onlineDisplayIDs: online, activeDisplayIDs: active,
+                                                 virtualDisplayIDs: Hardware.virtual)
+        }
         var deferredRestoration = BrightnessSupport.DeferredDisplayRestoration()
         var lidNotificationPort: IONotificationPortRef?
         var lidNotification: io_object_t = 0
@@ -183,6 +197,9 @@ enum DisplayRestorationTests {
         var knownDisplayFingerprints: [UInt32: String] = [:]
         var displayControlFailure: BrightnessService.DisplayControlFailure?
         var pendingDisplayIDs = Set<UInt32>()
+        func readSelectedAudioOutput() {}
+        func suspendSpeakerRoutes() {}
+        func forgetWriteOnlyRechecks() {}
         var displays: [BrightnessDisplay] = []
         var refreshes = 0
         var running = false
@@ -194,6 +211,10 @@ enum DisplayRestorationTests {
         var wakeDisableFailed = false
         static let wakeDisablePollInterval: TimeInterval = 0.1
         var wakeRebuild: DispatchWorkItem?
+        var ddcRetry: DispatchWorkItem?
+        var displayPowerIsSuspended = false
+        var rebuildGeneration = 0
+        var rebuildingTopology: BrightnessSupport.DisplayTopology?
         static let wakeSettleDelay: TimeInterval = 3
         static func lidClosed() -> Bool? { Hardware.lidRead?() ?? Hardware.lid }
         static func displayInfoDictionary(_ id: UInt32) -> NSDictionary? { Hardware.info[id] }
@@ -204,7 +225,7 @@ enum DisplayRestorationTests {
             "Display"
         }
         func refresh(force: Bool = false) {
-            if running && !automaticPolicySuspended {
+            if running && !displayPowerIsSuspended {
                 refreshes += 1
             }
         }
@@ -214,11 +235,20 @@ enum DisplayRestorationTests {
             wakeRebuild?.cancel()
             wakeRebuild = nil
             (self as? BrightnessService)?.cancelWakeDisableChecks()
+            displayPowerIsSuspended = false
         }
 
     }
 
     static func run(_ suite: TestSuite) {
+        // A display mirroring another now has its own row and key route but
+        // no screen of its own, so its overlay uses the mirror set's screen.
+        let overlay = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
+                                   encoding: .utf8)) ?? ""
+        suite.expect(overlay.contains("let sharedScreenID = CGDisplayPrimaryDisplay(displayID)")
+                && overlay.contains("let mirroredID = CGDisplayMirrorsDisplay(displayID)")
+                && overlay.contains("return number == displayID || number == sharedScreenID || number == mirroredID"),
+                     "a mirroring display's brightness overlay shows on the screen its mirror set shares")
         func make() -> BrightnessService {
             DispatchQueue.main = Queue()
             UserDefaults.standard = UserDefaults()
@@ -226,10 +256,12 @@ enum DisplayRestorationTests {
             Hardware.asleep = []
             Hardware.info = [:]
             Hardware.onComplete = nil
-            Hardware.mirrors = [:]
+            Hardware.virtual = []
             Hardware.lid = true
+            Hardware.session = [:]
             Hardware.succeeds = true
             Hardware.transactions = 0
+            Hardware.configurations = []
             Hardware.registrations = 0
             Hardware.destroyedPorts = 0
             Hardware.released = []
@@ -238,6 +270,16 @@ enum DisplayRestorationTests {
             Hardware.lidRead = nil
             Hardware.fingerprints = [1: "1:1:1", 2: "2:2:2"]
             return BrightnessService()
+        }
+        // Exercise the transaction/deferred primitive independently from
+        // automatic sleep/lid/topology policy, including transaction-time
+        // lid changes and restore-all requests that outlive the feature.
+        func recoverHeadless(_ service: BrightnessService) {
+            let candidates = BrightnessSupport.headlessRecoveryCandidates(
+                drawableDisplayIDs: [], managedDisabledIDs: service.managedDisabledIDs,
+                builtInDisabledIDs: Set(service.managedDisabledDisplays.values.filter(\.isBuiltIn).map(\.id)))
+            service.pendingDisplayIDs.formUnion(candidates)
+            DispatchQueue.main.async { service.performHeadlessDisplayRestoration(candidates: candidates) }
         }
         var service = make()
         // The worker has approved two displays. The second one disappears
@@ -252,11 +294,11 @@ enum DisplayRestorationTests {
                      && service.pendingDisplayIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
                      "a disconnect before main-thread commit refuses to turn off the last drawable display")
         Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [1, 2])
-        Hardware.info = [1: ["kCGDisplayIsVirtualDevice": true]]
+        Hardware.virtual = [1]
         service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
         suite.expect(Hardware.transactions == 0 && service.displayControlFailure == .lastActive,
                      "a virtual replacement cannot satisfy transaction-time last-display protection")
-        Hardware.info = [:]
+        Hardware.virtual = []
         service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
         suite.expect(Hardware.transactions == 1 && service.displayControlFailure == nil
                      && UserDefaults.standard.stored == [2],
@@ -341,7 +383,7 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         service.commitDisplayToggle(BrightnessDisplay(id: 1), enabled: true)
         DispatchQueue.main.drain()
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids == [1] && service.managedDisabledIDs == [1]
                      && Hardware.transactions == 1 && Hardware.destroyedPorts == 0,
@@ -397,7 +439,7 @@ enum DisplayRestorationTests {
         service = make()
         service.managedDisabledIDs = [1]
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.displayControlFailure == .closedLid,
                      "headless restoration preserves the closed-lid denial reason")
@@ -411,7 +453,7 @@ enum DisplayRestorationTests {
         service.managedDisabledIDs = [1, 2]
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids.isEmpty && service.managedDisabledIDs == [1]
                      && Hardware.destroyedPorts == 1,
@@ -429,7 +471,7 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         service.restoreDisplaysLeftOff()
         DispatchQueue.main.drain()
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids == [1],
                      "headless success preserves an independently owed restoration")
@@ -444,10 +486,10 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         Hardware.succeeds = false
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         Hardware.succeeds = true
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids.isEmpty,
                      "repeated headless attempts retain ownership until a later external success")
@@ -457,14 +499,14 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         Hardware.succeeds = false
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         Hardware.lid = false
         service.restoreManagedDisplays()
         DispatchQueue.main.drain()
         Hardware.lid = true
         Hardware.succeeds = true
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids == [1],
                      "a failed restore-all request promotes prior headless intent")
@@ -475,7 +517,7 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         Hardware.succeeds = false
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids == [1],
                      "failed headless round keeps the closed internal request queued")
@@ -489,7 +531,7 @@ enum DisplayRestorationTests {
                      "a deferred retry that closes at the transaction keeps headless ownership")
         Hardware.lid = true
         Hardware.succeeds = true
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids.isEmpty && service.managedDisabledIDs == [1]
                      && UserDefaults.standard.stored == [1] && Hardware.destroyedPorts == 1,
@@ -506,7 +548,7 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         var lidReads = [true, false, true]
         Hardware.lidRead = { lidReads.isEmpty ? true : lidReads.removeFirst() }
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.deferredRestoration.ids.isEmpty,
                      "headless candidate retry uses the shared transaction-time lid result")
@@ -543,7 +585,7 @@ enum DisplayRestorationTests {
         service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
         service.managedDisabledDisplays[2] = BrightnessDisplay(id: 2, restorationFingerprint: "2:2:2")
         Hardware.succeeds = false
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(service.displayControlFailure == .failed,
                      "a genuine headless transaction failure is not mislabeled as a closed-lid denial")
@@ -572,12 +614,13 @@ enum DisplayRestorationTests {
         DispatchQueue.main.drain()
         suite.expect(service.managedDisabledIDs == [2]
                      && service.managedDisabledDisplays[2]?.isActive == false
-                     && UserDefaults.standard.stored == [2] && Hardware.transactions == 1,
-                     "transient active observations and waking preserve an intentionally disabled monitor's recovery row")
+                     && UserDefaults.standard.stored == [2] && Hardware.transactions == 2
+                     && Hardware.configurations.last?.enabled == false,
+                     "waking reapplies an intentionally disabled monitor's state and preserves its recovery row")
         service.commitDisplayToggle(service.displays[1], enabled: true)
         DispatchQueue.main.drain()
         suite.expect(service.managedDisabledIDs.isEmpty && service.managedDisabledDisplays.isEmpty
-                     && UserDefaults.standard.stored.isEmpty && Hardware.transactions == 2,
+                     && UserDefaults.standard.stored.isEmpty && Hardware.transactions == 3,
                      "an explicit successful enable retires the preserved monitor row")
 
         service = make()
@@ -684,7 +727,7 @@ enum DisplayRestorationTests {
         Hardware.lid = false
         service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
         Hardware.fingerprints[2] = "3:3:3"
-        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        recoverHeadless(service)
         DispatchQueue.main.drain()
         suite.expect(Hardware.transactions == 1 && service.managedDisabledIDs.isEmpty
                      && UserDefaults.standard.stored.isEmpty,
@@ -777,7 +820,7 @@ enum DisplayRestorationTests {
             // A monitor that is off can read like an empty connection.
             Hardware.fingerprints[2] = "0:0:0"
             if headless {
-                _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+                recoverHeadless(service)
             } else {
                 service.restoreManagedDisplays()
             }
@@ -796,7 +839,7 @@ enum DisplayRestorationTests {
             service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
             Hardware.fingerprints[2] = unknown
             Hardware.succeeds = false
-            _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+            recoverHeadless(service)
             DispatchQueue.main.drain()
             service.commitDisplayToggle(service.managedDisabledDisplays[2] ?? BrightnessDisplay(id: 2), enabled: true)
             DispatchQueue.main.drain()
@@ -831,7 +874,7 @@ enum DisplayRestorationTests {
         service.syncAutomaticBuiltInDisplay()
         suite.expect(Hardware.transactions == 4 && service.builtInDisplayManualOverride,
                      "manual power-on overrides automation while docked")
-        service.automaticPolicySuspended = true
+        service.displayPowerIsSuspended = true
         Hardware.topology = BrightnessSupport.DisplayTopology(online: [], active: [])
         service.syncAutomaticBuiltInDisplay()
         suite.expect(service.builtInDisplayManualOverride, "sleep topology gaps preserve the manual override")
@@ -915,11 +958,11 @@ enum DisplayRestorationTests {
         service.running = true
         service.automaticDisplayPolicyEnabled = true
         Hardware.lid = false
-        Hardware.mirrors = [1: 2]
-        Hardware.topology = BrightnessSupport.DisplayTopology(online: [1, 2], active: [2])
-        service.displays = Hardware.topology.online.sorted().map {
-            BrightnessDisplay(id: $0, isActive: BrightnessService.displayParticipatesInDesktop(
-                $0, active: Hardware.topology.active))
+        Hardware.mirrorSources = [1: 2]
+        Hardware.active = BrightnessSupport.participatingDisplayIDs(activeDisplayIDs: [2],
+                                                                     mirrorSources: Hardware.mirrorSources)
+        service.displays = Hardware.online.sorted().map {
+            BrightnessDisplay(id: $0, isActive: Hardware.active.contains($0))
         }
         suite.expect(service.displays.contains { $0.id == 1 && $0.isActive },
                      "a mirrored built-in display has a power-off control")
@@ -965,10 +1008,10 @@ enum DisplayRestorationTests {
         DispatchQueue.main.advance(by: 1)
         service.displaysWokeUp()
         DispatchQueue.main.advance(by: 1.99)
-        suite.expect(service.automaticPolicySuspended && service.refreshes == 0,
+        suite.expect(service.displayPowerIsSuspended && service.refreshes == 0,
                      "paired notifications preserve the first wake deadline")
         DispatchQueue.main.advance(by: 0.01)
-        suite.expect(!service.automaticPolicySuspended && service.refreshes == 1
+        suite.expect(!service.displayPowerIsSuspended && service.refreshes == 1
                      && service.wakeDisableDeadline == nil,
                      "brightness rebuild runs at the original three-second deadline")
 
@@ -1043,7 +1086,7 @@ enum DisplayRestorationTests {
         DispatchQueue.main.advance(by: 0.1)
         Hardware.asleep = []
         DispatchQueue.main.advance(by: 0.1)
-        suite.expect(Hardware.transactions == 1 && service.automaticPolicySuspended,
+        suite.expect(Hardware.transactions == 1 && service.displayPowerIsSuspended,
                      "a fresh wake starts a new retry window after cancellation")
 
         service = makeWake()
@@ -1118,6 +1161,242 @@ enum DisplayRestorationTests {
         service.scheduleWakeDisableCheck()
         DispatchQueue.main.runReady()
         suite.expect(Hardware.transactions == 2, "early screen checks stop at the wake deadline")
+        func externalSwitchedOff() -> BrightnessService {
+            let service = make()
+            Hardware.lid = false
+            service.running = true
+            service.commitDisplayToggle(BrightnessDisplay(id: 2, isActive: true), enabled: false)
+            Hardware.online = [1]
+            Hardware.active = [1]
+            service.recordDiscoveredTopology(online: [1], active: [1], mirrorSources: [:])
+            Hardware.configurations = []
+            return service
+        }
+
+        // Closing the lid may report an empty topology before the workspace
+        // sleep notification arrives. It must not steal the monitor's input.
+        service = externalSwitchedOff()
+        Hardware.lid = true
+        Hardware.online = []
+        Hardware.active = []
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.managedDisabledIDs == [2]
+                     && UserDefaults.standard.stored == [2],
+                     "closing the lid with no drawable screens keeps the external monitor disabled")
+
+        service = externalSwitchedOff()
+        Hardware.online = []
+        Hardware.active = []
+        service.screensChanged()
+        service.displaysWillSleep()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.rebuildDebounce == nil
+                     && service.displayPowerIsSuspended && service.managedDisabledIDs == [2],
+                     "sleep cancels a queued topology recovery before it enables a monitor")
+        suite.expect(!service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: []),
+                     "headless recovery is refused while displays are sleeping")
+
+        service = externalSwitchedOff()
+        Hardware.online = []
+        Hardware.active = []
+        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        suite.expect(service.pendingDisplayIDs == [2], "headless recovery is queued before the sleep race")
+        service.displaysWillSleep()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.pendingDisplayIDs.isEmpty
+                     && UserDefaults.standard.stored == [2],
+                     "sleep also cancels a headless enable already queued for the main thread")
+
+        for closingLid in [false, true] {
+            service = externalSwitchedOff()
+            Hardware.online = []
+            Hardware.active = []
+            _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+            if closingLid {
+                Hardware.lid = true
+            } else {
+                Hardware.online = [1]
+                Hardware.active = [1]
+            }
+            DispatchQueue.main.drain()
+            suite.expect(Hardware.configurations.isEmpty && service.pendingDisplayIDs.isEmpty
+                         && UserDefaults.standard.stored == [2],
+                         "queued headless recovery rechecks the lid and returning displays before enabling: \(closingLid)")
+        }
+
+        service = externalSwitchedOff()
+        Hardware.online = []
+        Hardware.active = []
+        _ = service.restoreManagedDisplayIfHeadless(drawableDisplayIDs: [])
+        service.commitDisplayToggle(BrightnessDisplay(id: 2), enabled: true)
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && service.displayControlFailure == nil
+                     && service.pendingDisplayIDs.isEmpty && service.managedDisabledIDs.isEmpty,
+                     "a queued headless request cannot re-enable a monitor after explicit enable retired its ownership")
+
+        service = externalSwitchedOff()
+        service.displaysWillSleep()
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        let beforeWake = service.refreshes
+        service.displaysWokeUp()
+        service.displaysWokeUp()
+        service.screensChanged()
+        suite.expect(Hardware.configurations.isEmpty && service.displayPowerIsSuspended,
+                     "paired wake and screen notifications wait for the connection settle window")
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1
+                     && Hardware.configurations.first?.id == 2
+                     && Hardware.configurations.first?.enabled == false
+                     && service.refreshes == beforeWake + 1
+                     && !service.displayPowerIsSuspended && service.wakeRebuild == nil
+                     && service.managedDisabledIDs == [2] && UserDefaults.standard.stored == [2],
+                     "one settled wake disables the returned external monitor once even while locked")
+
+        service = externalSwitchedOff()
+        service.displaysWokeUp()
+        service.displaysWillSleep()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.displayPowerIsSuspended,
+                     "another sleep cancels a pending wake pass")
+
+        service = externalSwitchedOff()
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.enabled == false,
+                     "a disabled monitor returning after the wake settle window is switched off on discovery")
+
+        service = externalSwitchedOff()
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:])
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.enabled == false,
+                     "an already cached active topology does not hide a monitor that should remain off")
+
+        service = externalSwitchedOff()
+        service.screensChanged()
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(service.rebuildDebounce == nil, "wake releases any pending screen debounce")
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1,
+                     "a screen change after a wake/debounce race still enforces the saved off choice")
+
+        service = make()
+        service.running = true
+        Hardware.lid = false
+        service.commitDisplayToggle(BrightnessDisplay(id: 1, isActive: true), enabled: false)
+        Hardware.configurations = []
+        let unlockCenter = NotificationCenter()
+        let unlockObserver = service.observeScreenUnlock(in: unlockCenter)
+        let unlock = Notification.Name("com.apple.screenIsUnlocked")
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        service.displaysWillSleep()
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.managedDisabledIDs == [1]
+                     && UserDefaults.standard.stored == [1],
+                     "a locked wake with both displays active keeps the built-in panel up and its off choice saved")
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:])
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "later screen notifications also leave the lock screen up")
+
+        Hardware.session = [:]
+        unlockCenter.post(name: unlock, object: nil)
+        Hardware.online = [1]
+        Hardware.active = [1]
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "unplugging HDMI before the unlock retry keeps the last panel up")
+
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        Hardware.session = nil
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "an unreadable session cannot authorize an automatic panel disable")
+        Hardware.session = [:]
+        unlockCenter.post(name: unlock, object: nil)
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1
+                     && Hardware.configurations.first?.enabled == false && UserDefaults.standard.stored == [1],
+                     "unlock alone reapplies the built-in off choice with another drawable display")
+        unlockCenter.removeObserver(unlockObserver)
+
+        Hardware.configurations = []
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        service.displaysWillSleep()
+        Hardware.online = []
+        Hardware.active = []
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1
+                     && Hardware.configurations.first?.enabled == true
+                     && service.managedDisabledIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
+                     "a locked wake restores the disabled built-in panel if its external monitor was unplugged during sleep")
+
+        service = externalSwitchedOff()
+        Hardware.online = [2]
+        Hardware.active = [2]
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && UserDefaults.standard.stored == [2],
+                     "reapplying an off choice never disables the last drawable display")
+
+        for fingerprint in ["0:0:0", "3:3:3"] {
+            service = externalSwitchedOff()
+            Hardware.online = [1, 2]
+            Hardware.active = [1, 2]
+            Hardware.fingerprints[2] = fingerprint
+            service.displaysWokeUp()
+            DispatchQueue.main.drain()
+            suite.expect(Hardware.configurations.isEmpty,
+                         "wake never disables a monitor with an unknown or replaced identity: \(fingerprint)")
+        }
+
+        service = externalSwitchedOff()
+        service.displaysWokeUp()
+        service.commitDisplayToggle(BrightnessDisplay(id: 2), enabled: true)
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.enabled == true
+                     && service.managedDisabledIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
+                     "an explicit enable during wake cancels the saved off choice")
+
+        service = externalSwitchedOff()
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        Hardware.succeeds = false
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(service.managedDisabledIDs == [2] && UserDefaults.standard.stored == [2],
+                     "a failed wake disable keeps its journal for a later retry")
+        Hardware.succeeds = true
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 2 && Hardware.configurations.last?.enabled == false,
+                     "a later topology notification retries a failed wake disable")
+
+        service = externalSwitchedOff()
+        service.managedDisabledIDs.insert(1)
+        service.managedDisabledDisplays[1] = BrightnessDisplay(id: 1)
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        Hardware.callback = { Hardware.active = [2] }
+        _ = service.reapplyManagedDisplayDisables()
+        Hardware.callback = nil
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1,
+                     "each automatic disable rechecks the remaining displays before the next transaction")
 
         // Measured with a MacBook panel (1) mirroring a monitor (2): the
         // participating set is the same extended or mirrored, and only the

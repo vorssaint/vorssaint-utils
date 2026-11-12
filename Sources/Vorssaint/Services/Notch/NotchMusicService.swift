@@ -162,11 +162,8 @@ final class NotchMusicService: ObservableObject {
                                            commandContext: reply.flatMap(NotchPlaybackContext.init(reply:)),
                                            canSendCommandsDirectly: reply?["canSendCommandsDirectly"] as? Bool == true)
             playerArtwork = next?.track.artworkData
-            // Firefox-family browsers send no cover, or one too small to show
-            // sharp. One found from the tab replaces it, and a lookup that
-            // finishes later redraws the player. Any other reading stops the
-            // lookup of the track before it.
-            self?.requestBrowserArtwork(for: next)
+            // A cover already found for a Firefox-family browser replaces
+            // the player's missing or small cover before it is decoded.
             if let playback = next, let cover = NotchBrowserArtwork.shared.artwork(for: playback) {
                 next = playback.withArtwork(cover)
             }
@@ -183,6 +180,10 @@ final class NotchMusicService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.generation == requested,
                       self.acceptsSourceReply(automatic: automatic, sources: sources) else { return }
+                // A pipe reply may still be decoding when the player stops
+                // or restarts. Only the accepted adapter may start or cancel
+                // a lookup, including while a chosen source is restored.
+                self.requestBrowserArtwork(for: next)
                 self.receive(Reading(playback: next, artwork: image, tint: tint, sources: sources,
                                      automatic: automatic, selectedPID: selectedPID))
             }
@@ -305,8 +306,8 @@ final class NotchMusicService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + Double(restartCount), execute: work)
     }
 
-    /// A lookup outlives a restart of the adapter when the same track comes
-    /// back, so the redraw checks the track playing now, not the generation.
+    /// The redraw checks the track playing now, since the adapter can change
+    /// it before this queued update reaches the main thread.
     private func requestBrowserArtwork(for playback: NotchPlayback?) {
         NotchBrowserArtwork.shared.request(for: playback) { [weak self] in
             DispatchQueue.main.async { self?.applyBrowserArtwork() }

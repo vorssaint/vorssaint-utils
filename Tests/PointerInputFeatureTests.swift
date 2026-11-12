@@ -1062,28 +1062,50 @@ enum PointerInputFeatureTests {
         }
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: nil, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover leaves the active app alone when its focused window cannot be read")
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 42, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover does not reactivate the app's focused window")
         suite.expect(FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: false,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover can still switch to another window within the active app")
         suite.expect(!FocusFollowsMouseSupport.shouldActivate(
             targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: true,
-            targetAppIsFrontmost: true),
+            focusedWindowSharesRoot: false, targetAppIsFrontmost: true),
                "hover leaves focus on a sheet or modal window that blocks the hovered window")
+        suite.expect(!FocusFollowsMouseSupport.shouldActivate(
+            targetWindowID: 42, focusedWindowID: 43, focusedWindowBlocksTarget: false,
+            focusedWindowSharesRoot: true, targetAppIsFrontmost: true),
+               "hover keeps focus within a window and the suggestion list or popover it holds")
         for focusedWindowID: CGWindowID? in [nil, 42, 43] {
             for focusedWindowBlocksTarget in [false, true] {
-                suite.expect(FocusFollowsMouseSupport.shouldActivate(
-                    targetWindowID: 42, focusedWindowID: focusedWindowID,
-                    focusedWindowBlocksTarget: focusedWindowBlocksTarget, targetAppIsFrontmost: false),
-                       "hover can activate a background app regardless of its last focused window")
+                for focusedWindowSharesRoot in [false, true] {
+                    suite.expect(FocusFollowsMouseSupport.shouldActivate(
+                        targetWindowID: 42, focusedWindowID: focusedWindowID,
+                        focusedWindowBlocksTarget: focusedWindowBlocksTarget,
+                        focusedWindowSharesRoot: focusedWindowSharesRoot, targetAppIsFrontmost: false),
+                           "hover can activate a background app regardless of its last focused window")
+                }
             }
         }
+        // Chrome in full screen: browser 1, toolbar overlay 2 attached to it,
+        // address bar suggestions 3 attached to the overlay, find bar 4
+        // attached to the browser; window 5 is a second browser window.
+        let parentWindows: [CGWindowID: CGWindowID] = [2: 1, 3: 2, 4: 1, 7: 8, 8: 7]
+        let rootWindowID = { (windowID: CGWindowID) in
+            FocusFollowsMouseSupport.rootWindowID(of: windowID) { parentWindows[$0] }
+        }
+        suite.expect(rootWindowID(3) == 1 && rootWindowID(2) == 1 && rootWindowID(4) == 1 && rootWindowID(1) == 1,
+               "child windows lead back to the window they hang from, through an overlay in between")
+        suite.expect(rootWindowID(5) == 5 && rootWindowID(5) != rootWindowID(3),
+               "another top-level window of the same app keeps a root of its own")
+        suite.expect([7, 8].contains(rootWindowID(7)),
+               "a cycle in reported parents ends the walk instead of hanging hover")
+        suite.expect(FocusFollowsMouseSupport.rootWindowID(of: 9) { _ in kCGNullWindowID } == 9,
+               "a null parent means the window is attached to nothing")
         suite.expect(FocusFollowsMouseSupport.shouldRestoreFocus(
             to: 42, reportedFocusedWindowID: 42, appIsFrontmost: true),
                "a canceled handoff gives focus back to the window that still holds it")
@@ -1243,6 +1265,15 @@ enum PointerInputFeatureTests {
         suite.expect(focusFollowsMouseServiceSource.contains(
                 "WindowActivator.supersedePendingActivations(for: target.processID)"),
                "focus without raise stops the passes a switcher jump left pending, as the raising path does")
+        // Issue #3231: the hovered window and the focused one are compared by
+        // the window each hangs from, as the window server reports it.
+        suite.expect(focusFollowsMouseServiceSource.contains(
+                "focusedWindowSharesRoot: target.focusedWindowSharesRoot,")
+                && focusFollowsMouseServiceSource.contains(
+                    "$0 != windowID && Self.rootWindowID(of: $0) == Self.rootWindowID(of: windowID)")
+                && focusFollowsMouseServiceSource.contains(
+                    "parentWindowID: SpaceWindowBridge.parentWindowID(of:)"),
+               "hover asks the window server whether the hovered and focused windows hang from the same window")
 
         // A wheel that reports continuously already measures in points, and
         // that field is the one to trust; the line field only fills in for a
@@ -2030,10 +2061,19 @@ enum PointerInputFeatureTests {
                 && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: false) == .spaceLeft,
                "the Space can follow the hand instead of the pointer, and the overviews never swap")
 
-        suite.expect(MouseSpacesGestureSupport.canBind(3) && MouseSpacesGestureSupport.canBind(31)
-                && !MouseSpacesGestureSupport.canBind(2) && !MouseSpacesGestureSupport.canBind(32)
-                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelLeftInput),
-               "the drag lives on an extra button, never on a side-wheel tick there is no way to hold")
+        suite.expect(MouseSpacesGestureSupport.canBind(2) && MouseSpacesGestureSupport.canBind(3)
+                && MouseSpacesGestureSupport.canBind(31) && !MouseSpacesGestureSupport.canBind(32)
+                && !MouseSpacesGestureSupport.canBind(0) && !MouseSpacesGestureSupport.canBind(1)
+                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelLeftInput)
+                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelRightInput),
+               "the drag accepts middle and extra buttons, leaving primary buttons and side-wheel ticks alone")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.mouseButtons(language)
+            suite.expect(!strings.middleButtonName.isEmpty
+                    && MouseButtonShortcutSupport.buttonName(for: 2, strings: strings) == strings.middleButtonName,
+                   "the middle button has a clear name in \(language.rawValue)")
+        }
 
         suite.expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
                                                      hasShortcut: { _ in false },
@@ -2122,7 +2162,7 @@ enum PointerInputFeatureTests {
         } ?? ""
         let mouseButtonToggleID = "toggle.\(AppFeature.mouseButtonShortcuts.rawValue)"
         suite.expect(mouseButtonToggleCode.contains("DefaultsKey.mouseButtonShortcutsEnabled")
-                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub)")
+                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub, language: language)")
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID)\""),
                "the Command Bar keeps the mouse-button shortcut row's key, title and stable id")
         suite.expect(mouseButtonToggleCode.contains("FeatureStrings.mouseButtons(language)")
@@ -2472,6 +2512,13 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        suite.expect(SuperKeySupport.hasNativeCapsLock(in: nil)
+                && SuperKeySupport.hasNativeCapsLock(in: [])
+                && SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.rightCommand.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["unrecognized": 1]])
+                && !SuperKeySupport.hasNativeCapsLock(in: "unrecognized"),
+               "a keyboard must have a native Caps Lock before its lock is cleared during repair")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",
@@ -2833,6 +2880,7 @@ enum PointerInputFeatureTests {
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
                 && MouseExceptionScope.linearScroll.feature == .linearScroll
+                && MouseExceptionScope.scrollSpeed.feature == .scrollSpeed
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
@@ -3834,6 +3882,8 @@ enum PointerInputFeatureTests {
             .dropFirst().first?.components(separatedBy: "Permissions.shared.$screenRecording").first ?? ""
         suite.expect(accessibilitySink.contains(".quitWindowProtection"),
                "granting Accessibility starts quit protection without a relaunch")
+        suite.expect(accessibilitySink.contains(".scrollSpeed"),
+               "an Accessibility change re-syncs speed when it is the only installed wheel feature")
         let smoothSchedulerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
             encoding: .utf8)) ?? ""
@@ -3848,6 +3898,12 @@ enum PointerInputFeatureTests {
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(smoothSchedulerCode.contains("ScrollInverter.shared.consumeZoom(event, direction: direction)")
+                && smoothSchedulerCode.contains("stopGlide()"),
+               "Smooth Scrolling consumes configured zoom before creating a glide")
+        suite.expect(scrollInverterSource.contains("pinchZoomLock")
+                && scrollInverterSource.contains("zoomState.update(direction.zoom)"),
+               "pinch zoom ends under the same lock that guards the tap callback")
         for (name, source) in [("scroll inverter", scrollInverterSource),
                                ("smooth scroll", smoothSchedulerCode)] {
             suite.expect(source.contains("guard !tapCreationRetryUsed")
@@ -3940,6 +3996,30 @@ enum PointerInputFeatureTests {
         suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
                     for: .quit, bundleIdentifier: "com.example.editor"),
                "an ordinary app continues using native terminate requests")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.apple.ScreenSharing")
+                && !QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.vmware.fusion"),
+               "a remote screen or virtual machine gets the confirmed shortcut to pass on instead of quitting itself")
+        suite.expect(QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.apple.ScreenSharing",
+                    confirmedWithExtraModifier: true),
+               "a remote screen confirmed with the extra modifier still held quits itself instead of forwarding that modifier")
+        let quitProtectionServiceSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/Services/QuitProtection/QuitProtectionService.swift",
+            encoding: .utf8)) ?? ""
+        suite.expect(quitProtectionServiceSource.contains("confirmedWithExtraModifier: modifier != nil"),
+               "the confirmation tells the forwarding rule whether the extra modifier is still held")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.valvesoftware.steam",
+                    confirmedWithExtraModifier: true)
+                && QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .quit, bundleIdentifier: "com.example.editor",
+                    confirmedWithExtraModifier: true),
+               "an extra modifier leaves Steam and ordinary apps on their usual path")
+        suite.expect(!QuitProtectionSupport.usesNativeQuitRequest(
+                    for: .close, bundleIdentifier: "com.apple.ScreenSharing"),
+               "close stays a window shortcut in a remote screen")
 
         suite.expect(QuitProtectionSupport.scopeAllows(.all, bundleIdentifier: nil, exceptions: []),
                "all-app scope protects even an app without a bundle identifier")
@@ -3959,6 +4039,38 @@ enum PointerInputFeatureTests {
                                                  bundleIdentifier: "com.example.other",
                                                  exceptions: ["com.example.editor"]),
                "all-except scope protects an unselected bundle")
+
+        let commandTab = GlobalShortcut(keyCode: 48, modifiers: [.command])
+        let commandShiftTab = GlobalShortcut(keyCode: 48, modifiers: [.command, .shift])
+        let factorySwitcher = [
+            LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: true),
+            LiveSystemShortcut(id: 2, shortcut: commandShiftTab, enabled: true),
+        ]
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand,
+                                                               entries: factorySwitcher)
+                && QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskShift],
+                                                             entries: factorySwitcher),
+               "⌘Tab and ⌘⇧Tab open macOS's own switcher")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: false),
+                ]),
+               "⌘Tab with the system row off, as the App Switcher's take-over leaves it, opens Vorssaint's switcher only")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 50, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]) && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]),
+               "a remapped system switcher key is followed, and ⌘Tab then is not it")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 27, shortcut: commandTab, enabled: true),
+                ]),
+               "only the app switcher rows count, not another system shortcut on the same keys")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: nil)
+                && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskAlternate],
+                                                              entries: nil),
+               "without the system table only the factory ⌘Tab is assumed")
 
         suite.expect(QuitProtectionSupport.matchesKey(keyCharacter: "\u{439}", keyCode: 12,
                                                 commandLabel: "Q", shortcut: .quit),

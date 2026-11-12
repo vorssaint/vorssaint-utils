@@ -136,24 +136,22 @@ struct NotchLayoutEditor: View {
     private static let previewScale: CGFloat = 0.5
     private static let canvasHeight: CGFloat = NotchSize.heightRange.upperBound * previewScale + 20 + 58 + 2
     private var layout: NotchSize { NotchSize(rawValue: size) ?? .spacious }
-    /// The width this setting gives the island, which the preview shows so
-    /// the slider moves it: lists and grids take all of it, while a page
-    /// with a size of its own, such as the player, takes less.
-    private var actualWidth: CGFloat {
-        NotchLayout.preferredWidth(layout, custom: NotchSize.clamped(width, to: NotchSize.widthRange, fallback: NotchSize.defaultWidth))
-    }
-    /// The island around a camera, or as a capsule while it floats in its
-    /// display's menu bar, with the sections button in its row when nothing
-    /// floats for it.
+    /// The width the island opens the home page at, which the preview
+    /// shows: a width set by hand, so the slider moves it, or under a preset
+    /// the page's own, as the island takes no more.
+    private var actualWidth: CGFloat { previewGeometry.expandedWidth }
+    /// The home page around a camera, or as a capsule while the island
+    /// floats in its display's menu bar, with the sections button in its
+    /// row when nothing floats for it.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
-        var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
                                      safeAreaTop: floats ? 0 : 32,
                                      cameraWidth: floats ? 0 : 210, layout: layout,
                                      menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
                                      customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
-        geometry.sectionsButtonInRow = !configuration.actions.contains(.explore)
-        return geometry
+        return geometry.page(.controls, controls: NotchSupport.controls(),
+                             sectionsButton: !configuration.actions.contains(.explore))
     }
     private var actualHeight: CGFloat {
         if layout == .custom { return previewGeometry.customHeight }

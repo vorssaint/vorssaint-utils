@@ -63,6 +63,26 @@ enum ClipboardHistoryWindowSizing {
     }
 }
 
+enum ClipboardHistoryWindowPlacement {
+    static func restoredFrame(origin: NSPoint, visibleFrames: [NSRect],
+                              size: (NSRect) -> NSSize) -> NSRect? {
+        guard origin.x.isFinite, origin.y.isFinite else { return nil }
+        var restored: NSRect?
+        var largestOverlap: CGFloat = 0
+        for visible in visibleFrames {
+            let frame = NSRect(origin: origin, size: size(visible))
+            let overlap = frame.intersection(visible)
+            let area = overlap.isNull ? 0 : overlap.width * overlap.height
+            guard area > largestOverlap else { continue }
+            largestOverlap = area
+            restored = NSRect(x: max(visible.minX, min(origin.x, visible.maxX - frame.width)),
+                              y: max(visible.minY, min(origin.y, visible.maxY - frame.height)),
+                              width: frame.width, height: frame.height)
+        }
+        return restored
+    }
+}
+
 /// Main-thread capture admission. Expiring a result does not release the
 /// actual queued read; stop/start must not release it either.
 struct ClipboardHistoryCaptureState {
@@ -100,6 +120,37 @@ struct ClipboardHistoryCaptureState {
 
     mutating func didBaseline() {
         needsBaseline = false
+    }
+}
+
+/// Dictation apps such as Superwhisper type by putting their text on the
+/// clipboard, pasting it, and putting back whatever was there a moment later.
+/// An explicit temporary-content mark lets history recognize that return
+/// without treating ordinary repeated copies as a paste-and-restore.
+enum ClipboardHistoryPasteRestore {
+    /// How long after an explicitly temporary write the previous clipboard
+    /// can come back without a second copy notice.
+    static let window: TimeInterval = 3
+
+    static func isWithinWindow(capturedAt: Date, now: Date) -> Bool {
+        now >= capturedAt && now.timeIntervalSince(capturedAt) <= window
+    }
+}
+
+/// Apps a history pick only copies into. Remote desktop clients rebuild the
+/// remote keyboard from the physical keys, so a synthetic ⌘V or ⌃V arrives
+/// without its modifier and types a bare "v" into the session (#3781). The
+/// pick stays on the clipboard, which the client shares with the session, for
+/// the user to paste themselves.
+enum ClipboardHistoryPasteTarget {
+    /// Windows App keeps the bundle identifier of Microsoft Remote Desktop.
+    static let copyOnlyBundleIDs: Set<String> = [
+        "com.microsoft.rdc.macos",
+        "com.microsoft.rdc.mac",
+    ]
+
+    static func acceptsSyntheticPaste(bundleID: String?) -> Bool {
+        bundleID.map { !copyOnlyBundleIDs.contains($0) } ?? true
     }
 }
 
@@ -319,8 +370,24 @@ enum ClipboardHistoryEditing {
         return text != original
     }
 
+    /// `retentionDays` drops recent entries copied longer ago than that, even
+    /// under `recentLimit`; 0 keeps them. Pinned entries never expire, and
+    /// `ageExemptIDs` (an entry open in the editor) wait until they are let go.
+    /// An unpinned entry lands at the top of the recent list, so it counts as
+    /// just used: keeping its original copy date would let the retention
+    /// window drop it on the spot and silently undo the unpin.
+    static func unpinned(_ entry: ClipboardHistoryEntry, now: Date = Date()) -> ClipboardHistoryEntry {
+        var entry = entry
+        entry.pinnedAt = nil
+        entry.copiedAt = now
+        return entry
+    }
+
     static func retainedEntries(_ entries: [ClipboardHistoryEntry],
                                 recentLimit: Int,
+                                retentionDays: Int = 0,
+                                ageExemptIDs: Set<UUID> = [],
+                                now: Date = Date(),
                                 textByteLimit: Int = maxStoredTextUTF8Bytes) -> [ClipboardHistoryEntry] {
         var remainingBytes = max(0, textByteLimit)
         func retained(_ candidates: [ClipboardHistoryEntry], limit: Int?) -> [ClipboardHistoryEntry] {
@@ -336,7 +403,14 @@ enum ClipboardHistoryEditing {
         }
         let pinned = retained(entries.filter(\.isPinned), limit: nil)
         let recentLimitOrNil = recentLimit <= 0 ? nil : recentLimit
-        let recent = retained(entries.filter { !$0.isPinned }, limit: recentLimitOrNil)
+        let cutoff = retentionDays > 0
+            ? now.addingTimeInterval(-Double(retentionDays) * 86_400)
+            : nil
+        let recent = retained(entries.filter { entry in
+            guard !entry.isPinned else { return false }
+            guard let cutoff, !ageExemptIDs.contains(entry.id) else { return true }
+            return entry.copiedAt >= cutoff
+        }, limit: recentLimitOrNil)
         return pinned + recent
     }
 
@@ -1045,6 +1119,17 @@ enum ClipboardHistorySensitiveText {
     /// mark written on its own item as well as one written next to the text.
     static func isConcealed(_ types: [String]) -> Bool {
         types.contains(concealedPasteboardType)
+    }
+
+    /// The marks an app puts on content it is about to take back, or that it
+    /// made up rather than the person copying it: a dictation app pasting
+    /// what it heard, for one. Neither is a copy worth keeping.
+    static let transientPasteboardTypes: Set<String> = [
+        "org.nspasteboard.TransientType", "org.nspasteboard.AutoGeneratedType",
+    ]
+
+    static func isTransient(_ types: [String]) -> Bool {
+        types.contains(where: transientPasteboardTypes.contains)
     }
 
     // A mention of "token" in a command, error or source code is not a

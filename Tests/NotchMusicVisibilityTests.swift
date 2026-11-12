@@ -313,6 +313,20 @@ enum NotchMusicVisibilityTests {
             service.syncVisibleConsumers()
             suite.expect(!reader.running && service.hiddenUntilHover,
                    "hidden mode stops the resting music reader even with cached playing metadata")
+            // Set to show activity, it shows the song's strip, and paused it
+            // keeps reading so the next song can bring it into view.
+            defaults.set(true, forKey: DefaultsKey.notchHiddenShowsActivity)
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.compactActivity == .music && !service.hiddenUntilHover,
+                   "a hidden island set to show activity reads the song and shows its strip")
+            reader.playback = .init(isPlaying: false)
+            service.syncVisibleConsumers()
+            suite.expect(reader.running && service.compactActivity == nil && service.hiddenUntilHover,
+                   "paused and out of sight, a hidden island set to show activity keeps reading for the next song")
+            defaults.set(false, forKey: DefaultsKey.notchHiddenShowsActivity)
+            service.syncVisibleConsumers()
+            suite.expect(!reader.running, "turning that choice off stops the hidden island's music reader again")
+            reader.playback = .init(isPlaying: true)
             service.selected = .music
             service.expanded = true
             service.syncVisibleConsumers()

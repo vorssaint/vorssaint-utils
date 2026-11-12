@@ -16,12 +16,13 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
     /// binding runs. Updates keep every existing availability choice, and an
     /// interrupted setup keeps the selection already applied on its purpose
     /// step.
-    static func prepareFirstRunAvailability(in defaults: UserDefaults = .standard) {
+    static func prepareFirstRunAvailability(in defaults: UserDefaults = .standard,
+                                            preserving configuredKeys: Set<String> = []) {
         guard !defaults.bool(forKey: DefaultsKey.hasOnboarded),
               defaults.integer(forKey: DefaultsKey.onboardingStep) == 0
         else { return }
         let selected = FeaturePreset.essential.features
-        for feature in AppFeature.allCases {
+        for feature in AppFeature.allCases where !configuredKeys.contains(feature.availabilityKey) {
             defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
         }
     }
@@ -89,7 +90,7 @@ enum FeatureEnergyProfile: String {
 extension AppFeature {
     var energyProfile: FeatureEnergyProfile {
         switch self {
-        case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .windowMaximizer, .middleClick,
+        case .scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .windowMaximizer, .middleClick,
              .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce,
              .dockPreview, .dockClick, .shelf:
             return .mouse
@@ -143,11 +144,13 @@ extension AppFeature {
             let defaults = UserDefaults.standard
             return defaults.bool(forKey: DefaultsKey.brightnessKeysEnabled)
                 || defaults.bool(forKey: DefaultsKey.brightnessOSDEnabled)
+                || (defaults.bool(forKey: DefaultsKey.displayVolumeEnabled)
+                    && defaults.bool(forKey: DefaultsKey.displayVolumeKeysEnabled))
                 || BrightnessSupport.KeyStep.sanitized(
                     defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
                 ? .keyboard : .idle
         case .mouseAcceleration, .spacesOrder, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
-             .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .colorPicker,
+             .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .quitApps, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
              .diskImageInstaller, .killProcess, .portManager:
