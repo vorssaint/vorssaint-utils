@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        antigravityGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -141,5 +142,39 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func antigravityGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        state.session = "s"
+        let reader = AgentProvider.antigravity.reader
+        let began = AgentTimestamp.parse("2026-10-31T20:00:00Z")!
+        let prompt = line(#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-10-31T20:00:00Z","content":"<USER_REQUEST>\nwork\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nActive Workspaces:\n- /Users/me/code/example\n<USER_SETTINGS_CHANGE>\nThe user changed setting `Model Selection` from None to Gemini 4 Argon (High).\n</USER_SETTINGS_CHANGE>\n</ADDITIONAL_METADATA>"}"#)
+        suite.expect(reader.parse(prompt, state: &state, now: now)
+                        == [.turnBegan(began), .turnContext(model: "Gemini 4 Argon (High)", project: "example")]
+                        && state.antigravityNamedWorkspace == "example",
+                     "an Antigravity prompt opens its turn with its workspace and selected model")
+        let activeDate = AgentTimestamp.parse("2026-10-31T20:00:05Z")!
+        let step = line(#"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-31T20:00:05Z","input_tokens":100,"cache_read_tokens":50,"output_tokens":20,"tool_calls":[{"id":"c1","name":"read_file","args":{"Path":"/tmp/other/a.swift"}}]}"#)
+        let stepEntries = reader.parse(step, state: &state, now: now)
+        let recordedMeasuredTokens = stepEntries.contains {
+            if case .usage(let key, let record, _) = $0 {
+                return key == "antigravity:s:1"
+                    && record.tokens == AgentTokens(input: 100, cacheRead: 50, output: 20)
+                    && record.project == "example"
+            }
+            return false
+        }
+        suite.expect(recordedMeasuredTokens && stepEntries.contains(.turnActive(activeDate)) && state.turnOpen,
+                     "an Antigravity planner tool step records measured tokens and keeps the turn active")
+        let endedDate = AgentTimestamp.parse("2026-10-31T20:00:20Z")!
+        let done = line(#"{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-10-31T20:00:20Z","input_tokens":80,"output_tokens":15}"#)
+        let doneEntries = reader.parse(done, state: &state, now: now)
+        suite.expect(doneEntries.last == .turnEnded(endedDate, completed: true, duration: nil) && !state.turnOpen,
+                     "a completed Antigravity planner response without tool calls finishes its turn")
+        let idleSystem = line(#"{"step_index":3,"source":"SYSTEM","type":"MEMORY_OPERATION","status":"DONE","created_at":"2026-10-31T20:00:21Z"}"#)
+        suite.expect(reader.parse(idleSystem, state: &state, now: now).isEmpty,
+                     "an Antigravity background operation outside an open turn parses to nothing")
     }
 }
