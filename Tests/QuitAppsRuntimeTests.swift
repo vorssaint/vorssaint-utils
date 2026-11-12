@@ -202,11 +202,13 @@ enum QuitAppsRuntimeTests {
     private static func radialAvailability(_ suite: TestSuite) {
         let name = "com.vorssaint.tests.quit-apps-runtime.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: name)!
+        let registration = defaults.volatileDomain(forName: UserDefaults.registrationDomain)
         defaults.register(defaults: Defaults.registeredDefaults)
         ReviewDefaults.current = defaults
         defer {
             ReviewDefaults.current = .standard
             defaults.removePersistentDomain(forName: name)
+            defaults.setVolatileDomain(registration, forName: UserDefaults.registrationDomain)
         }
         for toggles in [false, true] {
             for quit in [false, true] {
