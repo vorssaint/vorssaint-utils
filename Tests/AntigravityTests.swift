@@ -159,6 +159,14 @@ enum AntigravityTests {
         let store = AgentUsageStore()
         store.reportsTransitions = true
         let now = Date()
+        let question: [AgentLogEntry] = [.confirmationNeeded(now, project: "p", detail: "Continue?")]
+        let first = store.apply(question, file: "transcript", provider: .antigravity, tracksTurns: true, modified: now, now: now)
+        let copy = store.apply(question, file: "transcript_full", provider: .antigravity, tracksTurns: true, modified: now, now: now)
+        suite.expect(first.count == 1 && copy.isEmpty, "copied transcripts show an explicit confirmation question only once")
+        let later = now.addingTimeInterval(1)
+        suite.expect(store.apply([.confirmationNeeded(later, project: "p", detail: "Continue?")],
+                                 file: "transcript", provider: .antigravity, tracksTurns: true, modified: later, now: later).count == 1,
+                     "a later request for the same confirmation still shows its own notice")
         suite.expect(store.apply([.confirmationNeeded(now.addingTimeInterval(-301), project: "p", detail: "old"),
                                   .confirmationNeeded(now.addingTimeInterval(10), project: "p", detail: "future")],
                                  file: "f", provider: .antigravity, tracksTurns: true, modified: now, now: now).isEmpty,

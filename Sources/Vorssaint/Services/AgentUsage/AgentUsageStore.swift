@@ -29,6 +29,9 @@ final class AgentUsageStore {
     private var settled: [String: Date] = [:]
     /// When a model last replied, by the log of the turn it counts toward.
     private var replies: [String: Date] = [:]
+    /// Copied transcripts can report the same question. Keep only transient
+    /// fingerprints and times; question text is never added to the archive.
+    private var confirmations: [Int: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -137,6 +140,13 @@ final class AgentUsageStore {
                 let moment = date ?? modified
                 guard (0...Self.lateEnd).contains(now.timeIntervalSince(moment)) else { continue }
                 let proj = project.isEmpty ? (turns[file]?.project ?? "") : project
+                confirmations = confirmations.filter { now.timeIntervalSince($0.value) <= Self.lateEnd }
+                var fingerprint = Hasher()
+                fingerprint.combine(provider)
+                fingerprint.combine(moment)
+                fingerprint.combine(proj)
+                fingerprint.combine(detail)
+                guard confirmations.updateValue(moment, forKey: fingerprint.finalize()) == nil else { continue }
                 events.append(.confirmationNeeded(provider: provider, project: proj, detail: detail))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file

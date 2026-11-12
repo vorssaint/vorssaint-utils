@@ -137,6 +137,7 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("notch-level", { NotchSliderEditingTests.run(suite) }),
+            ("antigravity", { AntigravityTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite); AntigravityTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
@@ -276,9 +277,9 @@ struct MetricsTests {
             groups.forEach { print($0.0) }
             exit(0)
         }
-        // Focused notch subsets already run within notch. Do not repeat their
-        // stateful native controls and adapter fixtures in an unfiltered pass.
-        for (name, body) in groups where (selected.isEmpty && !["notch-music", "notch-level"].contains(name)) || selected.contains(name) {
+        // Focused subsets already run within their parent suite. Do not repeat
+        // their stateful fixtures in an unfiltered pass.
+        for (name, body) in groups where (selected.isEmpty && !["notch-music", "notch-level", "antigravity"].contains(name)) || selected.contains(name) {
             suite.run(name, body)
         }
         suite.finish()
