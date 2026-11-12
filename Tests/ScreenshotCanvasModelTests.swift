@@ -27,6 +27,10 @@ enum ScreenshotCanvasModelTests {
         var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
         var redoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
         static let undoLimit = 60
+        /// Mirrors the editor's memory budget: full frames dominate it, and
+        /// states sharing one capture are charged once.
+        static let undoByteBudget = 256 << 20
+        static let undoAnnotationBytes = 512
         var canUndo = false, canRedo = false, isDirty = false
         var textSelectionAnchor: CGPoint?
         var selectedWordIndexes: [Int] = []
@@ -109,6 +113,41 @@ enum ScreenshotCanvasModelTests {
                      "escape in expand canvas at rest leaves the tool like crop, without changing the canvas")
     }
 
+    /// A frame of `width`×`height` from a plain context, cheap to fill.
+    private static func frame(width: Int, height: Int) -> CGImage {
+        let context = CGContext(data: nil, width: width, height: height,
+                                bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue)!
+        context.setFillColor(NSColor(deviceRed: 0.2, green: 0.4, blue: 0.6, alpha: 1).cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()!
+    }
+
+    /// Older entries go once the history's pixels pass the memory budget, so
+    /// a few full 5K frames cannot pile up, while an annotation-only session
+    /// keeps the step limit because it holds a single capture.
+    private static func historyStopsByBytes(_ suite: TestSuite) {
+        let host = Host(image: ScreenshotCanvasSupportTests.image(width: 40, height: 40))
+        let pasted = ScreenshotCanvasSupportTests.image(width: 4, height: 4)
+        for _ in 0..<(Host.undoLimit + 3) { _ = host.pasteImage(pasted) }
+        suite.expect(host.undoStack.count == Host.undoLimit,
+                     "states sharing one capture stay bounded by steps, not bytes")
+
+        let frameBytes = 5120 * 2880 * 4
+        let fits = max(1, Host.undoByteBudget / frameBytes)
+        let frames = (0..<(fits + 2)).map { _ in frame(width: 5120, height: 2880) }
+        let big = Host(image: frames[0])
+        for frame in frames {
+            big.baseImage = frame
+            _ = big.pasteImage(pasted)
+        }
+        suite.expect(big.undoStack.count == fits,
+                     "history stops at the byte budget, not the step limit: \(big.undoStack.count) of \(fits) frames of \(frameBytes) bytes")
+        suite.expect(big.undoStack.first?.image === frames[frames.count - fits],
+                     "the oldest frames go first and the recent ones stay")
+    }
+
     /// A crop owns its pixels instead of pointing into the frame it came from,
     /// with the same size, colour space and pixels.
     private static func cropOwnsItsPixels(_ suite: TestSuite) {
@@ -142,6 +181,7 @@ enum ScreenshotCanvasModelTests {
     }
 
     static func run(_ suite: TestSuite) {
+        historyStopsByBytes(suite)
         cropOwnsItsPixels(suite)
         counterSizeAfterExpansion(suite)
         samplesAfterExpansion(suite)
