@@ -7,6 +7,7 @@ import SwiftUI
 struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
+    @ObservedObject private var antigravityQuota = AntigravityQuotaService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
@@ -18,6 +19,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -32,9 +34,11 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, antigravity ? .antigravity : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault) }
+                || ($0 == .claude && !usage.claudeProfile.isDefault)
+                || ($0 == .antigravity) }
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -78,11 +82,13 @@ struct NotchAgentsView: View {
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onAppear {
+            if !preview { antigravityQuota.appear() }
             usage.pageDidAppear(preview: preview)
             accounts.pageDidAppear(preview: preview)
         }
         .onDisappear {
             guard !preview else { return }
+            antigravityQuota.disappear()
             usage.pageDidDisappear()
             accounts.pageDidDisappear()
         }
@@ -117,7 +123,8 @@ struct NotchAgentsView: View {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
-                                     accountName: provider == .claude ? claudeAccountName : nil)
+                                     accountName: provider == .claude ? claudeAccountName : nil,
+                                     period: shown)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -139,6 +146,15 @@ struct NotchAgentsView: View {
     }
 
     private func account(_ tile: NotchAgentTile, now: Date) -> NotchAgentAccount? {
+        if tile.provider == .antigravity {
+            let strings = FeatureStrings.codexAccounts(l10n.language)
+            return NotchAgentAccount(name: AgentProvider.antigravity.displayName,
+                limits: antigravityQuota.limits, plan: nil,
+                checking: antigravityQuota.checking,
+                failure: antigravityQuota.failure.map { FeatureStrings.antigravityAccount(l10n.language).failure($0) },
+                refreshHint: strings.refreshHint, checkLabel: strings.check,
+                refresh: { antigravityQuota.refresh(force: true) })
+        }
         if tile.provider == .claude, tile.accountID != nil {
             let strings = FeatureStrings.codexAccounts(l10n.language)
             return NotchAgentAccount(name: claudeAccountName, limits: usage.snapshot.limits[.claude],
@@ -166,21 +182,6 @@ struct NotchAgentsView: View {
         let name = usage.claudeProfile.name(defaultName: FeatureStrings.claudeAccount(l10n.language).defaultAccount)
         guard let email = usage.claudeAccountIdentity?.email else { return name }
         return usage.claudeProfile.isDefault ? email : name + " · " + email
-    }
-}
-
-private struct NotchAgentChip: View {
-    let text: String
-    var tint: Color = .white
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(tint.opacity(0.9))
-            .lineLimit(1)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1.5)
-            .background(tint.opacity(0.14), in: Capsule(style: .continuous))
     }
 }
 
@@ -256,6 +257,7 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
+    var period: AgentPeriod = .today
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -271,6 +273,10 @@ private struct NotchAgentLimitsCard: View {
 
     /// Two rows fit: the session and whichever longer window binds first.
     private var windows: [AgentLimitWindow] {
+        if provider == .antigravity {
+            // A renewed window is unknown until AGY reports it again.
+            return (limits?.windows ?? []).filter { $0.resetsAt.map { $0 > now } ?? true }
+        }
         let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
         let session = all.first { $0.kind == .session }
         let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
@@ -281,7 +287,7 @@ private struct NotchAgentLimitsCard: View {
         let windows = windows
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: (account?.name ?? accountName).map { provider.displayName + " · " + $0 }
+                NotchAgentCardHeader(title: (account?.name ?? accountName).map { $0 == provider.displayName ? $0 : provider.displayName + " · " + $0 }
                                         ?? provider.displayName,
                                      symbol: provider.symbol, tint: provider.tint, provider: provider) {
                     HStack(spacing: 4) {
@@ -333,7 +339,19 @@ private struct NotchAgentLimitsCard: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func meters(_ windows: [AgentLimitWindow]) -> some View {
+    @ViewBuilder private func meters(_ windows: [AgentLimitWindow]) -> some View {
+        if provider == .antigravity, windows.count > 2 {
+            // Keep the account card's shared height without hiding model groups.
+            ScrollView(.vertical) {
+                meterRows(windows)
+            }
+            .frame(height: 46)
+        } else {
+            meterRows(windows)
+        }
+    }
+
+    private func meterRows(_ windows: [AgentLimitWindow]) -> some View {
         VStack(spacing: 5) {
             ForEach(windows) { row($0) }
         }
@@ -374,7 +392,7 @@ private struct NotchAgentLimitsCard: View {
     /// What the window covers: its length, or the model it is kept for.
     private func label(_ window: AgentLimitWindow) -> String {
         switch window.kind {
-        case .session: return text.session
+        case .session: return provider == .antigravity ? window.scope.map { "\(text.session) · \($0)" } ?? text.session : text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
@@ -467,9 +485,53 @@ private struct NotchAgentLimitsCard: View {
                 Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 lastUsed
             }
+        } else if provider == .antigravity {
+            antigravityDashboard
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
+        }
+    }
+
+    /// Dedicated Antigravity dashboard displaying period cost, tokens, and live status.
+    @ViewBuilder private var antigravityDashboard: some View {
+        let periodUsage = snapshot.usage(period).byProvider[.antigravity]
+        if let usage = periodUsage, usage.tokens.total > 0 || usage.requests > 0 || usage.cost > 0 {
+            let costText: String = {
+                if usage.unpriced > 0 {
+                    return usage.cost > 0 ? "≥ " + AgentFormat.cost(usage.cost) : "—"
+                }
+                return AgentFormat.cost(usage.cost)
+            }()
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 5) {
+                    Text(text.period(period))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                    Spacer(minLength: 2)
+                    Text(costText)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                }
+                .help(usage.unpriced > 0 ? text.unpriced : text.valueNote)
+                HStack(spacing: 4) {
+                    Text(AgentFormat.tokens(usage.tokens.total))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                    if let rate = usage.tokens.cacheHitRate, rate > 0 {
+                        Text("· " + text.cached(AgentFormat.percent(rate)))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                    }
+                    Spacer()
+                    lastUsed
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
         }
     }
 

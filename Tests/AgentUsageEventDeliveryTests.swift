@@ -13,6 +13,7 @@ enum AgentUsageEventDeliveryTests {
         static func finishMinimum() -> TimeInterval? { minimum }
         static func limitThreshold() -> Double? { threshold }
         static func dailyBudget() -> Double? { budget }
+        static func confirmationAlert() -> Bool { true }
     }
 
     final class Events {

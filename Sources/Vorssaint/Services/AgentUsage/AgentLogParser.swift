@@ -25,6 +25,7 @@ enum AgentLogEntry: Equatable {
     /// the agent stopped there and its turn is over.
     case turnSettled(Date)
     case turnEnded(Date?, completed: Bool, duration: TimeInterval?)
+    case confirmationNeeded(Date?, project: String, detail: String)
     case reset(Date)
 }
 

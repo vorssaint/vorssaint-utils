@@ -137,7 +137,7 @@ struct MetricsTests {
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
             ("notch-level", { NotchSliderEditingTests.run(suite) }),
-            ("agents", { NotchAgentTests.run(suite) }),
+            ("agents", { NotchAgentTests.run(suite); AntigravityTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)

@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -180,6 +181,11 @@ enum NotchAgentSupport {
         guard defaults.object(forKey: DefaultsKey.notchAgentsFinishAlert) as? Bool ?? true else { return nil }
         let value = defaults.object(forKey: DefaultsKey.notchAgentsFinishMinimum) as? Double ?? defaultFinishMinimum
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
+    }
+
+    /// Whether notices for pending confirmation requests are shown.
+    static func confirmationAlert(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsConfirmationAlert) as? Bool ?? true
     }
 
     /// Percent used that earns a warning; nil while warnings are off.
@@ -337,7 +343,12 @@ enum NotchAgentSupport {
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
-        return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
+        // Antigravity always shows account details and a freshness caption,
+        // even though its tile has no selectable account ID.
+        return row.contains {
+            $0.accountID != nil || $0.namesDefaultAccount
+                || ($0.card == .limits && $0.provider == .antigravity)
+        } ? accountCardHeight : cardHeight
     }
 
     /// An account card's line in place of its windows while it has none, or

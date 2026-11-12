@@ -12,6 +12,49 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        confirmationRequests(suite)
+        antigravityQuota(suite)
+    }
+
+    private static func antigravityQuota(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 100)
+        let fixture: [String: Any] = ["status": "SUCCESS", "command": ["name": "usage", "data": ["groups": [
+            ["name": "Gemini", "buckets": [
+                ["id": "gemini-weekly", "window": "weekly", "remaining_fraction": 0.0, "reset_time": "2026-11-18T10:46:49Z"],
+                ["id": "gemini-session", "window": "five_hour", "remaining_fraction": 0.75]]],
+            ["name": "Claude/GPT", "buckets": [
+                ["id": "3p-weekly", "window": "weekly", "remaining_fraction": 1.0],
+                ["id": "invalid", "remaining_fraction": 2.0]]]]]]]
+        let reading = AntigravityQuotaService.decode(fixture, now: now)
+        suite.expect(reading?.windows.count == 3, "AGY retains separate group windows and rejects invalid fractions")
+        suite.expect(reading?.windows.first?.usedPercent == 100 && reading?.windows.first?.resetsAt != nil,
+                     "AGY exhausted quotas preserve their reset time")
+        suite.expect(reading?.windows.dropFirst().first?.kind == .session && reading?.windows.dropFirst().first?.usedPercent == 25,
+                     "AGY five-hour quotas convert remaining fractions to percent used")
+        suite.expect(reading?.windows.last?.usedPercent == 0 && reading?.windows.last?.scope == "Claude/GPT",
+                     "AGY full quotas retain their model group")
+        suite.expect(AntigravityQuotaService.decode([:], now: now) == nil,
+                     "missing AGY readings never invent a zero usage quota")
+        suite.expect(NotchAgentSupport.tiles(cards: [.limits], providers: [.antigravity]).contains { $0.provider == .antigravity },
+                     "AGY gets a quota card alongside the other providers")
+    }
+
+    private static func confirmationRequests(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 100)
+        var state = AgentLogState()
+        state.project = "app"
+        let claude = line(#"{"type":"assistant","message":{"content":[{"type":"tool_use","name":"AskUserQuestion","input":{"questions":[{"question":"Continue?"}]}}]}}"#)
+        suite.expect(ClaudeReader().parse(claude, state: &state, now: now).contains(
+            .confirmationNeeded(now, project: "app", detail: "Continue?")), "Claude questions emit a confirmation notice")
+        let codex = line(#"{"type":"response_item","payload":{"type":"function_call","name":"request_user_input","arguments":"{\"questions\":[{\"question\":\"Continue?\"}]}"}}"#)
+        suite.expect(CodexReader().parse(codex, state: &state, now: now) == [
+            .confirmationNeeded(now, project: "app", detail: "Continue?")], "Codex explicit questions emit a confirmation notice")
+        let agy = line(#"{"type":"PLANNER_RESPONSE","tool_calls":[{"name":"ask_question","args":{"questions":[{"question":"Continue?"}]}}]}"#)
+        suite.expect(AntigravityReader().parse(agy, state: &state, now: now).contains(
+            .confirmationNeeded(now, project: "app", detail: "Continue?")), "AGY questions emit a confirmation notice")
+        let command = line(#"{"type":"response_item","payload":{"type":"function_call","name":"exec_command","arguments":"{}"}}"#)
+        suite.expect(CodexReader().parse(command, state: &state, now: now).isEmpty,
+                     "ordinary commands do not imply a pending confirmation")
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
