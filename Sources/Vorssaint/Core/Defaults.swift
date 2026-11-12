@@ -593,6 +593,7 @@ enum DefaultsKey {
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
     static let clipboardHistoryShowSourceAppIcons = "clipboardHistoryShowSourceAppIcons" // source app icons beside list entries
     static let clipboardHistoryLayout = "clipboardHistoryLayout" // cards | list, how the history window shows entries
+    static let clipboardHistoryFocusRecentWhenOpening = "clipboardHistoryFocusRecentWhenOpening"
     static let clipboardHistoryWindowWidth = "clipboardHistoryWindowWidth" // the list window's chosen size
     static let clipboardHistoryWindowHeight = "clipboardHistoryWindowHeight"
     static let clipboardHistoryWindowX = "clipboardHistoryWindowX"
@@ -1840,6 +1841,7 @@ enum Defaults {
         DefaultsKey.clipboardHistoryQuickPreview: false,
         DefaultsKey.clipboardHistoryShowSourceAppIcons: false,
         DefaultsKey.clipboardHistoryLayout: ClipboardHistoryLayout.list.rawValue,
+        DefaultsKey.clipboardHistoryFocusRecentWhenOpening: true,
         DefaultsKey.clipboardHistoryWindowWidth: 0.0,
         DefaultsKey.clipboardHistoryWindowHeight: 0.0,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,

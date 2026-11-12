@@ -352,13 +352,14 @@ struct ClipboardQuickPanelView: View {
         // The opening pasteboard read may finish after this initial pass.
         // Follow its first recent entry once, unless the user chooses pins
         // or a keyboard selection in the meantime.
-        openingScrollNeedsRecent = canReorderEntries && !history.pinnedEntries.isEmpty
+        openingScrollNeedsRecent = history.quickFocusRecentWhenOpening
+            && canReorderEntries && !history.pinnedEntries.isEmpty
             && history.recentEntries.isEmpty && !history.quickSelectionIsVisible
         // Wait for a query change or first presentation to lay out its rows.
         // A little of the pinned section stays above/before the recent entry;
         // the toolbar's pin count also provides a way back to the full section.
         DispatchQueue.main.async {
-            if canReorderEntries, !history.pinnedEntries.isEmpty,
+            if history.quickFocusRecentWhenOpening, canReorderEntries, !history.pinnedEntries.isEmpty,
                let recent = history.recentEntries.first {
                 proxy.scrollTo(recent.id, anchor: layout == .list
                                ? UnitPoint(x: 0, y: 0.22)
@@ -371,7 +372,7 @@ struct ClipboardQuickPanelView: View {
 
     private func retryOpeningPosition(with proxy: ScrollViewProxy) {
         guard openingScrollNeedsRecent else { return }
-        guard canReorderEntries, !history.quickSelectionIsVisible else {
+        guard history.quickFocusRecentWhenOpening, canReorderEntries, !history.quickSelectionIsVisible else {
             openingScrollNeedsRecent = false
             return
         }

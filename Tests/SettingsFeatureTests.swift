@@ -633,6 +633,16 @@ enum SettingsFeatureTests {
         }
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),
                "the clipboard history layout travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryFocusRecentWhenOpening),
+                     "the clipboard opening focus preference travels with the settings backup")
+        for value in [false, true] {
+            let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
+                key == DefaultsKey.clipboardHistoryFocusRecentWhenOpening ? value : nil
+            }
+            suite.expect(SettingsBackupSupport.sanitizedSettings(from: backup)?[
+                DefaultsKey.clipboardHistoryFocusRecentWhenOpening] as? Bool == value,
+                "the clipboard opening focus choice survives a settings backup round trip: \(value)")
+        }
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)
                 && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowHeight)
                 && !backupKeys.contains(DefaultsKey.clipboardHistoryWindowX)

@@ -69,6 +69,11 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read again on every opening, so the window's frame and its content
     /// always agree, even if the setting changes while it is open.
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+    /// Kept for this presentation so changing Settings cannot change what
+    /// Return pastes while the user is browsing the open window.
+    @Published private(set) var quickFocusRecentWhenOpening = UserDefaults.standard.bool(
+        forKey: DefaultsKey.clipboardHistoryFocusRecentWhenOpening
+    )
 
     private var timer: Timer?
     /// Entries age out with nothing new copied, so the retention window is
@@ -1270,7 +1275,7 @@ final class ClipboardHistoryService: ObservableObject {
         if preferNotch, NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard() { return }
         let panel = ensurePanel()
         rememberPasteTarget()
-        refreshQuickLayout()
+        refreshQuickPreferences()
         quickWindowPresentationID = UUID()
         quickQuery = ""
         clearQuickBatchSelection()
@@ -1405,11 +1410,12 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    /// Read on every opening, so a layout picked in Settings applies the next
-    /// time the window opens.
-    private func refreshQuickLayout() {
+    /// Read on every opening, so window choices apply on the next opening.
+    private func refreshQuickPreferences() {
         let layout = ClipboardHistoryLayout.current(in: UserDefaults.standard)
         if quickLayout != layout { quickLayout = layout }
+        let focusRecent = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFocusRecentWhenOpening)
+        if quickFocusRecentWhenOpening != focusRecent { quickFocusRecentWhenOpening = focusRecent }
     }
 
     /// The list keeps room for the batch actions and the preview while the
@@ -1686,11 +1692,12 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
-    /// A missing highlight falls back to the opening target: the first recent
-    /// copy without a query, or the highest-ranked search result.
+    /// A missing highlight falls back to the configured opening target, or
+    /// the highest-ranked search result when there is a query.
     private func selectedQuickIndex(in matches: [ClipboardHistoryEntry]) -> Int {
         matches.firstIndex { $0.id == quickSelectionID }
-            ?? ClipboardHistorySelection.defaultIndex(in: matches, query: quickQuery) ?? 0
+            ?? ClipboardHistorySelection.defaultIndex(in: matches, query: quickQuery,
+                                                      focusRecent: quickFocusRecentWhenOpening) ?? 0
     }
 }
 

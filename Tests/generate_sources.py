@@ -752,7 +752,7 @@ def main():
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
           + "".join(declaration(clipboard, prefix).replace("private func", "func", 1) for prefix in [
               "    private func observePanelGeometry(", "    private func savePanelPosition(",
-              "    private func refreshQuickLayout(", "    private func panelMinimumContentSize(",
+              "    private func refreshQuickPreferences(", "    private func panelMinimumContentSize(",
               "    private func preferredPanelSize(", "    private func savePanelSize(",
               "    private func position(", "    private func resize("])
           + "}\nextension ClipboardFeatureTests {\n"
