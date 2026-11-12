@@ -304,8 +304,33 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         }
     }
 
+    /// How much of an entry the search index folds. A saved document can run
+    /// to `ClipboardHistoryEditing.maxCharacters`, and folding all of it for
+    /// every rebuild of the history's search cache cost tens of megabytes and
+    /// hundreds of milliseconds for a handful of long entries. The index
+    /// covers the opening of each entry; the deferred pass in
+    /// `ClipboardHistoryService` covers the rest of the text.
+    static let indexCharacters = 4_096
+
+    /// `text` cut to `limit` grapheme clusters, without splitting a Character,
+    /// plus whether anything was cut.
+    static func indexedText(_ text: String, limit: Int = indexCharacters) -> (text: String, isTruncated: Bool) {
+        // Native strings count UTF-8 bytes without walking the text, and a
+        // grapheme cluster is never fewer than one byte, so a text within the
+        // byte limit is within the character limit too.
+        guard text.utf8.count > limit else { return (text, false) }
+        return (String(text.prefix(limit)), true)
+    }
+
+    /// The part of `searchableText` the search history index folds.
+    func indexText(imageLabel: String, limit: Int = indexCharacters) -> String {
+        Self.indexedText(searchableText(imageLabel: imageLabel), limit: limit).text
+    }
+
     /// What the search box can match. Image entries carry the localized label
-    /// plus dimensions so typing "image"/"imagem" finds them.
+    /// plus dimensions so typing "image"/"imagem" finds them. The command bar,
+    /// tooltips and copying read this whole text; the search index reads
+    /// `indexText(imageLabel:)`, which stops at `indexCharacters`.
     func searchableText(imageLabel: String) -> String {
         switch kind {
         case .text: return text
@@ -591,41 +616,63 @@ enum ClipboardImageRecognition {
 }
 
 struct ClipboardHistorySearchFolded: Equatable {
-    let searchableText: String
+    /// The indexed part of the entry: the same as its `searchableText` for a
+    /// short entry, and its opening for a long one.
+    let indexedText: String
     let normalizedText: String
-    let words: Set<String>
+    /// The words of `normalizedText`, or nil when `indexedText` is only the
+    /// opening of a longer text. A truncated word set would rank a match that
+    /// happens to fall on a word boundary deep inside a document as a whole
+    /// word hit over the same match in a short entry.
+    let words: Set<String>?
+    /// Whether `indexedText` carries the entry's whole text.
+    let isComplete: Bool
 
-    init(searchableText: String) {
-        self.searchableText = searchableText
-        let folded = ClipboardHistorySearch.normalized(searchableText)
+    init(indexedText: String, isComplete: Bool = true) {
+        self.indexedText = indexedText
+        self.isComplete = isComplete
+        let folded = ClipboardHistorySearch.normalized(indexedText)
         self.normalizedText = folded
-        self.words = ClipboardHistorySearch.words(in: folded)
+        self.words = isComplete ? ClipboardHistorySearch.words(in: folded) : nil
     }
 }
 
 struct ClipboardHistorySearchCandidate: Equatable {
     var index: Int
-    var text: String {
-        didSet {
-            normalizedText = ClipboardHistorySearch.normalized(text)
-            words = ClipboardHistorySearch.words(in: normalizedText)
-        }
-    }
     var isPinned: Bool
+    /// True when the entry runs past `ClipboardHistoryEntry.indexCharacters`,
+    /// so `normalizedText` covers only its opening and a match further in
+    /// needs the service's deferred full-text pass.
+    let isIndexTruncated: Bool
     private(set) var normalizedText: String
-    private(set) var words: Set<String>
+    private(set) var words: Set<String>?
 
+    init(index: Int,
+         isPinned: Bool,
+         normalizedText: String,
+         words: Set<String>?,
+         isIndexTruncated: Bool) {
+        self.index = index
+        self.isPinned = isPinned
+        self.normalizedText = normalizedText
+        self.words = words
+        self.isIndexTruncated = isIndexTruncated
+    }
+
+    /// A candidate folded from scratch in one call, for tests and one-off
+    /// comparisons against the cached index.
     init(index: Int,
          text: String,
          isPinned: Bool,
-         normalizedText: String? = nil,
-         words: Set<String>? = nil) {
-        self.index = index
-        self.text = text
-        self.isPinned = isPinned
-        let folded = normalizedText ?? ClipboardHistorySearch.normalized(text)
-        self.normalizedText = folded
-        self.words = words ?? ClipboardHistorySearch.words(in: folded)
+         limit: Int = ClipboardHistoryEntry.indexCharacters) {
+        let indexed = ClipboardHistoryEntry.indexedText(text, limit: limit)
+        let folded = ClipboardHistorySearchFolded(indexedText: indexed.text,
+                                                  isComplete: !indexed.isTruncated)
+        self.init(index: index,
+                  isPinned: isPinned,
+                  normalizedText: folded.normalizedText,
+                  words: folded.words,
+                  isIndexTruncated: indexed.isTruncated)
     }
 }
 
@@ -657,20 +704,21 @@ struct ClipboardHistorySearchCache {
         nextFolded.reserveCapacity(entries.count)
 
         let candidates = entries.enumerated().map { index, entry in
-            let searchable = entry.searchableText(imageLabel: imageLabel)
+            let indexed = ClipboardHistoryEntry.indexedText(entry.searchableText(imageLabel: imageLabel))
             let folded: ClipboardHistorySearchFolded
-            if let existing = foldedEntries[entry.id], existing.searchableText == searchable {
+            if let existing = foldedEntries[entry.id], existing.indexedText == indexed.text {
                 folded = existing
             } else {
-                folded = ClipboardHistorySearchFolded(searchableText: searchable)
+                folded = ClipboardHistorySearchFolded(indexedText: indexed.text,
+                                                      isComplete: !indexed.isTruncated)
                 foldCount += 1
             }
             nextFolded[entry.id] = folded
             return ClipboardHistorySearchCandidate(index: index,
-                                                   text: searchable,
                                                    isPinned: entry.isPinned,
                                                    normalizedText: folded.normalizedText,
-                                                   words: folded.words)
+                                                   words: folded.words,
+                                                   isIndexTruncated: !folded.isComplete)
         }
 
         foldedEntries = nextFolded
@@ -693,7 +741,7 @@ struct ClipboardHistorySearchCache {
         retained.reserveCapacity(foldedEntries.count)
         for entry in entries {
             if let existing = foldedEntries[entry.id],
-               existing.searchableText == entry.searchableText(imageLabel: label) {
+               existing.indexedText == entry.indexText(imageLabel: label) {
                 retained[entry.id] = existing
             }
         }
@@ -710,6 +758,18 @@ struct ClipboardHistorySearchCache {
         cachedStamp = nil
         cachedImageLabel = nil
     }
+}
+
+/// The second clipboard search pass, over the full text of the entries the
+/// index had to cut short.
+enum ClipboardHistoryDeferredSearch {
+    /// Long enough that a burst of keystrokes settles before the scan starts,
+    /// short enough that the rest of a document appears while the user is
+    /// still looking at the list.
+    static let delay: TimeInterval = 0.15
+    /// Reads whole documents, so it stays off the main thread.
+    static let queue = DispatchQueue(label: "com.vorssaint.utils.clipboard-search-deferred",
+                                     qos: .userInitiated)
 }
 
 enum ClipboardHistorySearch {
@@ -780,7 +840,7 @@ enum ClipboardHistorySearch {
     }
 
     private static func score(for text: String,
-                              words: Set<String>,
+                              words: Set<String>?,
                               normalizedQuery: String,
                               tokens: [String],
                               isPinned: Bool) -> Int {
@@ -790,6 +850,13 @@ enum ClipboardHistorySearch {
         if text.contains(normalizedQuery) { score += 700 }
 
         for token in tokens {
+            // Only the opening of a long entry is indexed, so word boundaries
+            // seen there say nothing about the match itself: every token
+            // inside such an entry scores the same flat match.
+            guard let words else {
+                score += 40
+                continue
+            }
             if words.contains(token) {
                 score += 140
             } else if words.contains(where: { $0.hasPrefix(token) }) {
