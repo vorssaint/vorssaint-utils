@@ -13,6 +13,38 @@ import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
+    /// Production scroll decisions, with only the queue and SwiftUI proxy
+    /// replaced. Entries can arrive after the first opening pass has finished.
+    final class OpeningScrollHost {
+        struct History {
+            var pinnedEntries = [ClipboardHistoryEntry(text: "Synthetic pin", pinnedAt: Date())]
+            var recentEntries: [ClipboardHistoryEntry] = []
+            var quickQuery = ""
+            var quickSelectionIsVisible = false
+        }
+        final class ScrollViewProxy {
+            var targets: [AnyHashable] = []
+            var anchors: [UnitPoint] = []
+            func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint) {
+                targets.append(AnyHashable(id))
+                anchors.append(anchor)
+            }
+        }
+        enum DispatchQueue {
+            static let main = Queue()
+            final class Queue {
+                func async(_ work: () -> Void) { work() }
+            }
+        }
+        static let topAnchorID = "clipboard-list-top"
+        var history = History()
+        var layout = ClipboardHistoryLayout.list
+        var openingScrollNeedsRecent = false
+        var canReorderEntries: Bool {
+            history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     /// Runs the production placement and geometry observers on panels that
     /// are never shown, with simulated visibility, screens and user events.
     final class PanelPlacementHost {
@@ -105,6 +137,55 @@ enum ClipboardFeatureTests {
         }
         static let urlType = AppKit.NSPasteboard.PasteboardType("public.url")
         static let rules = URLCleaning.Rules.none
+    }
+
+    private static func openingScroll(_ suite: TestSuite) {
+        let recent = ClipboardHistoryEntry(text: "Delayed synthetic copy")
+        for layout in ClipboardHistoryLayout.allCases {
+            let host = OpeningScrollHost()
+            host.layout = layout
+            let proxy = OpeningScrollHost.ScrollViewProxy()
+            host.scrollToOpeningPosition(with: proxy)
+            suite.expect(proxy.targets == [AnyHashable(OpeningScrollHost.topAnchorID)],
+                         "\(layout) opens a pins-only history at the top")
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 1,
+                         "\(layout) waits while the opening capture has not supplied a recent entry")
+            host.history.recentEntries = [recent]
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.last == AnyHashable(recent.id) && proxy.targets.count == 2,
+                         "\(layout) retries positioning after the first recent entry arrives late")
+            suite.expect(proxy.anchors.last == (layout == .list
+                         ? UnitPoint(x: 0, y: 0.22) : UnitPoint(x: 0.22, y: 0)),
+                         "\(layout) retains pinned context when following the delayed copy")
+            host.history.recentEntries.insert(ClipboardHistoryEntry(text: "Later copy"), at: 0)
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 2,
+                         "\(layout) does not keep scrolling on later clipboard arrivals")
+
+            for choice in ["pins", "keyboard", "search"] {
+                let browsing = OpeningScrollHost()
+                browsing.layout = layout
+                let browsingProxy = OpeningScrollHost.ScrollViewProxy()
+                browsing.scrollToOpeningPosition(with: browsingProxy)
+                switch choice {
+                case "pins": browsing.openingScrollNeedsRecent = false
+                case "keyboard": browsing.history.quickSelectionIsVisible = true
+                default: browsing.history.quickQuery = "Synthetic"
+                }
+                browsing.history.recentEntries = [recent]
+                browsing.retryOpeningPosition(with: browsingProxy)
+                suite.expect(browsingProxy.targets.count == 1 && !browsing.openingScrollNeedsRecent,
+                             "\(layout) leaves an explicit \(choice) choice alone when the capture arrives")
+            }
+
+            host.history.recentEntries = []
+            host.scrollToOpeningPosition(with: proxy)
+            host.history.recentEntries = [recent]
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 4 && proxy.targets.last == AnyHashable(recent.id),
+                         "\(layout) rearms the one-time retry when a pins-only window reopens")
+        }
     }
 
     private static func panelGeometryPersistence(_ suite: TestSuite) {
@@ -1003,6 +1084,7 @@ enum ClipboardFeatureTests {
         suite.expect(placement.quickLayout == .cards, "an opening after choosing the cards shows the cards")
         placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
         panelGeometryPersistence(suite)
+        openingScroll(suite)
 
         // MARK: Clipboard history arrow keys
 

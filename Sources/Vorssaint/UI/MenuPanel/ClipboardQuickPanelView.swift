@@ -12,6 +12,7 @@ struct ClipboardQuickPanelView: View {
     @State private var previewIsEditing = false
     @State private var clearingIDs: [UUID: Date]?
     @State private var pinnedScrollRequest = 0
+    @State private var openingScrollNeedsRecent = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -81,6 +82,7 @@ struct ClipboardQuickPanelView: View {
                 .focused($searchFocused)
             if canReorderEntries, !history.pinnedEntries.isEmpty {
                 Button {
+                    openingScrollNeedsRecent = false
                     pinnedScrollRequest += 1
                 } label: {
                     Label("\(text.pinned) (\(history.pinnedEntries.count))", systemImage: "pin.fill")
@@ -162,10 +164,15 @@ struct ClipboardQuickPanelView: View {
                     scrollToOpeningPosition(with: proxy)
                 }
                 .onChange(of: history.quickSelectionID) { _, _ in
+                    if history.quickSelectionID != nil { openingScrollNeedsRecent = false }
                     scrollSelectedEntry(with: proxy)
                 }
                 .onChange(of: history.quickSelectionIsVisible) { _, _ in
+                    if history.quickSelectionIsVisible { openingScrollNeedsRecent = false }
                     scrollSelectedEntry(with: proxy)
+                }
+                .onChange(of: history.recentEntries.isEmpty) { _, _ in
+                    retryOpeningPosition(with: proxy)
                 }
                 .onChange(of: history.quickQuery) { _, _ in
                     scrollToOpeningPosition(with: proxy)
@@ -342,6 +349,11 @@ struct ClipboardQuickPanelView: View {
     }
 
     private func scrollToOpeningPosition(with proxy: ScrollViewProxy) {
+        // The opening pasteboard read may finish after this initial pass.
+        // Follow its first recent entry once, unless the user chooses pins
+        // or a keyboard selection in the meantime.
+        openingScrollNeedsRecent = canReorderEntries && !history.pinnedEntries.isEmpty
+            && history.recentEntries.isEmpty && !history.quickSelectionIsVisible
         // Wait for a query change or first presentation to lay out its rows.
         // A little of the pinned section stays above/before the recent entry;
         // the toolbar's pin count also provides a way back to the full section.
@@ -355,6 +367,16 @@ struct ClipboardQuickPanelView: View {
                 proxy.scrollTo(Self.topAnchorID, anchor: layout == .list ? .top : .leading)
             }
         }
+    }
+
+    private func retryOpeningPosition(with proxy: ScrollViewProxy) {
+        guard openingScrollNeedsRecent else { return }
+        guard canReorderEntries, !history.quickSelectionIsVisible else {
+            openingScrollNeedsRecent = false
+            return
+        }
+        guard !history.recentEntries.isEmpty else { return }
+        scrollToOpeningPosition(with: proxy)
     }
 
     private func scrollSelectedEntry(with proxy: ScrollViewProxy) {
