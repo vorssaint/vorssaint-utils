@@ -1937,6 +1937,9 @@ enum ClipboardPreviewContract {
         var searchCache = ClipboardHistorySearchCache()
         var filterCache: (query: String, stamp: Int, imageLabel: String,
                           result: [ClipboardHistoryEntry])?
+        var deferredSearchGeneration = 0
+        var deferredSearchWork: DispatchWorkItem?
+        let objectWillChange = PassthroughSubject<Void, Never>()
         var pendingWrite: ((Bool) -> Void)?
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
             pendingWrite = completion
@@ -2297,5 +2300,28 @@ enum ClipboardPreviewContract {
                      "a history change folds the new text and drops the old fold")
         suite.expect(service.searchCache.foldCount == foldsBeforeSearch + entries.count + 1,
                      "only the new entry refolds after a history change")
+
+        // A document runs past the index, so the opening is searched at once
+        // and the rest arrives from the deferred pass over the full text.
+        var document = String(repeating: "Серверная конфигурация nginx и логи приложения. ", count: 3_600)
+        let deepMarker = "уникальныймаркервглубинедокумента"
+        document += deepMarker
+        document += String(repeating: " хвост документа", count: 3_600)
+        let documentEntry = ClipboardHistoryEntry(text: document)
+        let shortNote = ClipboardHistoryEntry(text: "Short note about nginx")
+        let deepService = Service()
+        deepService.setEntries([shortNote, documentEntry])
+        suite.expect(deepService.filteredEntries(matching: deepMarker).isEmpty,
+                     "the indexed pass alone cannot see a match deep inside a long entry")
+        var deepMatches = deepService.filteredEntries(matching: deepMarker)
+        let deepDeadline = Date().addingTimeInterval(5)
+        while deepMatches.isEmpty && Date() < deepDeadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.02))
+            deepMatches = deepService.filteredEntries(matching: deepMarker)
+        }
+        suite.expect(deepMatches.map(\.id) == [documentEntry.id],
+                     "the deferred pass appends the deep match once the typing settles")
+        suite.expect(deepService.filteredEntries(matching: "nginx").map(\.id) == [shortNote.id, documentEntry.id],
+                     "an indexed match keeps its place above the deferred one")
     }
 }

@@ -484,6 +484,13 @@ final class ClipboardHistoryService: ObservableObject {
     private var filterCache: (query: String, stamp: Int, imageLabel: String,
                               result: [ClipboardHistoryEntry])?
     private var searchCache = ClipboardHistorySearchCache()
+    /// The search index folds only the opening of a long entry, so a match
+    /// deeper inside one is found by a second pass over the full texts of the
+    /// entries the indexed pass missed. That pass runs off the main thread
+    /// after the typing settles, and only its newest answer is applied: a
+    /// fresh keystroke bumps the generation and cancels the queued scan.
+    private var deferredSearchGeneration = 0
+    private var deferredSearchWork: DispatchWorkItem?
 
     func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
         // One ranking pass over a large history of long texts costs real
@@ -508,10 +515,59 @@ final class ClipboardHistoryService: ObservableObject {
         let candidates = searchCache.candidates(for: entries,
                                                 stamp: entriesStamp,
                                                 imageLabel: imageLabel)
-        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
-            .compactMap { entries.indices.contains($0) ? entries[$0] : nil }
+        let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
         filterCache = (query, entriesStamp, imageLabel, result)
+        scheduleDeferredSearch(candidates: candidates,
+                               matchedIndexes: Set(ranked),
+                               query: query,
+                               imageLabel: imageLabel,
+                               stamp: entriesStamp)
         return result
+    }
+
+    /// Searches the rest of the entries whose text the index had to cut,
+    /// then appends what it finds below the indexed results. Only entries the
+    /// fast pass did not already match are scanned, so a short history of
+    /// short texts never queues anything.
+    private func scheduleDeferredSearch(candidates: [ClipboardHistorySearchCandidate],
+                                        matchedIndexes: Set<Int>,
+                                        query: String,
+                                        imageLabel: String,
+                                        stamp: Int) {
+        deferredSearchGeneration &+= 1
+        deferredSearchWork?.cancel()
+        let generation = deferredSearchGeneration
+        let snapshot = entries
+        let pendingIndexes = candidates
+            .filter { $0.isIndexTruncated && !matchedIndexes.contains($0.index) }
+            .map(\.index)
+        guard !pendingIndexes.isEmpty else { return }
+        let pending = pendingIndexes.compactMap { snapshot.indices.contains($0) ? snapshot[$0] : nil }
+        let work = DispatchWorkItem { [weak self] in
+            let found = pending.filter {
+                ClipboardHistorySearch.matches($0.searchableText(imageLabel: imageLabel), query: query)
+            }
+            guard !found.isEmpty else { return }
+            DispatchQueue.main.async {
+                guard let self, self.deferredSearchGeneration == generation,
+                      self.entriesStamp == stamp,
+                      let cache = self.filterCache,
+                      cache.query == query, cache.stamp == stamp, cache.imageLabel == imageLabel
+                else { return }
+                let known = Set(cache.result.map(\.id))
+                let added = found.filter { !known.contains($0.id) }
+                guard !added.isEmpty else { return }
+                self.filterCache = (cache.query, cache.stamp, cache.imageLabel, cache.result + added)
+                // The list is read from `filteredEntries` inside a view body,
+                // so the merged result only reaches the screen through a
+                // published change, the same way a new copy does.
+                self.objectWillChange.send()
+            }
+        }
+        deferredSearchWork = work
+        ClipboardHistoryDeferredSearch.queue.asyncAfter(deadline: .now() + ClipboardHistoryDeferredSearch.delay,
+                                                        execute: work)
     }
 
     func copyQuickEntry(at index: Int) {
