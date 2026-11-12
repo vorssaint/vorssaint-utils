@@ -71,6 +71,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
     /// How long before a start the island counts down, from Settings.
     private(set) var countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
     private var excludedCalendars = Set<String>()
+    private var ignoredKeywords = [String]()
+    private var ignoreEverywhere = false
 
     private override init() { super.init() }
 
@@ -111,10 +113,13 @@ final class NotchCalendarService: NSObject, ObservableObject {
         let countdownLeadTime = NotchCalendarSupport.countdownLeadTime()
         let excludedCalendars = NotchCalendarSupport.excludedCalendars()
         let chosenCountdowns = Set(NotchCalendarSupport.chosenCountdowns().keys)
+        let ignoredKeywords = NotchCalendarSupport.ignoredKeywords()
+        let ignoreEverywhere = NotchCalendarSupport.ignoresEverywhere()
         guard reader == nil else {
             if self.countdownEnabled != countdownEnabled || self.timeLeftEnabled != timeLeftEnabled
                 || self.countdownLeadTime != countdownLeadTime || self.excludedCalendars != excludedCalendars
-                || self.chosenCountdowns != chosenCountdowns {
+                || self.chosenCountdowns != chosenCountdowns || self.ignoredKeywords != ignoredKeywords
+                || self.ignoreEverywhere != ignoreEverywhere {
                 if !excludedCalendars.isSubset(of: self.excludedCalendars) {
                     events = []
                     countdown = nil
@@ -123,6 +128,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
                 self.timeLeftEnabled = timeLeftEnabled
                 self.countdownLeadTime = countdownLeadTime
                 self.excludedCalendars = excludedCalendars
+                self.ignoredKeywords = ignoredKeywords
+                self.ignoreEverywhere = ignoreEverywhere
                 if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
                 if let countdown, !follows(countdown) { self.countdown = nil }
                 refresh()
@@ -133,6 +140,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
         self.timeLeftEnabled = timeLeftEnabled
         self.countdownLeadTime = countdownLeadTime
         self.excludedCalendars = excludedCalendars
+        self.ignoredKeywords = ignoredKeywords
+        self.ignoreEverywhere = ignoreEverywhere
         if self.chosenCountdowns != chosenCountdowns { self.chosenCountdowns = chosenCountdowns }
         reader = NotchCalendarReader()
         for name in [Notification.Name.EKEventStoreChanged, NSApplication.didBecomeActiveNotification,
@@ -175,9 +184,14 @@ final class NotchCalendarService: NSObject, ObservableObject {
                 self.events = []; self.countdown = nil; self.loading = false; self.task = nil
                 return
             }
-            self.events = NotchCalendarSupport.ordered(result)
-            let currentEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : self.events
-            self.updateChosenCountdowns(currentEvents, now: now)
+            let keywords = self.ignoredKeywords
+            let chosen = self.chosenCountdowns
+            let allEvents = NotchCalendarSupport.ordered(result)
+            self.events = self.ignoreEverywhere
+                ? allEvents.filter { !NotchCalendarSupport.isIgnored($0, keywords: keywords, chosen: chosen) } : allEvents
+            let readEvents = needsCurrentRead ? NotchCalendarSupport.ordered(currentResult) : allEvents
+            self.updateChosenCountdowns(readEvents, now: now)
+            let currentEvents = readEvents.filter { !NotchCalendarSupport.isIgnored($0, keywords: keywords, chosen: self.chosenCountdowns) }
             self.countdown = NotchCalendarSupport.countdown(currentEvents, now: now, starts: self.countdownEnabled,
                                                             ends: self.timeLeftEnabled, chosen: self.chosenCountdowns,
                                                             leadTime: self.countdownLeadTime)
@@ -223,6 +237,8 @@ final class NotchCalendarService: NSObject, ObservableObject {
         countdownEnabled = false
         timeLeftEnabled = false
         excludedCalendars = []
+        ignoredKeywords = []
+        ignoreEverywhere = false
         if !chosenCountdowns.isEmpty { chosenCountdowns = [] }
         events = []; countdown = nil; loading = false
     }
