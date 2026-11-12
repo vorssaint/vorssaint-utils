@@ -38,6 +38,7 @@ extension FeatureStrings {
     static func generalSettings(_ language: AppLanguage) -> GeneralSettingsStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -490,5 +491,34 @@ extension GeneralSettingsStrings {
         sectionUtilities: "截圖、清理、更新和其他工具。",
         sectionControls: "滑鼠、鍵盤和視窗功能的開關。",
         sectionToggles: "深色模式、將麥克風靜音等一鍵操作。"
+    )
+
+    static let idID = GeneralSettingsStrings(
+        pageDescription: "Bagaimana Vorssaint menyala, tampilannya, dan apa saja yang muncul di panel bar menu.",
+        appearanceCaption: "Hanya berlaku pada jendela dan panel Vorssaint sendiri, bukan seluruh Mac.",
+        launchAtLoginCaption: "Terbuka otomatis setiap kali kamu menyalakan Mac.",
+        liquidGlassCaption: "Panel tembus pandang menyerupai kaca.",
+        liquidGlassOtherWindows: "Jendela dan panel lainnya",
+        panelIntro: "Klik ikon Vorssaint di bar menu untuk membuka panel. Tabnya tampil sesuai urutan ini.",
+        panelReorderHint: "Seret untuk mengurutkan ulang. Matikan apa pun yang tidak kamu perlukan.",
+        menuBarIconTitle: "Ikon bar menu",
+        menuBarIconCaption: "Pilih ikon yang ditampilkan Vorssaint di bar menu.",
+        menuBarIconOther: "Simbol lain",
+        menuBarIconOtherCaption: "Ketik nama SF Symbol apa saja. Kosongkan untuk memakai ikon Vorssaint.",
+        menuBarIconUnknown: "Mac ini tidak memiliki simbol dengan nama tersebut.",
+        menuBarIconReset: "Gunakan ikon Vorssaint",
+        iconMissingTitle: "Tidak menemukan ikonnya?",
+        iconMissingCaption: "Bar menu yang penuh bisa menyembunyikannya, terutama di Mac dengan notch.",
+        sectionKeepAwake: "Menjaga Mac tetap terjaga selama yang kamu mau.",
+        sectionDisplays: "Kecerahan layar kamu.",
+        sectionMixer: "Volume tiap app, masing-masing satu penggeser.",
+        sectionSystem: "Prosesor, grafis, dan memori dalam sekali lihat.",
+        sectionNetwork: "Kecepatan internet dan app mana yang sedang memakainya.",
+        sectionDisks: "Ruang kosong dan aktivitas disk.",
+        sectionPower: "Baterai, pengisian daya, dan pemakaian daya.",
+        sectionFanControl: "Kecepatan kipas dan kurva kipas buatanmu.",
+        sectionUtilities: "Screenshot, pembersih, pembaruan, dan alat lainnya.",
+        sectionControls: "Sakelar untuk fitur mouse, keyboard, dan jendela.",
+        sectionToggles: "Aksi sekali klik seperti mode gelap dan membisukan mikrofon."
     )
 }

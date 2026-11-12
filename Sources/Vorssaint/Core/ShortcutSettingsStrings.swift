@@ -13,6 +13,7 @@ extension FeatureStrings {
     static func shortcuts(_ language: AppLanguage) -> ShortcutSettingsStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -119,5 +120,11 @@ extension ShortcutSettingsStrings {
         active: "Активно",
         inactive: "Неактивно",
         superKeyAlternativeFormat: "або %@"
+    )
+
+    static let idID = ShortcutSettingsStrings(
+        active: "Aktif",
+        inactive: "Tidak aktif",
+        superKeyAlternativeFormat: "atau %@"
     )
 }

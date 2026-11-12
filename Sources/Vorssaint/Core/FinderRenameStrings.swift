@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func finderRename(_ language: AppLanguage) -> FinderRenameFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -167,5 +168,14 @@ extension FinderRenameFeatureStrings {
         enableLabel: "Використовувати клавіатурне скорочення для перейменування",
         caption: "Клавіатурне скорочення діє лише у Finder та не чіпає текстові поля. F2 працює як звичайна клавіша; на клавіатурах, де вона керує яскравістю, використовуйте Fn-F2 або оберіть інше клавіатурне скорочення.",
         shortcutLabel: "Перейменувати"
+    )
+
+    static let idID = FinderRenameFeatureStrings(
+        pageTitle: "Shortcut Finder",
+        hubTitle: "Shortcut ganti nama",
+        hubDescription: "Ganti nama file atau folder yang dipilih dengan shortcut pilihanmu.",
+        enableLabel: "Gunakan shortcut untuk mengganti nama",
+        caption: "Shortcut ini hanya aktif di Finder dan tidak mengganggu kolom teks. F2 berfungsi sebagai tombol biasa; di keyboard yang memakai F2 untuk kecerahan, tekan Fn-F2 atau pilih shortcut lain.",
+        shortcutLabel: "Ganti nama"
     )
 }

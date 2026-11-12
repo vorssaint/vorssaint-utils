@@ -37,6 +37,7 @@ extension FeatureStrings {
     static func mouseExceptions(_ language: AppLanguage) -> MouseExceptionStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -293,5 +294,21 @@ extension MouseExceptionStrings {
         captionFocusFollowsMouse: "Наведення не змінює фокус та не піднімає вікно в цих програмах.",
         captionSuperKey: "Коли будь-яка з цих програм відкрита, навіть у фоновому режимі, Super Key призупиняється, і вибрана клавіша відновлює свою звичайну функцію.",
         pausedSuperKey: "Призупинено, поки відкрита вибрана програма"
+    )
+
+    static let idID = MouseExceptionStrings(
+        listTitle: "App yang dibiarkan apa adanya",
+        addButton: "Tambah app…",
+        removeButton: "Hapus",
+        captionSmoothScroll: "Roda gulir tetap memakai langkah biasanya di app berikut, cocok untuk app yang membaca guliran dengan caranya sendiri seperti alat 3D dan desain.",
+        captionLinearScroll: "Roda gulir tetap mengikuti kecepatan bawaan macOS di app berikut, cocok untuk game dan alat 3D yang menghitung langkah roda sendiri.",
+        captionScrollSpeed: "Roda gulir tetap memakai kecepatan normal di app berikut saat tombol pengubah kecepatan ditahan.",
+        captionScrollDirection: "Roda gulir tetap mengikuti arah bawaan macOS di app berikut.",
+        captionNavigation: "Tombol samping tetap menjalankan fungsi bawaannya di app berikut.",
+        captionButtonShortcuts: "Tombol mouse tambahan tidak diintervensi di app berikut, dan kliknya langsung diteruskan ke app.",
+        captionMiddleClick: "Klik tiga jari tetap menjadi klik biasa di app berikut.",
+        captionFocusFollowsMouse: "Mengarahkan kursor tidak mengubah fokus atau mengangkat jendela ke depan di app berikut.",
+        captionSuperKey: "Selama salah satu app ini terbuka, termasuk di latar belakang, Tombol Super dijeda dan tombol yang dipilih berfungsi normal.",
+        pausedSuperKey: "Dijeda selama app yang dipilih terbuka"
     )
 }

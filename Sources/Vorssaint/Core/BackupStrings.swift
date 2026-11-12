@@ -24,6 +24,7 @@ extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -252,5 +253,19 @@ extension BackupFeatureStrings {
         importMissingIslandBody: "呢份備份冇 Dynamic Island 設定。呢部 Mac 上嘅相關設定會保留。想從另一部 Mac 複製呢啲設定,請用 Vorssaint 3.4 或更新版本重新匯出。其他設定會匯入,之後 App 會重新啟動。",
         importAction: "匯入並重新啟動",
         invalidFile: "此檔案不是有效嘅 Vorssaint 備份。"
+    )
+
+    static let idID = BackupFeatureStrings(
+        title: "Cadangan",
+        description: "Bawa pengaturanmu ke Mac lain: ekspor semua preferensi ke file lalu impor di sana. Isi Catatan cepat, riwayat clipboard, item Rak file, dan izin sistem tidak pernah keluar dari Mac ini.",
+        exportButton: "Ekspor pengaturan…",
+        importButton: "Impor pengaturan…",
+        exported: "Cadangan tersimpan",
+        exportFailed: "Gagal menyimpan cadangan.",
+        importConfirmTitle: "Impor pengaturan ini?",
+        importConfirmBody: "Pengaturan saat ini akan diganti dengan isi file dan app dimulai ulang. Hal lain di Mac ini tidak disentuh.",
+        importMissingIslandBody: "Cadangan ini tidak berisi pengaturan Dynamic Island. Pengaturan Dynamic Island di Mac ini tetap dipertahankan. Ekspor ulang dengan Vorssaint 3.4 atau lebih baru di Mac satunya untuk menyalinnya. Pengaturan lain akan diimpor lalu app dimulai ulang.",
+        importAction: "Impor dan mulai ulang",
+        invalidFile: "File ini bukan cadangan Vorssaint yang valid."
     )
 }

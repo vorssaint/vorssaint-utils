@@ -14,6 +14,9 @@ struct SettingsNavigationStrings {
         case .enUS:
             return Self(go: "Go", back: "Back", forward: "Forward",
                         showSidebar: "Show Sidebar", hideSidebar: "Hide Sidebar")
+        case .idID:
+            return Self(go: "Buka", back: "Kembali", forward: "Maju",
+                        showSidebar: "Tampilkan Bar Samping", hideSidebar: "Sembunyikan Bar Samping")
         case .ptBR:
             return Self(go: "Ir", back: "Voltar", forward: "Avançar",
                         showSidebar: "Mostrar Barra Lateral", hideSidebar: "Ocultar Barra Lateral")

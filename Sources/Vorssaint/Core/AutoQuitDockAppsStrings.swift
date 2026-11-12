@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func autoQuitDockApps(_ language: AppLanguage) -> AutoQuitDockAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -152,5 +153,13 @@ extension AutoQuitDockAppsStrings {
         addButton: "加入 App…",
         removeButton: "移除",
         emptyNote: "沒有可加入的選單列 App。"
+    )
+
+    static let idID = AutoQuitDockAppsStrings(
+        listTitle: "App bar menu yang diizinkan keluar",
+        caption: "App bar menu tetap terbuka secara bawaan. App yang kamu pilih di sini bisa keluar setelah jendela terakhirnya ditutup selama masih tampil di Dock. Daftar pengecualian tetap menjaganya terbuka.",
+        addButton: "Tambah app…",
+        removeButton: "Hapus",
+        emptyNote: "Tidak ada app bar menu yang tersedia untuk ditambahkan."
     )
 }

@@ -41,6 +41,7 @@ extension FeatureStrings {
     static func superKey(_ language: AppLanguage) -> SuperKeyStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -422,5 +423,29 @@ extension SuperKeyStrings {
         mappingForeignMapping: "Прив’язка клавіш іншої програми використовує обрану клавішу. Видаліть її у тій програмі: просто закрити її недостатньо.",
         mappingSystemRefused: "macOS відхилила прив’язку клавіш. Перепідключіть клавіатуру або перезавантажте Mac, потім увімкніть знову.",
         keyboardTapRefused: "macOS не дозволила Vorssaint стежити за клавіатурою. Вимкніть і знову ввімкніть Vorssaint у розділі «Системні параметри › Приватність і безпека › Доступність», а потім знову ввімкніть цю функцію."
+    )
+
+    static let idID = SuperKeyStrings(
+        pageTitle: "Tombol Super",
+        hubDescription: "Mengubah satu tombol menjadi kombinasi tombol modifier pilihanmu.",
+        enableToggle: "Gunakan tombol ini sebagai tombol super",
+        enableCaption: "Tahan tombol ini lalu tekan tombol apa saja. Pilih satu atau beberapa tombol modifier di bawah.",
+        modifierKeysNote: "Biarkan tombol ini diatur ke tindakan bawaannya di Pengaturan Sistem › Papan Ketik › Tombol Pengubah.",
+        sourceKey: "Tombol yang ditahan",
+        capsLockKey: "Caps Lock",
+        rightKeyFormat: "%@ Kanan",
+        holdHint: "Tahan",
+        soloSection: "Tekanan singkat sendiri",
+        soloCaption: "Yang dilakukan tekanan singkat saat tidak ada tombol lain yang ditekan.",
+        soloNothing: "Tidak ada",
+        soloCapsLock: "Nyalakan dan matikan huruf besar",
+        soloEscape: "Tekan Escape",
+        activeNow: "Sedang aktif",
+        panelCaptionFormat: "%1$@ menahan %2$@.",
+        manageButton: "Atur…",
+        soloInputSource: "Ganti sumber input; tahan untuk Caps Lock",
+        mappingForeignMapping: "Pemetaan tombol dari app lain sedang memakai tombol yang dipilih. Hapus pemetaan di app tersebut: keluar dari app saja tidak cukup.",
+        mappingSystemRefused: "macOS menolak pemetaan tombol. Sambungkan ulang keyboard atau mulai ulang Mac, lalu nyalakan lagi fitur ini.",
+        keyboardTapRefused: "macOS tidak mengizinkan Vorssaint memantau keyboard. Matikan lalu nyalakan kembali Vorssaint di Pengaturan Sistem › Privasi & Keamanan › Aksesibilitas, kemudian nyalakan lagi fitur ini."
     )
 }

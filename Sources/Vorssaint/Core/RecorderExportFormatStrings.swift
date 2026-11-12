@@ -19,6 +19,13 @@ extension FeatureStrings {
                 gifSize: "GIF size",
                 customSize: "Custom size",
                 frameRate: "Frame rate")
+        case .idID:
+            return RecorderExportFormatStrings(
+                format: "Format ekspor",
+                video: "Video",
+                gifSize: "Ukuran GIF",
+                customSize: "Ukuran kustom",
+                frameRate: "Frame per detik")
         case .ptBR:
             return RecorderExportFormatStrings(
                 format: "Formato de exportação",

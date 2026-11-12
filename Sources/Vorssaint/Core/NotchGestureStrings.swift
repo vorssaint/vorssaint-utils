@@ -16,6 +16,10 @@ extension FeatureStrings {
             title: "Dynamic Island Gestures",
             description: "Open and close the Dynamic Island with scrolling, and swipe to change tracks.",
             hint: "Scroll down to open. Scroll up over the top row to close. Swipe left or right over the music to change tracks. Lists keep their own scrolling.")
+        case .idID: return NotchGestureStrings(
+            title: "Gestur Dynamic Island",
+            description: "Buka dan tutup Dynamic Island dengan menggulir, lalu usap untuk mengganti lagu.",
+            hint: "Gulir ke bawah untuk membuka. Gulir ke atas di baris teratas untuk menutup. Usap ke kiri atau kanan di atas musik untuk mengganti lagu. Daftar tetap menggulir seperti biasa.")
         case .ptBR: return NotchGestureStrings(
             title: "Gestos do Dynamic Island",
             description: "Abra e feche o Dynamic Island com a rolagem e deslize para trocar de música.",

@@ -49,6 +49,7 @@ extension FeatureStrings {
     static func quickToggles(_ language: AppLanguage) -> QuickToggleFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -650,5 +651,44 @@ extension QuickToggleFeatureStrings {
         screenSaverTitle: "Запустити зберігач екрана",
         screenSaverCaption: "Запускається одразу, на кожному дисплеї.",
         actionFailed: "Не вдалося завершити."
+    )
+
+    static let idID = QuickToggleFeatureStrings(
+        pageTitle: "Kontrol cepat",
+        hubDescription: "Aksi sekali klik seperti mode gelap dan Sampah",
+        panelCaption: "Aksi sistem sekali klik di panel bar menu dan panel cepat.",
+        darkModeToDark: "Beralih ke mode gelap",
+        darkModeToLight: "Beralih ke mode terang",
+        darkModeCaption: "Mengubah tampilan seluruh sistem.",
+        emptyTrashTitle: "Kosongkan Sampah",
+        emptyTrashCaption: "Menghapus semua isi Sampah.",
+        emptyTrashConfirmTitle: "Kosongkan Sampah?",
+        emptyTrashConfirmMessage: "Semua item di Sampah akan dihapus. Aksi ini tidak bisa dibatalkan.",
+        emptyTrashConfirmButton: "Kosongkan Sampah",
+        quitAllTitle: "Keluar dari semua app",
+        quitOthersTitle: "Keluar dari semua app kecuali yang di depan",
+        quitAppsHeader: "App terbuka",
+        quitAppsQuitAll: "Keluar semua",
+        quitAppsQuitAllExcept: "Keluar semua kecuali %@",
+        quitAppsQuitOne: "Keluar dari %@",
+        quitAppsFrontBadge: "Di depan",
+        quitAppsKeptBadge: "Dipertahankan",
+        quitAppsEmpty: "Tidak ada app lain yang terbuka.",
+        exceptionsTitle: "App yang dipertahankan",
+        exceptionsCaption: "Keluar semua membiarkan app ini tetap berjalan. Finder, Vorssaint, dan Phone selalu dipertahankan. Kamu tetap bisa keluar dari app yang dipertahankan lewat barisnya sendiri.",
+        ejectTitle: "Keluarkan semua disk",
+        ejectCaption: "Mengeluarkan semua disk eksternal dengan aman.",
+        hiddenFilesShow: "Tampilkan file tersembunyi",
+        hiddenFilesHide: "Sembunyikan file tersembunyi",
+        desktopIconsHide: "Sembunyikan ikon desktop",
+        desktopIconsShow: "Tampilkan ikon desktop",
+        finderRestartCaption: "Finder akan dimulai ulang untuk menerapkannya.",
+        lockScreenTitle: "Kunci layar",
+        lockScreenCaption: "Meminta kata sandi untuk masuk lagi.",
+        displayOffTitle: "Matikan layar",
+        displayOffCaption: "Mac tetap berjalan meski layar mati.",
+        screenSaverTitle: "Mulai penghemat layar",
+        screenSaverCaption: "Langsung dimulai di semua layar.",
+        actionFailed: "Gagal menyelesaikan."
     )
 }

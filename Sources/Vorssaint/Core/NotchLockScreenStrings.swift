@@ -24,6 +24,13 @@ extension FeatureStrings {
             sounds: "Lock and unlock sounds",
             soundsHint: "Play the macOS padlock sound when your Mac locks and unlocks.",
             working: "Working")
+        case .idID: return NotchLockScreenStrings(
+            title: "Layar Kunci",
+            show: "Tampilkan di Layar Kunci",
+            showHint: "Musik dan aktivitas Dynamic Island seperti pengatur waktu, agen AI, unduhan, dan agenda berikutnya muncul di atas kolom kata sandi. Siapa pun yang melihat layarmu bisa membacanya.",
+            sounds: "Suara kunci dan buka kunci",
+            soundsHint: "Putar suara gembok macOS saat Mac dikunci dan dibuka.",
+            working: "Bekerja")
         case .ptBR: return NotchLockScreenStrings(
             title: "Tela Bloqueada",
             show: "Mostrar na Tela Bloqueada",

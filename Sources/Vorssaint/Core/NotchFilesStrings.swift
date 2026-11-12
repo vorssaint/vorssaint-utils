@@ -42,6 +42,23 @@ extension FeatureStrings {
             optimizeMedia: "Optimize media",
             optimizeDropHint: "Drag images or one video onto the island, then drop on Optimize media to choose how to save a copy.",
             resumeMedia: "Return to media")
+        case .idID: return NotchFilesStrings(
+            archive: "Buat ZIP",
+            archiveHint: "Setiap item yang dipilih disimpan sebagai file ZIP terpisah. File asli tidak berubah.",
+            saved: "Tersimpan",
+            downloadsTitle: "Unduhan",
+            downloadsDescription: "Lihat file yang masuk ke folder pilihanmu langsung di Dynamic Island.",
+            downloadsHint: "Pilih folder tempat browser menyimpan unduhan. Hanya folder itu yang dipantau.",
+            chooseFolder: "Pilih folder…",
+            folderUnavailable: "Folder ini tidak tersedia. Pilih ulang untuk memulihkan akses.",
+            waiting: "Tidak ada file di folder ini",
+            inProgress: "Mengunduh",
+            totalUnknown: "Ukuran total tidak diketahui",
+            completed: "Unduhan selesai",
+            clearFolder: "Lupakan folder",
+            optimizeMedia: "Optimalkan media",
+            optimizeDropHint: "Seret gambar atau satu video ke Dynamic Island, lalu lepaskan di Optimalkan media untuk memilih cara menyimpan salinannya.",
+            resumeMedia: "Kembali ke media")
         case .ptBR: return NotchFilesStrings(
             archive: "Criar ZIP",
             archiveHint: "Cada item selecionado vira um ZIP separado. Os originais são preservados.",

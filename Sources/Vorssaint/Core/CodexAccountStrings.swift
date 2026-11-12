@@ -49,6 +49,25 @@ extension FeatureStrings {
             signIn: "Sign in with ChatGPT in this Codex folder.",
             update: "Update Codex to check limits.",
             failed: "Could not check limits. Try again.")
+        case .idID: return CodexAccountStrings(
+            title: "Akun Codex",
+            explanation: "Setiap folder CODEX_HOME yang kamu tambahkan punya kartu batas sendiri. Selama halaman Agen AI terbuka, Codex memeriksa masing-masing sekitar setiap lima menit memakai login folder tersebut. Tidak ada prompt yang dikirim.",
+            accountName: "Nama akun",
+            remove: "Hapus kartu akun ini",
+            find: "Cari akun lokal",
+            add: "Tambah folder…",
+            check: "Periksa batas",
+            fallback: "Jika tidak ada akun yang ditambahkan, batas Codex berasal dari sesi lokalnya.",
+            resetsNote: "Kartu Reset kuota tetap milik akun Codex bawaan.",
+            chooseFolder: "Pilih folder Codex",
+            invalidFolder: "Pilih folder CODEX_HOME terpisah yang berisi config.toml atau auth.json. Folder harus milikmu dan tidak bisa ditulis pengguna lain, serta auth.json harus bersifat privat dan bukan link. Codex bisa menyegarkan login dan cache miliknya di sana.",
+            folderProblem: "Pilih lagi folder akun ini di Pengaturan.",
+            defaultName: "Bawaan",
+            defaultAccount: "Akun bawaan",
+            refreshHint: "Refresh untuk memeriksa batas akun ini.",
+            signIn: "Masuk dengan ChatGPT di folder Codex ini.",
+            update: "Perbarui Codex untuk memeriksa batas.",
+            failed: "Gagal memeriksa batas. Coba lagi.")
         case .ptBR: return CodexAccountStrings(
             title: "Contas do Codex",
             explanation: "Cada pasta CODEX_HOME adicionada ganha o próprio cartão de limites. Enquanto a página Agentes de IA está aberta, o Codex verifica cada uma aproximadamente a cada cinco minutos, com o login dessa pasta. Nenhum prompt é enviado.",

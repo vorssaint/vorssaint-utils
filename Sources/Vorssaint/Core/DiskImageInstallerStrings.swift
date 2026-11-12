@@ -30,6 +30,7 @@ extension FeatureStrings {
     static func diskImageInstaller(_ language: AppLanguage) -> DiskImageInstallerStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -391,5 +392,28 @@ extension DiskImageInstallerStrings {
         revealAppOption: "Показати встановлену програму у Finder",
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
+    )
+
+    static let idID = DiskImageInstallerStrings(
+        title: "Pemasang disk image",
+        hubDescription: "Pasang satu app di dalam disk image lalu bersihkan unduhannya",
+        useUserApplications: "Pasang di folder Aplikasi di dalam folder beranda kamu",
+        applicationsFolder: "folder Aplikasi",
+        userApplicationsFolder: "folder Aplikasi di dalam folder beranda kamu",
+        promptTitle: "Pasang app ini?",
+        promptBodyFormat: "%@ akan disalin ke %@ lalu disk image dikeluarkan.",
+        installButton: "Pasang",
+        installedTitle: "App terpasang",
+        installedBodyFormat: "%@ siap di %@. Disk image sudah dikeluarkan dan unduhannya dipindahkan ke Sampah.",
+        installedKeepingMountBodyFormat: "%@ sudah dipasang di %@, tetapi disk image gagal dikeluarkan. Unduhannya tetap disimpan.",
+        installedKeepingDownloadBodyFormat: "%@ sudah dipasang di %@ dan disk image dikeluarkan, tetapi unduhannya gagal dipindahkan ke Sampah.",
+        failedTitle: "Gagal memasang",
+        failedBody: "Tidak ada yang diubah. Kamu tetap bisa menyeret app ke Aplikasi.",
+        verificationFailedBody: "Mac ini tidak bisa memverifikasi app, jadi tidak ada yang dipasang.",
+        alreadyInstalledBodyFormat: "%@ sudah ada di Aplikasi.",
+        trashDownloadOption: "Pindahkan unduhan ke Sampah",
+        revealAppOption: "Tampilkan app yang dipasang di Finder",
+        installedKeptDownloadBodyFormat: "%@ siap di %@. Disk image sudah dikeluarkan dan unduhannya tetap disimpan.",
+        installingFormat: "Memasang %@…"
     )
 }

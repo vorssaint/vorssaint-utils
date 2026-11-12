@@ -13,6 +13,7 @@ extension FeatureStrings {
     static func batteryTime(_ language: AppLanguage) -> BatteryTimeFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -119,5 +120,11 @@ extension BatteryTimeFeatureStrings {
         title: "Залишок часу роботи від акумулятора",
         systemEstimate: "Системна оцінка",
         calculating: "Обчислення…"
+    )
+
+    static let idID = BatteryTimeFeatureStrings(
+        title: "Sisa waktu baterai",
+        systemEstimate: "Perkiraan sistem",
+        calculating: "Menghitung…"
     )
 }

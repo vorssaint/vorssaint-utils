@@ -14,6 +14,7 @@ extension FeatureStrings {
     static func clipboardIgnoredApps(_ language: AppLanguage) -> ClipboardIgnoredAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -135,5 +136,12 @@ extension ClipboardIgnoredAppsStrings {
         addButton: "Додати програму…",
         removeButton: "Видалити",
         caption: "Все, що ви копіюєте в цих програмах, не зберігається в історії."
+    )
+
+    static let idID = ClipboardIgnoredAppsStrings(
+        listTitle: "App yang dilewati",
+        addButton: "Tambah app…",
+        removeButton: "Hapus",
+        caption: "Apa pun yang kamu salin di app ini tidak disimpan ke riwayat."
     )
 }

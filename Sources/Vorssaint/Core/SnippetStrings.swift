@@ -78,6 +78,7 @@ extension FeatureStrings {
     static func snippets(_ language: AppLanguage) -> SnippetFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -1116,5 +1117,73 @@ extension SnippetFeatureStrings {
         soundCaption: "每次輸入嘅觸發詞展開時都會播放一個簡短嘅系統聲音。",
         soundPickerLabel: "聲音",
         soundUnavailable: "聲音無法使用"
+    )
+
+    static let idID = SnippetFeatureStrings(
+        pageTitle: "Snippet teks",
+        hubDescription: "Pemicu singkat berubah menjadi teks lengkap",
+        enable: "Perluas snippet saat mengetik",
+        enableCaption: "Ketik pemicu di mana saja dan teksnya langsung muncul. Semuanya tetap tersimpan di Mac ini.",
+        addButton: "Tambah snippet",
+        newTitle: "Snippet baru",
+        editTitle: "Edit snippet",
+        nameLabel: "Nama",
+        namePlaceholder: "Email pribadi",
+        triggerLabel: "Pemicu",
+        triggerPlaceholder: ";email",
+        replacementLabel: "Teks",
+        replacementPlaceholder: "emailsaya@contoh.com",
+        expansionLabel: "Perluas",
+        expansionImmediate: "Langsung",
+        expansionDelimiter: "Setelah Spasi, Tab, atau Return",
+        variablesHint: "Variabel: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Variabel berubah menjadi tanggal, waktu, dan teks tersalin saat snippet diperluas.",
+        emptyList: "Belum ada snippet. Tambahkan yang pertama.",
+        duplicateTrigger: "Snippet lain sudah memakai pemicu ini.",
+        triggerTooShort: "Pemicu minimal 2 karakter.",
+        deleteButton: "Hapus",
+        saveButton: "Simpan",
+        manageButton: "Kelola snippet",
+        ignoreCaseLabel: "Abaikan huruf besar/kecil",
+        libraryTitle: "Menu cepat snippet",
+        libraryToggle: "Buka snippet dari menu",
+        libraryCaption: "Shortcut membuka menu yang bisa dicari. Memilih snippet akan langsung mengetikkannya di posisi kursor.",
+        librarySearchPlaceholder: "Cari snippet",
+        libraryNoResults: "Tidak ada snippet yang cocok dengan pencarian.",
+        libraryEmpty: "Belum ada yang ditampilkan. Tambahkan snippet, atau nyalakan “Tampilkan di menu cepat” untuk yang paling sering dipakai.",
+        libraryFooterHint: "↩ sisipkan · esc tutup",
+        folderLabel: "Folder",
+        folderPlaceholder: "Kerja",
+        showInLibraryLabel: "Tampilkan di menu cepat",
+        variablesFormatCaption: "Format setelah titik dua mengatur tampilannya, seperti {{date:yyyy-MM-dd}}. Bagian -tz(...) mengatur zona waktu, seperti {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Format setelah titik dua mengatur tampilannya, seperti {{date:yyyy-MM-dd}}, atau gunakan tombol tanggal/waktu di atas. Bagian -tz(...) mengatur zona waktu, seperti {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Sisipkan tanggal/waktu",
+        dateTimeEditButton: "Edit tanggal/waktu",
+        dateTimeTypeLabel: "Jenis",
+        dateTimeKindDate: "Tanggal",
+        dateTimeKindTime: "Waktu",
+        dateTimeKindDateTime: "Tanggal & Waktu",
+        dateTimeStyleLabel: "Gaya",
+        dateTimeStyleShort: "Pendek",
+        dateTimeStyleMedium: "Sedang",
+        dateTimeStyleLong: "Panjang",
+        dateTimeStyleFull: "Lengkap",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Kustom",
+        dateTimeStyleLocaleNote: "Gaya bernama menyimpan format yang dipakai wilayah Mac kamu saat ini.",
+        dateTimeTimezoneLabel: "Zona waktu",
+        dateTimeTimezoneDeviceDefault: "Bawaan perangkat",
+        dateTimeTimezoneValid: "Zona waktu valid",
+        dateTimeTimezoneInvalid: "Zona waktu tidak dikenali",
+        dateTimeTimezoneClear: "Hapus zona waktu",
+        dateTimeTimezoneSearchPlaceholder: "Cari zona waktu",
+        dateTimePatternLabel: "Pola",
+        dateTimePreviewLabel: "Pratinjau",
+        dateTimeConfirmInsert: "Sisipkan",
+        dateTimeConfirmUpdate: "Perbarui",
+        soundToggle: "Putar suara saat pemicu yang diketik diperluas",
+        soundCaption: "Suara sistem singkat diputar setiap kali pemicu yang diketik diperluas.",
+        soundPickerLabel: "Suara",
+        soundUnavailable: "Suara tidak tersedia"
     )
 }

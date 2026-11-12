@@ -67,6 +67,9 @@ enum AlertSoundStrings {
         case .enUS:
             return english
 
+        case .idID:
+            return indonesian
+
         case .ptBR:
             return portugueseBrazil
 
@@ -289,5 +292,24 @@ enum AlertSoundStrings {
         "Sosumi": "Повідомлення",
         "Submarine": "Занурення",
         "Tink": "Тиць",
+    ]
+
+    // MARK: - Indonesian
+
+    private static let indonesian: [String: String] = [
+        "Basso": "Mezzo",
+        "Blow": "Angin",
+        "Bottle": "Kerikil",
+        "Frog": "Lompat",
+        "Funk": "Funky",
+        "Glass": "Kristal",
+        "Hero": "Pahlawan Wanita",
+        "Morse": "Pong",
+        "Ping": "Sonar",
+        "Pop": "Gelembung",
+        "Purr": "Petikan",
+        "Sosumi": "Sonumi",
+        "Submarine": "Menyelam",
+        "Tink": "Boop",
     ]
 }

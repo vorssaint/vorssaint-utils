@@ -48,6 +48,7 @@ extension FeatureStrings {
     static func keepAwakeAutomation(_ language: AppLanguage) -> KeepAwakeAutomationStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -68,6 +69,7 @@ extension FeatureStrings {
     static func keepAwakeDisplaySleep(_ language: AppLanguage) -> KeepAwakeDisplaySleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -159,6 +161,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let uk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Дозволити дисплею засинати",
         allowDisplaySleepCaption: "Не дає Mac заснути, поки дисплей слідує своєму звичайному таймеру сну."
+    )
+
+    static let idID = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Biarkan layar tidur",
+        allowDisplaySleepCaption: "Menjaga Mac tetap terjaga sementara layar tetap mengikuti pengatur waktu tidur normalnya."
     )
 }
 
@@ -490,5 +497,27 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Будь-яка",
         matchAll: "Усі",
         automationCaptionAll: "Запускається лише коли всі обрані умови активні."
+    )
+
+    static let idID = KeepAwakeAutomationStrings(
+        automationSection: "Otomatisasi",
+        automationCaption: "Mulai saat salah satu kondisi yang dipilih aktif.",
+        automationOff: "Mati",
+        externalDisplayToggle: "Layar eksternal",
+        externalDisplayActive: "Aktif selama layar eksternal tersambung",
+        powerToggle: "Daya",
+        powerActive: "Aktif selama tersambung ke listrik",
+        runningAppsToggle: "Aplikasi",
+        runningAppsActive: "Aktif selama app yang dipilih berjalan",
+        runningAppsListTitle: "App yang dipilih",
+        runningAppsAddButton: "Tambah app…",
+        runningAppsRemoveButton: "Hapus",
+        runningAppsListCaption: "Tetap terjaga mulai berjalan selama salah satu app ini terbuka, termasuk di latar belakang.",
+        automationActive: "Aktif karena kondisi otomatis terpenuhi",
+        pauseWhenLockedToggle: "Jeda saat Mac terkunci",
+        pauseWhenLockedCaption: "Mengikuti aturan tidur normal saat terkunci dan melanjutkan sisa sesi setelah kunci dibuka.",
+        matchAny: "Salah satu",
+        matchAll: "Semua",
+        automationCaptionAll: "Mulai hanya saat semua kondisi yang dipilih aktif."
     )
 }
