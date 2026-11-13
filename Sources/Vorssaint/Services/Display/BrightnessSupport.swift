@@ -274,6 +274,24 @@ enum BrightnessSupport {
         return ddcRetryDelays[attempt - 1]
     }
 
+    /// How long to wait before scanning again for a monitor the DDC pass
+    /// found no service for, or nil once the retries are spent. A missing
+    /// service is not a verdict on the monitor: one launch has been seen
+    /// finding none for a monitor that answered on every launch after it,
+    /// and without a retry it kept software dimming until the next wake or
+    /// topology change. A monitor that truly has no DDC service costs three
+    /// extra scans. `attempt` counts from 1.
+    static func serviceMissRetryDelay(attempt: Int) -> TimeInterval? {
+        guard attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
+        return ddcRetryDelays[attempt - 1]
+    }
+
+    /// The retry budget key for a monitor that found no DDC service, kept
+    /// apart from probe and speaker keys, which need a matched service.
+    static func serviceMissKey(displayFingerprint: String) -> String {
+        "service:" + displayFingerprint
+    }
+
     static let volumeKeyRescanInterval: TimeInterval = 10
 
     /// Whether a volume key that no monitor claimed rescans the displays: only

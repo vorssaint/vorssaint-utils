@@ -2355,6 +2355,10 @@ final class BrightnessService: ObservableObject {
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
         var retryDelay: TimeInterval?
+        // Candidates the pass found no service for. Without a note here they
+        // fall to software dimming silently, which hid why one launch never
+        // probed a monitor that answered on every launch after it.
+        var unserved = services.isEmpty ? ddcCandidates : []
         if !ddcCandidates.isEmpty, !services.isEmpty {
             var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
             for candidate in ddcCandidates {
@@ -2373,9 +2377,12 @@ final class BrightnessService: ObservableObject {
             for candidate in ddcCandidates {
                 guard let ordinal = assignment[candidate.index],
                       let matched = services.first(where: { $0.identity.ordinal == ordinal }) else {
+                    unserved.append(candidate)
                     continue
                 }
                 let id = built[candidate.index].id
+                ddcRetryAttempts[BrightnessSupport.serviceMissKey(
+                    displayFingerprint: Self.displayFingerprint(id))] = nil
                 let ioDisplayLocation = candidate.identity.ioDisplayLocation.flatMap {
                     $0.isEmpty ? nil : $0
                 } ?? matched.identity.ioDisplayLocation
@@ -2490,6 +2497,21 @@ final class BrightnessService: ObservableObject {
                     // instead, which works on any connection.
                     break
                 }
+            }
+        }
+        if BrightnessBridge.ddcAvailable, !unserved.isEmpty {
+            let ordinals = services.map { String($0.identity.ordinal) }.joined(separator: ",")
+            for candidate in unserved {
+                let id = built[candidate.index].id
+                let key = BrightnessSupport.serviceMissKey(displayFingerprint: Self.displayFingerprint(id))
+                let attempt = (ddcRetryAttempts[key] ?? 0) + 1
+                let delay = BrightnessSupport.serviceMissRetryDelay(attempt: attempt)
+                if let delay {
+                    ddcRetryAttempts[key] = attempt
+                    retryDelay = min(retryDelay ?? delay, delay)
+                }
+                let retry = delay.map { "retry \(attempt) in \($0)s" } ?? "no retry left"
+                Self.log.log("ddc no service for display \(id): \(services.count) external service(s) [\(ordinals, privacy: .public)], \(ddcCandidates.count) candidate(s); \(retry, privacy: .public)")
             }
         }
 

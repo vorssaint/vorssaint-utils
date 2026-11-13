@@ -305,6 +305,17 @@ enum DisplaySpeakerVolumeTests {
         suite.expect(BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: false, repliedThisSession: true) == nil
                      && BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: true, repliedThisSession: false) == nil,
                      "a failed read is retried only while speakers are wanted and the monitor answered this session")
+        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 1) == 2
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 2) == 5
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 3) == 15,
+                     "a monitor the scan found no DDC service for is scanned again after about 2, 5 and 15 seconds")
+        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 0) == nil
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 4) == nil,
+                     "software dimming stands once the third scan finds no service")
+        suite.expect(BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1")
+                     != BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:2")
+                     && !BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1").hasPrefix("audio:"),
+                     "each monitor keeps its own service retry budget, apart from speaker retries")
         suite.expect(BrightnessSupport.rescansForVolumeKey(hasTarget: false, displayOwnsOutput: true,
                         now: 100, lastRescan: nil)
                      && !BrightnessSupport.rescansForVolumeKey(hasTarget: true, displayOwnsOutput: true,
