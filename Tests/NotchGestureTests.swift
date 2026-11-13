@@ -38,11 +38,12 @@ enum NotchGestureTests {
         var time = 1.0
         func feed(_ x: Double = 0, _ y: Double = 0, began: Bool = false,
                   ended: Bool = false, momentum: Bool = false, precise: Bool = true, phased: Bool = true,
-                  vertical: Bool = true, horizontal: Bool = true, expanded: Bool = false) -> NotchGestureSupport.Action? {
+                  vertical: Bool = true, horizontal: Bool = true, panels: Bool = false,
+                  expanded: Bool = false) -> NotchGestureSupport.Action? {
             time += 0.01
             return gesture.handle(x: x, y: y, timestamp: time, began: began, ended: ended,
                                   momentum: momentum, precise: precise, hasPhase: phased, allowVertical: vertical,
-                                  allowHorizontal: horizontal, expanded: expanded)
+                                  allowHorizontal: horizontal, panels: panels, expanded: expanded)
         }
         suite.expect(feed(0, 5, began: true) == nil && feed(0, 10) == nil && feed(0, 10) == .open,
                "small vertical movement accumulates into one intentional opening")
@@ -163,6 +164,22 @@ enum NotchGestureTests {
                "a horizontal player origin does not acquire collapse behavior after entering the header")
         suite.expect(feed(-30, 0, vertical: false, horizontal: false, expanded: true) == .nextTrack,
                "an eligible phased scroll remains attached to its original surface as the pointer moves")
+
+        suite.expect(feed(-50, 0, began: true, panels: true, expanded: true) == .nextPanel
+               && feed(45, 0, began: true, panels: true, expanded: true) == .previousPanel,
+               "a sideways swipe over a page steps to its neighbour, as Spaces do")
+        for _ in 0..<100 { suite.expect(feed(-50, 0, panels: true, expanded: true) == nil,
+                                        "one physical swipe never passes more than one page") }
+        suite.expect(feed(0, 0, began: true, panels: true, expanded: true) == nil
+               && feed(-80, 0, expanded: true) == .nextPanel,
+               "a swipe that begins over the top row keeps changing pages as it crosses the player")
+        suite.expect(feed(0, 0, began: true, expanded: true) == nil
+               && feed(-80, 0, panels: true, expanded: true) == .nextTrack,
+               "a swipe that begins over the player keeps changing tracks as it reaches the top row")
+        suite.expect(feed(-15, 0, began: true, panels: true, expanded: true) == nil
+               && feed(0, 0, ended: true) == nil
+               && feed(-80, 0, momentum: true, phased: false) == nil,
+               "momentum never finishes a page change the fingers did not")
 
         suite.expect(feed(-15, 0, began: true) == nil, "interruption fixture begins below the threshold")
         gesture = NotchGestureSupport()
