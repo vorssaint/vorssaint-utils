@@ -355,7 +355,7 @@ final class ScreenshotService: ObservableObject {
 
     // MARK: - Routing
 
-    /// Where a direct save landed, and which "%#" number it consumed — so a
+    /// Where a direct save landed, and which "%#" number it consumed, so a
     /// later Trash can remove the file and, if applicable, give exactly that
     /// number back.
     private struct SaveOutcome {
@@ -505,8 +505,8 @@ final class ScreenshotService: ObservableObject {
                     saved = result.outcome
                     return result.copied ? [.save, .copy] : [.save]
                 case .discard:
-                    // If this capture was already written to disk — whether
-                    // by the default action or a manual Save — Trash should
+                    // If this capture was already written to disk, whether
+                    // by the default action or a manual Save, Trash should
                     // undo that rather than leave an orphaned file behind.
                     // Into the actual Trash: the person may be discarding a
                     // file the HUD just announced as saved.
@@ -1032,7 +1032,7 @@ final class ScreenshotService: ObservableObject {
     // MARK: - Save location
 
     /// The configured folder when it still exists, otherwise the Desktop,
-    /// with a unique dated file name.
+    /// with a unique dated file name ending in `fileExtension`.
     static func saveDestination(strings: ScreenshotFeatureStrings,
                                 fileExtension: String = "png") -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
@@ -1093,7 +1093,7 @@ final class ScreenshotService: ObservableObject {
     }
 
     /// Gives a consumed "%#" number back after its save failed or was
-    /// deleted — but only while nothing else advanced the sequence since,
+    /// deleted, but only while nothing else advanced the sequence since,
     /// so a rewind can never undo another capture's number.
     static func rewindNumberSequence(toReuse consumed: Int) {
         let defaults = UserDefaults.standard

@@ -93,6 +93,7 @@ struct MetricsTests {
                 ScreenshotClipboardTests.run(suite)
                 ScreenshotAutoCopyTests.run(suite)
                 ScreenshotCanvasSupportTests.run(suite)
+                ScreenshotInspectionTests.run(suite)
                 ScreenshotImageLayerTests.run(suite)
                 ScreenshotImageImportTests.run(suite)
                 ScreenshotImageFileTests.run(suite)
