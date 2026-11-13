@@ -60,7 +60,7 @@ enum AgentUsageReadTests {
     }
 
     class Fixture {
-        static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
+        static let historyStart = Date.distantPast
         let queue = Queue()
         var home = FileManager.default.temporaryDirectory
         var readerSession = 1
@@ -438,6 +438,27 @@ enum AgentUsageReadTests {
         stopped.start(session: 2, providers: [.copilot], cancellation: cancellation)
         suite.expect(!stopped.snapshot.loaded && stopped.publications.isEmpty && stopped.store.records.isEmpty,
                      "an already cancelled startup cannot publish an empty loaded snapshot")
+
+        // Discovery must include logs whose modification time is outside the old horizon.
+        let oldHome = folder.appending(path: "old-home")
+        guard let root = AgentLogRoot.all(home: oldHome).first(where: { $0.provider == .claude }) else {
+            suite.expect(false, "the old-history fixture has a Claude root")
+            return
+        }
+        let oldDate = Date().addingTimeInterval(-400 * 86_400)
+        let oldFile = root.url.appending(path: "project/old.jsonl")
+        let oldLine = #"{"type":"assistant","timestamp":\#(oldDate.timeIntervalSince1970),"sessionId":"old","requestId":"old","message":{"id":"old","model":"claude-opus-5-5","usage":{"input_tokens":10,"output_tokens":5}}}"#
+        do {
+            try FileManager.default.createDirectory(at: oldFile.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data((oldLine + "\n").utf8).write(to: oldFile)
+            try FileManager.default.setAttributes([.modificationDate: oldDate], ofItemAtPath: oldFile.path)
+        } catch { suite.expect(false, "the old-history fixture writes its log: \(error)"); return }
+        let historical = Host()
+        historical.home = oldHome
+        historical.start(session: 1, providers: [.claude], cancellation: Cancellation())
+        suite.expect(historical.snapshot.loaded && historical.snapshot.usage(.allTime).total.tokens.total == 15
+                        && historical.snapshot.usage(.month).total.tokens.total == 0,
+                     "startup discovers and reads old logs into all-time totals without widening the month")
 
         let empty = Host()
         empty.home = folder.appending(path: "empty-home")

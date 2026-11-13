@@ -2282,9 +2282,11 @@ enum NotchAgentTests {
         suite.expect(snapshot.usage(.today).total.cost == 12 && snapshot.usage(.week).total.cost == 22
                         && snapshot.usage(.month).total.cost == 122,
                      "today, a week and thirty days each add what falls inside them")
-        suite.expect(snapshot.days.count == AgentUsageSnapshot.dayCount && snapshot.days.last?.start == calendar.startOfDay(for: now)
-                        && snapshot.days.reduce(0.0) { $0 + $1.total.cost } == 122,
-                     "the daily history ends today and leaves out what is older")
+        suite.expect(snapshot.days.first?.start == calendar.startOfDay(for: records.last!.date)
+                        && snapshot.days.last?.start == calendar.startOfDay(for: now)
+                        && snapshot.days.reduce(0.0) { $0 + $1.total.cost } == 1122
+                        && snapshot.usage(.allTime).total.cost == 1122,
+                     "the daily history and all-time totals include older records and end today")
         suite.expect(snapshot.hours.count == 24 && snapshot.hours[10].total.cost == 2 && snapshot.hours[16].total.cost == 4,
                      "today's hours hold each response in its hour")
         suite.expect(snapshot.usage(.today).models.map(\.name) == ["Sonnet 5", "GPT-6 Astra", "Opus 5"]
@@ -3187,7 +3189,7 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
-                    DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
+                    DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod, DefaultsKey.notchAgentsDateRange,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]

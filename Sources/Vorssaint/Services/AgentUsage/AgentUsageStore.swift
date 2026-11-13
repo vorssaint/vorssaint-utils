@@ -48,9 +48,10 @@ final class AgentUsageStore {
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
+                  customRange: DateInterval? = nil,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+                         providers: providers, now: now, customRange: customRange, calendar: calendar)
     }
 
     /// Applies one file's entries and returns the turns they finished.
