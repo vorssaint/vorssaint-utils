@@ -600,7 +600,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .urlCleaner, title: s.urlCleanerName, icon: "link"),
                 SettingsDirectoryItem(page: .keyDebounce, title: s.keyDebounceName, icon: "keyboard"),
                 SettingsDirectoryItem(page: .functionKeys, title: s.functionKeysName, icon: "fn",
-                                      keywords: [s.functionKeysMicMuteName, s.functionKeysSleepName]),
+                                      keywords: [s.functionKeysFindName, s.functionKeysMicMuteName, s.functionKeysSleepName]),
                 SettingsDirectoryItem(page: .superKey,
                                       title: FeatureStrings.superKey(language).pageTitle,
                                       icon: superKeySource.systemImage,

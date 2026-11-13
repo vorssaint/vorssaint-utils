@@ -259,7 +259,8 @@ extension AppFeature {
         case .middleClick: return [DefaultsKey.middleClickEnabled]
         case .keyboardDebounce: return [DefaultsKey.keyboardDebounceEnabled]
         case .functionKeys:
-            return [DefaultsKey.functionKeysMicMuteEnabled, DefaultsKey.functionKeysSleepEnabled]
+            return [DefaultsKey.functionKeysMicMuteEnabled, DefaultsKey.functionKeysSleepEnabled,
+                    DefaultsKey.functionKeysFindEnabled]
         case .quitWindowProtection:
             return [DefaultsKey.quitProtectionQuitEnabled, DefaultsKey.quitProtectionCloseEnabled]
         case .textSnippets: return [DefaultsKey.textSnippetsEnabled, DefaultsKey.snippetLibraryEnabled]

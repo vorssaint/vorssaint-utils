@@ -3,11 +3,12 @@
 
 import SwiftUI
 
-/// Gives the dictation (F5) and Do Not Disturb (F6) keys another job.
+/// Gives the Spotlight (F4), dictation (F5) and Do Not Disturb (F6) keys another job.
 struct FunctionKeysSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = FunctionKeysService.shared
+    @AppStorage(DefaultsKey.functionKeysFindEnabled) private var findEnabled = false
     @AppStorage(DefaultsKey.functionKeysMicMuteEnabled) private var micMuteEnabled = false
     @AppStorage(DefaultsKey.functionKeysSleepEnabled) private var sleepEnabled = false
 
@@ -15,6 +16,11 @@ struct FunctionKeysSettings: View {
         Form {
             Section(l10n.s.functionKeysName) {
                 Text(l10n.s.functionKeysCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(l10n.s.functionKeysFindName, isOn: $findEnabled)
+                    .onChange(of: findEnabled) { _, enabled in changed(enabled) }
+                Text(l10n.s.functionKeysFindCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(l10n.s.functionKeysMicMuteName, isOn: $micMuteEnabled)
@@ -32,7 +38,7 @@ struct FunctionKeysSettings: View {
                 Text(l10n.s.functionKeysSleepCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                if (micMuteEnabled || sleepEnabled), service.isRunning {
+                if (findEnabled || micMuteEnabled || sleepEnabled), service.isRunning {
                     Label(l10n.s.functionKeysName, systemImage: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(.green)
@@ -49,7 +55,7 @@ struct FunctionKeysSettings: View {
                 }
             }
 
-            if (micMuteEnabled || sleepEnabled), !permissions.accessibility {
+            if (findEnabled || micMuteEnabled || sleepEnabled), !permissions.accessibility {
                 Section(l10n.s.permissionRequired) {
                     PermissionRow(kind: .accessibility)
                 }
