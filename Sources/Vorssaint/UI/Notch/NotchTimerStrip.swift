@@ -48,7 +48,7 @@ struct NotchTimerStrip: View {
                             NotchCompanionMark(companion: companion, geometry: geometry)
                         } else {
                             Image(systemName: timer.session.completed ? "checkmark.circle"
-                                  : timer.session.isPaused ? "pause.circle" : timer.session.countsUp ? "stopwatch" : "timer")
+                                  : timer.session.isPaused ? "pause.circle" : NotchTimerSupport.ModePicker.symbol(for: timer.session.mode))
                                 .font(.system(size: iconSize, weight: .medium))
                                 .foregroundStyle(.orange)
                         }

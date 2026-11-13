@@ -75,8 +75,15 @@ final class NotchTimerService: ObservableObject {
     func stop() { suspend(); cancel() }
 
     private func finishIfDue() {
+        let deadline = session.deadline
         guard session.finishIfDue(at: now) else { return }
         alert.stop()
+        if session.phase == .sleep {
+            // A Mac woken long after the deadline slept on its own; it must
+            // not fall straight back asleep.
+            if let deadline, now - deadline < NotchTimerSupport.sleepGrace { sleepMac() } else { session.cancel() }
+            return
+        }
         // The notice takes the strip it watched from.
         NotchService.shared.endMascotCountdown(retreating: false)
         let text = FeatureStrings.notchActivities(L10n.shared.language)
@@ -87,6 +94,27 @@ final class NotchTimerService: ObservableObject {
         // It takes the news in the notice, or where it is when the notice cannot show.
         NotchService.shared.reactMascot(reaction)
         alert.start(enabled: NotchTimerSupport.isSoundEnabled())
+    }
+
+    /// A sleep timer never rings and leaves nothing to dismiss on waking.
+    /// What is playing pauses first, so it waits where it was rather than
+    /// playing on once the Mac wakes. Keep awake ends too: its closed-lid
+    /// mode turns system sleep off, and `pmset` cannot sleep the Mac until
+    /// that is restored.
+    private func sleepMac() {
+        session.cancel()
+        NotchService.shared.endMascotCountdown(retreating: false)
+        let music = NotchMusicService.shared
+        // Only a reading that is playing toggles, so nothing paused can start.
+        let pauses = music.playback?.isPlaying == true && music.canPerform(.toggle) && music.send(.toggle)
+        let keepAwake = KeepAwakeManager.shared
+        let restoresLid = keepAwake.clamshellActive
+        if keepAwake.isActive { keepAwake.deactivate(reason: .manual) }
+        // The player and the lid restore each get a moment to land.
+        let delay: TimeInterval = restoresLid ? 2 : pauses ? 1 : 0
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay) {
+            _ = Shell.run("/usr/bin/pmset", ["sleepnow"])
+        }
     }
 
     private func scheduleCompletion() {
