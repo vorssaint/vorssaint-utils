@@ -42,6 +42,8 @@ enum NotchAgentTests {
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)
+        goAllowance(suite)
+        goConsoleReading(suite)
         formatting(suite)
         AgentUsageEventDeliveryTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
@@ -3166,7 +3168,7 @@ enum NotchAgentTests {
 
         defaults.set("trend,unknown,trend,spend", forKey: DefaultsKey.notchAgentsCardOrder)
         defaults.set("activity,projects", forKey: DefaultsKey.notchAgentsHiddenCards)
-        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
+        suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets, .allowance],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
@@ -3186,7 +3188,9 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsOpenCodeGo, DefaultsKey.notchAgentsGoPlan,
+                    DefaultsKey.notchAgentsGoConsole, DefaultsKey.notchAgentsGoEndpoint,
+                    DefaultsKey.notchAgentsCopilot,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3215,6 +3219,21 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]
                         && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [spend],
                      "the resets card belongs to Codex and leaves with it")
+        let allowance = NotchAgentTile(card: .allowance, provider: .opencode)
+        suite.expect(NotchAgentSupport.tiles(cards: [.allowance, .spend], providers: [.claude, .codex, .copilot], goMode: true) == [spend]
+                        && NotchAgentSupport.tiles(cards: [.allowance], providers: [.claude, .copilot], goMode: true).isEmpty
+                        && NotchAgentSupport.tiles(cards: [.allowance], providers: [.opencode], goMode: false).isEmpty
+                        && NotchAgentSupport.tiles(cards: [.allowance], providers: [.opencode], goMode: true) == [allowance]
+                        && NotchAgentSupport.tiles(cards: [.spend, .allowance], providers: [.opencode], goMode: true) == [allowance, spend],
+                     "the allowance card belongs to OpenCode Go mode, leaves with it and leads the page")
+        let trendCard = NotchAgentTile(card: .trend, provider: nil)
+        suite.expect(NotchAgentSupport.tiles(cards: [.trend, .spend], providers: [.claude, .opencode]) == [trendCard, spend]
+                        && NotchAgentSupport.tiles(cards: [.spend, .trend, .allowance], providers: [.claude, .opencode], goMode: true)
+                            == [allowance, spend],
+                     "Go mode retires the API-value trend while keeping the rest")
+        suite.expect(NotchAgentSupport.height(of: [allowance]) == NotchAgentSupport.allowanceCardHeight
+                        && NotchAgentSupport.height(of: [allowance, spend]) == NotchAgentSupport.allowanceCardHeight,
+                     "the allowance row stands tall enough for its model and three windows")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.copilot]) == [spend],
                      "a Copilot-only dashboard never offers unavailable limits or Codex account resets")
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
@@ -3240,6 +3259,156 @@ enum NotchAgentTests {
         let strip = geometry.compactAgentGeometry(wing: 72)
         suite.expect(!strip.compactActivityUsesFooter && strip.compactActivityWingWidth == 72,
                      "a working agent stays beside the camera")
+    }
+
+    private static func goAllowance(_ suite: TestSuite) {
+        suite.expect(AgentGoPlan.go.quotas.rolling == 12 && AgentGoPlan.go.quotas.weekly == 30
+                        && AgentGoPlan.go.quotas.monthly == 60
+                        && AgentGoPlan.plus.quotas.rolling == 24 && AgentGoPlan.plus.quotas.weekly == 60,
+                     "Go quotas stack rolling, weekly and monthly caps with Plus doubling Go")
+        suite.expect(AgentGoSupport.remaining(used: 8, quota: 12) == 4
+                        && AgentGoSupport.remaining(used: 99, quota: 30) == 0
+                        && AgentGoSupport.usedFraction(used: 6, quota: 12) == 0.5
+                        && AgentGoSupport.usedFraction(used: -1, quota: 12) == 0,
+                     "remaining never goes below zero and fractions clamp to the quota")
+        var utc = Calendar(identifier: .gregorian)
+        utc.timeZone = TimeZone(identifier: "UTC")!
+        let monday = utc.date(from: DateComponents(year: 2026, month: 11, day: 2, hour: 12))!
+        let sunday = utc.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 12))!
+        suite.expect(AgentGoSupport.nextWeeklyReset(now: monday, calendar: utc) == utc.date(from: DateComponents(year: 2026, month: 11, day: 9))!
+                        && AgentGoSupport.nextMonthlyReset(now: monday, calendar: utc) == utc.date(from: DateComponents(year: 2026, month: 12, day: 1))!,
+                     "weekly renews next Monday midnight and monthly on the first")
+        let windows = AgentGoSupport.windows(rollingUsed: 6, weeklyUsed: 15, monthlyUsed: 60,
+                                             plan: .go, now: sunday, calendar: utc)
+        suite.expect(windows.count == 3 && windows[0].kind == .session && windows[1].kind == .weekly
+                        && windows[2].kind == .other
+                        && abs(windows[0].usedPercent - 50) < 0.001
+                        && abs(windows[1].usedPercent - 50) < 0.001
+                        && abs(windows[2].usedPercent - 100) < 0.001
+                        && windows[0].resetsAt == nil && windows[1].resetsAt != nil,
+                     "Go windows reuse limit meters with rolling continuous and weekly/monthly resets")
+        let now = utc.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 12))!
+        let hours = [
+            AgentBucket(start: utc.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 11))!,
+                        byProvider: [.opencode: { var t = AgentTotals(); t.cost = 4; return t }()]),
+            AgentBucket(start: utc.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 5))!,
+                        byProvider: [.opencode: { var t = AgentTotals(); t.cost = 10; return t }()]),
+            AgentBucket(start: utc.date(from: DateComponents(year: 2026, month: 11, day: 8, hour: 8))!,
+                        byProvider: [.opencode: { var t = AgentTotals(); t.cost = 3; return t }()]),
+        ]
+        suite.expect(abs(AgentGoSupport.rollingCost(hours: hours, now: now) - 7) < 0.001,
+                     "rolling 5h sums only the buckets inside the window")
+        let domain = "com.vorssaint.tests.go-mode.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
+        suite.expect(!NotchAgentSupport.goMode(in: defaults)
+                        && NotchAgentSupport.goPlan(in: defaults) == .go
+                        && (Defaults.registeredDefaults[DefaultsKey.notchAgentsOpenCodeGo] as? Bool == false),
+                     "Go mode stays off by default and keeps the API value view")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsOpenCodeGo)
+        defaults.set(AgentGoPlan.plus.rawValue, forKey: DefaultsKey.notchAgentsGoPlan)
+        suite.expect(NotchAgentSupport.goMode(in: defaults)
+                        && NotchAgentSupport.goPlan(in: defaults) == .plus,
+                     "Go mode and plan are kept for the allowance card")
+
+        let tableData = try? Data(contentsOf: URL(fileURLWithPath: "Resources/agent-go-limits.json"))
+        let table = tableData.flatMap(AgentGoSupport.decodeTable)
+        suite.expect(table != nil && !(table?.isEmpty ?? true)
+                        && table?.monthlyCap(model: "kimi-k3", plan: .go) == 15
+                        && table?.monthlyCap(model: "kimi-k3", plan: .plus) == 60
+                        && table?.monthlyCap(model: "kimi-k3", plan: .teams) == 20,
+                     "the bundled Go table prices Kimi K3 per model with Plus fourfold and Teams five above")
+        suite.expect(table?.monthlyCap(model: "GPT 6 Luna", plan: .go) == 15
+                        && table?.monthlyCap(model: "glm-5-3-flash", plan: .go) == 60
+                        && table?.monthlyCap(model: "Haiku 5.5", plan: .go) == 15
+                        && table?.monthlyCap(model: "unknown-model-xyz", plan: .go) == nil,
+                     "display names find their table entry while unknown models fall back to plan caps")
+        let perModel = AgentGoSupport.modelWindows(model: "Kimi K3", rollingTotal: 10,
+                                                   weekly: ["Kimi K3": 10], monthly: ["Kimi K3": 10, "Other": 90],
+                                                   plan: .go, table: table, now: sunday, calendar: utc)
+        suite.expect(perModel.known && perModel.windows.count == 3
+                        && abs((perModel.windows[2].usedPercent) - 10 / 15 * 100) < 0.01
+                        && perModel.windows[0].scope == "Kimi K3",
+                     "a known model meters against its own monthly cap with 20/50/100 windows")
+        let fallbackModel = AgentGoSupport.modelWindows(model: "Unknown", rollingTotal: 6,
+                                                        weekly: ["Unknown": 15], monthly: ["Unknown": 30],
+                                                        plan: .go, table: table, now: sunday, calendar: utc)
+        suite.expect(!fallbackModel.known
+                        && abs(fallbackModel.windows[2].usedPercent - 50) < 0.01,
+                     "models without a table entry meter against the plan-wide caps")
+        suite.expect(AgentGoSupport.bindingModel(monthly: ["Kimi K3": 10, "GPT 6 Luna": 2],
+                                                 plan: .go, table: table) == "Kimi K3"
+                        && AgentGoSupport.bindingModel(monthly: [:], plan: .go, table: table) == nil,
+                     "the card follows the model closest to its own cap")
+        suite.expect(AgentGoSupport.tokenFooterPeriod(.today) == .week
+                        && AgentGoSupport.tokenFooterPeriod(.week) == .today
+                        && AgentGoSupport.tokenFooterPeriod(.month) == .today,
+                     "the token card's footer names the day except on the day view")
+    }
+
+    private static func goConsoleReading(_ suite: TestSuite) {
+        func reading(_ json: String) -> AgentGoConsole.Reading? {
+            AgentGoConsole.decode(Data(json.utf8))
+        }
+        let shape = reading("""
+            {"usage": {"rolling": {"status": "ok", "percent": 0, "resetsAt": "2026-11-09T00:44:17.000Z"},
+             "weekly": {"status": "ok", "percent": 20, "resetsAt": "2026-11-09T00:00:00.000Z"},
+             "monthly": {"status": "ok", "percent": 10, "resetsAt": "2026-12-07T07:12:05.000Z"}}}
+            """)
+        suite.expect(shape?.rolling?.percent == 0 && shape?.weekly?.percent == 20
+                        && shape?.monthly?.percent == 10,
+                     "the live Console shape decodes percents from its usage envelope")
+        let aliases = reading("""
+            {"rolling_5h": {"used": 1.0, "quota": 12, "resetSeconds": 60},
+             "week": {"used": 2.0, "quota": 30}, "month": {"used": 3.0, "quota": 60}}
+            """)
+        suite.expect(aliases?.rolling?.used == 1.0 && aliases?.weekly?.limit == 30
+                        && aliases?.monthly?.resetIn == nil,
+                     "window, dollar and reset spellings are interchangeable, resets optional")
+        let observed = Date(timeIntervalSince1970: 1_790_000_000)
+        let limits = shape.flatMap { AgentGoConsole.limits($0, observed: observed) }
+        suite.expect(limits?.provider == .opencode && limits?.source == .account
+                        && limits?.windows.count == 3
+                        && limits?.windows[0].usedPercent == 0
+                        && limits?.windows[1].usedPercent == 20
+                        && limits?.windows[2].usedPercent == 10
+                        && limits?.windows[0].id.hasPrefix("opencode.go.console.") == true
+                        && limits?.windows[0].resetsAt?.timeIntervalSince1970 == 1794185057
+                        && limits?.windows[2].resetsAt?.timeIntervalSince1970 == 1796627525,
+                     "Console percents drive the island's meters with Console ids and reset dates")
+        suite.expect(reading("{}") == nil && reading("not json") == nil
+                        && reading("{\"weekly\": {\"usageDollars\": 1}}") == nil,
+                     "garbage or capless payloads keep the local estimate")
+        let perModel = reading("""
+            {"weekly": {"used": 5, "limit": 30}, "monthly": {"used": 10, "limit": 60},
+             "models": {"kimi-k3": {"monthly": {"used": 10, "limit": 15}}}}
+            """)
+        suite.expect(perModel?.models["kimi-k3"]?.monthly?.limit == 15
+                        && perModel?.weekly?.used == 5,
+                     "an optional per-model breakdown travels with the plan-wide windows")
+        let domain = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        suite.expect(AgentGoConsole.saveKey("  secret-key  ", container: domain)
+                        && AgentGoConsole.readKey(container: domain) == "secret-key",
+                     "the Console key saves trimmed and owner-only, and reads back")
+        suite.expect(AgentGoConsole.saveKey("", container: domain)
+                        && AgentGoConsole.readKey(container: domain) == nil,
+                     "clearing the key removes it instead of storing an empty one")
+        let consoleDomain = "com.vorssaint.tests.go-console." + UUID().uuidString
+        let consoleDefaults = UserDefaults(suiteName: consoleDomain)!
+        defer { consoleDefaults.removePersistentDomain(forName: consoleDomain) }
+        suite.expect(AgentGoConsole.endpoint(in: consoleDefaults)?.absoluteString == AgentGoConsole.defaultEndpoint,
+                     "the endpoint defaults to the Console usage route")
+        consoleDefaults.set("http://example.com/x", forKey: DefaultsKey.notchAgentsGoEndpoint)
+        suite.expect(AgentGoConsole.endpoint(in: consoleDefaults) == nil,
+                     "non-https endpoints are rejected without a network call")
+        suite.expect(!NotchAgentSupport.goConsole(in: consoleDefaults)
+                        && (Defaults.registeredDefaults[DefaultsKey.notchAgentsGoConsole] as? Bool == false),
+                     "the Console check stays off by default and keeps the local estimate")
+        consoleDefaults.set(true, forKey: DefaultsKey.notchAgentsOpenCodeGo)
+        consoleDefaults.set(true, forKey: DefaultsKey.notchAgentsGoConsole)
+        suite.expect(NotchAgentSupport.goConsole(in: consoleDefaults),
+                     "the Console check needs Go mode on as well as its own switch")
     }
 
     private static func formatting(_ suite: TestSuite) {
