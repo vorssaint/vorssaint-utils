@@ -11,6 +11,7 @@ struct WeatherPanelSection: View {
     @ObservedObject private var weather = WeatherService.shared
     @ObservedObject private var alerts = WeatherAlertsService.shared
     @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
+    @State private var radarLocation: WeatherLocation?
     var collapsible = true
 
     private var strings: WeatherStrings { FeatureStrings.weather(l10n.language) }
@@ -32,6 +33,9 @@ struct WeatherPanelSection: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .panelCard()
+        }
+        .sheet(item: $radarLocation) { location in
+            WeatherRadarSheet(location: location)
         }
     }
 
@@ -98,6 +102,8 @@ struct WeatherPanelSection: View {
             hourly(snapshot)
             Divider()
             graphs(snapshot)
+            Divider()
+            radarCard(snapshot.location)
             Divider()
             details(snapshot)
             Divider()
@@ -272,6 +278,34 @@ struct WeatherPanelSection: View {
                     .foregroundStyle(.tertiary)
             }
         }
+    }
+
+    /// One compact row; the sheet itself is where the map lives.
+    private func radarCard(_ location: WeatherLocation) -> some View {
+        Button {
+            radarLocation = location
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "dot.radiowaves.left.and.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(strings.radarTitle)
+                    .font(.system(size: 10.5, weight: .semibold))
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(Color.primary.opacity(0.045))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func details(_ snapshot: WeatherSnapshot) -> some View {

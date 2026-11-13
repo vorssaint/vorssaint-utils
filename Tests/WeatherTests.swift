@@ -28,6 +28,7 @@ enum WeatherTests {
         checkFeatureGates(suite)
         checkMenuBarStyle(suite)
         checkAlerts(suite)
+        checkRadar(suite)
     }
 
     // MARK: Conditions
@@ -632,5 +633,74 @@ enum WeatherTests {
         suite.expect(sorted.map(\.id) == ["severe-early", "severe-late", "moderate-no-onset",
                                           "minor", "unknown"],
                      "alerts sort by severity, then the soonest onset, with a missing onset last")
+    }
+
+    // MARK: Radar
+
+    private static func checkRadar(_ suite: TestSuite) {
+        suite.expect(WeatherRadarSupport.mapsURL.absoluteString
+                        == "https://api.rainviewer.com/public/weather-maps.json",
+                     "the radar frame list comes from the RainViewer maps endpoint")
+
+        let json = """
+        {"version": "2.0", "generated": 1700000000,
+         "host": "https://tilecache.rainviewer.com/",
+         "radar": {"past": [
+            {"time": 1700001200, "path": "/v2/radar/1700001200"},
+            {"time": 1700000600, "path": "/v2/radar/1700000600"},
+            {"time": 1700000800},
+            {"path": "/v2/radar/no-time"},
+            {"time": "1700001400", "path": "/v2/radar/string-time"},
+            {"time": 1700001600, "path": "v2/radar/no-slash"},
+            {"time": 1700001400, "path": "  "}
+         ], "nowcast": []}}
+        """.data(using: .utf8)!
+
+        guard let maps = WeatherRadarSupport.decodeMaps(json) else {
+            suite.expect(false, "a RainViewer maps reply with timed frames decodes")
+            return
+        }
+        suite.expect(maps.host == "https://tilecache.rainviewer.com",
+                     "the tile host loses its trailing slash")
+        suite.expect(maps.frames.map(\.path) == ["/v2/radar/1700000600", "/v2/radar/1700001200"],
+                     "frames are kept in time order and the unusable ones are dropped")
+        suite.expect(maps.frames.first?.id == "/v2/radar/1700000600"
+                        && maps.frames.first?.time == Date(timeIntervalSince1970: 1700000600),
+                     "a frame is named by its path and read as unix seconds")
+        suite.expect(maps.generated == Date(timeIntervalSince1970: 1700000000),
+                     "the reply's generation time is kept when present")
+
+        suite.expect(WeatherRadarSupport.decodeMaps(Data("{".utf8)) == nil
+                        && WeatherRadarSupport.decodeMaps(Data("{}".utf8)) == nil,
+                     "an unreadable or empty maps reply yields no radar")
+        let noFrames = """
+        {"host": "https://tilecache.rainviewer.com", "radar": {"past": []}}
+        """.data(using: .utf8)!
+        suite.expect(WeatherRadarSupport.decodeMaps(noFrames) == nil,
+                     "a reply without a single past frame yields no radar")
+        let noHost = """
+        {"radar": {"past": [{"time": 1700000600, "path": "/v2/radar/1700000600"}]}}
+        """.data(using: .utf8)!
+        suite.expect(WeatherRadarSupport.decodeMaps(noHost) == nil,
+                     "a reply without a tile host yields no radar")
+        let insecureHost = """
+        {"host": "http://tilecache.rainviewer.com", "radar": {"past": [{"time": 1700000600, "path": "/v2/radar/1700000600"}]}}
+        """.data(using: .utf8)!
+        suite.expect(WeatherRadarSupport.decodeMaps(insecureHost) == nil,
+                     "a plaintext tile host is rejected")
+
+        let tile = WeatherRadarSupport.tileURL(host: "https://tilecache.rainviewer.com",
+                                               path: "/v2/radar/1700000600",
+                                               z: 5, x: 16, y: 11)
+        suite.expect(tile?.absoluteString
+                        == "https://tilecache.rainviewer.com/v2/radar/1700000600/256/5/16/11/2/1_1.png",
+                     "a tile URL carries the host, frame path, zoom, column, row and style")
+        suite.expect(WeatherRadarSupport.tileURL(host: "https://tilecache.rainviewer.com",
+                                                 path: "/v2/radar/1700000600",
+                                                 z: 8, x: 16, y: 11) == nil,
+                     "no tile is built beyond the free zoom limit")
+        suite.expect(WeatherRadarSupport.tileURL(host: "", path: "/v2/radar/1700000600",
+                                                 z: 3, x: 1, y: 1) == nil,
+                     "no tile is built without a host")
     }
 }
