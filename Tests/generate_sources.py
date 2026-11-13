@@ -2183,6 +2183,7 @@ def main():
                 .replace("DispatchQueue.main.asyncAfter", "Clock.main.asyncAfter"))
 
     write("ScreenshotCountdown.swift", "import Foundation\nextension ScreenshotCountdownTests {\n"
+          + declaration(capture_service, "enum ScreenshotSelectionTarget {")
           + "final class ScreenCaptureService: ChooserState {\nstatic let shared = ScreenCaptureService()\n"
           + "".join(countdown_method(capture_service, prefix) for prefix in [
               "    func capture(initial preferred:", "    func performAfterDelay(",
