@@ -75,7 +75,10 @@ enum BrightnessStepTests {
         var refreshes = 0
         func refresh(force: Bool = false) { refreshes += 1 }
         func applySoftwareDim(_ id: UInt32, value: Double) -> Bool { true }
-        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8]) -> Bool {
+        var beforeDDCWrite: (() -> Void)?
+        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {
+            beforeDDCWrite?()
+            guard whileCurrent() else { return false }
             writes.append(UInt16(packet[3]) << 8 | UInt16(packet[4]))
             return true
         }
@@ -304,6 +307,13 @@ enum BrightnessStepTests {
         DispatchQueue.main.drain()
         suite.expect(separate.pendingLevels[2] == nil && separate.pendingLevels[3] == 0.5 + delta,
                      "changing one monitor's mode preserves another monitor's pending key step")
+
+        let pacing = readableService()
+        let route = pacing.routes[2]!
+        pacing.beforeDDCWrite = { [weak pacing] in pacing?.setSoftwareDimmingPreferred(true, for: 2) }
+        suite.expect(!pacing.writeDDCLuminance(50, to: 2, route: route, service: "monitor" as CFString)
+                     && pacing.writes.isEmpty,
+                     "a hardware write waiting on the DDC bus is canceled when the display switches to software")
 
         let extended = readableService()
         extended.step(2, method: .ddc, delta: -delta, showOSD: false)
