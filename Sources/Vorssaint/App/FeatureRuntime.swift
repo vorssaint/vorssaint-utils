@@ -276,6 +276,7 @@ final class FeatureRuntime: ObservableObject {
             // capture toggle: uninstalling the feature stops it, turning history
             // off does not.
             ClipboardAutoClearService.shared.syncWithPreferences()
+            CopyOnSelectService.shared.syncWithPreferences()
         },
         .mediaTools: {
             NotchFileToolsService.shared.syncWithPreferences()
