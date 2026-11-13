@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "İmleci hafifçe oynat",
         keepAwakeMouseJiggleCaption: "Oturum sırasında seçilen aralıkta imleci biraz oynatır.",
         keepAwakeMouseJiggleInterval: "Aralık",
+        keepAwakeMouseJiggleSkipFullscreen: "Tam ekranda duraklat",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Video, oyun veya başka bir uygulama ekranı kaplarken imleci oynatmaz.",
         keepAwakeActiveIconLabel: "Etkin simge",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Kahve",

@@ -158,6 +158,8 @@ enum PreferencesFeatureTests {
                "Keep Awake mouse movement is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeMouseJiggleInterval] as? Int == 5,
                "Keep Awake mouse movement defaults to five minutes")
+        suite.expect(registeredDefaults[DefaultsKey.keepAwakeMouseJiggleSkipFullscreen] as? Bool == false,
+               "Keep Awake mouse movement pausing in full screen is opt-in")
         suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(10) == 10,
                "valid Keep Awake mouse movement interval is preserved")
         suite.expect(Defaults.sanitizedKeepAwakeMouseJiggleInterval(3) == 5,

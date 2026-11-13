@@ -2724,6 +2724,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.keepAwakeMouseJiggleSkipFullscreen) private var keepAwakeMouseJiggleSkipFullscreen = false
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
     /// The last started end time, which the popover opens on.
@@ -2878,6 +2879,11 @@ struct KeepAwakeCard: View {
                     )
                     if keepAwakeMouseJiggle {
                         mouseJiggleIntervalRow
+                        compactOptionToggle(
+                            icon: "arrow.up.left.and.arrow.down.right",
+                            title: l10n.s.keepAwakeMouseJiggleSkipFullscreen,
+                            isOn: $keepAwakeMouseJiggleSkipFullscreen
+                        )
                         if mouseJiggleNeedsAccessibility {
                             Button(l10n.s.permissionRequest) {
                                 grantAccessibility()

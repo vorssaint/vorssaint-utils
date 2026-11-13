@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "Jemne pohybovať kurzorom",
         keepAwakeMouseJiggleCaption: "Počas relácie jemne pohne kurzorom vo zvolenom intervale.",
         keepAwakeMouseJiggleInterval: "Interval",
+        keepAwakeMouseJiggleSkipFullscreen: "Pozastaviť na celej obrazovke",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Nepohne kurzorom, kým video, hra alebo iná aplikácia vypĺňa obrazovku.",
         keepAwakeActiveIconLabel: "Ikona pri aktivite",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Káva",

@@ -215,6 +215,8 @@ struct Strings {
     let keepAwakeMouseJiggle: String
     let keepAwakeMouseJiggleCaption: String
     let keepAwakeMouseJiggleInterval: String
+    let keepAwakeMouseJiggleSkipFullscreen: String
+    let keepAwakeMouseJiggleSkipFullscreenCaption: String
     let keepAwakeActiveIconLabel: String
     let keepAwakeActiveIconVorssaint: String
     let keepAwakeActiveIconCoffee: String
@@ -1395,6 +1397,8 @@ extension Strings {
         keepAwakeMouseJiggle: "Mover cursor levemente",
         keepAwakeMouseJiggleCaption: "Durante uma sessão, move o cursor um pouco no intervalo escolhido.",
         keepAwakeMouseJiggleInterval: "Intervalo",
+        keepAwakeMouseJiggleSkipFullscreen: "Pausar em tela cheia",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Não move o cursor enquanto um vídeo, jogo ou outro app ocupa a tela.",
         keepAwakeActiveIconLabel: "Ícone ativo",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Café",
@@ -2525,6 +2529,8 @@ extension Strings {
         keepAwakeMouseJiggle: "Move pointer slightly",
         keepAwakeMouseJiggleCaption: "During a session, moves the pointer a little at the chosen interval.",
         keepAwakeMouseJiggleInterval: "Interval",
+        keepAwakeMouseJiggleSkipFullscreen: "Pause in full screen",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "Doesn’t move the pointer while a video, game or other app fills the screen.",
         keepAwakeActiveIconLabel: "Active icon",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "Coffee",
