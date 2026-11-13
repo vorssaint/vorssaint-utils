@@ -265,12 +265,20 @@ struct AntigravityReader: AgentHarnessReader {
             } else {
                 args = nil
             }
-            if let cwd = (args?["Cwd"] as? String ?? args?["cwd"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines), !cwd.isEmpty {
+            if let cwd = (args?["Cwd"] as? String ?? args?["cwd"] as? String).map(unquoted), !cwd.isEmpty {
                 return cwd
             }
         }
         return nil
+    }
+
+    /// agy writes each argument as JSON text, so a path arrives inside its own quotes.
+    private static func unquoted(_ value: String) -> String {
+        let text = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.hasPrefix("\""), let data = text.data(using: .utf8),
+              let decoded = (try? JSONSerialization.jsonObject(with: data, options: .fragmentsAllowed)) as? String
+        else { return text }
+        return decoded.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

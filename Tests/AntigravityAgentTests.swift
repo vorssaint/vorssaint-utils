@@ -231,6 +231,18 @@ enum AntigravityAgentTests {
         suite.expect(state.project == "fallback-cmd-repo" && state.antigravityNamedWorkspace.isEmpty,
                      "run_command Cwd provides a fallback project only while no named workspace exists")
 
+        // agy writes each argument as JSON text, so the path is inside its own quotes.
+        var quotedState = AgentLogState()
+        _ = AgentLogParser.parseAntigravity(jsonLine([
+            "step_index": 1, "source": "MODEL", "type": "PLANNER_RESPONSE", "status": "DONE",
+            "created_at": "2026-10-31T20:00:10Z", "input_tokens": 50, "output_tokens": 10,
+            "tool_calls": [
+                ["name": "run_command", "args": ["Cwd": "\"/Users/me/My Projects/quoted-repo\"", "CommandLine": "\"pwd\""]]
+            ]
+        ]), state: &quotedState, now: now)
+        suite.expect(quotedState.project == "quoted-repo",
+                     "a run_command Cwd written as JSON text names the project without its quotes")
+
         // Command Working Directory sets project when Active Workspaces is absent, and Active Workspaces overrides and locks it.
         var cwdState = AgentLogState()
         cwdState.session = "ws-2"
