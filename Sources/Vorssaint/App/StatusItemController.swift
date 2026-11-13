@@ -194,6 +194,15 @@ final class StatusItemController {
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
 
+        // AppKit creates/binds this controller on the main thread. Confine
+        // the actor boundary here without changing the controller's API.
+        MainActor.assumeIsolated {
+            TMobileGatewayMonitor.shared.service.$snapshot
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.refresh() }
+                .store(in: &cancellables)
+        }
+
         SystemMonitor.shared.$snapshot
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -281,7 +290,8 @@ final class StatusItemController {
         let defaults = UserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
-        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
+        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.enabled(in: defaults).contains { !$0.isTMobileGateway })
+        MainActor.assumeIsolated { TMobileGatewayMonitor.shared.syncPreferences() }
     }
 
     private func syncTitleTimer(keepAwakeActive: Bool,
@@ -492,7 +502,8 @@ final class StatusItemController {
             let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
                                                           metrics: metrics,
                                                           allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
+                                                          linePrefix: " ",
+                                                          gatewaySnapshot: gatewaySnapshot)
             if metricsTitle.length > 0 {
                 if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                 title.append(metricsTitle)
@@ -562,6 +573,10 @@ final class StatusItemController {
             }
         }
 
+        let gatewayAccessibility = metrics.contains(where: \.isTMobileGateway)
+            ? TMobileGatewayMenuBarSupport.connection(snapshot: gatewaySnapshot, strings: gatewayStrings).accessibilityValue : ""
+        // nil keeps AppKit's default label when no gateway reading is pinned.
+        button.setAccessibilityLabel(gatewayAccessibility.isEmpty ? nil : "\(AppInfo.name), \(gatewayAccessibility)")
         let toolTip: String
         if manager.isActive {
             if manager.sessionTrigger == .automation {
@@ -575,9 +590,8 @@ final class StatusItemController {
         } else {
             toolTip = strings.statusIdleTooltip
         }
-        if button.toolTip != toolTip {
-            button.toolTip = toolTip
-        }
+        let fullToolTip = gatewayAccessibility.isEmpty ? toolTip : toolTip + "\n" + gatewayAccessibility
+        if button.toolTip != fullToolTip { button.toolTip = fullToolTip }
 
         // The icon decision depends on the title just written (the glyph may
         // hide only while metrics actually render), so it re-runs here — the
@@ -597,7 +611,8 @@ final class StatusItemController {
         for group in groups {
             let title = MenuBarRenderer.attributed(for: snapshot,
                                                    metrics: group.metrics,
-                                                   allowStacked: false)
+                                                   allowStacked: false,
+                                                   gatewaySnapshot: gatewaySnapshot)
             let empties = title.length > 0 ? 0 : (metricEmptyRenders[group.id] ?? 0) + 1
             metricEmptyRenders[group.id] = empties
             guard MenuBarSpacingSupport.keepsMetricStatusItem(
@@ -634,11 +649,22 @@ final class StatusItemController {
             if button.imagePosition != .noImage {
                 button.imagePosition = .noImage
             }
-            if button.toolTip != group.title {
-                button.toolTip = group.title
-            }
+            let gatewayTitle = group.metrics.contains(where: \.isTMobileGateway)
+                ? TMobileGatewayMenuBarSupport.connection(snapshot: gatewaySnapshot, strings: gatewayStrings).accessibilityValue : nil
+            let toolTip = gatewayTitle ?? group.title
+            if button.toolTip != toolTip { button.toolTip = toolTip }
+            // The drawn indicator is an image; speak its reading instead.
+            button.setAccessibilityLabel(gatewayTitle)
         }
     }
+
+    /// Rendering is entered from AppKit callbacks, the main run loop or
+    /// publishers explicitly delivered to DispatchQueue.main.
+    private var gatewaySnapshot: TMobileGatewaySnapshot? {
+        MainActor.assumeIsolated { TMobileGatewayMonitor.shared.service.snapshot }
+    }
+
+    private var gatewayStrings: TMobileGatewayStrings { .localized(L10n.shared.language) }
 
     /// How the enabled metrics split into separate items. Static so the
     /// Settings preview draws the same split the bar does.
@@ -688,7 +714,7 @@ final class StatusItemController {
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
             case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
-                 .fanSpeed, .connectedDevices:
+                 .fanSpeed, .connectedDevices, .tMobile:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,
