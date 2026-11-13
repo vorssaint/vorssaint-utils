@@ -1159,6 +1159,14 @@ enum MixerOutputAdjustmentContract {
         suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 2)]
                      && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == false,
                      "software unmute restores exactly the last physical level read at mute time")
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: false, unmutedReads: 0)
+        mixer.requestOutputMuteToggle()
+        speakers.finish()
+        mixer.requestOutputMuteToggle()
+        speakers.finish()
+        suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 80), SpeakerWrite(muteCode, 2)]
+                     && mixer.systemOutputMuted == false,
+                     "a mute that reads 0 is volume-only, but leaving zero still unmutes a monitor latched silent there")
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: nil)
         var muteResult: Mixer.OutputKeyResult?
         mixer.requestOutputMuteToggle { muteResult = $0 }
