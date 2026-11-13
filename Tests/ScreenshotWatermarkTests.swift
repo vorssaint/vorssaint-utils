@@ -56,6 +56,9 @@ enum ScreenshotWatermarkTests {
                          && presets[0].imagePath == nil && presets[0].rotation == 20,
                          "text presets remain portable without hidden picture paths")
         }
+        suite.expect(keysInStableOrder(exported[styleKey] as? String)
+                     && keysInStableOrder(exported[presetsKey] as? String),
+                     "an export writes the same watermark text for the same settings")
         let direct = Style.decoded(SettingsBackupSupport.restoredScreenshotWatermark(
             restored: incoming.encoded(), local: nil))
         suite.expect(direct.kind == .none && direct.imagePath == nil,
@@ -101,6 +104,19 @@ enum ScreenshotWatermarkTests {
                 restored: source[presetsKey] as? String, local: nil)).allSatisfy {
                     $0.kind == .text && $0.imagePath == nil
                 }, "forged image presets cannot authorize any file")
+    }
+
+    /// A backup kept under version control should change only when a setting
+    /// does, so its JSON lists keys in sorted order rather than in the order a
+    /// dictionary happens to take in this launch.
+    private static func keysInStableOrder(_ json: String?) -> Bool {
+        guard let json, let data = json.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let first = (object as? [String: Any]) ?? (object as? [[String: Any]])?.first,
+              first.count > 1
+        else { return false }
+        let offsets = first.keys.sorted().compactMap { json.range(of: "\"\($0)\":")?.lowerBound }
+        return offsets.count == first.count && offsets == offsets.sorted()
     }
 
     private static func bitmap(width: Int, height: Int) -> CGContext {
