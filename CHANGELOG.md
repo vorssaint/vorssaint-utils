@@ -11,7 +11,7 @@ This update improves microphone muting, display controls, window switching, clip
 
 ### Added
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
-- Give the dictation key (F5) and the Do Not Disturb key (F6) another job: mute or unmute the microphone, or put the Mac to sleep. Each key is its own switch, off until you turn it on. F6 beeps instead of staying silent when sleep is disabled on the Mac.
+- Give the Spotlight key (F4), the dictation key (F5) and the Do Not Disturb key (F6) another job: press Command-F in the app in front, mute or unmute the microphone, or put the Mac to sleep. Each key is its own switch, off until you turn it on. F6 beeps instead of staying silent when sleep is disabled on the Mac.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.

@@ -7,11 +7,11 @@ import Combine
 import CoreGraphics
 import IOKit
 
-/// Gives the dictation key (F5) and the Do Not Disturb key (F6) a different
-/// job: toggle the microphone mute, or put the Mac to sleep. The tap is
-/// installed only while one of the two is switched on and Accessibility is
-/// granted, listens to key presses alone, and hands every key but those two
-/// straight back without looking at it.
+/// Gives the Spotlight key (F4), the dictation key (F5) and the Do Not Disturb
+/// key (F6) a different job: press Command-F, toggle the microphone mute, or
+/// put the Mac to sleep. The tap is installed only while one of them is
+/// switched on and Accessibility is granted, listens to key presses alone, and
+/// hands every key but those straight back without looking at it.
 final class FunctionKeysService: ObservableObject {
     static let shared = FunctionKeysService()
 
@@ -48,7 +48,8 @@ final class FunctionKeysService: ObservableObject {
         return FunctionKeysSupport.Configuration(
             micMuteEnabled: defaults.bool(forKey: DefaultsKey.functionKeysMicMuteEnabled),
             sleepEnabled: defaults.bool(forKey: DefaultsKey.functionKeysSleepEnabled),
-            microphoneMuteAvailable: AppFeature.micMute.isAvailable)
+            microphoneMuteAvailable: AppFeature.micMute.isAvailable,
+            findEnabled: defaults.bool(forKey: DefaultsKey.functionKeysFindEnabled))
     }
 
     // MARK: Lifecycle
@@ -130,6 +131,7 @@ final class FunctionKeysService: ObservableObject {
 
     private static func perform(_ action: FunctionKeysSupport.Action) {
         switch action {
+        case .findInFrontApp: postFind()
         case .toggleMicrophone: MicMuteService.shared.toggle()
         case .sleepSystem:
             // `pmset disablesleep` (closed-lid mode, other tools) makes the
@@ -137,6 +139,18 @@ final class FunctionKeysService: ObservableObject {
             // nothing, since the key was taken and nothing else would show it.
             guard !systemSleepIsDisabled else { NSSound.beep(); return }
             CommandBarExtras.run(.sleep)
+        }
+    }
+
+    /// Command-F, as if typed: the app in front opens its own search. Only
+    /// Command is held, so the Fn flag the Spotlight key carries stays behind.
+    private static func postFind() {
+        let source = CGEventSource(stateID: .hidSystemState)
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: FunctionKeysSupport.findKeyCode,
+                                keyDown: down)
+            event?.flags = FunctionKeysSupport.findShortcutFlags
+            event?.post(tap: .cghidEventTap)
         }
     }
 
