@@ -403,12 +403,8 @@ final class ScrollInverter: ObservableObject {
     }
 
     private func postPinch(phase: Int64, magnification: Double, at point: CGPoint?) {
-        guard let gesture = CGEvent(source: nil) else { return }
-        if let point { gesture.location = point }
-        gesture.type = CGEventType(rawValue: UInt32(NSEvent.EventType.gesture.rawValue))!
-        gesture.setIntegerValueField(CGEventField(rawValue: 110)!, value: 8)
-        gesture.setIntegerValueField(CGEventField(rawValue: 132)!, value: phase)
-        gesture.setDoubleValueField(CGEventField(rawValue: 113)!, value: magnification)
-        gesture.post(tap: .cgSessionEventTap)
+        GestureEvent.post(subtype: GestureEvent.magnifySubtype, phase: phase, at: point) {
+            $0.setDoubleValueField(CGEventField(rawValue: 113)!, value: magnification)
+        }
     }
 }

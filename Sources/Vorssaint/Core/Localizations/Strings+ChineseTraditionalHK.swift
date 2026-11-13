@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "導覽",
         mouseNavigationEnable: "使用側鍵返回與前進",
         mouseNavigationCaption: "將滑鼠的返回與前進按鈕轉成 Finder、瀏覽器和相容 App 的導覽指令。",
+        mouseNavigationSwipe: "模擬觸控板輕掃",
         middleClickSection: "觸控板中鍵點按",
         middleClickEnable: "三指按下作為中鍵點按",
         middleClickEnableCaption: "用三隻手指按下觸控板，效果等同於滑鼠滾輪點按：在新分頁開啟連結、關閉分頁，以及中鍵能做的一切。",

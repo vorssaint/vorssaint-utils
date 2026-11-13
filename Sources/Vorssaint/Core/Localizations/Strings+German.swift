@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Seitentasten für Zurück und Vor verwenden",
         mouseNavigationCaption: "Wandelt die Maus-Tasten Zurück und Vor in Navigationsbefehle für Finder, Browser und kompatible Apps um.",
+        mouseNavigationSwipe: "Streichbewegungen auf dem Trackpad simulieren",
         middleClickSection: "Mittelklick per Trackpad",
         middleClickEnable: "Drei-Finger-Klick als Mittelklick",
         middleClickEnableCaption: "Das Trackpad mit drei Fingern zu drücken wirkt wie ein Klick aufs Mausrad: Links im neuen Tab öffnen, Tabs schließen und alles andere, was die mittlere Taste kann.",

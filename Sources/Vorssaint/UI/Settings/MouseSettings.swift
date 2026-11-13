@@ -42,6 +42,7 @@ struct MouseSettings: View {
     @AppStorage(DefaultsKey.smoothScrollCoast) private var smoothScrollCoast =
         SmoothScrollSupport.defaultCoast
     @AppStorage(DefaultsKey.mouseNavigationEnabled) private var mouseNavigationEnabled = false
+    @AppStorage(DefaultsKey.mouseNavigationSwipeEnabled) private var mouseNavigationSwipeEnabled = false
     @AppStorage(DefaultsKey.mouseButtonShortcutsEnabled) private var mouseButtonShortcutsEnabled = false
     @AppStorage(DefaultsKey.mouseSpacesGestureEnabled) private var spacesEnabled = false
     @AppStorage(DefaultsKey.middleClickEnabled) private var middleClickEnabled = false
@@ -516,7 +517,11 @@ struct MouseSettings: View {
                 activeBadge(l10n.s.mouseNavigationActiveNow)
             }
             if mouseNavigationEnabled {
-                MouseExceptionsList(scope: .navigation)
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle(l10n.s.mouseNavigationSwipe, isOn: $mouseNavigationSwipeEnabled)
+                    MouseExceptionsList(scope: .navigation)
+                }
+                .padding(.leading, settingsRowTextInset)
             }
         }
     }
