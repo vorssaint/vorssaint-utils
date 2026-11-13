@@ -44,7 +44,10 @@ struct NotchFilesView: View {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
                     dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
                                     selected: !service.targetsMediaDrop)
-                    dropDestination(text.optimizeMedia, symbol: "wand.and.stars", selected: service.targetsMediaDrop,
+                    // A merge isn't an optimization; say what the drop will do.
+                    dropDestination(service.fileDropTool == .pdfMerger ? l10n.s.mediaStartMergePDF : text.optimizeMedia,
+                                    symbol: service.fileDropTool == .pdfMerger ? "doc.on.doc" : "wand.and.stars",
+                                    selected: service.targetsMediaDrop,
                                     available: archives.canAcceptMediaDrop)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -265,6 +268,7 @@ struct NotchFilesView: View {
         case .gifMaker: return l10n.s.mediaToolGIF
         case .imageCompressor: return l10n.s.mediaToolImage
         case .textExtractor: return l10n.s.mediaToolText
+        case .pdfMerger: return l10n.s.mediaToolPDF
         }
     }
 

@@ -38,6 +38,12 @@ final class NotchFileToolsService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
+    /// The tool open in the island's media workspace, if any (the person may have switched
+    /// tools since the session opened).
+    var presentedTool: MediaTool? {
+        mediaPresented ? (mediaSelection.tool ?? mediaSession?.tool) : nil
+    }
+
     var canAcceptMediaDrop: Bool {
         if case .running = media.state { return false }
         return offersMediaDrop && !isRunning
@@ -49,6 +55,11 @@ final class NotchFileToolsService: ObservableObject {
         let inputs = ShelfService.shared.fileURLs(from: pasteboard)
         // Mixed payloads stay in the shelf, where every companion is preserved.
         guard inputs.count >= (pasteboard.pasteboardItems?.count ?? 0) else { return nil }
+        // An open merge list takes more PDFs and images, even one at a time, like the window.
+        if presentedTool == .pdfMerger, !inputs.isEmpty,
+           MediaTool.pdfMerger.usableInputs(inputs).count == inputs.count {
+            return (.pdfMerger, inputs)
+        }
         guard let tool = NotchFileToolsSupport.optimizationTool(for: inputs) else { return nil }
         return (tool, inputs)
     }
@@ -103,7 +114,15 @@ final class NotchFileToolsService: ObservableObject {
     func openMedia(_ tool: MediaTool, inputs: [URL]) -> Bool {
         guard NotchSupport.showsFiles(),
               AppFeature.mediaTools.isAvailable, AppFeature.shelf.isAvailable,
-              NotchFileToolsSupport.accepts(inputs, for: tool) else { return false }
+              !inputs.isEmpty else { return false }
+        if tool == .pdfMerger, presentedTool == .pdfMerger,
+           MediaTool.pdfMerger.usableInputs(inputs).count == inputs.count {
+            // Add to the open merge list instead of replacing it and its order.
+            mediaSelection.inputURLs = MediaPDFMerger.appending(inputs, to: mediaSelection.inputURLs)
+            mediaSelection.allInputs = mediaSelection.inputURLs
+            return true
+        }
+        guard NotchFileToolsSupport.accepts(inputs, for: tool) else { return false }
         closeMedia()
         mediaSession = NotchMediaSession(inputs: inputs, tool: tool)
         mediaPresented = true
