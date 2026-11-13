@@ -232,6 +232,11 @@ enum RecorderExportRenderingTests {
             document.backdrop = ""
             document.showsPointer = false
             document.zoomEnabled = false
+            let plain = RecorderComposer.makePlan(document: document, track: RecorderPointerTrack(),
+                sourceSize: sourceSize, frameRate: 60, duration: 1,
+                outputScale: CGFloat(document.outputScale(for: .gif)), outputFormat: .gif)
+            suite.expect(scale == 100 ? plain == nil : plain?.isScaleOnly == true,
+                         "an unedited GIF only needs composition when resized")
             // Force the compositor just as a pointer, overlay or cut does in a real recording.
             document.cuts = [.init(start: 0.4, end: 0.5)]
             guard let plan = RecorderComposer.makePlan(document: document,
@@ -240,6 +245,7 @@ enum RecorderExportRenderingTests {
                 suite.expect(false, "opaque scaling fixture creates a compositor")
                 continue
             }
+            suite.expect(!plan.isScaleOnly, "scaling a cut recording preserves its edited decoding path")
             let bounds = CGRect(origin: .zero, size: plan.canvasSize)
             let composer = RecorderComposer(plan: plan)
             let rendered = composer.render(opaque, at: 0)
@@ -931,6 +937,11 @@ enum RecorderExportRenderingTests {
         let pasteboard = NSPasteboard.withUniqueName()
         pasteboard.clearContents()
         pasteboard.setString("keep me", forType: .string)
+        let originalChangeCount = pasteboard.changeCount
+        suite.expect(!RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard, shouldPublish: { false })
+                        && pasteboard.changeCount == originalChangeCount
+                        && pasteboard.string(forType: .string) == "keep me",
+                     "cancelling after GIF preparation leaves the clipboard untouched")
         suite.expect(RecorderGIFClipboard.publish(fileURL: gifURL, to: pasteboard),
                      "the production GIF publishes to a private pasteboard")
         let nativeGIFType = NSPasteboard.PasteboardType("com.compuserve.gif")
