@@ -126,6 +126,12 @@ final class DiskImageInstallerService {
               let imageURL = DiskImageInstallerSupport.imageURL(mountedAt: mountURL,
                                                                  hdiutilInfo: info.output),
               !Self.isHomebrewImage(imageURL),
+              DiskImageInstallerSupport.offersInstall(
+                volumeIsBrowsable: (try? mountURL.resourceValues(forKeys: [.volumeIsBrowsableKey]))?
+                    .volumeIsBrowsable ?? true,
+                imageIsQuarantined: Self.isQuarantined(imageURL),
+                imageURL: imageURL,
+                downloadsURL: fm.urls(for: .downloadsDirectory, in: .userDomainMask).first),
               let imageIdentity = Self.fileIdentity(at: imageURL),
               let entries = try? fm.contentsOfDirectory(at: mountURL,
                                                         includingPropertiesForKeys: [
@@ -445,6 +451,10 @@ final class DiskImageInstallerService {
             return true
         }
         return run("/usr/sbin/spctl", arguments: ["-a", "-t", "exec", appURL.path]).status == 0
+    }
+
+    private static func isQuarantined(_ url: URL) -> Bool {
+        url.path.withCString { getxattr($0, "com.apple.quarantine", nil, 0, 0, 0) } >= 0
     }
 
     private static func fileIdentity(at url: URL) -> FileIdentity? {
