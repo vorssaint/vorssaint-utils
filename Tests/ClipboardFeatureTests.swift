@@ -13,11 +13,21 @@ import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
-    /// Runs the production placement of the history window on a panel that is
-    /// never shown, against a fixed screen and defaults of its own.
+    /// Runs the production placement and geometry observers on panels that
+    /// are never shown, with simulated visibility, screens and user events.
     final class PanelPlacementHost {
-        enum Screen {
+        struct Screen {
             static let pointerVisibleFrame = CGRect(x: 0, y: 25, width: 1512, height: 920)
+            static var screens = [Screen(visibleFrame: pointerVisibleFrame)]
+            let visibleFrame: CGRect
+        }
+        final class Panel: NSPanel {
+            var shown = false
+            override var isVisible: Bool { shown }
+            override var screen: AppKit.NSScreen? { nil }
+            override func constrainFrameRect(_ frameRect: NSRect, to screen: AppKit.NSScreen?) -> NSRect {
+                frameRect
+            }
         }
         typealias NSScreen = Screen
         enum UserDefaults {
@@ -26,6 +36,14 @@ enum ClipboardFeatureTests {
         }
         var quickLayout = ClipboardHistoryLayout.cards
         var quickPreviewPresented = false
+        var adjustingPanelFrame = false
+        var panelResizeObserver: NSObjectProtocol?
+        var panelMoveObserver: NSObjectProtocol?
+
+        deinit {
+            if let panelResizeObserver { NotificationCenter.default.removeObserver(panelResizeObserver) }
+            if let panelMoveObserver { NotificationCenter.default.removeObserver(panelMoveObserver) }
+        }
     }
 
     /// Runs the production `pasteIntoPreviousApp` with a target app, the
@@ -33,7 +51,11 @@ enum ClipboardFeatureTests {
     final class QuickPasteHost {
         final class App {
             let isTerminated: Bool
-            init(isTerminated: Bool) { self.isTerminated = isTerminated }
+            let bundleIdentifier: String?
+            init(isTerminated: Bool, bundleIdentifier: String? = "com.example.writer") {
+                self.isTerminated = isTerminated
+                self.bundleIdentifier = bundleIdentifier
+            }
             func activate(options: [Int]) { host?.events.append("activate") }
         }
         typealias NSRunningApplication = App
@@ -85,9 +107,147 @@ enum ClipboardFeatureTests {
         static let rules = URLCleaning.Rules.none
     }
 
+    private static func panelGeometryPersistence(_ suite: TestSuite) {
+        let defaults = PanelPlacementHost.UserDefaults.standard
+        let screen = PanelPlacementHost.Screen.pointerVisibleFrame
+        let screens = PanelPlacementHost.Screen.screens
+        defaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+        defer {
+            defaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+            PanelPlacementHost.Screen.screens = screens
+        }
+        let host = PanelPlacementHost()
+        let panel = PanelPlacementHost.Panel(contentRect: .zero,
+            styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+            backing: .buffered, defer: true)
+        panel.isReleasedWhenClosed = false
+        defer {
+            panel.shown = false
+            panel.close()
+        }
+        host.quickLayout = .list
+        host.observePanelGeometry(panel)
+
+        func notify(_ name: Notification.Name) {
+            NotificationCenter.default.post(name: name, object: panel)
+        }
+        func savedFrame() -> NSRect {
+            NSRect(x: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowX),
+                   y: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowY),
+                   width: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowWidth),
+                   height: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowHeight))
+        }
+        func reopen() {
+            panel.shown = false
+            host.position(panel)
+            panel.shown = true
+        }
+        func finishResize(to frame: NSRect) {
+            // Stage the final frame without a move callback. Only the real
+            // live-resize observer may persist it, as on a left/bottom resize.
+            panel.shown = false
+            panel.setFrame(frame, display: false)
+            panel.shown = true
+            notify(NSWindow.didEndLiveResizeNotification)
+        }
+
+        finishResize(to: NSRect(x: 300, y: 300, width: 700, height: 500))
+        panel.setFrameOrigin(NSPoint(x: 350, y: 300))
+        notify(NSWindow.didMoveNotification)
+        reopen()
+        suite.expect(panel.frame == NSRect(x: 350, y: 300, width: 700, height: 500),
+                     "a user move is saved by the production observer and restored on reopening")
+        for (edge, frame) in [
+            ("left", NSRect(x: 300, y: 300, width: 750, height: 500)),
+            ("bottom", NSRect(x: 300, y: 250, width: 750, height: 550)),
+            ("bottom left", NSRect(x: 250, y: 200, width: 800, height: 600)),
+        ] {
+            finishResize(to: frame)
+            suite.expect(savedFrame() == frame,
+                         "finishing a \(edge) resize saves the new origin along with its size")
+            reopen()
+            suite.expect(panel.frame == frame,
+                         "closing and reopening after a \(edge) resize preserves the whole frame")
+        }
+
+        let compact = savedFrame()
+        host.adjustingPanelFrame = true
+        panel.setFrame(NSRect(x: 100, y: 150, width: 900, height: 650), display: false)
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        host.adjustingPanelFrame = false
+        suite.expect(savedFrame() == compact,
+                     "automatic frame changes cannot overwrite either chosen position or size")
+        host.position(panel)
+        suite.expect(savedFrame() == compact && !host.adjustingPanelFrame,
+                     "automatic placement retains the saved frame and releases its guard")
+
+        host.quickPreviewPresented = true
+        host.resize(panel, to: host.preferredPanelSize(visibleFrame: screen),
+                    around: panel.frame, animated: false)
+        suite.expect(savedFrame() == compact && !host.adjustingPanelFrame,
+                     "opening the preview does not save its automatic enlargement or movement")
+        let previewFrame = NSRect(x: 80, y: 140, width: 1100, height: 700)
+        finishResize(to: previewFrame)
+        suite.expect(savedFrame() == NSRect(x: 80, y: 140, width: 820, height: 620),
+                     "a user resize with preview saves its actual origin and compact dimensions")
+        reopen()
+        suite.expect(panel.frame == previewFrame,
+                     "reopening with preview restores the final user resize without adding its size twice")
+        let chosen = savedFrame()
+        host.quickPreviewPresented = false
+        host.resize(panel, to: host.preferredPanelSize(visibleFrame: screen),
+                    around: panel.frame, animated: false)
+        suite.expect(savedFrame() == chosen,
+                     "closing the preview does not replace the chosen geometry")
+        host.quickLayout = .cards
+        host.position(panel)
+        panel.setFrameOrigin(NSPoint(x: 25, y: 50))
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        suite.expect(savedFrame() == chosen,
+                     "card placement, movement and resize notifications leave the list geometry intact")
+        host.quickLayout = .list
+        reopen()
+        suite.expect(panel.frame == chosen, "returning from the cards restores the list's chosen frame")
+
+        panel.shown = false
+        panel.setFrame(NSRect(x: 150, y: 150, width: 900, height: 700), display: false)
+        notify(NSWindow.didMoveNotification)
+        notify(NSWindow.didEndLiveResizeNotification)
+        suite.expect(savedFrame() == chosen, "hidden panel callbacks cannot replace the chosen geometry")
+        reopen()
+        suite.expect(panel.frame == chosen, "reopening ignores movements of the hidden panel")
+
+        let otherScreen = NSRect(x: -1440, y: 0, width: 1440, height: 900)
+        PanelPlacementHost.Screen.screens.append(.init(visibleFrame: otherScreen))
+        panel.setFrameOrigin(NSPoint(x: -1100, y: 180))
+        notify(NSWindow.didMoveNotification)
+        let otherFrame = savedFrame()
+        reopen()
+        suite.expect(panel.frame == otherFrame && otherScreen.contains(panel.frame),
+                     "a saved move restores on the other display while the pointer stays on the first")
+        PanelPlacementHost.Screen.screens = screens
+        reopen()
+        let fallback = panel.frame
+        suite.expect(screen.contains(fallback) && abs(fallback.midX - screen.midX) < 1
+                     && savedFrame() == otherFrame,
+                     "disconnecting the saved display falls back without replacing the user's position")
+        for invalid in [Double.infinity, -Double.infinity, Double.nan] {
+            defaults.set(invalid, forKey: DefaultsKey.clipboardHistoryWindowX)
+            reopen()
+            suite.expect(panel.frame == fallback, "a non-finite saved origin uses the default placement")
+        }
+        defaults.set(200.0, forKey: DefaultsKey.clipboardHistoryWindowX)
+        defaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowY)
+        reopen()
+        suite.expect(panel.frame == fallback, "a partially saved origin uses the default placement")
+    }
+
     static func run(_ suite: TestSuite) {
         ClipboardSensitiveTextPreferenceTests.run(suite)
         ClipboardPreviewContract.run(suite)
+        ClipboardCaptureRestoreTests.run(suite)
         let source = SourceHost()
         func sourceCheck(declared: String? = nil, remote: Bool = false,
                          panelIsKey: Bool = false, panelClosing: Bool = false)
@@ -186,6 +346,7 @@ enum ClipboardFeatureTests {
                      && cleanerBoard.string(forType: .string) == "https://example.com/path?id=42"
                      && cleanerBoard.string(forType: .source) == nil,
                      "a rewritten copy that named no app gains no mark, so the app that copied it is still credited")
+        URLCleanerMetadataTests.run(suite)
         cleanerBoard.releaseGlobally()
         func expectEqual(_ actual: String, _ expected: String, _ label: String,
                          file: StaticString = #filePath, line: UInt = #line) {
@@ -664,6 +825,9 @@ enum ClipboardFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
 
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryShowSourceAppIcons] as? Bool == false,
+                     "source app icons are opt-in, preserving the existing list by default")
+
         // MARK: Clipboard history layout
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryLayout] as? String
@@ -752,6 +916,47 @@ enum ClipboardFeatureTests {
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 700, height: 500),
                "the list reopens at the size the user gave it")
+        placementDefaults.set(100.0, forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.set(200.0, forKey: DefaultsKey.clipboardHistoryWindowY)
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame == NSRect(x: 100, y: 200, width: 700, height: 500),
+               "reopening the list reads its saved coordinates and restores its frame")
+        placement.quickLayout = .cards
+        placement.position(placementPanel)
+        suite.expect(placementPanel.frame.minX == placementScreen.minX + 16
+                     && placementPanel.frame.minY == placementScreen.minY + 8,
+               "saved list coordinates do not move the card shelf")
+        placement.quickLayout = .list
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowX)
+        placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryWindowY)
+        let otherDisplay = NSRect(x: -1440, y: 0, width: 1440, height: 900)
+        let savedOrigin = NSPoint(x: -1100, y: 180)
+        let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen, otherDisplay],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: false,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+        suite.expect(restored == NSRect(origin: savedOrigin, size: NSSize(width: 700, height: 500)),
+               "a list reopens on its chosen display even when the pointer is elsewhere")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: placementScreen.origin, visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(origin: placementScreen.origin, size: compactSize),
+               "a chosen position against the display edges is retained")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: -20, y: 180), visibleFrames: [placementScreen],
+            size: { _ in compactSize }) == NSRect(x: 0, y: 180, width: 560, height: 420),
+               "a partly offscreen window stays on its display with its frame brought into view")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: savedOrigin, visibleFrames: [placementScreen], size: { _ in compactSize }) == nil
+            && ClipboardHistoryWindowPlacement.restoredFrame(
+                origin: NSPoint(x: CGFloat.infinity, y: 100), visibleFrames: [placementScreen],
+                size: { _ in compactSize }) == nil,
+               "a disconnected display or invalid position uses the default placement")
+        suite.expect(ClipboardHistoryWindowPlacement.restoredFrame(
+            origin: NSPoint(x: 600, y: 180), visibleFrames: [placementScreen],
+            size: { ClipboardHistoryWindowSizing.contentSize(preview: true,
+                        savedWidth: 700, savedHeight: 500, visibleFrame: $0) })
+                == NSRect(x: 532, y: 180, width: 980, height: 580),
+               "preview expansion keeps the chosen display and brings the larger window into view")
         placement.quickPreviewPresented = true
         placement.position(placementPanel)
         suite.expect(placementPanel.frame.size == NSSize(width: 980, height: 580),
@@ -797,6 +1002,7 @@ enum ClipboardFeatureTests {
         placement.refreshQuickLayout()
         suite.expect(placement.quickLayout == .cards, "an opening after choosing the cards shows the cards")
         placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
+        panelGeometryPersistence(suite)
 
         // MARK: Clipboard history arrow keys
 
@@ -949,6 +1155,10 @@ enum ClipboardFeatureTests {
                    && !clipboardStrings.historyLayoutList.isEmpty
                    && clipboardStrings.historyLayoutCards != clipboardStrings.historyLayoutList,
                    "\(language.rawValue) clipboard history layout choice is localized")
+            suite.expect(!clipboardStrings.showSourceAppIconsInList.isEmpty
+                         && (language == .enUS || clipboardStrings.showSourceAppIconsInList
+                             != FeatureStrings.clipboard(.enUS).showSourceAppIconsInList),
+                         "\(language.rawValue) source app icons setting is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -1457,6 +1667,15 @@ enum ClipboardFeatureTests {
         expectEqual(ClipboardHistorySensitiveText.concealedPasteboardType,
                     "org.nspasteboard.ConcealedType",
                     "the secret mark keeps the exact name the apps that write it use")
+        // A dictation app marks the text it pastes and then takes back.
+        suite.expect(ClipboardHistorySensitiveText.isTransient(["public.utf8-plain-text",
+                                                          "org.nspasteboard.TransientType"]),
+               "clipboard history leaves out content its app is about to take back")
+        suite.expect(ClipboardHistorySensitiveText.isTransient(["org.nspasteboard.AutoGeneratedType"]),
+               "clipboard history leaves out content an app made up rather than copied")
+        suite.expect(!ClipboardHistorySensitiveText.isTransient(["public.utf8-plain-text",
+                                                           "NSStringPboardType"]),
+               "ordinary copied text is not a paste about to be taken back")
 
         // MARK: Separated link copies
 
@@ -1609,6 +1828,16 @@ enum ClipboardFeatureTests {
             suite.expect(host.events == expected,
                    "quick paste beeps or asks for Accessibility when it cannot paste, found \(host.events)")
         }
+        for bundleID in ["com.microsoft.rdc.macos", "com.microsoft.rdc.mac"] {
+            let host = QuickPasteHost()
+            host.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: bundleID))
+            suite.expect(host.events == ["activate"],
+                   "quick paste into a remote desktop session leaves the pick on the clipboard, found \(host.events)")
+        }
+        let unnamed = QuickPasteHost()
+        unnamed.pasteIntoPreviousApp(QuickPasteHost.App(isTerminated: false, bundleIdentifier: nil))
+        suite.expect(unnamed.events == ["activate", "paste"],
+               "quick paste still pastes into an app without a bundle identifier, found \(unnamed.events)")
         for trusted in [true, false] {
             let host = QuickPasteHost()
             host.trusted = trusted
