@@ -8,35 +8,187 @@ import Foundation
 enum NotchAudioLevelTests {
     static func run(expect: (Bool, String) -> Void) {
         let bands = NotchAudioLevelSupport.bandRanges(sampleRate: 48_000, size: 1024)
-        expect(bands.count == 7 && bands.allSatisfy { !$0.isEmpty && $0.lowerBound >= 1 && $0.upperBound <= 512 }
+        expect(bands.count == 6 && bands.allSatisfy { !$0.isEmpty && $0.lowerBound >= 1 && $0.upperBound <= 512 }
                && zip(bands, bands.dropFirst()).allSatisfy { $0.upperBound <= $1.lowerBound },
-               "seven ordered bands cover the usable spectrum without the DC bin")
+               "six ordered bands, one a bar, cover the usable spectrum without the DC bin")
         let narrow = NotchAudioLevelSupport.bandRanges(sampleRate: 8_000, size: 64)
-        expect(narrow.count == 7 && narrow.allSatisfy { !$0.isEmpty && $0.upperBound <= 32 },
+        expect(narrow.count == 6 && narrow.allSatisfy { !$0.isEmpty && $0.upperBound <= 32 },
                "a narrow spectrum still gives every band at least one bin")
         var magnitudes = [Float](repeating: 0, count: 512)
         expect(NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: bands).allSatisfy { $0 == 0 },
                "silence is flat")
         magnitudes[Int(700 / (48_000 / 1024.0))] = 0.5
         let levels = NotchAudioLevelSupport.bandLevels(magnitudes: magnitudes, bands: bands)
-        expect(levels.count == 7 && levels[3] > 0 && levels.enumerated().allSatisfy { $0.offset == 3 || $0.element == 0 },
+        expect(levels.count == 6 && levels[3] > 0 && levels.enumerated().allSatisfy { $0.offset == 3 || $0.element == 0 },
                "a 700 Hz tone lights only the band that holds it")
-        var smoother = NotchAudioLevelSupport.Smoother()
-        let first = smoother.next([0, 0, 0, 1, 0, 0, 0])
-        let second = smoother.next([0, 0, 0, 1, 0, 0, 0])
-        expect(first[3] > 0.4 && second[3] > first[3] && second[3] <= 1, "bars rise quickly toward their target")
-        let released = smoother.next([0, 0, 0, 0, 0, 0, 0])
-        expect(released[3] < second[3] && released[3] > second[3] * 0.7, "bars fall more slowly than they rise")
-        var quiet = NotchAudioLevelSupport.Smoother()
-        var scaled: [Double] = []
-        for _ in 0..<12 { scaled = quiet.next([0.1, 0.2, 0.3, 0.3, 0.2, 0.1, 0.05]) }
-        expect(scaled.max().map { $0 > 0.8 } == true, "a quiet source still fills the meter")
+        let kickBands = NotchAudioLevelSupport.bandRanges(sampleRate: 44_100, size: 4096)
+        expect(kickBands[0].upperBound == kickBands[1].lowerBound
+               && abs(Double(kickBands[0].upperBound) * 44_100 / 4096 - 100) < 11,
+               "the kick's band reaches up to 100 Hz, where the bass line's begins")
+        typealias Smoother = NotchAudioLevelSupport.Smoother
+        let quietRow = [0.3, 0.3, 0.6, 0.6, 0.6, 0.6]
+        var beat = quietRow; beat[3] = 0.75
+        var smoother = Smoother()
+        for _ in 0..<30 { _ = smoother.next(quietRow) }
+        var rising: [Double] = []
+        for _ in 0..<12 { rising.append(smoother.next(beat)[3]) }
+        expect(rising[0] < rising[2] && rising[2] < rising[6] && rising[6] > 0.9,
+               "a beat carries a bar to the top over a few readings, a smooth swell rather than a jump")
+        expect(zip(rising, rising.dropFirst()).allSatisfy { $1 >= $0 - 1e-9 } && rising.max()! <= 1.0001,
+               "a bar comes to rest on its level without running past it")
+        var falling: [Double] = []
+        for _ in 0..<12 { falling.append(smoother.next(quietRow)[3]) }
+        let settled = falling.last!, top = rising.last!
+        let risen = rising.firstIndex { $0 > (settled + top) / 2 } ?? 99
+        let fallen = falling.firstIndex { $0 < (settled + top) / 2 } ?? 99
+        expect(abs(risen - fallen) <= 1, "a bar falls away from a beat at the pace it rose")
+        var kick = Smoother(), voice = Smoother()
+        var kickRise: [Double] = [], voiceRise: [Double] = []
+        for _ in 0..<12 {
+            kickRise.append(kick.next([0.75, 0, 0, 0, 0, 0])[0])
+            voiceRise.append(voice.next([0, 0, 0.75, 0, 0, 0])[2])
+        }
+        expect(zip(kickRise, voiceRise).allSatisfy { abs($0 / kickRise.last! - $1 / voiceRise.last!) < 1e-9 }
+               && voiceRise[2] > 0.5,
+               "a quick voice swells as sharply as a kick, each toward its own height")
+        var fluttering = Smoother()
+        for _ in 0..<30 { _ = fluttering.next([0.75, 0, 0.6, 0, 0, 0]) }
+        let resting = fluttering.next([0.75, 0, 0.6, 0, 0, 0])[2]
+        var flutter: [Double] = []
+        for frame in 0..<60 { flutter.append(fluttering.next([0.75, 0, frame % 2 == 0 ? 0.607 : 0.593, 0, 0, 0])[2]) }
+        let takenUp = flutter.dropFirst(15)
+        expect(flutter.allSatisfy { abs($0 - resting) < 0.03 }
+               && zip(takenUp, takenUp.dropFirst()).allSatisfy { abs($1 - $0) < 1e-3 },
+               "a level fluttering by less than a pixel leaves the bar still, once the slack is taken up")
+        for _ in 0..<12 { flutter.append(fluttering.next([0.75, 0, 0.7, 0, 0, 0])[2]) }
+        expect(flutter.last! > resting + 0.1, "a real change still moves the bar")
+        var ends = Smoother()
+        var tallest = 0.0, lowest = 1.0
+        for _ in 0..<30 { tallest = ends.next([0, 0.75, 0, 0.75, 0, 0])[3] }
+        for _ in 0..<30 { lowest = ends.next([0, 0.75, 0, 0, 0, 0])[3] }
+        expect(Smoother.slackened(1, from: 0.5) == 1 && Smoother.slackened(0, from: 0.01) == 0
+               && tallest > 0.9 && lowest < 0.001,
+               "the slack never keeps a bar from its full height or from lying as a dot")
+        var intro = Smoother()
+        var bass: [Double] = []
+        for frame in 0..<90 {
+            let hit = frame % 4 == 0 ? 0.1 : 0
+            bass.append(intro.next([0.08 + 0.01 * Double(frame % 3), 0.15, 0.7, 0.75 + hit, 0.77 + hit, 0.75 + hit])[0])
+        }
+        expect(bass.max()! < 0.02, "a band with nothing in it lies as a dot while the others play, its own noise not scaled up")
+        var faint = Smoother()
+        var faintBass = 0.0
+        for _ in 0..<60 { faintBass = faint.next([0.75, 0.2, 0.75, 0.75, 0.75, 0.75])[1] }
+        expect(faintBass > 0.05 && faintBass < 0.2,
+               "a faint bass line just under the scale's bottom still lifts its bar a little, as on the phone")
+        expect(Smoother.softened(0.6) == 0.6 && Smoother.softened(0.9) == 0.9 && Smoother.softened(-0.6) == 0
+               && Smoother.softened(0.2) > 0.2 && Smoother.softened(0.5) > 0.5 && Smoother.softened(0.59) < 0.6,
+               "the soft floor only touches the bottom of the scale, rising without a step into the rest")
+        expect(NotchAudioLevelSupport.barHeight(level: 0, barWidth: 2, height: 16) == 2
+               && NotchAudioLevelSupport.barHeight(level: 1, barWidth: 2, height: 16) == 16
+               && NotchAudioLevelSupport.barHeight(level: 0.05, barWidth: 2, height: 16) > 2,
+               "a bar runs from a dot to its full height, and a low level already shows above the dot")
+        let widths = stride(from: 2.0, through: 16, by: 1).map { NotchAudioLevelSupport.barWidth(forHeight: CGFloat($0), barWidth: 2, height: 16) }
+        expect(widths.first == 2 && abs((widths.last ?? 0) - 2 * NotchAudioLevelSupport.widestBar) < 0.001
+               && zip(widths, widths.dropFirst()).allSatisfy { $0 < $1 },
+               "a bar widens from its dot to its widest as it grows, never narrowing on the way up")
+        expect(NotchAudioLevelSupport.barWidth(forHeight: 11.33, barWidth: 2, height: 16) > 2 + 0.88 * 0.85,
+               "a bar has nearly reached its full width by two thirds of its height, as on the phone")
+        expect(NotchAudioLevelSupport.barWidth(forHeight: 1, barWidth: 2, height: 1) == 2,
+               "a row too short for a bar to grow keeps its dots")
+        var row = Smoother()
+        var heights: [Double] = []
+        for _ in 0..<60 { heights = row.next([0.7, 0.7, 0.7, 0.55, 0.7, 0.7]) }
+        expect(heights[3] < heights[2] - 0.25 && heights[3] > 0.2,
+               "a quieter band stands shorter beside a loud one instead of being stretched to the same height")
+        func standing(_ row: [Double]) -> [Double] {
+            var smoother = Smoother()
+            var heights: [Double] = []
+            for _ in 0..<60 { heights = smoother.next(row) }
+            return heights
+        }
+        let softer = standing([0.65, 0.65, 0.65, 0.65, 0.65, 0.75]), harder = standing([0.7, 0.7, 0.7, 0.7, 0.7, 0.75])
+        expect(harder[4] - softer[4] > 1.3 * 0.05 / Smoother.span,
+               "the same change of sound swings a bar further than the scale alone would, as on the phone")
+        expect(standing([0.65, 0.65, 0.65, 0.65, 0.65, 0.75])[0] < 0.75,
+               "the kick stands below where the scale alone would put it, as on the phone")
+        var turnedDown = Smoother()
+        for _ in 0..<30 { _ = turnedDown.next([0.75, 0.5, 0.75, 0.75, 0.75, 0.75]) }
+        var before = 0.0
+        for _ in 0..<15 { before = turnedDown.next([0.5, 0.3, 0.5, 0.5, 0.5, 0.5])[2] }
+        for _ in 0..<(30 * 40) { _ = turnedDown.next([0.5, 0.3, 0.5, 0.5, 0.5, 0.5]) }
+        let after = turnedDown.next([0.5, 0.3, 0.5, 0.5, 0.5, 0.5])[2]
+        expect(before < 0.6 && after > 0.9, "a player turned down fills the bars again within some seconds")
+        var louder = Smoother()
+        for _ in 0..<30 { _ = louder.next([0.95, 0.8, 0.95, 0.95, 0.95, 0.95]) }
+        expect(louder.next([0.95, 0.8, 0.95, 0.95, 0.95, 0.95])[2] < 1.0001
+               && louder.next([0.6, 0.6, 0.6, 0.6, 0.6, 0.6])[2] < 0.95,
+               "a loud song lifts the top of the scale at once, so the bars do not stand flat at the top")
+        expect(NotchAudioLevelSupport.gain(band: 5) > NotchAudioLevelSupport.gain(band: 0)
+               && NotchAudioLevelSupport.gain(band: 1) < NotchAudioLevelSupport.gain(band: 0)
+               && NotchAudioLevelSupport.gain(band: 9) == 0,
+               "the bass is lowered more than the treble, the bass line most of all")
+        expect((0..<6).map { NotchAudioLevelSupport.barIndex($0, of: 6, bands: 6) } == [0, 1, 2, 3, 4, 5],
+               "the bass stands at the left and the treble at the right, as on the phone")
         expect(NotchAudioLevelSupport.barIndex(0, of: 3, bands: 7) == 1 && NotchAudioLevelSupport.barIndex(1, of: 3, bands: 7) == 3
                && NotchAudioLevelSupport.barIndex(2, of: 3, bands: 7) == 5 && NotchAudioLevelSupport.barIndex(6, of: 7, bands: 7) == 6,
                "fewer bars sample the bands evenly")
         expect(!NotchAudioLevelSupport.fallsBack(heard: false, elapsed: 1) && !NotchAudioLevelSupport.fallsBack(heard: true, elapsed: 10)
                && NotchAudioLevelSupport.fallsBack(heard: false, elapsed: NotchAudioLevelSupport.silenceGrace),
                "a tap that only ever delivers silence hands the bars back to their synthetic motion")
+        func delay(_ latency: UInt32, _ safety: UInt32, _ buffer: UInt32, _ stream: UInt32, paintLag: Double = 0) -> Int {
+            let frames = NotchAudioLevelSupport.outputFrames(deviceLatency: latency, safetyOffset: safety,
+                                                             bufferFrames: buffer, streamLatency: stream)
+            return NotchAudioLevelSupport.playbackDelayFrames(outputFrames: frames, sampleRate: 48_000, paintLag: paintLag)
+        }
+        expect(delay(0, 0, 0, 0) == 0, "an output that reports no latency keeps the bars on the newest sound")
+        expect(delay(9_600, 144, 512, 0) == 10_256 - 6_000,
+               "Bluetooth headphones hold the bars back by what the output takes to play, less the bars' own lag")
+        expect(delay(9_600, 144, 512, 0, paintLag: 0.025) == 10_256 - 6_000 - 1_200,
+               "the time a reading takes to reach the screen is read that much sooner")
+        expect(delay(256, 0, 256, 0) == 0, "an output faster than the bars themselves is read without a delay")
+        expect(delay(.max, .max, .max, .max) == 36_000,
+               "an output misreporting its latency cannot hold the bars back without end")
+        var silent = NotchAudioLevelSupport.Smoother()
+        let nothing = [Double](repeating: 0, count: 6)
+        var silentLevels = silent.next(nothing)
+        for _ in 0..<Int(NotchAudioLevelSupport.updatesPerSecond * 300) { silentLevels = silent.next(nothing) }
+        expect(silentLevels == nothing, "five minutes of silence leaves the bars lying flat as the scale eases down")
+        typealias TapWatch = NotchAudioLevelSupport.TapWatch
+        var watch = TapWatch()
+        expect(!watch.shouldRebuild(heard: false, at: 0), "a watch starts by noting the time")
+        expect(!watch.shouldRebuild(heard: false, at: TapWatch.firstWait - 0.1), "a short silence is left alone")
+        expect(watch.shouldRebuild(heard: false, at: TapWatch.firstWait), "a tap silent for the first wait is built again")
+        expect(!watch.shouldRebuild(heard: false, at: TapWatch.firstWait * 2),
+               "a second try waits longer for a player that may really be quiet")
+        expect(watch.shouldRebuild(heard: false, at: TapWatch.firstWait * 3), "the second try comes after twice the wait")
+        var patient = TapWatch()
+        _ = patient.shouldRebuild(heard: false, at: 0)
+        var rebuiltAt: [Double] = []
+        for second in 1...400 where patient.shouldRebuild(heard: false, at: Double(second)) { rebuiltAt.append(Double(second)) }
+        expect(zip(rebuiltAt.dropFirst(), rebuiltAt).allSatisfy { $0 - $1 <= TapWatch.longestWait },
+               "a tap that stays deaf keeps being tried at the longest wait")
+        expect(!patient.shouldRebuild(heard: true, at: 401), "sound stops the retries")
+        expect(!patient.shouldRebuild(heard: false, at: 401 + TapWatch.firstWait - 0.1),
+               "sound starts the wait over")
+        expect(patient.shouldRebuild(heard: false, at: 401 + TapWatch.firstWait),
+               "a tap that goes deaf again is caught as soon as the first time")
+        typealias PaintLag = NotchAudioLevelSupport.PaintLag
+        var paint = PaintLag()
+        paint.record(0.09)
+        expect(abs(paint.seconds - (PaintLag.starting + PaintLag.step)) < 1e-9, "one slow frame moves the paint lag one step")
+        var steady = PaintLag()
+        for _ in 0..<40 { steady.record(0.03) }
+        expect(abs(steady.seconds - 0.03) <= PaintLag.step, "the paint lag settles on what it keeps measuring")
+        for _ in 0..<3 { steady.record(5) }
+        expect(steady.seconds <= 0.03 + 4 * PaintLag.step, "a main thread that stalls barely moves the paint lag")
+        var odd = PaintLag()
+        odd.record(-1)
+        odd.record(.nan)
+        expect(odd == PaintLag(), "a frame that cannot be right is ignored")
+        var longest = PaintLag()
+        for _ in 0..<200 { longest.record(9) }
+        expect(longest.seconds <= PaintLag.longest + PaintLag.step, "a long run of slow frames cannot hold the paint lag past its limit")
         let domain = "com.vorssaint.tests.audio-levels"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
@@ -123,6 +275,59 @@ enum NotchAudioRingContract {
         expect(ring.hasHeard(gain: 1), "later silence does not revoke the ring's proof of sound")
         expect(!NotchAudioRing(capacity: 2).hasHeard(gain: 4),
                "a new ring still has to prove its own sound")
+        let leftOnly = NotchAudioRing(capacity: 2)
+        var frames: [Float] = [0.25, 0.75, 0.5, -0.5]
+        frames.withUnsafeMutableBufferPointer { buffer in
+            leftOnly.write(AudioBuffer(mNumberChannels: 2,
+                                       mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                       mData: buffer.baseAddress))
+        }
+        var pair = [Float](repeating: 0, count: 2)
+        expect(leftOnly.latest(into: &pair) && pair == [0.25, 0.5], "the ring keeps the first channel, not a mix")
+        let rightOnly = NotchAudioRing(capacity: 2)
+        frames = [0, 0.5, 0, 0.5]
+        frames.withUnsafeMutableBufferPointer { buffer in
+            rightOnly.write(AudioBuffer(mNumberChannels: 2,
+                                        mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                        mData: buffer.baseAddress))
+        }
+        expect(rightOnly.hasHeard(gain: 1) && rightOnly.takeSound(),
+               "sound on the other channel still proves the tap can hear")
+        delayContracts(expect: expect)
+    }
+
+    /// The bars read what the output is playing, not what was just handed to it.
+    private static func delayContracts(expect: (Bool, String) -> Void) {
+        let ring = NotchAudioRing(capacity: 8)
+        var ramp: [Float] = (1...6).map(Float.init)
+        ramp.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        var block = [Float](repeating: 0, count: 2)
+        expect(ring.takeSound() && !ring.takeSound(), "sound is reported once for each time of asking")
+        let deaf = NotchAudioRing(capacity: 8)
+        var quiet = [Float](repeating: 0, count: 4)
+        quiet.withUnsafeMutableBufferPointer { buffer in
+            deaf.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(!deaf.takeSound(), "digital silence does not count as sound")
+        expect(ring.latest(into: &block) && block == [5, 6], "without a delay the newest samples are read")
+        expect(ring.latest(into: &block, delay: 3) && block == [2, 3],
+               "a delay reads the samples the output is playing now")
+        expect(!ring.latest(into: &block, delay: 5), "a delay waits until the output has that much to play")
+        ramp = (7...12).map(Float.init)
+        ramp.withUnsafeMutableBufferPointer { buffer in
+            ring.write(AudioBuffer(mNumberChannels: 1,
+                                   mDataByteSize: UInt32(buffer.count * MemoryLayout<Float>.size),
+                                   mData: buffer.baseAddress))
+        }
+        expect(ring.latest(into: &block, delay: 3) && block == [8, 9], "a delayed read follows the ring around")
+        expect(ring.latest(into: &block, delay: 100) && block == [5, 6],
+               "a delay past what the ring holds reads as far back as it can")
     }
 }
 
@@ -130,6 +335,7 @@ enum NotchAudioRingContract {
 /// The production service is extracted here; only its preference inputs,
 /// playback publisher and asynchronous hardware reader are replaced.
 typealias NotchAudioTestSilenceMemory = NotchAudioLevelSupport.SilenceMemory
+typealias NotchAudioTestPaintLag = NotchAudioLevelSupport.PaintLag
 
 enum NotchAudioLevelLifecycleContract {
     final class NSWorkspace {
@@ -143,6 +349,7 @@ enum NotchAudioLevelLifecycleContract {
     enum NotchSupport { static func isEnabled() -> Bool { true } }
     enum NotchAudioLevelSupport {
         typealias SilenceMemory = NotchAudioTestSilenceMemory
+        typealias PaintLag = NotchAudioTestPaintLag
         static let isSupported = true
         static var enabled = false
         static func isEnabled() -> Bool { enabled }
@@ -153,16 +360,18 @@ enum NotchAudioLevelLifecycleContract {
     }
     final class NotchAudioLevelReader {
         static var instances: [NotchAudioLevelReader] = []
-        let onLevels: ([Double]) -> Void
+        private let deliver: ([Double], CFTimeInterval) -> Void
+        private(set) var latencyReads = 0
+        private(set) var paintLag = 0.0
         let onSilence: () -> Void
         let onUnavailable: () -> Void
         let onProcessesLeft: () -> Void
         private(set) var stopped = false
 
-        init(pid: pid_t, onLevels: @escaping ([Double]) -> Void,
+        init(pid: pid_t, onLevels: @escaping ([Double], CFTimeInterval) -> Void,
              onSilence: @escaping () -> Void, onUnavailable: @escaping () -> Void,
              onProcessesLeft: @escaping () -> Void) {
-            self.onLevels = onLevels
+            deliver = onLevels
             self.onSilence = onSilence
             self.onUnavailable = onUnavailable
             self.onProcessesLeft = onProcessesLeft
@@ -170,19 +379,22 @@ enum NotchAudioLevelLifecycleContract {
         }
         func start() {}
         func stop() { stopped = true }
+        func onLevels(_ levels: [Double], readAt: CFTimeInterval = 1) { deliver(levels, readAt) }
+        func readOutputLatency() { latencyReads += 1 }
+        func setPaintLag(_ seconds: Double) { paintLag = seconds }
     }
 
     static func run(expect: (Bool, String) -> Void) {
         typealias Reader = NotchAudioLevelReader
         let service = NotchAudioLevelService.shared
         let music = NotchMusicService.shared
-        func playback(playing: Bool = true) -> NotchPlayback {
+        func playback(playing: Bool = true, item: String = "track") -> NotchPlayback {
             let track = RadialNowPlayingSnapshot(title: "Track", artist: "Artist", album: "Album",
                                                 artworkData: nil, appBundleIdentifier: "org.example.player",
                                                 appPID: 42)
             return NotchPlayback(track: track, isPlaying: playing, elapsed: 0, duration: 180, rate: 1,
                                  sampledAt: Date(timeIntervalSinceReferenceDate: 0), canSeek: false,
-                                 itemIdentifier: "track", canSendCommandsDirectly: true)
+                                 itemIdentifier: item, canSendCommandsDirectly: true)
         }
         // A barrier behind the service's callbacks drains only the main queue;
         // it neither creates a device nor depends on a player's timing.
@@ -277,10 +489,13 @@ enum NotchAudioLevelLifecycleContract {
         drain()
         expect(current.stopped && service.levels == nil && Reader.instances.count == afterSilence,
                "a silent current reader falls back for this play without immediately retrying")
+        expect(service.hearsNothing,
+               "a play this Mac hears nothing from lays the bars flat instead of faking motion")
         music.playback = playback(playing: false)
         drain()
         music.playback = playback()
         drain()
+        expect(!service.hearsNothing, "pausing and playing again clears the flat bars to listen anew")
         expect(Reader.instances.count == afterSilence + 1,
                "pausing and playing rearms the same track after silence")
         guard let resumed = Reader.instances.last else { return }
@@ -291,7 +506,7 @@ enum NotchAudioLevelLifecycleContract {
         let afterPausedSilence = Reader.instances.count
         music.playback = playback()
         drain()
-        expect(resumed.stopped && Reader.instances.count == afterPausedSilence + 1,
+        expect(resumed.stopped && Reader.instances.count == afterPausedSilence + 1 && !service.hearsNothing,
                "silence heard during the pause grace does not write the next play off")
         guard let replayed = Reader.instances.last else { return }
         replayed.onUnavailable()
@@ -339,10 +554,27 @@ enum NotchAudioLevelLifecycleContract {
         drain()
         expect(!audible.stopped && Reader.instances.count == beforeAudiblePause && service.levels == [0.8],
                "a short pause preserves a reader that already delivered sound")
+        expect(audible.latencyReads == 1, "playing again after a short pause asks the output its latency again")
+        music.playback = playback()
+        drain()
+        expect(audible.latencyReads == 1, "a playback update within the same play does not ask again")
+        music.playback = playback(item: "next")
+        drain()
+        expect(!audible.stopped && audible.latencyReads == 2, "the next track asks again without a new reader")
+
+        audible.onLevels([0.7], readAt: 5)
+        drain()
+        expect(service.levelsReadAt == 5, "the bars can tell when the levels they show were read")
+        let startingPaint = NotchAudioTestPaintLag.starting
+        service.painted(readAt: 0, shownAt: 5)
+        expect(audible.paintLag == startingPaint, "a frame with no reading behind it says nothing about the paint lag")
+        service.painted(readAt: 5, shownAt: 5.05)
+        expect(audible.paintLag > startingPaint, "a timed frame reaches the reader")
 
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = true
         service.syncWithPreferences()
         drain()
+        expect(service.levelsReadAt == 0, "a stopped reader leaves no reading to time")
         expect(audible.stopped && service.levels == nil,
                "Reduce Motion stops audio analysis because the bars cannot use its levels")
         music.playback = playback()

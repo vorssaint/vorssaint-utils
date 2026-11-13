@@ -22,7 +22,7 @@ struct NotchMusicView: View {
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
     /// The cover's own colour, used for the moving parts that belong to this
     /// track. Neutral covers keep them white.
-    private var accent: Color { service.artworkTint?.color ?? .white }
+    private var accent: Color { service.artworkTint?.controlColor ?? .white }
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
     private var showsVolume: Bool { showVolume && AppFeature.mixer.isAvailable }
@@ -292,10 +292,12 @@ struct NotchMusicView: View {
                 if service.sources.count > 1 || !service.sourceIsAutomatic {
                     sourceMenu(playback)
                 }
-                // Quiet beside the song, as the timeline's times are. The
-                // bars rest flat while paused, so the title keeps its width.
-                NotchLiveEqualizerBars(isPlaying: playback.isPlaying, bars: 4, barWidth: 2.5, height: 15,
-                                       tint: .white.opacity(0.5))
+                // The same bars as the closed island. They rest flat while
+                // paused, so the title keeps its width.
+                NotchLiveEqualizerBars(isPlaying: playback.isPlaying, bars: NotchLayout.compactMusicBarCount,
+                                       barWidth: NotchLayout.compactMusicBarWidth, height: 15,
+                                       tint: service.artworkTint?.barColor ?? .white,
+                                       field: service.artworkTint?.field ?? [])
                 if band.besideCamera { sectionsButton }
             } corner: {
                 extraButtons
