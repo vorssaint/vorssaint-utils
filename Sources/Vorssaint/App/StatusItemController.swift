@@ -11,7 +11,9 @@ final class StatusItemController {
     /// Receives the button that was clicked, so a menu can open from it
     /// while the main item is out of the bar.
     var onRightClick: ((NSStatusBarButton?) -> Void)?
-    var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
+    /// The rect is the clicked reading's span in the button, or the whole
+    /// button for a separate metric item, so the panel opens under it.
+    var onMetricClick: ((MenuBarMetric, NSStatusBarButton, NSRect) -> Void)?
     var onClipboardPreviewClick: (() -> Void)?
 
     private(set) var statusItem: NSStatusItem!
@@ -22,6 +24,9 @@ final class StatusItemController {
     private var clipboardPreviewStatusItem: NSStatusItem?
     private var metricStatusItems: [String: NSStatusItem] = [:]
     private var metricStatusItemFocus: [String: MenuBarMetric] = [:]
+    /// Ranges of the readings combined into the main item's title. Only
+    /// populated while the separate-items option is off.
+    private var combinedMetricHitRuns: [CombinedMetricHitRun] = []
     private var cancellables = Set<AnyCancellable>()
     private var titleTimer: Timer?
     private var defaultsObserver: NSObjectProtocol?
@@ -71,6 +76,14 @@ final class StatusItemController {
         let title: String
     }
 
+    /// One reading drawn inside the combined menu bar item, as a character
+    /// range in the main button's title. A click landing in the range opens
+    /// that reading's detail instead of the last panel section.
+    private struct CombinedMetricHitRun {
+        let metric: MenuBarMetric
+        let range: NSRange
+    }
+
     /// Cached so the countdown tooltip doesn't allocate a DateFormatter (expensive)
     /// on every refresh while a keep-awake session is active.
     private static let timeFormatter: DateFormatter = {
@@ -81,6 +94,26 @@ final class StatusItemController {
 
     var button: NSStatusBarButton? { statusItem.button }
 
+    /// The glyph's span in the main item, so the normal panel opens under the
+    /// icon instead of the middle of the combined readings. Falls back to the
+    /// whole item while the glyph is hidden or not laid out yet.
+    func mainItemAnchorRect() -> NSRect? {
+        guard let button = statusItem?.button else { return nil }
+        guard let image = button.image,
+              image !== Self.emptyStatusImage,
+              image.size.width > 0,
+              let cell = button.cell as? NSButtonCell else { return button.bounds }
+        let imageRect = cell.imageRect(forBounds: button.bounds)
+        guard imageRect.minX.isFinite, imageRect.maxX.isFinite else { return button.bounds }
+        let minX = max(button.bounds.minX, imageRect.minX)
+        let maxX = min(button.bounds.maxX, imageRect.maxX)
+        guard maxX > minX else { return button.bounds }
+        return NSRect(x: minX,
+                      y: button.bounds.minY,
+                      width: maxX - minX,
+                      height: button.bounds.height)
+    }
+
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
         let items = [statusItem, clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
         // A hidden item keeps its last frame, which another app's item may
@@ -89,7 +122,19 @@ final class StatusItemController {
         // Bound once for the whole scan: a default argument is evaluated per
         // call, so leaving it to the default would rebuild this per button.
         let screenFrames = NSScreen.screens.map(\.frame)
+        // macOS 27 can leave a status item's window at the slot it was born in
+        // while drawing it somewhere else. Accessibility reports the drawn
+        // frame, so a click on the item is still recognised as ours.
+        let mainScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
         return buttons.contains { button in
+            let axFrame = button.accessibilityFrame()
+            if axFrame.width > 0, axFrame.height > 0 {
+                let frame = NSRect(x: axFrame.minX,
+                                   y: mainScreenMaxY - axFrame.maxY,
+                                   width: axFrame.width,
+                                   height: axFrame.height)
+                if frame.insetBy(dx: -4, dy: -8).contains(screenPoint) { return true }
+            }
             guard let frame = button.window?.frame,
                   StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
             else { return false }
@@ -418,11 +463,68 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
             onRightClick?(statusItem.button)
-        } else {
-            onLeftClick?()
+            return
         }
+        if event?.type == .leftMouseUp,
+           let button = statusItem.button,
+           let window = button.window {
+            // The action can arrive with a current event that is not the click
+            // itself; the pointer is still over the item on mouse-up, so read
+            // its screen position instead of trusting that event's location.
+            let point = button.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
+            if let hit = combinedMetric(at: point, in: button) {
+                onMetricClick?(hit.metric, button, hit.rect)
+                return
+            }
+        }
+        onLeftClick?()
+    }
+
+    /// Maps a click inside the combined title to the reading drawn under it.
+    /// The glyph, the countdown and the gaps between readings are not runs, so
+    /// clicking them keeps the item's normal panel behavior. The returned rect
+    /// is the reading's span in the button, so the panel can open under it.
+    private func combinedMetric(at point: NSPoint,
+                                in button: NSStatusBarButton) -> (metric: MenuBarMetric, rect: NSRect)? {
+        guard !combinedMetricHitRuns.isEmpty,
+              let cell = button.cell as? NSButtonCell else { return nil }
+        let title = button.attributedTitle
+        let titleRect = cell.titleRect(forBounds: button.bounds)
+        guard titleRect.width > 0, titleRect.height > 0,
+              point.x >= titleRect.minX, point.x <= titleRect.maxX,
+              point.y >= button.bounds.minY, point.y <= button.bounds.maxY else { return nil }
+
+        let storage = NSTextStorage(attributedString: title)
+        let layout = NSLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: NSSize(width: ceil(title.size().width) + 8,
+                                                     height: titleRect.height))
+        container.lineFragmentPadding = 0
+        container.maximumNumberOfLines = 1
+        layout.addTextContainer(container)
+        layout.ensureLayout(for: container)
+
+        for run in combinedMetricHitRuns where NSMaxRange(run.range) <= title.length {
+            let glyphs = layout.glyphRange(forCharacterRange: run.range, actualCharacterRange: nil)
+            let rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
+            if point.x >= titleRect.minX + rect.minX,
+               point.x <= titleRect.minX + rect.maxX {
+                // AppKit intersects the popover's anchoring rect with the
+                // button's bounds, so clamp a reading clipped by a crowded bar.
+                let minX = max(button.bounds.minX, titleRect.minX + rect.minX)
+                let maxX = min(button.bounds.maxX, titleRect.minX + rect.maxX)
+                guard maxX > minX else { break }
+                let anchor = NSRect(x: minX,
+                                    y: button.bounds.minY,
+                                    width: maxX - minX,
+                                    height: button.bounds.height)
+                return (run.metric, anchor)
+            }
+        }
+        return nil
     }
 
     /// The item a right-click menu opens from: the main one while it is in
@@ -482,20 +584,28 @@ final class StatusItemController {
             title.append(NSAttributedString(string: countdown))
             includesCountdown = true
         }
+        var metricHitRuns: [CombinedMetricHitRun] = []
         if separateMetrics {
             refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
         } else {
             removeMetricStatusItems(except: Set<String>())
             renderedMetricItemCount = 0
-        }
-        if !separateMetrics, !metrics.isEmpty {
-            let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
-                                                          metrics: metrics,
-                                                          allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
-            if metricsTitle.length > 0 {
-                if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
-                title.append(metricsTitle)
+            if !metrics.isEmpty {
+                let combined = Self.combinedMetricTitle(for: metrics,
+                                                        snapshot: snapshot,
+                                                        strings: strings,
+                                                        allowStacked: !includesCountdown,
+                                                        linePrefix: " ")
+                if combined.title.length > 0 {
+                    if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
+                    let metricsStart = title.length
+                    title.append(combined.title)
+                    metricHitRuns = combined.runs.map {
+                        CombinedMetricHitRun(metric: $0.metric,
+                                             range: NSRange(location: $0.range.location + metricsStart,
+                                                            length: $0.range.length))
+                    }
+                }
             }
         }
 
@@ -514,6 +624,7 @@ final class StatusItemController {
             if button.imagePosition != .imageOnly {
                 button.imagePosition = .imageOnly
             }
+            combinedMetricHitRuns = []
         } else {
             // The leading space separates the glyph from the text; with the
             // glyph hidden by the metrics-only option or by Dynamic Island it
@@ -559,6 +670,15 @@ final class StatusItemController {
             }
             if button.imagePosition != .imageLeading {
                 button.imagePosition = .imageLeading
+            }
+            // The runs were measured against the countdown-and-metrics title;
+            // the button prepends its glyph space, so move them into the
+            // title's final coordinates.
+            let prefixLength = full.length - title.length
+            combinedMetricHitRuns = metricHitRuns.map {
+                CombinedMetricHitRun(metric: $0.metric,
+                                     range: NSRange(location: $0.range.location + prefixLength,
+                                                    length: $0.range.length))
             }
         }
 
@@ -701,6 +821,38 @@ final class StatusItemController {
         return groups
     }
 
+    /// Builds the combined title one reading group at a time so each run's
+    /// character range is known. The title shown by the item comes from the
+    /// same groups that produce the runs, so a future renderer or grouping
+    /// change cannot hand a click to the wrong reading.
+    private static func combinedMetricTitle(for metrics: [MenuBarMetric],
+                                            snapshot: SystemSnapshot,
+                                            strings: Strings,
+                                            allowStacked: Bool,
+                                            linePrefix: String) -> (title: NSAttributedString,
+                                                                    runs: [CombinedMetricHitRun]) {
+        let groups = metricStatusGroups(for: metrics, strings: strings)
+        let glue = MenuBarSpacingSupport.blockGlue(readableStyle: false,
+                                                   spacing: MenuBarMetricSpacing.current)
+        let title = NSMutableAttributedString()
+        var runs: [CombinedMetricHitRun] = []
+        for group in groups {
+            let part = MenuBarRenderer.attributed(for: snapshot,
+                                                  metrics: group.metrics,
+                                                  allowStacked: allowStacked,
+                                                  linePrefix: linePrefix)
+            guard part.length > 0 else { continue }
+            if title.length > 0 {
+                title.append(NSAttributedString(string: glue))
+            }
+            runs.append(CombinedMetricHitRun(metric: group.focusMetric,
+                                             range: NSRange(location: title.length,
+                                                            length: part.length)))
+            title.append(part)
+        }
+        return (title, runs)
+    }
+
     private func installMetricStatusItem(for group: MetricStatusGroup) -> NSStatusItem {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.autosaveName = "\(Self.metricAutosavePrefix).\(group.id)"
@@ -734,7 +886,7 @@ final class StatusItemController {
             onLeftClick?()
             return
         }
-        onMetricClick?(metric, sender)
+        onMetricClick?(metric, sender, sender.bounds)
     }
 
     private func focusMetric(from button: NSStatusBarButton) -> MenuBarMetric? {
