@@ -70,5 +70,36 @@ enum NotchLyricsTimelineTests {
               message: "a final instrumental gap clears the preceding verse")
         check([0, 0.08, 0.16], duration: 0.2, offset: 0.05, expected: 1,
               message: "timing adjustment delivers the last reachable verse when later verses exceed the duration")
+
+        seekPositions(expect: expect)
+    }
+
+    /// Clicking a verse asks the player to move to its start, with the user's
+    /// timing adjustment applied and the recording's bounds kept.
+    private static func seekPositions(expect: (Bool, String) -> Void) {
+        let track = RadialNowPlayingSnapshot(title: "Timed verses", artist: nil, album: nil,
+                                             artworkData: nil, appBundleIdentifier: nil, appPID: nil)
+        let lyrics = NotchLyrics(lines: [NotchLyricLine(time: 0, text: "One"),
+                                         NotchLyricLine(time: 30, text: "Two"),
+                                         NotchLyricLine(time: 120, text: "Three")],
+                                 plain: "", instrumental: false)
+        func playback(duration: Double = 180, canSeek: Bool = true) -> NotchPlayback {
+            NotchPlayback(track: track, isPlaying: true, elapsed: 0, duration: duration,
+                          rate: 1, sampledAt: .now, canSeek: canSeek)
+        }
+        expect(lyrics.seekPosition(for: 1, offset: 0, into: playback(), allowed: true) == 30,
+               "clicking a verse moves the player to its start")
+        expect(lyrics.seekPosition(for: 1, offset: 0.5, into: playback(), allowed: true) == 30.5,
+               "a timing adjustment moves the clicked target with the verses")
+        expect(lyrics.seekPosition(for: 0, offset: -10, into: playback(), allowed: true) == 0,
+               "clicking the first verse never asks to play before the recording")
+        expect(lyrics.seekPosition(for: 1, offset: 0, into: playback(duration: 20), allowed: true) == 20,
+               "a verse past the end asks for the end rather than an impossible position")
+        expect(lyrics.seekPosition(for: 1, offset: 0, into: playback(canSeek: false), allowed: true) == 30,
+               "a player driven through automation moves to the clicked verse")
+        expect(lyrics.seekPosition(for: 1, offset: 0, into: playback(), allowed: false) == nil,
+               "a player that cannot seek gets no target")
+        expect(lyrics.seekPosition(for: 3, offset: 0, into: playback(), allowed: true) == nil,
+               "a verse that does not exist gets no target")
     }
 }
