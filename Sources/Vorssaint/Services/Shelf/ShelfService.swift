@@ -116,6 +116,7 @@ final class ShelfService: ObservableObject {
     @Published private(set) var items: [Item] = [] {
         didSet {
             contentRevision &+= 1
+            refreshPackageContent()
             scheduleRefit()
             schedulePersist()
             // Emptying the shelf (removing or dragging out the last item) always
@@ -265,6 +266,19 @@ final class ShelfService: ObservableObject {
     /// work), serialized so blobs land in mutation order.
     private static let persistQueue = DispatchQueue(label: "com.vorssaint.utils.shelf-persist",
                                                     qos: .utility)
+
+    /// Package ancestry per shelved file path, filled by the probe below. A
+    /// drag may only read this: `resourceValues` walks the ancestor chain with
+    /// `getattrlist`, which can stall for seconds on iCloud Drive, a sleeping
+    /// NAS or a spinning-up disk, and Vorssaint owns the drag session, so a
+    /// stalled main thread freezes pointer input for the whole Mac (#4014).
+    private var packageContentByPath: [String: Bool] = [:]
+    /// Paths already queued, so a file is read once per arrival.
+    private var pendingPackageProbes: Set<String> = []
+    /// Serial: one probe may block on a volume that never answers, and that
+    /// must not multiply into a thread per shelved file.
+    private static let packageProbeQueue = DispatchQueue(
+        label: "com.vorssaint.utils.shelf-package-content", qos: .utility)
 
     private var persistScheduled = false
     /// Gates persistence until the restore has landed, so an early mutation
@@ -1356,11 +1370,57 @@ final class ShelfService: ObservableObject {
         // Use the same resolved payloads as the pasteboard. A healed bookmark
         // does not replace its saved item until the next main-loop turn.
         // Cache the result because AppKit asks for the mask throughout a drag.
-        internalDragHoldsPackageContent = draggedItems.contains { item in
-            guard case let .file(url) = item.payload else { return false }
-            return ShelfInteractionSupport.isInsidePackage(url) {
-                (try? $0.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+        // The package answer was read when the item arrived; a path the probe
+        // has not reached yet counts as protected (see the resolver). Reading
+        // the disk here would stall the drag and with it system-wide pointer
+        // input, so this path must stay in memory (#4014).
+        internalDragHoldsPackageContent = ShelfInteractionSupport.dragProtectsPackageContent(
+            knownStates: draggedItems.map { item -> Bool? in
+                guard case let .file(url) = item.payload else { return nil }
+                return packageContentByPath[url.path]
+            })
+    }
+
+    /// Refreshes the cached package answer for everything on the shelf. Runs
+    /// on every item change and only enqueues reads: it walks the item tree in
+    /// memory, so adding, restoring, merging or removing never waits on disk.
+    private func refreshPackageContent() {
+        var livePaths: Set<String> = []
+        func note(_ item: Item) {
+            switch item.payload {
+            case let .file(url):
+                livePaths.insert(url.path)
+                probePackageContent(for: url)
+            case .text, .link:
+                break
+            case let .batch(children):
+                children.forEach(note)
             }
+        }
+        items.forEach(note)
+        // Keep the cache to what the shelf still holds.
+        packageContentByPath = packageContentByPath.filter { livePaths.contains($0.key) }
+    }
+
+    private func probePackageContent(for url: URL) {
+        let path = url.path
+        guard packageContentByPath[path] == nil,
+              pendingPackageProbes.insert(path).inserted else { return }
+        Self.packageProbeQueue.async { [weak self] in
+            let insidePackage = Self.packageContent(of: url)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.pendingPackageProbes.remove(path)
+                self.packageContentByPath[path] = insidePackage
+            }
+        }
+    }
+
+    /// One file's package ancestry as the disk reports it. Only the probe
+    /// queue and the drag tests call this; a drag must never wait on it.
+    static func packageContent(of url: URL) -> Bool {
+        ShelfInteractionSupport.isInsidePackage(url) {
+            (try? $0.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
         }
     }
 
