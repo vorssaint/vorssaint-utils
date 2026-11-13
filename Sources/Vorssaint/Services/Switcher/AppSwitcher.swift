@@ -118,6 +118,12 @@ final class AppSwitcher: ObservableObject {
     private var secureInputActionHotKeys: [GlobalShortcut: EventHotKeyRef] = [:]
     private var secureInputGuardedModifiers: Set<GlobalShortcutModifiers> = []
     private var secureInputRegistrationFailed = false
+    /// Alive only while the switcher takes macOS's keys over; see
+    /// `readExclusiveFullscreen`. Written on the main thread only.
+    private var exclusiveFullscreenObservers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
+    private var exclusiveFullscreenRechecks: [DispatchWorkItem] = []
+    private var exclusiveFullscreenPoll: Timer?
+    private var yieldsToExclusiveFullscreen = false
 
     /// The little state the tap thread needs to route an event without
     /// touching the main thread; mutated only under `routeLock`.
@@ -128,6 +134,7 @@ final class AppSwitcher: ObservableObject {
     private var routeAllWindowsShortcut: GlobalShortcut?
     private var routeCapturing = false
     private var routeCanStartSession = false
+    private var routeYieldsToExclusiveFullscreen = false
     private var routePendingSessionStart: SwitcherPendingSessionStart?
     private var sessionStartGeneration: UInt64 = 0
     private var secureInputReplays = SwitcherSecureInputReplayState()
@@ -244,9 +251,11 @@ final class AppSwitcher: ObservableObject {
             // apply here so the native hotkeys follow immediately.
             if !UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts) {
                 secureInputWatch.stop()
+                stopObservingExclusiveFullscreen()
                 restoreNativeHotkeys()
             } else {
                 secureInputWatch.start()
+                startObservingExclusiveFullscreen()
                 applyNativeHotkeySuppressionIfTapLive()
             }
             // Build the panel and its SwiftUI tree now: the first hosting-view
@@ -261,6 +270,7 @@ final class AppSwitcher: ObservableObject {
             }
         } else {
             secureInputWatch.stop()
+            stopObservingExclusiveFullscreen()
             restoreNativeHotkeys()
             stopObservingKeyboardLayout()
             stopObservingWake()
@@ -273,10 +283,13 @@ final class AppSwitcher: ObservableObject {
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
     func suspend() {
+        // Closed first: the hand-backs below reapply the take-over through
+        // this gate, and a release path must never take a key over.
+        routeLock.withLock { routeCanStartSession = false }
         secureInputWatch.stop()
+        stopObservingExclusiveFullscreen()
         restoreNativeHotkeys()
         stopObservingWake()
-        routeLock.withLock { routeCanStartSession = false }
         removeTap()
     }
 
@@ -296,6 +309,94 @@ final class AppSwitcher: ObservableObject {
             }
         }
         if capturing { unregisterSecureInputHotKeys() }
+        applyNativeHotkeySuppressionIfTapLive()
+    }
+
+    // MARK: - Exclusive full screen
+
+    /// A game's own full screen can start after its process comes forward,
+    /// and can end while the game stays frontmost, with no Space or app
+    /// change to announce either. The window list is read when an app
+    /// activates and again shortly after, when the display mode changes, when
+    /// the Space changes, and once a second only while the keys are with
+    /// macOS, so a steady desktop costs nothing between activations.
+    private func startObservingExclusiveFullscreen() {
+        guard exclusiveFullscreenObservers.isEmpty else { return }
+        let workspace = NSWorkspace.shared.notificationCenter
+        exclusiveFullscreenObservers = [
+            (workspace, workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification,
+                                              object: nil, queue: .main) { [weak self] _ in
+                self?.exclusiveFullscreenApplicationDidActivate()
+            }),
+            (workspace, workspace.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
+                                              object: nil, queue: .main) { [weak self] _ in
+                self?.readExclusiveFullscreen()
+            }),
+            (.default, NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil, queue: .main) { [weak self] _ in
+                self?.readExclusiveFullscreen()
+            }),
+        ]
+        readExclusiveFullscreen()
+    }
+
+    private func stopObservingExclusiveFullscreen() {
+        for (center, token) in exclusiveFullscreenObservers { center.removeObserver(token) }
+        exclusiveFullscreenObservers.removeAll()
+        for work in exclusiveFullscreenRechecks { work.cancel() }
+        exclusiveFullscreenRechecks.removeAll()
+        setYieldsToExclusiveFullscreen(false)
+    }
+
+    /// A game raises its full-screen window a moment after it activates.
+    private static let exclusiveFullscreenRecheckDelays: [TimeInterval] = [1, 3]
+
+    private func exclusiveFullscreenApplicationDidActivate() {
+        readExclusiveFullscreen()
+        for work in exclusiveFullscreenRechecks { work.cancel() }
+        exclusiveFullscreenRechecks = Self.exclusiveFullscreenRecheckDelays.map { delay in
+            let work = DispatchWorkItem { [weak self] in self?.readExclusiveFullscreen() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+            return work
+        }
+    }
+
+    private func readExclusiveFullscreen() {
+        // No answer is no news: a transient failure must not hand the keys
+        // back to the switcher for the rest of the game.
+        guard let windows = NotchAppFullscreen.onScreenWindows() else { return }
+        let yields = SwitcherSupport.frontmostAppRaisesFullscreen(
+            windows: windows,
+            frontmostPID: NSWorkspace.shared.frontmostApplication?.processIdentifier,
+            ownPID: ProcessInfo.processInfo.processIdentifier,
+            displays: Array(NotchAppFullscreen.activeDisplays().values))
+        setYieldsToExclusiveFullscreen(yields)
+    }
+
+    /// Mirrors `secureInputChanged`: the keys go back to macOS and an open or
+    /// pending session is dropped, and the tap stops answering the shortcut
+    /// until the game's full screen ends.
+    private func setYieldsToExclusiveFullscreen(_ yields: Bool) {
+        if yields, exclusiveFullscreenPoll == nil {
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readExclusiveFullscreen() }
+            timer.tolerance = 0.3
+            exclusiveFullscreenPoll = timer
+            RunLoop.main.add(timer, forMode: .common)
+        } else if !yields {
+            exclusiveFullscreenPoll?.invalidate()
+            exclusiveFullscreenPoll = nil
+        }
+        guard yields != yieldsToExclusiveFullscreen else { return }
+        yieldsToExclusiveFullscreen = yields
+        routeLock.withLock {
+            routeYieldsToExclusiveFullscreen = yields
+            if yields { routePendingSessionStart = nil }
+        }
+        if yields {
+            invalidateSecureInputReplays()
+            if sessionActive { cancelSession() }
+        }
         applyNativeHotkeySuppressionIfTapLive()
     }
 
@@ -496,6 +597,7 @@ final class AppSwitcher: ObservableObject {
                 // Recording uses the focused AppKit field, even under secure
                 // input. Keep native keys out of its way while Carbon yields.
                 secureInputEnabled: IsSecureEventInputEnabled() && secureInputHotKeys.isEmpty && !capturing,
+                exclusiveFullscreen: yieldsToExclusiveFullscreen,
                 appsShortcut: apps,
                 windowShortcut: windows,
                 allWindowsShortcut: allWindows,
@@ -576,7 +678,9 @@ final class AppSwitcher: ObservableObject {
             takeOverSystemShortcuts: UserDefaults.standard.bool(forKey: DefaultsKey.switcherTakeOverSystemShortcuts),
             secureInputEnabled: IsSecureEventInputEnabled(),
             registrationFailed: secureInputRegistrationFailed)
-        guard wanted else {
+        // No Carbon stand-in either while a game owns the display: macOS's
+        // switcher answers ⌘Tab there, as it does without any stand-in.
+        guard wanted, !yieldsToExclusiveFullscreen else {
             unregisterSecureInputHotKeys()
             return
         }
@@ -765,16 +869,19 @@ final class AppSwitcher: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        let (active, shortcut, windowShortcut, allWindowsShortcut, capturing, canStartSession, hasPendingStart) = routeLock.withLock {
+        let (active, shortcut, windowShortcut, allWindowsShortcut, capturing, canStartSession, hasPendingStart,
+             yieldsToExclusiveFullscreen) = routeLock.withLock {
             (routeSessionActive, routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCapturing,
-             routeCanStartSession, routePendingSessionStart != nil)
+             routeCanStartSession, routePendingSessionStart != nil, routeYieldsToExclusiveFullscreen)
         }
         // A shortcut field in Settings has the keyboard: hand every key
         // straight through so the user can record this feature's own
         // combination instead of opening the switcher with it.
         if capturing { return Unmanaged.passUnretained(event) }
         if !active {
-            guard canStartSession else { return Unmanaged.passUnretained(event) }
+            // With a game in its own full screen the keys are macOS's again;
+            // starting a session here would swallow the press it answers.
+            guard canStartSession, !yieldsToExclusiveFullscreen else { return Unmanaged.passUnretained(event) }
             if type == .flagsChanged {
                 let stillInactive = routeLock.withLock { () -> Bool in
                     guard !routeSessionActive else { return false }
@@ -1242,6 +1349,17 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation, reason: "empty_window_list")
             return
         }
+        // A game can enter its own full screen from its settings, with no
+        // activation, Space or display change to announce it. One read here,
+        // once per opening, catches it: this press is lost, but the keys are
+        // macOS's before the next one instead of never.
+        if !exclusiveFullscreenObservers.isEmpty {
+            readExclusiveFullscreen()
+            if yieldsToExclusiveFullscreen {
+                discardPendingSessionStart(generation: generation, reason: "exclusive_fullscreen")
+                return
+            }
+        }
         // The foreground window is what a session is measured against, and it
         // does not always exist: an app left with no windows, or with all of
         // them minimized or on another Space, still owns the keyboard. The
@@ -1259,10 +1377,11 @@ final class AppSwitcher: ObservableObject {
 
         let list = SwitcherSupport.orderedForSession(windows, currentID: listedSource?.id)
         let handedOverPending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
-            guard SwitcherSupport.isCurrentSessionStart(
-                generation: generation,
-                pendingGeneration: routePendingSessionStart?.generation
-            ) else { return nil }
+            guard !routeYieldsToExclusiveFullscreen,
+                  SwitcherSupport.isCurrentSessionStart(
+                      generation: generation,
+                      pendingGeneration: routePendingSessionStart?.generation
+                  ) else { return nil }
             var pending = routePendingSessionStart
             pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))
             routePendingSessionStart = nil
