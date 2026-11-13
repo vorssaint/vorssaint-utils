@@ -13,6 +13,7 @@ final class FinderToolsService: ObservableObject {
         didSet {
             UserDefaults.standard.set(configuration.encoded, forKey: DefaultsKey.finderToolsConfiguration)
             publishMenu()
+            quickMenu.sync()
         }
     }
     @Published var pendingSavedAction: FinderToolsSavedAction?
@@ -37,6 +38,8 @@ final class FinderToolsService: ObservableObject {
     @Published private(set) var isRunning = false
     @Published private(set) var result: FinderToolsResult?
     @Published private(set) var error: String?
+
+    lazy var quickMenu = FinderToolsQuickMenu { [weak self] request in self?.open(request: request) }
 
     private var window: NSWindow?
     private var captureWindow: FinderCaptureWindow?
@@ -78,6 +81,7 @@ final class FinderToolsService: ObservableObject {
         let saved = FinderToolsConfiguration.decode(UserDefaults.standard.string(forKey: DefaultsKey.finderToolsConfiguration))
         if saved != configuration { configuration = saved }
         publishMenu()
+        quickMenu.sync()
         if !AppFeature.finderTools.isAvailable { suspend() }
     }
 
@@ -168,6 +172,7 @@ final class FinderToolsService: ObservableObject {
     }
 
     func suspend() {
+        quickMenu.suspend()
         cancellation?.cancel()
         window?.close()
         configurationWindow?.close()

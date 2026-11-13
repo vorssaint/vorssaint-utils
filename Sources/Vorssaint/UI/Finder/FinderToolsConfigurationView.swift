@@ -20,6 +20,7 @@ struct FinderToolsConfigurationView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     FinderToolsSetupView()
+                    FinderToolsQuickMenuSettings(service: service, quickMenu: service.quickMenu)
                     Divider()
                     ForEach(FinderCreationSetting.allCases) { setting in
                         Toggle(setting.title(l10n.language.rawValue), isOn: Binding(get: {
