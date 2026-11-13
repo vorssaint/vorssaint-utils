@@ -310,7 +310,7 @@ enum AgentUsageArchiveTests {
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
               "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands",
-              "antigravityNamedWorkspace", "antigravitySubagent", "antigravityRoot"])
+              "antigravityNamedWorkspace", "antigravitySubagent", "antigravityRoot", "antigravityModels"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,
