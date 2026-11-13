@@ -278,15 +278,11 @@ enum MediaWorkspaceLayoutTests {
             input.frame = CGRect(x: 0, y: 0, width: 300, height: 70)
             input.layoutSubtreeIfNeeded()
             _ = input.fittingSize
-            if embedded {
-                suite.expect(types(in: input).isEmpty,
-                       "embedded media leaves file drops to the island's destination chooser")
-            } else {
-                // SwiftUI registers broad transport types and filters the
-                // requested file URL type in its own drop coordinator.
-                suite.expect(settle { !types(in: input).isEmpty },
-                       "standalone media retains its native direct file drop target")
-            }
+            // SwiftUI registers broad transport types and filters the
+            // requested file URL type in its own drop coordinator.
+            suite.expect(settle { !types(in: input).isEmpty },
+                   embedded ? "embedded media retains its native direct file drop target"
+                            : "standalone media retains its native direct file drop target")
         }
     }
 }
