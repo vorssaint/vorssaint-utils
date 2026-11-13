@@ -3955,7 +3955,7 @@ enum SwitcherModelFeatureTests {
         suite.expect(iconRowLayout.panelSize.width <= screen.width * 0.96 + SwitcherIconRowLayout.padding * 2,
                "App Switcher icon-row mode stays within the visible screen")
         suite.expect(iconRowLayout.panelSize.height
-               == SwitcherIconRowLayout.previewHeight
+               == iconRowLayout.previewHeight
                + SwitcherIconRowLayout.previewGap
                + SwitcherIconRowLayout.rowHeight
                + SwitcherIconRowLayout.hintGap
@@ -4279,21 +4279,31 @@ enum SwitcherModelFeatureTests {
                                                                  selectedWindowCount: 1,
                                                                  screenVisibleFrame: screen)
         suite.expect(SwitcherIconRowLayout.scale <= 1.15,
-               "App Switcher icon-row mode caps Extra High preview scaling")
-        suite.expect(xlargeIconRowLayout.panelSize.height < 540,
-               "App Switcher icon-row mode stays compact with Extra High previews")
+               "App Switcher icon-row mode caps Extra High icon scaling")
+        UserDefaults.standard.set("large", forKey: DefaultsKey.switcherPreviewSize)
+        let largeIconRowLayout = SwitcherIconRowLayout.compute(appCount: 6,
+                                                               selectedWindowCount: 1,
+                                                               screenVisibleFrame: screen)
+        UserDefaults.standard.set("xlarge", forKey: DefaultsKey.switcherPreviewSize)
+        suite.expect(xlargeIconRowLayout.previewCardWidth > largeIconRowLayout.previewCardWidth
+               && largeIconRowLayout.previewCardWidth > SwitcherIconRowLayout.basePreviewCardWidth * 1.15,
+               "App Switcher icon-row previews still grow past Large when the screen has room")
+        suite.expect(xlargeIconRowLayout.panelSize.height <= screen.height * 0.85,
+               "App Switcher icon-row mode keeps Extra High previews inside the screen budget")
         suite.expect(xlargeIconRowLayout.panelSize.width < 950,
                "App Switcher icon-row mode avoids a giant empty backdrop with six apps")
         let xlargeSingleWindowLayout = SwitcherIconRowLayout.compute(appCount: 1,
                                                                      selectedWindowCount: 1,
                                                                      screenVisibleFrame: screen)
         suite.expectClose(Double(xlargeSingleWindowLayout.previewContentWidth),
-                    Double(SwitcherIconRowLayout.previewCardWidth),
+                    Double(xlargeSingleWindowLayout.previewCardWidth),
                     "App Switcher icon-row mode keeps a one-window preview card compact")
         suite.expectClose(Double(xlargeSingleWindowLayout.previewSurfaceWidth),
-                    Double(SwitcherIconRowLayout.previewCardWidth + SwitcherIconRowLayout.previewPanelPadding * 2),
+                    Double(xlargeSingleWindowLayout.previewCardWidth + SwitcherIconRowLayout.previewPanelPadding * 2),
                     "App Switcher icon-row mode keeps padding around a one-window preview card")
-        suite.expect(xlargeSingleWindowLayout.panelSize.width < 430,
+        suite.expect(xlargeSingleWindowLayout.panelSize.width
+               <= max(xlargeSingleWindowLayout.previewSurfaceWidth, SwitcherIconRowLayout.hintBarWidth)
+                   + SwitcherIconRowLayout.padding * 2 + 0.5,
                "App Switcher icon-row mode avoids a giant horizontal panel for one app with one window")
         if let previousPreviewSize {
             UserDefaults.standard.set(previousPreviewSize, forKey: DefaultsKey.previewSize)
@@ -5771,7 +5781,7 @@ enum SwitcherModelFeatureTests {
                         suite.expect(pair.panelSize.width <= width * 0.96
                                && !many.previewFitsWithoutScrolling(cardCount: 8),
                                "App Switcher bounds multi-window previews to the display and keeps overflow scrollable")
-                        suite.expect(single.previewContentWidth == SwitcherIconRowLayout.previewCardWidth,
+                        suite.expect(single.previewContentWidth == single.previewCardWidth,
                                "App Switcher keeps single-window surfaces compact within the stable panel")
                     }
                 }
@@ -5785,14 +5795,14 @@ enum SwitcherModelFeatureTests {
                                                           selectedWindowCount: 8,
                                                           screenVisibleFrame: screen)
         var fittingCardCount = 0
-        while CGFloat(fittingCardCount + 1) * SwitcherIconRowLayout.previewCardWidth
+        while CGFloat(fittingCardCount + 1) * cappedPreview.previewCardWidth
                 + CGFloat(fittingCardCount) * SwitcherIconRowLayout.spacing
                 <= cappedPreview.previewContentWidth {
             fittingCardCount += 1
         }
         suite.expect(fittingCardCount >= 1
                && cappedPreview.previewContentWidth
-                    < SwitcherIconRowLayout.naturalPreviewWidth(cardCount: 8)
+                    < cappedPreview.naturalPreviewWidth(cardCount: 8)
                && cappedPreview.previewFitsWithoutScrolling(cardCount: fittingCardCount)
                && !cappedPreview.previewFitsWithoutScrolling(cardCount: fittingCardCount + 1),
                "App Switcher preview counts card spacing before it stops scrolling")
@@ -5931,7 +5941,7 @@ enum SwitcherModelFeatureTests {
         let singleWindowAppLayout = SwitcherIconRowLayout.compute(appCount: appGroups.count,
                                                                   selectedWindowCount: appGroups[1].windowCount,
                                                                   screenVisibleFrame: screen)
-        suite.expect(singleWindowAppLayout.previewContentWidth == SwitcherIconRowLayout.previewCardWidth,
+        suite.expect(singleWindowAppLayout.previewContentWidth == singleWindowAppLayout.previewCardWidth,
                "App Switcher icon-row layout does not reserve empty preview slots for a one-window app")
         suite.expect(DockPreviewSupport.adjacentWindowID(selectedWindowID: 22,
                                                    windowIDs: [11, 22, 33],
