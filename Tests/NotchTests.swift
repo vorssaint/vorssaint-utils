@@ -3578,6 +3578,20 @@ enum NotchTests {
                    && prompt != info?["NSCalendarsFullAccessUsageDescription"] as? String,
                    "\(language) ships its own readable calendar permission explanation")
         }
+        let ignoreDomain = "com.vorssaint.tests.calendar-ignore"
+        let ignoreDefaults = UserDefaults(suiteName: ignoreDomain)!
+        ignoreDefaults.removePersistentDomain(forName: ignoreDomain)
+        defer { ignoreDefaults.removePersistentDomain(forName: ignoreDomain) }
+        ignoreDefaults.set(" Homeoffice, kiki Arbeit ,,", forKey: DefaultsKey.notchCalendarIgnoredTitles)
+        let ignoreWords = NotchCalendarSupport.ignoredKeywords(in: ignoreDefaults)
+        var ignoredEvent = NotchCalendarEvent(id: "i", title: "KIKI arbeit morgen", calendar: "Work", start: Date(),
+                                              end: Date().addingTimeInterval(60), allDay: false, location: "")
+        ignoredEvent.countdownKey = "k"
+        suite.expect(ignoreWords == ["homeoffice", "kiki arbeit"]
+               && NotchCalendarSupport.isIgnored(ignoredEvent, keywords: ignoreWords, chosen: [])
+               && !NotchCalendarSupport.isIgnored(ignoredEvent, keywords: ignoreWords, chosen: ["k"])
+               && !NotchCalendarSupport.isIgnored(ignoredEvent, keywords: [], chosen: []),
+               "ignored title keywords match case-insensitively and yield to an event chosen from its menu")
         suite.expect(NotchCalendarSupport.requestFailed(status: .notDetermined, hasError: false)
                && NotchCalendarSupport.requestFailed(status: .writeOnly, hasError: false),
                "a calendar request that silently fails to resolve read access surfaces an error")

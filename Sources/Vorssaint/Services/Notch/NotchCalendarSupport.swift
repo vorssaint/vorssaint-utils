@@ -213,6 +213,23 @@ enum NotchCalendarSupport {
         defaults.set(excluded.sorted(), forKey: DefaultsKey.notchCalendarExcluded)
     }
 
+    /// Comma-separated keywords from Settings, trimmed and lowercased.
+    static func ignoredKeywords(in defaults: UserDefaults = .standard) -> [String] {
+        (defaults.string(forKey: DefaultsKey.notchCalendarIgnoredTitles) ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            .filter { !$0.isEmpty }
+    }
+
+    static func ignoresEverywhere(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchCalendarIgnoreEverywhere)
+    }
+
+    /// Case-insensitive substring match. An event chosen from its menu is never ignored.
+    static func isIgnored(_ event: NotchCalendarEvent, keywords: [String], chosen: Set<String>) -> Bool {
+        let title = event.title.lowercased()
+        return !isChosen(event, in: chosen) && keywords.contains { title.contains($0) }
+    }
+
     /// The calendars to pass to EventKit: nil reads every calendar, including
     /// ones added later. An empty result means read nothing; the caller must
     /// not hand `[]` to EventKit, which treats it like nil.

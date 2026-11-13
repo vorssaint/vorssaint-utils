@@ -10,10 +10,23 @@ struct NotchCalendarSelection: View {
     @ObservedObject private var l10n = L10n.shared
     @State private var choices: [NotchCalendarChoice] = []
     @State private var excluded = NotchCalendarSupport.excludedCalendars()
+    @AppStorage(DefaultsKey.notchCalendarIgnoredTitles) private var ignoredTitles = ""
+    @AppStorage(DefaultsKey.notchCalendarIgnoreEverywhere) private var ignoreEverywhere = false
 
     var body: some View {
         let groups = NotchCalendarSupport.grouped(choices)
         VStack(alignment: .leading, spacing: 6) {
+            let strings = FeatureStrings.notchCalendar(l10n.language)
+            Divider()
+            Text(strings.ignoreTitles).font(.subheadline.weight(.medium))
+            TextField(strings.ignoreTitles, text: $ignoredTitles)
+                .labelsHidden()
+                .textFieldStyle(.roundedBorder)
+                .onChange(of: ignoredTitles) { _, _ in NotchCalendarService.shared.syncWithPreferences() }
+            Text(strings.ignoreTitlesHint).font(.caption).foregroundStyle(.secondary)
+            Toggle(strings.ignoreEverywhere, isOn: $ignoreEverywhere)
+                .toggleStyle(.checkbox)
+                .onChange(of: ignoreEverywhere) { _, _ in NotchCalendarService.shared.syncWithPreferences() }
             if !groups.isEmpty {
                 Divider()
                 Text(FeatureStrings.notchCalendar(l10n.language).calendars).font(.subheadline.weight(.medium))
