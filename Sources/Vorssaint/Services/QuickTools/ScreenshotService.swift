@@ -355,7 +355,7 @@ final class ScreenshotService: ObservableObject {
 
     // MARK: - Routing
 
-    /// Where a direct save landed, and which "%#" number it consumed — so a
+    /// Where a direct save landed, and which "%#" number it consumed, so a
     /// later Trash can remove the file and, if applicable, give exactly that
     /// number back.
     private struct SaveOutcome {
@@ -505,8 +505,8 @@ final class ScreenshotService: ObservableObject {
                     saved = result.outcome
                     return result.copied ? [.save, .copy] : [.save]
                 case .discard:
-                    // If this capture was already written to disk — whether
-                    // by the default action or a manual Save — Trash should
+                    // If this capture was already written to disk, whether
+                    // by the default action or a manual Save, Trash should
                     // undo that rather than leave an orphaned file behind.
                     // Into the actual Trash: the person may be discarding a
                     // file the HUD just announced as saved.
@@ -916,11 +916,12 @@ final class ScreenshotService: ObservableObject {
 
     private func saveDirect(_ capture: ScreenshotSelectionController.Capture) -> SaveOutcome? {
         guard let export = flatten(capture),
-              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+              let file = Self.encodedForSaving(export)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (url, consumedNumber) = Self.saveDestination(strings: strings,
+                                                         fileExtension: file.format.fileExtension)
         do {
-            try data.write(to: url, options: .atomic)
+            try file.data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
             QuickToolHUD.show(icon: "camera.viewfinder",
                               message: String(format: strings.savedHUDFormat,
@@ -941,11 +942,12 @@ final class ScreenshotService: ObservableObject {
     private func saveAndCopyDirect(_ capture: ScreenshotSelectionController.Capture)
         -> (outcome: SaveOutcome, copied: Bool)? {
         guard let export = flatten(capture),
-              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+              let file = Self.encodedForSaving(export)
         else { return nil }
-        let (url, consumedNumber) = Self.saveDestination(strings: strings)
+        let (url, consumedNumber) = Self.saveDestination(strings: strings,
+                                                         fileExtension: file.format.fileExtension)
         do {
-            try data.write(to: url, options: .atomic)
+            try file.data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
         } catch {
             if let consumedNumber {
@@ -955,8 +957,11 @@ final class ScreenshotService: ObservableObject {
             return nil
         }
 
-        let copied = ScreenshotEditorController.copyFile(
-            url, payload: ScreenshotEditorController.clipboardPayload(from: export, png: data))
+        // A JPEG file still pastes as PNG, which other apps handle best.
+        let payload = file.format == .png
+            ? ScreenshotEditorController.clipboardPayload(from: export, png: file.data)
+            : ScreenshotEditorController.clipboardPayload(from: export)
+        let copied = ScreenshotEditorController.copyFile(url, payload: payload)
         let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
         QuickToolHUD.show(icon: "camera.viewfinder",
                           message: String(format: format,
@@ -1031,8 +1036,25 @@ final class ScreenshotService: ObservableObject {
 
     // MARK: - Save location
 
+    /// The bytes Save writes, in the chosen file format.
+    static func encodedForSaving(_ export: ScreenshotRenderer.Export) -> ScreenshotImageFile? {
+        let type = saveFileType(for: export.image)
+        let data = type == .png
+            ? ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+            : ScreenshotSaveFormat.jpegData(from: export.image, scale: export.scale)
+        return data.map { ScreenshotImageFile(data: $0, format: type == .png ? .png : .jpeg) }
+    }
+
+    /// The chosen format resolved for this picture. Automatic reads a small
+    /// sample of it to choose.
+    static func saveFileType(for image: CGImage) -> ScreenshotSaveFormat.FileType {
+        let format = ScreenshotSaveFormat.sanitized(
+            UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFormat))
+        return format.fileType(for: format == .automatic ? ScreenshotSaveFormat.sample(of: image) : nil)
+    }
+
     /// The configured folder when it still exists, otherwise the Desktop,
-    /// with a unique dated file name.
+    /// with a unique dated file name ending in `fileExtension`.
     static func saveDestination(strings: ScreenshotFeatureStrings,
                                 fileExtension: String = "png") -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
@@ -1093,7 +1115,7 @@ final class ScreenshotService: ObservableObject {
     }
 
     /// Gives a consumed "%#" number back after its save failed or was
-    /// deleted — but only while nothing else advanced the sequence since,
+    /// deleted, but only while nothing else advanced the sequence since,
     /// so a rewind can never undo another capture's number.
     static func rewindNumberSequence(toReuse consumed: Int) {
         let defaults = UserDefaults.standard
