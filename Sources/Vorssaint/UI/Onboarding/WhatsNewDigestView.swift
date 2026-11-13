@@ -206,7 +206,7 @@ struct WhatsNewDigestView: View {
             Divider()
             HStack {
                 Spacer()
-                Button(l10n.s.obContinue, action: onFinish)
+                Button(l10n.s.supportIntroDoneButton, action: onFinish)
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
             }
