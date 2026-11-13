@@ -546,7 +546,7 @@ final class DockPreviewService: ObservableObject {
                 }
             case .otherIcon(let hit):
                 cancelPendingHide()
-                scheduleHover(hit, delay: DockPreviewSupport.switchDelay)
+                scheduleHover(hit, delay: DockPreviewSupport.switchDelay(openDelay: openDelay))
             case .outside:
                 // Don't cancel a half-armed switch here: a brief skip over dead
                 // space on the way to another icon shouldn't starve it — it
@@ -646,7 +646,7 @@ final class DockPreviewService: ObservableObject {
                 // panel keeps resting on its opener icon.
                 if self.hasEnteredPanel { self.endSession() }
             case .otherIcon(let hit):
-                self.scheduleHover(hit, delay: DockPreviewSupport.switchDelay)
+                self.scheduleHover(hit, delay: DockPreviewSupport.switchDelay(openDelay: self.openDelay))
             case .outside:
                 self.endSession()
             }
@@ -690,7 +690,7 @@ final class DockPreviewService: ObservableObject {
     /// reading's own head start, so the reading would land the moment the
     /// cursor does, and a reading under way cannot be called back.
     private func schedulePrefetch(token: UUID, pid: pid_t, delay: TimeInterval) {
-        guard !isVisible else { return }
+        guard !isVisible, DockPreviewSupport.shouldPrefetch(openDelay: delay) else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.pendingHover?.token == token else { return }
             let list = Self.previewableWindows(for: pid)

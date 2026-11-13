@@ -2435,15 +2435,29 @@ enum SwitcherModelFeatureTests {
                && DockPreviewSupport.sanitizedOpenDelay(milliseconds: 9_000)
                == DockPreviewSupport.openDelayMillisecondsRange.upperBound,
                "a Dock Preview delay outside the range is clamped to it")
-        suite.expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 0)
-               >= DockPreviewSupport.openDelayMillisecondsRange.lowerBound,
-               "an unset or zeroed Dock Preview delay cannot disarm the wait entirely")
+        suite.expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 0) == 0
+               && DockPreviewSupport.openDelay(milliseconds: 0) == 0,
+               "a Dock Preview can be set to open with no wait")
+        suite.expect(DockPreviewSupport.sanitizedOpenDelay(milliseconds: 50) == 50
+               && DockPreviewSupport.sanitizedOpenDelay(milliseconds: 200) == 200
+               && DockPreviewSupport.sanitizedOpenDelay(milliseconds: 900) == 900,
+               "delays chosen before the floor was lowered, and the new short ones, are kept as stored")
         suite.expectClose(DockPreviewSupport.openDelay(milliseconds: 250), 0.25,
                     "the stored milliseconds drive the timer in seconds")
         let openDelays = DockPreviewSupport.openDelayMillisecondsRange
             .map { DockPreviewSupport.openDelay(milliseconds: $0) }
-        suite.expect(openDelays.allSatisfy { DockPreviewSupport.switchDelay <= $0 },
+        suite.expect(openDelays.allSatisfy { DockPreviewSupport.switchDelay(openDelay: $0) <= $0 },
                "no chosen delay makes switching slower than opening")
+        suite.expect(DockPreviewSupport.switchDelay(openDelay: 0) == 0,
+               "with no open wait, moving to another Dock icon re-points the panel without one either")
+        suite.expectClose(DockPreviewSupport.switchDelay(
+                        openDelay: DockPreviewSupport.openDelay(
+                            milliseconds: DockPreviewSupport.defaultOpenDelayMilliseconds)),
+                    DockPreviewSupport.switchDelay,
+                    "at the default and above, switching keeps its own short wait")
+        suite.expect(!DockPreviewSupport.shouldPrefetch(openDelay: 0)
+               && DockPreviewSupport.shouldPrefetch(openDelay: 0.05),
+               "with no wait the opening panel reads its own window list instead of racing a prefetch")
         suite.expect(openDelays.allSatisfy { DockPreviewSupport.prefetchDelay(openDelay: $0) <= $0 },
                "the window list is never read after the panel it is read for has opened")
         suite.expect(openDelays.allSatisfy {
@@ -2456,14 +2470,17 @@ enum SwitcherModelFeatureTests {
                             milliseconds: DockPreviewSupport.defaultOpenDelayMilliseconds)),
                     0.1,
                     "at the default the window list is read halfway through the wait")
-        suite.expect(openDelays.allSatisfy {
-                   DockPreviewSupport.prefetchDelay(openDelay: $0) >= DockPreviewSupport.prefetchLead
+        suite.expect(DockPreviewSupport.openDelayMillisecondsRange
+               .filter { $0 >= DockPreviewSupport.defaultOpenDelayMilliseconds }
+               .allSatisfy {
+                   DockPreviewSupport.prefetchDelay(openDelay: DockPreviewSupport.openDelay(milliseconds: $0))
+                       >= DockPreviewSupport.prefetchLead
                },
-               "no setting reads the window list before the cursor has held still")
+               "from the default up, the window list is not read before the cursor has held still")
         suite.expect(DockPreviewSupport.switchDelay + 0.06
                < DockPreviewSupport.openDelay(
-                   milliseconds: DockPreviewSupport.openDelayMillisecondsRange.lowerBound),
-               "a switch, reading its window list inline, still lands before the shortest fresh open")
+                   milliseconds: DockPreviewSupport.defaultOpenDelayMilliseconds),
+               "a switch, reading its window list inline, still lands before a fresh open at the default")
         suite.expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
                "update checks are on for clean installs")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",

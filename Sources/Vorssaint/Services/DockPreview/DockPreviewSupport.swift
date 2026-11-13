@@ -167,11 +167,11 @@ enum DockPreviewSupport {
     /// enough that a cursor which stopped is answered. Adjustable: that line
     /// falls differently for every pointer speed.
     static let defaultOpenDelayMilliseconds = 200
-    /// The floor keeps two properties: the window list is read `prefetchLead`
-    /// earlier, so a shorter wait would read it the moment the cursor lands;
-    /// and `switchDelay` plus its inline reading stays under it, so a switch is
-    /// never slower than an open.
-    static let openDelayMillisecondsRange: ClosedRange<Int> = 200 ... 900
+    /// Down to no wait at all, for pointers that only stop where they mean to.
+    /// Below the default the window list is read sooner after the cursor lands
+    /// (at 0, inline as the panel opens), and a switch shortens with the open
+    /// (`switchDelay(openDelay:)`), so a switch is never slower than an open.
+    static let openDelayMillisecondsRange: ClosedRange<Int> = 0 ... 900
 
     static func sanitizedOpenDelay(milliseconds: Int) -> Int {
         min(max(milliseconds, openDelayMillisecondsRange.lowerBound),
@@ -183,17 +183,29 @@ enum DockPreviewSupport {
     }
 
     /// Handing an already open panel to the app under the cursor: the panel is
-    /// on screen and only has to re-point. Kept under the shortest open delay
-    /// on offer, so a switch is never slower than an open.
+    /// on screen and only has to re-point. Kept under the default open delay;
+    /// `switchDelay(openDelay:)` lowers it further for a shorter chosen open.
     static let switchDelay: TimeInterval = 0.1
+
+    /// The switch wait for a chosen open delay: never longer than the open, so
+    /// a switch is never slower than an open, even when the open is immediate.
+    static func switchDelay(openDelay: TimeInterval) -> TimeInterval {
+        min(switchDelay, max(0, openDelay))
+    }
 
     /// How far ahead of the panel the window list is read: far enough that an
     /// ordinary list is in hand when the panel opens, no further, so what it
-    /// opens on is still true. Half the shortest wait.
+    /// opens on is still true. Half the default wait.
     static let prefetchLead: TimeInterval = 0.1
 
     static func prefetchDelay(openDelay: TimeInterval) -> TimeInterval {
         max(0, openDelay - prefetchLead)
+    }
+
+    /// With no wait the panel reads the list itself as it opens; a separate
+    /// read due at the same instant could only race it.
+    static func shouldPrefetch(openDelay: TimeInterval) -> Bool {
+        openDelay > 0
     }
     static let hideDelay: TimeInterval = 0.22
     /// A little slack around the panel so the cursor grazing its edge doesn't
