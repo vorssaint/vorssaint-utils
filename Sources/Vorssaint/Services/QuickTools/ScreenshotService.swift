@@ -385,7 +385,14 @@ final class ScreenshotService: ObservableObject {
         if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
             autoCopy(capture)
         }
-        let defaultAction = ScreenshotDefaultAction.current
+        var defaultAction = ScreenshotDefaultAction.current
+        if defaults.bool(forKey: DefaultsKey.screenshotAutoSaveToDownloads) {
+            switch defaultAction {
+            case .none: defaultAction = .save
+            case .copy: defaultAction = .saveAndCopy
+            case .save, .saveAndCopy, .edit: break
+            }
+        }
         if defaultAction == .edit {
             // The editor decides what is kept. Its Add to Shelf puts the
             // finished picture there, so the raw capture is not shelved too.
@@ -1037,8 +1044,12 @@ final class ScreenshotService: ObservableObject {
                                 fileExtension: String = "png") -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
         var folder: URL?
+        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotAutoSaveToDownloads),
+           let downloads = manager.urls(for: .downloadsDirectory, in: .userDomainMask).first {
+            folder = downloads
+        }
         let stored = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
-        if !stored.isEmpty {
+        if folder == nil, !stored.isEmpty {
             let expanded = (stored as NSString).expandingTildeInPath
             var isDirectory: ObjCBool = false
             if manager.fileExists(atPath: expanded, isDirectory: &isDirectory),

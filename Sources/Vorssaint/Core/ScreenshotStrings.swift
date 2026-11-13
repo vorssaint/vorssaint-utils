@@ -115,6 +115,8 @@ struct ScreenshotFeatureStrings {
     let openEditorCaption: String
     let autoCopyToggle: String
     let autoCopyCaption: String
+    var autoSaveToggle: String = "Save to Downloads automatically"
+    var autoSaveCaption: String = "Every capture is saved to your Downloads folder as soon as it is taken, with no need to press Save in the preview."
     let copyImageOnlyToggle: String
     let copyImageOnlyCaption: String
     let addToShelfToggle: String

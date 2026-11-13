@@ -40,6 +40,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotCopyToClipboard) private var copyToClipboard = false
     @AppStorage(DefaultsKey.screenshotCopyImageOnly) private var copyImageOnly = false
+    @AppStorage(DefaultsKey.screenshotAutoSaveToDownloads) private var autoSaveToDownloads = false
     @AppStorage(DefaultsKey.screenshotAddToShelf) private var addToShelf = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(AppFeature.shelf.availabilityKey) private var shelfAvailable = false
@@ -188,6 +189,10 @@ struct ScreenshotCaptureSettings: View {
             Section {
                 Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(strings.autoSaveToggle, isOn: $autoSaveToDownloads)
+                Text(strings.autoSaveCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Toggle(strings.copyImageOnlyToggle, isOn: $copyImageOnly)

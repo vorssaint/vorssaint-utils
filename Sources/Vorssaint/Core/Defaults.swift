@@ -748,6 +748,7 @@ enum DefaultsKey {
     static let screenshotOpenEditorDirectly = "screenshotOpenEditorDirectly"
     static let screenshotCopyToClipboard = "screenshotCopyToClipboard"
     static let screenshotCopyImageOnly = "screenshotCopyImageOnly"
+    static let screenshotAutoSaveToDownloads = "screenshotAutoSaveToDownloads"
     static let screenshotAddToShelf = "screenshotAddToShelf"
     static let screenshotPreviewPosition = "screenshotPreviewPosition"
     static let screenshotPreviewTakesFocus = "screenshotPreviewTakesFocus"
@@ -1987,6 +1988,7 @@ enum Defaults {
         DefaultsKey.screenshotOpenEditorDirectly: false,
         DefaultsKey.screenshotCopyToClipboard: false,
         DefaultsKey.screenshotCopyImageOnly: false,
+        DefaultsKey.screenshotAutoSaveToDownloads: false,
         DefaultsKey.screenshotAddToShelf: false,
         DefaultsKey.screenshotPreviewPosition: ScreenshotSupport.QuickPreviewPosition.automatic.rawValue,
         DefaultsKey.screenshotPreviewTakesFocus: true,
