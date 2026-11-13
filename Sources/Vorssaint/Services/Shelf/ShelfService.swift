@@ -225,6 +225,7 @@ final class ShelfService: ObservableObject {
     private var dragBeganInDock = false
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
+    private var internalDragHoldsPackageContent = false
     private weak var internalDragWindow: NSWindow?
     private var internalDragWasMerged = false
     /// The edge (and screen) a drag is currently dwelling near, before it has
@@ -1345,13 +1346,22 @@ final class ShelfService: ObservableObject {
         }
     }
 
-    func beginInternalDrag(ids: [UUID], from window: NSWindow?) {
+    func beginInternalDrag(items draggedItems: [Item], from window: NSWindow?) {
         internalDragWindow = window
         if let window, window === NotchService.shared.presentationWindow {
             NotchService.shared.fileDragChanged(true, internalDrag: true)
         }
-        activeInternalDragIDs = ids
+        activeInternalDragIDs = draggedItems.map(\.id)
         internalDragWasMerged = false
+        // Use the same resolved payloads as the pasteboard. A healed bookmark
+        // does not replace its saved item until the next main-loop turn.
+        // Cache the result because AppKit asks for the mask throughout a drag.
+        internalDragHoldsPackageContent = draggedItems.contains { item in
+            guard case let .file(url) = item.payload else { return false }
+            return ShelfInteractionSupport.isInsidePackage(url) {
+                (try? $0.resourceValues(forKeys: [.isPackageKey]).isPackage) == true
+            }
+        }
     }
 
     /// Where a tile drag is now, so the island can step aside once its
@@ -1365,6 +1375,7 @@ final class ShelfService: ObservableObject {
     func finishInternalDrag(dropAccepted: Bool) -> [UUID] {
         defer {
             activeInternalDragIDs = []
+            internalDragHoldsPackageContent = false
             internalDragWasMerged = false
             if let window = internalDragWindow, window === NotchService.shared.presentationWindow {
                 NotchService.shared.fileDragChanged(false, internalDrag: true)
@@ -1418,7 +1429,8 @@ final class ShelfService: ObservableObject {
         let protected = protectedIDs
         return ShelfInteractionSupport.offersMoveOutside(
             removeAfterDrop: UserDefaults.standard.bool(forKey: DefaultsKey.shelfRemoveAfterDrop),
-            dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains))
+            dragIncludesPinned: activeInternalDragIDs.contains(where: protected.contains),
+            dragIncludesPackageContent: internalDragHoldsPackageContent)
             ? [.copy, .move]
             : .copy
     }

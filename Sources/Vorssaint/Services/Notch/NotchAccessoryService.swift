@@ -3,17 +3,14 @@
 
 import AppKit
 import Combine
-import IOBluetooth
 
 /// The system monitor remains the only battery sampler. Native connection
 /// notifications report an actual connection, independently of missing readings.
 final class NotchAccessoryService: NSObject {
     static let shared = NotchAccessoryService()
     private var subscription: AnyCancellable?
-    private var connectNotification: IOBluetoothUserNotification?
-    private var disconnectNotifications: [String: IOBluetoothUserNotification] = [:]
+    private let connectionMonitor = NotchAccessoryConnectionMonitor()
     private var batteryState = NotchAccessoryBatteryState()
-    private var connectionState = NotchAccessoryConnectionState()
     private var active = false
     private var activationTime: TimeInterval = 0
     private var generation = UUID()
@@ -31,12 +28,11 @@ final class NotchAccessoryService: NSObject {
         // The baseline is silent, including devices that were already low
         // before the user enabled this feature. Connection baselines are
         // rebuilt silently after lock/sleep; battery episodes survive both.
-        let devices = (IOBluetoothDevice.pairedDevices() as? [IOBluetoothDevice] ?? [])
-            .filter { $0.isConnected() }
-        connectionState.establishBaseline(Set(devices.compactMap { $0.addressString }))
-        devices.forEach(observeDisconnect)
-        connectNotification = IOBluetoothDevice.register(forConnectNotifications: self,
-            selector: #selector(deviceConnected(_:device:)))
+        connectionMonitor.start { [weak self] event in
+            guard let self, self.active, self.generation == currentGeneration,
+                  NotchAccessorySupport.isEnabled() else { return }
+            self.handleConnection(event)
+        }
         subscription = SystemMonitor.shared.$snapshot.map(\.peripheralBatterySample)
             .removeDuplicates().receive(on: DispatchQueue.main).sink { [weak self] sample in
                 guard let self, self.active, self.generation == currentGeneration,
@@ -61,7 +57,6 @@ final class NotchAccessoryService: NSObject {
 
     func stop() {
         batteryState = NotchAccessoryBatteryState()
-        connectionState = NotchAccessoryConnectionState()
         suspend()
     }
 
@@ -70,43 +65,23 @@ final class NotchAccessoryService: NSObject {
         active = false
         generation = UUID()
         subscription = nil
-        connectNotification?.unregister(); connectNotification = nil
-        disconnectNotifications.values.forEach { $0.unregister() }
-        disconnectNotifications.removeAll()
+        connectionMonitor.stop()
         noticeWork?.cancel(); noticeWork = nil
         pending.removeAll()
         SystemMonitor.shared.setNotchAccessoryMonitoring(false)
     }
 
-    private func observeDisconnect(_ device: IOBluetoothDevice) {
-        guard let id = device.addressString, disconnectNotifications[id] == nil else { return }
-        disconnectNotifications[id] = device.register(forDisconnectNotification: self,
-            selector: #selector(deviceDisconnected(_:device:)))
-    }
-
-    @objc private func deviceConnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.active, NotchAccessorySupport.isEnabled(), device.isConnected(),
-                  NotchAccessorySupport.announcesConnection(majorClass: UInt32(device.deviceClassMajor)),
-                  let id = device.addressString, self.connectionState.connected(id) else { return }
-            self.observeDisconnect(device)
-            guard let name = device.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else { return }
+    private func handleConnection(_ event: NotchAccessoryConnectionEvent) {
+        switch event {
+        case let .connected(name, majorClass, minorClass):
             let text = FeatureStrings.notchActivities(L10n.shared.language)
             // The status stays short beside its icon, so the name gets a
             // whole wing to itself before it has to be shortened.
             self.enqueue(NotchNotice(event: .accessory, title: text.connected, detail: name,
-                symbol: NotchAccessorySupport.symbol(name: name, majorClass: UInt32(device.deviceClassMajor),
-                                                     minorClass: UInt32(device.deviceClassMinor))),
+                symbol: NotchAccessorySupport.symbol(name: name, majorClass: majorClass, minorClass: minorClass)),
                          device: name)
-        }
-    }
-
-    @objc private func deviceDisconnected(_ notification: IOBluetoothUserNotification, device: IOBluetoothDevice) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self, self.active, !device.isConnected(), let id = device.addressString else { return }
-            self.connectionState.disconnected(id)
-            if let name = device.name { self.pending.removeAll { $0.device == name } }
-            self.disconnectNotifications.removeValue(forKey: id)?.unregister()
+        case let .disconnected(name):
+            if let name { pending.removeAll { $0.device == name } }
         }
     }
 

@@ -50,7 +50,8 @@ enum NotchPresentationRefreshContract {
             }
         }
     }
-    enum NotchContentTransition { case none, reveal, depart, replace }
+    enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+    private static let volume = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker", level: 0.5)
     struct NotchPlayback { let track: Int }
     struct NotchArtworkTint { let value: Int }
     final class NotchMusicService {
@@ -143,7 +144,7 @@ enum NotchPresentationRefreshContract {
                      revealFromHidden: Bool, usesGlass: Bool, steady: Bool) {
             transitions.append(transitionContent)
             self.steady = steady
-            departsContent = transitionContent == .depart
+            departsContent = transitionContent == .depart && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             self.usesGlass = usesGlass
             self.revealFromHidden = revealFromHidden
             onPresent?(size)
@@ -163,6 +164,7 @@ enum NotchPresentationRefreshContract {
         func compactCompanions(of primary: NotchCompactActivity) -> [NotchCompactActivity] { [] }
         var showsCompactActivityPicker = false
         var hiddenInFullscreen = false
+        var revealingFromAppFullscreen = false
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
@@ -177,6 +179,7 @@ enum NotchPresentationRefreshContract {
         var captureContentHeight: CGFloat?
         var captureFallback: (() -> Void)?
         var captureClose: (() -> Void)?
+        var captureDismiss: (() -> Void)?
         var captureHover: ((Bool) -> Void)?
         var captureClosesOnCollapse = false
         var routesCaptures = true
@@ -218,7 +221,10 @@ enum NotchPresentationRefreshContract {
         var departingMusic: NotchCompactMusicSnapshot?
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
-        var notice: Bool?
+        var notice: NotchNotice?, departingNotice: NotchNotice?
+        var noticeWork: DispatchWorkItem?, departureWork: DispatchWorkItem?
+        func mascotNoticeBridgeBackStart(from ending: NotchNotice?) -> CGFloat? { nil }
+        func bridgeMascotHome(from offset: CGFloat) {}
         var captureControls: CaptureOptions?
         var captureControlsCollapsed = false, captureSelectionInProgress = false
         var inside = false, trackingMenu = false
@@ -277,6 +283,7 @@ enum NotchPresentationRefreshContract {
         func syncHiddenHoverMonitoring() {}
         func schedulePointerFollow() {}
         func syncMirrors() {}
+        var mirrorHeldForArrival: CGDirectDisplayID?
         func finishMusicDeparture() {
             musicDepartureWork?.cancel(); musicDepartureWork = nil
             departingMusic = nil
@@ -360,7 +367,7 @@ enum NotchPresentationRefreshContract {
         // Whatever takes the strip's place ends the part under the pointer, and
         // with the pointer off the island, the strip's name and held song.
         for hide: (Service) -> Void in [{ $0.expanded = true; $0.compactActivityIsVisible = false },
-                                        { $0.notice = true; $0.compactActivityIsVisible = false },
+                                        { $0.notice = volume; $0.compactActivityIsVisible = false },
                                         { $0.compactActivity = .timer }] {
             for stays in [false, true] {
                 let hidden = Service()
@@ -422,6 +429,24 @@ enum NotchPresentationRefreshContract {
             UserDefaults.standard.hides = false
             UserDefaults.standard.outline = false
         }
+        for reduceMotion in [false, true] {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduceMotion
+            let service = Service()
+            service.expanded = false
+            service.notice = volume
+            service.refreshPresentation()
+            service.dismissNotice()
+            if !reduceMotion {
+                suite.expect(service.stripNotice == volume && service.windowHost?.activationRect == .zero,
+                             "the outgoing notice button keeps clicks until its fade finishes")
+                DispatchQueue.main.advance(NotchMotion.departureHidden)
+            }
+            suite.expect(service.stripNotice == nil && service.windowHost?.activationRect.isEmpty == false,
+                         "the normal activation button returns when the outgoing notice leaves")
+            service.windowHost?.activate?()
+            suite.expect(service.expanded, "the restored native button opens the island")
+        }
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
         let outlined = Service()
         outlined.expanded = false
         UserDefaults.standard.outline = true
@@ -510,6 +535,15 @@ enum NotchPresentationRefreshContract {
         fullscreen.refreshPresentation()
         suite.expect(fullscreen.panel?.isVisible == true && fullscreen.acceptsSystemFeedback,
                      "leaving fullscreen restores ordinary content and feedback routing")
+        let relocatingCapture = Service()
+        relocatingCapture.captureControls = CaptureOptions()
+        relocatingCapture.captureSelectionInProgress = true
+        relocatingCapture.mirrorHeldForArrival = 2
+        relocatingCapture.panel?.isVisible = false
+        relocatingCapture.refreshPresentation(animated: false)
+        suite.expect(relocatingCapture.windowHost?.hideAnimations == [false]
+                     && relocatingCapture.panel?.isVisible == false && !relocatingCapture.edgeClicksEnabled,
+                     "selection during a relocation hides through the host, so a pending arrival cannot reveal controls")
         let countdown = Service()
         countdown.expanded = false
         countdown.compactActivityIsVisible = true
@@ -724,6 +758,14 @@ enum NotchPresentationRefreshContract {
                "closing an expanded island without safe menu space animates its withdrawal")
         suite.expect(simulated.panel?.isVisible == false,
                "closing tools withdraws their simulated cutout if the center is still unverified")
+        simulated.expanded = true
+        simulated.revealingFromAppFullscreen = true
+        simulated.refreshPresentation()
+        suite.expect(simulated.windowHost?.revealFromHidden == true,
+               "an app's own full screen ending reveals the withdrawn island from the screen edge")
+        simulated.revealingFromAppFullscreen = false
+        simulated.expanded = false
+        simulated.refreshPresentation()
 
         UserDefaults.standard.hides = true
         for isPhysical in [false, true] {
@@ -731,7 +773,7 @@ enum NotchPresentationRefreshContract {
             if !isPhysical { hidden.geometry = simulated.geometry }
             hidden.expanded = false
             hidden.compactActivityIsVisible = true
-            hidden.notice = true
+            hidden.notice = volume
             hidden.refreshPresentation()
             suite.expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
                    "hidden mode withdraws the entire window, including compact activity and an existing notice")
@@ -776,7 +818,7 @@ enum NotchPresentationRefreshContract {
             waiting.compactActivityIsVisible = false
             waiting.refreshPresentation()
             suite.expect(waiting.panel?.isVisible == false, "a hidden island goes out of sight again once the activity ends")
-            waiting.notice = true
+            waiting.notice = volume
             waiting.refreshPresentation()
             suite.expect(waiting.panel?.isVisible == showsActivity,
                    "a notice brings a hidden island into view only when it is set to show activity")

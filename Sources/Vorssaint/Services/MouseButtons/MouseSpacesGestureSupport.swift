@@ -144,11 +144,10 @@ enum MouseSpacesGestureSupport {
         }
     }
 
-    /// Buttons the gesture can live on. The same extra buttons a shortcut can
-    /// use, minus the side wheel: a wheel direction is a tick, not a drag, so
-    /// there is nothing to hold and nothing to measure.
+    /// The middle button and the extra buttons can be held for a drag. Side
+    /// wheel directions are ticks, so there is nothing to hold or measure.
     static func canBind(_ input: Int64) -> Bool {
-        MouseButtonShortcutSupport.buttonRange.contains(input)
+        input == 2 || MouseButtonShortcutSupport.buttonRange.contains(input)
     }
 
     /// The bound button, or nil when the gesture is off, unavailable, has no
