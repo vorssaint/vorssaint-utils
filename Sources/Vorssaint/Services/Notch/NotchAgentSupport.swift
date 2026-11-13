@@ -94,6 +94,7 @@ enum NotchAgentSupport {
         case .claude: return DefaultsKey.notchAgentsClaude
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
+        case .cursor: return DefaultsKey.notchAgentsCursor
         case .copilot: return DefaultsKey.notchAgentsCopilot
         }
     }
