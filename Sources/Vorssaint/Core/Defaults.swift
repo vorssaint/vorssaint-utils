@@ -852,6 +852,7 @@ enum DefaultsKey {
     static let notchIncludeOtherPlayers = "notchIncludeOtherPlayers"
     static let notchMusicShowVolume = "notchMusicShowVolume"
     static let notchPreferredPlayer = "notchPreferredPlayer"
+    static let notchMusicSideButton = "notchMusicSideButton"   // output | like
     static let notchDefaultProfileInitialized = "notchDefaultProfileInitialized" // local migration marker; never backed up
     static let notchInitialExtensionsInstalled = "notchInitialExtensionsInstalled" // local first-install marker; never backed up
     static let notchAgentsOptInMigrated = "notchAgentsOptInMigrated" // local migration marker; never backed up
@@ -901,6 +902,8 @@ enum DefaultsKey {
     static let notchBrowserCovers = "notchBrowserCovers"
     static let notchLiveEqualizer = "notchLiveEqualizer"
     static let notchQueueEnabled = "notchQueueEnabled"
+    /// The Client ID of the Spotify app the person registered for the heart button.
+    static let notchSpotifyClientID = "notchSpotifyClientID"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
     // Watch: any part of any window read live in the island.
@@ -1480,6 +1483,7 @@ enum Defaults {
         DefaultsKey.notchIncludeOtherPlayers: true,
         DefaultsKey.notchMusicShowVolume: false,
         DefaultsKey.notchPreferredPlayer: "",
+        DefaultsKey.notchMusicSideButton: NotchMusicSidePlace.output.rawValue,
         DefaultsKey.notchIdleContent: NotchIdleContent.music.rawValue,
         DefaultsKey.notchHiddenControls: NotchControlItem.defaultHidden,
         DefaultsKey.notchScratchpadControlHidden: false,
@@ -1550,6 +1554,7 @@ enum Defaults {
         DefaultsKey.notchBrowserCovers: false,
         DefaultsKey.notchLiveEqualizer: false,
         DefaultsKey.notchQueueEnabled: true,
+        DefaultsKey.notchSpotifyClientID: "",
         DefaultsKey.notchDownloadsEnabled: true,
         DefaultsKey.notchWatchEnabled: true,
         DefaultsKey.notchWatchSound: true,

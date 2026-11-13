@@ -423,7 +423,7 @@ extension AppFeature {
         case .notchGestures: return FeatureSettingsDestination(notch: .behavior)
         case .notchTimer: return FeatureSettingsDestination(notch: .module(.timer))
         case .notchAccessories: return FeatureSettingsDestination(notch: .activity)
-        case .notchLyrics, .notchQueue, .notchLiveEqualizer:
+        case .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer:
             return FeatureSettingsDestination(notch: .module(.music))
         case .notchDownloads: return FeatureSettingsDestination(notch: .module(.downloads))
         case .notchAgents: return FeatureSettingsDestination(notch: .module(.agents))
@@ -482,7 +482,7 @@ enum FeatureVisibilitySupport {
         case .superKey: return [.superKey]
         case .textSnippets: return [.textSnippets]
         case .screenshot: return [.screenshot, .screenRecorder, .screenOCR, .colorPicker]
-        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]
+        case .notch: return [.notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchSpotify, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch, .notchMascot]
         case .notchMascot: return [.notchMascot]
         case .radialMenu: return [.radialMenu]
         case .commandBar: return [.commandBar]
