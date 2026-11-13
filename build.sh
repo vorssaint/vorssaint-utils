@@ -362,6 +362,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
         Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
+        Sources/Vorssaint/Core/BrowserPickerStrings.swift
+        Sources/Vorssaint/Services/QuickTools/BrowserPickerSupport.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
