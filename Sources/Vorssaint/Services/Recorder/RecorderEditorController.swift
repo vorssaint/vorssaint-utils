@@ -592,7 +592,14 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             return RecorderSupport.gifOutputSize(source: canvas,
                                                   scalePercent: document.resolvedGIFScalePercent)
         }
-        return RecorderSupport.outputSize(source: canvas, quality: document.resolvedQuality)
+        return videoExportPlan(for: document)?.size ?? document.exportResolution(source: sourceSize)
+    }
+
+    func videoExportPlan(for document: RecorderEditDocument) -> RecorderVideoExportPlan? {
+        let hasAudio = (document.keepsSystemAudio && audioSources.contains(.system))
+            || (document.keepsMicrophone && audioSources.contains(.microphone))
+        return document.videoExportPlan(source: sourceSize, frameRate: sourceFrameRate,
+                                        duration: duration, hasAudio: hasAudio)
     }
 
     func setExportFormat(_ format: RecorderSupport.ExportFormat) {
@@ -1742,6 +1749,9 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
                 }
             case .cancelled:
                 break
+            case .targetSizeTooSmall:
+                NSSound.beep()
+                QuickToolHUD.show(icon: "record.circle", message: L10n.shared.s.mediaErrorTargetTooSmall)
             default:
                 NSSound.beep()
                 QuickToolHUD.show(icon: "record.circle", message: self.strings.exportFailed)

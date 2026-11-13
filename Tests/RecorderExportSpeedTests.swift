@@ -7,6 +7,7 @@ import Foundation
 /// macOS smoke checks described in docs/recorder-export-speed.md.
 enum RecorderExportSpeedTests {
     static func run(_ suite: TestSuite) {
+        compression(suite)
         let original = RecorderEditDocument()
         suite.expect(original.exportSpeed == 1
                 && original.exportDuration(duration: 10) == 10,
@@ -104,5 +105,60 @@ enum RecorderExportSpeedTests {
         suite.expect(RecorderEditDocument(exportSpeed: 4, cuts: [.init(start: 0, end: 10)])
                 .exportDuration(duration: 10) == 0,
                      "an entirely cut recording stays empty at any speed")
+    }
+    private static func compression(_ suite: TestSuite) {
+        let legacy = RecorderEditDocument.decoded(Data(#"{"quality":"balanced"}"#.utf8))
+        suite.expect(legacy.exportMaxDimension == 0 && legacy.exportTargetBytes == 0,
+                     "old recordings keep unrestricted exports")
+        let source = CGSize(width: 3840, height: 2160)
+        let document = RecorderEditDocument(trimStart: 2, trimEnd: 14, exportSpeed: 2,
+            exportMaxDimension: 1280, cuts: [.init(start: 4, end: 6)])
+        let plan = document.videoExportPlan(source: source, frameRate: 60, duration: 20, hasAudio: true)!
+        suite.expect(plan.size == CGSize(width: 1280, height: 720) && plan.duration == 5,
+                     "resolution and size estimate use the trimmed, cut and accelerated export")
+        let smallQuality = RecorderEditDocument(quality: "small", exportMaxDimension: 1280)
+        suite.expect(smallQuality.exportResolution(source: source) == CGSize(width: 1280, height: 720),
+                     "an explicit resolution overrides preset scaling while retaining its bitrate quality")
+        var decorated = document
+        decorated.blurs = [.init(start: 0, end: 20)]
+        let composer = RecorderComposer.makePlan(document: decorated, track: RecorderPointerTrack(),
+            sourceSize: source, frameRate: 60, duration: 20, outputSize: CGSize(width: 64, height: 36))
+        suite.expect(composer?.canvasSize == CGSize(width: 64, height: 36),
+                     "effects render at the exact planned resolution, including reductions below ten percent")
+        let silent = document.videoExportPlan(source: source, frameRate: 60, duration: 20, hasAudio: false)!
+        suite.expect(plan.estimatedBytes > silent.estimatedBytes,
+                     "file-size estimates include retained audio")
+        let original = legacy.videoExportPlan(source: source, frameRate: 60, duration: 20, hasAudio: true)!
+        suite.expect(plan.estimatedBytes < original.estimatedBytes,
+                     "lowering resolution and duration reduces the visible size estimate")
+        let smallSource = document.videoExportPlan(source: CGSize(width: 320, height: 180),
+            frameRate: 30, duration: 20, hasAudio: false)!
+        suite.expect(smallSource.size == CGSize(width: 320, height: 180),
+                     "a resolution limit does not upscale a small recording")
+        var targeted = document
+        targeted.exportTargetMegabytes = 1
+        let target = targeted.videoExportPlan(source: source, frameRate: 60, duration: 20, hasAudio: true)!
+        suite.expect(target.estimatedBytes <= targeted.exportTargetBytes
+                && target.size.width <= 1280 && target.size.height <= 720,
+                     "the budget reserves audio and container space within the selected resolution")
+        suite.expect(RecorderEditDocument(exportTargetMegabytes: 1).videoExportPlan(
+            source: source, frameRate: 60, duration: 3600, hasAudio: true) == nil,
+                     "an unreachable limit is refused before encoding")
+        suite.expect(RecorderEditDocument.decoded(targeted.encoded()) == targeted,
+                     "export size and resolution survive reopening the recording")
+        let sanitized = RecorderEditDocument(exportMaxDimension: -1, exportTargetMegabytes: 1000)
+            .sanitized(duration: 20)
+        suite.expect(sanitized.exportMaxDimension == 0 && sanitized.exportTargetMegabytes == 512,
+                     "damaged export settings are bounded")
+        suite.expect(!document.affectsPicture(targeted) && !document.affectsTiming(targeted)
+                && !document.affectsAudio(targeted), "compression changes leave the editing preview alone")
+        suite.expect(RecorderEditDocument(exportMaxDimension: 1280).isEdited(duration: 20)
+                && RecorderEditDocument(exportTargetMegabytes: 20).isEdited(duration: 20),
+                     "export-only settings count as changes before closing")
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.recorderCompression(language)
+            suite.expect(!strings.originalResolution.isEmpty && !strings.limitFileSize.isEmpty
+                    && !strings.estimateHint.isEmpty, "compression controls are translated for \(language)")
+        }
     }
 }

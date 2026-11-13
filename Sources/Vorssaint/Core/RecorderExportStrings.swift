@@ -10,6 +10,64 @@ struct RecorderExportStrings {
     let previewNote: String
 }
 
+struct RecorderCompressionStrings {
+    let originalResolution: String
+    let limitFileSize: String
+    let estimateHint: String
+}
+
+extension FeatureStrings {
+    static func recorderCompression(_ language: AppLanguage) -> RecorderCompressionStrings {
+        switch language {
+        case .enUS:
+            return .init(originalResolution: "Automatic (quality preset)", limitFileSize: "Limit file size",
+                         estimateHint: "Approximate size based on bitrate, including audio and edits. The actual file may be smaller; a size limit is checked before saving. Applies to video, not GIF.")
+        case .ptBR:
+            return .init(originalResolution: "Automática (qualidade)", limitFileSize: "Limitar tamanho do arquivo",
+                         estimateHint: "Estimativa pela taxa de bits, incluindo áudio e edições. O arquivo pode ser menor; o limite é verificado antes de salvar. Vale para vídeo, não GIF.")
+        case .tr:
+            return .init(originalResolution: "Otomatik (kalite ayarı)", limitFileSize: "Dosya boyutunu sınırla",
+                         estimateHint: "Ses ve düzenlemeler dahil bit hızına dayalı tahmin. Dosya daha küçük olabilir; boyut sınırı kaydetmeden önce denetlenir. GIF için değil, video için geçerlidir.")
+        case .ru:
+            return .init(originalResolution: "Авто (по качеству)", limitFileSize: "Ограничить размер файла",
+                         estimateHint: "Оценка по битрейту с учётом звука и монтажа. Файл может оказаться меньше; лимит проверяется перед сохранением. Применяется к видео, не к GIF.")
+        case .es:
+            return .init(originalResolution: "Automática (calidad)", limitFileSize: "Limitar tamaño del archivo",
+                         estimateHint: "Estimación según la tasa de bits, con audio y edición. El archivo puede ser menor; el límite se verifica antes de guardar. Se aplica al vídeo, no al GIF.")
+        case .sk:
+            return .init(originalResolution: "Automatické (kvalita)", limitFileSize: "Obmedziť veľkosť súboru",
+                         estimateHint: "Odhad podľa dátového toku vrátane zvuku a úprav. Súbor môže byť menší; limit sa overí pred uložením. Platí pre video, nie GIF.")
+        case .de:
+            return .init(originalResolution: "Automatisch (Qualitätsstufe)", limitFileSize: "Dateigröße begrenzen",
+                         estimateHint: "Schätzung anhand der Bitrate einschließlich Ton und Bearbeitung. Die Datei kann kleiner sein; das Limit wird vor dem Speichern geprüft. Gilt für Video, nicht GIF.")
+        case .fr:
+            return .init(originalResolution: "Automatique (qualité)", limitFileSize: "Limiter la taille du fichier",
+                         estimateHint: "Estimation selon le débit, avec le son et les modifications. Le fichier peut être plus petit ; la limite est vérifiée avant l’enregistrement. Pour la vidéo, pas le GIF.")
+        case .it:
+            return .init(originalResolution: "Automatica (qualità)", limitFileSize: "Limita dimensione del file",
+                         estimateHint: "Stima dal bitrate, con audio e modifiche. Il file può essere più piccolo; il limite viene verificato prima del salvataggio. Vale per i video, non per i GIF.")
+        case .ja:
+            return .init(originalResolution: "自動（画質設定）", limitFileSize: "ファイルサイズを制限",
+                         estimateHint: "音声と編集を含むビットレートからの概算です。実際のファイルは小さくなる場合があります。上限は保存前に確認されます。動画に適用され、GIFには適用されません。")
+        case .ko:
+            return .init(originalResolution: "자동 (화질 설정)", limitFileSize: "파일 크기 제한",
+                         estimateHint: "오디오와 편집을 포함한 비트 전송률 기반 예상 크기입니다. 실제 파일은 더 작을 수 있으며 저장 전에 제한을 확인합니다. GIF가 아닌 동영상에 적용됩니다.")
+        case .uk:
+            return .init(originalResolution: "Авто (за якістю)", limitFileSize: "Обмежити розмір файлу",
+                         estimateHint: "Оцінка за бітрейтом з урахуванням звуку й монтажу. Файл може бути меншим; ліміт перевіряється перед збереженням. Застосовується до відео, не до GIF.")
+        case .zhHans:
+            return .init(originalResolution: "自动（画质预设）", limitFileSize: "限制文件大小",
+                         estimateHint: "根据码率估算，包含音频和编辑。实际文件可能更小，保存前会检查大小上限。适用于视频，不适用于 GIF。")
+        case .zhTW:
+            return .init(originalResolution: "自動（畫質預設）", limitFileSize: "限制檔案大小",
+                         estimateHint: "依位元率估算，包含音訊和編輯。實際檔案可能較小，儲存前會檢查大小上限。適用於影片，不適用於 GIF。")
+        case .zhHK:
+            return .init(originalResolution: "自動（畫質預設）", limitFileSize: "限制檔案大小",
+                         estimateHint: "按位元率估算，包含音訊及編輯。實際檔案可能較小，儲存前會檢查大小上限。適用於影片，不適用於 GIF。")
+        }
+    }
+}
+
 extension FeatureStrings {
     static func recorderExport(_ language: AppLanguage) -> RecorderExportStrings {
         switch language {

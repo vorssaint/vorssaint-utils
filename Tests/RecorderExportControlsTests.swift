@@ -31,6 +31,31 @@ enum RecorderExportControlsTests {
         suite.expect(model.document == beforeBusyEdit,
                      "export controls reject edits while export is in progress")
 
+        let compressed = RecorderExportControlsFixture()
+        compressed.document.exportMaxDimension = 640
+        suite.expect(compressed.exportSize == CGSize(width: 640, height: 360),
+                     "video dimensions reflect the selected compression resolution")
+        compressed.document.exportTargetMegabytes = 1
+        let compressedVideoSize = compressed.exportSize
+        let silentEstimate = compressed.videoExportPlan(for: compressed.document)!.estimatedBytes
+        compressed.audioSources = [.system]
+        compressed.document.exportTargetMegabytes = 0
+        let audibleEstimate = compressed.videoExportPlan(for: compressed.document)!.estimatedBytes
+        compressed.document.keepsSystemAudio = false
+        suite.expect(compressed.videoExportPlan(for: compressed.document)!.estimatedBytes < audibleEstimate,
+                     "editor estimates follow the retained audio selection")
+        suite.expect(silentEstimate > 0, "a file-size limit still produces a video estimate")
+        compressed.document.exportTargetMegabytes = 1
+        compressed.setExportFormat(.gif)
+        compressed.setGIFScalePercent(50)
+        suite.expect(compressed.exportSize == CGSize(width: 960, height: 540),
+                     "video compression settings preserve independent GIF dimensions")
+        compressed.setExportFormat(.video)
+        suite.expect(compressed.exportSize == compressedVideoSize
+            && compressed.document.exportMaxDimension == 640
+            && compressed.document.exportTargetMegabytes == 1,
+                     "switching formats restores the selected video compression settings")
+
         let actions = RecorderExportActionFixture()
         for format in [RecorderSupport.ExportFormat.video, .gif] {
             actions.model.setExportFormat(format)

@@ -6,6 +6,20 @@ import CoreGraphics
 import CoreMedia
 import Foundation
 
+struct RecorderVideoExportPlan {
+    let size: CGSize
+    let frameRate: Int
+    let videoBitRate: Int
+    let audioBitRate: Int
+    let duration: Double
+
+    var estimatedBytes: Int64 {
+        // Container overhead and rate control make this an approximation.
+        let bytes = Double(videoBitRate + audioBitRate) * duration / 8 * 1.02
+        return Int64(min(Double(Int64.max / 2), max(0, bytes)).rounded())
+    }
+}
+
 /// Lets cancellation win while an asynchronous capture start is suspended.
 /// Stop waits for start to leave its await points before closing the writer,
 /// so no late stream can append after the recording file was finalized.

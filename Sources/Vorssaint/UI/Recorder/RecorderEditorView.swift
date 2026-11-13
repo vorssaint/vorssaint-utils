@@ -465,8 +465,10 @@ struct RecorderEditorView: View {
             RecorderExportSpeedControl(model: model)
             if model.document.resolvedExportFormat == .gif {
                 RecorderGIFFrameRateControl(model: model)
+                RecorderExportSizeControl(model: model)
+            } else {
+                RecorderCompressionControl(model: model)
             }
-            RecorderExportSizeControl(model: model)
         }
     }
 
