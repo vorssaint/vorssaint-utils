@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Carbon.HIToolbox
 import Foundation
@@ -1120,6 +1121,21 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
         case .purple: return strings.keepAwakeIconTintPurple
         case .pink: return strings.keepAwakeIconTintPink
         case .none: return strings.keepAwakeIconTintNone
+        }
+    }
+
+    /// The colour of the active icon, shared by the menu bar item and the
+    /// closed island's strip so one session never shows two colours.
+    /// `nil` leaves the menu bar icon a template, which the system draws in
+    /// the bar's own colour; the island then keeps its yellow.
+    var color: NSColor? {
+        switch self {
+        case .orange: return .systemOrange
+        case .green: return .systemGreen
+        case .blue: return .systemBlue
+        case .purple: return .systemPurple
+        case .pink: return .systemPink
+        case .none: return nil
         }
     }
 }

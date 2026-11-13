@@ -946,7 +946,7 @@ enum BlackHoleGlyph {
             source = mark()
         }
         guard let source else { return fallback(active: tint != .none) }
-        guard let color = color(for: tint) else {
+        guard let color = tint.color else {
             source.isTemplate = true
             return source
         }
@@ -1071,17 +1071,6 @@ enum BlackHoleGlyph {
         }
         tinted.isTemplate = false
         return tinted
-    }
-
-    private static func color(for tint: KeepAwakeIconTint) -> NSColor? {
-        switch tint {
-        case .orange: return .systemOrange
-        case .green: return .systemGreen
-        case .blue: return .systemBlue
-        case .purple: return .systemPurple
-        case .pink: return .systemPink
-        case .none: return nil
-        }
     }
 
     /// Keeps a recognizable presence if the bundled asset is ever missing

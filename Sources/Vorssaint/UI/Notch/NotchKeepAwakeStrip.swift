@@ -4,9 +4,9 @@
 import SwiftUI
 
 /// The closed island while Keep Awake runs: the cup of its tile left of the
-/// camera, in the tile's yellow, and on the right the time a timed session
-/// has left, or infinity for one without an end. Both open Controls, where
-/// the tile is. The wings are as wide as the wider side needs.
+/// camera, in the active icon's colour, and on the right the time a timed
+/// session has left, or infinity for one without an end. Both open Controls,
+/// where the tile is. The wings are as wide as the wider side needs.
 struct NotchKeepAwakeStrip: View {
     @ObservedObject var service: NotchService
     /// Where the island draws it: its own strip as of the last update, or
@@ -29,6 +29,13 @@ struct NotchKeepAwakeStrip: View {
         } else {
             strip(end: nil, now: Date())
         }
+    }
+
+    /// The colour chosen for the active icon, so the indicator matches the
+    /// menu bar item. With no tint the item keeps the bar's own colour, and
+    /// the island keeps the yellow it has always used.
+    private var tint: Color {
+        Color(nsColor: KeepAwakeIconTint.current.color ?? .systemYellow)
     }
 
     private func strip(end: Date?, now: Date) -> some View {
@@ -63,7 +70,7 @@ struct NotchKeepAwakeStrip: View {
                 .padding(.trailing, geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0))
                 .frame(width: wing, height: height, alignment: .trailing)
             }
-            .foregroundStyle(.yellow)
+            .foregroundStyle(tint)
             .frame(height: height)
             .contentShape(Rectangle())
         }
