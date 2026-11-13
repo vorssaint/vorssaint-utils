@@ -17,6 +17,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsMuse) private var muse = false
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
@@ -32,7 +33,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil, muse ? .muse : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
                 || ($0 == .claude && !usage.claudeProfile.isDefault) }
     }
@@ -271,7 +272,7 @@ private struct NotchAgentLimitsCard: View {
 
     /// Two rows fit: the session and whichever longer window binds first.
     private var windows: [AgentLimitWindow] {
-        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+        let all = AgentLimitSupport.currentWindows(limits, now: now)
         let session = all.first { $0.kind == .session }
         let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
         return [session, longer].compactMap { $0 }
@@ -323,7 +324,13 @@ private struct NotchAgentLimitsCard: View {
                             .lineLimit(1)
                     }
                 } else if windows.isEmpty {
-                    estimate
+                    if provider == .muse {
+                        Text("No weekly reading from CodexBar.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        estimate
+                    }
                 } else {
                     meters(windows)
                     if windows.count == 1 { caption }
