@@ -33,6 +33,37 @@ struct NotchLyrics: Equatable {
     let lines: [NotchLyricLine]
     let plain: String
     let instrumental: Bool
+    /// Arabic, Hebrew, Persian, Urdu and every other right-to-left script
+    /// read from the right whatever the app's own language. Decided once for
+    /// the whole song, by whether its right-to-left letters outnumber the
+    /// rest, so a verse opening with a Latin word keeps the song's edge
+    /// instead of flipping sides mid-song. Counting letters needs no language
+    /// guess, which short verses and less common scripts would defeat.
+    let readsRightToLeft: Bool
+
+    init(lines: [NotchLyricLine], plain: String, instrumental: Bool) {
+        self.lines = lines
+        self.plain = plain
+        self.instrumental = instrumental
+        // The timed verses are what the island shows whenever there are any;
+        // a plain text beside them can be a transliteration.
+        let text = lines.isEmpty ? plain : lines.map(\.text).joined(separator: "\n")
+        var balance = 0
+        for scalar in text.unicodeScalars where scalar.properties.isAlphabetic {
+            balance += Self.isRightToLeft(scalar) ? 1 : -1
+        }
+        readsRightToLeft = balance > 0
+    }
+
+    /// Unicode's right-to-left blocks: Hebrew through Arabic Extended-A
+    /// (Arabic, Syriac, Thaana, N'Ko, Samaritan, Mandaic), their presentation
+    /// forms, and the right-to-left scripts of the supplementary planes.
+    private static func isRightToLeft(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x0590...0x08FF, 0xFB1D...0xFDFF, 0xFE70...0xFEFF, 0x10800...0x10FFF, 0x1E800...0x1EFFF: return true
+        default: return false
+        }
+    }
 
     /// Highlighting changes only at lyric boundaries. Rebuild this schedule
     /// when playback or the user's offset changes, with no clock while paused.
