@@ -6,7 +6,7 @@ import Foundation
 import Network
 
 /// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
+/// OpenCode and Hermes usage from their databases, while the AI section is on, along with
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
 /// memory and in the app's private folder so the next launch reads only what
@@ -30,6 +30,10 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
+    private let hermesLimitsQueue = DispatchQueue(label: "com.vorssaint.hermes-limits", qos: .utility)
+    private var hermesLimitsRequest: BoundedProcessCancellation?
+    private var hermesLimitsAttempted = Date.distantPast
+    private var hermesLimitsFailed = false
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
@@ -147,6 +151,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshHermesLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +165,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelHermesLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,6 +200,9 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelHermesLimits()
+        hermesLimitsAttempted = .distantPast
+        hermesLimitsFailed = false
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -255,6 +264,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -273,6 +283,41 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused, claudeAccountRequest == nil else { return }
         claudeAccountAttempted = .distantPast
         refreshClaudeLimits(pageShows: true)
+    }
+
+    /// The ChatGPT limits Hermes reads for its own Codex sign-in. Codex copies
+    /// its limits into its logs only while it works, so usage that runs
+    /// through Hermes would leave the Codex card behind until Codex runs
+    /// again. Asked soon after Hermes spends on that account, and now and then
+    /// while the limits show; Hermes resolves the sign-in, and no credential
+    /// is read here. Main thread.
+    func refreshHermesLimits(used: Bool = false, now: Date = Date()) {
+        guard running, !paused, online, providers.contains(.hermes), providers.contains(.codex),
+              hermesLimitsRequest == nil, NotchAgentSupport.limitsInUse(pageShown: pageVisible) else { return }
+        let wait = hermesLimitsFailed ? AgentHermesLimits.retry
+            : used || pageVisible ? AgentHermesLimits.freshness : AgentHermesLimits.backgroundFreshness
+        guard now.timeIntervalSince(hermesLimitsAttempted) >= wait else { return }
+        hermesLimitsAttempted = now
+        let request = BoundedProcessCancellation()
+        hermesLimitsRequest = request
+        let expected = session
+        let hermesHome = AgentLogRoot.hermesHome(home: home)
+        hermesLimitsQueue.async { [weak self] in
+            let result = AgentHermesLimits.fetch(home: hermesHome, provider: AgentHermesLimits.codexProvider,
+                                                 cancellation: request)
+            DispatchQueue.main.async {
+                guard let self, self.running, self.session == expected, self.hermesLimitsRequest === request else { return }
+                self.hermesLimitsRequest = nil
+                let limits = (try? result.get()).flatMap(AgentHermesLimits.codexLimits)
+                self.hermesLimitsFailed = limits == nil
+                if let limits { self.noteLimits(limits) }
+            }
+        }
+    }
+
+    private func cancelHermesLimits() {
+        hermesLimitsRequest?.cancel()
+        hermesLimitsRequest = nil
     }
 
     // MARK: Reading
@@ -357,7 +402,7 @@ final class AgentUsageService: ObservableObject {
         // contents gave. Left out, the next launch reads it as rewritten.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { !$0.restarted && !$0.provider.readsDatabase }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -365,9 +410,9 @@ final class AgentUsageService: ObservableObject {
     /// Changes whenever a log is read further, replaced or let go. OpenCode,
     /// which is never saved, leaves it alone.
     private var progressMark: Int {
-        let records = store.records.reduce(0) { $1.provider == .opencode ? $0 : $0 + 1 }
+        let records = store.savedRecordCount
         return cursors.values.reduce(records) { mark, cursor in
-            guard cursor.provider != .opencode else { return mark }
+            guard !cursor.provider.readsDatabase else { return mark }
             var hasher = Hasher()
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
@@ -437,7 +482,7 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
+            if cursor.provider.readsDatabase {
                 // A database changes in place: its write-ahead log grows instead.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
@@ -501,7 +546,10 @@ final class AgentUsageService: ObservableObject {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
-            return store.forget(file: path)
+            let changed = store.forget(file: path)
+            // A harness database held totals, not turns: what they gave goes with it.
+            if provider == .hermes { store.forget(files: [path]) }
+            return changed || provider == .hermes
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
@@ -513,8 +561,8 @@ final class AgentUsageService: ObservableObject {
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
-            let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
-            let turnFile = provider == .opencode && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
+            let isSubagent = provider.readsDatabase && !cursor.state.parentSession.isEmpty
+            let turnFile = provider.readsDatabase && !cursor.state.session.isEmpty ? "\(path)#\(cursor.state.session)" : path
             let tracksTurns = isSubagent ? false : cursor.tracksTurns
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors)
@@ -529,6 +577,19 @@ final class AgentUsageService: ObservableObject {
                                         shouldContinue: { !cancellation.isCancelled }, line: consume)
         }
         return changed
+    }
+
+    /// Usage that ran through Hermes moved the limits of the accounts it
+    /// spent on: those are asked again soon instead of on their usual wait.
+    /// Runs on `queue`.
+    private func checkAccounts(after grown: Set<AgentProvider>) {
+        guard !grown.isEmpty else { return }
+        let expected = readerSession
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running, self.session == expected else { return }
+            if grown.contains(.claude) { self.refreshClaudeLimits(used: true) }
+            if grown.contains(.codex) { self.refreshHermesLimits(used: true) }
+        }
     }
 
     private func watch(_ roots: [AgentLogRoot]) {
@@ -579,6 +640,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshHermesLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -636,6 +698,7 @@ final class AgentUsageService: ObservableObject {
     private func publish() {
         let session = readerSession
         guard session >= 0 else { return }
+        checkAccounts(after: store.takeCounterGrowth())
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
@@ -800,8 +863,8 @@ final class AgentUsageService: ObservableObject {
 
     // Main thread. Every minute only while the page shows; failures back
     // off, and looking at the page does not bypass that.
-    func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {
-        guard claudeLimitsDue(at: now, pageShows: pageShows) else { return }
+    func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false, used: Bool = false) {
+        guard claudeLimitsDue(at: now, pageShows: pageShows, used: used) else { return }
         claudeAccountAttempted = now
         claudeAccountChecking = true
         let request = AgentClaudeServer.Request()
@@ -851,11 +914,13 @@ final class AgentUsageService: ObservableObject {
 
     /// Never while the feature is off, asleep, offline or already checking,
     /// nor while nothing shows or alerts on the limits. Main thread.
-    private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+    /// `used`: the account just spent through a harness, so a reading that
+    /// worked is renewed as if the page showed.
+    private func claudeLimitsDue(at now: Date, pageShows: Bool, used: Bool = false) -> Bool {
         guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
-            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible || used)
     }
 
     /// Main thread.
