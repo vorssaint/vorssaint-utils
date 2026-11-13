@@ -5152,8 +5152,12 @@ enum SwitcherModelFeatureTests {
                "middle click rejects a click arriving with the third finger's touchdown")
         suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: 0.1,
-                                                 systemDragGestureEnabled: false) == .swallow,
+                                                 systemDragGestureEnabled: false, tapEnabled: true) == .swallow,
                "middle click drops the tap-to-click bounce right after a transform")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: false, tapEnabled: false) == .transform,
+               "middle click keeps rapid repeated presses when tap-to-click is off")
         suite.expect(MiddleClickSupport.actionForClick(fingerCount: 3, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: 0.5,
                                                  systemDragGestureEnabled: false) == .transform,
@@ -5176,8 +5180,12 @@ enum SwitcherModelFeatureTests {
                "middle click rejects a four-finger click arriving with the fourth finger's touchdown")
         suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
                                                  sinceLastTransformEnd: 0.1,
-                                                 systemDragGestureEnabled: true) == .swallow,
+                                                 systemDragGestureEnabled: true, tapEnabled: true) == .swallow,
                "middle click drops the bounce after a four-finger transform")
+        suite.expect(MiddleClickSupport.actionForClick(fingerCount: 4, frameAge: 0.05, settledFor: 0.2,
+                                                 sinceLastTransformEnd: 0.1,
+                                                 systemDragGestureEnabled: true, tapEnabled: false) == .transform,
+               "middle click keeps a repeated four-finger press when tap-to-click is off")
 
         expectEqual(ColorValue.string(red: 1, green: 0, blue: 0, format: .hex), "#FF0000",
                     "color picker formats pure red as hex")
