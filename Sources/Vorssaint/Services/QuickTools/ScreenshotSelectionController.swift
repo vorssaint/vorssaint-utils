@@ -105,7 +105,7 @@ final class ScreenshotSelectionController {
         supportsScrollingCapture && (activeTool == .screenshot || activeTool == .scrolling)
     }
     fileprivate var offersFullScreenCapture: Bool {
-        acceptsCaptureInput && activeMode == .image
+        acceptsCaptureInput && (activeMode == .image || activeTool == .recording)
             && ScreenshotSupport.fullScreenCaptureControlIsAvailable(
                 selectedTool: activeTool,
                 standaloneScreenshot: screenCaptureOptions == nil,
@@ -1872,7 +1872,7 @@ private struct FullScreenCaptureButton: View {
             hoverChanged($0)
         }
         .shadow(color: .black.opacity(0.20), radius: 12, y: 5)
-        .help(FeatureStrings.screenshot(l10n.language).fullScreenShortcutTitle)
+        .help(FeatureStrings.screenshot(l10n.language).fullScreenCaptureButton)
         .accessibilityLabel(FeatureStrings.screenshot(l10n.language).fullScreenCaptureButton)
     }
 }
