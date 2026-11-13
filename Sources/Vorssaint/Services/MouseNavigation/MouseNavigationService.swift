@@ -202,7 +202,9 @@ final class MouseNavigationService: ObservableObject {
         }
         let buttonNumber = event.getIntegerValueField(.mouseEventButtonNumber)
         guard type == .otherMouseDown || type == .otherMouseUp || type == .otherMouseDragged,
-              let direction = MouseNavigationSupport.direction(forButtonNumber: buttonNumber) else {
+              let direction = MouseNavigationSupport.direction(
+                  forButtonNumber: buttonNumber,
+                  reverseButtons: UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationReverseButtons)) else {
             return Unmanaged.passUnretained(event)
         }
 

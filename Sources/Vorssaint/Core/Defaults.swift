@@ -72,6 +72,7 @@ enum DefaultsKey {
     static let scrollSpeedModifier = "scrollSpeedModifier"
     static let scrollSpeedMultiplier = "scrollSpeedMultiplier"
     static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
+    static let mouseNavigationReverseButtons = "mouseNavigationReverseButtons"
     static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let smoothScrollCoast = "smoothScrollCoast" // 0...100, higher coasts the same distance out longer
     static let mouseNavigationEnabled = "mouseNavigationEnabled" // side buttons trigger Back and Forward
@@ -1284,6 +1285,7 @@ enum Defaults {
         DefaultsKey.scrollSpeedModifier: ScrollHorizontalModifier.option.rawValue,
         DefaultsKey.scrollSpeedMultiplier: ScrollWheelSupport.defaultSpeedMultiplier,
         DefaultsKey.mouseAccelerationDisabled: false,
+        DefaultsKey.mouseNavigationReverseButtons: false,
         DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.smoothScrollCoast: SmoothScrollSupport.defaultCoast,
         DefaultsKey.mouseNavigationEnabled: false,
