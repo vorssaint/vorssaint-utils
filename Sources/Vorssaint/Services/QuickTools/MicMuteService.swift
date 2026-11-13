@@ -879,11 +879,16 @@ final class MicMuteService: ObservableObject {
     ]
 
     /// Runs on `halQueue`. Drops stale device listeners and, while muted,
-    /// watches the mute and volume of every input we can see.
+    /// watches the mute and volume of every input that is actually quiet.
+    /// A driver that accepts a write, announces the change and keeps its old
+    /// value (the Microsoft Teams virtual microphone does this) would answer
+    /// every re-assert with another notification, and the sweeps would never
+    /// stop. Re-asserting cannot silence such a device anyway; it is retried
+    /// when the device list or the default input changes.
     private func syncDeviceListeners(muted: Bool) {
         removeDeviceListeners()
         guard muted else { return }
-        for device in Self.inputDevices() {
+        for device in Self.inputDevices() where Self.isSilenced(device.id) {
             let elements = Self.inputElements(of: device.id)
             for selector in Self.watchedDeviceSelectors {
                 let watchElements: [AudioObjectPropertyElement]
