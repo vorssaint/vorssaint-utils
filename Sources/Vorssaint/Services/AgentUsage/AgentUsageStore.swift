@@ -29,6 +29,9 @@ final class AgentUsageStore {
     private var settled: [String: Date] = [:]
     /// When a model last replied, by the log of the turn it counts toward.
     private var replies: [String: Date] = [:]
+    /// Copied transcripts can report the same question. Keep only transient
+    /// fingerprints and times; question text is never added to the archive.
+    private var confirmations: [Int: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
     /// A turn that ended longer ago than this is history found late, like a
@@ -132,6 +135,19 @@ final class AgentUsageStore {
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
+            case .confirmationNeeded(let date, let project, let detail):
+                guard reportsTransitions else { continue }
+                let moment = date ?? modified
+                guard (0...Self.lateEnd).contains(now.timeIntervalSince(moment)) else { continue }
+                let proj = project.isEmpty ? (turns[file]?.project ?? "") : project
+                confirmations = confirmations.filter { now.timeIntervalSince($0.value) <= Self.lateEnd }
+                var fingerprint = Hasher()
+                fingerprint.combine(provider)
+                fingerprint.combine(moment)
+                fingerprint.combine(proj)
+                fingerprint.combine(detail)
+                guard confirmations.updateValue(moment, forKey: fingerprint.finalize()) == nil else { continue }
+                events.append(.confirmationNeeded(provider: provider, project: proj, detail: detail))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file
                 forget(file: baseFile)
@@ -476,7 +492,9 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.antigravity, ".gemini/antigravity-cli/brain"), (.antigravity, ".gemini/antigravity/brain"),
+         (.antigravity, ".gemini/antigravity-ide/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,9 +518,18 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        switch provider {
+        case .antigravity:
+            // <brain>/<conversation>/.system_generated/logs/transcript[_full].jsonl
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == ".system_generated" && parts[2] == "logs"
+                && (parts[3] == "transcript.jsonl" || parts[3] == "transcript_full.jsonl")
+        case .copilot:
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        default:
+            return true
+        }
     }
 }
 
@@ -581,6 +608,18 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        resetState()
+    }
+
+    /// Antigravity does not repeat its conversation ID in every line. The
+    /// first read and a rotated file both restart at the identity in its path.
+    private func resetState() {
+        state = AgentLogState()
+        if provider == .antigravity {
+            state.session = URL(fileURLWithPath: path)
+                .deletingLastPathComponent().deletingLastPathComponent()
+                .deletingLastPathComponent().lastPathComponent
+        }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -628,7 +667,7 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
+        resetState()
         fingerprinted = nil
         codexParentSearch = -1
     }
@@ -753,10 +792,19 @@ enum AgentLogReader {
             // databases and checkpoints. Its log has one fixed shallow path;
             // recursively walking the workspace can delay the first snapshot
             // indefinitely on a large repository.
-            if root.provider == .copilot {
+            if root.provider == .copilot || root.provider == .antigravity {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
-                for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                for session in sessions {
+                    if root.provider == .copilot {
+                        include(session.appending(path: "events.jsonl"), from: root)
+                    } else {
+                        let logs = session.appending(path: ".system_generated/logs")
+                        for name in ["transcript.jsonl", "transcript_full.jsonl"] {
+                            include(logs.appending(path: name), from: root)
+                        }
+                    }
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

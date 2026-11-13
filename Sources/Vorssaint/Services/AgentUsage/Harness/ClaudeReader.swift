@@ -123,8 +123,14 @@ struct ClaudeReader: AgentHarnessReader {
             state.turnOpen = false
         default:
             for block in message["content"] as? [[String: Any]] ?? []
-            where block["type"] as? String == "tool_use" && block["name"] as? String == "Bash" {
-                if let id = block["id"] as? String { state.runningCommands.insert(id) }
+            where block["type"] as? String == "tool_use" {
+                let name = block["name"] as? String ?? ""
+                if name == "Bash", let id = block["id"] as? String { state.runningCommands.insert(id) }
+                if name == "AskUserQuestion" || name == "AskFollowupQuestion" || name == "AskUserAction" {
+                    let questions = (block["input"] as? [String: Any])?["questions"] as? [[String: Any]]
+                    entries.append(.confirmationNeeded(date, project: state.project,
+                                                       detail: questions?.first?["question"] as? String ?? ""))
+                }
             }
             // Ahead of the usage, so a reply that opens the turn again, as
             // after an offline end, counts toward it.

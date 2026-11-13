@@ -142,6 +142,7 @@ enum AgentUsageReadTests {
             var entries: [AgentLogEntry] = []
             let consume: (Data) -> Void = { line in
                 switch provider {
+                case .antigravity: entries += AntigravityReader().parse(line, state: &cursor.state, now: now)
                 case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)

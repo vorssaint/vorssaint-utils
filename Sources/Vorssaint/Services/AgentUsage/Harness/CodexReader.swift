@@ -12,6 +12,18 @@ struct CodexReader: AgentHarnessReader {
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         guard let kind = AgentLogParser.firstType(line) else { return [] }
         switch kind.name {
+        case "response_item":
+            guard let json = AgentLogParser.object(line),
+                  let payload = json["payload"] as? [String: Any],
+                  payload["type"] as? String == "function_call",
+                  let name = payload["name"] as? String,
+                  name == "request_user_input" || name == "functions.request_user_input" || name == "request_user_input_async" || name == "functions.request_user_input_async",
+                  let arguments = payload["arguments"] as? String,
+                  let args = AgentLogParser.object(Data(arguments.utf8)) else { return [] }
+            let questions = args["questions"] as? [[String: Any]]
+            let detail = questions?.first?["question"] as? String ?? questions?.first?["title"] as? String ?? ""
+            return [.confirmationNeeded(AgentLogParser.timestamp(json["timestamp"]) ?? now,
+                                        project: state.project, detail: detail)]
         case "token_usage_record", "turn_context", "session_meta": break
         case "event_msg":
             guard let event = AgentLogParser.firstType(line, from: kind.end), AgentLogParser.codexEvents.contains(event.name) else { return [] }

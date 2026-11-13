@@ -12,6 +12,7 @@ extension AgentProvider {
         case .codex: return Color(red: 0.49, green: 0.60, blue: 1.0)
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
+        case .antigravity: return Color(red: 0.72, green: 0.36, blue: 0.98)
         }
     }
 }
@@ -61,6 +62,7 @@ struct NotchAgentCardHeader<Accessory: View>: View {
                 .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1)
+                .truncationMode(.middle)
             Spacer(minLength: 4)
             accessory
         }
@@ -375,6 +377,7 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
+        case .antigravity: return ["com.google.antigravity"]
         }
     }
 
@@ -390,6 +393,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
+        case .antigravity: return []
         }
     }
 }
@@ -422,5 +426,20 @@ struct NotchAgentMark: View {
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(tint ?? provider.tint)
         }
+    }
+}
+
+struct NotchAgentChip: View {
+    let text: String
+    var tint: Color = .white
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(tint.opacity(0.9))
+            .lineLimit(1)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(tint.opacity(0.14), in: Capsule(style: .continuous))
     }
 }
