@@ -22,6 +22,7 @@ extension FeatureStrings {
     static func settingsPages(_ language: AppLanguage) -> SettingsPageStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -234,5 +235,18 @@ extension SettingsPageStrings {
         switcherLayoutWindowsCaption: "每個視窗一張預覽，包括已縮到最小的視窗。",
         switcherLayoutIcons: "大圖示",
         switcherLayoutSimple: "簡單列表"
+    )
+
+    static let idID = SettingsPageStrings(
+        energyDescription: "Jaga Mac tetap terjaga, atur layar, dan hemat baterai.",
+        monitorDescription: "Apa yang ditampilkan bar menu dan panel tentang Mac kamu, serta kapan memberi peringatan.",
+        mouseDescription: "Beri fungsi baru untuk roda scroll, tombol samping, dan trackpad.",
+        switcherDescription: "Beralih antar-app dan jendela sesuai gayamu.",
+        dockTitle: "Dock",
+        dockDescription: "Lihat jendela app dari ikonnya di Dock, lalu pilih apa yang terjadi saat diklik.",
+        switcherLayoutWindows: "Pratinjau jendela",
+        switcherLayoutWindowsCaption: "Satu pratinjau per jendela, termasuk yang diperkecil.",
+        switcherLayoutIcons: "Ikon besar",
+        switcherLayoutSimple: "Daftar sederhana"
     )
 }

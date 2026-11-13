@@ -7,6 +7,7 @@ enum FeatureStrings {
     static func settingsCategories(_ language: AppLanguage) -> SettingsCategoryStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -27,6 +28,7 @@ enum FeatureStrings {
     static func clipboard(_ language: AppLanguage) -> ClipboardFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -47,6 +49,7 @@ enum FeatureStrings {
     static func windowLayout(_ language: AppLanguage) -> WindowLayoutFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -67,6 +70,7 @@ enum FeatureStrings {
     static func monitorAlerts(_ language: AppLanguage) -> MonitorAlertFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -87,6 +91,7 @@ enum FeatureStrings {
     static func mixer(_ language: AppLanguage) -> MixerFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -3414,5 +3419,231 @@ extension MixerFeatureStrings {
         moveRight: "Перемістити праворуч",
         arrange: "Утримуйте Command і перетягуйте, щоб змінити порядок",
         actions: "Дії"
+    )
+}
+
+extension SettingsCategoryStrings {
+    static let idID = SettingsCategoryStrings(
+        essentials: "Esensial",
+        windowsControls: "Kontrol jendela",
+        files: "File",
+        utilities: "Utilitas",
+        app: "App",
+        appManagement: "Pengelolaan app"
+    )
+}
+
+extension ClipboardFeatureStrings {
+    static let idID = ClipboardFeatureStrings(
+        title: "Clipboard",
+        enable: "Simpan riwayat clipboard",
+        caption: "Menyimpan teks yang disalin supaya bisa dipakai lagi nanti. Semuanya tetap lokal dan bisa dibersihkan kapan saja.",
+        localNote: "Semuanya tetap di Mac ini. Item yang sangat besar diabaikan.",
+        skipSensitive: "Lewati teks yang tampak sensitif",
+        skipSensitiveCaption: "Bisa melewati teks biasa yang mirip kata sandi atau token. Konten yang ditandai rahasia oleh app asalnya selalu dikecualikan.",
+        limit: "Batas",
+        limitUnlimited: "Tanpa batas",
+        showInPanel: "Tampilkan di panel",
+        shortcut: "Shortcut riwayat",
+        shortcutCaption: "Membuka jendela cepat dengan pencarian, item yang disematkan, dan shortcut ⌘1 sampai ⌘9 untuk menempel ke app sebelumnya.",
+        shortcutHint: "Klik baris untuk menempel ke app sebelumnya. ⌘-klik memilih beberapa; ⌘C menyalin tanpa menempel.",
+        clickRowShortcut: "Klik baris",
+        commandClickShortcut: "⌘ Klik",
+        pinned: "Disematkan",
+        recent: "Terbaru",
+        pin: "Sematkan",
+        unpin: "Lepas sematan",
+        clearRecent: "Bersihkan yang tidak disematkan",
+        clearRecentKeywords: "Bersihkan terbaru",
+        empty: "Belum ada teks tersimpan",
+        disabled: "Aktifkan riwayat untuk mulai menyimpan teks yang disalin.",
+        search: "Cari teks yang disalin",
+        copy: "Salin",
+        copied: "Disalin",
+        delete: "Hapus item",
+        selectMultiple: "Tambah ke tumpukan",
+        unselectMultiple: "Keluarkan dari tumpukan",
+        selectShortcutAction: "Pilih",
+        pasteSelectedFormat: "Tempel %d",
+        copySelectedFormat: "Salin %d",
+        clearSelection: "Batal pilih",
+        moveUp: "Pindah ke atas",
+        moveDown: "Pindah ke bawah",
+        noResults: "Tidak ada hasil",
+        active: "Menyimpan teks baru",
+        includeImagesFiles: "Simpan juga gambar dan file yang disalin",
+        includeImagesFilesCaption: "Gambar masuk ke riwayat dan file diingat sebagai link ke lokasinya. Sematkan dan tempel seperti item teks biasa.",
+        imageEntryLabel: "Gambar",
+        fileCountFormat: "%d file",
+        pasteImageAsFile: "Tempel gambar yang disalin sebagai file",
+        pasteImageAsFileCaption: "Saat Finder aktif, ⌘V menyimpan gambar yang disalin sebagai PNG di folder saat ini.",
+        previewLabel: "Pratinjau",
+        edit: "Edit",
+        cancel: "Batal",
+        save: "Simpan",
+        autoClearEnable: "Bersihkan clipboard otomatis setelah",
+        autoClearSecondsSuffix: "detik",
+        autoClearOnSleep: "Bersihkan clipboard saat Mac tidur",
+        autoClearOnDisplaySleep: "Bersihkan clipboard saat layar mati",
+        autoClearOnScreenLock: "Bersihkan clipboard saat layar terkunci",
+        autoClearCaption: "Hanya membersihkan clipboard sistem. Item yang sudah tersimpan tetap ada di riwayat.",
+        deleteSelectedFormat: "Hapus %d",
+        menuBarPreview: "Tampilkan salinan terakhir di bar menu",
+        menuBarPreviewCaption: "Menampilkan pratinjau singkat salinan terakhirmu di samping ikon. Klik untuk membuka riwayat.",
+        menuBarPreviewLength: "Panjang pratinjau",
+        menuBarPreviewLengthSuffix: "karakter",
+        clearRecentConfirmFormat: "Bersihkan yang tidak disematkan (%d)?",
+        clearRecentConfirmMessage: "Item yang disematkan tetap aman, begitu juga yang disalin setelah ini. Aksi ini tidak bisa dibatalkan.",
+        historyLayout: "Tata letak riwayat",
+        historyLayoutCards: "Kartu",
+        historyLayoutList: "Daftar",
+        showSourceAppIconsInList: "Tampilkan ikon app sumber di tampilan daftar"
+    )
+}
+
+extension WindowLayoutFeatureStrings {
+    static let idID = WindowLayoutFeatureStrings(
+        title: "Tata letak jendela",
+        caption: "Atur jendela ke bagian layar atau pindahkan dan ubah ukurannya dengan trackpad atau mouse.",
+        showInPanel: "Tampilkan di panel",
+        gestureSection: "Seret jendela",
+        gestureEnable: "Pindah dan ubah ukuran dengan menyeret",
+        gestureCaption: "Di trackpad atau mouse, tahan tombol modifier yang ditampilkan lalu seret di mana saja di dalam jendela.",
+        gestureModifiers: "Tombol untuk memindah",
+        gestureMove: "Seret untuk memindah",
+        gestureResize: "Tambahkan Shift lalu seret untuk ubah ukuran",
+        gestureResizeHint: "Titik awal memilih tepi atau sudut terdekat. Di mouse, seret klik kanan juga mengubah ukuran.",
+        gestureRaiseWindow: "Bawa jendela yang diseret ke depan",
+        shortcuts: "Shortcut",
+        shortcutsCaption: "Pakai shortcut global untuk mengatur jendela aktif tanpa membuka panel.",
+        permissionCaption: "Memakai Aksesibilitas hanya untuk memindahkan dan mengubah ukuran jendela.",
+        noWindow: "Tidak ada jendela aktif.",
+        missingPermission: "Izinkan Aksesibilitas untuk memindahkan jendela.",
+        failed: "Gagal memindahkan jendela ini.",
+        done: "Jendela diatur.",
+        restored: "Jendela dipulihkan.",
+        noRestore: "Tidak ada tata letak sebelumnya untuk dipulihkan.",
+        target: "Jendela aktif",
+        halves: "Setengah",
+        thirds: "Sepertiga",
+        quarterRows: "Baris seperempat",
+        quarterColumns: "Kolom seperempat",
+        sixths: "Seperenam",
+        corners: "Sudut",
+        other: "Aksi",
+        leftHalf: "Kiri",
+        rightHalf: "Kanan",
+        topHalf: "Atas",
+        bottomHalf: "Bawah",
+        centerHalf: "Setengah tengah",
+        leftThird: "1/3 kiri",
+        centerThird: "1/3 tengah",
+        rightThird: "1/3 kanan",
+        leftTwoThirds: "2/3 kiri",
+        rightTwoThirds: "2/3 kanan",
+        centerTwoThirds: "2/3 tengah",
+        topThird: "1/3 atas",
+        middleThird: "1/3 tengah horizontal",
+        bottomThird: "1/3 bawah",
+        topTwoThirds: "2/3 atas",
+        bottomTwoThirds: "2/3 bawah",
+        topQuarter: "1/4 atas",
+        upperMiddleQuarter: "1/4 tengah atas",
+        lowerMiddleQuarter: "1/4 tengah bawah",
+        bottomQuarter: "1/4 bawah",
+        leftQuarter: "1/4 kiri",
+        leftMiddleQuarter: "1/4 tengah kiri",
+        rightMiddleQuarter: "1/4 tengah kanan",
+        rightQuarter: "1/4 kanan",
+        topLeftSixth: "1/6 kiri atas",
+        topCenterSixth: "1/6 tengah atas",
+        topRightSixth: "1/6 kanan atas",
+        bottomLeftSixth: "1/6 kiri bawah",
+        bottomCenterSixth: "1/6 tengah bawah",
+        bottomRightSixth: "1/6 kanan bawah",
+        topLeft: "Kiri atas",
+        topRight: "Kanan atas",
+        bottomLeft: "Kiri bawah",
+        bottomRight: "Kanan bawah",
+        maximize: "Maksimalkan",
+        center: "Tengah",
+        nextDisplay: "Layar berikutnya",
+        restore: "Pulihkan",
+        fullScreen: "Layar Penuh",
+        previousDisplay: "Layar sebelumnya",
+        edgeSnapEnable: "Tempelkan jendela ke tepi layar",
+        edgeSnapCaption: "Nyalakan opsi ini lalu seret bar judul jendela ke area yang disorot di bawah. Jendela yang digeser sambil menahan tombol modifier juga ikut menempel. Klik area untuk memilih posisi jendela.",
+        edgeSnapSystemConflict: "macOS sedang memakai tepi yang sama. Matikan penyusunan jendela di Desktop & Dock supaya Vorssaint bisa mengambil alih.",
+        edgeSnapOpenSystemSettings: "Buka Desktop & Dock",
+        edgeSnapWaitingForSystem: "Aktif di Vorssaint. Langsung berfungsi begitu penyusunan macOS dimatikan.",
+        edgeSnapUseCorner: "Pakai sudut ini",
+        edgeSnapUseEdge: "Pakai tepi ini",
+        edgeSnapAreasOnEdge: "Area di tepi ini",
+        marginMaximize: "Maksimalkan dengan Jarak",
+        marginPerEdge: "Jarak per tepi",
+        gapsSection: "Jarak",
+        gapsCaption: "Jarak antar-jendela yang ditempel, serta antara jendela dan tepi layar.",
+        windowGap: "Jarak jendela",
+        screenGap: "Jarak layar",
+        sideRepeatCycle: "Ulangi Kiri atau Kanan untuk berganti ukuran",
+        sideRepeatCycleCaption: "Setengah, lalu dua pertiga, lalu sepertiga di layar yang sama. Kalau mati dan ada lebih dari satu layar, pengulangan memindahkan jendela ke layar berikutnya di sisi itu.",
+        gapNone: "Tidak ada",
+        gapTiny: "Sangat kecil",
+        gapSmall: "Kecil",
+        gapMedium: "Sedang",
+        gapLarge: "Besar",
+        gapExtraLarge: "Ekstra besar"
+    )
+}
+
+extension MonitorAlertFeatureStrings {
+    static let idID = MonitorAlertFeatureStrings(
+        section: "Peringatan",
+        caption: "Peringatan muncul saat batas yang dipilih tercapai. Peringatan pemakaian dan suhu CPU mengabaikan lonjakan di bawah sekitar 12 detik. Pengaturan pengulangan hanya membatasi peringatan yang sama.",
+        notificationsDenied: "Notifikasi untuk Vorssaint dimatikan di Pengaturan Sistem, jadi peringatan tidak bisa muncul.",
+        cpu: "CPU tinggi",
+        cpuTemperature: "Suhu CPU tinggi",
+        memory: "Tekanan memori kritis",
+        disk: "Ruang disk menipis",
+        battery: "Baterai lemah",
+        cpuThreshold: "CPU di atas",
+        cpuTemperatureThreshold: "Suhu di atas",
+        diskThreshold: "Ruang kosong di bawah",
+        batteryThreshold: "Baterai di bawah",
+        cooldown: "Ulangi peringatan yang sama setelah",
+        cooldown2: "2 menit",
+        cooldown5: "5 menit",
+        cooldown15: "15 menit",
+        cooldown30: "30 menit",
+        cooldown60: "1 jam",
+        cpuTitle: "CPU tinggi",
+        cpuBodyFormat: "CPU bertahan di atas %d%% selama beberapa detik.",
+        cpuTemperatureTitle: "CPU panas",
+        cpuTemperatureBodyFormat: "CPU mencapai %@.",
+        memoryTitle: "Memori kritis",
+        memoryBody: "Tekanan memori mencapai level kritis.",
+        diskTitle: "Ruang disk menipis",
+        diskBodyFormat: "Sisa ruang kosong di %@ kurang dari %d%%.",
+        batteryTitle: "Baterai lemah",
+        batteryBodyFormat: "Baterai tersisa %d%%.",
+        batteryTemperature: "Suhu baterai tinggi",
+        batteryTemperatureThreshold: "Suhu di atas",
+        batteryTemperatureTitle: "Baterai panas",
+        batteryTemperatureBodyFormat: "Baterai mencapai %@."
+    )
+}
+
+extension MixerFeatureStrings {
+    static let idID = MixerFeatureStrings(
+        hideInactiveApps: "Sembunyikan app yang tidak aktif",
+        pin: "Sematkan ke Atas",
+        unpin: "Lepas sematan",
+        moveUp: "Pindah ke Atas",
+        moveDown: "Pindah ke Bawah",
+        pinFirst: "Sematkan ke Depan",
+        moveLeft: "Pindah ke Kiri",
+        moveRight: "Pindah ke Kanan",
+        arrange: "Tahan Command lalu seret untuk mengubah urutan",
+        actions: "Aksi"
     )
 }

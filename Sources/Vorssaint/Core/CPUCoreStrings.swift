@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func cpuCores(_ language: AppLanguage) -> CPUCoreFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -187,5 +188,16 @@ extension CPUCoreFeatureStrings {
         efficiencyCores: "節能核心",
         apps: "正使用 CPU 的 App",
         perCore: "每個核心"
+    )
+
+    static let idID = CPUCoreFeatureStrings(
+        title: "Inti logis CPU",
+        coreFormat: "Inti %d",
+        hint: "Setiap bar mewakili satu inti logis. Tinggi isiannya menunjukkan pemakaian, bukan sisa performa.",
+        superCores: "Super",
+        performanceCores: "Performa",
+        efficiencyCores: "Efisiensi",
+        apps: "App yang memakai CPU",
+        perCore: "Per inti"
     )
 }

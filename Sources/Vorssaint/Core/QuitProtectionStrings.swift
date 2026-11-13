@@ -58,6 +58,7 @@ extension FeatureStrings {
     static func quitProtection(_ language: AppLanguage) -> QuitProtectionStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -597,6 +598,41 @@ extension QuitProtectionStrings {
         extraCloseHUDFormat: "Використайте %@, щоб закрити вікно",
         cancelHint: "Esc скасовує",
         releaseHint: "Відпустіть для підтвердження",
+        shiftKey: "Shift",
+        optionKey: "Option",
+        controlKey: "Control"
+    )
+
+    static let idID = QuitProtectionStrings(
+        name: "Perlindungan keluar & tutup",
+        description: "Melindungi ⌘Q dan ⌘W dari ketidaksengajaan",
+        intro: "Atur tiap shortcut secara terpisah. Aksi aslinya hanya dijalankan setelah konfirmasi yang dipilih.",
+        enabled: "Lindungi shortcut ini",
+        enabledCaption: "Shortcut Command lainnya tetap berfungsi seperti biasa.",
+        mode: "Mode konfirmasi",
+        hold: "Tahan untuk konfirmasi",
+        doublePress: "Tekan dua kali",
+        extraModifier: "Wajibkan tombol modifier tambahan",
+        holdDuration: "Durasi menahan",
+        doublePressInterval: "Jeda tekan dua kali",
+        modifier: "Tombol modifier tambahan",
+        appScope: "Aplikasi",
+        allApps: "Semua aplikasi",
+        selectedOnly: "Hanya aplikasi yang dipilih",
+        allExceptSelected: "Semua kecuali aplikasi yang dipilih",
+        exceptions: "Aplikasi yang dipilih",
+        noExceptions: "Belum ada aplikasi yang dipilih",
+        addApp: "Tambah aplikasi…",
+        feedback: "Tampilkan umpan balik visual",
+        accessibilityCaption: "Perlindungan memakai Aksesibilitas hanya untuk memantau ⌘Q dan ⌘W secara global.",
+        holdQuitHUDFormat: "Tahan %@ untuk keluar",
+        holdCloseHUDFormat: "Tahan %@ untuk menutup",
+        doubleQuitHUDFormat: "Tekan %@ lagi untuk keluar",
+        doubleCloseHUDFormat: "Tekan %@ lagi untuk menutup",
+        extraQuitHUDFormat: "Gunakan %@ untuk keluar",
+        extraCloseHUDFormat: "Gunakan %@ untuk menutup",
+        cancelHint: "Esc membatalkan",
+        releaseHint: "Lepas untuk konfirmasi",
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"

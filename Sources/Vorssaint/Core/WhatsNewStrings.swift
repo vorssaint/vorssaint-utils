@@ -41,6 +41,20 @@ extension FeatureStrings {
                 skipPreviewCheckbox: "Don’t show what’s new before updating",
                 showPreviewToggle: "Show what’s new before updating",
                 showPreviewCaption: "What changed in your features still appears after each update.")
+        case .idID:
+            return WhatsNewStrings(
+                updatedFromFormat: "Diperbarui dari versi %@",
+                newFeatures: "Fitur baru",
+                yourFeatures: "Fitur milikmu",
+                notInstalled: "Belum terpasang",
+                kindNew: "Baru",
+                kindChanged: "Diubah",
+                kindFixed: "Diperbaiki",
+                updated: "Diperbarui",
+                chooseFeatureHint: "Pilih fitur untuk melihat apa yang berubah.",
+                skipPreviewCheckbox: "Jangan tampilkan yang baru sebelum memperbarui",
+                showPreviewToggle: "Tampilkan yang baru sebelum memperbarui",
+                showPreviewCaption: "Perubahan pada fitur milikmu tetap tampil setelah setiap pembaruan.")
         case .ptBR:
             return WhatsNewStrings(
                 updatedFromFormat: "Atualizado da versão %@",

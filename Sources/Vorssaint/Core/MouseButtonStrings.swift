@@ -47,6 +47,7 @@ extension FeatureStrings {
     static func mouseButtons(_ language: AppLanguage) -> MouseButtonFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -603,5 +604,41 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "Ця кнопка вже має клавіатурне скорочення. Виберіть іншу.",
         spacesFollowsDragLabel: "Space слідує за перетягуванням",
         spacesFollowsDragCaption: "Перетягування вправо підтягує Space ліворуч, як на трекпеді, коли робочий стіл слідує за пальцем."
+    )
+
+    static let idID = MouseButtonFeatureStrings(
+        pageTitle: "Shortcut tombol mouse",
+        hubDescription: "Tombol tambahan dan arah roda samping menekan kombinasi tombol pilihanmu.",
+        enableLabel: "Gunakan tombol tambahan sebagai shortcut",
+        enableCaption: "Setiap tombol tambahan atau arah roda samping bisa menekan kombinasi tombol untukmu. Selama memiliki shortcut, fungsi lamanya dihentikan.",
+        addButton: "Tambah tombol atau roda samping",
+        captureWaiting: "Sekarang tekan tombol tambahan atau gerakkan roda samping.",
+        captureCancel: "Batal",
+        captureBlind: "Vorssaint belum bisa memantau mouse saat ini.",
+        captureUnsupported: "Input tersebut tidak bisa diberi shortcut. Gunakan tombol tambahan atau arah roda samping.",
+        captureWheel: "Tombol itu sudah dipakai untuk membuka menu radial. Pilih tombol lain, atau lepaskan dulu di sana.",
+        captureExists: "Tombol atau arah tersebut sudah ada di daftar bawah.",
+        captureHint: "Jika tidak terjadi apa-apa, aplikasi bawaan mouse mungkin sudah memakai kontrol tersebut.",
+        middleButtonName: "Tombol tengah",
+        backButtonName: "Tombol samping kembali",
+        forwardButtonName: "Tombol samping maju",
+        otherButtonFormat: "Tombol %d",
+        setShortcutButton: "Atur shortcut",
+        removeButton: "Hapus",
+        emptyCaption: "Belum ada shortcut. Tambahkan tombol atau arah roda samping.",
+        rowWheelNote: "Tombol ini sedang dipakai untuk membuka menu radial, jadi shortcut ini menunggu.",
+        manageButton: "Atur…",
+        panelCaption: "Tombol tambahan dan arah roda samping menekan kombinasi tombol pilihanmu.",
+        sideWheelLeftName: "Roda samping ke kiri",
+        sideWheelRightName: "Roda samping ke kanan",
+        spacesEnableLabel: "Pindah Space dengan menyeret tombol",
+        spacesEnableCaption: "Tahan tombol yang dipilih lalu seret: kiri atau kanan berpindah satu Space, atas membuka Mission Control, bawah membuka App Exposé. Klik singkat tetap berfungsi seperti biasa.",
+        spacesPickButton: "Pilih tombol",
+        spacesShortcutsOffNote: "Shortcut keyboard Mission Control dimatikan di Pengaturan Sistem, jadi gestur ini belum bisa memanggilnya.",
+        spacesCaptureWaiting: "Sekarang tekan tombol tengah atau tombol tambahan.",
+        spacesCaptureUnsupported: "Input tersebut tidak bisa ditahan untuk menyeret. Gunakan tombol tengah atau tombol tambahan.",
+        spacesCaptureExists: "Tombol itu sudah memiliki shortcut. Pilih tombol lain.",
+        spacesFollowsDragLabel: "Space mengikuti arah seret",
+        spacesFollowsDragCaption: "Menyeret ke kanan menarik Space di sebelah kiri, seperti saat mengusap trackpad dengan jari."
     )
 }

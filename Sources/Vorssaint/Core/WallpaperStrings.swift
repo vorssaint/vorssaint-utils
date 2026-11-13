@@ -35,6 +35,7 @@ extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -440,5 +441,31 @@ extension WallpaperFeatureStrings {
         applyFailed: "無法設定桌布",
         previousPage: "上一頁",
         nextPage: "下一頁"
+    )
+
+    static let idID = WallpaperFeatureStrings(
+        pageTitle: "Wallpaper",
+        hubDescription: "Pilih wallpaper statis tanpa membuka Pengaturan Sistem",
+        panelDescription: "Pilih wallpaper statis tanpa membuka Pengaturan Sistem.",
+        filterAll: "Semua",
+        filterOwn: "Gambar milikmu",
+        filterApple: "Apple",
+        applyAllDisplays: "Tampilkan di semua Space",
+        addImage: "Tambah gambar",
+        addFolder: "Tambah folder",
+        removeAdded: "Hapus",
+        doneRemoving: "Selesai",
+        sourceUnavailable: "Tidak tersedia",
+        addImagePrompt: "Pilih gambar untuk disimpan di daftar wallpaper Vorssaint",
+        addFolderPrompt: "Pilih folder berisi gambar untuk disimpan di daftar wallpaper Vorssaint",
+        openSystemSettings: "Buka pengaturan Wallpaper",
+        emptyAll: "Tidak ada wallpaper yang ditemukan",
+        emptyOwn: "Belum ada gambar yang ditambahkan",
+        emptyApple: "Tidak ada gambar statis Apple yang ditemukan",
+        downloading: "Mengunduh…",
+        downloadFailed: "Gagal mengunduh wallpaper",
+        applyFailed: "Gagal memasang wallpaper",
+        previousPage: "Sebelumnya",
+        nextPage: "Berikutnya"
     )
 }

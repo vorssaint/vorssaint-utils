@@ -39,6 +39,7 @@ extension FeatureStrings {
     static func feedback(_ language: AppLanguage) -> FeedbackStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -535,5 +536,37 @@ extension FeedbackStrings {
         commandFeature: "Запропонувати функцію",
         commandSubtitle: "Надіслати відгук",
         diagnosticsChannelLabel: "Канал оновлення"
+    )
+
+    static let idID = FeedbackStrings(
+        sectionTitle: "Masukan",
+        sectionCaption: "Kirim laporan bug atau ide fitur langsung ke pengelola Vorssaint.",
+        openButton: "Kirim masukan",
+        windowTitle: "Kirim masukan",
+        bugTitle: "Bug",
+        featureTitle: "Ide fitur",
+        messageLabel: "Apa yang ingin kamu sampaikan?",
+        bugPlaceholder: "Ceritakan apa yang terjadi dan apa yang kamu harapkan.",
+        featurePlaceholder: "Jelaskan idenya dan bagaimana itu bisa membantu.",
+        charactersFormat: "%d dari 2000 karakter",
+        includeDiagnostics: "Sertakan detail teknis",
+        includeDiagnosticsCaption: "Hanya menambahkan detail teknis yang tampil di bawah. Tidak menyertakan log.",
+        whatSentTitle: "Apa yang akan dikirim",
+        whatSentBasic: "Kategori pilihanmu dan teks di atas.",
+        whatSentDiagnostics: "Detail teknis yang tercantum di bawah.",
+        privacyNote: "Nama, akun, email, pengenal perangkat, log, screenshot, file, atau isi clipboard tidak disertakan. IP publikmu diproses sementara untuk perlindungan penyalahgunaan dan tidak dilampirkan ke masukan.",
+        retentionNote: "Setelah terkirim, teks tetap berada di kanal dukungan privat sampai pemilik layanan menghapusnya. Salinan yang gagal terkirim dihapus permanen setelah 7 hari.",
+        sendButton: "Kirim masukan",
+        sending: "Mengirim…",
+        sentTitle: "Masukan terkirim",
+        sentCaption: "Terima kasih. Tidak ada info kontak yang dikirim, jadi kamu tidak akan menerima balasan langsung.",
+        unavailableError: "Gagal terhubung. Periksa koneksi internetmu lalu coba lagi.",
+        rateLimitError: "Terlalu banyak kiriman dari jaringan ini. Coba lagi nanti.",
+        genericError: "Gagal mengirim masukan saat ini.",
+        done: "Selesai",
+        commandBug: "Laporkan bug",
+        commandFeature: "Usulkan fitur",
+        commandSubtitle: "Kirim masukan",
+        diagnosticsChannelLabel: "Saluran pembaruan"
     )
 }

@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func windowLayoutIgnoredApps(_ language: AppLanguage) -> WindowLayoutIgnoredAppsStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -49,4 +50,5 @@ extension WindowLayoutIgnoredAppsStrings {
     static let zhHans = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在这些 App 中暂停", addButton: "添加 App…", removeButton: "移除", caption: "当这些 App 之一处于焦点时，窗口布局不会使用鼠标或键盘输入。")
     static let zhTW = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在這些 App 中暫停", addButton: "加入 App…", removeButton: "移除", caption: "當這些 App 之一處於焦點時，視窗排列不會使用滑鼠或鍵盤輸入。")
     static let zhHK = WindowLayoutIgnoredAppsStrings(sectionTitle: "忽略的 App", listTitle: "在這些 App 中暫停", addButton: "加入 App…", removeButton: "移除", caption: "當這些 App 之一處於焦點時，視窗排列不會使用滑鼠或鍵盤輸入。")
+    static let idID = WindowLayoutIgnoredAppsStrings(sectionTitle: "Abaikan app", listTitle: "Jeda di app berikut", addButton: "Tambah app…", removeButton: "Hapus", caption: "Tata letak jendela tidak memakai input mouse atau keyboard selama salah satu app ini sedang aktif.")
 }

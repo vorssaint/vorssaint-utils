@@ -108,6 +108,9 @@ struct AppUpdatesListView: View {
     private var lastCheckLine: String {
         guard let last = updates.lastCheck else { return text.neverChecked }
         let formatter = RelativeDateTimeFormatter()
+        // The app's language, not the system's, so "2 hours ago" never sits
+        // inside a sentence written in another language.
+        formatter.locale = L10n.shared.language.formattingLocale()
         formatter.unitsStyle = .full
         // Named style so a check that just ran reads "now" instead of the
         // literal "in 0 seconds".

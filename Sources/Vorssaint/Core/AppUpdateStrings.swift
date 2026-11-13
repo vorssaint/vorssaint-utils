@@ -62,6 +62,7 @@ extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -888,5 +889,59 @@ extension AppUpdateStrings {
         noVisibleUpdates: "Немає оновлень поза вашими правилами",
         uncomparableVersions: "Не вдалося порівняти версії",
         uncomparableVersionsNote: "Оновлення не показується, якщо версію, яку повідомляє програма, не можна порівняти з каталогом. Перевірте оновлення в самій програмі."
+    )
+
+    static let idID = AppUpdateStrings(
+        pageTitle: "Pembaruan app",
+        hubDescription: "Temukan dan pasang pembaruan untuk app yang kamu miliki",
+        caption: "Mencari versi lebih baru dari app di Mac ini dan membantumu menyelesaikan tiap pembaruan dari sumber aslinya.",
+        panelCaption: "Lihat app mana yang punya versi lebih baru",
+        checkNow: "Periksa sekarang",
+        checking: "Memeriksa",
+        lastCheckFormat: "Terakhir diperiksa %@",
+        neverChecked: "Belum pernah diperiksa",
+        upToDate: "Tidak ada pembaruan",
+        partialUpToDate: "Tidak ditemukan pembaruan pada pemeriksaan sebagian ini",
+        coverageNote: "Memeriksa sumber asli app yang terpasang dan katalog publik. Pembaruan dipasang melalui sumber aslinya.",
+        selectAll: "Pilih semua",
+        clearSelection: "Bersihkan",
+        updateSelectedFormat: "Perbarui %d",
+        updateOne: "Perbarui",
+        openAppStore: "Buka App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Membuka App Store, tempat pembaruan ini dipasang",
+        frequencyLabel: "Periksa di latar belakang",
+        frequencyOff: "Mati",
+        frequencyDaily: "Setiap hari",
+        frequencyWeekly: "Setiap minggu",
+        nextCheckFormat: "Pemeriksaan berikutnya %@",
+        notifyToggle: "Beri tahu saat app punya pembaruan",
+        includeStoreToggle: "Sertakan app dari App Store",
+        includeStoreCaption: "Memeriksa versi di toko sesuai wilayah Mac ini. Apple yang memasang pembaruan tersebut.",
+        packageMissing: "Homebrew belum terpasang, jadi app belum bisa diperbarui dari sini.",
+        notificationBodyFormat: "%@ app memiliki versi lebih baru.",
+        notificationBodyOne: "Satu app memiliki versi lebih baru.",
+        showInPanel: "Tampilkan di panel",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Sumber",
+        includeHomebrewToggle: "Sertakan app Homebrew",
+        onlineBadge: "Online",
+        openApp: "Buka",
+        openAppHint: "Membuka app agar pembaru bawaannya bisa menyelesaikan",
+        includeOnlineToggle: "Sertakan app terpasang lainnya",
+        includeOnlineCaption: "Memeriksa langsung ke pengembang app bila didukung, lalu memakai katalog publik. Pembaru bawaan app yang memasang pembaruannya.",
+        incompleteCheck: "Pemeriksaan belum lengkap",
+        onlineUnavailable: "Pemeriksaan online gagal diselesaikan. Hasil lainnya tetap ditampilkan.",
+        skipVersionFormat: "Lewati versi %@",
+        excludeApp: "Jangan periksa app ini",
+        rulesTitle: "Pengecualian pembaruan",
+        addException: "Tambahkan app yang tidak perlu diperiksa",
+        skippedVersionFormat: "Versi %@ dilewati",
+        excludedApp: "Tidak diperiksa sampai aturan ini dihapus",
+        removeRule: "Hapus",
+        rulesHint: "Melewati satu versi tetap mengizinkan rilis yang lebih baru. Setelah menghapus pengecualian app, klik Periksa sekarang untuk menyegarkannya.",
+        noVisibleUpdates: "Tidak ada pembaruan di luar aturanmu",
+        uncomparableVersions: "Versi tidak dibandingkan",
+        uncomparableVersionsNote: "Pembaruan tidak ditampilkan saat versi dari app tidak bisa dibandingkan dengan katalog. Periksa pembaruan langsung di dalam app tersebut."
     )
 }

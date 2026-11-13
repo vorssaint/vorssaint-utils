@@ -8,6 +8,7 @@ enum LocalizationTests {
         (.enUS, .enUS), (.ptBR, .ptBR), (.tr, .tr), (.ru, .ru), (.es, .es),
         (.sk, .sk), (.de, .de), (.fr, .fr), (.it, .it), (.ja, .ja), (.ko, .ko), (.uk, .uk),
         (.zhHans, .zhHans), (.zhTW, .zhTW), (.zhHK, .zhHK),
+        (.idID, .idID),
     ]
 
     static func fields(_ value: Any) -> [String: String] {
@@ -54,8 +55,24 @@ enum LocalizationTests {
                      "the first day of the week follows the region")
     }
 
+    /// Dates that carry words (month and weekday names, "Today", "2 hours
+    /// ago") follow the app's language, not the system's, or they sit in a
+    /// sentence written in another language.
+    static func appLanguageDateChecks(_ suite: TestSuite) {
+        for path in ["Sources/Vorssaint/UI/AppUpdates/AppUpdatesListView.swift",
+                     "Sources/Vorssaint/UI/Settings/WhatsAppDownloadsSettings.swift",
+                     "Sources/Vorssaint/UI/Cleaner/CleanerView.swift",
+                     "Sources/Vorssaint/UI/Settings/SettingsView.swift",
+                     "Sources/Vorssaint/Services/CommandBar/CommandBarCatalog.swift"] {
+            let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+            suite.expect(source.contains("L10n.shared.language.formattingLocale()"),
+                         "\(path) formats worded dates in the app's language")
+        }
+    }
+
     static func run(_ suite: TestSuite) {
         formattingChecks(suite)
+        appLanguageDateChecks(suite)
         suite.expect(Set(languages.map { $0.0 }) == Set(AppLanguage.allCases)
                      && languages.count == AppLanguage.allCases.count,
                      "the base strings cover each app language exactly once")

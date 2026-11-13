@@ -16,6 +16,7 @@ extension FeatureStrings {
     static func diskExclusions(_ language: AppLanguage) -> DiskExclusionStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -167,5 +168,14 @@ extension DiskExclusionStrings {
         removeButton: "Видалити",
         customPlaceholder: "Назва диска або тому",
         caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
+    )
+
+    static let idID = DiskExclusionStrings(
+        listTitle: "Drive yang dikecualikan",
+        addButton: "Tambah drive…",
+        otherDrive: "Nama drive lain…",
+        removeButton: "Hapus",
+        customPlaceholder: "Nama drive atau volume",
+        caption: "Drive dalam daftar ini tidak akan dikeluarkan saat memakai Keluarkan semua disk."
     )
 }

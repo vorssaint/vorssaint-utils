@@ -473,13 +473,16 @@ struct CleanerView: View {
         return minutes
     }
 
-    private static let nextRunFormatter: DateFormatter = {
+    // Built on each use so "Tomorrow" and month names follow the app's
+    // language, including right after it changes, instead of the system's.
+    private static var nextRunFormatter: DateFormatter {
         let formatter = DateFormatter()
+        formatter.locale = L10n.shared.language.formattingLocale()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         formatter.doesRelativeDateFormatting = true
         return formatter
-    }()
+    }
 
     private var scheduleSummary: String {
         switch scheduleFrequency {
