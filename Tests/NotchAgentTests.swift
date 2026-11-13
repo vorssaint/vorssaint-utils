@@ -23,6 +23,7 @@ enum NotchAgentTests {
         AntigravityAgentTests.run(suite)
         AntigravityModelSelectionTests.run(suite)
         AntigravityIndexTests.run(suite)
+        AntigravityLaunchTests.run(suite)
         GeminiAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)

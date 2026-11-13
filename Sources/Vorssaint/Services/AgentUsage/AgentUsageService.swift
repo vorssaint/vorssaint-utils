@@ -514,7 +514,7 @@ final class AgentUsageService: ObservableObject {
     /// True when the log had entries to apply, or was gone and took a
     /// working turn with it.
     @discardableResult
-    private func read(_ path: String, provider: AgentProvider) -> Bool {
+    private func read(_ path: String, provider: AgentProvider, startedBy children: Set<String> = []) -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
@@ -523,15 +523,38 @@ final class AgentUsageService: ObservableObject {
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
         var changed = false
+        // A subagent or swarm worker has no model line: it runs on the model
+        // its launch names, or on the one the conversation that started it ran
+        // on then, which that conversation's log says once it is read.
+        var launched: (model: String, date: Date)?
+        if provider == .antigravity, !children.contains(path),
+           let launch = AgentAntigravityLaunch.launch(forTranscript: path) {
+            switch launch.model {
+            case .named(let model):
+                launched = (model, launch.date)
+            case .inherited:
+                if let parent = AgentLogCursor.antigravityParent(of: path, root: launch.parent) {
+                    if read(parent, provider: provider, startedBy: children.union([path])) { changed = true }
+                    launched = cursors[parent]?.state.antigravityModel(at: launch.date).map { ($0, launch.date) }
+                }
+            case nil:
+                break
+            }
+        }
         // agy 1.5 keeps the workspace in its own index, not in the transcript.
-        // It is looked up as a line arrives, not before the read: a log read
+        // Both are given as a line arrives, not before the read: a log read
         // from its start begins with an empty state.
-        var indexLookedUp = provider != .antigravity
+        var seeded = provider != .antigravity
         let now = Date()
         let consume: (Data) -> Void = { [self] line in
-            if !indexLookedUp, cursor.state.project.isEmpty {
-                indexLookedUp = true
-                if let project = AgentAntigravityIndex.project(forTranscript: path) { cursor.state.project = project }
+            if !seeded {
+                seeded = true
+                if cursor.state.project.isEmpty, let project = AgentAntigravityIndex.project(forTranscript: path) {
+                    cursor.state.project = project
+                }
+                if cursor.state.model.isEmpty, let launched {
+                    cursor.state.adoptAntigravityModel(launched.model, at: launched.date)
+                }
             }
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.

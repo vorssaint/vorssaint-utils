@@ -14,7 +14,8 @@ struct AntigravityReader: AgentHarnessReader {
         guard let first = line.first(where: { ![9, 10, 13, 32].contains($0) }), first == 0x7B,
               let object = AgentLogObject(line), let type = object.string("type") else { return [] }
         let firstLine = !state.codexHeaderRead
-        state.codexHeaderRead = true
+        // agy can open a transcript with a notice of its own before the first message.
+        if type != "EPHEMERAL_MESSAGE" { state.codexHeaderRead = true }
         guard ["SYSTEM_MESSAGE", "USER_INPUT", "PLANNER_RESPONSE",
                "GENERIC", "TOOL_RESULT", "MEMORY_OPERATION"].contains(type) else { return [] }
         let date = object.string("created_at").flatMap(AgentTimestamp.parse)
@@ -23,7 +24,7 @@ struct AntigravityReader: AgentHarnessReader {
         switch type {
         case "SYSTEM_MESSAGE":
             let step = Self.int(object, "step_index")
-            if (step.map { $0 == 0 } ?? firstLine), object.string("source") == "SYSTEM" {
+            if firstLine || step == 0, object.string("source") == "SYSTEM" {
                 let content = object.string("content") ?? ""
                 if let sender = Self.extractSubagentSender(from: content) {
                     state.antigravitySubagent = true
@@ -39,7 +40,7 @@ struct AntigravityReader: AgentHarnessReader {
             let content = object.string("content") ?? ""
             Self.adoptWorkspace(from: content, into: &state)
             if let selected = Self.extractModelSelection(from: content) {
-                state.model = AgentLogParser.native(selected)
+                state.adoptAntigravityModel(AgentLogParser.native(selected), at: date)
             }
             guard !state.antigravitySubagent else { return [] }
             var entries: [AgentLogEntry] = []
@@ -56,7 +57,7 @@ struct AntigravityReader: AgentHarnessReader {
         case "PLANNER_RESPONSE":
             if let explicit = (object.string("model") ?? object.string("modelName"))?
                 .trimmingCharacters(in: .whitespacesAndNewlines), !explicit.isEmpty {
-                state.model = AgentLogParser.native(explicit)
+                state.adoptAntigravityModel(AgentLogParser.native(explicit), at: date)
             }
             let toolCalls = object.hasItems("tool_calls")
                 ? (object.value("tool_calls") as? [[String: Any]] ?? []) : []

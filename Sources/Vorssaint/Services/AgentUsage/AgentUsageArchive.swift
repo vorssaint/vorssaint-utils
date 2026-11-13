@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 5
+    private static let format = 6
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -336,6 +336,11 @@ enum AgentUsageArchive {
             string(value.antigravityNamedWorkspace)
             bool(value.antigravitySubagent)
             string(value.antigravityRoot)
+            count(value.antigravityModels.count)
+            for change in value.antigravityModels {
+                date(change.date)
+                string(change.model)
+            }
         }
     }
 
@@ -496,6 +501,9 @@ enum AgentUsageArchive {
             value.antigravityNamedWorkspace = try string()
             value.antigravitySubagent = try bool()
             value.antigravityRoot = try string()
+            for _ in 0..<(try count()) {
+                value.antigravityModels.append(AntigravityModelChange(date: try date(), model: try string()))
+            }
             return value
         }
     }
