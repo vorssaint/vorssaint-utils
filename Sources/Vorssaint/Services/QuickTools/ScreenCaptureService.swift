@@ -35,6 +35,14 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     }
 }
 
+/// What the area and window screenshot shortcuts let the surface pick: an
+/// area the person drags, where a click on a window does nothing, or the
+/// window they click, where a drag draws no area.
+enum ScreenshotSelectionTarget {
+    case area
+    case window
+}
+
 /// One selection surface for every capture tool. Each tool has its own
 /// shortcut; the feature services own what happens after selection.
 final class ScreenCaptureService: ObservableObject {
@@ -113,7 +121,8 @@ final class ScreenCaptureService: ObservableObject {
     /// Opens the same chooser from every feature surface. A feature-specific
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
-    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
+    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false,
+                 target: ScreenshotSelectionTarget? = nil) {
         if preferred == .scrolling, ScreenshotService.shared.finishScrollingCaptureIfActive() { return }
         let recorder = ScreenRecorderService.shared
         if preferred == .recording, AppFeature.screenRecorder.isAvailable,
@@ -129,12 +138,16 @@ final class ScreenCaptureService: ObservableObject {
 
         let available = ScreenCaptureTool.available()
         guard !available.isEmpty else { return }
-        let selected = preferred.flatMap { available.contains($0) ? $0 : nil }
-            ?? (available.contains(.screenshot) ? .screenshot : available[0])
+        // A targeted screenshot needs the screenshot tool and nothing else.
+        if target != nil, !available.contains(.screenshot) { return }
+        let selected = target != nil ? .screenshot
+            : preferred.flatMap { available.contains($0) ? $0 : nil }
+                ?? (available.contains(.screenshot) ? .screenshot : available[0])
         if duringRecording, selected != preferred { return }
         // The digit keys switch tools even with the menu hidden, so a
-        // selection that runs over a recording offers only its own tool.
-        let tools = duringRecording ? [selected] : available
+        // selection that runs over a recording, or that picks only an area
+        // or a window, offers only its own tool.
+        let tools = duringRecording || target != nil ? [selected] : available
 
         guard Permissions.shared.screenRecording else {
             // Color sampling itself needs no capture permission, so its
@@ -151,13 +164,14 @@ final class ScreenCaptureService: ObservableObject {
             return
         }
 
-        let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
+        let showsCaptureMenu = target == nil && selected.showsCaptureMenu(fromShortcut: fromShortcut)
         let delay = selected == .screenshot || selected == .scrolling
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
         performAfterDelay(delay, tools: tools) { [weak self] in
-            self?.beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
+            self?.beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu,
+                                 target: target)
         }
     }
 
@@ -191,17 +205,18 @@ final class ScreenCaptureService: ObservableObject {
     }
 
     private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
-                               showsCaptureMenu: Bool) {
+                               showsCaptureMenu: Bool, target: ScreenshotSelectionTarget? = nil) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         let options = ScreenCaptureSelectionOptions(availableTools: tools,
                                                     selectedTool: selected,
                                                     showsCaptureMenu: showsCaptureMenu,
                                                     controlsInNotch: NotchSupport.routesCaptureControls() && NotchService.shared.acceptsSystemFeedback)
         self.options = options
-        startSelection(options: options)
+        startSelection(options: options, target: target)
     }
 
-    private func startSelection(options: ScreenCaptureSelectionOptions) {
+    private func startSelection(options: ScreenCaptureSelectionOptions,
+                                target: ScreenshotSelectionTarget? = nil) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen,
               self.options === options else { return }
         let defaults = UserDefaults.standard
@@ -214,7 +229,8 @@ final class ScreenCaptureService: ObservableObject {
         let controller = ScreenshotSelectionController(
             freeze: policy.freeze,
             includePointer: policy.includePointer,
-            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
+            // A window has no last region to repeat.
+            showLastRegion: target != .window && defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             hideVorssaintWindows: policy.hideVorssaintWindows,
             protectedWindowIDs: { [weak options] in
                 var windows: Set<CGWindowID> = []
@@ -234,7 +250,9 @@ final class ScreenCaptureService: ObservableObject {
             },
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,
-            supportsScrollingCapture: options.availableTools.contains(.screenshot),
+            supportsScrollingCapture: target == nil && options.availableTools.contains(.screenshot),
+            requiresDraggedRegion: target == .area,
+            windowOnly: target == .window,
             screenCaptureOptions: options)
         if options.controlsInNotch {
             connectCaptureControlsSurface(options, controller: controller)

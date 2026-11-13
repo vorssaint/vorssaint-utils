@@ -2183,6 +2183,7 @@ def main():
                 .replace("DispatchQueue.main.asyncAfter", "Clock.main.asyncAfter"))
 
     write("ScreenshotCountdown.swift", "import Foundation\nextension ScreenshotCountdownTests {\n"
+          + declaration(capture_service, "enum ScreenshotSelectionTarget {")
           + "final class ScreenCaptureService: ChooserState {\nstatic let shared = ScreenCaptureService()\n"
           + "".join(countdown_method(capture_service, prefix) for prefix in [
               "    func capture(initial preferred:", "    func performAfterDelay(",
@@ -2252,7 +2253,7 @@ def main():
           + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
           + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"
           + "var keyMonitor: Any?\nvar globalKeyMonitor: Any?\nvar spaceIsDown = false\n"
-          + "var acceptsWindowClick = true\nvar loupeAcceptsKeyboardActions = false\n"
+          + "var acceptsWindowClick = true\nvar windowOnly = false\nvar loupeAcceptsKeyboardActions = false\n"
           + "var actions: [String] = []\nvar draggingPanel: ScreenshotOverlayPanel?\n"
           + "var isPickingColor = false\nvar acceptsCaptureInput = true\n"
           + "var panels: [ScreenshotOverlayPanel] = []\nvar currentPointerLocation: CGPoint?\n"
