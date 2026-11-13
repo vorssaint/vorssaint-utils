@@ -65,7 +65,7 @@ struct OpenCodeReader: AgentHarnessReader {
             // being written, as through a long command, the prompt joins it.
             let quiet: Bool
             if let settled = sessionState.settledAt {
-                quiet = date.timeIntervalSince(settled) >= AgentLogParser.openCodeSettle
+                quiet = date.timeIntervalSince(settled) >= AgentLogParser.settle
             } else if sessionState.writingReplyID.isEmpty, let lastActivity {
                 quiet = date.timeIntervalSince(lastActivity) >= NotchAgentSupport.idleTurn
             } else {

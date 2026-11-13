@@ -73,9 +73,22 @@ struct AgentPriceList: Equatable {
     let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
+    let gemini: [Model]
+
+    init(updated: Date, claude: [Model], codex: [Model], claudePlans: [Plan], codexPlans: [Plan],
+         webSearch: Double, usOnlyMultiplier: Double, gemini: [Model] = []) {
+        self.updated = updated
+        self.claude = claude
+        self.codex = codex
+        self.claudePlans = claudePlans
+        self.codexPlans = codexPlans
+        self.webSearch = webSearch
+        self.usOnlyMultiplier = usOnlyMultiplier
+        self.gemini = gemini
+    }
 
     static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
-                                      webSearch: 0, usOnlyMultiplier: 1)
+                                      webSearch: 0, usOnlyMultiplier: 1, gemini: [])
 
     static func decode(_ data: Data) -> AgentPriceList? {
         guard data.count <= maximumSize,
@@ -88,9 +101,17 @@ struct AgentPriceList: Equatable {
               let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
+        let geminiModels: [Model]
+        if json["gemini"] == nil {
+            geminiModels = []
+        } else {
+            guard let gemini = json["gemini"] as? [String: Any],
+                  let decoded = models(gemini["models"], prefix: "gemini-") else { return nil }
+            geminiModels = decoded
+        }
         return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
                               claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
-                              usOnlyMultiplier: usOnly)
+                              usOnlyMultiplier: usOnly, gemini: geminiModels)
     }
 
     /// The newer of the list inside the app and the last one downloaded. On
@@ -98,7 +119,14 @@ struct AgentPriceList: Equatable {
     static func newer(_ shipped: AgentPriceList?, _ downloaded: AgentPriceList?) -> AgentPriceList? {
         guard let downloaded else { return shipped }
         guard let shipped else { return downloaded }
-        return downloaded.updated >= shipped.updated ? downloaded : shipped
+        guard downloaded.updated >= shipped.updated else { return shipped }
+        if downloaded.gemini.isEmpty && !shipped.gemini.isEmpty {
+            return AgentPriceList(updated: downloaded.updated, claude: downloaded.claude, codex: downloaded.codex,
+                                  claudePlans: downloaded.claudePlans, codexPlans: downloaded.codexPlans,
+                                  webSearch: downloaded.webSearch, usOnlyMultiplier: downloaded.usOnlyMultiplier,
+                                  gemini: shipped.gemini)
+        }
+        return downloaded
     }
 
     private static func models(_ value: Any?, prefix: String?) -> [Model]? {
@@ -107,7 +135,7 @@ struct AgentPriceList: Equatable {
         var seen = Set<String>()
         for entry in entries {
             guard let id = entry["id"] as? String, identifier(id, length: 64), seen.insert(id).inserted,
-                  prefix.map(id.hasPrefix) ?? !id.hasPrefix("claude-"),
+                  prefix.map(id.hasPrefix) ?? (!id.hasPrefix("claude-") && !id.hasPrefix("gemini-")),
                   let input = number(entry["input"], in: 0...1_000),
                   let output = number(entry["output"], in: 0...1_000),
                   let cacheRead = number(entry["cacheRead"], in: 0...1_000) else { return nil }
@@ -196,10 +224,16 @@ enum AgentPricing {
     /// model runs; the family name in the middle does not.
     static func normalized(_ model: String) -> String {
         var id = model.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        while id.hasSuffix(")"), let open = id.range(of: " (", options: .backwards) {
+            id = String(id[..<open.lowerBound]).trimmingCharacters(in: .whitespaces)
+        }
+        if id.hasPrefix("gemini ") { id = id.replacingOccurrences(of: " ", with: "-") }
+        if id.hasPrefix("claude ") { id = id.replacingOccurrences(of: " ", with: "-") }
         if let range = id.range(of: "claude-") { id = String(id[range.lowerBound...]) }
         // Copilot names Claude point releases with a dot where Anthropic's
         // own logs and the public price list use a dash.
         if id.hasPrefix("claude-") { id = id.replacingOccurrences(of: ".", with: "-") }
+        if let range = id.range(of: "gemini-") { id = String(id[range.lowerBound...]) }
         if let slash = id.lastIndex(of: "/") { id = String(id[id.index(after: slash)...]) }
         for marker in ["@", "["] {
             if let index = id.firstIndex(of: Character(marker)) { id = String(id[..<index]) }
@@ -209,13 +243,13 @@ enum AgentPricing {
 
     /// Words that make a variant a model of its own, with its own price.
     static let siblings = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime",
-                           "transcribe", "tts", "cyber", "image"]
+                           "transcribe", "tts", "cyber", "image", "live", "preview"]
 
     /// The longest matching family wins, so a point release the list names
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
-        let table = id.hasPrefix("claude-") ? list.claude : list.codex
+        let table = id.hasPrefix("claude-") ? list.claude : (id.hasPrefix("gemini-") ? list.gemini : list.codex)
         guard let match = table.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
         // A smaller, larger or specialized sibling the list does not name is
@@ -264,8 +298,9 @@ enum AgentPricing {
     }
 
     /// Readable model names: "claude-opus-5-5" reads "Opus 5.5" and
-    /// "gpt-6-astra" reads "GPT-6 Astra". Built from the name itself, so a
-    /// model no list knows yet still reads well.
+    /// "gpt-6-astra" reads "GPT-6 Astra" and "gemini-4-argon-b" reads
+    /// "Gemini 4 Argon B". Built from the name itself, so a model no list
+    /// knows yet still reads well.
     static func displayName(_ model: String) -> String {
         let id = normalized(model)
         guard !id.isEmpty else { return "" }
@@ -282,6 +317,45 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("gemini-") {
+            let family = id.split(separator: ":", maxSplits: 1).first.map(String.init) ?? id
+            var parts = family.dropFirst(7).split(separator: "-").map(String.init)
+            if let preview = parts.firstIndex(of: "preview") {
+                if preview + 2 < parts.count,
+                   parts[preview + 1].allSatisfy(\.isNumber), (1...4).contains(parts[preview + 1].count),
+                   parts[preview + 2].allSatisfy(\.isNumber), (1...4).contains(parts[preview + 2].count) {
+                    parts.removeSubrange(preview...preview + 2)
+                } else if preview + 1 < parts.count,
+                          parts[preview + 1].allSatisfy(\.isNumber), parts[preview + 1].count >= 4 {
+                    parts.removeSubrange(preview...preview + 1)
+                } else {
+                    parts.remove(at: preview)
+                }
+            }
+            parts.removeAll { $0 == "preview" || $0 == "latest" || $0 == "exp" }
+            parts.removeAll { $0.count >= 4 && $0.allSatisfy(\.isNumber) }
+            if parts.count >= 3, let year = Int(parts[parts.count - 3]), (2000...2100).contains(year),
+               parts.suffix(2).allSatisfy({ $0.count == 2 && $0.allSatisfy(\.isNumber) }) {
+                parts.removeLast(3)
+            }
+            guard !parts.isEmpty else { return "Gemini" }
+            var formatted: [String] = []
+            var index = 0
+            while index < parts.count {
+                let part = parts[index]
+                if part == "flash", index + 1 < parts.count, parts[index + 1] == "lite" {
+                    formatted.append("Flash-Lite")
+                    index += 2
+                } else if part.allSatisfy({ $0.isNumber || $0 == "." }) {
+                    formatted.append(part)
+                    index += 1
+                } else {
+                    formatted.append(part.capitalized)
+                    index += 1
+                }
+            }
+            return (["Gemini"] + formatted).joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)
