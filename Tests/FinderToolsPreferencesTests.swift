@@ -29,6 +29,11 @@ enum FinderToolsPreferencesTests {
             configuration.savedActions = [.init(title: "Docs", kind: .website, location: URL(string: "https://example.com")!)]
             suite.expect(FinderToolsConfiguration.decode(configuration.encoded) == configuration,
                          "menu and saved actions round-trip through the backup-compatible representation")
+            configuration.quickMenuShortcut = GlobalShortcut.radialMenuDefault.storageValue
+            suite.expect(FinderToolsConfiguration.decode(configuration.encoded).quickMenuShortcut == GlobalShortcut.radialMenuDefault.storageValue,
+                         "quick menu shortcut participates in settings backup")
+            suite.expect(GlobalShortcutRole.featuresToSilenceWhileRecording.contains(.finderTools),
+                         "Finder Tools is restored after recording a shortcut")
             configuration.savedActions[0].group = "Documentation"
             suite.expect(FinderToolsConfiguration.decode(configuration.encoded).savedActions[0].group == "Documentation",
                          "saved action grouping survives settings backup")

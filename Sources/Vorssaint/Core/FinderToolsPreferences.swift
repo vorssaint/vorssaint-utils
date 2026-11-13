@@ -79,6 +79,7 @@ struct FinderToolsConfiguration: Codable, Equatable {
     var menu = FinderToolsMenuConfiguration()
     var savedActions: [FinderToolsSavedAction] = []
     var creation: FinderCreationPreferences?
+    var quickMenuShortcut: String?
 
     static func decode(_ string: String?) -> Self {
         guard let data = string?.data(using: .utf8), data.count <= 1_048_576,

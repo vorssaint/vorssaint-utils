@@ -999,9 +999,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     static var featuresToSilenceWhileRecording: [AppFeature] {
         var seen: Set<AppFeature> = []
         var features = allCases.compactMap { seen.insert($0.feature).inserted ? $0.feature : nil }
-        // Window layout keeps one shortcut per action instead of a role, so it
-        // is the one holder of global keys the list above cannot reach.
+        // Window layout and Finder Tools store shortcuts inside their configurations.
         if seen.insert(.windowLayout).inserted { features.append(.windowLayout) }
+        if seen.insert(.finderTools).inserted { features.append(.finderTools) }
         return features
     }
 
