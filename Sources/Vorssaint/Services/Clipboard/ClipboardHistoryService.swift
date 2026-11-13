@@ -612,6 +612,13 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func editImage(_ entry: ClipboardHistoryEntry) {
+        if let url = ClipboardHistoryImageSupport.copiedImageFileURL(entry) {
+            guard AppFeature.screenshot.isAvailable else { return }
+            hideHistoryWindow()
+            (NSApp.delegate as? AppDelegate)?.closePopover()
+            ScreenshotService.shared.editImage(at: url)
+            return
+        }
         guard entry.kind == .image, AppFeature.screenshot.isAvailable,
               let directory = ClipboardImageStore.directory else { return }
         DispatchQueue.global(qos: .userInitiated).async {

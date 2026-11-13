@@ -290,6 +290,10 @@ struct ClipboardEntryPreviewSidebar: View {
                     Button(text.edit) {
                         beginEditing(entry)
                     }
+                } else if ClipboardHistoryImageSupport.canEdit(entry), AppFeature.screenshot.isAvailable {
+                    Button(text.edit) {
+                        ClipboardHistoryService.shared.editImage(entry)
+                    }
                 }
                 if AppFeature.screenOCR.isAvailable, let url = imageURL(entry) {
                     Button(FeatureStrings.screenshot(l10n.language).copyTextButton) {
