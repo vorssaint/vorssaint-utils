@@ -122,7 +122,19 @@ final class StatusItemController {
         // Bound once for the whole scan: a default argument is evaluated per
         // call, so leaving it to the default would rebuild this per button.
         let screenFrames = NSScreen.screens.map(\.frame)
+        // macOS 27 can leave a status item's window at the slot it was born in
+        // while drawing it somewhere else. Accessibility reports the drawn
+        // frame, so a click on the item is still recognised as ours.
+        let mainScreenMaxY = NSScreen.screens.first?.frame.maxY ?? 0
         return buttons.contains { button in
+            let axFrame = button.accessibilityFrame()
+            if axFrame.width > 0, axFrame.height > 0 {
+                let frame = NSRect(x: axFrame.minX,
+                                   y: mainScreenMaxY - axFrame.maxY,
+                                   width: axFrame.width,
+                                   height: axFrame.height)
+                if frame.insetBy(dx: -4, dy: -8).contains(screenPoint) { return true }
+            }
             guard let frame = button.window?.frame,
                   StatusItemAnchorSupport.isTrustworthyStatusFrame(frame, screenFrames: screenFrames)
             else { return false }

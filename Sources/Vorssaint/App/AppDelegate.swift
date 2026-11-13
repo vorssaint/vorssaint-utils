@@ -47,6 +47,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var panelActivationObservers: [NSObjectProtocol] = []
     private var popoverCloseReason: PanelCloseReason?
     private var metricAnchorSwitchSerial = 0
+    /// The reading last clicked in the menu bar. A second click on the same
+    /// reading closes the panel; a click on a different one switches to it.
+    private var activeMetricReading: MenuBarMetric?
     private var popoverCloseCompletions: [() -> Void] = []
     private var isTerminating = false
     private var inputSourceRestorationPending = false
@@ -516,10 +519,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
             NotchService.shared.openAppPanel(toggle: true); return
         }
+        let wasMetric = MenuPanelFocus.shared.activeMetric != nil
+        activeMetricReading = nil
+        if popoverIsOpen, wasMetric {
+            MenuPanelFocus.shared.showNormalPanel()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+                guard let self, self.popover.isShown,
+                      MenuPanelFocus.shared.activeMetric == nil else { return }
+                self.reanchorMainPopover()
+            }
+            return
+        }
         if !popoverIsOpen {
             MenuPanelFocus.shared.showNormalPanel()
         }
         togglePopover(anchorRect: statusController?.mainItemAnchorRect())
+    }
+
+    /// Moves an open panel from a reading to the main status icon without
+    /// closing it, so the main menu and a reading chain both ways.
+    private func reanchorMainPopover() {
+        guard popover.isShown, let button = statusController?.button else { return }
+        let anchorRect = statusController?.mainItemAnchorRect() ?? button.bounds
+        popoverIsSwitchingAnchor = true
+        PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
+        popover.animates = false
+        popover.show(relativeTo: anchorRect, of: button, preferredEdge: .minY)
+        MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
+        popover.animates = true
+        if popover.isShown, !popoverIsFadingOut {
+            popoverIsClosing = false
+            popoverCloseIsAppRequested = false
+            popoverCloseReason = nil
+        }
+        popover.contentViewController?.view.window?.makeKey()
+        if let window = popover.contentViewController?.view.window {
+            configurePopoverWindow(window)
+            beginPopoverDriftCorrection(window: window,
+                                        anchor: resolvePanelAnchor(for: button,
+                                                                   anchorRect: anchorRect,
+                                                                   window: window))
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+            guard let self else { return }
+            self.popoverIsSwitchingAnchor = false
+            guard self.popover.isShown else {
+                self.statusController.setMicBadgeHeld(false)
+                self.releasePanelResources()
+                self.endPanelActivationTracking()
+                return
+            }
+        }
     }
 
     func isOverStatusItem(_ point: NSPoint) -> Bool {
@@ -535,16 +585,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             NotchService.shared.showMetric(detailKind, toggle: true); return
         }
         if popoverIsOpen {
-            if MenuPanelFocus.shared.activeMetric == detailKind {
+            if activeMetricReading == metric {
+                activeMetricReading = nil
                 metricAnchorSwitchSerial &+= 1
                 MenuPanelFocus.shared.clearMetricFocus()
                 closePopover(animated: false, reason: .statusItem)
                 return
             }
+            activeMetricReading = metric
             MenuPanelFocus.shared.focus(detailKind)
             scheduleMetricAnchorSwitch(to: detailKind, anchoredTo: button, anchorRect: anchorRect)
             return
         }
+        activeMetricReading = metric
         MenuPanelFocus.shared.focus(detailKind)
         showPopover(anchor: button, anchorRect: anchorRect)
     }
@@ -1444,7 +1497,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     func popoverShouldClose(_ popover: NSPopover) -> Bool {
-        popoverCloseIsAppRequested || !PanelInteractionState.shared.preventsPopoverDismissal
+        if popoverCloseIsAppRequested { return true }
+        // A status-item click is how the panel switches readings. AppKit can
+        // ask to close first, which would turn the switch into a close and
+        // make the person click twice. The accessibility frame covers macOS
+        // 27's stale status-item window frame.
+        let eventType = NSApp.currentEvent?.type
+        if eventType == .leftMouseDown || eventType == .leftMouseUp,
+           statusController?.containsStatusItem(at: NSEvent.mouseLocation) == true {
+            return false
+        }
+        return !PanelInteractionState.shared.preventsPopoverDismissal
     }
 
     func popoverWillClose(_ notification: Notification) {
@@ -1474,6 +1537,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             statusController.setMicBadgeHeld(false)
         }
         if !popoverIsSwitchingAnchor && !popoverIsReopening {
+            activeMetricReading = nil
             releasePanelResources()
         }
         removePopoverDismissMonitor()
