@@ -23,6 +23,23 @@ It has its own preferences and permissions and does not replace the official app
 A plain `./build.sh` builds the optimized variant used by CI; its health check is
 `./build/Vorssaint --selftest`.
 
+The build prints the actual SDK version/path and Swift compiler version. Set
+`SDKROOT` to choose an SDK explicitly; this takes precedence over the default
+macOS 26 compatibility SDK. For example, with Command Line Tools 27.2 installed:
+
+```sh
+DEVELOPER_DIR=/Library/Developer/CommandLineTools \
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX27.2.sdk \
+./build.sh --dev
+```
+
+SDK 27 and newer use SwiftUI compiler macros. A full Xcode installation supplies
+the required host plugin and matching plugin server; the build finds them in
+`DEVELOPER_DIR` or the system-selected Xcode without changing `xcode-select`.
+Command Line Tools alone do not include that plugin. Run
+`./Tests/SDKBuildTests.sh` with the same environment to typecheck a small SwiftUI
+view using the production SDK configuration without opening a window.
+
 ### Stable signing
 
 Developer and install builds automatically try to create a stable local signing

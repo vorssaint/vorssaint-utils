@@ -1094,10 +1094,67 @@ def main():
               "    private func storedVolume(", "    private func storedRoute(",
               "    private func applyingCurrentVolumes(",
               "    private func savedCallAppVolumeEnabled(", "    func setCallAppVolumeControl(",
-              "    private func appNeedsEngine(", "    private func rowMayBeTapped(",
+              "    func volumeEditingChanged(", "    private func appNeedsEngine(", "    private func rowMayBeTapped(",
               "    private func applyOutputRoute(", "    func setOutputDeviceUID(",
-              "    func switchToNextSoundOutput(", "    func setUniversalOutputDeviceUID(",
+              "    func switchToNextSoundOutput(", "    var currentSoundOutputDeviceUID:", "    func setUniversalOutputDeviceUID(",
               "    private func setDefaultOutputDeviceUID("])
+          + "}\n")
+    write("MixerVolumePersistence.swift", "import Foundation\n"
+          + "extension MixerUniversalRoutingContract.VolumeHost {\n"
+          + "".join(declaration(mixer, prefix).replace("private ", "", 1) for prefix in [
+              "    private func savedVolumes(", "    private func persistVolume("])
+          + "}\n")
+    switcher = "Sources/Vorssaint/Services/Audio/SoundOutputSwitcher.swift"
+    write("SoundOutputSelections.swift", "import Foundation\n"
+          + "extension MixerUniversalRoutingContract.Switcher {\n"
+          + declaration(switcher, "    func selectedDeviceUIDs()")
+          + declaration(switcher, "    func setSelectedDeviceUIDs(")
+          + declaration(switcher, "    private func migrateSoftwareOutputSelection()").replace("private func", "func", 1) + "}\n")
+    write("AudioPrioritySelection.swift", "import Foundation\n"
+          + "extension MixerUniversalRoutingContract.PriorityHost {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/AudioPriorityService.swift", "    private func enforceOutputPriority()").replace("private func", "func", 1)
+          + "}\nextension AudioPriorityTests.PreferencesHost {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/AudioPriorityService.swift", "    private func loadPreferences()").replace("private func", "func", 1)
+          + "}\n")
+    virtual_service = "Sources/Vorssaint/Services/Audio/VirtualOutputService.swift"
+    write("SoftwareVolumeFormat.swift", "import AudioToolbox\nimport Foundation\n"
+          + "extension SoftwareVolumeFormatTests.HAL {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/VirtualOutputHAL.swift", "    private static func normalizedLayout(")
+            .replace("private static func", "static func", 1) + "}\n")
+    output_bridge = "Sources/Vorssaint/Services/Audio/VirtualOutputBridge.swift"
+    lifecycle = declaration(output_bridge, "final class VirtualOutputBridge {")
+    for name in ("Storage", "Pump"):
+        boundary = re.sub(r"^#sourceLocation.*\n", "", declaration(output_bridge, "    private final class " + name + " {"), flags=re.M).rstrip() + "\n"
+        if boundary not in lifecycle:
+            raise ValueError("Expected output bridge boundary " + name)
+        lifecycle = lifecycle.replace(boundary, "    private typealias " + name + " = SoftwareVolumeBridgeLifecycleTests." + name + "\n")
+    lifecycle = lifecycle.replace("final class VirtualOutputBridge {", "final class Bridge {")
+    lifecycle = lifecycle.replace("VirtualOutputHAL.", "HAL.").replace("Thread.sleep(", "Clock.sleep(")
+    lifecycle = lifecycle.replace('subsystem: "com.vorssaint.utils"', 'subsystem: "com.vorssaint.tests"')
+    for original, replacement in [("AudioDeviceCreateIOProcIDWithBlock", "HAL.create"),
+                                  ("AudioDeviceStart", "HAL.start"), ("AudioDeviceStop", "HAL.stop"),
+                                  ("AudioDeviceDestroyIOProcID", "HAL.destroy"),
+                                  ("vs_playback_render", "HAL.render"), ("vs_playback_healthy", "HAL.healthy")]:
+        lifecycle = lifecycle.replace(original + "(", replacement + "(")
+    write("SoftwareVolumeBridgeLifecycle.swift", "import CoreAudio\nimport Foundation\nimport Darwin\nimport os\nimport SoftwareVolumePCM\n"
+          + "extension SoftwareVolumeBridgeLifecycleTests {\n" + lifecycle + "\n}\n")
+    write("SoftwareVolumeStartup.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension SoftwareVolumeStartupTests.Host {\n"
+          + declaration(virtual_service, "    private func replaceBridge(").replace("private func", "func", 1)
+          + declaration(virtual_service, "    private func rememberLevel(").replace("private func", "func", 1)
+          + "}\n")
+    route_prefix = "    private func routeOutput("
+    write("VirtualOutputSelection.swift", "import CoreAudio\nimport Foundation\n"
+          + "extension MixerUniversalRoutingContract.SelectionSession {\n"
+          + declaration(virtual_service, "    @discardableResult func selectOutput(")
+          + declaration(virtual_service, route_prefix)
+          + declaration(virtual_service, "    func stop()")
+          + "}\n")
+    write("VirtualOutputUpdates.swift", "import AppKit\nimport Foundation\n"
+          + "extension MixerUniversalRoutingContract.UpdateHost {\n"
+          + declaration(virtual_service, "    private func offerComponentUpdateIfNeeded(").replace("private func", "func", 1)
+          + declaration(virtual_service, "    func installForFallback()")
+          + declaration(virtual_service, "    @discardableResult func openInstaller()")
           + "}\n")
     level_watch = declaration(mixer, "final class LevelCompensationWatch {").replace("private ", "")
     for operation in ("AddPropertyListener", "RemovePropertyListener"):
@@ -1122,8 +1179,10 @@ def main():
           + "}\n")
     write("SoundOutputSwitch.swift", "import Foundation\n"
           + "extension SoundOutputSwitchContract {\nfinal class Mixer {\n"
+          + "typealias VirtualOutputService = MixerUniversalRoutingContract.VirtualOutputService\n"
           + "var outputDevices: [Device] = []\nvar currentOutputDeviceUID: String?\nvar switchedTo: [String] = []\n"
           + "func setUniversalOutputDeviceUID(_ uid: String) -> Bool { switchedTo.append(uid); return true }\n"
+          + declaration(mixer, "    var currentSoundOutputDeviceUID:")
           + declaration(mixer, "    func switchToNextSoundOutput(") + "}\n}\n")
     write("MixerOutputAdjustment.swift", "import CoreAudio\nimport Foundation\n"
           + "extension MixerOutputAdjustmentContract {\nfinal class Mixer {\n"

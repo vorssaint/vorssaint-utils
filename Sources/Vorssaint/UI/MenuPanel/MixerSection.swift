@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Per-app volume sliders, the mixer macOS never shipped. Shows every app
 /// holding an audio connection (a green dot marks the ones playing right now).
-/// 100% is untouched passthrough; below it attenuates and above it (up to 200%)
+/// 100% is unity gain; below it attenuates and above it (up to 200%)
 /// boosts, with the slider and percentage turning amber in the boost range.
 struct MixerSection: View {
     @Environment(\.notchPresentation) private var inNotch
@@ -112,7 +112,8 @@ struct MixerSection: View {
             .buttonStyle(.plain)
 
             if optionsExpanded {
-                MixerOptionsControls(includeSharedAudioFeatures: !settingsMode)
+                MixerOptionsControls(includeSharedAudioFeatures: !settingsMode,
+                                     showComponentManagement: settingsMode)
                     .padding(.leading, 19)
             }
         }
@@ -120,18 +121,39 @@ struct MixerSection: View {
 
     private var universalOutputPicker: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 8) {
-                Label {
-                    Text(l10n.s.mixerSystemOutputTitle)
-                        .font(.system(size: 11.5, weight: .medium))
-                } icon: {
-                    Image(systemName: "speaker.wave.2.fill")
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .frame(width: 16)
+            HStack(spacing: 3) {
+                HStack(spacing: 3) {
+                    Label {
+                        Text(l10n.s.mixerSystemOutputTitle)
+                            .font(.system(size: 11.5, weight: .medium))
+                    } icon: {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .frame(width: 16)
+                    }
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: true, vertical: false)
+                    if let layout = mixer.systemOutputLayout {
+                        let text = VirtualOutputStrings.outputLayout(layout, language: l10n.language)
+                        HStack(spacing: 2) {
+                            Image(systemName: layout.systemImage)
+                                .font(.system(size: settingsMode ? 9.5 : 7.5))
+                            Text(text.title)
+                                .font(.system(size: settingsMode ? 10 : 8.5, weight: .medium))
+                                .lineLimit(1)
+                                .minimumScaleFactor(settingsMode ? 1 : 0.75)
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, settingsMode ? 5 : 3)
+                        .padding(.vertical, settingsMode ? 2 : 1)
+                        .background(.quaternary, in: Capsule())
+                        .help(text.help)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(text.help), \(text.title)")
+                    }
                 }
-                .foregroundStyle(.secondary)
 
-                Spacer(minLength: 6)
+                Spacer(minLength: 0)
 
                 Picker(l10n.s.mixerSystemOutputTooltip, selection: universalOutputSelectionBinding) {
                     if mixer.currentOutputDeviceUID == nil {
@@ -541,6 +563,7 @@ struct MixerSection: View {
 struct MixerOptionsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var virtualOutput = VirtualOutputService.shared
     @ObservedObject private var preciseVolumeRoller = PreciseVolumeRollerService.shared
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
@@ -551,8 +574,14 @@ struct MixerOptionsControls: View {
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
+    @AppStorage(DefaultsKey.mixerSoftwareVolumeEnabled)
+    private var softwareVolumeEnabled = false
     @State private var showListChooser = false
+    @State private var showSoftwareVolumeInstaller = false
+    @State private var showSoftwareVolumeRemoval = false
+    @State private var showAudioPrivacy = false
     var includeSharedAudioFeatures = true
+    var showComponentManagement = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -560,6 +589,7 @@ struct MixerOptionsControls: View {
                 inactiveAppsVisibilityToggle
             }
             headphoneDisconnectProtectionToggle
+            softwareVolumeToggle
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
@@ -641,7 +671,7 @@ struct MixerOptionsControls: View {
 
             if preciseVolumeRollerEnabled, !permissions.accessibility {
                 Button {
-                    Permissions.shared.openAccessibilitySettings()
+                    permissions.requestAccessibility()
                 } label: {
                     Label(l10n.s.permissionOpenSettings, systemImage: "hand.raised")
                 }
@@ -652,6 +682,80 @@ struct MixerOptionsControls: View {
                              systemImage: "exclamationmark.triangle")
             }
         }
+    }
+
+    private var softwareVolumeToggle: some View {
+        let nativeStrings = VirtualOutputStrings.localized(l10n.language)
+        return VStack(alignment: .leading, spacing: 3) {
+            Toggle(nativeStrings.title, isOn: softwareVolumeBinding)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .disabled(!AppVolumeMixer.isSupported || virtualOutput.isRemoving)
+                .onChange(of: softwareVolumeEnabled) { _, _ in
+                    mixer.syncSoftwareOutputWithPreferences()
+                }
+            Text(nativeStrings.caption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if showComponentManagement {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Button(nativeStrings.privacyTitle) { showAudioPrivacy = true }
+                        .buttonStyle(.link)
+                        .font(.system(size: 10.5))
+                        .alert(nativeStrings.privacyTitle, isPresented: $showAudioPrivacy) {
+                            Button("OK", role: .cancel) {}
+                        } message: {
+                            Text(nativeStrings.privacyBody)
+                        }
+                    if virtualOutput.componentPresent {
+                        Button(nativeStrings.remove) { showSoftwareVolumeRemoval = true }
+                            .buttonStyle(.link)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .disabled(virtualOutput.isRemoving)
+                            .alert(nativeStrings.removeTitle, isPresented: $showSoftwareVolumeRemoval) {
+                                Button(nativeStrings.remove, role: .destructive) { virtualOutput.removeComponent() }
+                                Button(l10n.s.uninstallerCancel, role: .cancel) {}
+                            } message: {
+                                Text(nativeStrings.removeBody)
+                            }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            if softwareVolumeEnabled, !virtualOutput.componentReady {
+                Button(virtualOutput.componentNeedsUpdate ? nativeStrings.update : nativeStrings.install) { showSoftwareVolumeInstaller = true }
+                    .buttonStyle(.link)
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            if let message = virtualOutput.error {
+                inputMessage(message, systemImage: "exclamationmark.triangle")
+            }
+            if virtualOutput.isActive, let uid = virtualOutput.physicalOutputUID {
+                let name = mixer.outputDevices.first { $0.uid == uid }?.name ?? uid
+                inputMessage("Vorssaint Audio → \(name)", systemImage: "speaker.wave.2")
+            }
+        }
+        .alert(virtualOutput.componentNeedsUpdate ? nativeStrings.updateTitle : nativeStrings.installTitle,
+               isPresented: $showSoftwareVolumeInstaller) {
+            Button(virtualOutput.componentNeedsUpdate ? nativeStrings.update : nativeStrings.install) {
+                virtualOutput.installForFallback()
+            }
+            Button(l10n.s.uninstallerCancel, role: .cancel) {}
+        } message: {
+            Text(virtualOutput.componentNeedsUpdate ? nativeStrings.updateBody : nativeStrings.installBody)
+        }
+    }
+
+    private var softwareVolumeBinding: Binding<Bool> {
+        Binding(get: { softwareVolumeEnabled }, set: { requested in
+            switch VirtualOutputSupport.enableAction(requested: requested,
+                                                      componentReady: virtualOutput.isInstalled) {
+            case .enable: softwareVolumeEnabled = true
+            case .disable: softwareVolumeEnabled = false
+            case .install: showSoftwareVolumeInstaller = true
+            }
+        })
     }
 
     /// One entry per app the list knows about: visible rows checked, hidden
@@ -771,6 +875,7 @@ struct SoundOutputSwitcherControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var outputSwitcher = SoundOutputSwitcher.shared
+    @ObservedObject private var virtualOutput = VirtualOutputService.shared
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var enabled = false
     @State private var selectedUIDs: [String] = []
@@ -782,7 +887,7 @@ struct SoundOutputSwitcherControls: View {
                 .font(.system(size: 11.5, weight: .medium))
                 .onChange(of: enabled) { _, isEnabled in
                     if isEnabled, selectedUIDs.isEmpty,
-                       let current = mixer.currentOutputDeviceUID,
+                       let current = currentOutputUID,
                        universalOutputDevices.contains(where: { $0.uid == current }) {
                         setSelectedUIDs([current])
                     }
@@ -838,11 +943,18 @@ struct SoundOutputSwitcherControls: View {
     }
 
     private var universalOutputDevices: [MixerOutputDevice] {
-        mixer.outputDevices.filter(\.canBeDefaultOutput)
+        mixer.outputDevices.filter {
+            MixerRoutingSupport.isSelectableSystemOutput($0.uid, canBeDefault: $0.canBeDefaultOutput)
+        }
+    }
+
+    private var currentOutputUID: String? {
+        VirtualOutputSupport.logicalOutputUID(current: mixer.currentOutputDeviceUID,
+            physical: virtualOutput.physicalOutputUID, requested: virtualOutput.requestedOutputUID)
     }
 
     private func outputDeviceTitle(_ device: MixerOutputDevice) -> String {
-        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+        device.uid == currentOutputUID ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
     }
 
     private func inputMessage(_ text: String, systemImage: String) -> some View {
@@ -969,7 +1081,8 @@ private struct MixerRow: View {
                                           accentRevision: accentRevision,
                                           glassEnabled: glassEnabled,
                                           maximum: AppVolumeMixer.maxVolume,
-                                          accessibilityLabel: app.name)
+                                          accessibilityLabel: app.name,
+                                          onEditingChanged: { mixer.volumeEditingChanged($0, for: app) })
 
                         EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: app.volume),
                                               maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
@@ -1363,6 +1476,7 @@ private struct MixerVolumeSlider: View {
     let glassEnabled: Bool
     let maximum: Double
     let accessibilityLabel: String
+    var onEditingChanged: ((Bool) -> Void)? = nil
 
     private var activeTint: Color { isBoosting ? boostTint : normalTint }
     private var percentage: Int { MixerRoutingSupport.displayPercent(forVolume: value) }
@@ -1375,7 +1489,8 @@ private struct MixerVolumeSlider: View {
                                        tint: activeTint,
                                        isBoosting: isBoosting,
                                        maximum: maximum,
-                                       accessibilityLabel: accessibilityLabel)
+                                       accessibilityLabel: accessibilityLabel,
+                                       onEditingChanged: onEditingChanged)
             } else {
                 nativeSlider
                     .accessibilityLabel(accessibilityLabel)
@@ -1388,10 +1503,11 @@ private struct MixerVolumeSlider: View {
 #endif
         }
         .overlay(SliderScrollArea(value: $value, range: 0...maximum))
+        .onDisappear { onEditingChanged?(false) }
     }
 
     private var nativeSlider: some View {
-        Slider(value: $value, in: 0...maximum)
+        Slider(value: $value, in: 0...maximum, onEditingChanged: { onEditingChanged?($0) })
             .controlSize(.small)
             // Pass an explicit accent (not nil) for the normal state: on the
             // macOS slider, tint(nil) does not reliably clear a previously
@@ -1409,6 +1525,8 @@ private struct LiquidGlassMixerSlider: View {
     let isBoosting: Bool
     let maximum: Double
     let accessibilityLabel: String
+    var onEditingChanged: ((Bool) -> Void)? = nil
+    @GestureState private var isDragging = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorScheme) private var colorScheme
 
@@ -1444,12 +1562,24 @@ private struct LiquidGlassMixerSlider: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
+                    .updating($isDragging) { _, active, _ in active = true }
                     .onChanged { gesture in
+                        // Begin before the value write; GestureState cleans up
+                        // cancellation even when onEnded is not delivered.
+                        onEditingChanged?(true)
                         updateValue(at: gesture.location.x, width: width)
+                    }
+                    .onEnded { gesture in
+                        updateValue(at: gesture.location.x, width: width)
+                        onEditingChanged?(false)
                     }
             )
         }
         .frame(height: knobHeight)
+        .onChange(of: isDragging) { _, active in
+            if !active { onEditingChanged?(false) }
+        }
+        .onDisappear { onEditingChanged?(false) }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue("\(MixerRoutingSupport.displayPercent(forVolume: value))%")
         .accessibilityAdjustableAction { direction in
