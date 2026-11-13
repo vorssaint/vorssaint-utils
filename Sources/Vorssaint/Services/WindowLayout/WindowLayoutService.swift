@@ -557,7 +557,8 @@ final class WindowLayoutService: ObservableObject {
                                              visibleFrame: visibleFrame,
                                              windowGap: WindowLayoutGaps.windowGap,
                                              screenGap: WindowLayoutGaps.screenGap,
-                                             marginPercent: WindowLayoutMargin.percent)
+                                             marginPercent: WindowLayoutMargin.percent,
+                                             resizeStepPercent: WindowLayoutResizeStep.percent)
         let integral = rect.integral
         return WindowLayoutPlacement(frame: axFrame(fromAppKit: integral), rect: integral)
     }
@@ -587,7 +588,12 @@ final class WindowLayoutService: ObservableObject {
 
         let original = self.frame(of: window)
         settledFrames.removeValue(forKey: windowKey)
-        if attempt(frame, targetRect: targetRect, visibleFrame: screenVisibleFrame, action: action, on: window) {
+        if attempt(frame,
+                   targetRect: targetRect,
+                   visibleFrame: screenVisibleFrame,
+                   action: action,
+                   original: original,
+                   on: window) {
             assistiveModeSuspensions.removeValue(forKey: windowID)?.resume()
             // Read-back is needed only by the side cycle or opt-in drag restore.
             if cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag) {
@@ -602,7 +608,8 @@ final class WindowLayoutService: ObservableObject {
                     scheduleSettledFrameRefresh(for: window,
                                                 windowKey: windowKey,
                                                 targetRect: targetRect,
-                                                action: action)
+                                                action: action,
+                                                original: original)
                 }
             }
             return true
@@ -640,7 +647,8 @@ final class WindowLayoutService: ObservableObject {
     private func scheduleSettledFrameRefresh(for window: AXUIElement,
                                              windowKey: WindowLayoutWindowKey,
                                              targetRect: NSRect,
-                                             action: WindowLayoutAction) {
+                                             action: WindowLayoutAction,
+                                             original: WindowLayoutFrame?) {
         let windowID = windowKey.windowID
         let timer = Timer(timeInterval: 0.3, repeats: false) { [weak self] _ in
             guard let self else { return }
@@ -655,7 +663,10 @@ final class WindowLayoutService: ObservableObject {
                                                                   settled: settled,
                                                                   tolerance: self.frameTolerance),
                   actual.isClose(to: settled.requested, tolerance: self.frameTolerance)
-                    || self.accepted(actual: actual, targetRect: targetRect, action: action)
+                    || self.accepted(actual: actual,
+                                     targetRect: targetRect,
+                                     action: action,
+                                     original: original)
             else { return }
             self.settledFrames[windowKey] = WindowLayoutSettledFrame(requested: settled.requested,
                                                                      actual: actual,
@@ -684,6 +695,7 @@ final class WindowLayoutService: ObservableObject {
                         targetRect: context.targetRect,
                         visibleFrame: context.screenVisibleFrame,
                         action: context.action,
+                        original: context.original,
                         on: context.window) {
             concludeSettle(context, success: true)
             return
@@ -704,6 +716,7 @@ final class WindowLayoutService: ObservableObject {
                             targetRect: context.targetRect,
                             visibleFrame: context.screenVisibleFrame,
                             action: context.action,
+                            original: context.original,
                             on: context.window) {
                 concludeSettle(context, success: true)
                 return
@@ -715,7 +728,10 @@ final class WindowLayoutService: ObservableObject {
     private func verified(_ context: SettleContext) -> Bool {
         guard let actual = frame(of: context.window) else { return false }
         return actual.isClose(to: context.frame, tolerance: frameTolerance)
-            || accepted(actual: actual, targetRect: context.targetRect, action: context.action)
+            || accepted(actual: actual,
+                        targetRect: context.targetRect,
+                        action: context.action,
+                        original: context.original)
     }
 
     // The action already reported success while the window was settling, so a
@@ -761,6 +777,7 @@ final class WindowLayoutService: ObservableObject {
                          targetRect: NSRect,
                          visibleFrame: NSRect,
                          action: WindowLayoutAction,
+                         original: WindowLayoutFrame? = nil,
                          on window: AXUIElement) -> Bool {
         for _ in 0..<3 {
             applyFrame(frame,
@@ -770,7 +787,10 @@ final class WindowLayoutService: ObservableObject {
                        on: window)
             guard let actual = self.frame(of: window) else { continue }
             if actual.isClose(to: frame, tolerance: frameTolerance)
-                || accepted(actual: actual, targetRect: targetRect, action: action) {
+                || accepted(actual: actual,
+                            targetRect: targetRect,
+                            action: action,
+                            original: original) {
                 return true
             }
         }
@@ -830,12 +850,14 @@ final class WindowLayoutService: ObservableObject {
 
     private func accepted(actual: WindowLayoutFrame,
                           targetRect: NSRect,
-                          action: WindowLayoutAction) -> Bool {
+                          action: WindowLayoutAction,
+                          original: WindowLayoutFrame? = nil) -> Bool {
         let actualRect = appKitFrame(fromAX: actual)
         return WindowLayoutGeometry.accepts(actualRect: actualRect,
                                             targetRect: targetRect,
                                             action: action,
-                                            anchorTolerance: anchorTolerance)
+                                            anchorTolerance: anchorTolerance,
+                                            originalRect: original.map { appKitFrame(fromAX: $0) })
     }
 
     // MARK: - Shortcuts

@@ -177,6 +177,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                                   modifiers: [.control, .option])
     static let windowLayoutNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_RightArrow),
                                                                modifiers: [.control, .option, .command])
+    static let windowLayoutDecreaseSizeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Minus),
+                                                                 modifiers: [.control, .option])
+    static let windowLayoutIncreaseSizeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Equal),
+                                                                 modifiers: [.control, .option])
     static let windowDirectionalDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                          modifiers: [.control, .option])
     // The key beside the modifiers, so one left hand presses it, on the

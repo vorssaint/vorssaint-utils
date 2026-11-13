@@ -27,6 +27,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
     @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
+    @AppStorage(DefaultsKey.windowLayoutResizeStepPercent) private var resizeStepPercent = WindowLayoutResizeStep.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var directionalError: String?
     @State private var systemTilingEnabled = WindowEdgeSnapSupport.isSystemTilingEnabled
@@ -239,6 +240,9 @@ struct WindowLayoutSettings: View {
                     actionRow(.center)
                     actionRow(.previousDisplay)
                     actionRow(.nextDisplay)
+                    actionRow(.decreaseSize)
+                    actionRow(.increaseSize)
+                    resizeStepSlider
                     actionRow(.restore)
                     if let message = resultMessage {
                         Text(message)
@@ -332,6 +336,22 @@ struct WindowLayoutSettings: View {
                 Text(text.marginPerEdge)
             }
             Text(WindowLayoutMargin.sanitizedPercent(marginPercent) / 100,
+                 format: .percent.precision(.fractionLength(0)))
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 44, alignment: .trailing)
+        }
+    }
+
+    private var resizeStepSlider: some View {
+        HStack(spacing: 12) {
+            Slider(value: Binding(
+                get: { WindowLayoutResizeStep.sanitizedPercent(resizeStepPercent) },
+                set: { resizeStepPercent = WindowLayoutResizeStep.sanitizedPercent($0) }
+            ), in: WindowLayoutResizeStep.percentRange, step: 1) {
+                Text(text.resizeStep)
+            }
+            Text(WindowLayoutResizeStep.sanitizedPercent(resizeStepPercent) / 100,
                  format: .percent.precision(.fractionLength(0)))
                 .font(.caption.monospacedDigit())
                 .foregroundStyle(.secondary)
