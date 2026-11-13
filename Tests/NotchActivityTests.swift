@@ -256,10 +256,17 @@ enum NotchActivityTests {
         suite.expect(session.completed && !session.isPaused, "pausing at the deadline completes instead of preserving a zero timer")
         session.cancel()
         session.start(mode: .timer, minutes: Int.max, now: 0)
-        suite.expect(session.duration == 10_800, "corrupt duration input stays within three hours")
-        suite.expect(NotchTimerSupport.timerMinutes(60) == 60 && NotchTimerSupport.timerMinutes(Int.max) == 180
+        suite.expect(session.duration == 86_340, "corrupt duration input stays within the new timer limit")
+        suite.expect(NotchTimerSupport.timerMinutes(60) == 60 && NotchTimerSupport.timerMinutes(Int.max) == 1439
                && NotchTimerSupport.timerMinutes(Int.min) == 1,
-               "a remembered duration restored from a backup stays between a minute and three hours")
+               "a remembered duration restored from a backup stays between one and 1439 minutes")
+        session.cancel()
+        session.start(mode: .timer, minutes: 1439, seconds: 59, now: 0)
+        suite.expect(
+            session.duration == 86_399,
+            "timer supports the maximum duration of 23:59:59"
+        )
+
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerMinutes] as? Int == 15
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerMinutes),
                "the timer's duration is registered and travels with settings backups")
@@ -268,7 +275,8 @@ enum NotchActivityTests {
         let clockCases: [(TimeInterval, String)] = [
             (59, "00:59"), (60, "01:00"), (3599, "59:59"), (3599.01, "1:00:00"),
             (3600, "1:00:00"), (3601, "1:00:01"), (8580, "2:23:00"),
-            (10800, "3:00:00"), (.greatestFiniteMagnitude, "3:00:00"), (.infinity, "00:00")
+            (10800, "3:00:00"), (86399, "23:59:59"),
+            (.greatestFiniteMagnitude, "23:59:59"), (.infinity, "00:00")
         ]
         for (seconds, expected) in clockCases {
             suite.expect(NotchTimerSupport.clockText(seconds) == expected,
@@ -298,11 +306,13 @@ enum NotchActivityTests {
             suite.expect(NotchTimerSupport.compactText(invalid, locale: locale) == "0s",
                    "invalid or expired compact times remain safe to display")
         }
-        suite.expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "3h",
-               "compact duration formatting preserves the timer's upper limit")
+        suite.expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "23h 59m",
+                     "compact duration formatting preserves the timer's upper limit")
         let hourCases: [(TimeInterval, String)] = [
             (3600, "1h00"), (3659.9, "1h00"), (3660, "1h01"), (5700, "1h35"),
-            (8580, "2h23"), (10800, "3h00"), (.greatestFiniteMagnitude, "3h00"), (.nan, "0h00")
+            (8580, "2h23"), (10800, "3h00"),
+            (86399, "23h59"), (.greatestFiniteMagnitude, "23h59"),
+            (.nan, "0h00")
         ]
         for (seconds, expected) in hourCases {
             suite.expect(NotchTimerSupport.compactHoursText(seconds) == expected,
@@ -687,13 +697,13 @@ enum NotchActivityTests {
             var filled = true
             var selectedVisible = true
             var clicksMatch = true
-            for selected in 1...180 {
+            for selected: Int in [1, 5, 15, 60, 180, 720, 1439] {
                 let pointer = NotchTimerRulerScale.selectionX(selected: selected, width: width)
                 let first = pointer + NotchTimerRulerScale.offset(of: 1, selected: selected)
-                let last = pointer + NotchTimerRulerScale.offset(of: 180, selected: selected)
+                let last = pointer + NotchTimerRulerScale.offset(of: 1439, selected: selected)
                 filled = filled && first <= 24 && last >= width - 24
                 selectedVisible = selectedVisible && pointer >= 24 && pointer <= width - 24
-                for minute in 1...180 {
+                for minute: Int in 1...1439 {
                     let x = pointer + NotchTimerRulerScale.offset(of: minute, selected: selected)
                     guard (0...width).contains(x) else { continue }
                     let clicked = NotchTimerRulerScale.moving(Double(selected), by: -(x - pointer))
@@ -706,7 +716,7 @@ enum NotchActivityTests {
         }
         suite.expect(NotchTimerRulerScale.selectionX(selected: 5, width: 300) == 80
                && NotchTimerRulerScale.selectionX(selected: 90, width: 300) == 150
-               && NotchTimerRulerScale.selectionX(selected: 180, width: 300) == 276,
+               && NotchTimerRulerScale.selectionX(selected: 1439, width: 300) == 276,
                "short durations start near the leading edge, middle durations stay centered and the maximum reaches the trailing edge")
         suite.expect(NotchTimerRulerScale.minute(NotchTimerRulerScale.moving(15, by: 14)) == 14
                && NotchTimerRulerScale.minute(NotchTimerRulerScale.moving(15, by: -14)) == 16,
@@ -724,11 +734,11 @@ enum NotchActivityTests {
         value = NotchTimerRulerScale.moving(1, by: 10_000)
         suite.expect(value == 1 && NotchTimerRulerScale.moving(value, by: -14) == 2,
                "dragging beyond the minimum does not leave a dead zone when reversing")
-        value = NotchTimerRulerScale.moving(180, by: -10_000)
-        suite.expect(value == 180 && NotchTimerRulerScale.moving(value, by: 14) == 179,
-               "dragging beyond the maximum allows an immediate reversal")
+        value = NotchTimerRulerScale.moving(1439, by: -10_000)
+suite.expect(value == 1439 && NotchTimerRulerScale.moving(value, by: 14) == 1438,
+    "dragging beyond the maximum allows an immediate reversal")
         suite.expect(NotchTimerRulerScale.minute(.nan) == 1 && NotchTimerRulerScale.minute(.infinity) == 1
-               && NotchTimerRulerScale.minute(.greatestFiniteMagnitude) == 180,
+               && NotchTimerRulerScale.minute(.greatestFiniteMagnitude) == 1439,
                "invalid or excessive ruler values cannot escape the supported duration range")
     }
 
