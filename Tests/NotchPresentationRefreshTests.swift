@@ -270,6 +270,8 @@ enum NotchPresentationRefreshContract {
         var musicNamingWork: DispatchWorkItem?
         var menuSpaceSyncs = 0
         func syncMenuSpaceMonitoring() { menuSpaceSyncs += 1 }
+        var menuSpaceRoom: CGFloat?
+        var statusItemOverlap = false
         /// The strip's pointer state, which the strip ends on its own, as
         /// leaving the island does: a name, a held song, a part under the pointer.
         var musicStripHover = false, musicStripHoverEnds = 0
