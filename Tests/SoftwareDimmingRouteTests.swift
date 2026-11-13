@@ -15,6 +15,7 @@ enum SoftwareDimmingRouteContract {
         var maximum: UInt16 = 100
         var extendedDimming = true
         var lastDDCValue: UInt16?
+        var chipAddress = BrightnessSupport.chipAddress
     }
 
     final class Queue {

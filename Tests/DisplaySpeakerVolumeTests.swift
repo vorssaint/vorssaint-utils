@@ -74,6 +74,7 @@ enum DisplaySpeakerVolumeTests {
         var writtenIDs: [UInt32] = []
         var refreshes = 0
         var silentPaths: Set<String> = []
+        var chips: [UInt32] = []
 
         static func defaultOutputDevice() -> (id: AudioObjectID, name: String, transport: UInt32)? {
             (Service.shared.actualDevice, Service.shared.selectedAudioOutput?.name ?? "", kAudioDeviceTransportTypeHDMI)
@@ -83,13 +84,16 @@ enum DisplaySpeakerVolumeTests {
         func rescanForUnclaimedVolumeKey() { refreshes += 1 }
         func rememberedPaths(_ key: String) -> Set<String> { silentPaths }
         func rememberPath(_ path: String, key: String, remembered: Bool) { silentPaths.insert(path) }
-        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef) -> DDCProbe {
+        func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef, chip: UInt32) -> DDCProbe {
+            chips.append(chip)
             onRead?()
             if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
             return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
         }
-        func ddcSend(to id: UInt32, service: CFTypeRef, packet: [UInt8], whileCurrent: () -> Bool) -> Bool {
+        func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
+                     whileCurrent: () -> Bool) -> Bool {
+            chips.append(chip)
             onSend?()
             guard whileCurrent() else { return false }
             let code = packet[2], value = UInt16(packet[3]) << 8 | UInt16(packet[4])
@@ -117,16 +121,18 @@ enum DisplaySpeakerVolumeTests {
 
     @discardableResult
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
-                        raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false) -> Service {
+                        raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
+                        chip: UInt32 = BrightnessSupport.chipAddress) -> Service {
         let service = Service()
         Service.shared = service
         service.raw = raw
         service.maximum = maximum
         service.nativeMuted = muted
         let endpoint = NSObject()
-        if let probed = service.probeAudio(for: 7, service: endpoint, path: "port-a") {
+        if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: "port-a") {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: "fixture-identity",
-                                                service: endpoint, hasNativeMute: probed.hasNativeMute)
+                                                service: endpoint, chipAddress: chip,
+                                                hasNativeMute: probed.hasNativeMute)
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
@@ -145,15 +151,15 @@ enum DisplaySpeakerVolumeTests {
         let service = Service()
         let endpoint = NSObject()
         service.raw = 255
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil && service.silentPaths.isEmpty,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, chip: BrightnessSupport.chipAddress, path: "a") == nil && service.silentPaths.isEmpty,
                      "an impossible reading does not permanently classify a connection as silent")
         service.raw = 3
         service.onRead = { [weak service] in service?.wantsMonitorVolume = false }
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, chip: BrightnessSupport.chipAddress, path: "a") == nil,
                      "turning off speakers during discovery cannot publish a writable route")
         service.onRead = nil
         service.wantsMonitorVolume = true
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a")?.state.volume == 0.03,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, chip: BrightnessSupport.chipAddress, path: "a")?.state.volume == 0.03,
                      "reenabling on a readable channel discovers its real low volume")
         var rejected: [UInt8] = [0x6e, 0x88, 0x02, 0x01, 0x62, 0, 0, 100, 0, 80]
         rejected.append(rejected.reduce(UInt8(0x50)) { $0 ^ $1 })
@@ -299,6 +305,17 @@ enum DisplaySpeakerVolumeTests {
         suite.expect(BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: false, repliedThisSession: true) == nil
                      && BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: true, repliedThisSession: false) == nil,
                      "a failed read is retried only while speakers are wanted and the monitor answered this session")
+        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 1) == 2
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 2) == 5
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 3) == 15,
+                     "a monitor the scan found no DDC service for is scanned again after about 2, 5 and 15 seconds")
+        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 0) == nil
+                     && BrightnessSupport.serviceMissRetryDelay(attempt: 4) == nil,
+                     "software dimming stands once the third scan finds no service")
+        suite.expect(BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1")
+                     != BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:2")
+                     && !BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1").hasPrefix("audio:"),
+                     "each monitor keeps its own service retry budget, apart from speaker retries")
         suite.expect(BrightnessSupport.rescansForVolumeKey(hasTarget: false, displayOwnsOutput: true,
                         now: 100, lastRescan: nil)
                      && !BrightnessSupport.rescansForVolumeKey(hasTarget: true, displayOwnsOutput: true,

@@ -53,6 +53,21 @@ enum BrightnessSupport {
     static let chipAddress: UInt32 = 0x37
     /// Sub-address DDC hosts write through.
     static let dataAddress: UInt32 = 0x51
+    /// Address that reaches the monitor through an MCDP29XX DisplayPort to
+    /// HDMI converter, which sits behind the built-in HDMI port of at least
+    /// the M1 Max MacBook Pro. The converter accepts writes to the standard
+    /// address and passes none of them on, so they report success while the
+    /// monitor never moves. The packets themselves, checksum included, stay
+    /// the same.
+    static let hdmiConverterChipAddress: UInt32 = 0xB7
+    /// EPIC provider class of a DDC service that sits behind that converter.
+    static let hdmiConverterProviderClass = "AppleDCPMCDP29XX"
+
+    /// The I2C address to speak DDC on for a service, from the provider class
+    /// its registry entry reports.
+    static func ddcChipAddress(epicProviderClass: String?) -> UInt32 {
+        epicProviderClass == hdmiConverterProviderClass ? hdmiConverterChipAddress : chipAddress
+    }
     /// VCP code for speaker volume: the same channel the monitor's own
     /// buttons use for the speakers built into it.
     static let audioVolumeCode: UInt8 = 0x62
@@ -257,6 +272,24 @@ enum BrightnessSupport {
         guard probesAudio, repliedThisSession,
               attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
         return ddcRetryDelays[attempt - 1]
+    }
+
+    /// How long to wait before scanning again for a monitor the DDC pass
+    /// found no service for, or nil once the retries are spent. A missing
+    /// service is not a verdict on the monitor: one launch has been seen
+    /// finding none for a monitor that answered on every launch after it,
+    /// and without a retry it kept software dimming until the next wake or
+    /// topology change. A monitor that truly has no DDC service costs three
+    /// extra scans. `attempt` counts from 1.
+    static func serviceMissRetryDelay(attempt: Int) -> TimeInterval? {
+        guard attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
+        return ddcRetryDelays[attempt - 1]
+    }
+
+    /// The retry budget key for a monitor that found no DDC service, kept
+    /// apart from probe and speaker keys, which need a matched service.
+    static func serviceMissKey(displayFingerprint: String) -> String {
+        "service:" + displayFingerprint
     }
 
     static let volumeKeyRescanInterval: TimeInterval = 10
