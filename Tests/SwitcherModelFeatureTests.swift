@@ -465,11 +465,11 @@ enum SwitcherModelFeatureTests {
             "recording releases Carbon but keeps native keys out of the focused field's way")
         let begin = body("private func beginPendingSession(generation: UInt64) {")
         let guardRange = begin.range(of: "guard guardSecureInputActions(for: requested.shortcut) else {")
-        let enumerationRange = begin.range(of: "enumerationQueue.async")
-        suite.expect(guardRange != nil && enumerationRange != nil
-            && guardRange!.lowerBound < enumerationRange!.lowerBound
+        let selectionRange = begin.range(of: "windowInventory.selection(")
+        suite.expect(guardRange != nil && selectionRange != nil
+            && guardRange!.lowerBound < selectionRange!.lowerBound
             && source.contains("if id.signature == AppSwitcher.secureInputActionHotKeySignature { return noErr }"),
-            "the live session guards Q/W before enumeration and consumes them without replay")
+            "the live session guards Q/W before selecting remembered windows and consumes them without replay")
         let callback = body("private func routeSecureInputHotKey(id: UInt32) {")
         let claim = callback.range(of: "secureInputReplays.enqueue(shortcut: owner)")
         let protection = callback.range(of: "guard guardSecureInputActions(for: accepted.shortcut)")
@@ -515,6 +515,7 @@ enum SwitcherModelFeatureTests {
         SwitcherAccessibilitySnapshotTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
         SwitcherQuickCommitTests.run(suite)
+        SwitcherRememberedSelectionTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         accessibilityPrefetchChecks(suite)
@@ -1890,11 +1891,11 @@ enum SwitcherModelFeatureTests {
                && switcherCode.contains("items: sourceItems)")
                && enumeratorCode.contains("sourceItems: sourceCandidates"),
                "activation retains the foreground window even when the displayed list excludes its monitor")
-        let displaySnapshot = switcherSource.range(of: "let displayScope = currentDisplayScope")
-        let enumerationDispatch = switcherSource.range(of: "enumerationQueue.async")
-        suite.expect(displaySnapshot != nil && enumerationDispatch != nil
-               && displaySnapshot!.lowerBound < enumerationDispatch!.lowerBound,
-               "the target display is captured before window enumeration can delay the session")
+        let displaySnapshot = switcherSource.range(of: "displayScope: currentDisplayScope)")
+        let sessionHandoff = switcherSource.range(of: "finishPendingSession(generation: generation,")
+        suite.expect(displaySnapshot != nil && sessionHandoff != nil
+               && displaySnapshot!.lowerBound < sessionHandoff!.lowerBound,
+               "the target display filters remembered windows before the session opens")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         suite.expect(SwitcherWindowlessApps.mode(storedValue: nil,

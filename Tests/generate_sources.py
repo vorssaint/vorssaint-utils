@@ -170,6 +170,8 @@ def main():
                         "    static func listWindowsForCommandBar(",
                         "    private static func listWindows(appRules:",
                         "    private static func listWindows(filterPID:",
+                        "    static func selectWindows(",
+                        "    private static func orderByUse(",
                         "    private struct AccessibilityWindowSnapshot {",
                         "    private struct AccessibilityWindowSnapshotList {",
                         "    private static func appendAccessibilityOnlyWindows(",
@@ -193,6 +195,14 @@ def main():
           + "extension SwitcherQuickCommitTests.HistoryFixture {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
+          + "}\n")
+    write("SwitcherRememberedSelection.swift", "import AppKit\nimport ApplicationServices\n"
+          + "extension SwitcherRememberedSelectionTests.Selection {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
+                        "    static func select(")
+          + "}\nextension SwitcherRememberedSelectionTests.WindowEvents {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
+                        "    static func matchesWindowNumber(")
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"

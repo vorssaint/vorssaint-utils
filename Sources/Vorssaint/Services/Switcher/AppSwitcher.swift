@@ -132,10 +132,7 @@ final class AppSwitcher: ObservableObject {
     private var sessionStartGeneration: UInt64 = 0
     private var secureInputReplays = SwitcherSecureInputReplayState()
 
-    /// Enumeration touches every regular app through Accessibility, so it runs
-    /// away from the event tap on one serial queue.
-    private let enumerationQueue = DispatchQueue(label: "com.vorssaint.switcher.enumeration",
-                                                  qos: .userInitiated)
+    private let windowInventory = SwitcherWindowInventory()
     private var pendingShow: DispatchWorkItem?
     /// True once the user moved the selection themselves.
     private var userNavigated = false
@@ -204,6 +201,11 @@ final class AppSwitcher: ObservableObject {
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
+        windowInventory.onReady = { [weak self] in
+            guard let self,
+                  let generation = self.routeLock.withLock({ self.routePendingSessionStart?.generation }) else { return }
+            self.beginPendingSession(generation: generation)
+        }
     }
 
     private var isTapLive: Bool {
@@ -237,6 +239,7 @@ final class AppSwitcher: ObservableObject {
         let canStartSession = tapIsWanted
         routeLock.withLock { routeCanStartSession = canStartSession }
         if canStartSession {
+            windowInventory.start()
             startObservingKeyboardLayout()
             startObservingWake()
             installTap()
@@ -260,6 +263,7 @@ final class AppSwitcher: ObservableObject {
                 WindowPreviewProvider.shared.startWarming()
             }
         } else {
+            windowInventory.stop()
             secureInputWatch.stop()
             restoreNativeHotkeys()
             stopObservingKeyboardLayout()
@@ -273,6 +277,7 @@ final class AppSwitcher: ObservableObject {
     /// resets its own permissions, so a revoked Accessibility grant can never
     /// leave a live tap behind.
     func suspend() {
+        windowInventory.stop()
         secureInputWatch.stop()
         restoreNativeHotkeys()
         stopObservingWake()
@@ -1101,9 +1106,8 @@ final class AppSwitcher: ObservableObject {
 
     // MARK: - Session lifecycle
 
-    /// Runs only after the tap callback has returned. Window enumeration may
-    /// wait on bounded AX calls, while modifier-up turns the pending result
-    /// into a no-panel commit without waiting for this work to finish.
+    /// The tap returns before main adopts the remembered list. A modifier
+    /// released during that handoff commits the selection without showing UI.
     private func beginPendingSession(generation: UInt64) {
         guard routeLock.withLock({
             SwitcherSupport.isCurrentSessionStart(
@@ -1133,95 +1137,24 @@ final class AppSwitcher: ObservableObject {
             discardPendingSessionStart(generation: generation, reason: "secure_input_guard_unavailable")
             return
         }
-        let allApps = requested.scope == .allApps
-        let mergeWindowsByApp = UserDefaults.standard.bool(forKey: DefaultsKey.switcherMergeTabs)
-        let groupByApp = allApps && mergeWindowsByApp
-        let preservesGroupedWindows = SwitcherSupport.preservesGroupedWindowsDuringEnumeration(
-            allApps: allApps,
-            mergeWindowsByApp: mergeWindowsByApp,
-            simpleMode: simpleModeEnabled
-        )
         guard let sourceApplication = NSWorkspace.shared.frontmostApplication else {
             discardPendingSessionStart(generation: generation, reason: "no_frontmost_app")
             return
         }
         let reportedFrontPID = sourceApplication.processIdentifier
-        // Both the walk and its source query stop when this session expires.
-        let isCancelled: () -> Bool = { [weak self] in
-            guard let self else { return true }
-            return !self.routeLock.withLock {
-                SwitcherSupport.isCurrentSessionStart(
-                    generation: generation,
-                    pendingGeneration: self.routePendingSessionStart?.generation
-                )
-            }
-        }
-        // Only fix the CG candidate IDs before AX; the expensive metadata and
-        // source query can then run beside this main-thread snapshot.
-        let windowServerCapture = WindowEnumerator.beginWindowServerCapture(
-            isCancelled: isCancelled)
-        let sourcePrefetch = WindowEnumerator.beginSourcePrefetch(
-            for: reportedFrontPID,
-            isRegular: sourceApplication.activationPolicy == .regular,
-            accessibilityGranted: Permissions.shared.accessibility,
-            windowServerCapture: windowServerCapture,
-            isCancelled: isCancelled)
-        let enumerationSnapshot = WindowEnumerator.snapshot()
-        let displayScope = currentDisplayScope
-        enumerationQueue.async { [weak self] in
-            guard let self,
-                  self.routeLock.withLock({
-                      SwitcherSupport.isCurrentSessionStart(
-                          generation: generation,
-                          pendingGeneration: self.routePendingSessionStart?.generation
-                      )
-                  })
-            else {
-                return
-            }
-            var focusedSourceWindowID: CGWindowID?
-            let enumeration = WindowEnumerator.enumerateSwitcherWindows(
-                groupByApp: groupByApp,
-                preservingGroupedWindows: preservesGroupedWindows,
-                snapshot: enumerationSnapshot,
-                windowsOnly: requested.scope == .allWindows,
-                displayScope: displayScope,
-                scopedToFrontmostPID: requested.scope == .frontmostApp ? reportedFrontPID : nil,
-                sourcePID: reportedFrontPID,
-                sourcePrefetch: sourcePrefetch,
-                windowServerCapture: windowServerCapture,
-                resolveSource: { items in
-                    let sourceItems = SwitcherSupport.windowsForSession(
-                        items, scope: requested.scope, frontmostPID: reportedFrontPID)
-                    guard !sourceItems.isEmpty else { return nil }
-                    focusedSourceWindowID = SwitcherSupport.needsFocusedWindowLookup(
-                        frontmostPID: reportedFrontPID, items: sourceItems)
-                        ? self.focusedWindowID(for: reportedFrontPID,
-                                               accessibilityGranted: enumerationSnapshot.accessibilityGranted)
-                        : nil
-                    return SwitcherSupport.sessionSourceItem(frontmostPID: reportedFrontPID,
-                                                             focusedWindowID: focusedSourceWindowID,
-                                                             items: sourceItems)
-                },
-                isCancelled: isCancelled
-            )
-            guard self.routeLock.withLock({
-                SwitcherSupport.isCurrentSessionStart(
-                    generation: generation,
-                    pendingGeneration: self.routePendingSessionStart?.generation
-                )
-            }) else { return }
-            let sessionWindows = SwitcherSupport.windowsForSession(
-                enumeration.items, scope: requested.scope, frontmostPID: reportedFrontPID)
-            DispatchQueue.main.async { [weak self] in
-                self?.finishPendingSession(generation: generation,
-                                           reportedFrontPID: reportedFrontPID,
-                                           focusedSourceWindowID: focusedSourceWindowID,
-                                           windows: sessionWindows,
-                                           sourceItems: enumeration.sourceItems,
-                                           windowServerSnapshot: enumeration.activationSnapshot)
-            }
-        }
+        guard windowInventory.isReady else { return }
+        let selection = windowInventory.selection(
+            scope: requested.scope,
+            frontmostPID: reportedFrontPID,
+            displayScope: currentDisplayScope)
+        // Refresh the inventory for future openings; this session keeps its snapshot for stable layout and selection.
+        windowInventory.invalidate()
+        finishPendingSession(generation: generation,
+                             reportedFrontPID: reportedFrontPID,
+                             focusedSourceWindowID: selection.focusedWindowID,
+                             windows: selection.list.items,
+                             sourceItems: selection.list.sourceItems,
+                             windowServerSnapshot: selection.list.activationSnapshot)
     }
 
     private func finishPendingSession(generation: UInt64,
@@ -1353,19 +1286,6 @@ final class AppSwitcher: ObservableObject {
             secureInputReplays.invalidate()
         }
         releaseSecureInputActionsIfIdle()
-    }
-
-    private func focusedWindowID(for pid: pid_t,
-                                 accessibilityGranted: Bool) -> CGWindowID? {
-        guard accessibilityGranted else { return nil }
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.35)
-        var value: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(
-            app, kAXFocusedWindowAttribute as CFString, &value)
-        guard result == .success, let value,
-              CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
-        return AXWindowResolver.windowID(for: value as! AXUIElement)
     }
 
     private func handleShiftBackNavigation(flags: CGEventFlags) -> Bool {
@@ -1863,9 +1783,10 @@ final class AppSwitcher: ObservableObject {
         }
         // A window that was just closed is still listed for a moment; letting
         // go right after must land on what takes its place, never on it.
+        let unavailableIDs = Set(windows.filter { !windowInventory.contains($0) }.map(\.id))
         let selection = SwitcherSupport.commitTargetID(itemIDs: windows.map(\.id),
                                                        selectedIndex: selectedIndex,
-                                                       closingItemIDs: closingItemIDs)
+                                                       closingItemIDs: closingItemIDs.union(unavailableIDs))
             .flatMap { id in windows.first { $0.id == id } }
         let source = sessionSourceContext
         let windowServerSnapshot = sessionWindowServerSnapshot
@@ -1905,7 +1826,6 @@ final class AppSwitcher: ObservableObject {
         invalidateSecureInputReplays()
         pendingShow?.cancel()
         pendingShow = nil
-        WindowPreviewProvider.shared.cancel()
         cancelPendingPreviewBatch()
         panel?.orderOut(nil)
         unregisterSecureInputActionHotKeys()
@@ -1976,7 +1896,11 @@ final class AppSwitcher: ObservableObject {
         pendingShow = work
         let appearanceDelay = SwitcherSupport.appearanceDelay(
             milliseconds: UserDefaults.standard.integer(forKey: DefaultsKey.switcherAppearanceDelay))
-        DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
+        if appearanceDelay == 0 {
+            work.perform()
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + appearanceDelay, execute: work)
+        }
     }
 
     private func showPanel() {
