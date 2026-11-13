@@ -15,8 +15,18 @@ enum MonitorSamplingKind: String {
     case powerDraw
     case peripheralBattery
     case gpuUsage
+    /// GPU usage pinned to the menu bar: it moves as fast as CPU usage, so
+    /// the pinned value keeps the chosen interval like `.powerDraw`.
+    case gpuUsageMenuBar
     case temperature
+    /// A chip (CPU or GPU) temperature pinned to the menu bar. Chip
+    /// temperatures climb several degrees within a second under load, so the
+    /// pinned value keeps the chosen interval. Battery temperature alone and
+    /// the temperature alerts stay on the slow stride.
+    case temperatureMenuBar
     case fanSpeed
+    /// Fan speed pinned to the menu bar keeps the chosen interval.
+    case fanSpeedMenuBar
     case connectedDevices
 }
 
@@ -84,13 +94,14 @@ enum MonitorSamplingPolicy {
                 return 15
             case .connectedDevices:
                 return 2
-            case .cpu, .memory, .network, .disk, .power, .powerDraw, .gpuUsage, .temperature, .fanSpeed:
+            case .cpu, .memory, .network, .disk, .power, .powerDraw, .gpuUsage, .gpuUsageMenuBar,
+                 .temperature, .temperatureMenuBar, .fanSpeed, .fanSpeedMenuBar:
                 return 1
             }
         }
 
         switch kind {
-        case .cpu, .memory, .network, .powerDraw:
+        case .cpu, .memory, .network, .powerDraw, .gpuUsageMenuBar, .temperatureMenuBar, .fanSpeedMenuBar:
             return 1
         case .gpuUsage:
             return 10
