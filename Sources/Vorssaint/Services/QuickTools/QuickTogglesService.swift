@@ -92,6 +92,14 @@ final class QuickTogglesService: ObservableObject {
         finderFlag(QuickTogglesSupport.createDesktopKey, default: true)
     }
 
+    /// The Finder's own choice to warn before emptying the Trash, which every
+    /// Vorssaint surface follows.
+    var finderWarnsBeforeEmptyingTrash: Bool {
+        let value = CFPreferencesCopyAppValue(QuickTogglesSupport.warnOnEmptyTrashKey as CFString,
+                                              QuickTogglesSupport.finderDomain as CFString)
+        return QuickTogglesSupport.finderWarnsBeforeEmptyingTrash(value)
+    }
+
     func ejectableVolumeCount() -> Int {
         Self.ejectableVolumeURLs().count
     }
@@ -115,10 +123,15 @@ final class QuickTogglesService: ObservableObject {
     // MARK: - Trash
 
     /// Asks first (emptying is permanent), then tells the Finder to empty
-    /// the Trash. Runs on the main thread up to the confirmation; the Apple
-    /// Event goes to the work queue.
+    /// the Trash. Someone who turned the Finder's warning off empties on one
+    /// click here too, as they do in the Finder. Runs on the main thread up
+    /// to the confirmation; the Apple Event goes to the work queue.
     func emptyTrash() {
         guard available, states[.emptyTrash] != .running else { return }
+        guard finderWarnsBeforeEmptyingTrash else {
+            emptyTrashConfirmed()
+            return
+        }
         let strings = FeatureStrings.quickToggles(L10n.shared.language)
         let alert = NSAlert()
         alert.alertStyle = .warning
@@ -134,7 +147,8 @@ final class QuickTogglesService: ObservableObject {
     }
 
     /// The variant for surfaces that already asked in their own words (the
-    /// command bar confirms inline); emptying is still permanent.
+    /// command bar confirms inline), or that need not ask because the Finder's
+    /// warning is off; emptying is still permanent.
     func emptyTrashConfirmed() {
         runAppleScript(.emptyTrash,
                        target: .finder,

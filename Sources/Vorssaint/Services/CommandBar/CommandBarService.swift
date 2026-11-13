@@ -900,7 +900,8 @@ final class CommandBarService: ObservableObject {
         // A row that would confirm, ask for input, or keep the field visible
         // needs a real presentation just as it does when chosen from the bar.
         // Emptying the Trash on one keypress with nothing asked is not a
-        // shortcut, it is an accident with a name.
+        // shortcut, it is an accident with a name, unless the Finder's own
+        // warning is off: then the Finder empties on one keypress as well.
         guard !entry.needsPrompt, !entry.keepsBarOpen else {
             show(promptingFor: key)
             return
