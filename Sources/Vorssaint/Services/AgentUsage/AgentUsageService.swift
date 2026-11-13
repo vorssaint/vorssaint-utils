@@ -522,14 +522,17 @@ final class AgentUsageService: ObservableObject {
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
-        // agy 1.5 keeps the workspace in its own index, not in the transcript.
-        if provider == .antigravity, cursor.state.project.isEmpty,
-           let project = AgentAntigravityIndex.project(forTranscript: path) {
-            cursor.state.project = project
-        }
         var changed = false
+        // agy 1.5 keeps the workspace in its own index, not in the transcript.
+        // It is looked up as a line arrives, not before the read: a log read
+        // from its start begins with an empty state.
+        var indexLookedUp = provider != .antigravity
         let now = Date()
         let consume: (Data) -> Void = { [self] line in
+            if !indexLookedUp, cursor.state.project.isEmpty {
+                indexLookedUp = true
+                if let project = AgentAntigravityIndex.project(forTranscript: path) { cursor.state.project = project }
+            }
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
             let entries = provider.reader.parse(line, state: &cursor.state, now: now)

@@ -88,6 +88,24 @@ enum AntigravityIndexTests {
                         && AgentAntigravityIndex.project(forTranscript: transcript(first)) == "app",
                      "the index shows rows still in the write-ahead log of a running agy")
 
+        // The service reads a new transcript from its start, which empties the
+        // state the project is kept in.
+        let log = URL(fileURLWithPath: transcript(first))
+        let reply: [String: Any] = ["step_index": 1, "source": "MODEL", "type": "PLANNER_RESPONSE", "status": "DONE",
+                                    "created_at": ISO8601DateFormatter().string(from: Date()),
+                                    "input_tokens": 1_000, "output_tokens": 200]
+        do {
+            try FileManager.default.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try (JSONSerialization.data(withJSONObject: reply) + Data("\n".utf8)).write(to: log)
+        } catch {
+            suite.expect(false, "Antigravity index fixture: transcript could not be written: \(error)")
+            return
+        }
+        let host = AgentUsageReadTests.Host()
+        host.read(log.path, provider: .antigravity)
+        suite.expect(host.store.records.map(\.project) == ["app"],
+                     "a transcript's first read gives its responses the project the index names")
+
         // A database that cannot be read is tried again though it did not change.
         let broken = home.appending(path: "broken/conversation_summaries.db")
         try? FileManager.default.createDirectory(at: broken.deletingLastPathComponent(), withIntermediateDirectories: true)
