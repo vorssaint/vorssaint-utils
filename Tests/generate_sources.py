@@ -439,7 +439,8 @@ def main():
           + "".join(declaration(brightness, prefix).replace("private func", "func", 1) for prefix in [
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
-              "    func monitorSpeakerOutput(", "    private func probeAudio("])
+              "    func monitorSpeakerOutput(", "    private func probeAudio(", "    private func blindAudio(",
+              "    private func blindReading(", "    private func rememberBlindLevel("])
           + "}\n}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"

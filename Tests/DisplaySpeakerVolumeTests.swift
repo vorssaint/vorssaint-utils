@@ -29,6 +29,10 @@ enum DisplaySpeakerVolumeTests {
         static func bool(forKey key: String) -> Bool {
             key == DefaultsKey.displayVolumeKeysEnabled && Service.shared.wantsMonitorVolumeKeys
         }
+        static func dictionary(forKey key: String) -> [String: Any]? { Service.shared.blindLevels }
+        static func set(_ value: Any?, forKey key: String) {
+            Service.shared.blindLevels = value as? [String: Any] ?? [:]
+        }
     }
     static func CGDisplayIsActive(_ id: UInt32) -> UInt32 { 1 }
     static func CGDisplayIsAsleep(_ id: UInt32) -> UInt32 { 0 }
@@ -74,6 +78,8 @@ enum DisplaySpeakerVolumeTests {
         var writtenIDs: [UInt32] = []
         var refreshes = 0
         var silentPaths: Set<String> = []
+        var unreadable = false
+        var blindLevels: [String: Any] = [:]
 
         static func defaultOutputDevice() -> (id: AudioObjectID, name: String, transport: UInt32)? {
             (Service.shared.actualDevice, Service.shared.selectedAudioOutput?.name ?? "", kAudioDeviceTransportTypeHDMI)
@@ -85,6 +91,7 @@ enum DisplaySpeakerVolumeTests {
         func rememberPath(_ path: String, key: String, remembered: Bool) { silentPaths.insert(path) }
         func ddcProbe(_ code: UInt8, for id: UInt32, service: CFTypeRef) -> DDCProbe {
             onRead?()
+            if unreadable { return .writeOnly }
             if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
             return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
@@ -124,9 +131,9 @@ enum DisplaySpeakerVolumeTests {
         service.maximum = maximum
         service.nativeMuted = muted
         let endpoint = NSObject()
-        if let probed = service.probeAudio(for: 7, service: endpoint, path: "port-a") {
+        if let probed = service.probeAudio(for: 7, service: endpoint, path: "port-a", names: service.audioDisplayNames) {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: "fixture-identity",
-                                                service: endpoint, hasNativeMute: probed.hasNativeMute)
+                                                service: endpoint, hasNativeMute: probed.hasNativeMute, blind: probed.blind)
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
@@ -145,15 +152,15 @@ enum DisplaySpeakerVolumeTests {
         let service = Service()
         let endpoint = NSObject()
         service.raw = 255
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil && service.silentPaths.isEmpty,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a", names: service.audioDisplayNames) == nil && service.silentPaths.isEmpty,
                      "an impossible reading does not permanently classify a connection as silent")
         service.raw = 3
         service.onRead = { [weak service] in service?.wantsMonitorVolume = false }
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a") == nil,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a", names: service.audioDisplayNames) == nil,
                      "turning off speakers during discovery cannot publish a writable route")
         service.onRead = nil
         service.wantsMonitorVolume = true
-        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a")?.state.volume == 0.03,
+        suite.expect(service.probeAudio(for: 7, service: endpoint, path: "a", names: service.audioDisplayNames)?.state.volume == 0.03,
                      "reenabling on a readable channel discovers its real low volume")
         var rejected: [UInt8] = [0x6e, 0x88, 0x02, 0x01, 0x62, 0, 0, 100, 0, 80]
         rejected.append(rejected.reduce(UInt8(0x50)) { $0 ^ $1 })
@@ -328,5 +335,110 @@ enum DisplaySpeakerVolumeTests {
         suite.expect(SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.displayAudioSilentPaths)
                      && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.displayAudioSilentPaths),
                      "a monitor's silent-speaker memory stays on this Mac")
+
+        // A monitor that takes writes and never answers a reading: the level
+        // is the one this app last wrote.
+        final class BlindMonitor {
+            var level: Int?
+            var restore: BrightnessSupport.SpeakerLevel?
+            var writes: [(UInt8, UInt16)] = []
+            func change(_ change: BrightnessSupport.SpeakerChange, failWrites: Bool = false)
+                -> (level: BrightnessSupport.SpeakerLevel, muted: Bool?)? {
+                BrightnessSupport.applySpeakerChange(change, hasNativeMute: false, keySettings: MonitorVolumeKeySettings(), restore: &restore,
+                    read: { code in
+                        code == BrightnessSupport.audioVolumeCode
+                            ? BrightnessSupport.blindSpeakerReading(remembered: self.level) : nil
+                    }, write: { code, value in
+                        self.writes.append((code, value))
+                        if failWrites { return false }
+                        if code == BrightnessSupport.audioVolumeCode { self.level = Int(value) }
+                        return true
+                    })
+            }
+        }
+        let up: BrightnessSupport.SpeakerChange = .step(levels: [{ $0 + 0.0625 }], raises: true)
+        let down: BrightnessSupport.SpeakerChange = .step(levels: [{ $0 - 0.0625 }], raises: false)
+
+        suite.expect(BrightnessSupport.blindSpeakerReading(remembered: nil).current == BrightnessSupport.blindSpeakerStart
+                     && BrightnessSupport.blindSpeakerReading(remembered: nil).maximum == 100,
+                     "a monitor never written to starts from the low blind level, never a loud one")
+        suite.expect(BrightnessSupport.blindSpeakerReading(remembered: 37).current == 37
+                     && BrightnessSupport.blindSpeakerReading(remembered: 900).current == 100
+                     && BrightnessSupport.blindSpeakerReading(remembered: -5).current == 0,
+                     "the remembered blind level is used and kept inside the control's range")
+
+        let first = BlindMonitor()
+        let raised = first.change(up)
+        suite.expect(first.writes.count == 1 && first.writes[0].0 == BrightnessSupport.audioVolumeCode
+                     && first.writes[0].1 == 16 && first.level == 16 && raised?.level.raw == 16,
+                     "the first raise on a blind monitor steps up from the low start and remembers it")
+        _ = first.change(up)
+        suite.expect(first.level == 22 || first.level == 23, "a second raise continues from the remembered level")
+        let lowered = first.change(down)
+        suite.expect((lowered?.level.raw ?? 0) < (first.level.map { UInt16($0 + 7) } ?? 0)
+                     && first.writes.allSatisfy { $0.0 == BrightnessSupport.audioVolumeCode },
+                     "a lower steps down from the remembered level and only ever writes the volume control")
+
+        let muting = BlindMonitor()
+        muting.level = 40
+        let mute = muting.change(.toggleMute)
+        suite.expect(mute?.level.raw == 0 && mute?.muted == true && muting.level == 0
+                     && muting.writes.allSatisfy { $0.0 == BrightnessSupport.audioVolumeCode },
+                     "muting a blind monitor drops its volume to zero and never writes the mute control")
+        let unmute = muting.change(.toggleMute)
+        suite.expect(unmute?.level.raw == 40 && unmute?.muted == false && muting.level == 40,
+                     "unmuting a blind monitor brings back the level it had before")
+
+        let refused = BlindMonitor()
+        refused.level = 30
+        suite.expect(refused.change(up, failWrites: true) == nil && refused.level == 30,
+                     "a refused write leaves the remembered level where it was")
+        suite.expect(SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.displayAudioBlindLevels)
+                     && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.displayAudioBlindLevels),
+                     "the levels remembered for unreadable monitors stay on this Mac")
+
+        // Discovery and writes for a monitor that never answers a reading.
+        do {
+            let blind = Service()
+            Service.shared = blind
+            blind.unreadable = true
+            blind.displays = [BrightnessDisplay(id: 7, name: "Monitor A")]
+            let probe = blind.probeAudio(for: 7, service: NSObject(), path: "port-a", names: blind.audioDisplayNames)
+            suite.expect(probe?.blind == true && probe?.hasNativeMute == false
+                         && probe?.state.volume == Double(BrightnessSupport.blindSpeakerStart) / 100,
+                         "an unreadable monitor playing the Mac's sound is driven blind from the low start")
+
+            blind.selectedAudioOutput = (31, "Another Monitor")
+            suite.expect(blind.probeAudio(for: 7, service: NSObject(), path: "port-a", names: blind.audioDisplayNames) == nil,
+                         "an unreadable monitor the Mac is not playing through gets no speaker control")
+            blind.selectedAudioOutput = (31, "Monitor A")
+            blind.settable = true
+            suite.expect(blind.probeAudio(for: 7, service: NSObject(), path: "port-a", names: blind.audioDisplayNames) == nil,
+                         "an output macOS can set the volume of keeps its own keys, blind or not")
+            blind.settable = false
+            blind.wantsMonitorVolume = false
+            suite.expect(blind.probeAudio(for: 7, service: NSObject(), path: "port-a", names: blind.audioDisplayNames) == nil,
+                         "an unreadable monitor gets no speaker control while the setting is off")
+            blind.wantsMonitorVolume = true
+
+            let route = AudioRoute(path: "port-a", fingerprint: "fixture-identity", service: NSObject(),
+                                   hasNativeMute: false, blind: true)
+            blind.audioRoutes[7] = route
+            let state = blind.probeAudio(for: 7, service: NSObject(), path: "port-a", names: blind.audioDisplayNames)!.state
+            blind.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: state)]
+            var target = blind.monitorSpeakerOutput()!.target
+            blind.requestSpeakers(.step(levels: [{ $0 + 0.0625 }], raises: true), target: target, requiresKeys: true)
+            blind.finish()
+            suite.expect(blind.writes == [Write(BrightnessSupport.audioVolumeCode, 16)]
+                         && blind.blindLevels["port-a"] as? Int == 16,
+                         "a volume key on an unreadable monitor writes the stepped level and remembers it")
+            blind.writes = []
+            target = blind.monitorSpeakerOutput()?.target ?? target
+            blind.requestSpeakers(.toggleMute, target: target, requiresKeys: true)
+            blind.finish()
+            suite.expect(blind.writes.allSatisfy { $0.code == BrightnessSupport.audioVolumeCode }
+                         && blind.blindLevels["port-a"] as? Int == 0,
+                         "mute on an unreadable monitor goes through the volume control, never the mute code")
+        }
     }
 }

@@ -858,6 +858,19 @@ enum BrightnessSupport {
 
     typealias VCPReading = (current: UInt16, maximum: UInt16)
 
+    /// A monitor that never answers a reading has no level to start from. The
+    /// first change begins low, never loud, and the range is the 0...100 the
+    /// MCCS volume control uses.
+    static let blindSpeakerStart: UInt16 = 10
+    static let blindSpeakerMaximum: UInt16 = 100
+
+    /// The reading standing in for a monitor that cannot be read: the level
+    /// last written to it, or the low start before anything was written.
+    static func blindSpeakerReading(remembered: Int?) -> VCPReading {
+        let level = remembered.map { UInt16(clamping: $0) } ?? blindSpeakerStart
+        return (min(level, blindSpeakerMaximum), blindSpeakerMaximum)
+    }
+
     struct SpeakerLevel: Equatable {
         let raw: UInt16
         let maximum: UInt16
