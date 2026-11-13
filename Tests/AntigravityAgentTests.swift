@@ -479,9 +479,13 @@ enum AntigravityAgentTests {
         let fable52 = AgentPricing.cost(
             AgentBillable(tokens: AgentTokens(input: 1_000_000, cacheRead: 1_000_000, output: 100_000)),
             model: "Claude Fable 5.2 (Medium)")
+        let hydrogen = AgentPricing.cost(
+            AgentBillable(tokens: AgentTokens(input: 1_000_000, cacheRead: 1_000_000, output: 100_000)),
+            model: "Gemini 4 Hydrogen (Medium)")
         suite.expect(abs((carbon.cost ?? -1) - 3.10) < 1e-9 && abs(carbon.savings - 1.90) < 1e-9
+                        && abs((hydrogen.cost ?? -1) - 2.325) < 1e-9 && abs(hydrogen.savings - 1.425) < 1e-9
                         && abs((fable52.cost ?? -1) - 12.20) < 1e-9 && abs(fable52.savings - 7.80) < 1e-9,
-                     "Gemini 4 Carbon and Claude Fable 5.2 are priced from their Antigravity Model Selection labels")
+                     "Gemini 4 Carbon, Gemini 4 Hydrogen and Claude Fable 5.2 are priced from their Antigravity Model Selection labels")
 
         // Unpriced models & legacy tokenless transcripts must remain cost == nil even after store.reprice().
         suite.expect(AgentPricing.price(for: "gemini-experimental-preview") == nil
