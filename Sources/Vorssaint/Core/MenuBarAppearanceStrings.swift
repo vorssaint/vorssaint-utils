@@ -19,6 +19,7 @@ struct MenuBarAppearanceStrings {
 extension FeatureStrings {
     static func menuBarAppearance(_ language: AppLanguage) -> MenuBarAppearanceStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -50,6 +51,19 @@ extension MenuBarAppearanceStrings {
         highColor: "High color",
         mediumFrom: "Medium from",
         highFrom: "High from"
+    )
+
+    static let sv = MenuBarAppearanceStrings(
+        label: "Visning av användning",
+        values: "Värden",
+        bars: "Staplar",
+        caption: "Staplar gäller användning av CPU, GPU, minne och disk. Övriga avläsningar förblir numeriska.",
+        customize: "Stapelfärger och gränser",
+        normalColor: "Normal färg",
+        mediumColor: "Mellanläge",
+        highColor: "Hög färg",
+        mediumFrom: "Mellanläge från",
+        highFrom: "Högt från"
     )
 
     static let ptBR = MenuBarAppearanceStrings(
