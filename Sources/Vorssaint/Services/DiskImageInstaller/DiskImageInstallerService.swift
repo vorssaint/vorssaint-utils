@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ApplicationServices
 import Darwin
 import Foundation
 import SwiftUI
@@ -50,12 +51,29 @@ final class DiskImageInstallerService {
         let output: Data
     }
 
+    /// An image whose Finder window decides when it is ejected. Only exists
+    /// while the eject-on-close option is on.
+    private final class EjectWatch {
+        let mountURL: URL
+        var window: AXUIElement?
+        var observer: AXObserver?
+        var lookingForWindow = true
+        var dismissed: Bool
+        init(mountURL: URL, dismissed: Bool) {
+            self.mountURL = mountURL
+            self.dismissed = dismissed
+        }
+    }
+
     private let workQueue = DispatchQueue(label: "com.vorssaint.utils.disk-image-installer",
                                           qos: .utility)
     private var mountObserver: NSObjectProtocol?
     private var pending: [Candidate] = []
     private var processingMounts = Set<String>()
     private var promptActive = false
+    private var currentCandidate: Candidate?
+    private var ejectWatches: [String: EjectWatch] = [:]
+    private var unmountObserver: NSObjectProtocol?
     private var installPrompt: NonModalAlert?
     private var progressPanel: NSPanel?
 
@@ -77,6 +95,17 @@ final class DiskImageInstallerService {
                 return
             }
             self?.inspect(mountURL: mountURL)
+            self?.trackForEject(mountURL: mountURL, dismissed: false)
+        }
+        unmountObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didUnmountNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let mountURL = notification.userInfo?[NSWorkspace.volumeURLUserInfoKey] as? URL else {
+                return
+            }
+            self?.removeEjectWatch(Self.mountKey(mountURL))
         }
     }
 
@@ -85,6 +114,11 @@ final class DiskImageInstallerService {
             NSWorkspace.shared.notificationCenter.removeObserver(mountObserver)
         }
         mountObserver = nil
+        if let unmountObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(unmountObserver)
+        }
+        unmountObserver = nil
+        ejectWatches.keys.forEach(removeEjectWatch)
         pending.removeAll()
         processingMounts.removeAll()
         installPrompt?.dismiss(with: .alertSecondButtonReturn)
@@ -166,6 +200,7 @@ final class DiskImageInstallerService {
         guard !promptActive, mountObserver != nil, let candidate = pending.first else { return }
         pending.removeFirst()
         promptActive = true
+        currentCandidate = candidate
 
         let strings = FeatureStrings.diskImageInstaller(L10n.shared.language)
         let alert = NSAlert()
@@ -186,7 +221,10 @@ final class DiskImageInstallerService {
                                         action: #selector(DiskImageInstallDestinationPrompt.updateDestination(_:)))
         userApplications.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerUseUserApplications) ? .on : .off
         destinationPrompt.updateDestination(userApplications)
-        let options = NSStackView(views: [trashDownload, revealApp, userApplications])
+        let ejectOnClose = NSButton(checkboxWithTitle: strings.ejectOnCloseOption, target: nil, action: nil)
+        ejectOnClose.state = defaults.bool(forKey: DefaultsKey.diskImageInstallerEjectsOnClose) ? .on : .off
+        ejectOnClose.toolTip = strings.ejectOnCloseHelp
+        let options = NSStackView(views: [trashDownload, revealApp, userApplications, ejectOnClose])
         options.orientation = .vertical
         options.alignment = .leading
         options.spacing = 6
@@ -201,6 +239,7 @@ final class DiskImageInstallerService {
         installPrompt = NonModalAlert.present(alert, retaining: [destinationPrompt]) { [weak self] response in
             guard let self else { return }
             self.installPrompt = nil
+            defaults.set(ejectOnClose.state == .on, forKey: DefaultsKey.diskImageInstallerEjectsOnClose)
             guard response == .alertFirstButtonReturn else {
                 self.finishCurrentCandidate()
                 return
@@ -287,7 +326,139 @@ final class DiskImageInstallerService {
 
     private func finishCurrentCandidate() {
         promptActive = false
+        let finished = currentCandidate
+        currentCandidate = nil
+        if let finished {
+            let key = Self.mountKey(finished.mountURL)
+            if let watch = ejectWatches[key] {
+                watch.dismissed = true
+            } else {
+                // The option was switched on in this very prompt.
+                trackForEject(mountURL: finished.mountURL, dismissed: true)
+            }
+            evaluateEject(key)
+        }
         presentNextCandidate()
+    }
+
+    private static func mountKey(_ mountURL: URL) -> String {
+        mountURL.standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    private func trackForEject(mountURL: URL, dismissed: Bool) {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.diskImageInstallerEjectsOnClose),
+              ejectWatches[Self.mountKey(mountURL)] == nil
+        else { return }
+        workQueue.async { [weak self] in
+            let info = Self.run("/usr/bin/hdiutil", arguments: ["info", "-plist"])
+            let names = (try? FileManager.default.contentsOfDirectory(
+                atPath: mountURL.path)) ?? []
+            let qualifies = info.status == 0
+                && DiskImageInstallerSupport.qualifiesForEject(mountedAt: mountURL,
+                                                               hdiutilInfo: info.output,
+                                                               rootNames: names,
+                                                               isExcluded: Self.isHomebrewImage)
+            DispatchQueue.main.async { [weak self] in
+                guard let self, qualifies, self.mountObserver != nil,
+                      UserDefaults.standard.bool(forKey: DefaultsKey.diskImageInstallerEjectsOnClose)
+                else { return }
+                let key = Self.mountKey(mountURL)
+                guard self.ejectWatches[key] == nil else { return }
+                let watch = EjectWatch(mountURL: mountURL, dismissed: dismissed)
+                self.ejectWatches[key] = watch
+                self.findWindow(for: key, attempt: 0)
+            }
+        }
+    }
+
+    /// Finder opens the window a moment after the mount, so look for a few
+    /// seconds. Without Accessibility there is nothing to look with, and only
+    /// the Cancel path ejects.
+    private func findWindow(for key: String, attempt: Int) {
+        guard let watch = ejectWatches[key] else { return }
+        if AXIsProcessTrusted(), attachWindow(to: watch, excluding: nil) {
+            watch.lookingForWindow = false
+            return
+        }
+        let delays: [TimeInterval] = [0.3, 0.5, 0.7, 1, 1.5, 2]
+        guard AXIsProcessTrusted(), attempt < delays.count else {
+            watch.lookingForWindow = false
+            if watch.dismissed { evaluateEject(key) }
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + delays[attempt]) { [weak self] in
+            self?.findWindow(for: key, attempt: attempt + 1)
+        }
+    }
+
+    /// Finder windows expose no AXDocument, so the title is the only link to
+    /// the volume. The element is then tracked, so opening a subfolder
+    /// (which renames the window) is not a close.
+    private func attachWindow(to watch: EjectWatch, excluding closed: AXUIElement?) -> Bool {
+        guard let finder = NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.apple.finder").first else { return false }
+        let volumeName = watch.mountURL.lastPathComponent
+        let app = AXUIElementCreateApplication(finder.processIdentifier)
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &value) == .success,
+              let windows = value as? [AXUIElement]
+        else { return false }
+        for window in windows where closed.map({ !CFEqual($0, window) }) ?? true {
+            var title: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title) == .success,
+                  title as? String == volumeName
+            else { continue }
+            var observerRef: AXObserver?
+            guard AXObserverCreate(finder.processIdentifier, diskImageEjectAXCallback, &observerRef) == .success,
+                  let observer = observerRef,
+                  AXObserverAddNotification(observer, window,
+                                            kAXUIElementDestroyedNotification as CFString, nil) == .success
+            else { continue }
+            CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+            watch.window = window
+            watch.observer = observer
+            return true
+        }
+        return false
+    }
+
+    fileprivate func watchedWindowClosed(observer: AXObserver, element: AXUIElement) {
+        guard let (key, watch) = ejectWatches.first(where: {
+            $0.value.observer.map { CFEqual($0, observer) } ?? false
+        }) else { return }
+        detachWindow(from: watch)
+        // Another window with the volume's name, such as a same-named folder,
+        // only delays the eject.
+        if AXIsProcessTrusted(), attachWindow(to: watch, excluding: element) { return }
+        evaluateEject(key)
+    }
+
+    private func detachWindow(from watch: EjectWatch) {
+        if let observer = watch.observer {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
+        }
+        watch.observer = nil
+        watch.window = nil
+    }
+
+    private func removeEjectWatch(_ key: String) {
+        guard let watch = ejectWatches.removeValue(forKey: key) else { return }
+        detachWindow(from: watch)
+    }
+
+    private func evaluateEject(_ key: String) {
+        guard let watch = ejectWatches[key] else { return }
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.diskImageInstallerEjectsOnClose) else {
+            removeEjectWatch(key)
+            return
+        }
+        let busy = currentCandidate.map { Self.mountKey($0.mountURL) == key } == true
+            || pending.contains { Self.mountKey($0.mountURL) == key }
+        let windowOpen = watch.window != nil || watch.lookingForWindow
+        guard DiskImageInstallerSupport.shouldEject(busy: busy, windowOpen: windowOpen) else { return }
+        removeEjectWatch(key)
+        // Busy, for example an app running from the image: stay mounted and silent.
+        workQueue.async { try? NSWorkspace.shared.unmountAndEjectDevice(at: watch.mountURL) }
     }
 
     private func install(_ candidate: Candidate, trashingDownload: Bool,
@@ -532,4 +703,9 @@ private final class DiskImageInstallDestinationPrompt: NSObject {
         frame.origin.y = bottom
         window.setFrame(frame, display: true)
     }
+}
+
+private func diskImageEjectAXCallback(_ observer: AXObserver, _ element: AXUIElement,
+                                      _ notification: CFString, _ refcon: UnsafeMutableRawPointer?) {
+    DiskImageInstallerService.shared.watchedWindowClosed(observer: observer, element: element)
 }
