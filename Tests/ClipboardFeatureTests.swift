@@ -1867,6 +1867,8 @@ enum ClipboardPreviewContract {
         func trimToLimit() {}
         func save() {}
         var quickQuery = ""
+        var quickPinnedTab = false
+        var quickLayout = ClipboardHistoryLayout.cards
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []
@@ -1904,6 +1906,20 @@ enum ClipboardPreviewContract {
         var pinned = current
         pinned.pinnedAt = Date()
         service.setEntries([pinned, other])
+        service.quickLayout = .list
+        suite.expect(service.filteredQuickEntries.map(\.id) == [other.id],
+                     "Recent tab excludes pinned entries")
+        service.quickPinnedTab = true
+        suite.expect(service.filteredQuickEntries.map(\.id) == [pinned.id]
+                     && service.selectedQuickEntry?.id == pinned.id,
+                     "Pinned tab limits both visible entries and keyboard selection")
+        service.quickQuery = "Another"
+        suite.expect(service.filteredQuickEntries.isEmpty && service.selectedQuickEntry == nil,
+                     "search in Pinned cannot select a hidden recent entry")
+        service.quickQuery = ""
+        service.quickLayout = .cards
+        suite.expect(service.filteredQuickEntries.count == 2,
+                     "card layout retains both recent and pinned entries")
         suite.expect(service.latestPasteboardEntry == pinned,
                      "changing pin metadata retains the preview of identical copied content")
         suite.expect(service.updateText(pinned, to: "Edited but never copied")
