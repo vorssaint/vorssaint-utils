@@ -84,6 +84,15 @@ without replacing the original. These options participate in settings backup.
 
 ## Menu and saved actions
 
+An optional global shortcut opens the same configured menu at the pointer.
+Configure or try it in Finder Tools settings. The shortcut starts unassigned,
+participates in backup and is unregistered when the feature is disabled or a
+shortcut recorder is active. A failed registration is shown beside its recorder.
+The quick menu reads Finder selection and insertion folder only when Finder is
+frontmost and Automation access is already granted; it never prompts on summon.
+Without that access, or from another app, choose files in the host workspace.
+Each menu selection prepares the workspace and still requires its Run button.
+
 The menu can be grouped, reordered, hidden per action and given custom titles,
 SF Symbols and Shift-Command keyboard equivalents. Duplicate shortcuts go to the
 first visible action in the configured order. These equivalents operate within
@@ -153,7 +162,7 @@ recorded separately; a passing unit test is not evidence that Finder enabled an
 extension or granted a permission.
 
 The current implementation is not complete MouseBoost parity. Still open:
-optional system-context-menu replacement; QSpace/Path Finder/custom-manager
+optional system-context-menu replacement and dedicated mouse invocation; QSpace/Path Finder/custom-manager
 selection adapters; every reference terminal's tab/window modes; built-in iWork
 and proprietary WPS formats; legacy PPT/Keynote compression; encrypted ZIP; direct WeChat routing beyond the system share
 picker. Signed app-group preference sharing,
