@@ -591,7 +591,10 @@ def main():
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
-                        "    @objc private func workspaceDidWake("])
+                        "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
+                        "    private func beginResume(", "    private func cancelResumeRetry(",
+                        "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
+                        "    private func retryResume(", "    private func helperReleasedControl("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
