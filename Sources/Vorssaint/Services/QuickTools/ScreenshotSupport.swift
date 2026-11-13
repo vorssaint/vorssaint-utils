@@ -2200,6 +2200,30 @@ enum ScreenshotSupport {
                      to: bounds)
     }
 
+    /// A picture's own pixels rather than a window into another picture.
+    /// `cropping(to:)` keeps the parent frame alive, so an 800×600 crop of a
+    /// 5K capture would hold the whole display in memory. Size, colour space
+    /// and byte order stay as they were; only ownership changes. Nil when the
+    /// pixels cannot be copied, and the caller keeps what it had.
+    static func independentImage(_ image: CGImage) -> CGImage? {
+        let space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        let alpha: CGImageAlphaInfo
+        switch image.alphaInfo {
+        case .none, .noneSkipLast, .noneSkipFirst, .premultipliedLast, .premultipliedFirst:
+            alpha = image.alphaInfo
+        default:
+            alpha = .premultipliedLast
+        }
+        guard let context = CGContext(data: nil, width: image.width, height: image.height,
+                                      bitsPerComponent: image.bitsPerComponent, bytesPerRow: 0,
+                                      space: space, bitmapInfo: alpha.rawValue)
+        else { return nil }
+        // Straight pixels: a resize or a smoothing pass here would move them.
+        context.interpolationQuality = .none
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
+    }
+
     /// A stable square of source pixels for the crop loupe. Near an image
     /// edge the sample slides inward instead of shrinking, and the loupe's
     /// reticle still marks the exact adjusted pixel.

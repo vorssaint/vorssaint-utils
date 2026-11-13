@@ -195,6 +195,12 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     private var undoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
     private var redoStack: [(image: CGImage, annotations: [ScreenshotSupport.Annotation])] = []
     private static let undoLimit = 60
+    /// Undo also stops by memory, so a few full captures on a 5K or 6K
+    /// display cannot pile up into gigabytes of history.
+    private static let undoByteBudget = 256 << 20
+    /// A mark costs far less than a frame, but a long session adds up and
+    /// should not be free. An estimate, not a measurement.
+    private static let undoAnnotationBytes = 512
     private var cleanImage: CGImage?
     private var cleanAnnotations: [ScreenshotSupport.Annotation] = []
     private var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
@@ -607,7 +613,22 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     private func registerUndo() {
         undoStack.append((baseImage, annotations))
-        if undoStack.count > Self.undoLimit {
+        // States that share a capture, as an annotation-only edit does,
+        // charge its pixels once, so a session stays bounded by the frames it
+        // really holds. The newest state always stays, or undo would vanish.
+        func footprint() -> Int {
+            var counted = Set<ObjectIdentifier>()
+            var total = 0
+            for state in undoStack {
+                if counted.insert(ObjectIdentifier(state.image)).inserted {
+                    total += state.image.width * state.image.height * 4
+                }
+                total += state.annotations.count * Self.undoAnnotationBytes
+            }
+            return total
+        }
+        while undoStack.count > 1,
+              undoStack.count > Self.undoLimit || footprint() > Self.undoByteBudget {
             undoStack.removeFirst()
         }
         redoStack.removeAll()
@@ -1275,11 +1296,13 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
             draft,
             within: CGRect(origin: .zero, size: imageSize))
         guard cropRect.width >= 8, cropRect.height >= 8,
-              let cropped = baseImage.cropping(to: cropRect)
+              let crop = baseImage.cropping(to: cropRect)
         else {
             tool = .select
             return
         }
+        // The crop keeps its own pixels, so the frame it came from can go.
+        let cropped = ScreenshotSupport.independentImage(crop) ?? crop
         registerUndo()
         let previousImage = baseImage
         baseImage = cropped
