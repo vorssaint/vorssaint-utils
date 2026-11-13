@@ -47,6 +47,7 @@ final class WindowLayoutService: ObservableObject {
     private var settledFrames: [WindowLayoutWindowKey: WindowLayoutSettledFrame] = [:]
     private var hotKeyRefs: [WindowLayoutAction: EventHotKeyRef] = [:]
     private var eventHandler: EventHandlerRef?
+    private var nudgeRepeatTimer: Timer?
     private var registeredShortcuts: [WindowLayoutAction: GlobalShortcut] = [:]
     private var directionalHotKeyRef: EventHotKeyRef?
     private var registeredDirectionalTrigger: WindowDirectionalTrigger?
@@ -281,6 +282,16 @@ final class WindowLayoutService: ObservableObject {
                 }
             }
             return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
+        }
+        if let offset = action.nudgeOffset(step: WindowLayoutNudge.step) {
+            // A nudge is an exact relative move, so it skips the settle and the
+            // visible-frame clamp that would stop a window at the screen edge.
+            cancelSettle(for: target.windowID)
+            let origin = CGPoint(x: target.frame.origin.x + offset.dx,
+                                 y: target.frame.origin.y + offset.dy)
+            return setPosition(origin, on: target.window)
+                ? finish(.success(restored: false))
+                : finish(.failure(.failed))
         }
         let screens = NSScreen.screens
         guard let screen = bestScreen(for: target.frame, screens: screens) else {
@@ -898,15 +909,45 @@ final class WindowLayoutService: ObservableObject {
                     }
                     return noErr
                 }
-                guard id.signature == 0x5655_574C,
-                      kind == UInt32(kEventHotKeyPressed),
+                guard id.signature == 0x5655_574C else { return OSStatus(eventNotHandledErr) }
+                guard kind == UInt32(kEventHotKeyPressed),
                       let action = WindowLayoutAction(shortcutID: id.id) else {
+                    DispatchQueue.main.async { service.stopNudgeRepeat() }
                     return OSStatus(eventNotHandledErr)
                 }
-                DispatchQueue.main.async { service.apply(action) }
+                DispatchQueue.main.async {
+                    service.apply(action)
+                    service.startNudgeRepeat(action)
+                }
                 return noErr
             }, specs.count, &specs, Unmanaged.passUnretained(self).toOpaque(), &eventHandler)
         }
+    }
+
+    /// Carbon hot keys fire once per press, so a held nudge repeats at the
+    /// system key-repeat pace until its release. Each repeat also checks the
+    /// key is still down, so a lost release event cannot leave it running.
+    private func startNudgeRepeat(_ action: WindowLayoutAction) {
+        stopNudgeRepeat()
+        guard action.nudgeOffset(step: 1) != nil, case .success? = lastResult,
+              let keyCode = registeredShortcuts[action]?.carbonKeyCode else { return }
+        let held = { CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode)) }
+        nudgeRepeatTimer = Timer.scheduledTimer(withTimeInterval: NSEvent.keyRepeatDelay,
+                                                repeats: false) { [weak self] _ in
+            guard let self, held() else { self?.stopNudgeRepeat(); return }
+            self.nudgeRepeatTimer = Timer.scheduledTimer(withTimeInterval: NSEvent.keyRepeatInterval,
+                                                         repeats: true) { [weak self] _ in
+                guard let self, held(), case .success = self.apply(action) else {
+                    self?.stopNudgeRepeat()
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopNudgeRepeat() {
+        nudgeRepeatTimer?.invalidate()
+        nudgeRepeatTimer = nil
     }
 
     /// Lets go of the layout keys while a shortcut field is listening, so the
@@ -919,6 +960,7 @@ final class WindowLayoutService: ObservableObject {
     }
 
     private func unregisterHotkeys() {
+        stopNudgeRepeat()
         for (action, ref) in hotKeyRefs {
             UnregisterEventHotKey(ref)
             SystemShortcutTakeover.release(action.shortcutKey)

@@ -321,6 +321,62 @@ enum WindowLayoutFeatureTests {
                     && !layoutStrings.bottomTwoThirds.isEmpty,
                    "\(language.rawValue) names the latest window layout actions")
         }
+        let nudges: [(WindowLayoutAction, UInt32, String, CGVector)] = [
+            (.nudgeLeft, 71, DefaultsKey.windowLayoutShortcutNudgeLeft, CGVector(dx: -10, dy: 0)),
+            (.nudgeRight, 72, DefaultsKey.windowLayoutShortcutNudgeRight, CGVector(dx: 10, dy: 0)),
+            (.nudgeUp, 73, DefaultsKey.windowLayoutShortcutNudgeUp, CGVector(dx: 0, dy: -10)),
+            (.nudgeDown, 74, DefaultsKey.windowLayoutShortcutNudgeDown, CGVector(dx: 0, dy: 10)),
+        ]
+        let nudgeCurrent = CGRect(x: 1400, y: 300, width: 800, height: 500)
+        let nudgeVisible = CGRect(x: 0, y: 40, width: 1440, height: 860)
+        for (action, shortcutID, defaultsKey, offset) in nudges {
+            suite.expect(WindowLayoutAction(shortcutID: shortcutID) == action
+                    && action.shortcutKey == defaultsKey
+                    && action.supportsShortcut,
+                   "\(action.rawValue) answers to its own shortcut id and defaults key")
+            suite.expect(action.defaultShortcut == nil
+                    && Defaults.registeredDefaults[defaultsKey] as? String
+                        == WindowLayoutAction.clearedShortcutStorageValue,
+                   "\(action.rawValue) starts with no combination of its own")
+            suite.expect(action.nudgeOffset(step: 10) == offset,
+                   "\(action.rawValue) moves by the step in Accessibility coordinates")
+            suite.expect(action.targetCapability == .position,
+                   "\(action.rawValue) needs only a movable window")
+            // A window already past the right edge stays where the nudge put it.
+            suite.expect(WindowLayoutGeometry.rect(for: action, current: nudgeCurrent, visibleFrame: nudgeVisible,
+                                                   windowGap: 16, screenGap: 32) == nudgeCurrent
+                    && WindowLayoutGeometry.anchoredRect(for: action, targetRect: nudgeCurrent,
+                                                         actualSize: nudgeCurrent.size,
+                                                         visibleFrame: nudgeVisible) == nudgeCurrent,
+                   "\(action.rawValue) is never pulled back inside the visible frame")
+        }
+        suite.expect(WindowLayoutAction.allCases.filter { $0.nudgeOffset(step: 10) != nil }.count == nudges.count,
+               "only the nudge actions move the window by a step")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.windowLayoutNudgeStep] as? Int == 10
+                && WindowLayoutNudge.defaultStep == 10,
+               "a nudge moves ten points until the user picks another step")
+        suite.expect(WindowLayoutNudge.sanitizedStep(0) == 1
+                && WindowLayoutNudge.sanitizedStep(-5) == 1
+                && WindowLayoutNudge.sanitizedStep(15) == 15
+                && WindowLayoutNudge.sanitizedStep(500) == 100,
+               "a stored nudge step outside the supported range is clamped")
+        for language in AppLanguage.allCases {
+            let layoutStrings = FeatureStrings.windowLayout(language)
+            suite.expect([layoutStrings.nudgeSection, layoutStrings.nudgeCaption, layoutStrings.nudgeStep,
+                           layoutStrings.nudgeLeft, layoutStrings.nudgeRight,
+                           layoutStrings.nudgeUp, layoutStrings.nudgeDown].allSatisfy { !$0.isEmpty },
+                   "\(language.rawValue) names the nudge actions and their step")
+            let templates: [WindowLayoutAction: String] = [
+                .nudgeLeft: layoutStrings.nudgeLeft, .nudgeRight: layoutStrings.nudgeRight,
+                .nudgeUp: layoutStrings.nudgeUp, .nudgeDown: layoutStrings.nudgeDown,
+            ]
+            for (action, template) in templates {
+                let title = action.title(layoutStrings, nudgeStep: 37)
+                suite.expect(template.components(separatedBy: "%d").count == 2
+                        && title.contains("37") && !title.contains("%"),
+                       "\(language.rawValue) \(action.rawValue) names the distance it moves")
+            }
+        }
         suite.expect(WindowLayoutGeometry.accepts(actualRect: .zero, targetRect: .zero,
                                             action: .fullScreen, anchorTolerance: 10) == false,
                "full screen never joins the frame-based gesture acceptance")
