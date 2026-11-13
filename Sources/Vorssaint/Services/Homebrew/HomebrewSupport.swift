@@ -92,12 +92,16 @@ struct HomebrewCaskRecord: Hashable {
     }
 }
 
+enum HomebrewOwnershipError: Error {
+    case unavailable
+}
+
 enum HomebrewOwnershipSupport {
     /// Resolves a package only when its catalog points at this exact app. A
     /// same-named copy elsewhere must never make an unrelated package eligible
     /// for a destructive command.
     static func packageManagingApplication(atPath rawPath: String,
-                                           installed: [HomebrewCaskRecord]) -> HomebrewPackage? {
+                                           installed: [HomebrewCaskRecord]) -> Result<HomebrewPackage?, HomebrewOwnershipError> {
         let path = URL(fileURLWithPath: rawPath).standardizedFileURL.path
         let exact = installed.filter { record in
             record.appPaths.contains {
@@ -105,9 +109,16 @@ enum HomebrewOwnershipSupport {
             }
         }
         if exact.count == 1 {
-            return package(from: exact[0])
+            return .success(package(from: exact[0]))
         }
-        return nil
+        let name = URL(fileURLWithPath: path).lastPathComponent
+        guard exact.isEmpty,
+              !installed.contains(where: { $0.appPaths.isEmpty && $0.appFileNames.contains(name) }) else {
+            // A missing target or multiple owners cannot authorize either a
+            // package command or ordinary removal of a possibly managed app.
+            return .failure(.unavailable)
+        }
+        return .success(nil)
     }
 
     private static func package(from record: HomebrewCaskRecord) -> HomebrewPackage {
@@ -263,6 +274,41 @@ enum HomebrewOperationResult: Equatable {
     case needsTerminal
 }
 
+/// Dismissal policy for a finished operation's status card. Issue #566: the
+/// card's timer used to wipe the technical log with it after 6 – 20 seconds;
+/// the log now stays until the next operation or an explicit Clear log, and
+/// only success and cancel cards dismiss themselves on a timer. A failure or
+/// terminal fallback card keeps its reason (and the open-in-terminal action)
+/// visible until then.
+enum HomebrewCompletedOperationCleanup {
+    static func cardDismissalDelay(result: HomebrewOperationResult) -> TimeInterval? {
+        switch result {
+        case .running: return nil
+        case .succeeded: return 8
+        case .cancelled: return 6
+        case .failed, .needsTerminal: return nil
+        }
+    }
+}
+
+enum HomebrewOperationOutput: Equatable {
+    case status(HomebrewOperationStatus)
+    case lastLog(HomebrewOperationStatus)
+
+    // Keep the tail, where brew prints its final result. A cut must not split
+    // a UTF-8 scalar, and the omission mark counts towards the same limit.
+    static let byteLimit = 256 * 1024
+
+    static func retainedText(_ text: String) -> String {
+        let bytes = text.utf8
+        guard bytes.count > byteLimit else { return text }
+        let mark = "…\n"
+        let tail = bytes.suffix(byteLimit - mark.utf8.count)
+            .drop(while: { $0 & 0xc0 == 0x80 })
+        return mark + String(decoding: tail, as: UTF8.self)
+    }
+}
+
 struct HomebrewOperationStatus: Equatable {
     var action: HomebrewOperation.Action
     var package: HomebrewPackage?
@@ -272,6 +318,7 @@ struct HomebrewOperationStatus: Equatable {
     var startedAt: Date
     var finishedAt: Date?
     var lastActivity: String?
+    var fromUninstaller = false
 
     var isActive: Bool {
         result == .running
@@ -289,6 +336,42 @@ struct HomebrewPendingAction {
     init(action: HomebrewOperation.Action, package: HomebrewPackage? = nil) {
         self.action = action
         self.package = package
+    }
+}
+
+/// A command handed to the person's own terminal, never a named app: an
+/// executable file with no extension, which macOS types as a Unix executable
+/// and opens with the app the person chose to run those. A `.command` file
+/// would not do, because Terminal keeps that type even on a Mac where another
+/// terminal runs every other script. The file deletes itself as it starts,
+/// then passes the command to the login shell, which reads it in its own
+/// syntax, as it did when Terminal typed it in.
+enum HomebrewTerminalScript {
+    static func contents(command: String, shellPath: String) -> String {
+        let shell = shellPath.isEmpty ? "/bin/sh" : shellPath
+        // csh and tcsh accept -l only as their sole argument. Their interactive
+        // command mode still reads the shell's startup configuration.
+        let name = URL(fileURLWithPath: shell).lastPathComponent
+        let arguments = ["csh", "tcsh"].contains(name) ? "-i -c" : "-l -i -c"
+        return """
+        #!/bin/sh
+        rm -f -- "$0"
+        exec \(HomebrewCommandBuilder.shellQuote(shell)) \(arguments) \(HomebrewCommandBuilder.shellQuote(command))
+
+        """
+    }
+
+    /// Readable and runnable by the person alone, in their own temporary folder.
+    static func write(command: String,
+                      shellPath: String = HomebrewCommandBuilder.currentShellPath,
+                      directory: URL = FileManager.default.temporaryDirectory) throws -> URL {
+        let url = directory.appendingPathComponent("vorssaint-homebrew-\(UUID().uuidString)")
+        let data = Data(contents(command: command, shellPath: shellPath).utf8)
+        guard FileManager.default.createFile(atPath: url.path, contents: data,
+                                             attributes: [.posixPermissions: 0o700]) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: url.path])
+        }
+        return url
     }
 }
 
@@ -759,14 +842,20 @@ enum HomebrewParser {
 
     /// Installed casks with the app bundles they install, so a package token
     /// can be traced back to the app on disk.
-    static func parseInstalledCaskRecords(_ output: String) -> [HomebrewCaskRecord] {
+    static func parseInstalledCaskRecords(_ output: String) throws -> [HomebrewCaskRecord] {
         for json in [output] + balancedJSONObjects(in: output) {
             let data = Data(json.utf8)
             guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let casks = root["casks"] as? [[String: Any]] else { continue }
-            return casks.compactMap(parseCaskRecord)
+            guard casks.allSatisfy({ ($0["installed"] as? String)?.isEmpty == false
+                && $0["artifacts"] is [[String: Any]] }) else {
+                throw HomebrewOwnershipError.unavailable
+            }
+            let records = casks.compactMap(parseCaskRecord)
+            guard records.count == casks.count else { throw HomebrewOwnershipError.unavailable }
+            return records
         }
-        return []
+        throw HomebrewOwnershipError.unavailable
     }
 
     private static func parseCaskRecord(_ item: [String: Any]) -> HomebrewCaskRecord? {
