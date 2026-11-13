@@ -46,6 +46,30 @@ enum NotchMenuBarSpace {
                                                    menuItems: menuItems, statusItems: statusItems)
     }
 
+    /// Whether a visible status item covers `frame`. CG-only, so an idle
+    /// island can react before the AX menu measurement runs again.
+    static func statusItemOverlaps(_ frame: CGRect, screen: CGRect, barHeight: CGFloat,
+                                   primaryTop: CGFloat, ownWindow: Int) -> Bool {
+        guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]]
+        else { return false }
+        let statusLevel = Int(CGWindowLevelForKey(.statusWindow))
+        var statusItems: [CGRect] = []
+        for window in windows {
+            guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow,
+                  let layer = window[kCGWindowLayer as String] as? Int, layer == statusLevel,
+                  let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
+                  let x = bounds["X"], let y = bounds["Y"],
+                  let width = bounds["Width"], let height = bounds["Height"],
+                  NotchMenuBarLayout.isClickableStatusItem(
+                      width: width, height: height,
+                      alpha: (window[kCGWindowAlpha as String] as? Double) ?? 1,
+                      screen: screen, barHeight: barHeight)
+            else { continue }
+            statusItems.append(CGRect(x: x, y: primaryTop - y - height, width: width, height: height))
+        }
+        return NotchMenuBarLayout.statusItemOverlaps(frame, statusItems: statusItems)
+    }
+
     private static func value(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {
         var result: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, attribute as CFString, &result) == .success else { return nil }
