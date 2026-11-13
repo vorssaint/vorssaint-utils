@@ -14,7 +14,7 @@ enum BackdropPickerAssets {
     static func previewColors(for style: ScreenshotSupport.BackdropStyle) -> [Color] {
         let sanitized = style.sanitized()
         switch sanitized.kind {
-        case .none:
+        case .none, .transparent:
             return [.clear]
         case .preset:
             guard let id = sanitized.presetID,
@@ -79,8 +79,26 @@ protocol BackdropEditing: ObservableObject {
     var backdropStyle: ScreenshotSupport.BackdropStyle { get set }
     var backdropPresets: [ScreenshotSupport.BackdropStyle] { get }
     var showsBackdrop: Bool { get }
+    /// Only an editor whose output keeps alpha offers a see-through margin.
+    var offersTransparentBackdrop: Bool { get }
     func saveCurrentBackdropAsPreset()
     func removeBackdropPreset(at index: Int)
+}
+
+extension BackdropEditing {
+    var offersTransparentBackdrop: Bool { false }
+}
+
+/// The see-through margin, drawn with the canvas's own checkerboard.
+struct BackdropCheckerboard: View {
+    var body: some View {
+        Canvas { context, size in
+            context.withCGContext { cg in
+                cg.setFillColor(ScreenshotCanvasExpansionPreview.checker)
+                cg.fill(CGRect(origin: .zero, size: size))
+            }
+        }
+    }
 }
 
 struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
@@ -136,6 +154,13 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                     Image(systemName: "slash.circle")
                         .foregroundStyle(.secondary)
                 }
+            }
+            if model.offersTransparentBackdrop {
+                swatch(for: ScreenshotSupport.BackdropStyle(kind: .transparent),
+                       accessibility: strings.backdropTransparent) {
+                    BackdropCheckerboard()
+                }
+                .screenshotSafeHelp(strings.backdropTransparent)
             }
             ForEach(ScreenshotSupport.BackdropID.allCases.filter { $0 != .none },
                     id: \.self) { preset in
@@ -348,7 +373,7 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
     private var canSavePreset: Bool {
         switch model.backdropStyle.sanitized().kind {
         case .solid, .gradient, .image: return true
-        case .none, .preset: return false
+        case .none, .preset, .transparent: return false
         }
     }
 
@@ -392,12 +417,17 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                     .frame(width: 64, alignment: .leading)
-                    .foregroundStyle(model.showsBackdrop ? .secondary : .tertiary)
+                    .foregroundStyle(blurApplies ? .secondary : .tertiary)
                 Slider(value: blurBinding, in: 0...1)
                     .controlSize(.small)
-                    .disabled(!model.showsBackdrop)
+                    .disabled(!blurApplies)
             }
         }
+    }
+
+    /// A see-through margin has nothing behind it to blur.
+    private var blurApplies: Bool {
+        model.showsBackdrop && model.backdropStyle.sanitized().kind != .transparent
     }
 
     private var paddingBinding: Binding<Double> {
@@ -485,7 +515,7 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                 gradientEndComponents = colors[1]
                 customIsGradient = true
             }
-        case .none, .preset, .image:
+        case .none, .preset, .image, .transparent:
             break
         }
     }
