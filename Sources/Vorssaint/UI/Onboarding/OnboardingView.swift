@@ -35,11 +35,12 @@ struct OnboardingView: View {
         let defaults = UserDefaults.standard
         let selectionWasApplied = defaults.bool(forKey: DefaultsKey.hasOnboarded)
             || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
-        let features = selectionWasApplied
-            ? Set(AppFeature.allCases.filter(\.isAvailable))
-            : FeaturePreset.essential.features
+        // Startup has already installed the first-run preset and any features
+        // declared in the settings file. Show the selection Continue will save.
+        let features = Set(AppFeature.allCases.filter(\.isAvailable))
         _selectedFeatures = State(initialValue: features)
-        _selectedPreset = State(initialValue: selectionWasApplied ? nil : .essential)
+        _selectedPreset = State(initialValue: !selectionWasApplied && features == FeaturePreset.essential.features
+            ? .essential : nil)
     }
 
     private var setupPermissions: [AppPermission] {
@@ -243,7 +244,10 @@ private struct PurposeStep: View {
             }
             .padding(.horizontal, 28)
 
-            LazyVStack(spacing: 14) {
+            // Eager, like the Features hub (#2311, #2642): a lazy stack nested
+            // here re-estimated the cards below the fold on every scroll step
+            // and re-anchored the viewport until the app hung.
+            VStack(spacing: 14) {
                 ForEach(FeatureGroup.allCases, id: \.self) { group in
                     VStack(alignment: .leading, spacing: 7) {
                         Text(groupTitle(group))
