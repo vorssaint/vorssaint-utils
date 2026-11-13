@@ -429,11 +429,14 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
             onRightClick?(statusItem.button)
             return
         }
-        if let button = statusItem.button, let window = button.window {
+        if event?.type == .leftMouseUp,
+           let button = statusItem.button,
+           let window = button.window {
             // The action can arrive with a current event that is not the click
             // itself; the pointer is still over the item on mouse-up, so read
             // its screen position instead of trusting that event's location.
@@ -544,21 +547,20 @@ final class StatusItemController {
             removeMetricStatusItems(except: Set<String>())
             renderedMetricItemCount = 0
             if !metrics.isEmpty {
-                let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
-                                                              metrics: metrics,
-                                                              allowStacked: !includesCountdown,
-                                                              linePrefix: " ")
-                if metricsTitle.length > 0 {
+                let combined = Self.combinedMetricTitle(for: metrics,
+                                                        snapshot: snapshot,
+                                                        strings: strings,
+                                                        allowStacked: !includesCountdown,
+                                                        linePrefix: " ")
+                if combined.title.length > 0 {
                     if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                     let metricsStart = title.length
-                    title.append(metricsTitle)
-                    metricHitRuns = Self.combinedMetricHitRuns(for: metrics,
-                                                               snapshot: snapshot,
-                                                               strings: strings,
-                                                               allowStacked: !includesCountdown,
-                                                               linePrefix: " ",
-                                                               expected: metricsTitle,
-                                                               startOffset: metricsStart)
+                    title.append(combined.title)
+                    metricHitRuns = combined.runs.map {
+                        CombinedMetricHitRun(metric: $0.metric,
+                                             range: NSRange(location: $0.range.location + metricsStart,
+                                                            length: $0.range.length))
+                    }
                 }
             }
         }
@@ -775,22 +777,20 @@ final class StatusItemController {
         return groups
     }
 
-    /// Rebuilds the combined title one reading group at a time so each run's
-    /// character range is known. The renderer draws the same groups in the same
-    /// order when handed the whole list, so the runs line up with the title the
-    /// app actually shows; the length and text check keeps a future renderer
-    /// change from turning a stale run into a wrong click.
-    private static func combinedMetricHitRuns(for metrics: [MenuBarMetric],
-                                              snapshot: SystemSnapshot,
-                                              strings: Strings,
-                                              allowStacked: Bool,
-                                              linePrefix: String,
-                                              expected: NSAttributedString,
-                                              startOffset: Int) -> [CombinedMetricHitRun] {
+    /// Builds the combined title one reading group at a time so each run's
+    /// character range is known. The title shown by the item comes from the
+    /// same groups that produce the runs, so a future renderer or grouping
+    /// change cannot hand a click to the wrong reading.
+    private static func combinedMetricTitle(for metrics: [MenuBarMetric],
+                                            snapshot: SystemSnapshot,
+                                            strings: Strings,
+                                            allowStacked: Bool,
+                                            linePrefix: String) -> (title: NSAttributedString,
+                                                                    runs: [CombinedMetricHitRun]) {
         let groups = metricStatusGroups(for: metrics, strings: strings)
         let glue = MenuBarSpacingSupport.blockGlue(readableStyle: false,
                                                    spacing: MenuBarMetricSpacing.current)
-        let composed = NSMutableAttributedString()
+        let title = NSMutableAttributedString()
         var runs: [CombinedMetricHitRun] = []
         for group in groups {
             let part = MenuBarRenderer.attributed(for: snapshot,
@@ -798,18 +798,15 @@ final class StatusItemController {
                                                   allowStacked: allowStacked,
                                                   linePrefix: linePrefix)
             guard part.length > 0 else { continue }
-            if composed.length > 0 {
-                composed.append(NSAttributedString(string: glue))
+            if title.length > 0 {
+                title.append(NSAttributedString(string: glue))
             }
             runs.append(CombinedMetricHitRun(metric: group.focusMetric,
-                                             range: NSRange(location: startOffset + composed.length,
+                                             range: NSRange(location: title.length,
                                                             length: part.length)))
-            composed.append(part)
+            title.append(part)
         }
-        guard composed.length == expected.length, composed.string == expected.string else {
-            return []
-        }
-        return runs
+        return (title, runs)
     }
 
     private func installMetricStatusItem(for group: MetricStatusGroup) -> NSStatusItem {
