@@ -132,9 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.showContextMenu(from: button)
             }
         }
-        statusController.onMetricClick = { [weak self] metric, button in
+        statusController.onMetricClick = { [weak self] metric, button, anchorRect in
             self?.captureStatusClick()
-            self?.showMetricPanel(for: metric, anchoredTo: button)
+            self?.showMetricPanel(for: metric, anchoredTo: button, anchorRect: anchorRect)
         }
         statusController.onClipboardPreviewClick = {
             // No captureStatusClick() here, unlike the other click handlers:
@@ -503,12 +503,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         popover.isShown && !popoverIsClosing
     }
 
-    private func togglePopover(anchor button: NSStatusBarButton? = nil) {
+    private func togglePopover(anchor button: NSStatusBarButton? = nil,
+                               anchorRect: NSRect? = nil) {
         if popoverIsOpen {
             closePopover(reason: .statusItem)
             return
         }
-        showPopover(anchor: button)
+        showPopover(anchor: button, anchorRect: anchorRect)
     }
 
     private func toggleMainPopover() {
@@ -518,14 +519,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if !popoverIsOpen {
             MenuPanelFocus.shared.showNormalPanel()
         }
-        togglePopover()
+        togglePopover(anchorRect: statusController?.mainItemAnchorRect())
     }
 
     func isOverStatusItem(_ point: NSPoint) -> Bool {
         statusController?.containsStatusItem(at: point) == true
     }
 
-    private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
+    private func showMetricPanel(for metric: MenuBarMetric,
+                                 anchoredTo button: NSStatusBarButton,
+                                 anchorRect: NSRect) {
         let detailKind = metric.detailKind
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback,
            NotchSupport.modules().contains(.system) {
@@ -539,14 +542,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 return
             }
             MenuPanelFocus.shared.focus(detailKind)
-            scheduleMetricAnchorSwitch(to: detailKind, anchoredTo: button)
+            scheduleMetricAnchorSwitch(to: detailKind, anchoredTo: button, anchorRect: anchorRect)
             return
         }
         MenuPanelFocus.shared.focus(detailKind)
-        showPopover(anchor: button)
+        showPopover(anchor: button, anchorRect: anchorRect)
     }
 
-    private func scheduleMetricAnchorSwitch(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
+    private func scheduleMetricAnchorSwitch(to detailKind: MetricDetailKind,
+                                            anchoredTo button: NSStatusBarButton,
+                                            anchorRect: NSRect) {
         metricAnchorSwitchSerial &+= 1
         let serial = metricAnchorSwitchSerial
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self, weak button] in
@@ -555,24 +560,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                   self.popover.isShown,
                   self.metricAnchorSwitchSerial == serial,
                   MenuPanelFocus.shared.activeMetric == detailKind else { return }
-            self.reanchorMetricPopover(to: detailKind, anchoredTo: button)
+            self.reanchorMetricPopover(to: detailKind, anchoredTo: button, anchorRect: anchorRect)
         }
     }
 
-    private func reanchorMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
+    private func reanchorMetricPopover(to detailKind: MetricDetailKind,
+                                       anchoredTo button: NSStatusBarButton,
+                                       anchorRect: NSRect) {
         guard popover.isShown else {
             MenuPanelFocus.shared.focus(detailKind)
-            showPopover(anchor: button, animate: false, activate: false)
+            showPopover(anchor: button, anchorRect: anchorRect, animate: false, activate: false)
             return
         }
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
-        let expectedMidX = statusButtonMidX(button)
+        let expectedMidX = statusButtonMidX(button, in: anchorRect)
         // The panel measures itself against this while the popover lays out,
         // so it has to be right before the content is asked for its size.
         PanelInteractionState.shared.anchorScreen = statusScreen(for: button)
         popover.animates = false
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: anchorRect, of: button, preferredEdge: .minY)
         MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
         popover.animates = true
         if popover.isShown, !popoverIsFadingOut {
@@ -584,7 +591,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if let window = popover.contentViewController?.view.window {
             configurePopoverWindow(window)
             beginPopoverDriftCorrection(window: window,
-                                        anchor: resolvePanelAnchor(for: button, window: window))
+                                        anchor: resolvePanelAnchor(for: button,
+                                                                   anchorRect: anchorRect,
+                                                                   window: window))
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self, weak button] in
             guard let self else {
@@ -615,13 +624,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
                 return
             }
-            self.switchMetricPopover(to: detailKind, anchoredTo: button)
+            self.switchMetricPopover(to: detailKind, anchoredTo: button, anchorRect: anchorRect)
         }
     }
 
-    private func statusButtonMidX(_ button: NSStatusBarButton) -> CGFloat? {
+    private func statusButtonMidX(_ button: NSStatusBarButton, in rect: NSRect? = nil) -> CGFloat? {
         guard let window = button.window else { return nil }
-        return window.convertToScreen(button.convert(button.bounds, to: nil)).midX
+        return window.convertToScreen(button.convert(rect ?? button.bounds, to: nil)).midX
     }
 
     /// Where the user last physically clicked a status button, captured at
@@ -750,7 +759,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// frame is at its most trustworthy. Everything after that (a bar that
     /// slides away, a status item stranded at the slot it was born in) is read
     /// from a frame that no longer describes where the icon is.
-    private func resolvePanelAnchor(for button: NSStatusBarButton, window: NSWindow) -> PanelAnchor {
+    private func resolvePanelAnchor(for button: NSStatusBarButton,
+                                    anchorRect: NSRect? = nil,
+                                    window: NSWindow) -> PanelAnchor {
         let screen = statusScreen(for: button)
         let statusFrame = button.window?.frame
         let frameIsSound = statusFrame.map {
@@ -767,7 +778,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // where the icon really is and outranks the frame right away.
             let corrected = correctedPopoverMidX(for: button)
             return PanelAnchor(midX: corrected ?? window.frame.midX,
-                               tipX: corrected ?? statusButtonMidX(button) ?? window.frame.midX,
+                               tipX: corrected ?? statusButtonMidX(button, in: anchorRect) ?? window.frame.midX,
                                top: window.frame.maxY,
                                screen: screen,
                                trusted: true,
@@ -1002,7 +1013,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    private func switchMetricPopover(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {
+    private func switchMetricPopover(to detailKind: MetricDetailKind,
+                                     anchoredTo button: NSStatusBarButton,
+                                     anchorRect: NSRect) {
         popoverIsSwitchingAnchor = true
         MenuPanelFocus.shared.setSwitchingMetricAnchor(true)
         removePopoverDismissMonitor()
@@ -1026,7 +1039,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 return
             }
             MenuPanelFocus.shared.focus(detailKind)
-            self.showPopover(anchor: button, animate: false, activate: false)
+            self.showPopover(anchor: button, anchorRect: anchorRect, animate: false, activate: false)
             DispatchQueue.main.async {
                 self.popoverIsSwitchingAnchor = false
                 MenuPanelFocus.shared.setSwitchingMetricAnchor(false)
@@ -1035,6 +1048,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showPopover(anchor button: NSStatusBarButton? = nil,
+                             anchorRect: NSRect? = nil,
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
@@ -1070,7 +1084,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         MenuPanelFocus.shared.setPopoverVisible(true)
         let showStartedAt = ProcessInfo.processInfo.systemUptime
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        let relativeRect = anchorRect ?? button.bounds
+        popover.show(relativeTo: relativeRect, of: button, preferredEdge: .minY)
         let showDuration = ProcessInfo.processInfo.systemUptime - showStartedAt
         MenuPanelFocus.shared.setPopoverVisible(popover.isShown)
         if !animate {
@@ -1109,7 +1124,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         if let window = popover.contentViewController?.view.window {
             beginPopoverDriftCorrection(window: window,
-                                        anchor: savedAnchor ?? resolvePanelAnchor(for: button, window: window))
+                                        anchor: savedAnchor ?? resolvePanelAnchor(for: button,
+                                                                                  anchorRect: anchorRect,
+                                                                                  window: window))
             beginPanelPresentationWatch(window: window, startedAt: showStartedAt,
                                         showDuration: showDuration)
         }

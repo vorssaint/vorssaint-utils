@@ -11,7 +11,9 @@ final class StatusItemController {
     /// Receives the button that was clicked, so a menu can open from it
     /// while the main item is out of the bar.
     var onRightClick: ((NSStatusBarButton?) -> Void)?
-    var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
+    /// The rect is the clicked reading's span in the button, or the whole
+    /// button for a separate metric item, so the panel opens under it.
+    var onMetricClick: ((MenuBarMetric, NSStatusBarButton, NSRect) -> Void)?
     var onClipboardPreviewClick: (() -> Void)?
 
     private(set) var statusItem: NSStatusItem!
@@ -91,6 +93,26 @@ final class StatusItemController {
     }()
 
     var button: NSStatusBarButton? { statusItem.button }
+
+    /// The glyph's span in the main item, so the normal panel opens under the
+    /// icon instead of the middle of the combined readings. Falls back to the
+    /// whole item while the glyph is hidden or not laid out yet.
+    func mainItemAnchorRect() -> NSRect? {
+        guard let button = statusItem?.button else { return nil }
+        guard let image = button.image,
+              image !== Self.emptyStatusImage,
+              image.size.width > 0,
+              let cell = button.cell as? NSButtonCell else { return button.bounds }
+        let imageRect = cell.imageRect(forBounds: button.bounds)
+        guard imageRect.minX.isFinite, imageRect.maxX.isFinite else { return button.bounds }
+        let minX = max(button.bounds.minX, imageRect.minX)
+        let maxX = min(button.bounds.maxX, imageRect.maxX)
+        guard maxX > minX else { return button.bounds }
+        return NSRect(x: minX,
+                      y: button.bounds.minY,
+                      width: maxX - minX,
+                      height: button.bounds.height)
+    }
 
     func containsStatusItem(at screenPoint: NSPoint) -> Bool {
         let items = [statusItem, clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
@@ -441,8 +463,8 @@ final class StatusItemController {
             // itself; the pointer is still over the item on mouse-up, so read
             // its screen position instead of trusting that event's location.
             let point = button.convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-            if let metric = combinedMetric(at: point, in: button) {
-                onMetricClick?(metric, button)
+            if let hit = combinedMetric(at: point, in: button) {
+                onMetricClick?(hit.metric, button, hit.rect)
                 return
             }
         }
@@ -451,9 +473,10 @@ final class StatusItemController {
 
     /// Maps a click inside the combined title to the reading drawn under it.
     /// The glyph, the countdown and the gaps between readings are not runs, so
-    /// clicking them keeps the item's normal panel behavior.
+    /// clicking them keeps the item's normal panel behavior. The returned rect
+    /// is the reading's span in the button, so the panel can open under it.
     private func combinedMetric(at point: NSPoint,
-                                in button: NSStatusBarButton) -> MenuBarMetric? {
+                                in button: NSStatusBarButton) -> (metric: MenuBarMetric, rect: NSRect)? {
         guard !combinedMetricHitRuns.isEmpty,
               let cell = button.cell as? NSButtonCell else { return nil }
         let title = button.attributedTitle
@@ -477,7 +500,16 @@ final class StatusItemController {
             let rect = layout.boundingRect(forGlyphRange: glyphs, in: container)
             if point.x >= titleRect.minX + rect.minX,
                point.x <= titleRect.minX + rect.maxX {
-                return run.metric
+                // AppKit intersects the popover's anchoring rect with the
+                // button's bounds, so clamp a reading clipped by a crowded bar.
+                let minX = max(button.bounds.minX, titleRect.minX + rect.minX)
+                let maxX = min(button.bounds.maxX, titleRect.minX + rect.maxX)
+                guard maxX > minX else { break }
+                let anchor = NSRect(x: minX,
+                                    y: button.bounds.minY,
+                                    width: maxX - minX,
+                                    height: button.bounds.height)
+                return (run.metric, anchor)
             }
         }
         return nil
@@ -842,7 +874,7 @@ final class StatusItemController {
             onLeftClick?()
             return
         }
-        onMetricClick?(metric, sender)
+        onMetricClick?(metric, sender, sender.bounds)
     }
 
     private func focusMetric(from button: NSStatusBarButton) -> MenuBarMetric? {
