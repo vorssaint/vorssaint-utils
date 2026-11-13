@@ -2129,7 +2129,9 @@ def main():
     screenshot_service = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
     write("ScreenshotAutoCopy.swift", "import Foundation\nextension ScreenshotAutoCopyTests {\n"
           + "@MainActor final class Service: State {\n"
+          # The fake capture is a number, so it names no app.
           + declaration(screenshot_service, "    private func autoCopy(").replace("private func", "func", 1)
+              .replace("source: capture.sourceBundleID", "source: nil")
           + "}\n}\n")
     write("ScreenshotShortcutCompletion.swift", "import Foundation\n"
           + "extension ScreenshotShareCompletionTests {\n@MainActor final class Uploader: UploadState {\n"
