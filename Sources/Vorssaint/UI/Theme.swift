@@ -135,9 +135,8 @@ extension View {
         modifier(PanelCardModifier(interactive: interactive, padded: padded))
     }
 
-    /// A restrained glass base for the menu panel: still translucent, but with a
-    /// stable tint so text and controls do not depend too much on the wallpaper.
-    /// It reaches the popover's arrow; see PanelGlassSurface.
+    /// A restrained glass base where the popover hosts full-size content.
+    /// Inset content uses the popover's native material; see PanelGlassSurface.
     func panelGlassSurface() -> some View {
         background(PanelGlassSurface())
     }
@@ -181,15 +180,15 @@ private struct PanelGlassSurface: View {
         // under the arrow; only this background bleeds into it. The popover clips
         // it to its own balloon, so the surface is a plain rectangle: rounding would
         // expose the system material at the corners, while stroking would duplicate
-        // the outline AppKit already draws. Where the popover still insets its
-        // content, the panel is a card inside the balloon instead; see
-        // PanelSurface.popoverHostsFullSizeContent.
+        // the outline AppKit already draws. Before macOS 26, inset content uses
+        // the native popover material alone: a separate rounded card cannot
+        // follow the balloon's corners and leaves a second outline (#2225).
         if notchPresentation {
             Rectangle().fill(notchGlassSurface ? Color.clear : .black)
         } else if PanelSurface.popoverHostsFullSizeContent {
             surface.ignoresSafeArea()
         } else {
-            insetSurface
+            Color.clear
         }
     }
 
@@ -217,18 +216,6 @@ private struct PanelGlassSurface: View {
         Rectangle()
             .fill(.regularMaterial)
             .overlay(Rectangle().fill(PanelSurface.baseFill(for: colorScheme)))
-    }
-
-    /// The panel as a card inside a popover that insets its content (before
-    /// macOS 26): the balloon's rounding never reaches it there, so it carries
-    /// its own rounding and rim. Liquid Glass needs macOS 26, so this is always
-    /// the standard material.
-    private var insetSurface: some View {
-        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
-        return shape
-            .fill(.regularMaterial)
-            .overlay(shape.fill(PanelSurface.baseFill(for: colorScheme)))
-            .overlay(shape.strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8))
     }
 }
 

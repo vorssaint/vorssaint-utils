@@ -472,9 +472,10 @@ struct AgentLogRoot: Equatable {
 
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
-    static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [AgentLogRoot] {
-        [(AgentProvider.claude, ".claude/projects"), (.claude, ".config/claude/projects"),
-         (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+    static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                    claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
+        let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
+        return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }

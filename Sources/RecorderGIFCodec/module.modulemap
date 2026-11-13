@@ -1,0 +1,4 @@
+module RecorderGIFCodec {
+    header "include/RecorderGIFCodec.h"
+    export *
+}
