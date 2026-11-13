@@ -2870,6 +2870,31 @@ enum SwitcherModelFeatureTests {
                                                                    current: 501, isOwnApp: ownApp) == nil,
                "a desktop switch while the panel is open drops the remembered app")
 
+        // An activation click on the panel itself can surface in the global
+        // dismissal monitor while the app is inactive (first open after a
+        // while): the panel must never treat its own click as an outside one.
+        let panelFrame = CGRect(x: 973, y: 417, width: 358, height: 662)
+        suite.expect(StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 254631,
+                                                              panelWindowNumber: 254631,
+                                                              panelFrame: panelFrame,
+                                                              mouseLocation: CGPoint(x: 1100, y: 975)),
+               "a click stamped with the panel's own window number never dismisses the panel")
+        suite.expect(StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 261851,
+                                                              panelWindowNumber: 254631,
+                                                              panelFrame: panelFrame,
+                                                              mouseLocation: CGPoint(x: 1100, y: 975)),
+               "a click recorded inside the panel frame never dismisses the panel, whatever window it hit")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 261851,
+                                                               panelWindowNumber: 254631,
+                                                               panelFrame: panelFrame,
+                                                               mouseLocation: CGPoint(x: 300, y: 150)),
+               "a click on another app's window away from the panel still dismisses it")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 0,
+                                                               panelWindowNumber: nil,
+                                                               panelFrame: nil,
+                                                               mouseLocation: CGPoint(x: 1100, y: 975)),
+               "without a panel window there is no self-click to protect")
+
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
         MenuPanelKeyTests.run(suite)
 
