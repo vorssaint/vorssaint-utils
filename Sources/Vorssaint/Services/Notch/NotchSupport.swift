@@ -2430,16 +2430,26 @@ struct NotchGeometry: Equatable {
         // Bare, a capsule is shorter than the gap between an activity's
         // wings, closer to the phone's proportions, and on whole points,
         // as the window around it is.
-        guard floats else { return CGSize(width: cameraWidth, height: cameraHeight) }
+        guard floats else {
+            return CGSize(width: cameraWidth + outlineShoulders(height: cameraHeight), height: cameraHeight)
+        }
         let shoulders = NotchLayout.shoulder(height: stripHeight) * 2
         let capsule = max(NotchLayout.capsuleRestingAspect * stripBodyHeight + capsuleWidthFit, stripBodyHeight * 2)
         return CGSize(width: min(cameraWidth, (capsule + shoulders).rounded()), height: cameraHeight)
     }
+    /// The silhouette draws its straight sides inside the flares at its top
+    /// corners. An outlined island no wider than the camera would put its
+    /// line behind the housing, so it takes their width as well, on whole
+    /// points. Without an outline the sides stay behind the housing, black
+    /// on black, as the cutout's own do.
+    private func outlineShoulders(height: CGFloat) -> CGFloat {
+        outlineRoom > 0 ? (NotchLayout.shoulder(height: height) * 2).rounded(.up) : 0
+    }
     /// Full screen and the Lock Screen remove outline clearance while keeping
     /// the chosen menu-bar coverage and manual fit.
     var bareCutout: CGSize {
-        let resting = restingSize(showsContent: false)
-        return CGSize(width: max(0, resting.width - outlineRoom * 2), height: max(0, resting.height - outlineRoom))
+        guard !floats else { return restingSize(showsContent: false) }
+        return CGSize(width: max(0, cameraWidth - outlineRoom * 2), height: max(0, cameraHeight - outlineRoom))
     }
     /// Music remains one row high, with the physical camera between its wings.
     /// Insufficient menu space hides the wings instead of growing below the camera.
@@ -2593,7 +2603,8 @@ struct NotchGeometry: Equatable {
     var compactActivityCameraGap: CGFloat { compactActivityUsesFooter ? 0 : musicCameraGap }
     var compactActivitySize: CGSize {
         compactActivityUsesFooter
-            ? CGSize(width: cameraWidth, height: compactActivityTopPadding + compactActivityContentHeight)
+            ? CGSize(width: cameraWidth + outlineShoulders(height: compactActivityTopPadding + compactActivityContentHeight),
+                     height: compactActivityTopPadding + compactActivityContentHeight)
             : musicStrip
     }
     var compactActivityWingWidth: CGFloat {
