@@ -207,6 +207,15 @@ enum SwitcherSearchLayoutTests {
         suite.expect(bounds.contains(search) && search.width > 0
                      && abs(search.height - SwitcherSearchLayout.chipHeight) < 0.5,
                      "\(name): the entire search surface fits inside the panel")
+        suite.expect(abs(search.minY - SwitcherSearchLayout.edgeInset) < 0.5,
+                     "\(name): the chip keeps its inset under the panel's top edge (\(search))")
+        // The grid draws a backdrop around the header, so its chip holds the
+        // panel edge; the transparent icon-row panel only shows the preview
+        // card, so the chip has to stop where that card does.
+        let panelInset = model.usesIconRowLayout && !model.windows.isEmpty
+            ? SwitcherIconRowLayout.padding : SwitcherSearchLayout.edgeInset
+        suite.expect(abs((size.width - search.maxX) - panelInset) < 0.5,
+                     "\(name): the chip lines up with the visible panel edge (\(search))")
         suite.expect(content.minY - search.maxY >= SwitcherSearchLayout.contentGap - 0.5,
                      "\(name): the search surface leaves a gap above previews (\(search), \(content))")
         suite.expect(measurements.searchContrast == .high,
