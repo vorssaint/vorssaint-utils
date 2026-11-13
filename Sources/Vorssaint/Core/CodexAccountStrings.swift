@@ -125,6 +125,25 @@ extension FeatureStrings {
             signIn: "Inicia sesión con ChatGPT en esta carpeta de Codex.",
             update: "Actualiza Codex para consultar los límites.",
             failed: "No se pudieron consultar los límites. Inténtalo de nuevo.")
+        case .ca: return CodexAccountStrings(
+            title: "Comptes del Codex",
+            explanation: "Cada carpeta CODEX_HOME que afegeixis té la seva pròpia targeta de límits. Mentre la pàgina “Agents d’IA” està oberta, el Codex comprova cadascuna aproximadament cada cinc minuts amb l’inici de sessió d’aquella carpeta. No s’envia cap instrucció.",
+            accountName: "Nom del compte",
+            remove: "Elimina la targeta d’aquest compte",
+            find: "Cerca comptes locals",
+            add: "Afegeix una carpeta…",
+            check: "Comprova els límits",
+            fallback: "Sense comptes afegits, els límits del Codex provenen de les sessions locals.",
+            resetsNote: "La targeta “Restabliments” continua pertanyent al compte per omissió del Codex.",
+            chooseFolder: "Tria una carpeta del Codex",
+            invalidFolder: "Tria una carpeta CODEX_HOME independent que contingui config.toml o auth.json. La carpeta ha de ser teva i ningú més no hi ha de poder escriure; auth.json ha de ser privat i no pot ser un enllaç. El Codex hi pot renovar el seu propi inici de sessió i la memòria cau.",
+            folderProblem: "Torna a triar la carpeta d’aquest compte a Configuració.",
+            defaultName: "Per omissió",
+            defaultAccount: "Compte per omissió",
+            refreshHint: "Actualitza per comprovar els límits d’aquest compte.",
+            signIn: "Inicia la sessió amb el ChatGPT en aquesta carpeta del Codex.",
+            update: "Actualitza el Codex per comprovar els límits.",
+            failed: "No s’han pogut comprovar els límits. Torna-ho a provar.")
         case .sk: return CodexAccountStrings(
             title: "Účty Codex",
             explanation: "Každý pridaný priečinok CODEX_HOME má vlastnú kartu limitov. Kým je otvorená stránka AI agenti, Codex kontroluje každý z nich približne raz za päť minút s prihlásením daného priečinka. Neposiela sa žiadny prompt.",
