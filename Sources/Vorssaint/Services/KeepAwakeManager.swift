@@ -413,8 +413,14 @@ final class KeepAwakeManager: ObservableObject {
     }
 
     private func syncScreenLockMonitoring() {
+        let defaults = UserDefaults.standard
         let enabled = AppFeature.keepAwake.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked)
+            && KeepAwakeAutomationSupport.needsScreenLockMonitoring(
+                pauseWhenLocked: defaults.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked),
+                allowDisplaySleep: defaults.bool(forKey: DefaultsKey.keepAwakeAllowDisplaySleep),
+                displaySleepOnlyWhenLocked: defaults.bool(
+                    forKey: DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked)
+            )
         let center = DistributedNotificationCenter.default()
 
         if enabled {
@@ -446,6 +452,9 @@ final class KeepAwakeManager: ObservableObject {
         guard screenLocked != locked else { return }
         screenLocked = locked
         syncSessionWithScreenLock()
+        // Display sleep limited to the lock follows the lock while the
+        // session keeps running; a paused session holds no assertions.
+        if isActive, !sessionPausedForScreenLock { applyAssertions() }
         evaluateAutomation()
     }
 
@@ -736,8 +745,11 @@ final class KeepAwakeManager: ObservableObject {
                 hasSystemAssertion = true
             }
         }
-        let allowDisplaySleep = UserDefaults.standard.bool(
-            forKey: DefaultsKey.keepAwakeAllowDisplaySleep
+        let allowDisplaySleep = KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeAllowDisplaySleep),
+            onlyWhenLocked: UserDefaults.standard.bool(
+                forKey: DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked),
+            screenLocked: screenLocked
         )
         if allowDisplaySleep, hasDisplayAssertion {
             IOPMAssertionRelease(displayAssertion)

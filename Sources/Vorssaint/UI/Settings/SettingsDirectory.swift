@@ -24,7 +24,8 @@ struct SettingsSearchState: Equatable {
         groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
             ?? WindowSwitchMinimizedPlacement.normal.rawValue) != WindowSwitchMinimizedPlacement.normal.rawValue
         switches = Set([
-            DefaultsKey.clamshellPreferred, DefaultsKey.keepAwakeMouseJiggleEnabled, DefaultsKey.brightnessControlEnabled,
+            DefaultsKey.clamshellPreferred, DefaultsKey.keepAwakeMouseJiggleEnabled,
+            DefaultsKey.keepAwakeAllowDisplaySleep, DefaultsKey.brightnessControlEnabled,
             DefaultsKey.displayVolumeEnabled, DefaultsKey.displayVolumeKeysEnabled,
             DefaultsKey.bluetoothSleepEnabled, DefaultsKey.dockPreviewEnabled, DefaultsKey.switcherSimpleMode,
             DefaultsKey.switcherIconRowMode, DefaultsKey.notchLyricsEnabled, DefaultsKey.notchShelf,
@@ -359,6 +360,9 @@ enum SettingsDirectory {
                                               when: state.on(DefaultsKey.clamshellPreferred)),
                                         .init([s.keepAwakeMouseJiggleInterval], feature: .keepAwake,
                                               when: state.on(DefaultsKey.keepAwakeMouseJiggleEnabled)),
+                                        .init([FeatureStrings.keepAwakeDisplaySleep(language).onlyWhileLocked],
+                                              feature: .keepAwake,
+                                              when: state.on(DefaultsKey.keepAwakeAllowDisplaySleep)),
                                         .init([s.batteryDisableBelow], feature: .keepAwake, when: state.hardware.battery),
                                         .init([brightness.keyStep, brightness.keyStepHalf, brightness.keyStepQuarter,
                                                brightness.keysToggle, brightness.displayBrightnessShortcuts, brightness.volumeToggle],
