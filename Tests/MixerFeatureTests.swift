@@ -36,6 +36,15 @@ enum MixerFeatureTests {
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 0.456) == 46, "a volume shows as a rounded percent")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 2) == 200, "a boosted volume shows above 100%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .infinity) == 0, "infinity shows as 0% instead of trapping")
+        suite.expect(MixerRoutingSupport.speakerWaves(volume: 0.5, maximum: 2) == 1
+                     && MixerRoutingSupport.speakerWaves(volume: 1, maximum: 2) == 2
+                     && MixerRoutingSupport.speakerWaves(volume: 1.5, maximum: 2) == 3
+                     && MixerRoutingSupport.speakerWaves(volume: 0.9, maximum: 1) == 3
+                     && MixerRoutingSupport.speakerWaves(volume: .nan, maximum: 2) == 1,
+                     "a fader's level falls in the third of the fader it reaches")
+        func waves(_ third: Int) -> [Double] { (1...3).map { MixerRoutingSupport.speakerWaveOpacity($0, third: third) } }
+        suite.expect(waves(1) == [1, 0.4, 0] && waves(2) == [1, 1, 0] && waves(3) == [1, 1, 1],
+                     "the lowest third dims the second wave, the middle shows two and only the top shows a third")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: -.infinity) == 0, "negative infinity shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: .nan) == 0, "NaN shows as 0%")
         suite.expect(MixerRoutingSupport.displayPercent(forVolume: 1e300) == 100_000, "a huge finite volume cannot overflow")
