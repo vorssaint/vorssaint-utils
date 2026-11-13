@@ -1582,6 +1582,7 @@ def main():
               "    var stripNotice:", "    private var noticeCanPresent:", "    var acceptsUserInteraction:",
               "    var acceptsSystemFeedback:", "    func activateNotice(",
               "    private func applyMenuSpace(",
+              "    private func applyEffectiveMenuSpace(",
               "    private var screenEdgeClickArea:", "    private func syncScreenEdgeClicks(",
               "    private func handleScreenEdgeEvent(", "    private func handleScreenEdgeClick(",
               "    private func removeScreenEdgeClickMonitors("])
@@ -1681,6 +1682,7 @@ def main():
           + declaration(notch, "    func refreshPresentation(")
               .replace("NotchSupport.coversMenus()", "UserDefaults.standard.coversMenus")
           + declaration(notch, "    private func applyMenuSpace(").replace("private func", "func", 1)
+          + declaration(notch, "    private func applyEffectiveMenuSpace(").replace("private func", "func", 1)
           + declaration(notch, "    func presentCapture(")
               .replace("content: AnyView, actions: AnyView? = nil", "content: Bool, actions: Bool? = nil")
               .replace("NotchSupport.routes(.capture)", "routesCaptures")

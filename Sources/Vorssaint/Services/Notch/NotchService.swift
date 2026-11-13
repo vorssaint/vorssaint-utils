@@ -288,6 +288,9 @@ final class NotchService: ObservableObject {
     private var ownInputSourceID: String?
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
+    /// The CG-only check that keeps an idle island off status items between
+    /// the slower AX measurements.
+    private var statusItemOverlapTimer: Timer?
     private var appFullscreenTimer: Timer?
     private var appFullscreenDisplays: Set<CGDirectDisplayID> = []
     /// Whether a full-screen Space, not an app's own full screen, hides the island.
@@ -296,6 +299,14 @@ final class NotchService: ObservableObject {
     private var revealingFromAppFullscreen = false
     private var menuSpaceReading = false
     private var menuSpaceGeneration = 0
+    /// The last room a measurement, or the cover-menus fallback, asked for,
+    /// before a status item overlap temporarily hides the island.
+    private var menuSpaceRoom: CGFloat?
+    private var statusItemOverlap = false
+    /// The footprint that was occupied when the overlap began. The island
+    /// shrinks once hidden, so clearing against its new size would flip back
+    /// and forth while the item stays put.
+    private var statusItemOverlapHold: CGRect?
     private var menuBarMeasurements = NotchMenuBarMeasurements()
     private var screenRefreshWork: DispatchWorkItem?
     private var preferenceSyncWork: DispatchWorkItem?
@@ -3454,10 +3465,21 @@ final class NotchService: ObservableObject {
         screenEdgePress = nil
     }
 
-    private func stopMenuSpaceMonitoring() {
+    private func stopMenuSpaceTimer() {
         menuSpaceTimer?.invalidate()
         menuSpaceTimer = nil
         menuSpaceGeneration += 1
+    }
+
+    private func stopStatusItemOverlapMonitoring() {
+        statusItemOverlapTimer?.invalidate()
+        statusItemOverlapTimer = nil
+        statusItemOverlapHold = nil
+    }
+
+    private func stopMenuSpaceMonitoring() {
+        stopMenuSpaceTimer()
+        stopStatusItemOverlapMonitoring()
     }
 
     /// Displays that share Spaces show the menu bar on the main one only.
@@ -3467,25 +3489,19 @@ final class NotchService: ObservableObject {
 
     private func syncMenuSpaceMonitoring() {
         guard !hiddenInFullscreen else { stopMenuSpaceMonitoring(); return }
-        // The explicit cover-menus choice also keeps a simulated island at
-        // rest. Otherwise its visibility follows AX menu measurements, which
-        // can change just because focus moves to another app or display.
+        // The cover-menus choice is about compact activity (a timer, music, …).
+        // An idle island has nothing to keep on screen, so it must not sit on
+        // top of menu bar items that the user is trying to click.
         // A display without a menu bar, beside the main one when displays
         // share Spaces, has no menus to leave room for either.
-        if running, !suspended, NotchSupport.coversMenus() || !displayHasMenuBar {
+        let coversMenusForActivity = NotchSupport.coversMenus() && compactActivity != nil
+        if running, !suspended, coversMenusForActivity || !displayHasMenuBar {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
+            resetStatusItemOverlap()
             applyMenuSpace(NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                        barHeight: geometry.menuBarHeight, occupied: []))
-            return
-        }
-        guard AXIsProcessTrusted() else {
-            stopMenuSpaceMonitoring()
-            if geometry.compactSideRoom != nil {
-                geometry.compactSideRoom = nil
-                refreshPresentation(animated: false)
-            }
             return
         }
         // An island hidden until it shows activity measures on, to have its
@@ -3494,6 +3510,36 @@ final class NotchService: ObservableObject {
             && !expanded && captureControls == nil
             && (idleContent != .none || compactActivity != nil || !geometry.isNotched || mascotWantsRoom)
         guard wanted else { stopMenuSpaceMonitoring(); return }
+
+        // The AX measurement is the precise one, but it runs once a second.
+        // A status item can move into the island — Ice expanding its hidden
+        // section, for example — and be clicked before the next read. The
+        // CG-only check below closes that gap; it needs no AX permission.
+        if compactActivity == nil, restingMenuSpaceFrame != nil {
+            startStatusItemOverlapMonitoring()
+        } else {
+            stopStatusItemOverlapMonitoring()
+            clearStatusItemOverlap()
+        }
+
+        guard AXIsProcessTrusted() else {
+            stopMenuSpaceTimer()
+            if NotchSupport.coversMenus() {
+                // Keep the room an empty bar leaves. The fast check still
+                // hides the island while a status item reaches it.
+                if menuSpaceRoom == nil {
+                    menuSpaceRoom = NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
+                                                                barHeight: geometry.menuBarHeight, occupied: [])
+                }
+                if !statusItemOverlap, geometry.compactSideRoom == nil, let room = menuSpaceRoom {
+                    applyEffectiveMenuSpace(room)
+                }
+            } else if geometry.compactSideRoom != nil {
+                geometry.compactSideRoom = nil
+                refreshPresentation(animated: false)
+            }
+            return
+        }
         guard menuSpaceTimer == nil else { return }
         let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.readMenuSpace() }
         timer.tolerance = 0.2
@@ -3555,6 +3601,11 @@ final class NotchService: ObservableObject {
     }
 
     private func applyMenuSpace(_ room: CGFloat?) {
+        menuSpaceRoom = room
+        applyEffectiveMenuSpace(statusItemOverlap ? nil : room)
+    }
+
+    private func applyEffectiveMenuSpace(_ room: CGFloat?) {
         guard geometry.compactSideRoom != room else { return }
         let previousSize = surfaceSize
         let grows = (room ?? 0) > (geometry.compactSideRoom ?? 0)
@@ -3563,6 +3614,86 @@ final class NotchService: ObservableObject {
         if previousSize != surfaceSize || panel?.isVisible != true || room == nil {
             refreshPresentation(animated: grows)
         } else { syncScreenEdgeClicks() }
+    }
+
+    // MARK: - Status Item Overlap
+
+    /// The island's clickable footprint while it rests, or nil when it is
+    /// open, peeking, or showing something that must not be yanked away.
+    private var restingMenuSpaceFrame: CGRect? {
+        guard !expanded, !peeking, !showsCompactActivityPicker, notice == nil,
+              captureControls == nil, !dragPlaceholder, !fullscreenCompact,
+              compactActivity == nil else { return nil }
+        if let panel, panel.isVisible, panel.frame.width > 0, panel.frame.height > 0 {
+            return panel.frame
+        }
+        let size = surfaceSize
+        guard size.width > 0, size.height > 0 else { return nil }
+        return geometry.frame(for: size)
+    }
+
+    private func startStatusItemOverlapMonitoring() {
+        guard statusItemOverlapTimer == nil else { return }
+        // Fast enough to react after a menu bar manager expands its section
+        // and before the user reaches the item it just revealed.
+        let timer = Timer(timeInterval: 0.15, repeats: true) { [weak self] _ in
+            self?.readStatusItemOverlap()
+        }
+        timer.tolerance = 0.05
+        statusItemOverlapTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+        readStatusItemOverlap()
+    }
+
+    private func readStatusItemOverlap() {
+        guard statusItemOverlapTimer != nil else { return }
+        guard let live = restingMenuSpaceFrame else {
+            clearStatusItemOverlap()
+            return
+        }
+        // Latch the footprint that was blocked. Once hidden the island is
+        // narrower, and checking only the new frame would uncover it while
+        // the item is still there.
+        let frame = statusItemOverlapHold ?? live
+        let overlapping = NotchMenuBarSpace.statusItemOverlaps(
+            frame,
+            screen: geometry.screen,
+            barHeight: geometry.menuBarHeight,
+            primaryTop: NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY,
+            ownWindow: panel?.windowNumber ?? -1)
+        if overlapping {
+            if statusItemOverlapHold == nil {
+                statusItemOverlapHold = frame.insetBy(dx: -8, dy: 0)
+            }
+            setStatusItemOverlap(true)
+        } else {
+            statusItemOverlapHold = nil
+            setStatusItemOverlap(false)
+        }
+    }
+
+    private func setStatusItemOverlap(_ overlapping: Bool) {
+        guard statusItemOverlap != overlapping else { return }
+        statusItemOverlap = overlapping
+        if overlapping {
+            applyEffectiveMenuSpace(nil)
+            return
+        }
+        applyEffectiveMenuSpace(menuSpaceRoom)
+        // The measurement that ran while the item was there may describe a
+        // bar with no room left. Refresh it now that the item is gone.
+        readMenuSpace()
+    }
+
+    private func resetStatusItemOverlap() {
+        statusItemOverlap = false
+        statusItemOverlapHold = nil
+    }
+
+    private func clearStatusItemOverlap() {
+        guard statusItemOverlap else { return }
+        resetStatusItemOverlap()
+        applyEffectiveMenuSpace(menuSpaceRoom)
     }
 
     /// Only a laptop reports its lid, and only a laptop can lose its

@@ -3170,6 +3170,22 @@ enum NotchMenuBarLayout {
                         occupied: menuItems + statusItems)
     }
 
+    /// A status item window that can take a click. A menu bar manager parks
+    /// its hidden section in one window as wide as the bar (Ice uses 10,000
+    /// points); that window is transparent, not a target, and would otherwise
+    /// look like it covers every island.
+    static func isClickableStatusItem(width: CGFloat, height: CGFloat, alpha: Double,
+                                      screen: CGRect, barHeight: CGFloat) -> Bool {
+        alpha > 0 && width > 0 && width < screen.width - 2
+            && height > 0 && height <= barHeight + 2
+    }
+
+    /// Whether any of `statusItems` covers `frame`.
+    static func statusItemOverlaps(_ frame: CGRect, statusItems: [CGRect]) -> Bool {
+        guard frame.width > 0, frame.height > 0 else { return false }
+        return statusItems.contains { $0.intersects(frame) }
+    }
+
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
                          occupied: [CGRect]) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
