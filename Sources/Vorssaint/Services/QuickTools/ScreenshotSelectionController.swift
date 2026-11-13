@@ -76,6 +76,9 @@ final class ScreenshotSelectionController {
         !finished && !sourceRefreshPending
     }
     fileprivate let requiresDraggedRegion: Bool
+    /// The window shortcut's surface: a click picks the window under the
+    /// pointer, and a drag draws nothing.
+    fileprivate let windowOnly: Bool
     private var finished = false
     /// Read by the overlays so a late event finds a session that is over.
     fileprivate var isOver: Bool { finished }
@@ -105,7 +108,7 @@ final class ScreenshotSelectionController {
         supportsScrollingCapture && (activeTool == .screenshot || activeTool == .scrolling)
     }
     fileprivate var offersFullScreenCapture: Bool {
-        acceptsCaptureInput && activeMode == .image
+        acceptsCaptureInput && activeMode == .image && !windowOnly
             && ScreenshotSupport.fullScreenCaptureControlIsAvailable(
                 selectedTool: activeTool,
                 standaloneScreenshot: screenCaptureOptions == nil,
@@ -125,7 +128,7 @@ final class ScreenshotSelectionController {
         return panels.first { $0.displayID == last.displayID }
     }
     fileprivate var offersRepeatLastRegion: Bool {
-        ScreenshotSupport.offersRepeatLastRegion(
+        !windowOnly && ScreenshotSupport.offersRepeatLastRegion(
             isPickingColor: isPickingColor,
             storedRegionDisplayIsAvailable: repeatTargetPanel != nil)
     }
@@ -185,6 +188,7 @@ final class ScreenshotSelectionController {
          mode: Mode = .image,
          supportsScrollingCapture: Bool = false,
          requiresDraggedRegion: Bool = false,
+         windowOnly: Bool = false,
          screenCaptureOptions: ScreenCaptureSelectionOptions? = nil) {
         self.freeze = freeze
         self.includePointer = includePointer
@@ -195,6 +199,7 @@ final class ScreenshotSelectionController {
         self.baseMode = mode
         self.supportsScrollingCapture = supportsScrollingCapture
         self.requiresDraggedRegion = requiresDraggedRegion
+        self.windowOnly = windowOnly
         self.screenCaptureOptions = screenCaptureOptions
         self.scrollingCaptureEnabled = screenCaptureOptions?.selectedTool == .scrolling
         let defaults = UserDefaults.standard
@@ -627,7 +632,7 @@ final class ScreenshotSelectionController {
             let point = CGPoint(x: location.x - panel.screenFrame.minX,
                                 y: panel.screenFrame.maxY - location.y)
             confirmColor(at: point, on: panel)
-        } else if acceptsWindowClick {
+        } else if acceptsWindowClick, !windowOnly {
             captureFullDisplayUnderMouse()
         }
     }
@@ -1127,6 +1132,7 @@ private final class ScreenshotOverlayView: NSView {
             offersScrollingCapture: controller.offersScrollingCapture,
             offersRepeatLastRegion: controller.offersRepeatLastRegion,
             requiresDraggedRegion: controller.requiresDraggedRegion,
+            windowOnly: controller.windowOnly,
             scrollingCaptureEnabled: controller.scrollingCaptureEnabled,
             loupeEnabled: controller.loupeEnabled,
             screenCaptureOptions: screenCaptureOptions))
@@ -1245,6 +1251,7 @@ private final class ScreenshotOverlayView: NSView {
             offersScrollingCapture: controller?.offersScrollingCapture ?? false,
             offersRepeatLastRegion: controller?.offersRepeatLastRegion ?? false,
             requiresDraggedRegion: controller?.requiresDraggedRegion ?? false,
+            windowOnly: controller?.windowOnly ?? false,
             scrollingCaptureEnabled: controller?.scrollingCaptureEnabled ?? false,
             loupeEnabled: controller?.loupeEnabled ?? false,
             screenCaptureOptions: screenCaptureOptions)
@@ -1339,6 +1346,11 @@ private final class ScreenshotOverlayView: NSView {
             needsDisplay = true
             return
         }
+        if controller.windowOnly {
+            updatePointerHover(point)
+            needsDisplay = true
+            return
+        }
         if controller.spaceIsDown, selection.width > 0 {
             // Space pans the selection instead of resizing it.
             let delta = CGPoint(x: point.x - lastDragPoint.x, y: point.y - lastDragPoint.y)
@@ -1370,7 +1382,8 @@ private final class ScreenshotOverlayView: NSView {
             return
         }
 
-        let clicked = ScreenshotSupport.isClick(from: origin, to: point)
+        // A window-only surface draws no area, so any release picks the window.
+        let clicked = controller.windowOnly || ScreenshotSupport.isClick(from: origin, to: point)
         if clicked {
             if controller.acceptsWindowClick,
                let target = ScreenshotSupport.window(at: point, in: windows) {
@@ -1438,7 +1451,8 @@ private final class ScreenshotOverlayView: NSView {
     private func updatePointerHover(_ point: CGPoint) {
         pointerIsInside = true
         hoverPoint = point
-        hoveredWindow = highlightWindows && controller?.acceptsWindowClick == true
+        hoveredWindow = (highlightWindows || controller?.windowOnly == true)
+                && controller?.acceptsWindowClick == true
                 && !pointerIsOverFullScreenControl(point)
             ? ScreenshotSupport.window(at: point, in: windows)
             : nil
@@ -1489,7 +1503,7 @@ private final class ScreenshotOverlayView: NSView {
                                    transform: nil))
             context.fillPath(using: .evenOdd)
             drawSelectionChrome(context, pixelScale: panel.pixelScale)
-        } else if dragOrigin == nil, hoveredWindow != nil {
+        } else if dragOrigin == nil || controller.windowOnly, hoveredWindow != nil {
             if let hovered = hoveredWindow {
                 context.beginPath()
                 context.addRect(bounds)
@@ -1913,6 +1927,7 @@ private struct CaptureGuideView: View {
     let offersScrollingCapture: Bool
     let offersRepeatLastRegion: Bool
     let requiresDraggedRegion: Bool
+    let windowOnly: Bool
     let scrollingCaptureEnabled: Bool
     let loupeEnabled: Bool
     let screenCaptureOptions: ScreenCaptureSelectionOptions?
@@ -1944,14 +1959,16 @@ private struct CaptureGuideView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
-                Text(subtitle)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
             Spacer(minLength: 8)
             HStack(spacing: 7) {
-                if !requiresDraggedRegion && !scrollingCaptureEnabled {
+                if !requiresDraggedRegion && !windowOnly && !scrollingCaptureEnabled {
                     CaptureKeyHint(key: "↩", icon: "rectangle.inset.filled")
                 }
                 if offersScrollingCapture {
@@ -1983,13 +2000,20 @@ private struct CaptureGuideView: View {
     }
 
     private var title: String {
-        guard let purpose, !purpose.isEmpty else { return strings.hintDrag }
+        guard let purpose, !purpose.isEmpty else {
+            return windowOnly ? strings.hintClick : strings.hintDrag
+        }
         return purpose
     }
 
+    /// A surface that takes one kind of target already names it in the
+    /// title, so it repeats the gesture only beneath a purpose.
     private var subtitle: String {
-        let base = requiresDraggedRegion || scrollingCaptureEnabled
+        let single = windowOnly ? strings.hintClick : strings.hintDrag
+        let base = scrollingCaptureEnabled
             ? strings.scrollingCaptureSelectionHint
+            : requiresDraggedRegion || windowOnly
+            ? (purpose?.isEmpty == false ? single : "")
             : purpose?.isEmpty == false
             ? strings.hintDrag + "  ·  " + strings.hintClick
             : strings.hintClick
