@@ -96,6 +96,10 @@ extension WeatherStrings {
         s.locationDenied = "無法取用位置資料"
         s.locationTimedOut = "位置資料回應逾時"
         s.locationInProgress = "正在尋找目前位置"
+        s.alertsTitle = "天氣警報"
+        s.alertsUSOnly = "僅限美國。由美國國家氣象局提供。"
+        s.alertsEnable = "顯示美國天氣警報"
+        s.alertsExpiresFormat = "截至 %@"
         return s
     }()
 }

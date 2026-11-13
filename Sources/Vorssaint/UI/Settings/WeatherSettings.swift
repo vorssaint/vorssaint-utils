@@ -17,6 +17,7 @@ struct WeatherSettings: View {
     @AppStorage(DefaultsKey.weatherMenuBarStyle) private var menuBarStyle =
         WeatherMenuBarStyle.symbolTemperature.rawValue
     @AppStorage(DefaultsKey.panelShowWeather) private var showInPanel = true
+    @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
 
     @State private var query = ""
     @State private var results: [WeatherLocation] = []
@@ -40,6 +41,7 @@ struct WeatherSettings: View {
                 unitsCard
                 menuBarCard
                 panelCard
+                alertsCard
                 dataCard
             }
             .frame(maxWidth: 760)
@@ -266,6 +268,25 @@ struct WeatherSettings: View {
                 Toggle(strings.showInPanel, isOn: $showInPanel)
                     .labelsHidden()
             }
+        }
+    }
+
+    /// The switch is always offered: the caption says where alerts come from,
+    /// so a place outside the US simply receives none.
+    private var alertsCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "exclamationmark.triangle", title: strings.alertsEnable) {
+                Toggle(strings.alertsEnable, isOn: $alertsEnabled)
+                    .labelsHidden()
+                    .onChange(of: alertsEnabled) { _, _ in
+                        WeatherAlertsService.shared.syncWithFeatures()
+                        weather.refresh(force: true)
+                    }
+            }
+            Text(strings.alertsUSOnly)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 

@@ -89,6 +89,10 @@ extension WeatherStrings {
         s.locationDenied = "Acceso a la ubicación no disponible"
         s.locationTimedOut = "La ubicación tardó demasiado en responder"
         s.locationInProgress = "Ya se está buscando la ubicación actual"
+        s.alertsTitle = "Avisos meteorológicos"
+        s.alertsUSOnly = "Solo EE. UU. Proporcionado por el National Weather Service."
+        s.alertsEnable = "Mostrar avisos meteorológicos de EE. UU."
+        s.alertsExpiresFormat = "Hasta %@"
         return s
     }()
 }

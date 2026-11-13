@@ -108,6 +108,10 @@ struct WeatherStrings {
     var locationDenied = "Location access is not available"
     var locationTimedOut = "Location took too long to respond"
     var locationInProgress = "Finding the current location is already in progress"
+    var alertsTitle = "Weather alerts"
+    var alertsUSOnly = "US only. Provided by the National Weather Service."
+    var alertsEnable = "Show US weather alerts"
+    var alertsExpiresFormat = "Until %@"
 
     func name(for condition: WeatherCondition) -> String {
         switch condition {

@@ -8,7 +8,9 @@ import SwiftUI
 struct WeatherNotchView: View {
     let size: CGSize
     @ObservedObject private var weather = WeatherService.shared
+    @ObservedObject private var alerts = WeatherAlertsService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
     @Environment(\.notchSettingsPreview) private var preview
     @State private var resolvingLocation = false
     @State private var locationError: String?
@@ -111,6 +113,9 @@ struct WeatherNotchView: View {
             VStack(alignment: .leading, spacing: 10) {
                 if weather.state.isStale { staleNotice }
                 hero(snapshot)
+                if alertsEnabled, let alert = alerts.alerts.first {
+                    WeatherAlertBanner(alert: alert, strings: text, locale: locale, compact: true)
+                }
                 if !hourly.isEmpty {
                     hourlyStrip(hourly, formatter: hourFormatter,
                                 timeZoneIdentifier: snapshot.timezoneIdentifier,

@@ -89,6 +89,10 @@ extension WeatherStrings {
         s.locationDenied = "Доступ к геопозиции недоступен"
         s.locationTimedOut = "Не удалось вовремя определить место"
         s.locationInProgress = "Текущее место уже определяется"
+        s.alertsTitle = "Погодные предупреждения"
+        s.alertsUSOnly = "Только для США. Предоставлено Национальной метеорологической службой США."
+        s.alertsEnable = "Показывать погодные предупреждения США"
+        s.alertsExpiresFormat = "До %@"
         return s
     }()
 }

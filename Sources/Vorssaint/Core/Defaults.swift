@@ -529,6 +529,7 @@ enum DefaultsKey {
     static let weatherPressureUnit = "weatherPressureUnit"         // hPa | inHg
     static let weatherDistanceUnit = "weatherDistanceUnit"         // km | mi
     static let weatherMenuBarStyle = "weatherMenuBarStyle"         // symbolOnly | temperatureOnly | symbolTemperature | highLow | precipitationChance
+    static let weatherAlertsEnabled = "weatherAlertsEnabled"
     static let menuBarWeather = "menuBarWeather"
     static let panelShowWeather = "panelShowWeather"
     // Menu panel layout — the order the major sections appear in and which are
@@ -1817,6 +1818,7 @@ enum Defaults {
         DefaultsKey.weatherPressureUnit: WeatherUnitPreferences.localeDefault.pressure.rawValue,
         DefaultsKey.weatherDistanceUnit: WeatherUnitPreferences.localeDefault.distance.rawValue,
         DefaultsKey.weatherMenuBarStyle: WeatherMenuBarStyle.symbolTemperature.rawValue,
+        DefaultsKey.weatherAlertsEnabled: false,
         DefaultsKey.menuBarWeather: false,
         DefaultsKey.panelShowWeather: true,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,

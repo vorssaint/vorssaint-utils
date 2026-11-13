@@ -89,6 +89,10 @@ extension WeatherStrings {
         s.locationDenied = "Konum erişimi kullanılamıyor"
         s.locationTimedOut = "Konum yanıt vermekte gecikti"
         s.locationInProgress = "Mevcut konum zaten aranıyor"
+        s.alertsTitle = "Hava uyarıları"
+        s.alertsUSOnly = "Yalnızca ABD. National Weather Service tarafından sağlanır."
+        s.alertsEnable = "ABD hava uyarılarını göster"
+        s.alertsExpiresFormat = "%@ tarihine kadar"
         return s
     }()
 }

@@ -96,6 +96,10 @@ extension WeatherStrings {
         s.locationDenied = "位置情報にアクセスできません"
         s.locationTimedOut = "位置情報の取得がタイムアウトしました"
         s.locationInProgress = "現在地を取得中です"
+        s.alertsTitle = "気象警報"
+        s.alertsUSOnly = "米国のみ。米国国立気象局が提供します。"
+        s.alertsEnable = "米国の気象警報を表示"
+        s.alertsExpiresFormat = "%@まで"
         return s
     }()
 }

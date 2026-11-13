@@ -406,6 +406,8 @@ enum SettingsDirectory {
                                                   weather.showInMenuBar, weather.menuBarStyle,
                                                   weather.showInPanel, weather.dataSourceTitle,
                                                   weather.refresh, weather.loading, weather.attribution,
+                                                  weather.alertsTitle, weather.alertsEnable,
+                                                  weather.alertsUSOnly,
                                                   s.temperatures, s.monitorIntervalLabel,
                                                   "temperature", "wind", "precipitation", "pressure",
                                                   "distance", "units", "celsius", "fahrenheit",

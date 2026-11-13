@@ -83,6 +83,7 @@ final class WeatherService: NSObject, ObservableObject {
     /// Called by `FeatureRuntime` when the feature is installed, uninstalled
     /// or the app launches. Nothing polls while the feature is off.
     func syncWithFeatures() {
+        WeatherAlertsService.shared.syncWithFeatures()
         guard isFeatureActive else {
             stopPolling()
             cancelRefresh()
@@ -90,11 +91,18 @@ final class WeatherService: NSObject, ObservableObject {
         }
         startPolling()
         refresh()
+        // A fresh cache skips the network forecast, but alerts still need a
+        // fetch on launch when their switch is on.
+        if let location = activeLocation {
+            Task { await WeatherAlertsService.shared.refresh(location: location) }
+        }
     }
 
     func stopPolling() {
         pollTimer?.invalidate()
         pollTimer = nil
+        // Alerts belong to the forecast's place and switch, so they leave with it.
+        WeatherAlertsService.shared.syncWithFeatures()
     }
 
     private var isFeatureActive: Bool {
@@ -164,6 +172,8 @@ final class WeatherService: NSObject, ObservableObject {
             do {
                 let snapshot = try await self.fetchSnapshot(for: location)
                 self.apply(snapshot, generation: generation)
+                guard generation == self.fetchGeneration else { return }
+                await self.refreshAlerts(for: location)
             } catch {
                 self.applyFailure(error, generation: generation)
             }
@@ -204,6 +214,13 @@ final class WeatherService: NSObject, ObservableObject {
         guard (200...299).contains(http.statusCode) else {
             throw WeatherServiceError.httpStatus(http.statusCode)
         }
+    }
+
+    /// Alerts follow a good forecast and only when their own switch is on.
+    /// Their service swallows every failure, so the forecast is never affected.
+    private func refreshAlerts(for location: WeatherLocation) async {
+        guard defaults.bool(forKey: DefaultsKey.weatherAlertsEnabled) else { return }
+        await WeatherAlertsService.shared.refresh(location: location)
     }
 
     private func apply(_ snapshot: WeatherSnapshot, generation: Int) {
@@ -299,6 +316,7 @@ final class WeatherService: NSObject, ObservableObject {
         if let cacheURL {
             try? FileManager.default.removeItem(at: cacheURL)
         }
+        Task { await WeatherAlertsService.shared.refresh(location: nil) }
     }
 
     func setUnitPreferences(_ preferences: WeatherUnitPreferences) {

@@ -9,6 +9,8 @@ import SwiftUI
 struct WeatherPanelSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var weather = WeatherService.shared
+    @ObservedObject private var alerts = WeatherAlertsService.shared
+    @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
     var collapsible = true
 
     private var strings: WeatherStrings { FeatureStrings.weather(l10n.language) }
@@ -91,6 +93,7 @@ struct WeatherPanelSection: View {
     private func loaded(_ snapshot: WeatherSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             hero(snapshot)
+            alertsSection
             Divider()
             hourly(snapshot)
             Divider()
@@ -101,6 +104,43 @@ struct WeatherPanelSection: View {
             daily(snapshot)
             attribution
         }
+    }
+
+    /// Only the highest-severity alert gets the banner; the next three stay as
+    /// compact lines so the rest of the card keeps its room.
+    @ViewBuilder
+    private var alertsSection: some View {
+        if alertsEnabled, let first = alerts.alerts.first {
+            VStack(alignment: .leading, spacing: 4) {
+                WeatherAlertBanner(alert: first, strings: strings, locale: locale)
+                ForEach(Array(alerts.alerts.dropFirst().prefix(3))) { alert in
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 8.5))
+                            .foregroundStyle(alert.severity.tint)
+                            .accessibilityHidden(true)
+                        Text(alert.event)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        if let expiry = alert.expires ?? alert.ends {
+                            Text(expiryLine(expiry))
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func expiryLine(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = locale
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return String(format: strings.alertsExpiresFormat, formatter.string(from: date))
     }
 
     private func hero(_ snapshot: WeatherSnapshot) -> some View {

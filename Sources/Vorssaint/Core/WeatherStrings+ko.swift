@@ -96,6 +96,10 @@ extension WeatherStrings {
         s.locationDenied = "위치 정보에 접근할 수 없습니다"
         s.locationTimedOut = "위치 정보 응답 시간이 초과되었습니다"
         s.locationInProgress = "현재 위치를 이미 찾는 중입니다"
+        s.alertsTitle = "기상 경보"
+        s.alertsUSOnly = "미국 전용. 미국 국립기상청에서 제공합니다."
+        s.alertsEnable = "미국 기상 경보 표시"
+        s.alertsExpiresFormat = "%@까지"
         return s
     }()
 }

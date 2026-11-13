@@ -27,6 +27,7 @@ enum WeatherTests {
         checkCache(suite, location: paris)
         checkFeatureGates(suite)
         checkMenuBarStyle(suite)
+        checkAlerts(suite)
     }
 
     // MARK: Conditions
@@ -537,5 +538,99 @@ enum WeatherTests {
         suite.expect(WeatherMenuBarReading(snapshot: forecast, preferences: .metric, defaults: defaults).style
                         == .symbolTemperature,
                      "an unknown stored style falls back to symbol and temperature")
+    }
+
+    // MARK: Alerts
+
+    private static func checkAlerts(_ suite: TestSuite) {
+        let url = WeatherAlertSupport.activeURL(latitude: 40.7128, longitude: -74.006)
+        let components = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        suite.expect(components?.host == "api.weather.gov" && components?.path == "/alerts/active",
+                     "the alert request goes to the NWS active alerts endpoint")
+        suite.expect(components?.queryItems == [URLQueryItem(name: "point",
+                                                             value: "40.71280,-74.00600")],
+                     "the alert request carries the point as latitude,longitude")
+
+        suite.expect(WeatherAlertSupport.isUSCoordinate(latitude: 40.7128, longitude: -74.006),
+                     "New York is in the United States")
+        suite.expect(WeatherAlertSupport.isUSCoordinate(latitude: 61.2181, longitude: -149.9003),
+                     "Anchorage is in the United States")
+        suite.expect(WeatherAlertSupport.isUSCoordinate(latitude: 21.3069, longitude: -157.8583),
+                     "Honolulu is in the United States")
+        suite.expect(WeatherAlertSupport.isUSCoordinate(latitude: 18.4655, longitude: -66.1057),
+                     "San Juan is in the United States")
+        suite.expect(!WeatherAlertSupport.isUSCoordinate(latitude: 48.8566, longitude: 2.3522)
+                        && !WeatherAlertSupport.isUSCoordinate(latitude: 51.5074, longitude: -0.1278)
+                        && !WeatherAlertSupport.isUSCoordinate(latitude: -33.8688, longitude: 151.2093),
+                     "places outside the United States are not asked for alerts")
+
+        let json = """
+        {"features": [
+          {"id": "https://api.weather.gov/alerts/urn:oid:1",
+           "properties": {"id": "urn:oid:1", "event": "Flood Warning", "severity": "Severe",
+                          "headline": "Flooding expected", "description": "Heavy rain.",
+                          "instruction": "Move to higher ground.",
+                          "onset": "2026-11-13T08:00:00-05:00",
+                          "ends": "2026-11-13T18:00:00-05:00",
+                          "expires": "2026-11-13T20:00:00-05:00",
+                          "areaDesc": "New York"}},
+          {"properties": {"id": "urn:oid:2", "event": "Wind Advisory",
+                          "headline": "Gusts", "severity": "Weird",
+                          "description": "Windy.", "areaDesc": "Brooklyn"}},
+          {"properties": {"id": "urn:oid:3", "event": "Heat", "severity": "Minor",
+                          "description": "Hot."}}
+        ]}
+        """.data(using: .utf8)!
+        let alerts = WeatherAlertSupport.decodeAlerts(json)
+        suite.expect(alerts.count == 3, "only features without an id or event are skipped")
+        if alerts.count == 3 {
+            let first = alerts[0]
+            suite.expect(first.id == "urn:oid:1" && first.event == "Flood Warning"
+                            && first.severity == .severe
+                            && first.headline == "Flooding expected"
+                            && first.description == "Heavy rain."
+                            && first.instruction == "Move to higher ground."
+                            && first.area == "New York"
+                            && first.url == URL(string: "https://api.weather.gov/alerts/urn:oid:1"),
+                         "a full alert decodes every field the banner reads")
+            let iso = ISO8601DateFormatter()
+            suite.expect(first.onset == iso.date(from: "2026-11-13T08:00:00-05:00")
+                            && first.ends == iso.date(from: "2026-11-13T18:00:00-05:00")
+                            && first.expires == iso.date(from: "2026-11-13T20:00:00-05:00"),
+                         "alert times decode as ISO 8601")
+            let second = alerts[1]
+            suite.expect(second.severity == .unknown && second.instruction == nil
+                            && second.onset == nil && second.expires == nil
+                            && second.url == nil,
+                         "missing fields stay empty and an unknown severity ranks last")
+            let third = alerts[2]
+            suite.expect(third.headline == "Heat" && third.severity == .minor,
+                         "a missing headline falls back to the event")
+        }
+        suite.expect(WeatherAlertSupport.decodeAlerts(Data("{".utf8)).isEmpty
+                        && WeatherAlertSupport.decodeAlerts(Data("{}".utf8)).isEmpty,
+                     "an unreadable or empty reply yields no alerts")
+
+        let severityOrder: [WeatherAlertSeverity] = [.extreme, .severe, .moderate, .minor, .unknown]
+        suite.expect(zip(severityOrder, severityOrder.dropFirst()).allSatisfy { $0 > $1 },
+                     "severity ranks Extreme above Severe above Moderate above Minor above Unknown")
+
+        func alert(_ id: String, _ severity: WeatherAlertSeverity,
+                   onset: Date?) -> WeatherAlert {
+            WeatherAlert(id: id, event: id, severity: severity, headline: id, description: "",
+                         instruction: nil, onset: onset, ends: nil, expires: nil, area: "",
+                         url: nil)
+        }
+        let moment = Date(timeIntervalSince1970: 1_700_000_000)
+        let sorted = WeatherAlertSupport.sorted([
+            alert("minor", .minor, onset: moment),
+            alert("unknown", .unknown, onset: nil),
+            alert("severe-late", .severe, onset: moment.addingTimeInterval(3600)),
+            alert("severe-early", .severe, onset: moment),
+            alert("moderate-no-onset", .moderate, onset: nil),
+        ])
+        suite.expect(sorted.map(\.id) == ["severe-early", "severe-late", "moderate-no-onset",
+                                          "minor", "unknown"],
+                     "alerts sort by severity, then the soonest onset, with a missing onset last")
     }
 }

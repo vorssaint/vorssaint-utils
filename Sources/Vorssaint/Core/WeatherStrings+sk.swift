@@ -89,6 +89,10 @@ extension WeatherStrings {
         s.locationDenied = "Prístup k polohe nie je dostupný"
         s.locationTimedOut = "Zisťovanie polohy trvalo príliš dlho"
         s.locationInProgress = "Aktuálna poloha sa už zisťuje"
+        s.alertsTitle = "Výstrahy počasia"
+        s.alertsUSOnly = "Len USA. Poskytuje Národná meteorologická služba USA."
+        s.alertsEnable = "Zobrazovať výstrahy počasia v USA"
+        s.alertsExpiresFormat = "Do %@"
         return s
     }()
 }
