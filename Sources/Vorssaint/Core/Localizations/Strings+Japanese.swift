@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "「ふたを閉じても続ける」は、「スリープ防止」がオンのあいだスリープを完全に無効化し、セッションの終了時またはアプリの終了時に自動的に元に戻ります。電源に接続した状態での使用をおすすめします。",
         dimScreenOnLidCloseTitle: "画面を完全に暗くする",
         dimScreenOnLidCloseCaption: "ふたを閉じると画面を暗くし、開くと明るさを元に戻します。",
+        sleepNowTitle: "今すぐスリープ",
+        sleepNowCaption: "Mac をすぐにスリープさせ、スリープ解除後に現在のセッションを再開します。",
 
         scrollSection: "スクロール",
         invertMouseScroll: "マウスのスクロールを反転",
