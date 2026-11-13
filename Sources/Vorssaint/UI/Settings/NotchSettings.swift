@@ -16,6 +16,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchDismissNativeNotifications) private var dismissNativeNotifications = false
     @AppStorage(DefaultsKey.notchTimerEnabled) private var timerEnabled = true
     @AppStorage(DefaultsKey.notchTimerSoundEnabled) private var timerSoundEnabled = true
+    @AppStorage(DefaultsKey.notchTimerSoundDuration) private var timerSoundDuration = NotchTimerSoundDuration.defaultValue
     @AppStorage(DefaultsKey.notchHideTimerCountdown) private var hideTimerCountdown = false
     @AppStorage(DefaultsKey.notchCameraEnabled) private var cameraEnabled = true
     @AppStorage(DefaultsKey.notchAccessoriesEnabled) private var accessoriesEnabled = true
@@ -121,7 +122,7 @@ struct NotchSettings: View {
          String(notificationsEnabled), String(dismissNativeNotifications), String(gesturesEnabled),
          String(lyricsEnabled), String(lyricsOnline), String(queueEnabled), String(liveEqualizer),
          String(showPlayingMusic), String(includeOtherPlayers), String(musicShowVolume), idle, hiddenControls, controlOrder, size,
-         String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
+         String(timerEnabled), String(timerSoundEnabled), String(timerSoundDuration), String(hideTimerCountdown),
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
@@ -494,6 +495,15 @@ struct NotchSettings: View {
                       isOn: $hideTimerCountdown)
                 .disabled(!AppFeature.notchTimer.isAvailable)
             switchRow("speaker.wave.2", activities.soundEnabled, isOn: $timerSoundEnabled)
+                .disabled(!AppFeature.notchTimer.isAvailable)
+            let soundDuration = NotchTimerSoundDuration.normalized(timerSoundDuration)
+            SettingsMenuRow(symbol: "speaker.wave.2", title: activities.soundDuration, selection: Binding(
+                get: { soundDuration.rawValue }, set: { timerSoundDuration = NotchTimerSoundDuration.normalized($0).rawValue })) {
+                ForEach(NotchTimerSoundDuration.allCases) { choice in
+                    Text(AgentFormat.duration(TimeInterval(choice.rawValue), locale: l10n.language.formattingLocale(), style: .short))
+                        .tag(choice.rawValue)
+                }
+            }
                 .disabled(!AppFeature.notchTimer.isAvailable)
         case .camera:
             Text(FeatureStrings.notchActivities(l10n.language).cameraHint).font(.callout).foregroundStyle(.secondary)
