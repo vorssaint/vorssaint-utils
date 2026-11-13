@@ -13,9 +13,13 @@ import VMStatisticsCompat
 
 enum WindowLayoutFeatureTests {
     static func run(_ suite: TestSuite) {
+        WindowStageManagerTests.run(suite)
+        WindowStageManagerMaximizerTests.run(suite)
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
+        WindowEdgeSnapRestoreTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
+        WindowGestureTargetRuntimeTests.run(suite)
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")
         suite.expect(modifierTrigger?.displayString == "⌃⌘"
                 && modifierTrigger?.storageValue == "modifiers:control+command",
@@ -1553,10 +1557,9 @@ enum WindowLayoutFeatureTests {
         suite.expect(sideRepeatPlacement.contains("WindowLayoutGeometry.sideCycleResumes(")
                 && sideRepeatPlacement.contains("WindowLayoutGeometry.sideCyclePress("),
                "window layout service continues the side cycle only after the same side key")
-        suite.expect(sideRepeatSetFrame.components(separatedBy: "if let cyclePress").count == 2
-                && sideRepeatSetFrame.components(separatedBy: "if let cyclePress")[0].contains("self.frame(of: window) ?? frame") == false
-                && sideRepeatConclude.contains("if let cyclePress = context.cyclePress"),
-               "window layout service reads back the settled frame and schedules its refresh only while the cycle is on")
+        suite.expect(sideRepeatSetFrame.contains("cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)")
+                && sideRepeatConclude.contains("context.cyclePress != nil || UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)"),
+               "window layout reads back settled frames only for the side cycle or opt-in drag restoration")
         let leftHalfRect = WindowLayoutGeometry.rect(for: .leftHalf, current: currentWindow, visibleFrame: visibleFrame)
         suite.expect(WindowLayoutGeometry.accepts(actualRect: leftHalfRect.offsetBy(dx: 200, dy: 0),
                                             targetRect: leftHalfRect,
