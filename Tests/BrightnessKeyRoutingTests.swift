@@ -72,7 +72,7 @@ enum BrightnessKeyRoutingTests {
     enum DispatchQueue { static let main = Queue() }
 
     class Fixture {
-        struct Route { var method: Method }
+        struct Route { var method: Method; var extendedDimming = false }
         enum Method { case system, ddc }
         struct Display { let id: UInt32; let isBuiltIn: Bool; let brightness: Double }
         static let log = Logger(subsystem: "vorssaint.tests", category: "brightness-keys")
@@ -85,6 +85,7 @@ enum BrightnessKeyRoutingTests {
         var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
         var swallowedMediaKeys = Set<Bool>()
         var swallowedKeyCodes = Set<Int>()
+        var extendedDimmingPresses = Set<Bool>()
         var keyStep = BrightnessSupport.KeyStep.standard
         var functionKeyStep = BrightnessSupport.KeyStep.standard
         var functionKeysAdjustBrightness = true
@@ -112,6 +113,7 @@ enum BrightnessKeyRoutingTests {
         func applyKeyStep(_ press: BrightnessSupport.BrightnessKeyEvent, to id: UInt32, method: Method) {
             steps += 1
         }
+        func extendedDimmingOwnsStep(_ id: UInt32, delta: Double) -> Bool { false }
         func CGDisplayIsBuiltin(_ id: UInt32) -> UInt32 { id == 1 ? 1 : 0 }
         func CGGetDisplaysWithPoint(_ point: CGPoint, _ max: UInt32,
                                    _ display: inout UInt32, _ count: inout UInt32) -> CGError {
