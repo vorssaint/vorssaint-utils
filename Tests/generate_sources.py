@@ -636,6 +636,7 @@ def main():
               "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
               "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    private func scheduleDeferredSearch(",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
