@@ -3,6 +3,45 @@
 
 import Foundation
 
+/// Labels shown together, with their view's visibility and optional landing place.
+struct SettingsSearchTerms {
+    let titles: [String]
+    let feature: AppFeature?
+    let notch: NotchSettingsLocation?
+    let shown: Bool
+
+    init(_ titles: [String], feature: AppFeature? = nil, notch: NotchSettingsLocation? = nil,
+         when shown: Bool = true) {
+        self.titles = titles
+        self.feature = feature
+        self.notch = notch
+        self.shown = shown
+    }
+
+    func isVisible(_ isAvailable: (AppFeature) -> Bool) -> Bool {
+        shown && (feature.map(isAvailable) ?? true)
+    }
+
+    /// A feature can gate a control on another page, such as General's shortcut.
+    func item(on parent: SettingsSearchItem) -> SettingsSearchItem {
+        if let notch {
+            let destination = FeatureSettingsDestination(notch: notch)
+            if let feature, feature.settingsDestination == destination {
+                return SettingsSearchItem(id: .feature(feature), destination: destination,
+                                          title: parent.title, icon: feature.symbolName, feature: feature)
+            }
+            return SettingsSearchItem(id: .notch(notch), destination: destination,
+                                      title: parent.title, icon: parent.icon, feature: feature)
+        }
+        if case .page(let page) = parent.id, page != .features, let feature,
+           feature.settingsDestination.page == page, feature != parent.feature {
+            return SettingsSearchItem(id: .feature(feature), destination: feature.settingsDestination,
+                                      title: parent.title, icon: feature.symbolName, feature: feature)
+        }
+        return parent
+    }
+}
+
 /// One destination-aware Settings search result. Its identity is structural,
 /// never derived from localized text or result ordering.
 struct SettingsSearchItem: Identifiable {
@@ -10,32 +49,40 @@ struct SettingsSearchItem: Identifiable {
         case page(SettingsPage)
         case feature(AppFeature)
         case setting(SettingsSectionAnchor)
+        case notch(NotchSettingsLocation)
     }
 
     let id: ID
     let destination: FeatureSettingsDestination
     let title: String
     let icon: String
-    var keywords: [String] = []
-    /// Optional feature owner for each keyword. This is parallel to
-    /// `keywords`; absent entries are page-level settings.
-    var keywordFeatures: [AppFeature?] = []
+    var terms: [SettingsSearchTerms]
+    var keywords: [String] { terms.filter(\.shown).flatMap(\.titles) }
     /// The hub feature this result represents, when it corresponds to exactly
     /// one `AppFeature` — including a dedicated page result such as Homebrew,
     /// whose `id` stays `.page(...)` for identity stability. `nil` for a
     /// purely generic page (Features itself, General, ...).
     var feature: AppFeature?
+
+    init(id: ID, destination: FeatureSettingsDestination, title: String, icon: String,
+         keywords: [String] = [], terms: [SettingsSearchTerms] = [], feature: AppFeature? = nil) {
+        self.id = id
+        self.destination = destination
+        self.title = title
+        self.icon = icon
+        self.terms = [SettingsSearchTerms(keywords)] + terms
+        self.feature = feature
+    }
 }
 
-/// One selectable row inside a grouped Settings search result. A page-level
-/// keyword routes to its containing page, while a feature-owned keyword keeps
-/// the same exact section destination and unavailable-feature fallback as the
-/// feature row itself.
+/// One selectable row inside a grouped Settings search result. It opens the
+/// page that lists it, at its feature's section when that section is on the
+/// same page.
 struct SettingsSearchSuggestion: Identifiable {
     enum ID: Hashable {
         case page(SettingsPage)
         case item(SettingsPage, SettingsSearchItem.ID)
-        case keyword(SettingsPage, Int)
+        case keyword(SettingsSearchItem.ID, Int, Int)
     }
 
     let id: ID
@@ -87,6 +134,17 @@ enum SettingsSearchSupport {
         }
     }
 
+    static func scrollingScreenshotItem(language: AppLanguage) -> SettingsSearchItem {
+        let strings = FeatureStrings.screenshot(language)
+        return SettingsSearchItem(
+            id: .setting(.screenshotScrolling),
+            destination: ScreenCaptureTool.scrolling.settingsDestination,
+            title: strings.scrollingCaptureTitle,
+            icon: ScreenCaptureTool.scrolling.systemImageName,
+            keywords: [strings.scrollingAutoScrollToggle],
+            feature: .screenshot)
+    }
+
     static func keyboardBrightnessShortcutItem(language: AppLanguage) -> SettingsSearchItem {
         let brightness = FeatureStrings.brightness(language)
         return SettingsSearchItem(
@@ -132,7 +190,7 @@ enum SettingsSearchSupport {
         // A feature landing on its own section of the page (the green button
         // override on Window Layout) keeps the page alive without owning it.
         return FeatureVisibilitySupport.features(for: page)
-            .filter { $0.settingsDestination == FeatureSettingsDestination(page) } == [feature]
+            .filter { $0.settingsDestination.page == page && $0.settingsDestination.sectionAnchor == nil } == [feature]
     }
 
     /// Where a search or command-bar result should route right now. A
@@ -224,14 +282,14 @@ enum SettingsSearchSupport {
         let navigableItems = items.compactMap { item -> SettingsSearchItem? in
             if let feature = item.feature, !isAvailable(feature),
                !leadsToVisiblePage(item, isAvailable: isAvailable) {
+                if case .setting = item.id { return nil }
                 // The utility itself remains navigable through its Features
                 // row, but settings that do not exist until installation must
                 // not make that utility appear as a field-level match. A page
                 // that stays visible keeps the keywords of the features that
                 // are on; the loop below drops the others.
                 var fallbackItem = item
-                fallbackItem.keywords = []
-                fallbackItem.keywordFeatures = []
+                fallbackItem.terms = []
                 return fallbackItem
             }
             guard FeatureVisibilitySupport.isPageVisible(
@@ -259,38 +317,27 @@ enum SettingsSearchSupport {
             }
             guard var builder = builders[page] else { continue }
 
-            if case .page(let itemPage) = item.id, itemPage == page {
+            let isPage = item.id == .page(page)
+            if isPage {
                 if matchRank(foldedQuery: foldedQuery, title: item.title, keywords: []) != nil {
                     builder.parentMatches = true
                 }
-                for (index, keyword) in item.keywords.enumerated()
-                    where fold(keyword).contains(foldedQuery) {
-                    let keywordFeature = item.keywordFeatures.indices.contains(index)
-                        ? item.keywordFeatures[index] : nil
-                    if let keywordFeature, !isAvailable(keywordFeature) { continue }
-                    let suggestionItem = keywordFeature.map { feature in
-                        SettingsSearchItem(id: .feature(feature),
-                                           destination: feature.settingsDestination,
-                                           title: keyword,
-                                           icon: feature.symbolName,
-                                           feature: feature)
-                    } ?? pageItem
-                    appendSuggestion(
-                        SettingsSearchSuggestion(id: .keyword(page, index),
-                                                 title: keyword,
-                                                 icon: pageItem.icon,
-                                                 item: suggestionItem,
-                                                 featureHubTarget: page == .features
-                                                    ? keywordFeature : nil),
-                        to: &builder)
-                }
-            } else {
+            } else if matches(query: query, title: item.title) {
                 appendSuggestion(
                     SettingsSearchSuggestion(id: .item(page, item.id),
                                              title: item.title,
                                              icon: item.icon,
                                              item: item),
                     to: &builder)
+            }
+            for (groupIndex, group) in item.terms.enumerated() where group.isVisible(isAvailable) {
+                for (index, keyword) in group.titles.enumerated()
+                    where keywordMatches(keyword, foldedQuery: foldedQuery) {
+                    appendSuggestion(SettingsSearchSuggestion(
+                        id: .keyword(item.id, groupIndex, index), title: keyword, icon: item.icon,
+                        item: group.item(on: item),
+                        featureHubTarget: page == .features ? group.feature : nil), to: &builder)
+                }
             }
             builders[page] = builder
         }
@@ -337,6 +384,7 @@ enum SettingsSearchSupport {
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
                            screenshot.previewFocusToggle, screenshot.confirmationPreviewToggle,
                            screenshot.confirmationPreviewDurationLabel,
+                           screenshot.copyImageOnlyToggle,
                            screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
                            screenshot.toolArrow, screenshot.addToShelfToggle]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
@@ -365,13 +413,44 @@ enum SettingsSearchSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Everyday words people type for an option whose label uses another
+    /// term: "storage" finds "Low disk space". Keys and values are folded.
+    private static let synonyms: [String: String] = [
+        "storage": "disk", "drive": "disk", "ssd": "disk",
+        "ram": "memory",
+        "warn": "alert", "warning": "alert", "notify": "alert", "notification": "alert",
+        "jiggle": "pointer slightly", "interval": "update every",
+    ]
+
+    /// The command bar ranks its own catalog, including English aliases.
+    static func commandKeywords(_ labels: [String]) -> String {
+        let folded = labels.map(fold)
+        let aliases = synonyms.keys.sorted().filter { alias in
+            guard let word = synonyms[alias] else { return false }
+            return folded.contains { $0.contains(word) }
+        }
+        return (labels + aliases).joined(separator: " ")
+    }
+
+    /// The query itself, then the query with each synonym word replaced.
+    private static func queryVariants(_ foldedQuery: String) -> [String] {
+        let words = foldedQuery.split(separator: " ").map(String.init)
+        let replaced = words.map { synonyms[$0] ?? $0 }
+        guard replaced != words else { return [foldedQuery] }
+        return [foldedQuery, replaced.joined(separator: " ")]
+    }
+
+    private static func keywordMatches(_ keyword: String, foldedQuery: String) -> Bool {
+        let foldedKeyword = fold(keyword)
+        return queryVariants(foldedQuery).contains { foldedKeyword.contains($0) }
+    }
+
     private static func matchRank(foldedQuery: String,
                                    title: String,
                                    keywords: [String]) -> MatchRank? {
-        let foldedTitle = fold(title)
-        if foldedTitle == foldedQuery { return .exactTitle }
-        if foldedTitle.contains(foldedQuery) { return .title }
-        if keywords.contains(where: { fold($0).contains(foldedQuery) }) { return .keyword }
+        if fold(title) == foldedQuery { return .exactTitle }
+        if keywordMatches(title, foldedQuery: foldedQuery) { return .title }
+        if keywords.contains(where: { keywordMatches($0, foldedQuery: foldedQuery) }) { return .keyword }
         return nil
     }
 
