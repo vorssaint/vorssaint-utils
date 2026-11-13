@@ -410,6 +410,7 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(searchResultIdentifier(for: suggestion))
         .id(suggestion.id)
     }
 
@@ -426,7 +427,21 @@ struct SettingsView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier(searchResultIdentifier(for: suggestion))
         .id(suggestion.id)
+    }
+
+    private func searchResultIdentifier(for suggestion: SettingsSearchSuggestion) -> String {
+        if let feature = suggestion.item.feature ?? suggestion.featureHubTarget {
+            return "settings.search.feature.\(feature.rawValue)"
+        }
+        switch suggestion.id {
+        case .page(let page): return "settings.search.page.\(String(describing: page))"
+        case .item(let page, _):
+            return "settings.search.result.\(String(describing: page))"
+        case .keyword(let item, _, _):
+            return "settings.search.result.\(String(describing: item))"
+        }
     }
 
     private func handleSearchKey(_ keyCode: UInt16,
@@ -596,6 +611,7 @@ struct SettingsView: View {
         case .mouse: MouseSettings()
         case .switcher: SwitcherSettings()
         case .dock: DockSettings()
+        case .missionControl: MissionControlSettings()
         case .keyDebounce: KeyboardDebounceSettings()
         case .superKey: SuperKeySettings()
         case .cutPaste: CutPasteSettings()
