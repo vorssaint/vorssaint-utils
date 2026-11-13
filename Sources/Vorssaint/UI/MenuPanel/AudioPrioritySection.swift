@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// The Audio priority disclosure shown inside the shared audio device card.
+/// The Audio priority disclosure shown beside the mixer's Options.
 /// Contains independent Output and Microphone priority subsections. Each one
 /// is a complete ordered list of discovered devices, and its position is the
 /// priority used by automatic selection.
@@ -28,19 +28,17 @@ struct AudioPriorityDisclosure: View {
                 Button {
                     expanded.toggle()
                 } label: {
+                    // Matches the mixer's Options header, which it sits beside.
                     HStack(spacing: 7) {
-                        Image(systemName: "list.number")
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Text(l10n.s.audioPrioritySection)
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Spacer(minLength: 0)
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.secondary)
                             .frame(width: 12)
                             .rotationEffect(.degrees(expanded ? 90 : 0))
+                        Text(l10n.s.audioPrioritySection)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
                 }

@@ -20,7 +20,9 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
         switch self {
         case .keepAwake: return s.keepAwakeTitle
         case .brightness: return FeatureStrings.brightness(L10n.shared.language).pageTitle
-        case .mixer: return s.mixerSection
+        case .mixer:
+            // Without the mixer installed, this tab holds only the audio priority lists.
+            return AppFeature.mixer.isAvailable ? s.mixerSection : s.audioPrioritySection
         case .system: return s.systemSection
         case .network: return s.networkSection
         case .disk: return s.diskSection

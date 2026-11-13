@@ -390,6 +390,10 @@ private struct NotchMixerOptions: View {
                 }
                 Divider().overlay(.white.opacity(0.12))
                 MixerOptionsControls()
+                if AppFeature.audioPriority.isAvailable {
+                    Divider().overlay(.white.opacity(0.12))
+                    AudioPriorityDisclosure()
+                }
             }
             .padding(.trailing, 4)
             .padding(.bottom, 4)
