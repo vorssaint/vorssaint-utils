@@ -24,3 +24,6 @@ CLAUDE.md
 *.xcodeproj
 xcuserdata/
 .swiftpm/
+
+# Local agent scratch, build evidence and probes
+.scratch/
