@@ -409,6 +409,49 @@ enum UninstallerFlowTests {
             suite.expect(Defaults.registeredDefaults[DefaultsKey.uninstallerWatchesTrash] as? Bool == false
                             && SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerWatchesTrash),
                          "the Trash cleanup offer starts off and travels with settings backup")
+
+            // Hidden home folders (#3885): an app keeps data in `~/.acme-app`
+            // and `~/.local/state/acme`, while credentials, shell files and the
+            // shared Unix roots stay out of the scan.
+            let hiddenHome = root.appendingPathComponent("hidden-home", isDirectory: true)
+            for folder in [".acme-app", ".ssh", ".gnupg", ".Trash", ".local/state/acme"] {
+                try fm.createDirectory(at: hiddenHome.appendingPathComponent(folder, isDirectory: true),
+                                       withIntermediateDirectories: true)
+            }
+            try "export PATH=/usr/bin\n".write(to: hiddenHome.appendingPathComponent(".zshrc"),
+                                               atomically: true, encoding: .utf8)
+            let acme = UninstallerSupport.identity(primaryBundleID: "com.acme.app",
+                                                  bundleIDs: ["com.acme.app"],
+                                                  displayNames: ["Acme App"])
+            let hiddenFolders = UninstallerSupport.hiddenHomeFolders(home: hiddenHome).map(\.lastPathComponent)
+            suite.expect(hiddenFolders == [".acme-app"],
+                         "hidden home enumeration keeps only third-party folders, found \(hiddenFolders)")
+            suite.expect(UninstallerSupport.hiddenHomeFolderMatches(".acme-app", identity: acme),
+                         "an app's own hidden folder follows from its exact name")
+            for denied in [".ssh", ".gnupg", ".Trash", ".local", ".zshrc"] {
+                suite.expect(!UninstallerSupport.hiddenHomeFolderMatches(denied, identity: acme),
+                             "\(denied) is never offered as app data")
+            }
+            let folders = UninstallerSupport.searchFolders(home: hiddenHome,
+                                                           darwinCache: nil, darwinTemp: nil)
+            let hiddenHomePath = hiddenHome.standardizedFileURL.path
+            suite.expect(folders.contains { $0.url.standardizedFileURL.path == hiddenHomePath + "/.acme-app" },
+                         "an app's hidden folder is scanned as a root of its own")
+            let stateRoot = hiddenHomePath + "/.local/state"
+            if let state = folders.first(where: { $0.url.standardizedFileURL.path == stateRoot }) {
+                let stateApp = UninstallerSupport.identity(primaryBundleID: "com.acme.state",
+                                                           bundleIDs: ["com.acme.state"],
+                                                           displayNames: ["Acme"])
+                let hits = UninstallerSupport.leftoverHitRecords(
+                    listings: [UninstallerSupport.DirListing(name: "acme", children: [])],
+                    identity: state.allowsNameMatches
+                        ? stateApp : UninstallerSupport.technicalIdentity(stateApp),
+                    extraChildDepth: 0)
+                suite.expect(hits.first?.path == "acme",
+                             "XDG state leftovers are found, hits \(hits.map(\.path))")
+            } else {
+                suite.expect(false, "XDG state is scanned")
+            }
         } catch {
             suite.expect(false, "uninstaller fixture failed: \(error)")
         }
