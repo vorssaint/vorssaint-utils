@@ -7,6 +7,7 @@ import SwiftUI
 
 enum NotchActivityTests {
     static func run(_ suite: TestSuite) {
+        NotchTimerInputTests.run(suite)
         timerContracts(suite)
         alertContracts(suite)
         lowBatteryContracts(suite)
@@ -237,9 +238,9 @@ enum NotchActivityTests {
     private static func timerContracts(_ suite: TestSuite) {
         var session = NotchTimerSession()
         suite.expect(!session.hasSession, "an unused timer has no active session")
-        session.start(mode: .timer, minutes: 5, now: 100)
+        session.start(mode: .timer, seconds: 5 * 60, now: 100)
         suite.expect(session.reading(at: 101.25) == 298.75, "countdown uses an absolute deadline, including fractional elapsed time")
-        session.start(mode: .pomodoro, minutes: 25, now: 105)
+        session.start(mode: .pomodoro, seconds: 0, now: 105)
         suite.expect(session.mode == .timer && session.deadline == 400, "starting twice cannot replace an active timer")
         session.pause(at: 160)
         suite.expect(session.isPaused && session.reading(at: 10_000) == 240, "paused time stays fixed across sleep")
@@ -250,16 +251,39 @@ enum NotchActivityTests {
         suite.expect(!session.finishIfDue(at: 100_001), "repeated callbacks cannot announce the same completion twice")
         session.cancel()
         suite.expect(!session.hasSession && session.completedFocuses == 0, "cancel discards the entire session")
-        session.start(mode: .timer, minutes: 0, now: 0)
-        suite.expect(session.duration == 60, "timer input cannot create an immediately expired session")
+        session.start(mode: .timer, seconds: 0, now: 0)
+        suite.expect(session.duration == 1, "timer input cannot create an immediately expired session")
         session.pause(at: 60)
         suite.expect(session.completed && !session.isPaused, "pausing at the deadline completes instead of preserving a zero timer")
         session.cancel()
-        session.start(mode: .timer, minutes: Int.max, now: 0)
-        suite.expect(session.duration == 10_800, "corrupt duration input stays within three hours")
-        suite.expect(NotchTimerSupport.timerMinutes(60) == 60 && NotchTimerSupport.timerMinutes(Int.max) == 180
-               && NotchTimerSupport.timerMinutes(Int.min) == 1,
-               "a remembered duration restored from a backup stays between a minute and three hours")
+        session.start(mode: .timer, seconds: Int.max, now: 0)
+        suite.expect(session.duration == 86_399, "corrupt duration input stays below twenty-four hours")
+        for seconds in [1, 30, 59, 60, 90, 3601, 14_430, 86_399] {
+            var precise = NotchTimerSession()
+            precise.start(mode: .timer, seconds: seconds, now: 100)
+            suite.expect(precise.duration == Double(seconds) && precise.deadline == 100 + Double(seconds),
+                         "typed seconds reach the deadline without rounding: \(seconds)")
+            precise.pause(at: 100.25)
+            precise.resume(at: 200)
+            suite.expect(abs(precise.reading(at: 200) - (Double(seconds) - 0.25)) < 0.001,
+                         "pause/resume retains sub-minute timer precision")
+            suite.expect(NotchTimerSupport.durationSeconds(minutes: seconds / 60, seconds: seconds % 60) == seconds,
+                         "hours/minutes/seconds preferences round trip")
+        }
+        for minutes in [0, 1, 180, 240, 720, 1439] {
+            suite.expect(NotchTimerRulerScale.minute(Double(minutes), range: 0...1439) == minutes,
+                         "the timer ruler covers the complete hours/minutes range")
+            let moved = NotchTimerRulerScale.minute(
+                NotchTimerRulerScale.moving(Double(minutes), by: -14, range: 0...1439), range: 0...1439)
+            suite.expect(moved == min(1439, minutes + 1),
+                         "the full-range ruler snaps a drag to its nearest minute and stops at the upper bound")
+        }
+        suite.expect(NotchTimerSupport.durationSeconds(minutes: Int.max, seconds: Int.max) == 86_399
+                  && NotchTimerSupport.durationSeconds(minutes: Int.min, seconds: Int.min) == 0,
+                     "corrupt duration components remain bounded without overflow")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSeconds] as? Int == 0
+                  && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSeconds),
+                     "seconds default to zero for existing timers and participate in settings backup")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerMinutes] as? Int == 15
                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerMinutes),
                "the timer's duration is registered and travels with settings backups")
@@ -268,7 +292,7 @@ enum NotchActivityTests {
         let clockCases: [(TimeInterval, String)] = [
             (59, "00:59"), (60, "01:00"), (3599, "59:59"), (3599.01, "1:00:00"),
             (3600, "1:00:00"), (3601, "1:00:01"), (8580, "2:23:00"),
-            (10800, "3:00:00"), (.greatestFiniteMagnitude, "3:00:00"), (.infinity, "00:00")
+            (10800, "3:00:00"), (.greatestFiniteMagnitude, "23:59:59"), (.infinity, "00:00")
         ]
         for (seconds, expected) in clockCases {
             suite.expect(NotchTimerSupport.clockText(seconds) == expected,
@@ -298,11 +322,11 @@ enum NotchActivityTests {
             suite.expect(NotchTimerSupport.compactText(invalid, locale: locale) == "0s",
                    "invalid or expired compact times remain safe to display")
         }
-        suite.expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "3h",
+        suite.expect(NotchTimerSupport.compactText(.greatestFiniteMagnitude, locale: locale) == "23h 59m",
                "compact duration formatting preserves the timer's upper limit")
         let hourCases: [(TimeInterval, String)] = [
             (3600, "1h00"), (3659.9, "1h00"), (3660, "1h01"), (5700, "1h35"),
-            (8580, "2h23"), (10800, "3h00"), (.greatestFiniteMagnitude, "3h00"), (.nan, "0h00")
+            (8580, "2h23"), (10800, "3h00"), (.greatestFiniteMagnitude, "23h59"), (.nan, "0h00")
         ]
         for (seconds, expected) in hourCases {
             suite.expect(NotchTimerSupport.compactHoursText(seconds) == expected,
@@ -333,7 +357,7 @@ enum NotchActivityTests {
             }
         }
         session.cancel()
-        session.start(mode: .pomodoro, minutes: 5, now: 0, configuration: NotchPomodoroConfiguration(totalSessions: 5))
+        session.start(mode: .pomodoro, seconds: 0, now: 0, configuration: NotchPomodoroConfiguration(totalSessions: 5))
         var now: TimeInterval = 0
         for round in 1...4 {
             suite.expect(session.phase == .focus && session.duration == 1500, "each focus phase lasts 25 minutes")
@@ -362,7 +386,7 @@ enum NotchActivityTests {
         let config = NotchPomodoroConfiguration(focusMinutes: 10, shortBreakMinutes: 2,
                                               longBreakMinutes: 7, longBreakInterval: 2, totalSessions: 3)
         var session = NotchTimerSession()
-        session.start(mode: .pomodoro, minutes: 1, now: 0, configuration: config)
+        session.start(mode: .pomodoro, seconds: 0, now: 0, configuration: config)
         suite.expect(session.duration == 600 && session.sessionNumber == 1 && !session.canStartNext,
                "custom focus duration starts the first session and cannot be skipped while active")
         session.pause(at: 100)
@@ -395,7 +419,7 @@ enum NotchActivityTests {
         session.startNext(at: now + 1)
         suite.expect(session == finished, "continuation cannot restart a finished cycle")
         session.cancel()
-        session.start(mode: .pomodoro, minutes: 1, now: 0,
+        session.start(mode: .pomodoro, seconds: 0, now: 0,
                       configuration: NotchPomodoroConfiguration(longBreakInterval: 1, totalSessions: 1))
         _ = session.finishIfDue(at: 100_000)
         suite.expect(session.cycleFinished && session.completedFocuses == 1 && !session.canStartNext,
@@ -424,7 +448,7 @@ enum NotchActivityTests {
         suite.expect(saved == NotchPomodoroConfiguration(focusMinutes: 45, shortBreakMinutes: 8,
             longBreakMinutes: 20, longBreakInterval: 3, totalSessions: 6), "saved choices restore the whole cycle")
         session.cancel()
-        session.start(mode: .pomodoro, minutes: 1, now: 0, configuration: saved)
+        session.start(mode: .pomodoro, seconds: 0, now: 0, configuration: saved)
         defaults.set(1, forKey: DefaultsKey.notchPomodoroFocusMinutes)
         suite.expect(session.configuration == saved && session.duration == 2_700,
                "changes to saved preferences never rewrite an already running cycle")
@@ -441,7 +465,7 @@ enum NotchActivityTests {
     private static func stopwatchContracts(_ suite: TestSuite) {
         var session = NotchTimerSession()
         suite.expect(session.reading(at: 5) == 300 && !session.countsUp, "an idle page still previews the countdown it would start")
-        session.start(mode: .stopwatch, minutes: 15, now: 100)
+        session.start(mode: .stopwatch, seconds: 0, now: 100)
         suite.expect(session.countsUp && session.phase == .stopwatch && session.isRunning && session.deadline == nil
                && session.duration == 0, "a stopwatch runs from zero with no deadline or preset duration")
         suite.expect(session.reading(at: 100) == 0 && session.reading(at: 161.25) == 61.25,
@@ -449,7 +473,7 @@ enum NotchActivityTests {
         suite.expect(session.reading(at: 99) == 0, "a clock that reads before its anchor never shows negative time")
         suite.expect(!session.finishIfDue(at: 1_000_000) && session.isRunning && !session.completed,
                "a stopwatch never completes on its own, however long it runs")
-        session.start(mode: .timer, minutes: 5, now: 200)
+        session.start(mode: .timer, seconds: 5 * 60, now: 200)
         suite.expect(session.countsUp && session.anchor == 100, "starting twice cannot replace a running stopwatch")
         session.pause(at: 160)
         suite.expect(session.isPaused && !session.isRunning && session.reading(at: 10_000) == 60,
@@ -468,13 +492,13 @@ enum NotchActivityTests {
                "cancel discards the stopwatch and returns the page to its countdown preview")
 
         var countdown = NotchTimerSession()
-        countdown.start(mode: .timer, minutes: 1, now: 0)
+        countdown.start(mode: .timer, seconds: 60, now: 0)
         for (elapsed, expected) in [(0.0, 1.0), (0.25, 0.75), (0.999, 0.001)] {
             let offset = NotchTimerSupport.secondBoundaryOffset(for: countdown, at: elapsed)
             suite.expect(abs(offset - expected) < 1e-9, "countdown ticks align to whole remaining seconds: \(elapsed)")
         }
         var stopwatch = NotchTimerSession()
-        stopwatch.start(mode: .stopwatch, minutes: 1, now: 0)
+        stopwatch.start(mode: .stopwatch, seconds: 0, now: 0)
         for (elapsed, expected) in [(0.0, 1.0), (0.25, 0.75), (61.999, 0.001)] {
             let offset = NotchTimerSupport.secondBoundaryOffset(for: stopwatch, at: elapsed)
             suite.expect(abs(offset - expected) < 1e-9, "stopwatch ticks align to whole elapsed seconds: \(elapsed)")
@@ -535,7 +559,7 @@ enum NotchActivityTests {
                && NotchTimerSupport.compactText(for: countdown, at: 0.1, locale: locale) == "1m",
                "compact session readings keep each mode's own notation")
         var hours = NotchTimerSession()
-        hours.start(mode: .timer, minutes: 120, now: 0)
+        hours.start(mode: .timer, seconds: 120 * 60, now: 0)
         suite.expect(NotchTimerSupport.compactText(for: hours, at: 1, locale: locale) == "1h59"
                && NotchTimerSupport.compactText(for: hours, at: 3600, locale: locale) == "1h00"
                && NotchTimerSupport.compactText(for: hours, at: 3601, locale: locale) == "59m",
@@ -1026,7 +1050,7 @@ enum NotchActivityTests {
         var session = NotchTimerSession()
         suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults),
                "only an active session contributes a visible timer activity")
-        session.start(mode: .pomodoro, minutes: 25, now: 0)
+        session.start(mode: .pomodoro, seconds: 0, now: 0)
         suite.expect(NotchTimerSupport.showsActivity(session, in: defaults), "a running countdown shows by default")
         defaults.set(true, forKey: DefaultsKey.notchHideTimerCountdown)
         suite.expect(!NotchTimerSupport.showsActivity(session, in: defaults)
