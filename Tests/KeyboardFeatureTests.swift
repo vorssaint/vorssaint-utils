@@ -211,6 +211,41 @@ enum KeyboardFeatureTests {
                     keyCode: Int64(kVK_F2), modifiers: [.command]),
                "Finder rename matches the chosen key and no extra modifiers")
 
+        // MARK: The Super Key prints as one glyph (issue #3701)
+
+        // The Super Key is one synthetic key built from all four modifiers.
+        // Four caps in a row read as four keys the user has to press, which is
+        // exactly what the key is not, so the chord collapses into a single
+        // diamond while every ordinary chord keeps its glyphs.
+        let superKeyChord = GlobalShortcutModifiers.superKeyCombination
+        suite.expect(superKeyChord == [.control, .option, .shift, .command],
+               "the Super Key is the synthetic combination of all four modifiers")
+        suite.expect(superKeyChord.isSuperKeyCombination
+                && superKeyChord.displayChord == GlobalShortcutModifiers.superKeyGlyph,
+               "the Super Key prints as one glyph instead of four caps")
+        suite.expect(superKeyChord.displayCaps.count == 1,
+               "the Super Key offers one cap, not four")
+        let ordinaryChords: [GlobalShortcutModifiers] = [
+            [.control, .option, .command],
+            [.control, .option, .shift],
+            [.control, .shift, .command],
+            [.option, .shift, .command],
+            [.command],
+        ]
+        for chord in ordinaryChords {
+            suite.expect(!chord.isSuperKeyCombination
+                    && chord.displayCaps == chord.keyCaps
+                    && chord.displayChord == chord.keyCaps.joined(),
+                   "an ordinary chord keeps its own glyphs: \(chord.displayChord)")
+        }
+        // A combination with a key of its own is a shortcut, not the key on
+        // its own: it keeps its four caps beside the key.
+        let superKeyPlusK = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
+                                           modifiers: superKeyChord)
+        suite.expect(superKeyPlusK.displayString.hasPrefix("⌃⌥⇧⌘")
+                && !superKeyPlusK.displayString.contains(GlobalShortcutModifiers.superKeyGlyph),
+               "a Super Key combination with a key keeps the four caps and the key, not the diamond")
+
         // MARK: Shortcuts the app silences while a field is listening (#308)
 
         let silenced = GlobalShortcutRole.featuresToSilenceWhileRecording
