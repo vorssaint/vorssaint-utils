@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- The scratchpad's formatted reading sets the tasks that are done aside under a closed "Completed" line at the end, which opens to uncheck them.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
