@@ -35,9 +35,16 @@ final class ScreenCaptureSelectionOptions: ObservableObject {
     }
 }
 
-/// One entry point for screenshot, recording, screen text and color. It owns
-/// each tool's own capture shortcut and one shared selection surface; the
-/// established feature services still own what happens after selection.
+/// What the area and window screenshot shortcuts let the surface pick: an
+/// area the person drags, where a click on a window does nothing, or the
+/// window they click, where a drag draws no area.
+enum ScreenshotSelectionTarget {
+    case area
+    case window
+}
+
+/// One selection surface for every capture tool. Each tool has its own
+/// shortcut; the feature services own what happens after selection.
 final class ScreenCaptureService: ObservableObject {
     static let shared = ScreenCaptureService()
 
@@ -114,30 +121,33 @@ final class ScreenCaptureService: ObservableObject {
     /// Opens the same chooser from every feature surface. A feature-specific
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
-    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
+    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false,
+                 target: ScreenshotSelectionTarget? = nil) {
+        if preferred == .scrolling, ScreenshotService.shared.finishScrollingCaptureIfActive() { return }
         let recorder = ScreenRecorderService.shared
         if preferred == .recording, AppFeature.screenRecorder.isAvailable,
            recorder.stopOrCancelActiveCapture() {
             return
         }
+        guard !ScreenshotService.shared.hasActiveCapture, !cancelCountdownIfActive() else { return }
         let duringRecording = recorder.hasActiveCapture
         if duringRecording {
             guard let preferred, preferred.opensDuringRecording(fromShortcut: fromShortcut) else { return }
-        }
-        if countdown != nil {
-            cancelSelection()
-            return
         }
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
 
         let available = ScreenCaptureTool.available()
         guard !available.isEmpty else { return }
-        let selected = preferred.flatMap { available.contains($0) ? $0 : nil }
-            ?? (available.contains(.screenshot) ? .screenshot : available[0])
+        // A targeted screenshot needs the screenshot tool and nothing else.
+        if target != nil, !available.contains(.screenshot) { return }
+        let selected = target != nil ? .screenshot
+            : preferred.flatMap { available.contains($0) ? $0 : nil }
+                ?? (available.contains(.screenshot) ? .screenshot : available[0])
         if duringRecording, selected != preferred { return }
         // The digit keys switch tools even with the menu hidden, so a
-        // selection that runs over a recording offers only its own tool.
-        let tools = duringRecording ? [selected] : available
+        // selection that runs over a recording, or that picks only an area
+        // or a window, offers only its own tool.
+        let tools = duringRecording || target != nil ? [selected] : available
 
         guard Permissions.shared.screenRecording else {
             // Color sampling itself needs no capture permission, so its
@@ -154,50 +164,59 @@ final class ScreenCaptureService: ObservableObject {
             return
         }
 
-        let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
-        let delay = selected == .screenshot
+        let showsCaptureMenu = target == nil && selected.showsCaptureMenu(fromShortcut: fromShortcut)
+        let delay = selected == .screenshot || selected == .scrolling
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
             : 0
+        performAfterDelay(delay, tools: tools) { [weak self] in
+            self?.beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu,
+                                 target: target)
+        }
+    }
+
+    /// The direct full-screen shortcut and the chooser share one countdown.
+    /// Pressing either while the other is waiting cancels the pending action.
+    func performAfterDelay(_ delay: Int, tools: [ScreenCaptureTool]? = nil, action: @escaping () -> Void) {
         guard delay > 0 else {
-            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
+            action()
             return
         }
         countdownRemaining = delay
         countdownTools = tools
-        tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
+        tickCountdown(action: action)
     }
 
-    private func tickCountdown(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
-                               showsCaptureMenu: Bool) {
+    private func tickCountdown(action: @escaping () -> Void) {
         guard countdownRemaining > 0 else {
             countdown = nil
             countdownTools = nil
-            beginSelection(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
+            action()
             return
         }
         QuickToolHUD.showCountdown(countdownRemaining)
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.countdownRemaining -= 1
-            self.tickCountdown(tools: tools, selected: selected, showsCaptureMenu: showsCaptureMenu)
+            self.tickCountdown(action: action)
         }
         countdown = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
     }
 
     private func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool,
-                               showsCaptureMenu: Bool) {
+                               showsCaptureMenu: Bool, target: ScreenshotSelectionTarget? = nil) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
         let options = ScreenCaptureSelectionOptions(availableTools: tools,
                                                     selectedTool: selected,
                                                     showsCaptureMenu: showsCaptureMenu,
                                                     controlsInNotch: NotchSupport.routesCaptureControls() && NotchService.shared.acceptsSystemFeedback)
         self.options = options
-        startSelection(options: options)
+        startSelection(options: options, target: target)
     }
 
-    private func startSelection(options: ScreenCaptureSelectionOptions) {
+    private func startSelection(options: ScreenCaptureSelectionOptions,
+                                target: ScreenshotSelectionTarget? = nil) {
         guard selection == nil, !ScreenshotSelectionController.isSessionOnScreen,
               self.options === options else { return }
         let defaults = UserDefaults.standard
@@ -210,7 +229,8 @@ final class ScreenCaptureService: ObservableObject {
         let controller = ScreenshotSelectionController(
             freeze: policy.freeze,
             includePointer: policy.includePointer,
-            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
+            // A window has no last region to repeat.
+            showLastRegion: target != .window && defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
             hideVorssaintWindows: policy.hideVorssaintWindows,
             protectedWindowIDs: { [weak options] in
                 var windows: Set<CGWindowID> = []
@@ -230,7 +250,9 @@ final class ScreenCaptureService: ObservableObject {
             },
             purpose: FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle,
             mode: policy.usesGeometry ? .geometry : .image,
-            supportsScrollingCapture: options.availableTools.contains(.screenshot),
+            supportsScrollingCapture: target == nil && options.availableTools.contains(.screenshot),
+            requiresDraggedRegion: target == .area,
+            windowOnly: target == .window,
             screenCaptureOptions: options)
         if options.controlsInNotch {
             connectCaptureControlsSurface(options, controller: controller)
@@ -275,7 +297,7 @@ final class ScreenCaptureService: ObservableObject {
                 ScreenshotService.shared.receiveUnifiedCapture(capture)
             case .text:
                 ScreenTextService.shared.receiveUnifiedCapture(capture)
-            case .recording, .color:
+            case .recording, .color, .scrolling:
                 showFailure(for: selected)
             }
         case .region(let region):
@@ -286,7 +308,7 @@ final class ScreenCaptureService: ObservableObject {
             ScreenRecorderService.shared.record(region,
                                                 audioOptions: recorderAudio)
         case .scrollingRegion(let region):
-            guard selected == .screenshot else {
+            guard selected == .screenshot || selected == .scrolling else {
                 showFailure(for: selected)
                 return
             }
@@ -314,14 +336,21 @@ final class ScreenCaptureService: ObservableObject {
         }
     }
 
+    @discardableResult
+    func cancelCountdownIfActive() -> Bool {
+        guard let work = countdown else { return false }
+        work.cancel()
+        countdown = nil
+        countdownTools = nil
+        countdownRemaining = 0
+        return true
+    }
+
     private func cancelSelection() {
         NotchService.shared.endCaptureControls()
         options?.onPresentationReady = nil
         options?.onCaptureControlsSurfaceChange = nil
-        countdown?.cancel()
-        countdown = nil
-        countdownTools = nil
-        countdownRemaining = 0
+        cancelCountdownIfActive()
         selection?.cancel()
         selection = nil
         options = nil
