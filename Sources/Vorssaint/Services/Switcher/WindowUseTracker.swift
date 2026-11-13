@@ -96,12 +96,18 @@ final class WindowUseTracker {
                    running: Set<pid_t>, revision: UUID) {
         stateLock.withLock {
             guard recording else { return }
-            windowHistory = WindowUseOrder.reconciled(windowHistory,
-                                                      existing: existingWindows,
-                                                      frontToBack: frontToBack.windows)
-            appHistory = WindowUseOrder.reconciled(appHistory,
-                                                   running: running,
-                                                   frontToBack: frontToBack.apps)
+            // The window set belongs to the query that captured `revision`.
+            // Focus recorded while that query ran bumps the revision, and
+            // must not lose the window MRU that recording promoted. A matching
+            // revision is the only proof the set is still current.
+            if focusHistory.revision == revision {
+                windowHistory = WindowUseOrder.reconciled(windowHistory,
+                                                          existing: existingWindows,
+                                                          frontToBack: frontToBack.windows)
+                appHistory = WindowUseOrder.reconciled(appHistory,
+                                                       running: running,
+                                                       frontToBack: frontToBack.apps)
+            }
             focusHistory.reconcile(windows: existingWindows, revision: revision)
         }
     }
@@ -114,10 +120,34 @@ final class WindowUseTracker {
         }
     }
 
-    private func promote(window windowID: CGWindowID, for request: WindowFocusHistory.Request) {
+    /// Why a promotion was or was not taken. The reason is read inside the
+    /// tracker's own lock, so naming it costs no extra round trip.
+    private enum Promotion {
+        case accepted
+        case rejectedNotRecording
+        case rejectedRequestGone
+
+        var wasAccepted: Bool { self == .accepted }
+
+        var reason: String {
+            switch self {
+            case .accepted: return "accepted"
+            case .rejectedNotRecording: return "not_recording"
+            case .rejectedRequestGone: return "request_not_current"
+            }
+        }
+    }
+
+    /// Promotes a focused window and reports whether the history took it.
+    /// A read that arrives after its request was replaced is observed but not
+    /// accepted, and the observer needs to be able to say which it was.
+    @discardableResult
+    private func promote(window windowID: CGWindowID, for request: WindowFocusHistory.Request) -> Promotion {
         stateLock.withLock {
-            guard recording, focusHistory.focus(windowID, for: request) else { return }
+            guard recording else { return .rejectedNotRecording }
+            guard focusHistory.focus(windowID, for: request) else { return .rejectedRequestGone }
             windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+            return .accepted
         }
     }
 
@@ -244,10 +274,14 @@ final class WindowUseTracker {
         }
     }
 
-    private func performOnWatcher(_ work: @escaping () -> Void) {
-        guard let runLoop = lifecycleLock.withLock({ watcherRunLoop }) else { return }
+    /// Hands work to the watcher's run loop. The result says whether the work
+    /// was handed over at all: a watcher that is not running drops it.
+    @discardableResult
+    private func performOnWatcher(_ work: @escaping () -> Void) -> Bool {
+        guard let runLoop = lifecycleLock.withLock({ watcherRunLoop }) else { return false }
         CFRunLoopPerformBlock(runLoop, CFRunLoopMode.commonModes.rawValue, work)
         CFRunLoopWakeUp(runLoop)
+        return true
     }
 
     private func runWatcher() {
@@ -272,8 +306,8 @@ final class WindowUseTracker {
                 CFRunLoopRun()
             }
 
-            cancelRetry()
-            detachObserver()
+            cancelRetry(reason: "watcher_shutdown")
+            detachObserver(reason: "watcher_shutdown")
             if let source = keepAliveSource {
                 CFRunLoopRemoveSource(runLoop, source, .defaultMode)
                 keepAliveSource = nil
@@ -305,12 +339,28 @@ final class WindowUseTracker {
     /// activation being posted solely inside the application that already has
     /// the keyboard, so one observer at a time covers every case the
     /// activation notifications miss — for the cost of a single one.
+    ///
+    /// Every step of the chain is measured on its own, so a late observation
+    /// can be told apart into a late dispatch, a slow teardown of the old
+    /// observer and a slow registration of the new one.
     private func retargetObserver(request: WindowFocusHistory.Request?, attempt: Int = 0) {
-        guard !lifecycleLock.withLock({ shouldStopWatcher }),
-              stateLock.withLock({ recording && focusHistory.current == request }) else { return }
-        cancelRetry()
-        detachObserver()
-        guard let request, AXIsProcessTrusted() else { return }
+        // The same two guards as before, in the same order and with the same
+        // number of lock round trips: the second one is not read at all when
+        // the watcher is already stopping.
+        let watcherStopping = lifecycleLock.withLock { shouldStopWatcher }
+        let requestIsCurrent: Bool = watcherStopping ? false : stateLock.withLock { recording && focusHistory.current == request }
+        guard !watcherStopping, requestIsCurrent else {
+            return
+        }
+        cancelRetry(reason: "retarget")
+        detachObserver(reason: "retarget")
+        guard let request else {
+            return
+        }
+        let trusted = AXIsProcessTrusted()
+        guard trusted else {
+            return
+        }
         let pid = request.pid
 
         var created: AXObserver?
@@ -319,11 +369,14 @@ final class WindowUseTracker {
         // full default timeout, on this thread, once per switch.
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
         var needsRetry = false
-        if AXObserverCreate(pid, Self.focusCallback, &created) == .success, let created {
+        let createResult = AXObserverCreate(pid, Self.focusCallback, &created)
+        if createResult == .success, let created {
             let refcon = Unmanaged.passUnretained(self).toOpaque()
             for notification in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
                 let result = AXObserverAddNotification(created, application, notification as CFString, refcon)
-                if result != .success && result != .notificationUnsupported { needsRetry = true }
+                if result != .success && result != .notificationUnsupported {
+                    needsRetry = true
+                }
             }
             CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(created), .defaultMode)
             observer = created
@@ -335,66 +388,98 @@ final class WindowUseTracker {
         // Activation itself posts no focus change, so the window the app came
         // back to has to be asked for once. Any change that races this arrives
         // through the observer, which is already installed.
-        let foundFocus = readFocusedWindow(for: request)
-        if needsRetry || !foundFocus { scheduleRetry(request, attempt: attempt) }
+        let foundFocus = readFocusedWindow(for: request, trigger: "retarget")
+        if needsRetry || !foundFocus {
+            scheduleRetry(request, attempt: attempt)
+        }
     }
 
-    private func cancelRetry() {
+    private func cancelRetry(reason: String = "retarget") {
         if let retryTimer { CFRunLoopTimerInvalidate(retryTimer) }
         retryTimer = nil
     }
 
-    private func scheduleRetry(_ request: WindowFocusHistory.Request, attempt: Int) {
+    private func scheduleRetry(_ request: WindowFocusHistory.Request, attempt: Int, reason: String = "") {
         // A launch may not yet serve AX. Three one-shot retries, no idle polling.
-        guard attempt < 3, stateLock.withLock({ recording && focusHistory.current == request }) else { return }
-        let timer = CFRunLoopTimerCreateWithHandler(kCFAllocatorDefault,
-            CFAbsoluteTimeGetCurrent() + 0.2 * Double(attempt + 1), 0, 0, 0) { [weak self] _ in
-                self?.retargetObserver(request: request, attempt: attempt + 1)
-            }
+        // The request is not read at all once the attempts are used up.
+        let withinLimit = attempt < 3
+        let requestIsCurrent: Bool = withinLimit ? stateLock.withLock({ recording && focusHistory.current == request }) : false
+        guard withinLimit, requestIsCurrent else {
+            return
+        }
+        let deadline = CFAbsoluteTimeGetCurrent() + 0.2 * Double(attempt + 1)
+        let timer = CFRunLoopTimerCreateWithHandler(kCFAllocatorDefault, deadline, 0, 0, 0) { [weak self] _ in
+            self?.retargetObserver(request: request, attempt: attempt + 1)
+        }
         retryTimer = timer
         CFRunLoopAddTimer(CFRunLoopGetCurrent(), timer, .defaultMode)
     }
 
-    private func detachObserver() {
-        guard let observer else { return }
-        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
-        if let observedPID {
-            let application = AXUIElementCreateApplication(observedPID)
-            AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
-            for notification in [kAXFocusedWindowChangedNotification, kAXMainWindowChangedNotification] {
-                _ = AXObserverRemoveNotification(observer, application, notification as CFString)
-            }
+    private func detachObserver(reason: String = "retarget") {
+        guard let observer else {
+            return
         }
+        CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+        // This observer is being destroyed, not kept with fewer subscriptions.
+        // Drop it only after detaching its source on this watcher runloop;
+        // per-notification Remove would add synchronous remote AX round trips.
         self.observer = nil
         observedPID = nil
     }
 
-    private func readFocusedWindow(for request: WindowFocusHistory.Request) -> Bool {
-        guard AXIsProcessTrusted(), stateLock.withLock({ recording && focusHistory.current == request }) else { return false }
+    /// Reads the focused window of the request's application. `trigger` says
+    /// what asked for the read, so a read that follows an activation can be
+    /// told apart from one that follows a focus notification.
+    ///
+    /// A window id read here says which window the application named as
+    /// focused; it says nothing about pixels on screen or about whether the
+    /// keyboard has already moved there.
+    private func readFocusedWindow(for request: WindowFocusHistory.Request, trigger: String = "unknown") -> Bool {
+        guard AXIsProcessTrusted() else {
+            return false
+        }
+        guard stateLock.withLock({ recording && focusHistory.current == request }) else {
+            return false
+        }
         let application = AXUIElementCreateApplication(request.pid)
         AXUIElementSetMessagingTimeout(application, Self.messagingTimeout)
         var value: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let value,
+        let result = AXUIElementCopyAttributeValue(application, kAXFocusedWindowAttribute as CFString, &value)
+        guard result == .success else {
+            return false
+        }
+        guard let value,
               CFGetTypeID(value) == AXUIElementGetTypeID()
-        else { return false }
+        else {
+            return false
+        }
         // A misbehaving app can answer with something that is not an element.
         let window = value as! AXUIElement
-        guard let windowID = AXWindowResolver.windowID(for: window) else { return false }
-        promote(window: windowID, for: request)
+        guard let windowID = AXWindowResolver.windowID(for: window) else {
+            return false
+        }
+        _ = promote(window: windowID, for: request)
         return true
     }
 
     /// C callback: no captures, so the tracker travels in the refcon.
-    private static let focusCallback: AXObserverCallback = { observer, _, _, refcon in
+    private static let focusCallback: AXObserverCallback = { observer, _, notification, refcon in
         guard let refcon else { return }
         let tracker = Unmanaged<WindowUseTracker>.fromOpaque(refcon).takeUnretainedValue()
-        guard let active = tracker.observer, CFEqual(active, observer),
-              let request = tracker.stateLock.withLock({ tracker.focusHistory.current }),
-              request.pid == tracker.observedPID else { return }
+        // The same guards as before, in the same order: the history is not
+        // read at all unless the observer that fired is the live one.
+        let active = tracker.observer
+        let observerMatches = active.map { CFEqual($0, observer) } ?? false
+        let current = (active != nil && observerMatches)
+            ? tracker.stateLock.withLock({ tracker.focusHistory.current })
+            : nil
+        let pidMatches = current.map { $0.pid == tracker.observedPID } ?? false
+        guard let request = current, pidMatches else {
+            return
+        }
         // Main-window notifications may name a window that does not have focus.
         // Read actual focus and reject replies from an older activation.
-        _ = tracker.readFocusedWindow(for: request)
+        _ = tracker.readFocusedWindow(for: request, trigger: "notification")
     }
 
     // MARK: - Window server
