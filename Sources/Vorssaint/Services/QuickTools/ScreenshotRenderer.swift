@@ -509,23 +509,55 @@ enum ScreenshotRenderer {
         }
         guard let placement = ScreenshotSupport.watermarkPlacement(contentSize: contentSize,
                                                                    rotation: style.rotation,
-                                                                   anchor: style.anchor,
+                                                                   anchor: style.layout == .single ? style.anchor : .center,
                                                                    in: imageSize,
-                                                                   cornerRadius: cornerRadius)
+                                                                   cornerRadius: style.layout == .single ? cornerRadius : 0)
         else { return }
 
         context.saveGState()
+        if style.layout == .tiled {
+            let rect = CGRect(origin: .zero, size: imageSize)
+            let radius = cornerRadius.isFinite
+                ? max(0, min(min(imageSize.width, imageSize.height) / 2, cornerRadius)) : 0
+            context.addPath(CGPath(roundedRect: rect, cornerWidth: radius,
+                                   cornerHeight: radius, transform: nil))
+            context.clip()
+        }
         // One layer for the whole mark: its opacity and shadow then apply to
         // the composite rather than to every glyph on its own.
         applyShadow(context, scale: scale, enabled: shadowsEnabled)
         context.setAlpha(CGFloat(style.opacity))
         context.beginTransparencyLayer(auxiliaryInfo: nil)
-        context.translateBy(x: placement.center.x, y: placement.center.y)
-        // The context is flipped, where a positive angle turns clockwise.
-        context.rotate(by: -CGFloat(style.rotation) * .pi / 180)
-        context.scaleBy(x: placement.fit, y: placement.fit)
-        draw(CGRect(x: -contentSize.width / 2, y: -contentSize.height / 2,
-                    width: contentSize.width, height: contentSize.height))
+        let radians = CGFloat(style.rotation) * .pi / 180
+        func drawMark(at center: CGPoint) {
+            context.saveGState()
+            context.translateBy(x: center.x, y: center.y)
+            // The context is flipped, where a positive angle turns clockwise.
+            context.rotate(by: -radians)
+            context.scaleBy(x: placement.fit, y: placement.fit)
+            draw(CGRect(x: -contentSize.width / 2, y: -contentSize.height / 2,
+                        width: contentSize.width, height: contentSize.height))
+            context.restoreGState()
+        }
+        switch style.layout {
+        case .single:
+            drawMark(at: placement.center)
+        case .tiled:
+            let gap = max(2, min(imageSize.width, imageSize.height) * 0.06)
+            let stepX = (abs(contentSize.width * cos(radians))
+                + abs(contentSize.height * sin(radians))) * placement.fit + gap
+            let stepY = (abs(contentSize.width * sin(radians))
+                + abs(contentSize.height * cos(radians))) * placement.fit + gap
+            let columns = Int(ceil(imageSize.width / (2 * stepX))) + 1
+            let rows = Int(ceil(imageSize.height / (2 * stepY))) + 1
+            for row in -rows...rows {
+                let offset = row.isMultiple(of: 2) ? 0 : stepX / 2
+                for column in -columns...columns {
+                    drawMark(at: CGPoint(x: imageSize.width / 2 + CGFloat(column) * stepX + offset,
+                                         y: imageSize.height / 2 + CGFloat(row) * stepY))
+                }
+            }
+        }
         context.endTransparencyLayer()
         context.restoreGState()
     }
