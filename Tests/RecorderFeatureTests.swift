@@ -295,7 +295,7 @@ enum RecorderFeatureTests {
                "the high preset keeps every pixel")
         suite.expect(RecorderSupport.outputSize(source: CGSize(width: 2940, height: 1912), quality: .balanced)
                 == CGSize(width: 2940, height: 1912),
-               "the default preset keeps every pixel too, so text stays as sharp as on screen")
+               "balanced video keeps every pixel")
         let highRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
                                                       quality: .high)
         let balancedRate = RecorderSupport.averageBitRate(width: 2940, height: 1912, fps: 60,
@@ -303,7 +303,7 @@ enum RecorderFeatureTests {
         let smallRate = RecorderSupport.averageBitRate(width: 1470, height: 956, fps: 60,
                                                        quality: .small)
         suite.expect(highRate > balancedRate && balancedRate > smallRate,
-               "the presets differ by bits, and only the small one by pixels")
+               "the presets use progressively smaller dimensions and video bit rates")
         suite.expect(RecorderSupport.averageBitRate(width: 64, height: 64, fps: 30, quality: .small)
                 >= 800_000,
                "even a tiny area gets a usable stream")
@@ -560,6 +560,33 @@ enum RecorderFeatureTests {
                 && RecorderSupport.sanitizedAudioGain(3) == 1
                 && RecorderSupport.sanitizedAudioGain(.nan) == 1,
                "audio gain stays inside the editor's safe range")
+
+        let legacyExport = RecorderEditDocument.decoded(Data("{\"gifFrameRate\":24}".utf8))
+        suite.expect(legacyExport.resolvedExportFormat == .video
+                && legacyExport.resolvedGIFScalePercent == 75
+                && legacyExport.resolvedGIFFrameRate == 24,
+               "legacy documents default to video and 75 percent GIF while preserving custom FPS")
+        var independentExport = RecorderEditDocument(exportFormat: "gif", gifScalePercent: 37, gifFrameRate: 24)
+        independentExport.quality = "high"
+        suite.expect(independentExport.outputScale(for: .video) == 1
+                && independentExport.outputScale(for: .gif) == 0.37,
+               "video and GIF retain independent scales")
+        suite.expect(RecorderEditDocument.decoded(independentExport.encoded()) == independentExport,
+               "format, custom GIF scale and FPS round trip")
+        independentExport.exportFormat = "invalid"
+        independentExport.gifScalePercent = 999
+        independentExport.gifFrameRate = 51
+        let repairedExport = independentExport.sanitized(duration: 12)
+        suite.expect(repairedExport.exportFormat == "video" && repairedExport.gifScalePercent == 100
+                && repairedExport.gifFrameRate == 12,
+               "invalid export values fall back or clamp")
+        independentExport.gifScalePercent = -1
+        independentExport.gifFrameRate = 0
+        suite.expect(independentExport.resolvedGIFScalePercent == 1
+                && independentExport.resolvedGIFFrameRate == 12
+                && RecorderSupport.sanitizedGIFFrameRate(1) == 1
+                && RecorderSupport.sanitizedGIFFrameRate(50) == 50,
+               "GIF settings enforce both range boundaries")
 
         var document = RecorderEditDocument()
         suite.expect(!document.isEdited(duration: 12) && !document.zoomsOnTyping,
@@ -1222,7 +1249,9 @@ enum RecorderFeatureTests {
                "redrawing a blur's area keeps its strength")
         let copyGIFSource = recorderControllerSource.components(separatedBy: "func copyGIF()").last?
             .components(separatedBy: "\n    func ").first ?? ""
-        suite.expect(copyGIFSource.contains("GeneralPasteboardAccess.shared.async({\n                RecorderGIFClipboard.publish(fileURL: url)"),
+        let clipboardLaneBody = copyGIFSource.components(separatedBy: "GeneralPasteboardAccess.shared.async({")
+            .dropFirst().first?.components(separatedBy: "}) {").first ?? ""
+        suite.expect(clipboardLaneBody.contains("RecorderGIFClipboard.publish(fileURL: url)"),
                "Copy as GIF checks and publishes the file on the pasteboard lane, off the main thread")
         let blurredDocument = RecorderEditDocument.decoded(
             RecorderEditDocument(blurs: [blur]).encoded())

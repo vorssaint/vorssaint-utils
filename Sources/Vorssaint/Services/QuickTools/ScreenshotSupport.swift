@@ -14,6 +14,13 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    case scrolling
+
+    var settingsDestination: FeatureSettingsDestination {
+        self == .scrolling
+            ? FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
+            : feature.settingsDestination
+    }
 
     var shortcutKey: String {
         switch self {
@@ -21,6 +28,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .scrolling: return "5"
         }
     }
 
@@ -31,7 +39,7 @@ enum ScreenCaptureTool: String, CaseIterable {
 
     var feature: AppFeature {
         switch self {
-        case .screenshot: return .screenshot
+        case .screenshot, .scrolling: return .screenshot
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
@@ -57,6 +65,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .screenshot:
             return DedicatedShortcut(role: .screenshot,
                                      enabledKey: DefaultsKey.screenshotShortcutEnabled)
+        case .scrolling:
+            return DedicatedShortcut(role: .screenshotScrolling,
+                                     enabledKey: DefaultsKey.screenshotScrollingShortcutEnabled)
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
                                      enabledKey: DefaultsKey.recorderShortcutEnabled)
@@ -72,6 +83,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var showCaptureMenuOnShortcutKey: String {
         switch self {
         case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .scrolling: return DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
@@ -92,6 +104,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
+        case .scrolling: return "rectangle.stack"
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
@@ -106,6 +119,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .scrolling: return FeatureStrings.screenshot(language).scrollingCaptureTitle
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
@@ -151,11 +165,11 @@ enum ScreenshotSupport {
                                      screenshotHideVorssaintWindows: Bool)
         -> UnifiedCapturePolicy {
         UnifiedCapturePolicy(
-            freeze: tool == .screenshot ? screenshotFreeze : true,
+            freeze: tool == .scrolling ? false : tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
             keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
-            usesGeometry: tool == .recording)
+            usesGeometry: tool == .recording || tool == .scrolling)
     }
 
     static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],
@@ -370,6 +384,14 @@ enum ScreenshotSupport {
 
     // MARK: - Scrolling capture
 
+    static func scrollingControlsFrame(size: CGSize, visibleFrame: CGRect,
+                                       avoiding scrollPoint: CGPoint?) -> CGRect {
+        var frame = CGRect(x: visibleFrame.midX - size.width / 2, y: visibleFrame.maxY - size.height - 24,
+                           width: size.width, height: size.height)
+        if let scrollPoint, frame.contains(scrollPoint) { frame.origin.y = visibleFrame.minY + 24 }
+        return frame
+    }
+
     /// A failed scroll target must never keep the capture alive forever or
     /// exhaust memory. Reaching a guard keeps the valid portion and explains
     /// why the capture stopped.
@@ -404,12 +426,16 @@ enum ScreenshotSupport {
     static func scrollingSamplesAreStable(_ previous: ScrollingSample,
                                           _ current: ScrollingSample,
                                           contentColumns: Range<Int>? = nil) -> Bool {
-        previous.isValid && current.isValid
-            && previous.width == current.width
-            && previous.height == current.height
-            && scrollingDifference(previous,
-                                   current,
-                                   columns: contentColumns ?? 0..<previous.width) <= 1.5
+        guard previous.isValid, current.isValid,
+              previous.width == current.width,
+              previous.height == current.height else { return false }
+        let columns = contentColumns ?? 0..<previous.width
+        guard columns.lowerBound >= 0, columns.upperBound <= previous.width,
+              !columns.isEmpty else { return false }
+        // Empty space must not dilute movement in a narrow column of text.
+        return scrollingColumnTiles(in: columns, sampleWidth: previous.width).allSatisfy {
+            scrollingDifference(previous, current, columns: $0) <= 1.5
+        }
     }
 
     /// Finds how many rows two successive views share. The calculation is
@@ -455,6 +481,43 @@ enum ScreenshotSupport {
         }
 
         let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
+        if previous.width > 32 {
+            // Keep native detail where pixels actually change, instead of
+            // shrinking a wide Terminal until different digits look alike.
+            // Limit the expensive offset search to 32 representative columns.
+            let selected: [(column: Int, bounds: Range<Int>)]
+            if columns.count <= 32 {
+                selected = columns.map { ($0, $0..<($0 + 1)) }
+            } else {
+                let perTile = max(1, 32 / tiles.count)
+                selected = tiles.flatMap { tile in
+                    tile.map { column in
+                        (column: column, difference: scrollingDifference(
+                            previous, current, columns: column..<(column + 1)))
+                    }.sorted {
+                        if $0.difference != $1.difference { return $0.difference > $1.difference }
+                        return $0.column < $1.column
+                    }.prefix(perTile).map(\.column).sorted().map { ($0, tile) }
+                }
+            }
+            func compact(_ sample: ScrollingSample) -> ScrollingSample {
+                var pixels = [UInt8]()
+                pixels.reserveCapacity(selected.count * sample.height)
+                for row in 0..<sample.height {
+                    let start = row * sample.width
+                    for selection in selected { pixels.append(sample.pixels[start + selection.column]) }
+                }
+                return .init(width: selected.count, height: sample.height, pixels: pixels)
+            }
+            let transition = scrollingTransition(previous: compact(previous), current: compact(current))
+            if case .advanced(let overlap, let direction, let matched) = transition {
+                let lower = selected[matched.lowerBound].bounds.lowerBound
+                let upper = selected[matched.upperBound - 1].bounds.upperBound
+                return .advanced(overlap: overlap, direction: direction,
+                                 contentColumns: lower..<upper)
+            }
+            return transition
+        }
         let movingTiles = tiles.filter {
             scrollingDifference(previous, current, columns: $0) > 1.5
         }
@@ -500,9 +563,12 @@ enum ScreenshotSupport {
             if $0.supportingTiles != $1.supportingTiles {
                 return $0.supportingTiles > $1.supportingTiles
             }
+            // Similar digits can pass the row tolerance at a wrong offset.
+            // Prefer the closer pixel match before rewarding a longer overlap,
+            // which otherwise biases sparse text toward a shorter scroll.
+            if $0.difference != $1.difference { return $0.difference < $1.difference }
             if $0.longestRun != $1.longestRun { return $0.longestRun > $1.longestRun }
-            if $0.matchingRows != $1.matchingRows { return $0.matchingRows > $1.matchingRows }
-            return $0.difference < $1.difference
+            return $0.matchingRows > $1.matchingRows
         }
 
         let best = matches[0]
@@ -511,21 +577,80 @@ enum ScreenshotSupport {
             return .unmatched
         }
 
-        // Repeated blank bands can look equally good at several offsets. A
-        // unique match is required instead of guessing and creating a seam.
-        if let rival = matches.dropFirst().first(where: {
-            $0.reversed != best.reversed || abs($0.advance - best.advance) > 2
-        }),
-           rival.contentColumns.count >= best.contentColumns.count - 1,
-           rival.supportingTiles >= best.supportingTiles - 1,
-           rival.longestRun >= best.longestRun - 2,
-           rival.matchingRows >= best.matchingRows - max(3, best.supportingTiles * 3),
-           rival.difference <= best.difference + 0.75 {
+        // Repeated content can match equally well over different lengths.
+        // Require comparable support so a short blank band does not veto a
+        // longer match, but reject any equally precise, substantial rival.
+        // Scale the error margin down for precise matches: an approximate
+        // low-contrast pattern must not veto an exact overlap.
+        let ambiguityTolerance = min(0.75, best.difference)
+        if matches.dropFirst().contains(where: { rival in
+            (rival.reversed != best.reversed || abs(rival.advance - best.advance) > 2)
+                && rival.contentColumns.count >= best.contentColumns.count - 1
+                && rival.supportingTiles >= best.supportingTiles - 1
+                && rival.longestRun >= max(requiredRun, best.longestRun / 2)
+                && rival.matchingRows >= max(requiredRun, best.matchingRows / 2)
+                && rival.difference <= best.difference + ambiguityTolerance
+        }) {
             return .unmatched
         }
-        return .advanced(overlap: height - best.advance,
-                         direction: best.reversed ? .backward : .forward,
-                         contentColumns: best.contentColumns)
+        return scrollingMotion(previous: best.reversed ? current : previous,
+                               current: best.reversed ? previous : current,
+                               advance: best.advance, columns: best.contentColumns,
+                               direction: best.reversed ? .backward : .forward)
+    }
+
+    private static func scrollingMotion(previous: ScrollingSample, current: ScrollingSample,
+                                        advance: Int, columns: Range<Int>,
+                                        direction: ScrollingDirection) -> ScrollingTransition {
+        let overlap = previous.height - advance
+        var firstChange = current.height, lastChange = -1
+        var firstMoving = current.height, lastMoving = -1, moving = 0
+        var stationaryRows = [Int]()
+        var unexplainedChange = false
+        for row in 0..<current.height {
+            var aligned = 0, shifted = 0
+            for column in columns {
+                let index = row * current.width + column
+                let pixel = Int(current.pixels[index])
+                aligned += abs(Int(previous.pixels[index]) - pixel)
+                if row < overlap {
+                    shifted += abs(Int(previous.pixels[index + advance * previous.width]) - pixel)
+                }
+            }
+            let alignedError = Double(aligned) / Double(columns.count)
+            if alignedError > 1.5 {
+                firstChange = min(firstChange, row)
+                lastChange = row
+            }
+            guard row < overlap else { continue }
+            let shiftedError = Double(shifted) / Double(columns.count)
+            if shiftedError <= 8 && alignedError > shiftedError + 1.5 {
+                firstMoving = min(firstMoving, row)
+                lastMoving = row
+                moving += 1
+            } else if alignedError <= 1.5 && shiftedError > alignedError + 1.5 {
+                stationaryRows.append(row)
+            } else if alignedError > 1.5 && shiftedError > 8 {
+                unexplainedChange = true
+            }
+        }
+        guard moving > 0 else { return .unmatched }
+        if lastChange - firstChange + 1 < current.height / 2 {
+            // A moving banner between stationary document features is not a
+            // wheel advance. On a blank background we cannot identify the
+            // document, but a clipped animation cannot explain every changed
+            // row at the proposed offset. A sparse line sliding intact can.
+            if stationaryRows.count > moving,
+               stationaryRows.contains(firstChange - 1),
+               stationaryRows.contains(lastChange + 1) { return .end }
+            if unexplainedChange || lastChange >= overlap { return .unmatched }
+        }
+        // Fixed headers and footers are outside the moving content. Their
+        // texture must never outvote a few widely spaced lines of real text.
+        let movingRegion = firstMoving...lastMoving
+        guard stationaryRows.lazy.filter({ movingRegion.contains($0) }).count <= moving
+        else { return .unmatched }
+        return .advanced(overlap: overlap, direction: direction, contentColumns: columns)
     }
 
     /// A fixed footer stays at the same viewport rows while the page behind it
@@ -690,7 +815,10 @@ enum ScreenshotSupport {
                                        columns: Range<Int>,
                                        differences: [Float]) -> ScrollingRowMatch? {
         let width = previous.width
-        let edgeInset = max(2, previous.height / 10)
+        // Trim the shared rows, not the whole viewport. A viewport-sized inset
+        // can erase a valid smaller overlap and strand a long capture on its
+        // last accepted frame, or favor a blank band at the wrong offset.
+        let edgeInset = max(2, (previous.height - advance) / 10)
         let lastRow = previous.height - advance - edgeInset
         guard lastRow > edgeInset,
               columns.lowerBound >= 0,
@@ -708,22 +836,25 @@ enum ScreenshotSupport {
         var longestRun = 0
         var run = 0
         var matchingRows = 0
+        var totalDifference: Float = 0
         let threshold = Float(columns.count * 8)
         rowDifferences.withUnsafeBufferPointer { rows in
             var row = 0
             while row < rowCount {
                 if rows[row] <= threshold {
+                    totalDifference += rows[row]
                     run += 1
                     matchingRows += 1
                     if run > longestRun { longestRun = run }
                 } else {
+                    // Bound the influence of a changing block without treating
+                    // its rows as matches or discarding their error entirely.
+                    totalDifference += threshold
                     run = 0
                 }
                 row += 1
             }
         }
-        var totalDifference: Float = 0
-        vDSP_sve(rowDifferences, 1, &totalDifference, vDSP_Length(rowCount))
         return ScrollingRowMatch(longestRun: longestRun,
                                  matchingRows: matchingRows,
                                  comparedRows: rowCount,
@@ -2566,6 +2697,43 @@ enum ScreenshotSupport {
     static func cardCornerRadius(for imageSize: CGSize, factor: CGFloat) -> CGFloat {
         let clamped = max(0, min(1, factor))
         return (clamped * min(imageSize.width, imageSize.height) * 0.2).rounded()
+    }
+
+    /// The rounding a picture already carries in its alpha, such as a window
+    /// captured with its own corners, in image pixels: how far transparency
+    /// reaches in along each corner's diagonal, read as the radius of the arc
+    /// that meets the diagonal there. The least rounded corner wins, so a
+    /// mark drawn into one corner cannot round the card past the picture. An
+    /// opaque picture reads 0.
+    static func transparentCornerRadius(of image: CGImage) -> CGFloat {
+        let side = min(image.width, image.height, 512) / 2
+        guard side >= 2 else { return 0 }
+        let corners = [(x: 0, y: 0, stepX: 1, stepY: 1),
+                       (x: image.width - side, y: 0, stepX: -1, stepY: 1),
+                       (x: 0, y: image.height - side, stepX: 1, stepY: -1),
+                       (x: image.width - side, y: image.height - side, stepX: -1, stepY: -1)]
+        var reach = Int.max
+        for corner in corners {
+            guard let crop = image.cropping(to: CGRect(x: corner.x, y: corner.y, width: side, height: side)),
+                  let context = CGContext(data: nil, width: side, height: side,
+                                          bitsPerComponent: 8, bytesPerRow: side * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                  let pixels = context.data
+            else { return 0 }
+            context.draw(crop, in: CGRect(x: 0, y: 0, width: side, height: side))
+            // Rows run top down in the buffer, as in the picture.
+            let startX = corner.stepX > 0 ? 0 : side - 1
+            let startY = corner.stepY > 0 ? 0 : side - 1
+            guard let opaqueAt = (0..<side).first(where: { step in
+                let x = startX + step * corner.stepX
+                let y = startY + step * corner.stepY
+                return pixels.load(fromByteOffset: (y * side + x) * 4 + 3, as: UInt8.self) > 127
+            }) else { return 0 }
+            reach = min(reach, opaqueAt)
+        }
+        // The arc crosses the diagonal at r · (1 − 1/√2) from the corner.
+        return (CGFloat(reach) / (1 - 1 / 2.0.squareRoot())).rounded()
     }
 
     /// Gaussian blur radius in output pixels. Keeping it proportional makes

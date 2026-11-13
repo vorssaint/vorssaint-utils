@@ -12,8 +12,12 @@ enum SwitcherFullscreenScopeTests {
         typealias SpaceWindowBridge = SwitcherFullscreenScopeTests.Bridge
         typealias WindowUseTracker = SwitcherFullscreenScopeTests.Tracker
         typealias UserDefaults = SwitcherFullscreenScopeTests.Preferences
+        typealias AXWindowResolver = SwitcherFullscreenScopeTests.Resolver
+        typealias ProcessInfo = SwitcherFullscreenScopeTests.Clock
         static let minimumSize = CGSize(width: 80, height: 60)
         static let maximumCount = 48
+        static let messagingTimeout: Float = 0.1
+        static let accessibilityQueryQueue = OperationQueue()
         static var raw: [[String: Any]] = []
         static var answers: [pid_t: AccessibilityWindowSnapshotList] = [:]
 
@@ -22,15 +26,94 @@ enum SwitcherFullscreenScopeTests {
             raw as CFArray
         }
 
+        static func CGWindowListCreateDescriptionFromArray(_ ids: CFArray?) -> CFArray? {
+            guard let ids else { return nil }
+            let requested = Set((0..<CFArrayGetCount(ids)).map {
+                CGWindowID(truncatingIfNeeded: UInt(bitPattern: CFArrayGetValueAtIndex(ids, $0)))
+            })
+            return raw.filter {
+                ($0[kCGWindowNumber as String] as? NSNumber).map { requested.contains($0.uint32Value) } ?? false
+            } as CFArray
+        }
+
         static func accessibilityWindows(for pids: Set<pid_t>, bundleIdentifiers: [pid_t: String],
                                          undescribedSubrolePids: Set<pid_t>, accessibilityGranted: Bool,
                                          normalLevelWindowIDs: Set<CGWindowID>, screenFrames: [CGRect],
-                                         isCancelled: @escaping () -> Bool) -> [pid_t: AccessibilityWindowSnapshotList] {
-            answers
+                                         isCancelled: @escaping () -> Bool,
+                                         prefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil) -> [pid_t: AccessibilityWindowSnapshotList] {
+            guard accessibilityGranted, !isCancelled() else { return [:] }
+            return answers.filter { pids.contains($0.key) }
         }
 
         static func orderByUse(_ windows: [SwitcherItem], frontToBack: [CGWindowID]) -> [SwitcherItem] {
             windows
+        }
+
+        /// The apps the window server may name that the running-apps
+        /// snapshot does not know.
+        final class RunningApplication {
+            struct Info {
+                var bundleIdentifier: String? = "com.example.hosted"
+                var localizedName: String? = "Hosted"
+                var isRegular = true
+                var isHidden = false
+                var bundlePath: String? = "/Applications/Hosted.app"
+                var executablePath: String? = "/Applications/Hosted.app/Contents/MacOS/Hosted"
+                var isTerminated = false
+            }
+            static var apps: [pid_t: Info] = [:]
+            let processIdentifier: pid_t
+            private let info: Info
+            init?(processIdentifier: pid_t) {
+                guard let info = RunningApplication.apps[processIdentifier] else { return nil }
+                self.processIdentifier = processIdentifier
+                self.info = info
+            }
+            var bundleIdentifier: String? { info.bundleIdentifier }
+            var localizedName: String? { info.localizedName }
+            var activationPolicy: NSApplication.ActivationPolicy { info.isRegular ? .regular : .accessory }
+            var isHidden: Bool { info.isHidden }
+            var bundleURL: URL? { info.bundlePath.map { URL(fileURLWithPath: $0) } }
+            var executableURL: URL? { info.executablePath.map { URL(fileURLWithPath: $0) } }
+            var isTerminated: Bool { info.isTerminated }
+        }
+        typealias NSRunningApplication = RunningApplication
+
+        /// Stand-in elements carry their window id as their pid.
+        static func accessibilityTitle(for window: AXUIElement) -> String {
+            var id: pid_t = 0
+            AXUIElementGetPid(window, &id)
+            Resolver.titleReads.append(CGWindowID(id))
+            Clock.processInfo.systemUptime += Resolver.titleReadDuration
+            return Resolver.titles[CGWindowID(id)] ?? ""
+        }
+    }
+
+    final class Clock {
+        static let processInfo = Clock()
+        let processIdentifier = Foundation.ProcessInfo.processInfo.processIdentifier
+        var systemUptime: TimeInterval = 0
+    }
+
+    /// Remote elements of windows on hidden Spaces, with each app's lookup
+    /// recorded.
+    enum Resolver {
+        static let remoteLookupBudget: TimeInterval = 0.15
+        static var titles: [CGWindowID: String] = [:]
+        static var lookups: [pid_t] = []
+        static var titleReads: [CGWindowID] = []
+        static var titleReadDuration: TimeInterval = 0
+        static var lookupDuration: TimeInterval = 0
+        static func elementsOnHiddenSpace(windowIDs: Set<CGWindowID>, pid: pid_t,
+                                          budget: TimeInterval, isCancelled: () -> Bool) -> [CGWindowID: AXUIElement] {
+            guard budget > 0, !isCancelled() else { return [:] }
+            lookups.append(pid)
+            Clock.processInfo.systemUptime += lookupDuration
+            return Dictionary(uniqueKeysWithValues: windowIDs.filter { titles[$0] != nil }
+                .map { ($0, AXUIElementCreateApplication(pid_t($0))) })
+        }
+        static func prepareForRequest(_ element: AXUIElement, deadline: TimeInterval) -> Bool {
+            Clock.processInfo.systemUptime < deadline
         }
     }
 
@@ -47,6 +130,17 @@ enum SwitcherFullscreenScopeTests {
     /// hidden-with-app reader stays a stand-in, because its macOS 26 gate
     /// would make the result depend on the Mac running the tests.
     enum Bridge {
+        static var idListAvailable = true
+        static func windowIDList() -> CFArray? {
+            guard idListAvailable else { return nil }
+            let ids = CFArrayCreateMutable(nil, 0, nil)!
+            for row in Enumerator.raw {
+                guard let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                      id != kCGNullWindowID else { continue }
+                CFArrayAppendValue(ids, UnsafeRawPointer(bitPattern: UInt(id)))
+            }
+            return ids
+        }
         struct Topology {
             let visibleSpaces: Set<UInt64>
             let fullscreenSpaces: Set<UInt64>
@@ -107,10 +201,10 @@ enum SwitcherFullscreenScopeTests {
 
     final class Tracker {
         static let shared = Tracker()
-        let historyRevision: UInt64 = 0
+        let historyRevision = UUID()
         static func frontToBack() -> [CGWindowID] { [] }
         func reconcile(existingWindows: Set<CGWindowID>, frontToBack: [CGWindowID],
-                       running: Set<pid_t>, revision: UInt64) {}
+                       running: Set<pid_t>, revision: UUID) {}
         func rank(of pid: pid_t) -> Int { Int(pid) }
     }
 
@@ -118,12 +212,19 @@ enum SwitcherFullscreenScopeTests {
         defer {
             Enumerator.raw = []
             Enumerator.answers = [:]
+            Bridge.idListAvailable = true
             Bridge.memberships = [:]
             Bridge.windowServerTags = [:]
             Bridge.windowQuery = Bridge.windowServer
             Bridge.getWindowTags = nil
             Bridge.orderedOut = []
             Bridge.hiddenWithApp = nil
+            Resolver.titles = [:]
+            Resolver.lookups = []
+            Resolver.titleReads = []
+            Resolver.titleReadDuration = 0
+            Resolver.lookupDuration = 0
+            Clock.processInfo.systemUptime = 0
             Preferences.standard.values = [:]
         }
         let frame = CGRect(x: 0, y: 0, width: 900, height: 600)
@@ -196,6 +297,60 @@ enum SwitcherFullscreenScopeTests {
         Preferences.standard.values[DefaultsKey.switcherCurrentSpaceOnly] = true
         suite.expect(Enumerator.listWindowsForCommandBar(snapshot: snapshot).compactMap(\.windowID) == [1],
                      "Command Bar keeps its existing current-desktop scope")
+        // Without Screen Recording the window server titles no window, and
+        // Accessibility leaves the browser's window on another desktop out of
+        // its list, so the window showed only its app's name. Its remote
+        // element supplies the title, looked up once for the app; a window
+        // the app's list describes keeps that title without a lookup.
+        let screenRecordingTitles = Enumerator.raw
+        Enumerator.raw = Enumerator.raw.map { $0.filter { $0.key != kCGWindowName as String } }
+        Resolver.titles = [3: "Pull requests"]
+        let untitled = enumerate(currentSpaceOnly: false).items
+        suite.expect(untitled.first { $0.windowID == 3 }?.title == "Pull requests" && Resolver.lookups == [3],
+                     "a window on another desktop takes its title from its remote element, found \(Resolver.lookups)")
+        suite.expect(untitled.first { $0.windowID == 2 }?.title == "Window 2",
+                     "a window on another desktop that Accessibility describes keeps that title")
+        let untitledRaw = Enumerator.raw
+        var sibling = Enumerator.raw.first { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == 3 }!
+        sibling[kCGWindowNumber as String] = NSNumber(value: 7)
+        Enumerator.raw.append(sibling)
+        Bridge.memberships[7] = [3]
+        Resolver.titles[7] = "Second tab"
+        Resolver.lookups = []
+        suite.expect(enumerate(currentSpaceOnly: false).items.first { $0.windowID == 7 }?.title == "Second tab"
+                     && Resolver.lookups == [3], "hidden siblings share one remote lookup per app")
+        var otherAppWindow = sibling
+        otherAppWindow[kCGWindowNumber as String] = NSNumber(value: 8)
+        otherAppWindow[kCGWindowOwnerPID as String] = NSNumber(value: 2)
+        Enumerator.raw.append(otherAppWindow)
+        Bridge.memberships[8] = [3]
+        Resolver.titles[8] = "Another app"
+        Resolver.lookups = []
+        Resolver.titleReads = []
+        Resolver.lookupDuration = Resolver.remoteLookupBudget
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.titleReads.isEmpty && Resolver.lookups == [3],
+                     "an exhausted remote budget skips title reads and the next app's lookup")
+        Resolver.lookupDuration = 0
+        Resolver.titleReadDuration = Resolver.remoteLookupBudget
+        Resolver.titleReads = []
+        Resolver.lookups = []
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.titleReads.count == 1 && Resolver.lookups == [3],
+                     "a slow title read consumes the shared budget before the next title or app")
+        Resolver.titleReadDuration = 0
+        Enumerator.raw = untitledRaw
+        Bridge.memberships.removeValue(forKey: 7)
+        Bridge.memberships.removeValue(forKey: 8)
+        Resolver.titles = [:]
+        Resolver.lookups = []
+        suite.expect(enumerate(currentSpaceOnly: false).items.first { $0.windowID == 3 }?.title == "",
+                     "a window whose element cannot be found stays untitled, so it shows its app's name as before")
+        Enumerator.raw = screenRecordingTitles
+        Resolver.lookups = []
+        _ = enumerate(currentSpaceOnly: false)
+        suite.expect(Resolver.lookups.isEmpty, "with Screen Recording titles nothing is looked up")
+
         Bridge.windowServerTags = [3: 1 << 18]
         suite.expect(!enumerate(currentSpaceOnly: true).items.contains { $0.windowID == 3 },
                      "an unmatched cycle-excluded fullscreen helper stays out")
@@ -348,5 +503,53 @@ enum SwitcherFullscreenScopeTests {
         Bridge.getWindowTags = { _, _, _, _ in .success }
         suite.expect(listed().compactMap(\.windowID) == [40, 41],
                      "a per-window read of zeros, as macOS 27 gives for other apps, hides nothing")
+        windowlessCapChecks(suite)
+    }
+
+    private static func windowlessCapChecks(_ suite: TestSuite) {
+        let frame = CGRect(x: 0, y: 0, width: 600, height: 400)
+        let apps = (1...40).map { id in
+            Enumerator.AppSnapshot(pid: pid_t(id), bundleIdentifier: "test.app.\(id)",
+                                   localizedName: "App \(id)", isRegular: true, isHidden: false,
+                                   bundlePath: nil, executablePath: nil)
+        }
+        let snapshot = Enumerator.Snapshot(accessibilityGranted: true, runningApps: apps,
+                                            ownWindowTitles: [:], screenFrames: [frame], displayIDsByUUID: [:])
+        Bridge.memberships = [:]
+        Bridge.orderedOut = []
+        Bridge.windowServerTags = [:]
+        Bridge.windowQuery = Bridge.windowServer
+        Bridge.getWindowTags = nil
+        Enumerator.raw = (1...40).map { id in
+            [kCGWindowNumber as String: NSNumber(value: id),
+             kCGWindowOwnerPID as String: NSNumber(value: 1),
+             kCGWindowLayer as String: NSNumber(value: 0),
+             kCGWindowBounds as String: ["X": 0, "Y": 0, "Width": 600, "Height": 400],
+             kCGWindowIsOnscreen as String: NSNumber(value: true),
+             kCGWindowAlpha as String: NSNumber(value: 1),
+             kCGWindowName as String: "Window \(id)"] as [String: Any]
+        }
+        let windows = (1...40).map { id in
+            (id: CGWindowID(id), snapshot: Enumerator.AccessibilityWindowSnapshot(
+                title: "Window \(id)", frame: frame, isMinimized: false,
+                isFullscreen: false, isNativeFullscreen: false))
+        }
+        Enumerator.answers = Dictionary(uniqueKeysWithValues: apps.map {
+            ($0.pid, Enumerator.AccessibilityWindowSnapshotList(ordered: [], byID: [:]))
+        })
+        Enumerator.answers[1] = .init(ordered: windows,
+                                      byID: Dictionary(uniqueKeysWithValues: windows.map { ($0.id, $0.snapshot) }))
+        Preferences.standard.values = [DefaultsKey.switcherWindowlessApps: "all"]
+        let regular = Enumerator.enumerateSwitcherWindows(groupByApp: false,
+                                                           preservingGroupedWindows: false, snapshot: snapshot)
+        suite.expect(regular.items.count == 48 && regular.items.contains(where: \.isAppEntry),
+                     "the existing shortcut still reserves slots for eligible windowless apps")
+        let allWindows = Enumerator.enumerateSwitcherWindows(groupByApp: false,
+                                                              preservingGroupedWindows: false,
+                                                              snapshot: snapshot, windowsOnly: true)
+        suite.expect(allWindows.items.compactMap(\.windowID) == (1...40).map(CGWindowID.init),
+                     "all windows excludes windowless apps before capping so they cannot displace real windows")
+        suite.expect(allWindows.sourceItems.allSatisfy { !$0.isAppEntry },
+                     "an all-windows session resolves its source from real windows too")
     }
 }
