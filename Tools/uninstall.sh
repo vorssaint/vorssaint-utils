@@ -4,8 +4,8 @@
 
 # Cleanly removes Vorssaint and every piece of system state it created:
 # the fan helper daemon, the login item, TCC permissions, preferences, saved
-# state, the app's own data folder and (if present) the password-free
-# closed-lid sudoers rule. Leaves no dead entries behind.
+# state, the app's own data folder and (if present) the vors command link and
+# the password-free closed-lid sudoers rule. Leaves no dead entries behind.
 # Also clears the pre-rename "Vorssaint Utils.app" if it is still around.
 set -uo pipefail
 
@@ -197,6 +197,15 @@ rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.
 # without it zsh aborts the command on an unmatched pattern, which is the
 # ordinary case, and prints an error over a successful uninstall.
 rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
+
+# The links the README sets up, and only those: another tool may own the name.
+BREW_LINK="/opt/homebrew/bin/vors"
+[[ "$(readlink "$BREW_LINK" 2>/dev/null)" == "$APP/"* ]] && rm -f "$BREW_LINK"
+CLI_LINK="/usr/local/bin/vors"
+if [[ "$(readlink "$CLI_LINK" 2>/dev/null)" == "$APP/"* ]]; then
+    echo "▸ Removing the vors command (asks for your admin password)…"
+    osascript -e "do shell script \"rm -f $CLI_LINK\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+fi
 
 # The closed-lid rule under its current name and the two earlier ones, the
 # same files the app looks for. Each path is checked on its own. zsh passes an
