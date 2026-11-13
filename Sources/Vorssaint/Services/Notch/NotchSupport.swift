@@ -3166,8 +3166,14 @@ enum NotchMenuBarLayout {
                                  menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
         guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        // A status item macOS parked wholly behind the camera is invisible,
+        // so it leaves the gaps beside the camera as they are. One that only
+        // overlaps the camera is still on screen and keeps the island back.
+        let cameraMinX = screen.midX - cameraWidth / 2
+        let cameraMaxX = screen.midX + cameraWidth / 2
+        let visibleStatus = statusItems.filter { !($0.minX >= cameraMinX && $0.maxX <= cameraMaxX) }
         return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
-                        occupied: menuItems + statusItems)
+                        occupied: menuItems + visibleStatus)
     }
 
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
