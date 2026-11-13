@@ -861,7 +861,7 @@ final class AgentUsageService: ObservableObject {
     /// Main thread.
     private func noteClaudeCheck(_ failure: AgentClaudeServer.Failure?) {
         claudeAccountFailure = failure
-        claudeAccountUnreachable = failure == .unreachable ? claudeAccountUnreachable + 1 : 0
+        claudeAccountUnreachable = failure == .unreachable || failure == .noLimits ? claudeAccountUnreachable + 1 : 0
     }
 
     /// Back online, the checks start over from the shortest wait: those the

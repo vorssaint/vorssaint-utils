@@ -135,6 +135,10 @@ enum AgentClaudeServerTests {
             suite.expect(run("old") == .failure(.outdated) && run("unsupported") == .failure(.outdated)
                             && run("signedOut") == .failure(.needsSignIn) && run("unavailable") == .failure(.unreachable),
                          "old CLIs, signed-out accounts and temporary failures retain distinct outcomes")
+            // Nothing is saved in this home yet, so an answer without limits
+            // is a Claude Code with none to report.
+            suite.expect(run("noLimits") == .failure(.noLimits),
+                         "a signed-in Claude Code that answers without limits and never saved any is told apart from a failed check")
             // After a failed fetch Claude Code answers from the copy it saved,
             // which is no new reading; one saved as it exits is.
             let saved = folder.appending(path: ".claude.json")
@@ -149,11 +153,14 @@ enum AgentClaudeServerTests {
             let recent = Date().addingTimeInterval(-5)
             try save(fetched: recent)
             let reused = try? run("ok").get()
+            let emptied = run("noLimits")
             try? FileManager.default.removeItem(at: saved)
             suite.expect(seeded == .failure(.unreachable)
                             && (exited?.limits.observedAt).map { $0 > checked.addingTimeInterval(-1) && $0 <= Date() } == true
                             && abs((reused?.limits.observedAt ?? .distantPast).timeIntervalSince(recent)) < 0.01,
                          "an answer from Claude Code's saved copy keeps its own time and an old copy is a failure")
+            suite.expect(emptied == .failure(.unreachable),
+                         "an answer without limits from a Claude Code that saved some before stays a failed check")
             let began = Date()
             suite.expect(run("silent", timeout: 0.15) == .failure(.unreachable)
                             && run("exit") == .failure(.unreachable) && Date().timeIntervalSince(began) < 2,
@@ -324,6 +331,17 @@ enum AgentClaudeServerTests {
         host.noteClaudeCheck(.unreachable)
         suite.expect(wait() == 300, "an answer starts the wait over")
         host.noteClaudeCheck(nil)
+        // Signed in with nonessential traffic turned off: never any limits.
+        waits = []
+        for _ in 0..<4 {
+            host.claudeAccountAttempted = now
+            host.noteClaudeCheck(.noLimits)
+            waits.append(wait())
+            now += waits.last ?? 0
+        }
+        suite.expect(waits == [300, 600, 1_200, 1_800],
+                     "Claude Code that reports no limits is asked less and less often, as one that never answers")
+        host.noteClaudeCheck(nil)
         NotchAgentSupport.used = false
         let unused = !host.claudeLimitsDue(at: now + 86_400, pageShows: false)
         let shown = host.claudeLimitsDue(at: now + 86_400, pageShows: true)
@@ -399,7 +417,7 @@ enum AgentClaudeServerTests {
                             && (try? answer?.get())?.limits.windows.isEmpty == false && path.hasPrefix("/usr/bin:/bin:"),
                          "a Claude Code in ~/.claude/local runs on the Node a version manager keeps, after the system's tools")
         } catch { suite.expect(false, "Claude Code install fixture: \(error)") }
-        let failures: [AgentClaudeServer.Failure] = [.missing, .needsSignIn, .outdated, .unreachable]
+        let failures: [AgentClaudeServer.Failure] = [.missing, .needsSignIn, .outdated, .unreachable, .noLimits]
         suite.expect(AppLanguage.allCases.allSatisfy { language in
             Set(failures.map { FeatureStrings.notchAgents(language).claudeCode($0) }).count == failures.count
         }, "Settings says in every language why Claude Code could not check")
@@ -424,6 +442,7 @@ enum AgentClaudeServerTests {
             unsupported) printf '%s\n' '{"type":"control_response","response":{"subtype":"error","request_id":"usage","error":"Unsupported control request subtype: get_usage"}}' ;;
             signedOut) printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"usage","response":{"rate_limits_available":false,"rate_limits":null}}}' ;;
             unavailable) printf '%s\n' '{"type":"control_response","response":{"subtype":"error","request_id":"usage","error":"temporary failure"}}' ;;
+            noLimits) printf '%s\n' '{"type":"control_response","response":{"subtype":"success","request_id":"usage","response":{"rate_limits_available":true,"rate_limits":null}}}' ;;
             *) printf '%s\n' 'not json' '{"type":"control_response","response":{"subtype":"success","request_id":"other","response":{}}}' \
               '{"type":"control_response","response":{"subtype":"success","request_id":"usage","response":{"rate_limits_available":true,"rate_limits":{"five_hour":{"utilization":100,"resets_at":"2099-10-15T10:40:00Z"},"seven_day":{"utilization":9,"resets_at":"2099-10-17T23:00:00Z"}}}}}' ;;
           esac ;;
