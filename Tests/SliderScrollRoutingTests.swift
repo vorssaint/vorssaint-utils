@@ -108,13 +108,19 @@ enum SliderScrollRoutingTests {
         slider.isEnabled = true
         slider.scrollable = false
         suite.expect(Route.sidewaysStrip(at: slider) === strip,
-                     "a playback-position control does not claim scroll input")
+                     "a slider that does not scroll leaves scroll input to the strip")
         slider.scrollable = true
         suite.expect(Route.sidewaysStrip(at: document) === strip,
                      "scrolling the surrounding app list still navigates the strip")
         slider.isVertical = true
         slider.cancelScroll()
         slider.doubleValue = 0.5
+        target.callbacks = []
+        slider.scrollWheel(with: event(.began))
+        slider.scrollWheel(with: event(.changed, sideways: -40))
+        suite.expect(target.callbacks == [true, false],
+                     "a swipe handed to the strip closes its edit at once, since its end may never reach the bar (edits \(target.callbacks))")
+        slider.cancelScroll()
         func expectStripSwipe(_ events: [NSEvent], _ label: String) {
             strip.received.removeAll()
             target.callbacks = []

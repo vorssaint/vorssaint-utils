@@ -25,6 +25,24 @@ struct NotchArtworkTint: Equatable {
     }
 }
 
+/// A player can report a playing song a moment behind where the bar already
+/// showed it. Spotify does after each seek: it says it plays from the new
+/// place at once, then a second later from the same place again. The bar holds
+/// still for such a small step back until the song catches up, rather than
+/// jumping back. A larger step is a real move and shows at once.
+final class NotchPlaybackHold {
+    static let limit: TimeInterval = 2
+    private var shown: Double?
+
+    func position(_ reported: Double, playing: Bool) -> Double {
+        if playing, let shown, reported < shown, shown - reported <= Self.limit { return shown }
+        shown = reported
+        return reported
+    }
+
+    func reset() { shown = nil }
+}
+
 struct NotchPlayback: Equatable {
     /// How long a song stays shown after a reading finds nothing playing,
     /// which a player moving on to its next song can report for a moment.
@@ -53,6 +71,17 @@ struct NotchPlayback: Equatable {
 
     func position(at date: Date) -> TimeInterval {
         min(duration, max(0, elapsed + (isPlaying ? max(0, date.timeIntervalSince(sampledAt)) * rate : 0)))
+    }
+
+    /// Whether this reading shows the player took a seek to `target`, sent at
+    /// `sentAt` while the song was at `left`. A reading the player made before
+    /// it took the seek still follows the old timeline, which after a short
+    /// seek is just as near, so only a reading nearer the seek confirms it.
+    func confirmsSeek(to target: Double, from left: Double, sentAt: Date, now: Date) -> Bool {
+        let moved = isPlaying ? max(0, now.timeIntervalSince(sentAt)) * rate : 0
+        let reported = position(at: now)
+        let off = abs(reported - min(duration, target + moved))
+        return off <= 2 && off < abs(reported - min(duration, left + moved))
     }
 
     func seekPosition(_ proposed: Double, allowed: Bool? = nil) -> Double? {

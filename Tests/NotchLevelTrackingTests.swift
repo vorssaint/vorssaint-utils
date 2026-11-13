@@ -61,6 +61,8 @@ enum NotchLevelTrackingTests {
     static func run(_ suite: TestSuite) {
         MainActor.assumeIsolated {
             _ = NSApplication.shared
+            // The real pointer is never held or moved by a test.
+            NotchPointer.current = .inert
             check(suite, vertical: false, maximum: 1, thickness: 8, size: NSSize(width: 202, height: 24))
             check(suite, vertical: false, maximum: 300, thickness: nil, size: NSSize(width: 302, height: 10))
             check(suite, vertical: true, maximum: 1, thickness: 28, size: NSSize(width: 40, height: 182))
@@ -83,8 +85,8 @@ enum NotchLevelTrackingTests {
             window.contentView = nil
             window.close()
         }
-        func settle(until ready: () -> Bool) {
-            let deadline = Date().addingTimeInterval(0.25)
+        func settle(for seconds: Double = 0.25, until ready: () -> Bool) {
+            let deadline = Date().addingTimeInterval(seconds)
             repeat {
                 host.layoutSubtreeIfNeeded()
                 RunLoop.current.run(until: min(deadline, Date().addingTimeInterval(0.01)))
@@ -175,8 +177,21 @@ enum NotchLevelTrackingTests {
                          "\(name): the control dispatches its updated tracking value")
             suite.expect(state.edits == [true] && state.commits.isEmpty && !state.wroteOutsideEdit,
                          "\(name): continuous updates do not finish or restart the edit")
+            let tracked = slider.doubleValue
+            // A level that moves elsewhere mid-drag, as a playing song's
+            // position does, must not pull the bar from under the pointer.
+            state.value = tracked < maximum / 2 ? maximum : 0
+            settle { slider.doubleValue != tracked }
+            suite.expect(slider.doubleValue == tracked,
+                         "\(name): a drag keeps the bar under the pointer while the level changes elsewhere")
+            slider.sendAction(slider.action, to: slider.target)
+            slider.sendAction(slider.action, to: slider.target)
+            suite.expect(slider.doubleValue == tracked && state.value == tracked,
+                         "\(name): an action with no new pointer position leaves the level where it is (\(tracked) became \(slider.doubleValue))")
         }
         func expectEdit(_ fraction: Double, _ action: String) {
+            // A single jump across the marker overshoots its pause, so the
+            // level is wherever the pointer is.
             let expected = min(1, max(0, fraction)) * maximum
             suite.expectClose(slider.doubleValue, expected, "\(name): \(action) follows the pointer", tol: tolerance)
             suite.expectClose(state.value, expected, "\(name): \(action) updates the binding", tol: tolerance)
@@ -201,6 +216,33 @@ enum NotchLevelTrackingTests {
             reset()
             drag(from: start, to: end)
             expectEdit(end, "drag from \(start) to \(end)")
+        }
+
+        if maximum == 2 {
+            // Crossing the marker by less than the pause holds the pointer on
+            // it; moving on past the pause lets it go beyond the marker.
+            var held = 0
+            var released = 0
+            NotchPointer.current = NotchPointer(hold: { _ in held += 1 }, release: { _ in released += 1 }, freezes: false)
+            defer { NotchPointer.current = .inert }
+            reset()
+            let point = 1 / Double(length)
+            let start = localPoint(0.4)
+            let crossed = localPoint(0.5 + point)
+            let beyond = localPoint(0.5 + point * 5)
+            if cell.startTracking(at: start, in: slider) {
+                _ = cell.continueTracking(last: start, current: crossed, in: slider)
+                suite.expect(slider.doubleValue == 1 && held == 1 && released == 0,
+                             "\(name): a drag just across the marker holds the level and the pointer on it")
+                _ = cell.continueTracking(last: crossed, current: beyond, in: slider)
+                suite.expectClose(slider.doubleValue, 1 + 2 * point * maximum,
+                                  "\(name): past the pause the level follows a pointer let go beyond the marker",
+                                  tol: tolerance)
+                suite.expect(held == 1 && released == 1, "\(name): the pointer is held and let go once each")
+                cell.stopTracking(last: crossed, current: beyond, in: slider, mouseIsUp: true)
+            } else {
+                suite.expect(false, "\(name): the native cell starts tracking for the pause")
+            }
         }
 
         // The preceding drag must leave editing closed for native movement
@@ -237,6 +279,11 @@ enum NotchLevelTrackingTests {
             slider.scrollWheel(with: SliderScrollRoutingTests.event(phase, delta: dy, sideways: dx,
                                                                      momentum: momentum, units: units, timestamp: time))
         }
+        // A level from outside waits while the bar still glides after a scroll.
+        func resetAfterScroll(disabled: Bool = false) {
+            settle(for: NotchSliderGlide.hold + 0.05) { false }
+            reset(disabled: disabled)
+        }
         reset()
         scroll(.began, dx: 5)
         scroll(.changed, dy: 6)
@@ -248,23 +295,32 @@ enum NotchLevelTrackingTests {
         suite.expect(state.value == maximum / 2 && state.values.isEmpty,
                      "\(name): a sideways swipe, its vertical tail and momentum never write the audio binding")
         scroll(nil, dy: 1, units: .line)
-        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.05,
+        // A tick is a share of the level up to its 100% mark, not of the boost.
+        suite.expectClose(abs(state.value - maximum / 2), 0.05,
                           "\(name): an independent mouse wheel tick still adjusts the volume during the lift gap")
 
-        reset()
-        scroll(.began, dy: 4)
-        scroll(.changed, dy: 16)
-        scroll(.changed, dx: 40)
-        scroll(.ended)
-        scroll(nil, dy: 8)
-        scroll(nil, dy: 20, momentum: .begin)
-        scroll(nil, momentum: .end)
-        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.1,
-                          "\(name): a vertical swipe includes its first four points and ignores sideways drift")
+        func verticalSwipe(first: Int32, drift: Int32) -> Double {
+            resetAfterScroll()
+            scroll(.began, dy: first)
+            scroll(.changed, dy: 16)
+            scroll(.changed, dx: drift)
+            scroll(.ended)
+            scroll(nil, dy: 8)
+            scroll(nil, dy: 20, momentum: .begin)
+            scroll(nil, momentum: .end)
+            return state.value - maximum / 2
+        }
+        let straight = verticalSwipe(first: 4, drift: 0)
+        let shorter = verticalSwipe(first: 0, drift: 0)
+        let drifting = verticalSwipe(first: 4, drift: 40)
+        suite.expect(drifting > shorter && shorter > 0,
+                     "\(name): a vertical swipe includes its first four points (\(drifting) against \(shorter) without them)")
+        suite.expectClose(drifting, straight,
+                          "\(name): a vertical swipe ignores sideways drift")
         suite.expect(state.values.count == 1 && !state.wroteOutsideEdit,
                      "\(name): the volume binding receives one edit and no write from the tail")
         if maximum == 1 {
-            reset(disabled: true)
+            resetAfterScroll(disabled: true)
             scroll(.began, dy: 20)
             scroll(.ended)
             scroll(nil, dy: 1, units: .line)

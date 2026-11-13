@@ -634,11 +634,18 @@ struct NotchMusicTimeline: View {
     @State private var scrubTrack: RadialNowPlayingSnapshot?
     @State private var scrubContext: NotchPlaybackContext?
     @State private var pendingSeek: UUID?
+    /// Where the song was, and when, as the seek was sent.
+    @State private var leftBehind: (position: Double, at: Date)?
+    @State private var hold = NotchPlaybackHold()
 
     var body: some View {
         if playback.duration > 0 {
-            TimelineView(.animation(minimumInterval: 1, paused: !playback.isPlaying)) { context in
-                let position = scrubPosition ?? playback.position(at: context.date)
+            // The bar sweeps with the clock rather than stepping each second;
+            // the times still read in whole seconds. Sixty frames a second is
+            // already well under a point of travel.
+            TimelineView(.animation(minimumInterval: 1.0 / 60, paused: !playback.isPlaying)) { context in
+                let position = scrubPosition
+                    ?? hold.position(playback.position(at: context.date), playing: playback.isPlaying)
                 Group {
                     if timesBeside {
                         HStack(spacing: 8) {
@@ -673,8 +680,9 @@ struct NotchMusicTimeline: View {
             .onChange(of: playback.track) { clearScrub() }
             .onChange(of: playback.commandContext) { clearScrub() }
             .onChange(of: playback.sampledAt) {
-                if pendingSeek != nil, let scrubPosition,
-                   abs(playback.position(at: Date()) - scrubPosition) <= 2 { clearScrub() }
+                if pendingSeek != nil, let scrubPosition, let leftBehind,
+                   playback.confirmsSeek(to: scrubPosition, from: leftBehind.position,
+                                         sentAt: leftBehind.at, now: Date()) { clearScrub() }
             }
             .task(id: pendingSeek) {
                 guard pendingSeek != nil else { return }
@@ -700,17 +708,26 @@ struct NotchMusicTimeline: View {
                 label: FeatureStrings.notch(l10n.language).playbackPosition,
                 range: 0...playback.duration,
                 tint: tint,
+                trackThickness: 8,
                 valueLabel: timestamp(position),
-                scrollable: false,
                 onEditingChanged: { editing in
                     if editing {
                         pendingSeek = nil
                     } else if let scrubPosition, let scrubTrack {
+                        let now = Date()
+                        leftBehind = (playback.position(at: now), now)
+                        // A scrub is a real move, back as well as forward.
+                        // Only here: Spotify names its song anew with each
+                        // reading, so the clears that follow are not scrubs.
+                        hold.reset()
                         service.seek(to: scrubPosition, in: scrubTrack, context: scrubContext)
                         pendingSeek = UUID()
                     }
                 })
-                .frame(height: 10)
+                // Room for the bar to swell into on hover, taken from the
+                // space around it so the row keeps its height.
+                .frame(height: 16)
+                .padding(-3)
                 .disabled(service.commandPending)
         } else {
             NotchMeter(value: position / playback.duration, height: 6, tint: tint)
@@ -722,6 +739,7 @@ struct NotchMusicTimeline: View {
         scrubPosition = nil
         scrubTrack = nil
         scrubContext = nil
+        leftBehind = nil
     }
 
     private func timestamp(_ interval: TimeInterval) -> String {
