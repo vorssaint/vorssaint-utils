@@ -575,6 +575,7 @@ enum MenuBarRenderer {
                 }
             case .connectedDevices:
                 let count = snapshot.connectedDevices.count
+                guard count > 0 else { break }
                 groups.append([.metricBlock(label: FeatureStrings.connectedDevices(L10n.shared.language).menuBarLabel,
                                             value: "\(count)",
                                             minimumValue: "99",
