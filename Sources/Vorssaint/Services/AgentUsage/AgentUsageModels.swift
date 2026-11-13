@@ -6,7 +6,9 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, agy
+
+    static var antigravity: AgentProvider { .agy }
 
     var id: String { rawValue }
 
@@ -16,6 +18,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .agy: return "Antigravity"
         }
     }
 
@@ -25,10 +28,11 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .agy: return "sparkles"
         }
     }
 
-    /// Whether the provider records a plan allowance in its local logs.
+    /// Whether the provider records a plan allowance in its local logs or account CLI.
     var reportsLimits: Bool { self != .copilot }
 }
 
@@ -112,6 +116,10 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let resetsAt: Date?
     /// A presentation estimate, never a deadline for clearing usage or alerts.
     var estimatedResetsAt: Date? = nil
+    /// Display name of the bucket (e.g. "Weekly Limit Remaining", "Five Hour Limit Remaining")
+    var name: String? = nil
+    /// Group description or models within group
+    var detail: String? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }
@@ -150,6 +158,23 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    var needsApproval: Bool = false
+
+    var isAgyCli: Bool {
+        id.contains("antigravity-cli")
+    }
+
+    var providerIdentifier: String {
+        if provider == .agy && isAgyCli {
+            return "agy"
+        }
+        return provider.displayName
+    }
+
+    var displayProject: String {
+        if !project.isEmpty { return project }
+        return providerIdentifier
+    }
 }
 
 /// Something worth a moment in the closed island.
@@ -158,4 +183,5 @@ enum AgentUsageEvent: Equatable {
     case limitWarning(provider: AgentProvider, window: AgentLimitWindow)
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
     case budgetReached(spent: Double, budget: Double)
+    case needsApproval(provider: AgentProvider, project: String)
 }

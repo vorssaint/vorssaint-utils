@@ -31,6 +31,18 @@ final class AgentUsageStore {
     private var replies: [String: Date] = [:]
     /// Off while the logs are first read, so history never replays as news.
     var reportsTransitions = false
+    /// Measured conversation-database context by Antigravity session ID,
+    /// bridged onto open transcript turns for the same session.
+    private struct AgySessionState: Equatable {
+        var model = ""
+        var project = ""
+        var tokens = AgentTokens()
+        var cost: Double = 0
+    }
+    private var agySessions: [String: AgySessionState] = [:]
+    /// The session's cumulative `agyconv` tokens and cost already counted
+    /// before the current turn opened, by transcript file path.
+    private var agyTurnBaselines: [String: (tokens: AgentTokens, cost: Double)] = [:]
     /// A turn that ended longer ago than this is history found late, like a
     /// session an agent moved to its archive, not news.
     static let lateEnd: TimeInterval = 5 * 60
@@ -93,7 +105,15 @@ final class AgentUsageStore {
                 waiting[file] = nil
                 turns[file] = AgentLiveSession(id: file, provider: provider, started: date,
                                                lastActivity: max(date, turns[file]?.lastActivity ?? date),
-                                               model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                               model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                               needsApproval: false)
+                if provider == .agy {
+                    let session = AgentLogCursor.session(of: file, provider: .agy)
+                    if reportsTransitions {
+                        agyTurnBaselines[file] = agySessions[session].map { ($0.tokens, $0.cost) } ?? (AgentTokens(), 0)
+                    }
+                    syncAgyTurn(forFile: file)
+                }
             case .turnContext(let model, let project):
                 guard tracksTurns else { continue }
                 if var turn = turns[file] {
@@ -105,16 +125,49 @@ final class AgentUsageStore {
                     if !project.isEmpty { turn.project = project }
                     waiting[file] = turn
                 }
+                if provider == .agy {
+                    syncAgyTurn(forFile: file)
+                }
             case .turnActive(let date):
                 guard tracksTurns else { continue }
                 settled[file] = nil
-                let moment = date ?? modified
+                let moment = date ?? (modified != .distantPast ? modified : now)
                 if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
                     turn.lastActivity = max(turn.lastActivity, moment)
+                    turn.needsApproval = false
                     turns[file] = turn
                 } else {
                     turns[file] = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
-                                                   model: "", project: "", tokens: AgentTokens(), cost: 0)
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: false)
+                }
+                if provider == .agy {
+                    syncAgyTurn(forFile: file)
+                }
+            case .turnNeedsApproval(let date):
+                guard tracksTurns else { continue }
+                settled[file] = nil
+                let moment = date ?? (modified != .distantPast ? modified : now)
+                if var turn = turns[file] ?? waiting.removeValue(forKey: file) {
+                    turn.lastActivity = max(turn.lastActivity, moment)
+                    if !turn.needsApproval {
+                        turn.needsApproval = true
+                        if reportsTransitions {
+                            events.append(.needsApproval(provider: provider, project: turn.project))
+                        }
+                    }
+                    turns[file] = turn
+                } else {
+                    let turn = AgentLiveSession(id: file, provider: provider, started: moment, lastActivity: moment,
+                                                   model: "", project: "", tokens: AgentTokens(), cost: 0,
+                                                   needsApproval: true)
+                    turns[file] = turn
+                    if reportsTransitions {
+                        events.append(.needsApproval(provider: provider, project: ""))
+                    }
+                }
+                if provider == .agy {
+                    syncAgyTurn(forFile: file)
                 }
             case .turnSettled(let date):
                 guard tracksTurns, var turn = turns[file] ?? waiting.removeValue(forKey: file) else { continue }
@@ -124,10 +177,11 @@ final class AgentUsageStore {
             case .turnEnded(let date, let completed, let duration):
                 guard tracksTurns else { continue }
                 settled[file] = nil
+                agyTurnBaselines[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
                 guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
-                let end = date ?? modified
+                let end = date ?? (modified != .distantPast ? modified : now)
                 guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
                 events.append(.finished(provider: provider,
                                         duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
@@ -145,6 +199,10 @@ final class AgentUsageStore {
     @discardableResult
     func forget(file: String) -> Bool {
         waiting[file] = nil
+        agyTurnBaselines[file] = nil
+        for key in agyTurnBaselines.keys where key.hasPrefix(file + "#") {
+            agyTurnBaselines[key] = nil
+        }
         settled = settled.filter { $0.key != file && !$0.key.hasPrefix(file + "#") }
         var removed = turns.removeValue(forKey: file) != nil
         for key in turns.keys where key.hasPrefix(file + "#") {
@@ -157,11 +215,109 @@ final class AgentUsageStore {
         return removed
     }
 
+    @discardableResult
+    func addUsageRecord(_ record: AgentUsageRecord, billable: AgentBillable, key: String, source: String,
+                        recompute: Bool = true) -> Bool {
+        let changed = add(record, billable: billable, key: key, source: source, turn: nil, subagent: false)
+        if recompute && record.provider == .agy && !record.session.isEmpty {
+            recomputeAgySession(record.session)
+        }
+        return changed
+    }
+
+    func noteAgySession(_ session: String, project: String = "", model: String = "") {
+        guard !session.isEmpty else { return }
+        var info = agySessions[session] ?? AgySessionState()
+        if !project.isEmpty { info.project = project }
+        if !model.isEmpty && !model.contains("unknown") { info.model = model }
+        agySessions[session] = info
+        syncAgyTurn(forSession: session)
+    }
+
+    func syncAgySession(_ session: String) {
+        guard !session.isEmpty else { return }
+        syncAgyTurn(forSession: session)
+    }
+
+    func recomputeAgySession(_ session: String) {
+        guard !session.isEmpty else { return }
+        var tokens = AgentTokens()
+        var cost: Double = 0
+        var latestModel = ""
+        var latestProject = ""
+        let prefix = "agyconv:\(session):"
+        for (key, pos) in index where key.hasPrefix(prefix) {
+            tokens += records[pos].tokens
+            cost += records[pos].cost ?? 0
+            let m = records[pos].model
+            if !m.isEmpty && !m.contains("unknown") { latestModel = m }
+            let p = records[pos].project
+            if !p.isEmpty { latestProject = p }
+        }
+        var info = agySessions[session] ?? AgySessionState()
+        info.tokens = tokens
+        info.cost = cost
+        if !latestModel.isEmpty { info.model = latestModel }
+        if !latestProject.isEmpty { info.project = latestProject }
+        agySessions[session] = info
+        syncAgyTurn(forSession: session)
+    }
+
+    func syncAgyTurn(forSession session: String) {
+        guard !session.isEmpty else { return }
+        for file in turns.keys where turns[file]?.provider == .agy && file.contains(session) && AgentLogCursor.session(of: file, provider: .agy) == session {
+            syncAgyTurn(forFile: file)
+        }
+        for file in waiting.keys where waiting[file]?.provider == .agy && file.contains(session) && AgentLogCursor.session(of: file, provider: .agy) == session {
+            syncAgyTurn(forFile: file)
+        }
+    }
+
+    private func syncAgyTurn(forFile file: String) {
+        let session = AgentLogCursor.session(of: file, provider: .agy)
+        guard !session.isEmpty, let info = agySessions[session] else { return }
+        let isTurn = turns[file] != nil
+        guard var turn = turns[file] ?? waiting[file] else { return }
+        guard turn.provider == .agy else { return }
+
+        if !info.model.isEmpty && (turn.model.isEmpty || !info.model.contains("unknown")) {
+            turn.model = info.model
+        }
+        if !info.project.isEmpty {
+            turn.project = info.project
+        }
+        if info.tokens.total > 0 {
+            let base = agyTurnBaselines[file] ?? (AgentTokens(), 0)
+            let deltaTokens = AgentTokens(
+                input: max(0, info.tokens.input - base.tokens.input),
+                cacheWrite: max(0, info.tokens.cacheWrite - base.tokens.cacheWrite),
+                cacheRead: max(0, info.tokens.cacheRead - base.tokens.cacheRead),
+                output: max(0, info.tokens.output - base.tokens.output),
+                reasoning: max(0, info.tokens.reasoning - base.tokens.reasoning)
+            )
+            let deltaCost = max(0, info.cost - base.cost)
+            if deltaTokens.total > 0 {
+                turn.tokens = deltaTokens
+                turn.cost = deltaCost
+            } else if turn.tokens.total == 0 {
+                turn.tokens = info.tokens
+                turn.cost = info.cost
+            }
+        }
+
+        if isTurn {
+            turns[file] = turn
+        } else {
+            waiting[file] = turn
+        }
+    }
+
     /// `source` is the log the response was read from; `file` names the log
     /// whose turn it counts toward. A subagent's responses leave that turn's
     /// model and project alone.
+    @discardableResult
     private func add(_ record: AgentUsageRecord, billable: AgentBillable, key: String, source: String,
-                     turn file: String?, subagent: Bool) {
+                     turn file: String?, subagent: Bool) -> Bool {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
@@ -193,9 +349,10 @@ final class AgentUsageStore {
                             turn.cost += extra
                             turns[file] = turn
                         }
+                        return true
                     }
                 }
-                return
+                return false
             }
             summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
@@ -219,6 +376,9 @@ final class AgentUsageStore {
                     newCost = priced.cost ?? record.cost ?? old.cost
                     isReported = false
                 }
+            } else if record.provider == .agy {
+                newCost = priced.cost ?? record.cost ?? old.cost
+                isReported = false
             } else {
                 newCost = priced.cost
                 isReported = false
@@ -241,12 +401,12 @@ final class AgentUsageStore {
             billables.append(billable)
             sources.append([source])
         }
-        guard let file else { return }
+        guard let file else { return true }
         // Noted before the turn check, which skips a reply dated before its
         // turn started: the model answered all the same.
         replies[file] = max(replies[file] ?? record.date, record.date)
         guard var turn = turns[file] ?? waiting[file],
-              record.date >= turn.started.addingTimeInterval(-1) else { return }
+              record.date >= turn.started.addingTimeInterval(-1) else { return true }
         waiting[file] = nil
         turn.tokens += delta
         turn.cost += extra
@@ -256,6 +416,7 @@ final class AgentUsageStore {
             if !record.project.isEmpty { turn.project = record.project }
         }
         turns[file] = turn
+        return true
     }
 
     /// Prices every response again, after a newer list arrives. List-derived
@@ -264,11 +425,16 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
+            if records[position].tokens.total == 0 && records[position].provider == .agy {
+                records[position].cost = nil
+                records[position].savings = 0
+                continue
+            }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
-            // know stays that reply's cost.
+            // know stays that reply's cost. Antigravity preserves its estimated cost.
             let recordedZero = records[position].provider == .opencode && records[position].cost == 0
-            records[position].cost = priced.cost ?? (recordedZero ? 0 : nil)
+            records[position].cost = priced.cost ?? (recordedZero ? 0 : (records[position].provider == .agy ? records[position].cost : nil))
             records[position].savings = priced.savings
         }
     }
@@ -472,11 +638,28 @@ struct AgentLogRoot: Equatable {
 
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
+    private static let cachedDefaultRoots: [AgentLogRoot] = {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let claude = ClaudeAccountProfile().logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
+        let others: [(AgentProvider, String)] = [(.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+            (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+            (.agy, ".gemini/antigravity/brain"), (.agy, ".gemini/antigravity-ide/brain"),
+            (.agy, ".gemini/antigravity-cli/brain"), (.agy, ".gemini/antigravity-acp/brain")]
+        return claude + others.map { provider, path in
+            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+        }
+    }()
+
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
+        if home.path == FileManager.default.homeDirectoryForCurrentUser.path && claudeProfile.isDefault {
+            return cachedDefaultRoots
+        }
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.agy, ".gemini/antigravity/brain"), (.agy, ".gemini/antigravity-ide/brain"),
+         (.agy, ".gemini/antigravity-cli/brain"), (.agy, ".gemini/antigravity-acp/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,9 +683,14 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
-        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        if provider == .copilot {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        }
+        if provider == .agy {
+            return path.hasSuffix("/.system_generated/logs/transcript.jsonl") || path.hasSuffix("/transcript.jsonl")
+        }
+        return true
     }
 }
 
@@ -561,6 +749,7 @@ final class AgentLogCursor {
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
+    let session: String
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -576,11 +765,43 @@ final class AgentLogCursor {
     private var codexParentLog: String?
     private var codexParentSearch = -1
 
-    init(path: String, provider: AgentProvider) {
+    /// `roots` are the folders being read; only an Antigravity log needs
+    /// them, to find its conversation, and resolves them itself without.
+    init(path: String, provider: AgentProvider, roots: [AgentLogRoot]? = nil) {
         self.path = path
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        let session = AgentLogCursor.session(of: path, provider: provider, roots: roots)
+        self.session = session
+        state.session = session
+        if path.contains("antigravity-cli") {
+            state.parentSession = "antigravity-cli"
+        }
+    }
+
+    static func session(of path: String, provider: AgentProvider, roots: [AgentLogRoot]? = nil) -> String {
+        guard provider == .agy else { return "" }
+        let parts = path.split(separator: "/")
+        if let brainIndex = parts.firstIndex(of: "brain"), brainIndex + 1 < parts.count {
+            let session = String(parts[brainIndex + 1])
+            if !session.isEmpty && !session.hasPrefix(".") {
+                return session
+            }
+        }
+        if parts.count >= 2, (path as NSString).lastPathComponent == "transcript.jsonl" {
+            if let sgIndex = parts.firstIndex(of: ".system_generated"), sgIndex > 0 {
+                return String(parts[sgIndex - 1])
+            }
+            return String(parts[parts.count - 2])
+        }
+        if let root = (roots ?? AgentLogRoot.all()).first(where: { $0.provider == .agy && path.hasPrefix($0.url.path + "/") }) {
+            let relative = String(path.dropFirst(root.url.path.count + 1))
+            if let first = relative.split(separator: "/").first, !first.isEmpty {
+                return String(first)
+            }
+        }
+        return ""
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -628,7 +849,10 @@ final class AgentLogCursor {
         offset = 0
         pending = Data()
         discarding = false
-        state = AgentLogState()
+        state = AgentLogState(session: session)
+        if path.contains("antigravity-cli") {
+            state.parentSession = "antigravity-cli"
+        }
         fingerprinted = nil
         codexParentSearch = -1
     }
@@ -673,6 +897,9 @@ final class AgentLogCursor {
         discarding = saved.discarding
         modified = saved.modified
         state = saved.state
+        if saved.path.contains("antigravity-cli") {
+            state.parentSession = "antigravity-cli"
+        }
         fingerprinted = (saved.offset, saved.identity, saved.fingerprint)
     }
 
@@ -694,6 +921,16 @@ enum AgentLogReader {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
+    }
+
+    static func isLog(_ path: String, in root: AgentLogRoot) -> Bool {
+        guard isLog(path), path.hasPrefix(root.url.path + "/") else { return false }
+        guard root.provider == .agy else { return true }
+        // Only <conversation>/.system_generated/logs/transcript.jsonl.
+        let relative = String(path.dropFirst(root.url.path.count + 1))
+        let parts = relative.split(separator: "/", omittingEmptySubsequences: false)
+        return parts.count == 4 && !parts[0].isEmpty
+            && parts[1...] == [".system_generated", "logs", "transcript.jsonl"]
     }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and
@@ -757,6 +994,19 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            if root.provider == .agy {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [])) ?? []
+                for session in sessions {
+                    let sysLog = session.appending(path: ".system_generated/logs/transcript.jsonl")
+                    if FileManager.default.fileExists(atPath: sysLog.path) {
+                        include(sysLog, from: root)
+                    } else {
+                        include(session.appending(path: "transcript.jsonl"), from: root)
+                    }
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
