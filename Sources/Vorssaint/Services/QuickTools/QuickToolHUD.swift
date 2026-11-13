@@ -18,6 +18,7 @@ enum QuickToolHUD {
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
+    private static var presentationEnded: (() -> Void)?
 
     /// The confirmation panel, when one is on screen. A recording in progress
     /// leaves it out of the picture; nothing else needs to know it exists.
@@ -157,16 +158,115 @@ enum QuickToolHUD {
         scrollingModel = nil
     }
 
+    static func showToggle(icon: String,
+                           message: String,
+                           offTitle: String,
+                           onTitle: String,
+                           isOn: Bool,
+                           onChange: @escaping (Bool) -> Void,
+                           onEnd: @escaping () -> Void) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async {
+                showToggle(icon: icon, message: message, offTitle: offTitle, onTitle: onTitle,
+                           isOn: isOn, onChange: onChange, onEnd: onEnd)
+            }
+            return
+        }
+        let model = QuickToolToggleModel(isOn: isOn)
+        let content = QuickToolToggleView(model: model,
+                                          icon: icon,
+                                          message: message,
+                                          offTitle: offTitle,
+                                          onTitle: onTitle,
+                                          onToggle: {
+                                              let next = !model.isOn
+                                              onChange(next)
+                                              withAnimation(.easeInOut(duration: 0.2)) {
+                                                  model.isOn = next
+                                              }
+                                          },
+                                          onHover: pointerHoverChanged)
+        present(AnyView(content), dismissAfter: 3, interactive: true, onEnd: onEnd)
+    }
+
+    static func dismissToggle() {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { dismissToggle() }
+            return
+        }
+        guard let panel, presentationEnded != nil else { return }
+        dismissWork?.cancel()
+        dismissWork = nil
+        generation += 1
+        panel.orderOut(nil)
+        panel.contentViewController = nil
+        panel.contentView = nil
+        endPresentation()
+    }
+
+    private static func endPresentation() {
+        let ended = presentationEnded
+        presentationEnded = nil
+        ended?()
+    }
+
+    private static func pointerHoverChanged(_ inside: Bool) {
+        guard let panel, panel.isVisible else { return }
+        dismissWork?.cancel()
+        if inside {
+            generation += 1
+            dismissWork = nil
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.12
+                panel.animator().alphaValue = 1
+            }
+        } else {
+            let work = DispatchWorkItem { dismiss() }
+            dismissWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
+    }
+
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
-                                windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
-        host.view.layoutSubtreeIfNeeded()
-        let size = host.view.fittingSize
+                                windowShadow: Bool = true,
+                                interactive: Bool = false,
+                                onEnd: (() -> Void)? = nil) {
+        endPresentation()
+        presentationEnded = onEnd
 
         let panel = ensurePanel()
         panel.hasShadow = windowShadow
-        panel.contentViewController = host
+        panel.ignoresMouseEvents = !interactive
+
+        let size: CGSize
+        if interactive {
+            let host = FirstClickHostingView(rootView: content)
+            host.sizingOptions = .intrinsicContentSize
+            host.frame = NSRect(x: 0, y: 0,
+                                width: messageWidthLimit + 160, height: 80)
+            host.layoutSubtreeIfNeeded()
+            var measured = host.fittingSize
+            if measured.width <= 1 || measured.height <= 1 {
+                measured = NSSize(width: 280, height: 40)
+            }
+            size = measured
+            panel.contentViewController = nil
+            panel.contentView = host
+        } else {
+            let host = NSHostingController(rootView: content)
+            host.view.layoutSubtreeIfNeeded()
+            size = host.view.fittingSize
+            panel.contentView = nil
+            panel.contentViewController = host
+        }
+
+        guard size.width > 1, size.height > 1 else {
+            panel.contentViewController = nil
+            panel.contentView = nil
+            endPresentation()
+            return
+        }
 
         let frame = NSScreen.pointerVisibleFrame
         panel.setFrame(NSRect(x: frame.midX - size.width / 2,
@@ -198,7 +298,9 @@ enum QuickToolHUD {
             guard generation == dismissed else { return }
             panel.orderOut(nil)
             panel.contentViewController = nil
+            panel.contentView = nil
             dismissWork = nil
+            endPresentation()
         })
     }
 
@@ -239,6 +341,60 @@ enum QuickToolHUD {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+    }
+}
+
+private final class FirstClickHostingView: NSHostingView<AnyView> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+}
+
+private final class QuickToolToggleModel: ObservableObject {
+    @Published var isOn: Bool
+
+    init(isOn: Bool) {
+        self.isOn = isOn
+    }
+}
+
+private struct QuickToolToggleView: View {
+    @ObservedObject var model: QuickToolToggleModel
+    let icon: String
+    let message: String
+    let offTitle: String
+    let onTitle: String
+    let onToggle: () -> Void
+    let onHover: (Bool) -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+            Text(message)
+                .font(.system(size: 12, weight: .semibold))
+                .lineLimit(2)
+                .truncationMode(.tail)
+                .frame(maxWidth: QuickToolHUD.messageWidthLimit, alignment: .leading)
+            Button(action: onToggle) {
+                ZStack {
+                    faceText(offTitle, visible: !model.isOn)
+                    faceText(onTitle, visible: model.isOn)
+                }
+            }
+            .controlSize(.small)
+            .padding(.leading, 8)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
+        .fixedSize()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .onHover(perform: onHover)
+    }
+
+    private func faceText(_ text: String, visible: Bool) -> some View {
+        Text(text)
+            .opacity(visible ? 1 : 0)
+            .accessibilityHidden(!visible)
     }
 }
 

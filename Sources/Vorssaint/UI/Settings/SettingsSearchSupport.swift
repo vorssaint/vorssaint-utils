@@ -390,7 +390,9 @@ enum SettingsSearchSupport {
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,
                                recorder.qualityLabel, recorder.frameRateLabel]),
-            (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle]),
+            (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle,
+                          strings.ocrShowBreaksButtonToggle, strings.ocrShowBreaksButtonCaption,
+                          strings.ocrCutBreaks, strings.ocrAddBreaks, strings.ocrQRToggle]),
             (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel]),
         ]
     }

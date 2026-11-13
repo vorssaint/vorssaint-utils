@@ -622,6 +622,7 @@ enum DefaultsKey {
     static let screenOCRShortcutEnabled = "screenOCRShortcutEnabled"
     static let screenOCRShortcut = "screenOCRShortcut"
     static let screenOCRRemoveLineBreaks = "screenOCRRemoveLineBreaks"
+    static let screenOCRShowBreaksButton = "screenOCRShowBreaksButton"
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
@@ -1868,6 +1869,7 @@ enum Defaults {
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
         DefaultsKey.screenOCRRemoveLineBreaks: false,
+        DefaultsKey.screenOCRShowBreaksButton: true,
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,

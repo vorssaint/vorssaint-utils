@@ -37,11 +37,17 @@ enum ScreenTextCompletionTests {
         static let standard = Self()
         static var values: [String: Bool] = [:]
         func bool(forKey key: String) -> Bool { Self.values[key] ?? false }
+        func set(_ value: Bool, forKey key: String) { Self.values[key] = value }
     }
     struct L10n {
         static let shared = Self()
         struct Language { let rawValue = "en-US" }
-        struct Strings { let ocrCopied = "copied"; let ocrNoText = "empty" }
+        struct Strings {
+            let ocrCopied = "copied"
+            let ocrNoText = "empty"
+            let ocrCutBreaks = "Cut Breaks"
+            let ocrAddBreaks = "Add Breaks"
+        }
         let language = Language()
         let s = Strings()
     }
@@ -56,7 +62,29 @@ enum ScreenTextCompletionTests {
     }
     enum QuickToolHUD {
         static var messages: [String] = []
+        static var toggles: [(isOn: Bool, offTitle: String, onTitle: String)] = []
+        static var dismissCount = 0
+        static var lastOnChange: ((Bool) -> Void)?
+        static var lastOnEnd: (() -> Void)?
         static func show(icon: String, message: String) { messages.append(message) }
+        static func showToggle(icon: String,
+                               message: String,
+                               offTitle: String,
+                               onTitle: String,
+                               isOn: Bool,
+                               onChange: @escaping (Bool) -> Void,
+                               onEnd: @escaping () -> Void) {
+            messages.append(message)
+            toggles.append((isOn, offTitle, onTitle))
+            lastOnChange = onChange
+            lastOnEnd = onEnd
+        }
+        static func dismissToggle() {
+            dismissCount += 1
+            lastOnEnd?()
+            lastOnChange = nil
+            lastOnEnd = nil
+        }
     }
     final class QRResultController {
         static let shared = QRResultController()
@@ -78,9 +106,17 @@ enum ScreenTextCompletionTests {
         static func outcome(for image: Int, detectQRCodes: Bool, removeLineBreaks: Bool,
                             fallbackLanguages: [String]) -> ScreenTextService.Outcome {
             requests.append((image, detectQRCodes, removeLineBreaks, fallbackLanguages))
-            return outcomes[image] ?? .text("capture \(image)")
+            if let outcome = outcomes[image] { return outcome }
+            let copy = QuickToolsSupport.RecognizedCopy(
+                lines: [.init(text: "capture \(image)", x: 0, y: 0)],
+                removesLineBreaks: removeLineBreaks)
+            return .text(copy)
         }
-        static func copyToPasteboard(_ value: String) { NSPasteboard.general.write(value) }
+        @discardableResult
+        static func copyToPasteboard(_ value: String) -> Int {
+            NSPasteboard.general.write(value)
+            return NSPasteboard.general.changeCount
+        }
     }
 
     static func reset() {
@@ -88,10 +124,15 @@ enum ScreenTextCompletionTests {
         DispatchQueue.background = Queue()
         AppFeature.available = true
         UserDefaults.values = [DefaultsKey.screenOCRDetectQRCodes: true,
-                               DefaultsKey.screenOCRRemoveLineBreaks: true]
+                               DefaultsKey.screenOCRRemoveLineBreaks: true,
+                               DefaultsKey.screenOCRShowBreaksButton: true]
         NSPasteboard.general.value = "original"
         NSPasteboard.general.changeCount = 0
         QuickToolHUD.messages = []
+        QuickToolHUD.toggles = []
+        QuickToolHUD.dismissCount = 0
+        QuickToolHUD.lastOnChange = nil
+        QuickToolHUD.lastOnEnd = nil
         QRResultController.shared.readings = []
         State.outcomes = [:]
         State.requests = []
@@ -114,6 +155,10 @@ enum ScreenTextCompletionTests {
         finish()
         suite.expect(NSPasteboard.general.value == "capture 42" && QuickToolHUD.messages == ["copied"],
                      "an unchanged clipboard receives the recognized text and success feedback")
+        suite.expect(QuickToolHUD.toggles.count == 1 && QuickToolHUD.toggles[0].isOn
+                     && QuickToolHUD.toggles[0].offTitle == "Cut Breaks"
+                     && QuickToolHUD.toggles[0].onTitle == "Add Breaks",
+                     "preview OCR offers Add Breaks when Remove line breaks is on")
         suite.expect(State.requests.count == 1 && State.requests[0].image == 42
                      && !State.requests[0].qr && State.requests[0].joinLines
                      && State.requests[0].languages == ["en-US"],
@@ -179,7 +224,8 @@ enum ScreenTextCompletionTests {
             latest.copyText(from: 2)
             if newestFirst { DispatchQueue.background.pending.reverse() }
             finish()
-            suite.expect(NSPasteboard.general.value == "capture 2" && QuickToolHUD.messages == ["copied"],
+            suite.expect(NSPasteboard.general.value == "capture 2"
+                         && QuickToolHUD.messages == ["copied"],
                          "only the latest OCR request copies, with newestFirst=\(newestFirst)")
         }
 
@@ -188,7 +234,8 @@ enum ScreenTextCompletionTests {
                 for preview in [false, true] {
                     reset()
                     UserDefaults.values = [DefaultsKey.screenOCRDetectQRCodes: detectQR,
-                                           DefaultsKey.screenOCRRemoveLineBreaks: joinLines]
+                                           DefaultsKey.screenOCRRemoveLineBreaks: joinLines,
+                                           DefaultsKey.screenOCRShowBreaksButton: true]
                     let service = ScreenTextService()
                     if preview { service.copyText(from: 7) }
                     else { service.receiveUnifiedCapture(.init(image: 7)) }
@@ -199,6 +246,9 @@ enum ScreenTextCompletionTests {
                                  "OCR respects QR=\(detectQR), joinLines=\(joinLines), preview=\(preview)")
                     suite.expect(NSPasteboard.general.value == "capture 7",
                                  "both entry points still copy text with each preference combination")
+                    suite.expect(QuickToolHUD.toggles.count == 1
+                                 && QuickToolHUD.toggles[0].isOn == joinLines,
+                                 "confirmation button matches joinLines=\(joinLines)")
                 }
             }
         }
@@ -220,5 +270,65 @@ enum ScreenTextCompletionTests {
                      && QRResultController.shared.readings == ["https://example.com"]
                      && NSPasteboard.general.value == "original",
                      "unified OCR still honors QR detection and presents its result without copying")
+
+        reset()
+        UserDefaults.values[DefaultsKey.screenOCRRemoveLineBreaks] = false
+        let toggled = ScreenTextService()
+        let multi = QuickToolsSupport.RecognizedCopy(
+            lines: [
+                .init(text: "hello", x: 0.1, y: 0.8),
+                .init(text: "world", x: 0.1, y: 0.4),
+            ],
+            removesLineBreaks: false)
+        State.outcomes[9] = .text(multi)
+        toggled.copyText(from: 9)
+        finish()
+        suite.expect(NSPasteboard.general.value == "hello\nworld"
+                     && QuickToolHUD.toggles.count == 1 && !QuickToolHUD.toggles[0].isOn
+                     && QuickToolHUD.messages == ["copied"],
+                     "a multi-line capture starts with Cut Breaks when the setting is off")
+        QuickToolHUD.lastOnChange?(true)
+        suite.expect(NSPasteboard.general.value == "hello world"
+                     && UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks),
+                     "Cut Breaks rewrites the clipboard and turns the setting on")
+        QuickToolHUD.lastOnChange?(false)
+        suite.expect(NSPasteboard.general.value == "hello\nworld"
+                     && !UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks),
+                     "Add Breaks restores the capture's lines and turns the setting off")
+
+        reset()
+        UserDefaults.values[DefaultsKey.screenOCRRemoveLineBreaks] = false
+        let conflicted = ScreenTextService()
+        State.outcomes[3] = .text(QuickToolsSupport.RecognizedCopy(
+            lines: [
+                .init(text: "one", x: 0.1, y: 0.8),
+                .init(text: "two", x: 0.1, y: 0.4),
+            ],
+            removesLineBreaks: false))
+        conflicted.copyText(from: 3)
+        finish()
+        NSPasteboard.general.write("someone else copied")
+        QuickToolHUD.lastOnChange?(true)
+        suite.expect(NSPasteboard.general.value == "someone else copied"
+                     && UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRRemoveLineBreaks),
+                     "a newer copy still saves the preference without rewriting the clipboard")
+
+        reset()
+        let cancelled = ScreenTextService()
+        cancelled.copyText(from: 1)
+        finish()
+        cancelled.suspend()
+        suite.expect(QuickToolHUD.dismissCount == 1 && QuickToolHUD.lastOnChange == nil,
+                     "suspending OCR dismisses an open confirmation before its button can act")
+
+        reset()
+        UserDefaults.values[DefaultsKey.screenOCRShowBreaksButton] = false
+        let plain = ScreenTextService()
+        plain.copyText(from: 5)
+        finish()
+        suite.expect(NSPasteboard.general.value == "capture 5"
+                     && QuickToolHUD.messages == ["copied"]
+                     && QuickToolHUD.toggles.isEmpty,
+                     "turning the breaks button off keeps a plain copy confirmation")
     }
 }

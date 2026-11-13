@@ -17,6 +17,17 @@ final class ScreenTextService: ObservableObject {
     static let shared = ScreenTextService()
 
     private var recognitionGeneration = 0
+    private var confirmation: Confirmation?
+
+    private final class Confirmation {
+        var copy: QuickToolsSupport.RecognizedCopy
+        var changeCount: Int
+
+        init(copy: QuickToolsSupport.RecognizedCopy, changeCount: Int) {
+            self.copy = copy
+            self.changeCount = changeCount
+        }
+    }
 
     private init() {}
 
@@ -33,6 +44,9 @@ final class ScreenTextService: ObservableObject {
 
     private func cancelSession() {
         recognitionGeneration += 1
+        guard confirmation != nil else { return }
+        confirmation = nil
+        QuickToolHUD.dismissToggle()
     }
 
     func capture() {
@@ -55,7 +69,7 @@ final class ScreenTextService: ObservableObject {
     /// What a captured region turned out to hold.
     enum Outcome: Equatable {
         case qr(BarcodeDetector.Reading)
-        case text(String)
+        case text(QuickToolsSupport.RecognizedCopy)
         case empty
     }
 
@@ -84,9 +98,8 @@ final class ScreenTextService: ObservableObject {
                     // Show what the code holds instead of copying it blindly;
                     // the panel offers copy and, for a link, open.
                     QRResultController.shared.show(reading: reading)
-                case .text(let text):
-                    Self.copyToPasteboard(text)
-                    QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+                case .text(let copy):
+                    self?.confirm(copy)
                 case .empty:
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
                 }
@@ -138,9 +151,46 @@ final class ScreenTextService: ObservableObject {
                                     automaticallyDetectLanguage: false,
                                     preferredLanguages: fallbackLanguages)
         }
-        let text = QuickToolsSupport.joinedRecognizedText(lines,
-                                                         removingLineBreaks: removeLineBreaks)
-        return text.isEmpty ? .empty : .text(text)
+        let copy = QuickToolsSupport.RecognizedCopy(lines: lines, removesLineBreaks: removeLineBreaks)
+        return copy.text.isEmpty ? .empty : .text(copy)
+    }
+
+    func presentCopiedText(_ copy: QuickToolsSupport.RecognizedCopy) {
+        confirm(copy)
+    }
+
+    private func confirm(_ copy: QuickToolsSupport.RecognizedCopy) {
+        let strings = L10n.shared.s
+        let changeCount = Self.copyToPasteboard(copy.text)
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.screenOCRShowBreaksButton) else {
+            confirmation = nil
+            QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+            return
+        }
+        let confirmation = Confirmation(copy: copy, changeCount: changeCount)
+        self.confirmation = confirmation
+        QuickToolHUD.showToggle(icon: "text.viewfinder",
+                                message: strings.ocrCopied,
+                                offTitle: strings.ocrCutBreaks,
+                                onTitle: strings.ocrAddBreaks,
+                                isOn: copy.removesLineBreaks,
+                                onChange: { [weak self, weak confirmation] removesLineBreaks in
+                                    guard let self, let confirmation, self.confirmation === confirmation else {
+                                        return
+                                    }
+                                    self.setRemovesLineBreaks(removesLineBreaks, in: confirmation)
+                                },
+                                onEnd: { [weak self, weak confirmation] in
+                                    guard let self, let confirmation, self.confirmation === confirmation else { return }
+                                    self.confirmation = nil
+                                })
+    }
+
+    private func setRemovesLineBreaks(_ removesLineBreaks: Bool, in confirmation: Confirmation) {
+        UserDefaults.standard.set(removesLineBreaks, forKey: DefaultsKey.screenOCRRemoveLineBreaks)
+        confirmation.copy.removesLineBreaks = removesLineBreaks
+        guard NSPasteboard.general.changeCount == confirmation.changeCount else { return }
+        confirmation.changeCount = Self.copyToPasteboard(confirmation.copy.text)
     }
 
     private static func recognizedLines(
@@ -170,10 +220,12 @@ final class ScreenTextService: ObservableObject {
         }
     }
 
-    static func copyToPasteboard(_ value: String) {
+    @discardableResult
+    static func copyToPasteboard(_ value: String) -> Int {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.declareVorssaintSource()
         pasteboard.setString(value, forType: .string)
+        return pasteboard.changeCount
     }
 }
