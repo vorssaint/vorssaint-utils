@@ -20,13 +20,15 @@ extension AgentHarnessReader {
 }
 
 extension AgentProvider {
-    /// The reader that parses this provider's logs.
+    /// The reader that parses this provider's logs. Kimi's turns and usage
+    /// come from its session log; its plan limits come from the account API.
     var reader: any AgentHarnessReader {
         switch self {
         case .claude: ClaudeReader()
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .kimi: KimiReader()
         }
     }
 }
