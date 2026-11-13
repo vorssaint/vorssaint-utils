@@ -12,10 +12,8 @@ enum QuickToolHUD {
     private static var scrollingPanel: ScrollingCapturePanel?
     private static var scrollingModel: ScrollingCaptureHUDModel?
     private static var dismissWork: DispatchWorkItem?
-    /// How wide a message is allowed to get, on either of this file's two
-    /// message panels. A confirmation is read at a
-    /// glance, so anything past this is a preview rather than the whole value;
-    /// a short one still sizes to itself and is not padded out to this width.
+    /// Confirmations size to their text up to this width. Persistent capture
+    /// instructions wrap at this width and grow vertically to remain readable.
     fileprivate static let messageWidthLimit: CGFloat = 360
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
@@ -101,6 +99,7 @@ enum QuickToolHUD {
     static func showScrollingCapture(message: String,
                                      finishTitle: String,
                                      cancelTitle: String,
+                                     avoiding scrollPoint: CGPoint?,
                                      onFinish: @escaping () -> Void,
                                      onCancel: @escaping () -> Void) {
         guard Thread.isMainThread else {
@@ -108,6 +107,7 @@ enum QuickToolHUD {
                 showScrollingCapture(message: message,
                                      finishTitle: finishTitle,
                                      cancelTitle: cancelTitle,
+                                     avoiding: scrollPoint,
                                      onFinish: onFinish,
                                      onCancel: onCancel)
             }
@@ -129,12 +129,8 @@ enum QuickToolHUD {
         let size = host.fittingSize
         let panel = ensureScrollingPanel()
         panel.contentView = host
-        let frame = NSScreen.pointerVisibleFrame
-        panel.setFrame(NSRect(x: frame.midX - size.width / 2,
-                              y: frame.maxY - size.height - 24,
-                              width: size.width,
-                              height: size.height),
-                       display: true)
+        panel.setFrame(ScreenshotSupport.scrollingControlsFrame(
+            size: size, visibleFrame: NSScreen.pointerVisibleFrame, avoiding: scrollPoint), display: true)
         panel.orderFrontRegardless()
         panel.makeKey()
     }
@@ -309,12 +305,8 @@ private struct ScrollingCaptureHUDView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(model.message)
                     .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(2)
-                    // Same panel geometry as the confirmation above, so the
-                    // same bound: this one is laid out from fittingSize and
-                    // centred on it too.
-                    .truncationMode(.tail)
-                    .frame(maxWidth: QuickToolHUD.messageWidthLimit, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: QuickToolHUD.messageWidthLimit, alignment: .leading)
                 Text("\(model.height) px")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundStyle(.secondary)

@@ -210,6 +210,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // Default screenshot shortcut on the available control-option-command layer.
     static let screenshotDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_4),
                                                   modifiers: [.control, .option, .command])
+    static let screenshotScrollingDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_4),
+                                                           modifiers: [.control, .option, .shift, .command])
     // Full screen sits beside the selector's 4 and the recorder's 5.
     static let screenshotFullScreenDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_3),
                                                             modifiers: [.control, .option, .command])
@@ -720,6 +722,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case quitAllExceptFront
     case quickLauncher
     case screenshot
+    case screenshotScrolling
     case screenshotFullScreen
     case screenshotLastCapture
     case screenshotUpload
@@ -757,6 +760,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quitAll: return DefaultsKey.quitAppsShortcut
         case .quitAllExceptFront: return DefaultsKey.quitAppsExceptFrontShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
+        case .screenshotScrolling: return DefaultsKey.screenshotScrollingShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
         case .screenshotFullScreen: return DefaultsKey.screenshotFullScreenShortcut
         case .screenshotLastCapture: return DefaultsKey.screenshotLastCaptureShortcut
@@ -795,6 +799,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quitAll: return .quitAllDefault
         case .quitAllExceptFront: return .quitAllExceptFrontDefault
         case .quickLauncher: return .quickLauncherDefault
+        case .screenshotScrolling: return .screenshotScrollingDefault
         case .screenshot: return .screenshotDefault
         case .screenshotFullScreen: return .screenshotFullScreenDefault
         case .screenshotLastCapture: return .screenshotLastCaptureDefault
@@ -818,6 +823,17 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     var savedShortcut: GlobalShortcut {
         GlobalShortcut.saved(for: storageKey, fallback: defaultShortcut)
+    }
+
+    static let clearedShortcutStorageValue = "none"
+
+    var supportsClearing: Bool { self == .keepAwake || self == .snippetLibrary }
+
+    func assignedShortcut(storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
+        -> GlobalShortcut? {
+        let raw = storedValue(storageKey)
+        if supportsClearing && raw == Self.clearedShortcutStorageValue { return nil }
+        return raw.flatMap(GlobalShortcut.init(storageValue:)) ?? defaultShortcut
     }
 
     /// The switcher's event tap can handle its native combinations without
@@ -857,6 +873,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quickLauncher: return strings.launcherName
         case .screenshot:
             return FeatureStrings.screenshot(L10n.shared.language).pageTitle
+        case .screenshotScrolling:
+            return FeatureStrings.screenshot(L10n.shared.language).scrollingCaptureTitle
         case .screenshotFullScreen:
             return FeatureStrings.screenshot(L10n.shared.language).fullScreenShortcutTitle
         case .screenshotUpload:
@@ -891,17 +909,18 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
                          isOn: (String) -> Bool = { UserDefaults.standard.bool(forKey: $0) },
                          isAvailable: (AppFeature) -> Bool = { $0.isAvailable },
                          includeInactive: Bool = false,
-                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() })
+                         radialMenuShortcuts: () -> [GlobalShortcut] = { RadialMenuSupport.profileShortcuts() },
+                         storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
         -> GlobalShortcutRole? {
         let candidates = includeInactive
             ? availableRoles(isAvailable: isAvailable)
-            : activeRoles(isOn: isOn, isAvailable: isAvailable)
+            : activeRoles(isOn: isOn, isAvailable: isAvailable, storedValue: storedValue)
         return candidates.first { candidate in
             guard candidate != role else { return false }
             // The radial menu's role key only seeds the first wheel. Every
             // wheel registers its own combination, so those are the ones taken.
             if candidate == .radialMenu { return radialMenuShortcuts().contains(shortcut) }
-            return candidate.savedShortcut == shortcut
+            return candidate.assignedShortcut(storedValue: storedValue) == shortcut
         }
     }
 
@@ -927,6 +946,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quitAll: return [DefaultsKey.quitAppsShortcutEnabled]
         case .quitAllExceptFront: return [DefaultsKey.quitAppsExceptFrontShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
+        case .screenshotScrolling: return [DefaultsKey.screenshotScrollingShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
         case .screenshotFullScreen: return [DefaultsKey.screenshotFullScreenShortcutEnabled]
         case .screenshotLastCapture: return [DefaultsKey.screenshotLastCaptureShortcutEnabled]
@@ -965,7 +985,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMute
         case .quitAll, .quitAllExceptFront: return .quitApps
         case .quickLauncher: return .quickLauncher
-        case .screenshot, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
+        case .screenshot, .screenshotScrolling, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
              .screenshotClipboard, .screenshotUpload:
             return .screenshot
         case .cameraPreview: return .cameraPreview
@@ -1039,9 +1059,12 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// shortcuts overview page. Injected readers so the harness can test the
     /// gating without touching real defaults.
     static func activeRoles(isOn: (String) -> Bool,
-                            isAvailable: (AppFeature) -> Bool = { _ in true }) -> [GlobalShortcutRole] {
+                            isAvailable: (AppFeature) -> Bool = { _ in true },
+                            storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
+        -> [GlobalShortcutRole] {
         allCases.filter { role in
             role.isAvailable(using: isAvailable) && role.requiredEnableKeys.allSatisfy(isOn)
+                && role.assignedShortcut(storedValue: storedValue) != nil
         }
     }
 
@@ -1060,7 +1083,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
-        .screenshot, .screenRecorder, .screenOCR, .colorPicker,
+        .screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling,
         .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard, .screenshotUpload,
     ]
 
