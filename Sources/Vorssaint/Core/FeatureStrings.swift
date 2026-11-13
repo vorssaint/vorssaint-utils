@@ -212,6 +212,7 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "고정된 항목과 이후에 복사한 내용은 유지됩니다. 되돌릴 수 없습니다.",
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
+        historyOpensIn: "기록을 열 위치",
         historyLayoutList: "목록",
         showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
     )
@@ -537,6 +538,7 @@ struct ClipboardFeatureStrings {
     let clearRecentConfirmMessage: String
     let historyLayout: String
     let historyLayoutCards: String
+    let historyOpensIn: String
     let historyLayoutList: String
     let showSourceAppIconsInList: String
 
@@ -602,6 +604,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pinned items stay, and so does anything copied after this. This can’t be undone.",
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
+        historyOpensIn: "Open history in",
         historyLayoutList: "List",
         showSourceAppIconsInList: "Show source app icons in list view"
     )
@@ -668,6 +671,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Os itens fixados ficam, e o que for copiado depois disso também. Não dá para desfazer.",
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
+        historyOpensIn: "Abrir o histórico em",
         historyLayoutList: "Lista",
         showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
     )
@@ -734,6 +738,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Sabitlenen öğeler ve bundan sonra kopyalananlar kalır. Bu işlem geri alınamaz.",
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
+        historyOpensIn: "Geçmişi şurada aç",
         historyLayoutList: "Liste",
         showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
     )
@@ -800,6 +805,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закреплённые останутся, как и всё, что скопировано после этого. Отменить нельзя.",
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
+        historyOpensIn: "Открывать историю в",
         historyLayoutList: "Список",
         showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
     )
@@ -866,6 +872,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Los fijados se conservan, y también lo que copies después. No se puede deshacer.",
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
+        historyOpensIn: "Abrir el historial en",
         historyLayoutList: "Lista",
         showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
     )
@@ -932,6 +939,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Pripnuté položky zostanú, rovnako ako všetko, čo skopírujete potom. Nedá sa to vrátiť späť.",
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
+        historyOpensIn: "Otvárať históriu v",
         historyLayoutList: "Zoznam",
         showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
     )
@@ -998,6 +1006,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Angeheftete bleiben, ebenso alles, was du danach kopierst. Das lässt sich nicht widerrufen.",
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
+        historyOpensIn: "Verlauf öffnen in",
         historyLayoutList: "Liste",
         showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
     )
@@ -1064,6 +1073,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Les éléments épinglés restent, comme tout ce qui sera copié ensuite. Action irréversible.",
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
+        historyOpensIn: "Ouvrir l’historique dans",
         historyLayoutList: "Liste",
         showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
     )
@@ -1130,6 +1140,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Gli elementi fissati restano, come tutto ciò che copi dopo. Non si può annullare.",
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
+        historyOpensIn: "Apri la cronologia in",
         historyLayoutList: "Elenco",
         showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
     )
@@ -1196,6 +1207,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "固定済みの項目と、このあとにコピーした内容は残ります。元に戻せません。",
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
+        historyOpensIn: "履歴を開く場所",
         historyLayoutList: "リスト",
         showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
     )
@@ -1262,6 +1274,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已固定的项目和此后拷贝的内容会保留。此操作无法撤销。",
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "历史打开位置",
         historyLayoutList: "列表",
         showSourceAppIconsInList: "在列表中显示来源应用图标"
     )
@@ -1328,6 +1341,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "剪貼簿紀錄開啟位置",
         historyLayoutList: "列表",
         showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
@@ -1394,6 +1408,7 @@ struct ClipboardFeatureStrings {
         clearRecentConfirmMessage: "已釘選的項目和之後複製的內容會保留。此動作無法還原。",
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
+        historyOpensIn: "剪貼簿記錄開啟位置",
         historyLayoutList: "列表",
         showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
     )
@@ -3265,6 +3280,7 @@ extension ClipboardFeatureStrings {
         clearRecentConfirmMessage: "Закріплені залишаться, як і все, що скопійовано після цього. Скасувати не можна.",
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
+        historyOpensIn: "Відкривати історію в",
         historyLayoutList: "Список",
         showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
     )
