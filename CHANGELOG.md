@@ -13,6 +13,8 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
 - AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.
+- The music page has a heart for the song playing, which Settings → Dynamic Island → Music can show in place of the audio output button. For Apple Music it shows whether the song is a favorite and changes it, asking once to control Music like the playback buttons do. For Spotify it shows whether the song is in Liked Songs, once "Spotify likes" is turned on in Features and your own Spotify developer app is connected in Settings → Dynamic Island → Content → Now Playing.
+- With Spotify likes connected, Up next lists Spotify's own upcoming songs, which Spotify does not share with the system.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
@@ -308,8 +310,6 @@ A cleaner Dynamic Island, a What's New window that shows what changed in the fea
 
 ### Added
 - Dynamic Island can show the keyboard input source when it changes. Settings → Dynamic Island → Activity → Indicators.
-- The music page has a heart for the song playing, which Settings → Dynamic Island → Music can show in place of the audio output button. For Apple Music it shows whether the song is a favorite and changes it, asking once to control Music like the playback buttons do. For Spotify it shows whether the song is in Liked Songs, once "Spotify likes" is turned on in Features and your own Spotify developer app is connected in Settings → Dynamic Island → Content → Now Playing.
-- With Spotify likes connected, Up next lists Spotify's own upcoming songs, which Spotify does not share with the system.
 - Dynamic Island can open and close with a keyboard shortcut. Settings → Dynamic Island → Behavior → Opening.
 - Dynamic Island can find covers for YouTube and YouTube Music playing in Firefox, Zen and other Firefox-based browsers. Settings → Dynamic Island → Content → Music → Find covers for Firefox and Zen.
 - AI Agents can show limits for each separate Codex account. Settings → Dynamic Island → Content → AI Agents.
