@@ -142,6 +142,45 @@ enum NotchScreenRefreshContract {
         var coversMenus = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
+        var menuSpaceRoom: CGFloat?
+        var statusItemOverlap = false
+        var statusItemOverlapHold: CGRect?
+        var statusItemOverlapTimer: Timer?
+        /// Status-item windows and their timer are an AppKit boundary; these
+        /// contracts assert when the reader starts and stops, while the pure
+        /// overlap predicates are covered by NotchTests.
+        var showsCompactActivityPicker = false
+        var fullscreenCompact = false
+        var dragPlaceholder = false
+        var restingMenuSpaceFrame: CGRect? {
+            guard !expanded, !peeking, !showsCompactActivityPicker, notice == nil,
+                  captureControls == nil, !dragPlaceholder, !fullscreenCompact,
+                  compactActivity == nil else { return nil }
+            return geometry.frame(for: geometry.collapsed)
+        }
+        func stopMenuSpaceTimer() {
+            menuSpaceTimer?.invalidate()
+            menuSpaceTimer = nil
+            menuSpaceGeneration += 1
+        }
+        func stopStatusItemOverlapMonitoring() {
+            statusItemOverlapTimer?.invalidate()
+            statusItemOverlapTimer = nil
+            statusItemOverlapHold = nil
+        }
+        func startStatusItemOverlapMonitoring() {
+            guard statusItemOverlapTimer == nil, restingMenuSpaceFrame != nil else { return }
+            statusItemOverlapTimer = Timer(timeInterval: 0.15, repeats: true) { _ in }
+        }
+        func resetStatusItemOverlap() {
+            statusItemOverlap = false
+            statusItemOverlapHold = nil
+        }
+        func clearStatusItemOverlap() {
+            guard statusItemOverlap else { return }
+            resetStatusItemOverlap()
+            applyEffectiveMenuSpace(menuSpaceRoom)
+        }
         var screenRefreshWork: DispatchWorkItem?
         var preferenceSyncWork: DispatchWorkItem?
         var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -163,8 +202,14 @@ enum NotchScreenRefreshContract {
         func syncWithPreferences() { preferenceSyncs += 1 }
         func readMenuSpace() { reads += 1 }
         func applyMenuSpace(_ room: CGFloat?) {
+            menuSpaceRoom = room
+            applyEffectiveMenuSpace(room)
+        }
+        func applyEffectiveMenuSpace(_ room: CGFloat?) {
+            guard geometry.compactSideRoom != room else { return }
             appliedRooms.append(room)
             geometry.compactSideRoom = room
+            presentations += 1
         }
         func refreshPresentation(animated: Bool) {
             presentations += 1
@@ -309,12 +354,13 @@ enum NotchScreenRefreshContract {
         virtual.accessibilityGranted = true
         virtual.syncMenuSpaceMonitoring()
         var timer = virtual.menuSpaceTimer
-        suite.expect(timer != nil && virtual.reads == 1,
-               "granting Accessibility starts the existing menu reader without restarting the app")
+        suite.expect(timer != nil && virtual.reads == 1 && virtual.statusItemOverlapTimer != nil,
+               "granting Accessibility starts the existing menu reader and the fast status item check")
         virtual.hiddenUntilHover = true
         virtual.syncMenuSpaceMonitoring()
-        suite.expect(virtual.menuSpaceTimer == nil && timer?.invalidated == true,
-               "hidden mode stops menu polling while no window occupies the menu bar")
+        suite.expect(virtual.menuSpaceTimer == nil && timer?.invalidated == true
+               && virtual.statusItemOverlapTimer == nil,
+               "hidden mode stops menu polling and the status item check while no window occupies the menu bar")
         virtual.hiddenUntilHover = false
         virtual.syncMenuSpaceMonitoring()
         timer = virtual.menuSpaceTimer
@@ -366,8 +412,9 @@ enum NotchScreenRefreshContract {
                "a bare simulated cutout still checks that its center does not cover menus")
         simulated.compactActivity = true
         simulated.syncMenuSpaceMonitoring()
-        suite.expect(simulated.menuSpaceTimer != nil && simulated.reads == 2,
-               "starting compact activity reuses the simulated notch's existing menu reader")
+        suite.expect(simulated.menuSpaceTimer != nil && simulated.reads == 2
+               && simulated.statusItemOverlapTimer == nil,
+               "starting compact activity reuses the simulated notch's existing menu reader and stops the idle-only check")
 
         simulated.geometry.compactSideRoom = 64
         let beforeChange = simulated.menuSpaceGeneration
@@ -436,8 +483,10 @@ enum NotchScreenRefreshContract {
                + "without Accessibility or a menu reader")
         covering.accessibilityGranted = true
         covering.syncMenuSpaceMonitoring()
-        suite.expect(covering.menuSpaceTimer == nil && covering.reads == 0 && covering.geometry.compactSideRoom == emptyBar,
-               "granting Accessibility starts no reader for menus the island may cover")
+        suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1 && covering.geometry.compactSideRoom == emptyBar
+               && covering.statusItemOverlapTimer != nil,
+               "an idle island measures the menus and checks for status items even when menu coverage is enabled, "
+               + "so a revealed item can still be clicked")
         covering.running = false
         let applied = covering.appliedRooms.count
         covering.syncMenuSpaceMonitoring()
@@ -445,7 +494,7 @@ enum NotchScreenRefreshContract {
         covering.running = true
         covering.coversMenus = false
         covering.syncMenuSpaceMonitoring()
-        suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
+        suite.expect(covering.menuSpaceTimer != nil && covering.reads == 2,
                "giving way to the menus again resumes the existing reader")
 
         let idleSimulated = Service()
@@ -460,7 +509,7 @@ enum NotchScreenRefreshContract {
                                                       barHeight: idleSimulated.geometry.menuBarHeight, occupied: [])
         suite.expect(idleSimulated.menuSpaceTimer == nil && idleSimulated.appliedRooms == [idleEmptyBar]
                && idleSimulated.geometry.compactSideRoom == idleEmptyBar,
-               "an external display keeps the idle island visible when menu coverage is enabled")
+               "an external display without Accessibility keeps the idle island visible when menu coverage is enabled")
         idleSimulated.compactActivity = true
         idleSimulated.syncMenuSpaceMonitoring()
         suite.expect(idleSimulated.geometry.compactSideRoom.map { $0 > 0 } == true,
