@@ -243,6 +243,43 @@ enum DockPreviewSupport {
         )
     }
 
+    /// How long the pointer rests on a card before its window is peeked at:
+    /// long enough that sweeping across the cards does not flash each window.
+    static let peekDelay: TimeInterval = 0.15
+
+    /// Moving from one peeked card to the next follows at once.
+    static func peekDelay(alreadyPeeking: Bool) -> TimeInterval {
+        alreadyPeeking ? 0 : peekDelay
+    }
+
+    /// Whether a card's window can be peeked at in place: a real window that
+    /// sits on a display right now. A minimized window has no place on screen,
+    /// and one on another desktop is not on this one. `frame` and
+    /// `screenFrames` are both in AppKit coordinates.
+    static func canPeek(hasWindowID: Bool,
+                        isMinimized: Bool,
+                        isOnHiddenSpace: Bool,
+                        frame: CGRect,
+                        screenFrames: [CGRect]) -> Bool {
+        guard hasWindowID, !isMinimized, !isOnHiddenSpace,
+              frame.width > 1, frame.height > 1 else { return false }
+        return screenFrames.contains { $0.intersects(frame) }
+    }
+
+    /// The top edge, in AppKit coordinates, of the display holding the menu
+    /// bar: where the top-left-origin space window frames are reported in
+    /// starts.
+    static func menuBarScreenTopY(screenFrames: [CGRect], fallback: CGRect?) -> CGFloat {
+        let menuBarScreen = screenFrames.first { abs($0.minX) < 0.5 && abs($0.minY) < 0.5 }
+        return (menuBarScreen ?? fallback ?? screenFrames.first)?.maxY ?? 0
+    }
+
+    /// A window frame from that top-left-origin space into AppKit's
+    /// bottom-left-origin one.
+    static func appKitFrame(fromTopLeft rect: CGRect, menuBarScreenTopY: CGFloat) -> CGRect {
+        CGRect(x: rect.minX, y: menuBarScreenTopY - rect.maxY, width: rect.width, height: rect.height)
+    }
+
     // Card metrics. The preview size setting picks the picture. The title
     // band holds the same text at every size, so it is fixed. The gaps hold
     // nothing, so they stay at their Normal size above it and tighten with

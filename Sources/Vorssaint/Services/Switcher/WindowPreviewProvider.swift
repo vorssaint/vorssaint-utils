@@ -529,7 +529,8 @@ final class WindowPreviewProvider {
                                        displaysAsleep: CGDisplayIsAsleep(CGMainDisplayID()) != 0)
     }
 
-    private static func captureIsPaused(excludedAppsKey: String) -> Bool {
+    /// Internal so a Dock Preview peek pauses with the thumbnails it enlarges.
+    static func captureIsPaused(excludedAppsKey: String) -> Bool {
         let excluded = Defaults.sanitizedBundleIdentifierList(
             UserDefaults.standard.stringArray(forKey: excludedAppsKey) ?? [])
         let front = NSWorkspace.shared.frontmostApplication
