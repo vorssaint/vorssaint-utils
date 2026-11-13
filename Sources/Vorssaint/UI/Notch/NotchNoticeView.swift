@@ -126,6 +126,22 @@ struct NotchNoticeView: View {
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight))
                 .frame(maxWidth: .infinity, alignment: .trailing)
+        } else if !notice.choices.isEmpty {
+            HStack(spacing: NotchNotice.choiceSpacing) {
+                ForEach(Array(notice.choices.enumerated()), id: \.offset) { index, code in
+                    let isSelected = index == notice.selectedChoice
+                    Text(code)
+                        .font(Font(NotchNotice.choiceFont as CTFont))
+                        .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.6))
+                        .padding(.horizontal, NotchNotice.choicePadding)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(isSelected ? Color.white : Color.clear))
+                }
+            }
+            .lineLimit(1)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .animation(reduceMotion ? nil : .spring(duration: 0.25, bounce: 0.15), value: notice.selectedChoice)
+            .transaction { $0.disablesAnimations = false }
         } else if let level = notice.level {
             NotchMeter(value: level, height: 5, tint: tint)
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: level)
