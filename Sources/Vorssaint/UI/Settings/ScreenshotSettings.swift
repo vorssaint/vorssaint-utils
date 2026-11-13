@@ -35,6 +35,8 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotDownscale) private var downscale = false
     @AppStorage(DefaultsKey.screenshotDelay) private var delay = 0
     @AppStorage(DefaultsKey.screenshotDefaultAction) private var defaultActionRaw = ""
+    @AppStorage(DefaultsKey.screenshotAutoPin) private var autoPin = false
+    @AppStorage(DefaultsKey.screenshotScrollingAutoPin) private var scrollingAutoPin = false
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
@@ -186,6 +188,10 @@ struct ScreenshotCaptureSettings: View {
             }
 
             Section {
+                Toggle(strings.autoPinToggle, isOn: tool == .scrolling ? $scrollingAutoPin : $autoPin)
+                Text(strings.autoPinCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 Toggle(strings.autoCopyToggle, isOn: autoCopyBinding)
                 Text(strings.autoCopyCaption)
                     .font(.caption)
