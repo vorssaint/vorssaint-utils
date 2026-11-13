@@ -206,6 +206,7 @@ struct PanelSection<Content: View>: View {
     private let supportsEditing: Bool
     private let editButtonVisible: Bool
     private let resetAction: (() -> Void)?
+    private let activityMonitorTab: ActivityMonitorLauncher.Tab?
     private let content: (Bool) -> Content
     @State private var collapsed: Bool
     @State private var editing = false
@@ -218,6 +219,7 @@ struct PanelSection<Content: View>: View {
         self.supportsEditing = false
         self.editButtonVisible = false
         self.resetAction = nil
+        self.activityMonitorTab = nil
         self.content = { _ in content() }
         _collapsed = State(initialValue: PanelLayout.isCollapsed(id))
     }
@@ -226,6 +228,7 @@ struct PanelSection<Content: View>: View {
          supportsEditing: Bool,
          editButtonVisible: Bool = true,
          resetAction: (() -> Void)? = nil,
+         activityMonitorTab: ActivityMonitorLauncher.Tab? = nil,
          @ViewBuilder content: @escaping (Bool) -> Content) {
         self.id = id
         self.title = title
@@ -233,6 +236,7 @@ struct PanelSection<Content: View>: View {
         self.supportsEditing = supportsEditing
         self.editButtonVisible = editButtonVisible
         self.resetAction = resetAction
+        self.activityMonitorTab = activityMonitorTab
         self.content = content
         _collapsed = State(initialValue: PanelLayout.isCollapsed(id))
     }
@@ -262,6 +266,9 @@ struct PanelSection<Content: View>: View {
             } else {
                 sectionTitle(title)
                 Spacer(minLength: 0)
+            }
+            if let activityMonitorTab, !isEditing {
+                ActivityMonitorButton(tab: activityMonitorTab)
             }
             if supportsEditing {
                 if isEditing, let resetAction {

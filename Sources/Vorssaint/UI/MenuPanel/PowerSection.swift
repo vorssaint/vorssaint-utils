@@ -28,7 +28,8 @@ struct PowerSection: View {
     var body: some View {
         PanelSection(.power, title: l10n.s.powerSection, collapsible: collapsible,
                      supportsEditing: true,
-                     resetAction: resetPanelDefaults) { editing in
+                     resetAction: resetPanelDefaults,
+                     activityMonitorTab: .energy) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 if blocks(editing: editing).isEmpty {
                     Text(l10n.s.powerUnavailable)

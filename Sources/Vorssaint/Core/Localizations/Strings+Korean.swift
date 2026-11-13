@@ -1055,6 +1055,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "시스템 사운드",
         mixerSoundEffectsOutputTooltip: "알림 및 사운드 효과를 재생할 출력 선택",
         monitorOpenActivityMonitor: "활성 상태 보기 열기",
+        monitorActivityMonitorPermission: "Vorssaint이 활성 상태 보기의 해당 탭을 선택하려면 손쉬운 사용 권한이 필요합니다.",
         dockClickHide: "Dock 클릭으로 앱 숨기기",
         dockClickHideCaption: "활성 앱의 Dock 아이콘을 클릭하면 앱이 숨겨집니다. 다시 클릭하면 돌아옵니다.",
         monitorMemoryMetricLabel: "메모리 측정 방식",

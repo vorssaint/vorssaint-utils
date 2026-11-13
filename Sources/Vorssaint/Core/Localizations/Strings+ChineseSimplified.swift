@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "系统声音",
         mixerSoundEffectsOutputTooltip: "选择提醒和音效的播放设备",
         monitorOpenActivityMonitor: "打开活动监视器",
+        monitorActivityMonitorPermission: "Vorssaint 需要辅助功能权限才能选择活动监视器中的对应标签页。",
         dockClickHide: "点按程序坞图标隐藏 App",
         dockClickHideCaption: "点按当前 App 的程序坞图标可隐藏它。再次点按即可恢复。",
         monitorMemoryMetricLabel: "内存计量方式",

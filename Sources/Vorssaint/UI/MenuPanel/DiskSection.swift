@@ -26,7 +26,8 @@ struct DiskSection: View {
     var body: some View {
         PanelSection(.disk, title: l10n.s.diskSection, collapsible: collapsible,
                      supportsEditing: true,
-                     resetAction: resetPanelDefaults) { editing in
+                     resetAction: resetPanelDefaults,
+                     activityMonitorTab: .disk) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 if disks.isEmpty {
                     Text(l10n.s.diskNoDisks)

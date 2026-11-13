@@ -91,6 +91,18 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk, .battery, .fan, .connectedDevices: return nil
         }
     }
+
+    var activityMonitorTab: ActivityMonitorLauncher.Tab? {
+        switch self {
+        case .cpu, .gpu: return .cpu
+        case .memory: return .memory
+        case .network: return .network
+        case .disk: return .disk
+        case .battery, .power: return .energy
+        // Activity Monitor has no fan or USB-device category.
+        case .fan, .connectedDevices: return nil
+        }
+    }
 }
 
 extension MenuBarMetric {
@@ -120,14 +132,16 @@ extension MenuBarMetric {
 
 struct ActivityMonitorButton: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
     @State private var isHovered = false
+    var tab: ActivityMonitorLauncher.Tab = .cpu
 
     var body: some View {
         Button {
-            let fallback = URL(fileURLWithPath: "/System/Applications/Utilities/Activity Monitor.app")
-            let url = NSWorkspace.shared
-                .urlForApplication(withBundleIdentifier: "com.apple.ActivityMonitor") ?? fallback
-            NSWorkspace.shared.open(url)
+            ActivityMonitorLauncher.open(tab)
+            if !permissions.accessibility {
+                permissions.requestAccessibility(reason: l10n.s.monitorActivityMonitorPermission)
+            }
         } label: {
             Image(systemName: "arrow.up.forward.app")
                 .font(.system(size: 10, weight: .medium))
@@ -211,6 +225,9 @@ struct MetricDetailView: View {
                         .lineLimit(2)
                 }
                 Spacer(minLength: 0)
+                if let tab = kind.activityMonitorTab {
+                    ActivityMonitorButton(tab: tab)
+                }
             }
             graph
         }
@@ -350,7 +367,6 @@ struct MetricDetailView: View {
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
-                ActivityMonitorButton()
             }
             if processRows.isEmpty {
                 Text(processRowsLoading ? l10n.s.breakdownMeasuring : emptyProcessText)
