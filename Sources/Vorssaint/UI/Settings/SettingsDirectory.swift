@@ -129,12 +129,12 @@ enum SettingsDirectory {
             }
         guard let essentials = grouped.first(where: { $0.id == 0 }) else { return grouped }
         let categories = FeatureStrings.settingsCategories(language)
-        // Monitor keeps its tool rows, such as Fan Control, beside it.
+        // Monitor and Weather keep their tool rows, such as Fan Control, beside them.
         let core = essentials.items.filter { item in
             switch item.id {
             case .page(.general), .page(.features),
                  .setting(.panelConfiguration): return true
-            default: return item.destination.page == .monitor
+            default: return item.destination.page == .monitor || item.destination.page == .weather
             }
         }
         // The companion lives in the island, and its settings in a tab of the
@@ -241,6 +241,7 @@ enum SettingsDirectory {
         let bluetooth = FeatureStrings.bluetoothSleep(language)
         let barStyle = FeatureStrings.menuBarAppearance(language)
         let previews = FeatureStrings.windowPreviewExclusions(language)
+        let weather = FeatureStrings.weather(language)
         let notch = FeatureStrings.notch(language)
         let notchEditor = FeatureStrings.notchEditor(language)
         let notchMusic = FeatureStrings.notchMusicExtras(language)
@@ -387,6 +388,28 @@ enum SettingsDirectory {
                                         .init([barStyle.customize, barStyle.normalColor, barStyle.mediumColor, barStyle.highColor,
                                                barStyle.mediumFrom, barStyle.highFrom], when: state.bars),
                                        ]),
+                SettingsDirectoryItem(page: .weather, title: weather.title, icon: "cloud.sun.fill",
+                                       keywords: [weather.description, weather.location,
+                                                  weather.currentLocation, weather.noLocationTitle,
+                                                  weather.searchLocation, weather.searchPrompt,
+                                                  weather.searchNoResults, weather.useCurrentLocation,
+                                                  weather.locationRequired, weather.unitsTitle,
+                                                  weather.temperatureCelsius, weather.temperatureFahrenheit,
+                                                  weather.windLabel, weather.windKph, weather.windMph,
+                                                  weather.windMps, weather.windKnots,
+                                                  weather.precipitationLabel,
+                                                  weather.precipitationMillimeters,
+                                                  weather.precipitationInches, weather.pressureLabel,
+                                                  weather.pressureHectopascals,
+                                                  weather.pressureInchesOfMercury, weather.visibilityLabel,
+                                                  weather.distanceKilometers, weather.distanceMiles,
+                                                  weather.showInMenuBar, weather.menuBarStyle,
+                                                  weather.showInPanel, weather.dataSourceTitle,
+                                                  weather.refresh, weather.loading, weather.attribution,
+                                                  s.temperatures, s.monitorIntervalLabel,
+                                                  "temperature", "wind", "precipitation", "pressure",
+                                                  "distance", "units", "celsius", "fahrenheit",
+                                                  "forecast", "open-meteo"]),
             ]),
             (categories.windowsControls, [
                 SettingsDirectoryItem(page: .mouse, title: s.tabMouse, icon: "computermouse",

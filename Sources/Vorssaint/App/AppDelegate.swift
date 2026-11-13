@@ -136,6 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.captureStatusClick()
             self?.showMetricPanel(for: metric, anchoredTo: button)
         }
+        statusController.onWeatherClick = { [weak self] button in
+            self?.captureStatusClick()
+            self?.showWeatherPanel(anchoredTo: button)
+        }
         statusController.onClipboardPreviewClick = {
             // No captureStatusClick() here, unlike the other click handlers:
             // it only ever helps anchor the main popover to a status item,
@@ -526,7 +530,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func showMetricPanel(for metric: MenuBarMetric, anchoredTo button: NSStatusBarButton) {
-        let detailKind = metric.detailKind
+        guard let detailKind = metric.detailKind else { return }
         if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback,
            NotchSupport.modules().contains(.system) {
             NotchService.shared.showMetric(detailKind, toggle: true); return
@@ -544,6 +548,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
         MenuPanelFocus.shared.focus(detailKind)
         showPopover(anchor: button)
+    }
+
+    /// The weather block has no System Monitor breakdown, so it opens the
+    /// Weather panel section through the same focus request as a metric.
+    private func showWeatherPanel(anchoredTo button: NSStatusBarButton) {
+        MenuPanelFocus.shared.focus(.weather)
+        if !popoverIsOpen { showPopover(anchor: button) }
     }
 
     private func scheduleMetricAnchorSwitch(to detailKind: MetricDetailKind, anchoredTo button: NSStatusBarButton) {

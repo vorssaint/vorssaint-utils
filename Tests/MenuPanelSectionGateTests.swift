@@ -29,5 +29,9 @@ enum MenuPanelSectionGateContract {
         expectGate(.utilities, keeps: UtilityPanelItem.allCases.map(\.feature), "utility")
         expectGate(.toggles, keeps: QuickToggleAction.allCases.map(\.feature), "quick toggle")
         expectGate(.system, keeps: [.connectedDevices], "connected devices")
+        suite.expect(PanelSectionID.weather.featureGate == [.weather],
+                     "the weather tab lives and dies with the weather feature")
+        suite.expect(PanelSectionID.weather.visibilityKey == DefaultsKey.panelShowWeather,
+                     "the weather tab reads its own show-in-panel preference")
     }
 }

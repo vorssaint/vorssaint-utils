@@ -160,6 +160,9 @@ extension AppFeature {
             return AppUpdatesSupport.CheckFrequency.sanitized(
                 UserDefaults.standard.string(forKey: DefaultsKey.appUpdatesCheckFrequency)) == .off
                 ? .idle : .periodic
+        case .weather:
+            // A fetch every fifteen minutes while the feature is on.
+            return .periodic
         }
     }
 }

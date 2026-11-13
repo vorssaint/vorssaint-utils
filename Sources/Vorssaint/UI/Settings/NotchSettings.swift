@@ -393,9 +393,10 @@ struct NotchSettings: View {
         module.isAvailable() && moduleBinding(module).wrappedValue
     }
 
-    /// The mixer, the system page and the tools arrange themselves in the island.
+    /// The mixer, the system page and the tools arrange themselves in the island;
+    /// weather has no options yet.
     private func hasOptions(_ module: NotchModule) -> Bool {
-        ![.mixer, .system, .tools].contains(module)
+        ![.mixer, .system, .weather, .tools].contains(module)
     }
 
     @ViewBuilder private func moduleOptions(_ module: NotchModule) -> some View {
@@ -543,7 +544,7 @@ struct NotchSettings: View {
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
-        case .mixer, .system, .tools:
+        case .mixer, .system, .weather, .tools:
             EmptyView()
         }
     }
@@ -870,6 +871,7 @@ struct NotchSettings: View {
     private func moduleFeature(_ module: NotchModule) -> AppFeature? {
         switch module {
         case .controls, .music, .captures, .system: return nil
+        case .weather: return .weather
         case .mixer: return .mixer
         case .clipboard: return .clipboardHistory
         case .files: return .shelf

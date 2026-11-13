@@ -12,6 +12,9 @@ final class StatusItemController {
     /// while the main item is out of the bar.
     var onRightClick: ((NSStatusBarButton?) -> Void)?
     var onMetricClick: ((MenuBarMetric, NSStatusBarButton) -> Void)?
+    /// Weather is not a metric detail page: its block opens the Weather panel
+    /// section instead of a System Monitor breakdown.
+    var onWeatherClick: ((NSStatusBarButton) -> Void)?
     var onClipboardPreviewClick: (() -> Void)?
 
     private(set) var statusItem: NSStatusItem!
@@ -57,6 +60,10 @@ final class StatusItemController {
     /// so bind() only touches it once the feature is actually available,
     /// rather than for every launch regardless of whether anyone uses it.
     private var clipboardBindingsInstalled = false
+    /// Same rule for Weather: merely reading WeatherService.shared builds the
+    /// service, its cache file and its polling timer, so the bindings wait
+    /// for the feature to be installed.
+    private var weatherBindingsInstalled = false
     private static let mainAutosaveName = "VorssaintMenuBarItem"
     private static let metricAutosavePrefix = "VorssaintMetric"
     private static let clipboardPreviewAutosaveName = "VorssaintClipboardPreview"
@@ -213,6 +220,7 @@ final class StatusItemController {
             .store(in: &cancellables)
 
         bindClipboardPreviewIfAvailable()
+        bindWeatherReadingsIfAvailable()
 
         defaultsObserver = NotificationCenter.default.addObserver(forName: UserDefaults.didChangeNotification,
                                                                   object: nil,
@@ -237,6 +245,7 @@ final class StatusItemController {
             self.refresh()
             self.bindClipboardPreviewIfAvailable()
             self.syncClipboardPreviewItem()
+            self.bindWeatherReadingsIfAvailable()
         }
     }
 
@@ -259,6 +268,46 @@ final class StatusItemController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.syncClipboardPreviewItem() }
             .store(in: &cancellables)
+    }
+
+    /// Weather changes arrive from its own service rather than SystemMonitor.
+    /// Only a visible menu bar block forces a refresh; a hidden one must not
+    /// redraw the status item every fetch. Like the clipboard preview, the
+    /// service is not touched at all until the feature is installed.
+    private func bindWeatherReadingsIfAvailable() {
+        guard !weatherBindingsInstalled, AppFeature.weather.isAvailable else { return }
+        weatherBindingsInstalled = true
+        MainActor.assumeIsolated {
+            let service = WeatherService.shared
+            service.$snapshot
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard UserDefaults.standard.bool(forKey: DefaultsKey.menuBarWeather) else { return }
+                    self?.refresh()
+                }
+                .store(in: &cancellables)
+            service.$preferences
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard UserDefaults.standard.bool(forKey: DefaultsKey.menuBarWeather) else { return }
+                    self?.refresh()
+                }
+                .store(in: &cancellables)
+        }
+    }
+
+    /// The reading the menu bar block draws, or nil while the option is off,
+    /// the feature is uninstalled, or no forecast exists yet. `nil` makes the
+    /// renderer omit the block instead of leaving a blank gap.
+    private var weatherReading: WeatherMenuBarReading? {
+        guard AppFeature.weather.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.menuBarWeather)
+        else { return nil }
+        return MainActor.assumeIsolated {
+            let service = WeatherService.shared
+            guard let snapshot = service.snapshot else { return nil }
+            return WeatherMenuBarReading(snapshot: snapshot, preferences: service.preferences)
+        }
     }
 
     deinit {
@@ -459,6 +508,7 @@ final class StatusItemController {
         let snapshot = SystemMonitor.shared.snapshot
         let metrics = MenuBarMetric.enabled(in: defaults)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
+        let weather = weatherReading
 
         syncTitleTimer(keepAwakeActive: manager.isActive,
                        showsCountdown: defaults.bool(forKey: DefaultsKey.showCountdown),
@@ -483,7 +533,7 @@ final class StatusItemController {
             includesCountdown = true
         }
         if separateMetrics {
-            refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings)
+            refreshMetricStatusItems(metrics: metrics, snapshot: snapshot, strings: strings, weather: weather)
         } else {
             removeMetricStatusItems(except: Set<String>())
             renderedMetricItemCount = 0
@@ -492,7 +542,8 @@ final class StatusItemController {
             let metricsTitle = MenuBarRenderer.attributed(for: snapshot,
                                                           metrics: metrics,
                                                           allowStacked: !includesCountdown,
-                                                          linePrefix: " ")
+                                                          linePrefix: " ",
+                                                          weather: weather)
             if metricsTitle.length > 0 {
                 if title.length > 0 { title.append(NSAttributedString(string: "  ")) }
                 title.append(metricsTitle)
@@ -587,7 +638,8 @@ final class StatusItemController {
 
     private func refreshMetricStatusItems(metrics: [MenuBarMetric],
                                           snapshot: SystemSnapshot,
-                                          strings: Strings) {
+                                          strings: Strings,
+                                          weather: WeatherMenuBarReading?) {
         let groups = Self.metricStatusGroups(for: metrics, strings: strings)
         let wanted = Set(groups.map(\.id))
         removeMetricStatusItems(except: wanted)
@@ -597,7 +649,8 @@ final class StatusItemController {
         for group in groups {
             let title = MenuBarRenderer.attributed(for: snapshot,
                                                    metrics: group.metrics,
-                                                   allowStacked: false)
+                                                   allowStacked: false,
+                                                   weather: weather)
             let empties = title.length > 0 ? 0 : (metricEmptyRenders[group.id] ?? 0) + 1
             metricEmptyRenders[group.id] = empties
             guard MenuBarSpacingSupport.keepsMetricStatusItem(
@@ -688,7 +741,7 @@ final class StatusItemController {
                                      temperature: .batteryTemperature,
                                      primaryTitle: strings.batteryLabel)
             case .memory, .network, .diskUsage, .diskActivity, .batteryTime, .peripheralBattery, .power,
-                 .fanSpeed, .connectedDevices:
+                 .fanSpeed, .connectedDevices, .weather:
                 let id = metric.rawValue
                 guard emittedIDs.insert(id).inserted else { continue }
                 groups.append(MetricStatusGroup(id: id,
@@ -732,6 +785,10 @@ final class StatusItemController {
         }
         guard let metric = focusMetric(from: sender) else {
             onLeftClick?()
+            return
+        }
+        if metric == .weather {
+            onWeatherClick?(sender)
             return
         }
         onMetricClick?(metric, sender)

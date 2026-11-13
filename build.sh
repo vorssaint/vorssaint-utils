@@ -264,6 +264,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
         Sources/Vorssaint/Core/Defaults.swift
+        Sources/Vorssaint/Services/Weather/WeatherModels.swift
+        Sources/Vorssaint/Core/WeatherStrings.swift
+        Sources/Vorssaint/Core/WeatherStrings+*.swift
+        Sources/Vorssaint/Services/Weather/WeatherSupport.swift
         Sources/Vorssaint/Core/NotchStrings.swift
         Sources/Vorssaint/Core/NotchTourStrings.swift
         Sources/Vorssaint/Core/NotchEditorStrings.swift
