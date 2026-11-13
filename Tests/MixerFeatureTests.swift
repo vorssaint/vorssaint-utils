@@ -327,20 +327,32 @@ enum MixerFeatureTests {
         suite.expect(owningApp(of: 0) == nil,
                "a missing responsible pid maps to no app")
         func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
-            let isRegular: (pid_t) -> Bool = { regularApps.contains($0) }
-            let parent: (pid_t) -> pid_t = { helperParents[$0] ?? 0 }
-            return MixerRoutingSupport.owningRegularAppPid(
+            MixerRoutingSupport.regularAppOwnerPid(
+                of: pid,
                 responsiblePid: responsible,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
-                responsiblePid: pid,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) : nil)
+                isRegularApp: { regularApps.contains($0) },
+                parentPid: { helperParents[$0] ?? 0 })
         }
         suite.expect(resolvedOwningApp(responsible: 700, pid: 500) == 100,
                "a helper whose responsibility returns a daemon still falls back to its parent app")
+        suite.expect(resolvedOwningApp(responsible: 100, pid: 500) == 100,
+               "a helper is billed to the regular app responsible for it")
+        // Issue #3929: Steam (real pid 14271) and Device Hub (2836) both report
+        // a running-application pid of -1. Rows are keyed by the real pid that
+        // was checked, so they stay apart, and a game Steam launched is a
+        // regular app of its own and gets its own row.
+        let steamApps: Set<pid_t> = [14271, 2836, 44794]
+        let steamOwners = [(responsible: pid_t(14271), pid: pid_t(14271)),
+                           (responsible: 2836, pid: 2836),
+                           (responsible: 14271, pid: 44794)]
+            .map { resolvedOwningApp(responsible: $0.responsible, pid: $0.pid, regularApps: steamApps) }
+        suite.expect(steamOwners == [14271, 2836, 44794],
+               "apps the workspace lists with pid -1 are keyed by their real pids, never merged")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: [14271]) == 14271,
+               "a non-regular process launched by Steam is still billed to Steam")
+        suite.expect([pid_t(-1), 0].allSatisfy {
+            resolvedOwningApp(responsible: $0, pid: $0, regularApps: [-1, 0]) == nil
+        }, "a non-positive pid is never a row key")
         suite.expect(!MixerRoutingSupport.requiresEngine(volume: 1,
                                                    selectedOutputDeviceUID: nil,
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
