@@ -20,6 +20,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -62,6 +63,11 @@ extension MonitorLayoutFeatureStrings {
     static let sk = MonitorLayoutFeatureStrings(
         shared: "Hodnoty a hlásenia",
         networkSpeedUnit: "Jednotka rýchlosti siete"
+    )
+
+    static let cs = MonitorLayoutFeatureStrings(
+        shared: "Hodnoty a upozornění",
+        networkSpeedUnit: "Jednotka rychlosti sítě"
     )
 
     static let de = MonitorLayoutFeatureStrings(

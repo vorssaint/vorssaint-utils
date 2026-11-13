@@ -29,6 +29,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -100,6 +101,16 @@ private extension ConnectedDevicesFeatureStrings {
         menuBarLabel: "USB",
         oneConnected: "1 pripojené zariadenie",
         devicesConnectedFormat: "Pripojené zariadenia: %d"
+    )
+
+    static let cs = ConnectedDevicesFeatureStrings(
+        title: "Připojená zařízení",
+        hubDescription: "Počítá připojená externí zařízení USB",
+        noDevices: "Nejsou připojena žádná externí zařízení",
+        unnamedDevice: "Zařízení USB",
+        menuBarLabel: "USB",
+        oneConnected: "1 připojené zařízení",
+        devicesConnectedFormat: "Připojená zařízení: %d"
     )
 
     static let de = ConnectedDevicesFeatureStrings(

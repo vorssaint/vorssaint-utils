@@ -43,6 +43,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -258,6 +259,35 @@ extension GeneralSettingsStrings {
         sectionUtilities: "Snímky obrazovky, čistenie, aktualizácie a ďalšie nástroje.",
         sectionControls: "Prepínače pre funkcie myši, klávesnice a okien.",
         sectionToggles: "Akcie na jedno kliknutie, napríklad tmavý režim a stlmenie mikrofónu."
+    )
+
+    static let cs = GeneralSettingsStrings(
+        pageDescription: "Jak se Vorssaint spouští, jak vypadá a co zobrazuje jeho panel na liště.",
+        appearanceCaption: "Platí jen pro vlastní okna a panely Vorssaint, ne pro celý Mac.",
+        launchAtLoginCaption: "Otevře se sám pokaždé, když zapnete Mac.",
+        liquidGlassCaption: "Průhledné panely ve stylu skla.",
+        liquidGlassOtherWindows: "Ostatní okna a panely",
+        panelIntro: "Kliknutím na ikonu Vorssaint na liště otevřete panel. Jeho karty se zobrazují v tomto pořadí.",
+        panelReorderHint: "Přetažením změníte pořadí. Vypněte cokoli, co nepotřebujete.",
+        menuBarIconTitle: "Ikona na řádku nabídek",
+        menuBarIconCaption: "Vyberte ikonu, kterou Vorssaint zobrazuje na řádku nabídek.",
+        menuBarIconOther: "Jiný symbol",
+        menuBarIconOtherCaption: "Zadejte název libovolného symbolu SF Symbols. Pokud chcete použít ikonu Vorssaint, nechte pole prázdné.",
+        menuBarIconUnknown: "Tento Mac nemá symbol s tímto názvem.",
+        menuBarIconReset: "Použít ikonu Vorssaint",
+        iconMissingTitle: "Nemůžete najít ikonu?",
+        iconMissingCaption: "Přeplněný řádek nabídek ji může skrýt, zejména na Macích s výřezem.",
+        sectionKeepAwake: "Udrží váš Mac probuzený tak dlouho, jak chcete.",
+        sectionDisplays: "Jas vašich obrazovek.",
+        sectionMixer: "Hlasitost každé aplikace, každá má vlastní posuvník.",
+        sectionSystem: "Procesor, grafika a paměť na jeden pohled.",
+        sectionNetwork: "Rychlost internetu a které aplikace ho využívají.",
+        sectionDisks: "Volné místo a aktivita disku.",
+        sectionPower: "Baterie, nabíjení a spotřeba energie.",
+        sectionFanControl: "Rychlost ventilátorů a vlastní křivka ventilátoru.",
+        sectionUtilities: "Snímky obrazovky, čištění, aktualizace a další nástroje.",
+        sectionControls: "Přepínače pro funkce myši, klávesnice a oken.",
+        sectionToggles: "Akce na jedno kliknutí, například tmavý režim a ztlumení mikrofonu."
     )
 
     static let de = GeneralSettingsStrings(

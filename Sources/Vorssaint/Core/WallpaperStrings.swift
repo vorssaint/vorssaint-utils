@@ -40,6 +40,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -207,6 +208,32 @@ extension WallpaperFeatureStrings {
         applyFailed: "Pozadie sa nepodarilo nastaviť",
         previousPage: "Predchádzajúca",
         nextPage: "Ďalšia"
+    )
+
+    static let cs = WallpaperFeatureStrings(
+        pageTitle: "Pozadí",
+        hubDescription: "Vyberte statické pozadí bez otevírání Nastavení systému",
+        panelDescription: "Vyberte statické pozadí bez otevírání Nastavení systému.",
+        filterAll: "Všechny",
+        filterOwn: "Vaše obrázky",
+        filterApple: "Apple",
+        applyAllDisplays: "Zobrazit na všech plochách",
+        addImage: "Přidat obrázek",
+        addFolder: "Přidat složku",
+        removeAdded: "Odstranit",
+        doneRemoving: "Hotovo",
+        sourceUnavailable: "Nedostupné",
+        addImagePrompt: "Vyberte obrázky, které se mají ponechat v seznamu pozadí Vorssaintu",
+        addFolderPrompt: "Vyberte složku s obrázky, která se má ponechat v seznamu pozadí Vorssaintu",
+        openSystemSettings: "Otevřít nastavení pozadí",
+        emptyAll: "Nebyla nalezena žádná pozadí",
+        emptyOwn: "Zatím jste nepřidali žádné obrázky",
+        emptyApple: "Nebyla nalezena žádná statická pozadí od Apple",
+        downloading: "Stahuje se…",
+        downloadFailed: "Pozadí se nepodařilo stáhnout",
+        applyFailed: "Pozadí se nepodařilo nastavit",
+        previousPage: "Předchozí",
+        nextPage: "Další"
     )
 
     static let de = WallpaperFeatureStrings(
