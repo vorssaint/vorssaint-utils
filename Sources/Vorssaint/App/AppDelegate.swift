@@ -266,6 +266,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self.presentUpdateIntros()
             }
         }
+        // A link that launched the app runs now that its features are set
+        // up, on the same later turn as the startup windows.
+        DispatchQueue.main.async { [weak self] in self?.runDeepLinksFromLaunch() }
     }
 
     /// Asking another app about its windows waits for that app to answer, and
@@ -370,6 +373,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             ClipboardHistoryService.shared.flushBeforeTermination()
         }
         KeepAwakeManager.shared.deactivate(reason: .quit)
+    }
+
+    // MARK: - Deep links
+
+    /// Links that arrived before startup finished. nil once it has, and from
+    /// then on a link runs as soon as it arrives.
+    private var deepLinksBeforeLaunch: [URL]? = []
+
+    /// Handles `vorssaint://` URLs from external callers. When a link is what
+    /// launches the app, AppKit can deliver it before
+    /// applicationDidFinishLaunching, so it waits until startup has set up the
+    /// features it reaches.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        guard deepLinksBeforeLaunch == nil else {
+            deepLinksBeforeLaunch?.append(contentsOf: urls)
+            return
+        }
+        for url in urls { handleDeepLink(url) }
+    }
+
+    /// Runs, once, the links that arrived while the app was starting.
+    private func runDeepLinksFromLaunch() {
+        let waiting = deepLinksBeforeLaunch ?? []
+        deepLinksBeforeLaunch = nil
+        for url in waiting { handleDeepLink(url) }
+    }
+
+    private func handleDeepLink(_ url: URL) {
+        guard let request = DeepLinkSupport.parse(url) else {
+            DeepLinkSupport.log.error("rejected deep link \(url.absoluteString, privacy: .private)")
+            NSSound.beep()
+            return
+        }
+        CommandBarService.shared.runExternalRow(withStableKey: request.stableKey,
+                                                argument: request.argument)
     }
 
     /// The lifeline when the menu bar icon goes missing. Opening the app again
