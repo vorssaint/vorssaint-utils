@@ -18,6 +18,7 @@ private typealias EdgeSnapGeometry = WindowEdgeSnapSupport
 /// never posted, and timers run on the test's clock.
 enum WindowEdgeSnapRuntimeTests {
     static var accessibilityGranted = true
+    static var zonesShowing = false
     static var canBePlaced = true
     static var currentFrame = initialFrame
     static var windowExists = true
@@ -414,6 +415,7 @@ enum WindowEdgeSnapRuntimeTests {
     private static func reset() {
         serverFrameReads = 0
         accessibilityGranted = true
+        zonesShowing = false
         canBePlaced = true
         currentFrame = initialFrame
         windowExists = true
@@ -835,6 +837,21 @@ enum WindowEdgeSnapRuntimeTests {
         suite.expect(stageManager.placementVisibleFrames == [stageFrame]
                 && stageManager.placements == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
                      "edge snap places in the preview's Stage Manager frame while Restore keeps the original")
+
+        reset()
+        let zoned = Host()
+        send(zoned, .leftMouseDown, pressPoint)
+        currentFrame = initialFrame.offsetBy(dx: 40, dy: 0)
+        send(zoned, .leftMouseDragged, CGPoint(x: 240, y: 200))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        zonesShowing = true
+        currentFrame = movedToEdge
+        send(zoned, .leftMouseDragged, edgePoint)
+        send(zoned, .leftMouseUp, edgePoint)
+        DispatchQueue.main.drain()
+        suite.expect(zoned.placements.isEmpty,
+                     "a drag showing window zones drops into a zone and is never edge snapped as well")
 
         reset()
         let content = Host()
