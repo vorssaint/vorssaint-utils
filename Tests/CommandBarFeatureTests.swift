@@ -2343,6 +2343,23 @@ enum CommandBarFeatureTests {
                "a longer word is not the name, and the name alone is not an argument")
         suite.expect(CommandBarLinks.trailingArgument(query: "bd\u{3000}123", name: "bd") == "123",
                "a full-width space separates the name from its argument")
+        suite.expect(CommandBarLinks.trailingArgument(query: "go/mr", name: "go/") == "mr"
+                && CommandBarLinks.trailingArgument(query: "Jira:ABC-12 Fix", name: "jira:") == "ABC-12 Fix",
+               "a name ending in a separator takes what is typed straight after it (issue #4012)")
+        suite.expect(CommandBarLinks.trailingArgument(query: "go/ mr", name: "go/") == "mr"
+                && CommandBarLinks.trailingArgument(query: "go mr", name: "go") == "mr",
+               "the spaced form still works, for either kind of name")
+        suite.expect(CommandBarLinks.trailingArgument(query: "gomr", name: "go") == nil
+                && CommandBarLinks.trailingArgument(query: "github", name: "g") == nil
+                && CommandBarLinks.trailingArgument(query: "go2x", name: "go2") == nil,
+               "a name ending in a letter or digit still needs the space")
+        suite.expect(CommandBarLinks.trailingArgument(query: "go/", name: "go/") == nil
+                && CommandBarLinks.trailingArgument(query: "go", name: "go/") == nil,
+               "a separator name alone, or short of its separator, is not an argument")
+        suite.expect(CommandBarLinks.scriptArgument(
+                    for: CommandBarLink(name: "calc=", kind: .script, destination: "/bin/echo"),
+                    query: "calc=2+2") == "2+2",
+               "a script whose name ends in a separator runs on what follows it unspaced")
         suite.expect(CommandBarLink(name: "gh", kind: .link, destination: "https://x/{query}").takesQuery
                 && !CommandBarLink(name: "a", kind: .link, destination: "https://x").takesQuery,
                "a destination that waits for a query is a search")
