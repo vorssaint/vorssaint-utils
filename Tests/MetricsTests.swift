@@ -175,6 +175,7 @@ struct MetricsTests {
             }),
             ("keyboard", {
                 KeyboardFeatureTests.run(suite)
+                FunctionKeysTests.run(suite)
                 AssistiveKeyboardTests.run(suite)
                 ScreenshotToolShortcutTests.run(suite)
             }),

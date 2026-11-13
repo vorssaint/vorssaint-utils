@@ -1326,6 +1326,15 @@ struct Strings {
     let scrollSpeedName: String
     let scrollSpeedCaption: String
     let scrollSpeedMultiplierLabel: String
+    let functionKeysName: String
+    let functionKeysCaption: String
+    let functionKeysMicMuteName: String
+    let functionKeysMicMuteCaption: String
+    let functionKeysSleepName: String
+    let functionKeysSleepCaption: String
+    let functionKeysFindName: String
+    let functionKeysFindCaption: String
+    let functionKeysMusicNote: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
@@ -2455,6 +2464,15 @@ extension Strings {
         scrollSpeedName: "Rolar mais rápido segurando uma tecla",
         scrollSpeedCaption: "Mantenha apenas a tecla escolhida pressionada ao rolar a roda do mouse para multiplicar a distância. O trackpad não muda.",
         scrollSpeedMultiplierLabel: "Velocidade",
+        functionKeysName: "Teclas de função",
+        functionKeysCaption: "Dê outra função à tecla do Spotlight (F4), à de ditado (F5) e à de Não Perturbe (F6). Requer acesso à Acessibilidade.",
+        functionKeysMicMuteName: "F5 silencia o microfone",
+        functionKeysMicMuteCaption: "Substitui o ditado. Requer a função de silenciar o microfone instalada.",
+        functionKeysSleepName: "F6 coloca o Mac em repouso",
+        functionKeysSleepCaption: "Substitui o Não Perturbe. O Mac entra em repouso na hora, sem confirmação.",
+        functionKeysFindName: "F4 aciona ⌘F (Buscar)",
+        functionKeysFindCaption: "Substitui o Spotlight. Envia Command-F ao app que você está usando, para buscar nele.",
+        functionKeysMusicNote: "Para abrir outro app de música com Reproduzir/Pausar (F8) quando nenhum estiver aberto, use a opção de bloquear o app de música.",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
@@ -3585,6 +3603,15 @@ extension Strings {
         scrollSpeedName: "Scroll faster while holding a key",
         scrollSpeedCaption: "Hold only the selected modifier while scrolling the mouse wheel to multiply scroll distance. The trackpad is not affected.",
         scrollSpeedMultiplierLabel: "Speed",
+        functionKeysName: "Function keys",
+        functionKeysCaption: "Give the Spotlight key (F4), the dictation key (F5) and the Do Not Disturb key (F6) another job. Requires Accessibility access.",
+        functionKeysMicMuteName: "F5 mutes the microphone",
+        functionKeysMicMuteCaption: "Replaces dictation. Requires the microphone mute feature to be installed.",
+        functionKeysSleepName: "F6 puts the Mac to sleep",
+        functionKeysSleepCaption: "Replaces Do Not Disturb. The Mac goes to sleep at once, with no confirmation.",
+        functionKeysFindName: "F4 presses ⌘F (Find)",
+        functionKeysFindCaption: "Replaces Spotlight. Sends Command-F to the app you are using, so you can search in it.",
+        functionKeysMusicNote: "To open another music app with Play/Pause (F8) when none is running, use the music app block option.",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",
