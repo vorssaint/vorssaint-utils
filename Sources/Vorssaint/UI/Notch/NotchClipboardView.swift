@@ -22,6 +22,8 @@ struct NotchClipboardView: View {
     /// The card the arrow keys chose, the top result of a typed search, or
     /// the entry copied last; Return uses it the way a click would.
     @State private var highlightedID: UUID?
+    @State private var selectedIDs: Set<UUID> = []
+    @State private var keyboardSelection = ClipboardKeyboardSelection()
     @FocusState private var searching: Bool
     /// The search field shows only once it is wanted: the header's magnifier
     /// opens it, and so does typing. Hidden, it keeps the focus.
@@ -103,6 +105,7 @@ struct NotchClipboardView: View {
                     }
                 }
             }
+            if showsSelection { selectionBar }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         // The magnifier and the history's own actions sit in the island's top
@@ -125,29 +128,29 @@ struct NotchClipboardView: View {
         }
         .background {
             if !preview {
-                ClipboardKeyMonitor(handleKey: handleKey, composed: { searchOpen = true })
+                ClipboardKeyMonitor(handleKey: { event, composing, editing, hasSelection in
+                    handleKey(event, composing: composing, editing: editing, searchHasSelection: hasSelection)
+                }, composed: { searchOpen = true; keysMoved = false })
                     .frame(width: 0, height: 0)
             }
         }
         .onAppear(perform: appeared)
         .onChange(of: service.clipboardSearchRequest) { _, _ in if !preview { openSearch() } }
-        .onChange(of: pinnedOnly) { _, _ in highlightedID = searchHighlight(keeping: nil) }
-        .onChange(of: searchOpen) { _, open in
-            guard !preview else { return }
-            // Escape closes the search before it closes the island.
-            service.setPageLayer(.clipboard, close: open ? { closeSearch() } : nil)
-        }
+        .onChange(of: pinnedOnly) { _, _ in queryChanged(query) }
+        .onChange(of: cardSize) { _, _ in selectionContextChanged() }
+        .onChange(of: selectedIDs.isEmpty) { _, _ in updatePageLayer() }
+        .onChange(of: searchOpen) { _, _ in updatePageLayer() }
         .onChange(of: searching) { _, focused in
             // A field left empty has nothing to keep open.
             if !focused, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { searchOpen = false }
         }
         .onDisappear {
-            dwell?.task.cancel()
-            closing?.task.cancel()
+            disappeared()
             if !preview { service.setPageLayer(.clipboard, close: nil) }
         }
         // A row that leaves the list hands the highlight on, as a new search does.
-        .onChange(of: entries.map(\.id)) { _, _ in highlightedID = searchHighlight(keeping: highlightedID) }
+        .onChange(of: entries.map(\.id)) { _, _ in visibleEntriesChanged() }
+        .onChange(of: history.entries.map(\.id)) { _, _ in visibleEntriesChanged() }
         .onChange(of: service.clipboardPastePress) { _, press in
             guard let press, !preview else { return }
             guard entries.indices.contains(press.index) else {
@@ -171,6 +174,7 @@ struct NotchClipboardView: View {
     /// Explore: the field takes the focus while it is still hidden.
     private func appeared() {
         guard !preview else { return }
+        resetSelection()
         highlightedID = searchHighlight(keeping: nil)
         searching = true
     }
@@ -203,7 +207,83 @@ struct NotchClipboardView: View {
     private func queryChanged(_ query: String) {
         keysMoved = false
         highlightedID = searchHighlight(keeping: nil)
+        selectionContextChanged()
         if !query.isEmpty { searchOpen = true }
+    }
+
+    private var showsSelection: Bool {
+        !selectedIDs.isEmpty
+    }
+
+    private func toggleSelection(_ entry: ClipboardHistoryEntry) {
+        keyboardSelection.setAnchor(entry.id)
+        highlightedID = entry.id
+        keysMoved = true
+        if !selectedIDs.insert(entry.id).inserted { selectedIDs.remove(entry.id) }
+    }
+
+    private func resetSelection() {
+        selectedIDs.removeAll()
+        keyboardSelection.reset()
+    }
+
+    private func visibleEntriesChanged() {
+        let ids = entries.map(\.id)
+        let invalidated = keyboardSelection.invalidate(visibleIDs: ids)
+        let previousSelection = selectedIDs
+        selectedIDs.formIntersection(history.entries.map(\.id))
+        let pruned = previousSelection != selectedIDs
+        if pruned { keyboardSelection.endSegment() }
+        let previous = highlightedID
+        highlightedID = previous.flatMap { ids.contains($0) ? $0 : nil } ?? ids.first
+        if ids.isEmpty {
+            keyboardSelection.reset()
+            keysMoved = false
+        } else if let highlightedID, invalidated || pruned || previous != highlightedID {
+            keyboardSelection.setAnchor(highlightedID)
+        }
+    }
+
+    private func selectionContextChanged() {
+        keyboardSelection.endSegment()
+        visibleEntriesChanged()
+        if let highlightedID { keyboardSelection.setAnchor(highlightedID) }
+    }
+
+    private func disappeared() {
+        resetSelection()
+        keysMoved = false
+        dwell?.task.cancel()
+        closing?.task.cancel()
+    }
+
+    private func updatePageLayer() {
+        guard !preview else { return }
+        service.setPageLayer(.clipboard, close: showsSelection || searchOpen ? {
+            if showsSelection { resetSelection() } else { closeSearch() }
+        } : nil)
+    }
+
+    private var selectionBar: some View {
+        HStack(spacing: 8) {
+            Button(String(format: permissions.accessibility ? text.pasteSelectedFormat : text.copySelectedFormat,
+                          selectedIDs.count), action: activateSelection)
+            Spacer(minLength: 0)
+            Button(text.clearSelection, action: resetSelection)
+        }
+        .controlSize(.small)
+        .padding(.top, 6)
+    }
+
+    private func selectionButton(_ entry: ClipboardHistoryEntry) -> some View {
+        let selected = selectedIDs.contains(entry.id)
+        return Button { toggleSelection(entry) } label: {
+            ClipboardSelectionMarker(isSelected: selected)
+        }
+        .buttonStyle(.plain)
+        .help(selected ? text.unselectMultiple : text.selectMultiple)
+        .accessibilityLabel(selected ? text.unselectMultiple : text.selectMultiple)
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 
     /// The size Settings chose, read the way Settings reads it.
@@ -280,7 +360,8 @@ struct NotchClipboardView: View {
     private func openTextWidth(_ entry: ClipboardHistoryEntry) -> CGFloat {
         let scroller = NSScroller.preferredScrollerStyle == .legacy
             ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
-        return size.width - 2 * 10 - (entry.color == nil ? 0 : 12 + 7) - scroller
+        return size.width - 2 * 10 - (showsSelection ? 35 : 0)
+            - (entry.color == nil ? 0 : 12 + 7) - scroller
     }
 
     /// The text an open entry shows: the card preview the quick panel's cards
@@ -355,8 +436,13 @@ struct NotchClipboardView: View {
     private func card<Content: View>(_ entry: ClipboardHistoryEntry, lifted: Bool = false,
                                      @ViewBuilder content: () -> Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
-        return content()
-            .modifier(NotchControlSurface(cornerRadius: 14, selected: entry.isPinned))
+        return HStack(spacing: 0) {
+            if showsSelection {
+                selectionButton(entry).padding(.leading, 10)
+            }
+            content()
+        }
+            .modifier(NotchControlSurface(cornerRadius: 14, selected: entry.isPinned || selectedIDs.contains(entry.id)))
             .background {
                 if lifted {
                     if glassSurface { shape.fill(.ultraThickMaterial) } else { shape.fill(Color(white: 0.09)) }
@@ -365,11 +451,13 @@ struct NotchClipboardView: View {
             .overlay {
                 ZStack {
                     if lifted { shape.strokeBorder(.white.opacity(0.14), lineWidth: 0.5) }
-                    shape.strokeBorder(.white.opacity(highlightedID == entry.id ? 0.34 : 0), lineWidth: 1)
                 }
                 .allowsHitTesting(false)
             }
             .clipped()
+            .overlay {
+                if highlightedID == entry.id { ClipboardFocusRing(cornerRadius: 14) }
+            }
             .contextMenu { actions(entry) }
             .accessibilityAction(named: Text(text.moveUp)) { move(entry, .up) }
             .accessibilityAction(named: Text(text.moveDown)) { move(entry, .down) }
@@ -535,25 +623,67 @@ struct NotchClipboardView: View {
 
     /// Up/Control-P and Down/Control-N move the highlight. Return pastes or
     /// copies it like a click. A typed letter shows the search field and goes on to it.
-    private func handleKey(_ event: NSEvent, composing: Bool, editing: Bool) -> Bool {
+    private func handleKey(_ event: NSEvent, composing: Bool, editing: Bool,
+                           searchHasSelection: Bool = false, isEditingBody: Bool = false) -> Bool {
+        if event.type == .flagsChanged {
+            keyboardSelection.modifiersChanged(event.modifierFlags)
+            return false
+        }
         // Control produces control characters; match its shortcuts by the
         // layout's letter, while ordinary typing keeps the original text.
         let characters = event.modifierFlags.contains(.control) ? event.charactersIgnoringModifiers : event.characters
-        guard let key = NotchSupport.clipboardKey(keyCode: event.keyCode, characters: characters ?? "",
-                                                  modifiers: event.modifierFlags, composing: composing) else { return false }
+        if !query.isEmpty, searchHasSelection { keysMoved = false }
+        guard let key = NotchSupport.clipboardKey(
+            keyCode: event.keyCode, characters: characters ?? "", modifiers: event.modifierFlags,
+            composing: composing, interactionActive: keyboardSelection.isActive, hasSelection: showsSelection,
+            searchIsEmpty: query.isEmpty, searchHasSelection: searchHasSelection,
+            listNavigationActive: keysMoved, isEditingBody: isEditingBody
+        ) else { return false }
         let ids = entries.map(\.id)
         switch key {
+        case .extend(let step):
+            guard !ids.isEmpty else { return false }
+            selectedIDs = keyboardSelection.extend(visibleIDs: ids, currentID: keysMoved ? highlightedID : nil,
+                                                     selectedIDs: selectedIDs, step: step)
+            keysMoved = true
+            highlightedID = keyboardSelection.focusID
+            return true
+        case .toggle(let step):
+            guard !ids.isEmpty else { return false }
+            selectedIDs = keyboardSelection.toggle(visibleIDs: ids, currentID: keysMoved ? highlightedID : nil,
+                                                     selectedIDs: selectedIDs, step: step)
+            keysMoved = true
+            highlightedID = keyboardSelection.focusID
+            return true
+        case .skip(let step):
+            guard !ids.isEmpty else { return false }
+            highlightedID = keyboardSelection.skip(visibleIDs: ids, currentID: keysMoved ? highlightedID : nil,
+                                                     step: step)
+            keysMoved = true
+            return true
+        case .clearSelection:
+            guard showsSelection else { return false }
+            resetSelection()
+            return true
         case .move(let backwards):
             guard !ids.isEmpty else { return false }
+            // Control-N/P retain their existing movement from the resting highlight.
+            let currentID = keysMoved || event.modifierFlags.contains(.control) ? highlightedID : nil
+            highlightedID = keyboardSelection.skip(visibleIDs: ids, currentID: currentID,
+                                                     step: backwards ? -1 : 1)
             keysMoved = true
-            highlightedID = NotchSupport.steppedItem(from: highlightedID, in: ids, backwards: backwards)
             return true
         case .paste:
+            if showsSelection {
+                activateSelection()
+                return true
+            }
             guard let id = NotchSupport.clipboardPasteTarget(highlighted: highlightedID, in: ids),
                   let entry = entries.first(where: { $0.id == id }) else { return false }
             activate(entry)
             return true
         case .reveal:
+            keysMoved = false
             searchOpen = true
             // The focus Tab took elsewhere comes back for the keys that follow.
             if !editing { searching = true }
@@ -563,6 +693,29 @@ struct NotchClipboardView: View {
 
     private func activate(_ entry: ClipboardHistoryEntry) {
         if permissions.accessibility { paste(entry) } else { copy(entry) }
+    }
+
+    private func activateSelection() {
+        // Capture both before collapse triggers the page's disappearance.
+        let batch = history.batchEntries(selectedIDs: selectedIDs)
+        let target = history.batchPasteTarget
+        let paste = permissions.accessibility
+        guard !batch.isEmpty else {
+            NSSound.beep()
+            resetSelection()
+            return
+        }
+        guard !paste || target?.isTerminated == false else {
+            NSSound.beep()
+            return
+        }
+        if paste {
+            resetSelection()
+            service.collapse()
+        }
+        history.activateBatch(batch, paste: paste, target: target) { copied in
+            if copied, !paste { self.copiedID = batch.first?.id }
+        }
     }
 
     private func paste(_ entry: ClipboardHistoryEntry) {
@@ -667,7 +820,7 @@ struct NotchClipboardView: View {
 /// which would otherwise spend them moving the caret, and shows the hidden
 /// field as typing reaches it. It lives as long as the page does.
 private struct ClipboardKeyMonitor: NSViewRepresentable {
-    var handleKey: (NSEvent, Bool, Bool) -> Bool
+    var handleKey: (NSEvent, Bool, Bool, Bool) -> Bool
     /// A dead key or an input method's first key marks text in the field.
     var composed: () -> Void
 
@@ -691,24 +844,31 @@ private struct ClipboardKeyMonitor: NSViewRepresentable {
     }
 
     final class Coordinator {
-        var handleKey: (NSEvent, Bool, Bool) -> Bool
+        var handleKey: (NSEvent, Bool, Bool, Bool) -> Bool
         var composed: () -> Void
         private var monitor: Any?
 
-        init(handleKey: @escaping (NSEvent, Bool, Bool) -> Bool,
+        init(handleKey: @escaping (NSEvent, Bool, Bool, Bool) -> Bool,
              composed: @escaping () -> Void) {
             self.handleKey = handleKey
             self.composed = composed
         }
 
         func install(for view: NSView) {
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak view] event in
-                guard let self, let window = view?.window, event.window === window else { return event }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [weak self, weak view] event in
+                guard let self else { return event }
+                // Modifier release ends the session even while a dialog owns focus.
+                if event.type == .flagsChanged {
+                    _ = self.handleKey(event, false, false, false)
+                    return event
+                }
+                guard let window = view?.window, event.window === window else { return event }
+                guard NSApp.modalWindow == nil, window.attachedSheet == nil else { return event }
                 let editor = (window.firstResponder as? NSTextView).flatMap { $0.isFieldEditor ? $0 : nil }
                 // Another text view, such as a dialog's, keeps its keys.
                 if editor == nil, window.firstResponder is NSTextView { return event }
                 let composing = editor?.hasMarkedText() == true
-                if self.handleKey(event, composing, editor != nil) {
+                if self.handleKey(event, composing, editor != nil, (editor?.selectedRange().length ?? 0) > 0) {
                     return nil
                 }
                 // A dead key reports no character and marks its accent only
