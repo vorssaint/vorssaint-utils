@@ -35,6 +35,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarLabelStyle) private var labelStyle = "compact"
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var networkUploadFirst = false
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+    @AppStorage(BatteryMenuBarStyle.defaultsKey) private var batteryStyle = BatteryMenuBarStyle.regular
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.menuBarMetricSpacing) private var metricSpacing = "standard"
@@ -54,6 +55,7 @@ struct MenuBarMetricsPreview: View {
         let _ = labelStyle
         let _ = networkUploadFirst
         let _ = memoryStyle
+        let _ = batteryStyle
         let _ = diskStyle
         let _ = temperatureUnit
         let _ = networkSpeedUnit
@@ -202,19 +204,11 @@ struct MenuBarMetricsPreview: View {
                    height: style == .readable ? 22 : 20,
                    alignment: .center)
         case let .batteryBlock(percent, isCharging, externalConnected, warning, style):
-            HStack(spacing: style == .readable ? 5 : 4) {
-                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
-                                                                    isCharging: isCharging,
-                                                                    externalConnected: externalConnected))
-                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
-                Text("\(max(0, min(100, percent)))%")
-                    .font(.system(size: style == .readable ? 13 : 12,
-                                  weight: .semibold,
-                                  design: .monospaced))
-                    .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
-            }
-            .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
-            .fixedSize(horizontal: true, vertical: true)
+            batteryBlock(percent: percent,
+                         isCharging: isCharging,
+                         externalConnected: externalConnected,
+                         warning: warning,
+                         style: style)
         case let .dot(pressure):
             Circle()
                 .fill(dotColor(pressure))
@@ -226,6 +220,65 @@ struct MenuBarMetricsPreview: View {
                               design: .monospaced))
                 .foregroundStyle(.white.opacity(0.28))
                 .padding(.horizontal, 5)
+        }
+    }
+
+    @ViewBuilder
+    private func batteryBlock(percent: Int,
+                              isCharging: Bool,
+                              externalConnected: Bool,
+                              warning: BatteryWarning,
+                              style: MenuBarBlockStyle) -> some View {
+        let clamped = max(0, min(100, percent))
+        let tint = MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white
+        switch batteryStyle {
+        case .stacked:
+            VStack(spacing: -1) {
+                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
+                                                                    isCharging: isCharging,
+                                                                    externalConnected: externalConnected))
+                    .font(.system(size: style == .readable ? 12.5 : 11.5, weight: .regular))
+                Text("\(clamped)%")
+                    .font(.system(size: style == .readable ? 8.6 : 8,
+                                  weight: .semibold,
+                                  design: .monospaced))
+            }
+            .foregroundStyle(tint)
+            .frame(minWidth: style == .readable ? 39 : 35)
+            .fixedSize(horizontal: true, vertical: true)
+        case .inside:
+            HStack(spacing: 2) {
+                ZStack {
+                    Image(systemName: BatteryPowerSupport.levelSymbol(percent: clamped))
+                        .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
+                    Text("\(clamped)%")
+                        .font(.system(size: 6, weight: .semibold))
+                        // The real glyph punches the digits out of the body;
+                        // the preview sits on black, so black digits match.
+                        .foregroundStyle(.black)
+                        .offset(x: -1)
+                }
+                if isCharging || externalConnected {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: style == .readable ? 7.5 : 7, weight: .semibold))
+                }
+            }
+            .foregroundStyle(tint)
+            .fixedSize(horizontal: true, vertical: true)
+        default:
+            HStack(spacing: style == .readable ? 5 : 4) {
+                Image(systemName: BatteryPowerSupport.menuBarSymbol(percent: percent,
+                                                                    isCharging: isCharging,
+                                                                    externalConnected: externalConnected))
+                    .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
+                Text("\(clamped)%")
+                    .font(.system(size: style == .readable ? 13 : 12,
+                                  weight: .semibold,
+                                  design: .monospaced))
+                    .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
+            }
+            .foregroundStyle(tint)
+            .fixedSize(horizontal: true, vertical: true)
         }
     }
 

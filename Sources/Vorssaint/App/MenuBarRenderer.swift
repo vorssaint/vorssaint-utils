@@ -1091,51 +1091,139 @@ enum MenuBarRenderer {
                                           warning: BatteryWarning,
                                           style: MenuBarBlockStyle) -> NSImage {
         let clampedPercent = max(0, min(100, percent))
-        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)" as NSString
+        let batteryStyle = BatteryMenuBarStyle.current(in: UserDefaults.standard)
+        let cacheKey = "battery|\(clampedPercent)|\(isCharging)|\(externalConnected)|\(warning)|\(style)|\(batteryStyle)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
 
         let symbolName = BatteryPowerSupport.menuBarSymbol(percent: percent,
                                                            isCharging: isCharging,
                                                            externalConnected: externalConnected)
         let warningColor = nsColor(for: warning)
-        let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
+        let value = "\(clampedPercent)%"
         let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
                                                          weight: .semibold)
-        let value = "\(clampedPercent)%"
-        let sizingValueAttrs: [NSAttributedString.Key: Any] = [.font: valueFont]
-        let valueSize = (value as NSString).size(withAttributes: sizingValueAttrs)
-        let reservedValueSize = max(valueSize.width, ("100%" as NSString).size(withAttributes: sizingValueAttrs).width)
-        let symbolWidth: CGFloat = style == .readable ? 20 : 18
-        let gap: CGFloat = style == .readable ? 5 : 4
-        let height: CGFloat = style == .readable ? 22 : 20
-        let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
-        let image = NSImage(size: imageSize, flipped: false) { rect in
-            NSColor.clear.setFill()
-            rect.fill()
-            let symbolConfig = NSImage.SymbolConfiguration(pointSize: symbolPointSize, weight: .regular)
+        let valueSize = (value as NSString).size(withAttributes: [.font: valueFont])
+        let symbolConfig: (CGFloat) -> NSImage.SymbolConfiguration = { pointSize in
+            NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
                 .applying(NSImage.SymbolConfiguration(paletteColors: [warningColor ?? .labelColor]))
-            if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
-                .withSymbolConfiguration(symbolConfig) {
-                let symbolSize = symbol.size
-                // draw(in:) stretches the image to exactly fill the rect, so
-                // clamping only the width while leaving height at
-                // the symbol's full natural size squished wide glyphs like
-                // the battery icon. Scale both dimensions together to keep
-                // the glyph's own proportions.
-                let scale = min(symbolWidth / symbolSize.width, 1)
-                let drawSize = NSSize(width: symbolSize.width * scale, height: symbolSize.height * scale)
-                let symbolRect = NSRect(x: 0,
-                                        y: (height - drawSize.height) / 2,
-                                        width: drawSize.width,
-                                        height: drawSize.height)
-                symbol.draw(in: symbolRect)
+        }
+
+        let image: NSImage
+        switch batteryStyle {
+        case .regular:
+            let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
+            let reservedValueSize = max(valueSize.width,
+                                        ("100%" as NSString).size(withAttributes: [.font: valueFont]).width)
+            let symbolWidth: CGFloat = style == .readable ? 20 : 18
+            let gap: CGFloat = style == .readable ? 5 : 4
+            let height: CGFloat = style == .readable ? 22 : 20
+            let imageSize = NSSize(width: ceil(symbolWidth + gap + reservedValueSize), height: height)
+            image = NSImage(size: imageSize, flipped: false) { rect in
+                NSColor.clear.setFill()
+                rect.fill()
+                if let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(symbolConfig(symbolPointSize)) {
+                    let symbolSize = symbol.size
+                    // draw(in:) stretches the image to exactly fill the rect, so
+                    // clamping only the width while leaving height at
+                    // the symbol's full natural size squished wide glyphs like
+                    // the battery icon. Scale both dimensions together to keep
+                    // the glyph's own proportions.
+                    let scale = min(symbolWidth / symbolSize.width, 1)
+                    let drawSize = NSSize(width: symbolSize.width * scale, height: symbolSize.height * scale)
+                    let symbolRect = NSRect(x: 0,
+                                            y: (height - drawSize.height) / 2,
+                                            width: drawSize.width,
+                                            height: drawSize.height)
+                    symbol.draw(in: symbolRect)
+                }
+                var valueAttrs = dynamicTextAttributes(font: valueFont)
+                if let warningColor { valueAttrs[.foregroundColor] = warningColor }
+                let valueY = (height - valueSize.height) / 2
+                (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
+                                         withAttributes: valueAttrs)
+                return true
             }
-            var valueAttrs = dynamicTextAttributes(font: valueFont)
-            if let warningColor { valueAttrs[.foregroundColor] = warningColor }
-            let valueY = (height - valueSize.height) / 2
-            (value as NSString).draw(at: NSPoint(x: symbolWidth + gap, y: valueY),
-                                     withAttributes: valueAttrs)
-            return true
+        case .stacked:
+            let stackedFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 8.6 : 8.0,
+                                                                weight: .semibold)
+            let stackedSize = (value as NSString).size(withAttributes: [.font: stackedFont])
+            let reservedValueSize = max(stackedSize.width,
+                                        ("100%" as NSString).size(withAttributes: [.font: stackedFont]).width)
+            let symbolPointSize: CGFloat = style == .readable ? 12.5 : 11.5
+            let symbol = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)?
+                .withSymbolConfiguration(symbolConfig(symbolPointSize))
+            let symbolSize = symbol?.size ?? NSSize(width: 16, height: 8)
+            let symbolScale = min((style == .readable ? 19 : 17) / symbolSize.width, 1)
+            let drawSize = NSSize(width: symbolSize.width * symbolScale,
+                                  height: symbolSize.height * symbolScale)
+            let height: CGFloat = style == .readable ? 23 : 21
+            let width = ceil(max(drawSize.width, reservedValueSize))
+            image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+                NSColor.clear.setFill()
+                rect.fill()
+                symbol?.draw(in: NSRect(x: (width - drawSize.width) / 2,
+                                        y: height - drawSize.height - 0.5,
+                                        width: drawSize.width,
+                                        height: drawSize.height))
+                var valueAttrs = dynamicTextAttributes(font: stackedFont)
+                if let warningColor { valueAttrs[.foregroundColor] = warningColor }
+                (value as NSString).draw(at: NSPoint(x: (width - stackedSize.width) / 2, y: 0.5),
+                                         withAttributes: valueAttrs)
+                return true
+            }
+        case .inside:
+            let symbolPointSize: CGFloat = style == .readable ? 17.0 : 15.5
+            let outline = NSImage(systemSymbolName: BatteryPowerSupport.levelSymbol(percent: clampedPercent),
+                                  accessibilityDescription: nil)?
+                .withSymbolConfiguration(symbolConfig(symbolPointSize))
+            let outlineSize = outline?.size ?? NSSize(width: 20, height: 10)
+            // The digits sit in the body, not the terminal nub on the right.
+            let bodyWidth = outlineSize.width * 0.78
+            var percentFontSize = max(4.6, outlineSize.height * 0.66)
+            var percentSize = (value as NSString).size(withAttributes: [
+                .font: NSFont.systemFont(ofSize: percentFontSize, weight: .semibold),
+            ])
+            if percentSize.width > bodyWidth {
+                percentFontSize = max(4.2, percentFontSize * bodyWidth / percentSize.width)
+                percentSize = (value as NSString).size(withAttributes: [
+                    .font: NSFont.systemFont(ofSize: percentFontSize, weight: .semibold),
+                ])
+            }
+            let percentFont = NSFont.systemFont(ofSize: percentFontSize, weight: .semibold)
+            let pluggedIn = isCharging || externalConnected
+            let bolt = pluggedIn
+                ? NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
+                    .withSymbolConfiguration(symbolConfig(style == .readable ? 7.5 : 7.0))
+                : nil
+            let gap: CGFloat = bolt == nil ? 0 : 2
+            let width = ceil(outlineSize.width + gap + (bolt?.size.width ?? 0))
+            let height: CGFloat = style == .readable ? 22 : 20
+            image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
+                NSColor.clear.setFill()
+                rect.fill()
+                let outlineY = (height - outlineSize.height) / 2
+                outline?.draw(in: NSRect(x: 0, y: outlineY, width: outlineSize.width, height: outlineSize.height))
+                let valueAttrs: [NSAttributedString.Key: Any] = [
+                    .font: percentFont,
+                    // Punched out of the filled body so the digits read as
+                    // the menu bar background, like the system's own glyph.
+                    .foregroundColor: NSColor.white,
+                ]
+                let valueX = (outlineSize.width - percentSize.width) / 2 - outlineSize.width * 0.04
+                let valueY = outlineY + (outlineSize.height - percentSize.height) / 2
+                NSGraphicsContext.saveGraphicsState()
+                NSGraphicsContext.current?.compositingOperation = .destinationOut
+                (value as NSString).draw(at: NSPoint(x: valueX, y: valueY), withAttributes: valueAttrs)
+                NSGraphicsContext.restoreGraphicsState()
+                if let bolt {
+                    bolt.draw(in: NSRect(x: outlineSize.width + gap,
+                                         y: (height - bolt.size.height) / 2,
+                                         width: bolt.size.width,
+                                         height: bolt.size.height))
+                }
+                return true
+            }
         }
         image.isTemplate = false
         blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))

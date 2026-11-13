@@ -441,6 +441,7 @@ enum DefaultsKey {
     static let menuBarLabelStyle = "menuBarLabelStyle"     // compact | classic
     static let menuBarMemoryStyle = "menuBarMemoryStyle"   // dot | percent | both
     static let menuBarDiskStyle = "menuBarDiskStyle"       // percent | free | used
+    static let menuBarBatteryStyle = "menuBarBatteryStyle" // regular | stacked | inside
     static let monitorMemoryMetric = "monitorMemoryMetric" // used | app
     static let monitorInterval = "monitorIntervalSeconds"  // sampling cadence: 1/2/5
     static let temperatureUnit = "temperatureUnit"          // celsius | fahrenheit
@@ -1229,6 +1230,7 @@ enum Defaults {
     ]
     static let allowedMenuBarLabelStyles = ["compact", "classic"]
     static let allowedMenuBarMemoryStyles = ["dot", "percent", "both"]
+    static let allowedMenuBarBatteryStyles = ["regular", "stacked", "inside"]
     static let allowedMonitorMemoryMetrics = ["used", "app"]
     static let allowedPreviewSizes = ["small", "normal", "large", "xlarge"]
     static let allowedClipboardHistoryLimits = [20, 50, 100, 250, 500, 1_000, 10_000, 0]
@@ -1726,6 +1728,7 @@ enum Defaults {
         DefaultsKey.menuBarLabelStyle: "compact",
         DefaultsKey.menuBarMemoryStyle: "percent",
         DefaultsKey.menuBarDiskStyle: "percent",
+        DefaultsKey.menuBarBatteryStyle: "regular",
         DefaultsKey.monitorMemoryMetric: "used",
         DefaultsKey.monitorShowSystem: true,
         DefaultsKey.monitorShowNetwork: true,
@@ -2680,6 +2683,10 @@ enum Defaults {
 
     static func sanitizedMenuBarMemoryStyle(_ style: String) -> String {
         allowedMenuBarMemoryStyles.contains(style) ? style : "percent"
+    }
+
+    static func sanitizedMenuBarBatteryStyle(_ style: String) -> String {
+        allowedMenuBarBatteryStyles.contains(style) ? style : "regular"
     }
 
     static func sanitizedMonitorMemoryMetric(_ metric: String) -> String {

@@ -3,6 +3,21 @@
 
 import Foundation
 
+/// How the battery reading appears in the menu bar: the icon beside the
+/// percentage, the percentage below it, or the percentage inside the icon.
+enum BatteryMenuBarStyle: String, CaseIterable {
+    case regular, stacked, inside
+
+    static let defaultsKey = DefaultsKey.menuBarBatteryStyle
+
+    static func current(in defaults: UserDefaults) -> BatteryMenuBarStyle {
+        let raw = defaults.string(forKey: defaultsKey) ?? ""
+        return BatteryMenuBarStyle(rawValue: Defaults.sanitizedMenuBarBatteryStyle(raw)) ?? .regular
+    }
+
+    static var current: BatteryMenuBarStyle { current(in: .standard) }
+}
+
 /// How the power connection is read for display. Kept apart from the views and
 /// the menu bar renderer so the states they have to tell apart can be checked
 /// without AppKit.
@@ -38,6 +53,12 @@ enum BatteryPowerSupport {
     /// back to a level.
     static func menuBarSymbol(percent: Int, isCharging: Bool, externalConnected: Bool) -> String {
         if isCharging || externalConnected { return "battery.100.bolt" }
+        return levelSymbol(percent: percent)
+    }
+
+    /// The bare charge glyph, without the bolt, for styles that place the
+    /// percentage inside the body.
+    static func levelSymbol(percent: Int) -> String {
         switch percent {
         case 85...: return "battery.100"
         case 60..<85: return "battery.75"

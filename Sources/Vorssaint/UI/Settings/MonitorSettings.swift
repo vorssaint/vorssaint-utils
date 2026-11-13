@@ -392,6 +392,7 @@ private struct MenuBarMetricTile: View {
     let metric: MenuBarMetric
     @AppStorage private var shown: Bool
     @AppStorage(DefaultsKey.menuBarMemoryStyle) private var memoryStyle = "percent"
+    @AppStorage(BatteryMenuBarStyle.defaultsKey) private var batteryStyle = BatteryMenuBarStyle.regular
     @AppStorage(DefaultsKey.menuBarNetworkUploadFirst) private var uploadFirst = false
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
 
@@ -411,6 +412,12 @@ private struct MenuBarMetricTile: View {
         case .memory:
             return Defaults.sanitizedMenuBarMemoryStyle(memoryStyle) != "percent"
                 ? l10n.s.monitorMemoryPressureDot : FeatureStrings.mouseClickDebounce(l10n.language).moreOptions
+        case .battery:
+            switch batteryStyle {
+            case BatteryMenuBarStyle.stacked: return l10n.s.batteryStyleStacked
+            case BatteryMenuBarStyle.inside: return l10n.s.batteryStyleInside
+            default: return l10n.s.batteryStyleRegular
+            }
         case .network: return uploadFirst ? "↑ ↓" : "↓ ↑"
         case .diskUsage:
             switch diskStyle {
@@ -435,6 +442,13 @@ private struct MenuBarMetricTile: View {
             return AnyView(MonitorTokenOption(symbol: "arrow.up.arrow.down",
                                                  title: l10n.s.monitorNetworkUploadFirst,
                                                  isOn: $uploadFirst))
+        case .battery:
+            return AnyView(Picker(l10n.s.monitorBatteryStyleLabel, selection: $batteryStyle) {
+                Text(l10n.s.batteryStyleRegular).tag(BatteryMenuBarStyle.regular)
+                Text(l10n.s.batteryStyleStacked).tag(BatteryMenuBarStyle.stacked)
+                Text(l10n.s.batteryStyleInside).tag(BatteryMenuBarStyle.inside)
+            }
+            .pickerStyle(.menu))
         case .diskUsage:
             return AnyView(Picker(l10n.s.diskMenuBarStyleLabel, selection: $diskStyle) {
                 Text(l10n.s.diskMenuBarUsedPercentage).tag(DiskMenuBarStyle.percent)
