@@ -253,9 +253,11 @@ final class FeatureRuntime: ObservableObject {
         .spacesOrder: { SpacesOrderHold.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
+        .scrollZoom: { ScrollInverter.shared.syncWithPreferences() },
         .focusFollowsMouse: { FocusFollowsMouseService.shared.syncWithPreferences() },
         .smoothScroll: { SmoothScrollService.shared.syncWithPreferences() },
         .linearScroll: { ScrollInverter.shared.syncWithPreferences() },
+        .scrollSpeed: { ScrollInverter.shared.syncWithPreferences() },
         .mouseAcceleration: { MouseAccelerationService.shared.syncWithPreferences() },
         .mouseNavigation: { MouseNavigationService.shared.syncWithPreferences() },
         .mouseButtonShortcuts: { MouseButtonShortcutService.shared.syncWithPreferences() },
@@ -308,6 +310,8 @@ final class FeatureRuntime: ObservableObject {
             AudioPriorityService.shared.syncWithPreferences()
         },
         .micMute: { MicMuteService.shared.syncWithPreferences() },
+        .quickToggles: { QuickTogglesService.shared.syncWithPreferences() },
+        .quitApps: { QuickTogglesService.shared.syncWithPreferences() },
         .musicBlock: { MusicLaunchBlocker.shared.syncWithPreferences() },
         .keepAwake: {
             KeepAwakeManager.shared.syncWithFeatures()
@@ -390,6 +394,7 @@ final class FeatureRuntime: ObservableObject {
             }
         },
         .appUpdates: { AppUpdatesService.shared.syncWithPreferences() },
+        .uninstaller: { TrashAppWatcher.shared.syncWithPreferences() },
         .monitorCPU: { FeatureRuntime.syncMonitor() },
         .monitorGPU: { FeatureRuntime.syncMonitor() },
         .monitorMemory: { FeatureRuntime.syncMonitor() },
