@@ -752,12 +752,19 @@ def main():
           + "extension ClipboardFeatureTests.PanelPlacementHost {\n"
           + "".join(declaration(clipboard, prefix).replace("private func", "func", 1) for prefix in [
               "    private func observePanelGeometry(", "    private func savePanelPosition(",
-              "    private func refreshQuickLayout(", "    private func panelMinimumContentSize(",
+              "    private func refreshQuickPreferences(", "    private func panelMinimumContentSize(",
               "    private func preferredPanelSize(", "    private func savePanelSize(",
               "    private func position(", "    private func resize("])
           + "}\nextension ClipboardFeatureTests {\n"
           + declaration(clipboard, "private final class ClipboardPanelSizeLimit").replace(
               "private final class", "final class", 1)
+          + "}\n")
+    write("ClipboardOpeningScroll.swift", "import SwiftUI\n"
+          + "extension ClipboardFeatureTests.OpeningScrollHost {\n"
+          + "".join(declaration("Sources/Vorssaint/UI/MenuPanel/ClipboardQuickPanelView.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func scrollToOpeningPosition(",
+                        "    private func retryOpeningPosition("])
           + "}\n")
     paste_plain = "Sources/Vorssaint/Services/QuickTools/PastePlainService.swift"
     write("PastePlain.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
