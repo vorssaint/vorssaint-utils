@@ -33,6 +33,40 @@ enum ScreenshotScrollingCapture {
         case failed
     }
 
+    protocol AutomaticScroller {
+        @MainActor func isCurrent() -> Bool
+        @MainActor func scroll() -> Bool
+    }
+
+    enum AutoScrollAction: Equatable { case wait, scroll, finish, partial }
+
+    /// The capture loop drives scrolling only after observing its previous
+    /// attempt. No independent timer can keep scrolling after cancellation.
+    struct AutoScrollState {
+        private var waitingSince: TimeInterval?
+        private var attemptedAt: TimeInterval?
+        private var heightBeforeAttempt = 0
+        private var attemptsWithoutProgress = 0
+
+        mutating func next(now: TimeInterval, height: Int, settled: Bool,
+                           unmatched: Bool = false) -> AutoScrollAction {
+            if waitingSince == nil { waitingSince = now }
+            if let attemptedAt {
+                let elapsed = now - attemptedAt
+                guard elapsed >= 0.55, settled || elapsed >= 1.5 else { return .wait }
+                // Another step could move the last good frame entirely out of view.
+                if unmatched { return .partial }
+                attemptsWithoutProgress = height > heightBeforeAttempt ? 0 : attemptsWithoutProgress + 1
+                if attemptsWithoutProgress >= 3 { return .finish }
+            } else if !settled, now - (waitingSince ?? now) < 1.5 {
+                return .wait
+            }
+            attemptedAt = now
+            heightBeforeAttempt = height
+            return .scroll
+        }
+    }
+
     private static let sampleInterval: TimeInterval = 0.09
     private static let settleInterval: TimeInterval = 0.22
     private static let finishGraceInterval: TimeInterval = 0.85
@@ -42,13 +76,16 @@ enum ScreenshotScrollingCapture {
                         hideVorssaintWindows: Bool,
                         protectedWindowIDs: Set<CGWindowID>,
                         finishSignal: FinishSignal,
+                        autoScroll: AutomaticScroller? = nil,
                         onProgress: @escaping @MainActor (Int) -> Void) async -> Result {
         do {
+            try Task.checkCancellation()
             guard let source = await ScreenshotCaptureEngine.prepareDisplayRegion(
                 displayID: region.displayID, pixelRect: region.pixelRect,
                 includePointer: includePointer, hideVorssaintWindows: hideVorssaintWindows,
                 protectedWindowIDs: protectedWindowIDs),
                   let firstFrame = await source.image(),
+                  await autoScroll?.isCurrent() != false,
                   let first = contentFrame(firstFrame)
             else { return Task.isCancelled ? .cancelled : .failed }
             try Task.checkCancellation()
@@ -69,6 +106,7 @@ enum ScreenshotScrollingCapture {
             var lastCaptureAt = ProcessInfo.processInfo.systemUptime
             var scrollPending = false
             var finishRequestedAt: TimeInterval?
+            var automatic = AutoScrollState()
             await onProgress(totalHeight)
 
             while true {
@@ -107,6 +145,7 @@ enum ScreenshotScrollingCapture {
                 }
 
                 guard let frame = await source.image(),
+                      await autoScroll?.isCurrent() != false,
                       let current = contentFrame(frame),
                       let currentSample = sample(current)
                 else {
@@ -136,11 +175,10 @@ enum ScreenshotScrollingCapture {
                     guard overlap > 0, overlap < current.height else { return .failed }
                     let establishingContent = contentSampleColumns == nil
                     if establishingContent {
-                        guard let pixelColumns = ScreenshotSupport.scrollingPixelRange(
-                            sampleColumns: matchedColumns,
-                            sampleWidth: currentSample.width,
-                            imageWidth: current.width)
-                        else { return .failed }
+                        // Matching may use only the narrow text at one edge of
+                        // a Terminal. It is evidence of movement, not the bounds
+                        // of the selected image; keep every selected column.
+                        let pixelColumns = 0..<current.width
                         let fixedBottomRows = ScreenshotSupport.scrollingFixedBottomRows(
                             previous: previousSample,
                             current: currentSample,
@@ -230,13 +268,37 @@ enum ScreenshotScrollingCapture {
                     // Scrolling back never duplicates pixels already kept. A
                     // later forward movement can continue from the furthest
                     // accepted frame without inventing a seam.
-                    hasUnmatchedContent = false
+                    hasUnmatchedContent = autoScroll != nil
 
                 case .unmatched:
                     hasUnmatchedContent = true
                 }
 
                 scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
+                if let autoScroll, !finishSignal.isRequested {
+                    switch automatic.next(now: lastCaptureAt, height: totalHeight,
+                                          settled: !scrollPending, unmatched: hasUnmatchedContent) {
+                    case .wait:
+                        break
+                    case .finish:
+                        return completed(slices: slices, footerSlice: footerSlice,
+                                         region: region, result: .success)
+                    case .partial:
+                        return completed(slices: slices, footerSlice: footerSlice,
+                                         region: region, result: .partial)
+                    case .scroll:
+                        // Finish and Cancel come from the main thread. Check there
+                        // too, after the hop and immediately before posting.
+                        let canContinue = await MainActor.run {
+                            if Task.isCancelled || finishSignal.isRequested { return true }
+                            return autoScroll.scroll()
+                        }
+                        guard canContinue else {
+                            return completed(slices: slices, footerSlice: footerSlice,
+                                             region: region, result: .partial)
+                        }
+                    }
+                }
             }
         } catch is CancellationError {
             return .cancelled
@@ -328,10 +390,11 @@ enum ScreenshotScrollingCapture {
     }
 
     private static func sample(_ image: CGImage) -> ScreenshotSupport.ScrollingSample? {
-        // Width can be reduced safely, but vertical rows stay one-for-one with
-        // the source. Resizing both axes turns an integer scroll into a
-        // fractional row offset and destroys an otherwise exact overlap.
-        let width = min(32, image.width)
+        // Keep native vertical rows for exact offsets and enough horizontal
+        // detail to distinguish digits in a wide Terminal. A 32-column thumbnail
+        // can make different digits look identical; the matcher selects a few
+        // informative columns from this wider sample to bound its work.
+        let width = min(256, image.width)
         let height = image.height
         guard width > 0, height > 0 else { return nil }
         var pixels = [UInt8](repeating: 0, count: width * height)
