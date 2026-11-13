@@ -62,8 +62,8 @@ enum ClaudeAccountProfileTests {
         } catch { suite.expect(false, "Claude account profiles: \(error)") }
         for language in AppLanguage.allCases {
             let text = FeatureStrings.claudeAccount(language)
-            suite.expect([text.title, text.defaultAccount, text.chooseFolder, text.explanation, text.invalidFolder,
-                          text.unknownAccount, text.noLimits, text.signInHelp].allSatisfy { !$0.isEmpty },
+            suite.expect([text.accountsTitle, text.defaultAccount, text.allAccounts, text.multipleExplanation, text.invalidFolder,
+                          text.noLimits, text.signInHelp].allSatisfy { !$0.isEmpty },
                          "Claude account selection is localized in \(language.rawValue)")
         }
         let payload: [String: Any] = [SettingsBackupSupport.formatVersionKey: SettingsBackupSupport.formatVersion,
