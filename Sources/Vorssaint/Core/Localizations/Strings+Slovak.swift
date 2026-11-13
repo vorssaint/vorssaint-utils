@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Systémové zvuky",
         mixerSoundEffectsOutputTooltip: "Vyberte, kde sa prehrávajú výstrahy a zvukové efekty",
         monitorOpenActivityMonitor: "Otvoriť Monitor aktivity",
+        monitorActivityMonitorPermission: "Vorssaint potrebuje Prístupnosť na výber príslušnej karty v Monitore aktivity.",
         dockClickHide: "Kliknutím na ikonu v Docku skryť aplikáciu",
         dockClickHideCaption: "Aktívna aplikácia sa skryje, keď kliknete na jej ikonu v Docku. Ďalším kliknutím ju vrátite späť.",
         monitorMemoryMetricLabel: "Merať pamäť ako",

@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Sistem sesleri",
         mixerSoundEffectsOutputTooltip: "Uyarıların ve ses efektlerinin çalacağı çıkışı seç",
         monitorOpenActivityMonitor: "Etkinlik Monitörü’nü aç",
+        monitorActivityMonitorPermission: "Vorssaint’in Etkinlik Monitörü’nde ilgili sekmeyi seçebilmesi için Erişilebilirlik iznine ihtiyacı var.",
         dockClickHide: "Dock simgesine tıklayınca uygulamayı gizle",
         dockClickHideCaption: "Etkin uygulamanın Dock simgesine tıklayınca uygulama gizlenir. Geri getirmek için yeniden tıklayın.",
         monitorMemoryMetricLabel: "Belleği şu şekilde ölç",

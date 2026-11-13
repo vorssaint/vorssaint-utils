@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
         mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",
         monitorOpenActivityMonitor: "Apri Monitoraggio Attività",
+        monitorActivityMonitorPermission: "Vorssaint richiede Accessibilità per selezionare la scheda corrispondente in Monitoraggio Attività.",
         dockClickHide: "Nascondi l’app con un clic sul Dock",
         dockClickHideCaption: "L’app attiva viene nascosta quando fai clic sulla sua icona nel Dock. Fai di nuovo clic per riportarla in primo piano.",
         monitorMemoryMetricLabel: "Misura la memoria come",
