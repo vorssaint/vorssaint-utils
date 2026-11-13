@@ -26,6 +26,7 @@ enum NotchAgentTests {
         AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
         strip(suite)
+        NotchAgentLimitReadingTests.run(suite)
         liveTurns(suite)
         reading(suite)
         AgentUsageReadTests.run(suite)
@@ -36,6 +37,7 @@ enum NotchAgentTests {
         claudeApp(suite)
         AgentCodexResetTests.run(suite)
         AgentClaudeServerTests.run(suite)
+        ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         preferences(suite)
         limitUse(suite)
@@ -449,8 +451,21 @@ enum NotchAgentTests {
         suite.expect(feed(line(#"{"type":"user","message":{"content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]}}"#)).isEmpty
                         && store.live.isEmpty, "an interrupted turn ends without a notice")
         _ = feed(claudeUser(#"<command-name>/model</command-name>"#))
+        suite.expect(store.live.isEmpty, "changing model starts no work while waiting for local output")
         _ = feed(line(#"{"type":"user","message":{"content":"<local-command-stdout>Set model</local-command-stdout>"}}"#))
         suite.expect(store.live.isEmpty, "a local command never leaves a turn working")
+        _ = feed(claudeUser(#"<command-name>/clear</command-name>"#))
+        suite.expect(store.live.isEmpty, "a command that asks nothing, like /clear, never starts a turn")
+        let invoked = "2026-09-21T23:44:00.000Z"
+        _ = feed(claudeUser(#"<command-message>review</command-message>\n<command-name>/review</command-name>\n<command-args><command-name>/clear</command-name></command-args>"#, time: invoked))
+        _ = feed(claudeUser("Review the change", time: invoked, meta: true))
+        suite.expect(store.live.first?.started == AgentTimestamp.parse(invoked),
+                     "a skill starts work at invocation, before its first model reply")
+        let skillReply = line(#"{"type":"assistant","timestamp":"2026-09-21T23:44:05.000Z","requestId":"req_skill","message":{"id":"msg_skill","role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"<local-command-stdout>example</local-command-stdout>"}],"stop_reason":"end_turn","usage":{"input_tokens":2,"output_tokens":3}}}"#)
+        let skillFinished = feed(skillReply)
+        suite.expect(skillFinished == [.finished(provider: .claude, duration: 5, cost: store.records.last?.cost ?? 0,
+                                                 tokens: 5, project: "app")] && store.live.isEmpty && !state.turnOpen,
+                     "a one-reply skill quoting local output reports its full duration and usage, then stops the timer")
         _ = feed(claudeUser())
         _ = feed(claudeAssistant(id: "msg_5", request: "req_5", stop: "tool_use", time: "2026-09-21T23:40:10.000Z"))
         let structured = feed(line(#"{"type":"user","timestamp":"2026-09-21T23:40:15.000Z","sessionId":"s1","message":{"role":"user","content":[{"type":"tool_result","content":"Structured output provided successfully"}]},"toolUseResult":"Structured output provided successfully","toolEndsTurn":true}"#))
@@ -2466,6 +2481,25 @@ enum NotchAgentTests {
         suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
                         && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,
                      "only elapsed and expiring-limit readouts require clock-driven updates")
+        for provider in AgentProvider.allCases {
+            for focus in NotchAgentLimitFocus.allCases {
+                let empty = AgentUsageSnapshot()
+                let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
+                let used = focus == .session ? 0.32 : 0.57
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
+                                == AgentFormat.percent(used),
+                             "\(provider.rawValue) settings preview illustrates the selected \(focus.rawValue) limit without account data")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, focus: focus, now: now)
+                                == AgentFormat.percent(1 - used),
+                             "settings limit preview respects remaining versus used")
+                suite.expect(empty.live.isEmpty && empty.limits.isEmpty,
+                             "preview examples never populate the real usage snapshot")
+                suite.expect(NotchAgentSupport.stripReading(sample, readout: .elapsed, display: .remaining, now: now) == "12:34"
+                                && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == AgentFormat.cost(4.56)
+                                && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == AgentFormat.tokens(20_000),
+                             "settings preview still illustrates time, cost and written tokens")
+            }
+        }
         let short = snapshot([session(.claude, startedAgo: 754)])
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
@@ -2492,6 +2526,13 @@ enum NotchAgentTests {
                         && NotchAgentSupport.stripReading(limited, readout: .limit, display: .used, now: now) == AgentFormat.percent(0.79)
                         && NotchAgentSupport.stripReading(short, readout: .limit, display: .remaining, now: now) == "12:34",
                      "a limit reads as left or used, and falls back to the time while none is known")
+        suite.expect(NotchAgentSupport.limitShare(window, display: .remaining, text: .enUS)
+                        == "\(AgentFormat.percent(0.21)) left"
+                        && NotchAgentSupport.limitShare(window, display: .used, text: .enUS)
+                            == "\(AgentFormat.percent(0.79)) used",
+                     "a limit on the card says whether its share is left or used")
+        suite.expect(NotchAgentSupport.stripSampleSnapshot(limited, provider: .codex, focus: .weekly, now: now) == limited,
+                     "settings preview preserves an active provider's real allowance")
         let both = AgentLimits(provider: .claude, windows: [
             AgentLimitWindow(id: "s", kind: .session, minutes: 300, scope: nil, usedPercent: 22,
                              resetsAt: now.addingTimeInterval(3_600)),
