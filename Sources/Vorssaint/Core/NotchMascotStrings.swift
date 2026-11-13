@@ -123,7 +123,8 @@ struct NotchMascotStrings {
 
     /// What a search finds its page by, besides its name.
     var searchKeywords: [String] {
-        [hint, visits, reactions, hidesWhenIdle, style, robot, shape, color, side, frequency, commandBar, keywords]
+        [hint, visits, reactions, hidesWhenIdle, appearance, style, robot, color, behavior,
+         commandBar, keywords]
     }
 
     func frequency(_ frequency: NotchMascotVisitFrequency) -> String {

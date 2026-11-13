@@ -234,19 +234,29 @@ private struct RadialNowPlayingCard: View {
 }
 
 enum RadialNowPlayingApplication {
+    /// Keyed by player process, so a long session meets a new key with every
+    /// player relaunch. Cleared when it grows, as the music page's own list is.
     private static var icons: [String: NSImage] = [:]
     private static var missingIcons = Set<String>()
+    private static let cacheLimit = 16
 
     static func runningApplication(for snapshot: RadialNowPlayingSnapshot) -> NSRunningApplication? {
-        if let bundleIdentifier = snapshot.appBundleIdentifier,
-           let application = NSRunningApplication.runningApplications(
-            withBundleIdentifier: bundleIdentifier).first(where: { !$0.isTerminated }) {
-            return application
+        playerApplication(bundleIdentifier: snapshot.appBundleIdentifier, pid: snapshot.appPID)
+    }
+
+    /// The app a player reading belongs to, a WebKit app rather than the
+    /// helper it plays through. See `RadialNowPlayingSupport.playerPID`.
+    static func playerApplication(bundleIdentifier: String?, pid: Int32?) -> NSRunningApplication? {
+        let bundleMatch = bundleIdentifier.flatMap {
+            NSRunningApplication.runningApplications(withBundleIdentifier: $0).first(where: { !$0.isTerminated })
         }
-        if let pid = snapshot.appPID {
-            return NSRunningApplication(processIdentifier: pid_t(pid))
-        }
-        return nil
+        let player = RadialNowPlayingSupport.playerPID(
+            bundleMatch: bundleMatch?.processIdentifier,
+            readingPID: pid.map { pid_t($0) },
+            isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
+            regularOwner: { ResponsibleProcess.regularAppOwner(of: $0)?.processIdentifier })
+        if let player, player == bundleMatch?.processIdentifier { return bundleMatch }
+        return player.flatMap(NSRunningApplication.init(processIdentifier:))
     }
 
     static func name(for snapshot: RadialNowPlayingSnapshot) -> String? {
@@ -256,7 +266,9 @@ enum RadialNowPlayingApplication {
     }
 
     static func icon(for snapshot: RadialNowPlayingSnapshot) -> NSImage? {
-        let key = snapshot.appBundleIdentifier ?? snapshot.appPID.map { "pid:\($0)" } ?? ""
+        // A WebKit helper's identifier is shared by every WebKit app, so its
+        // pid is part of the key.
+        let key = (snapshot.appBundleIdentifier ?? "") + "|" + (snapshot.appPID.map(String.init) ?? "")
         if let icon = icons[key] { return icon }
         if missingIcons.contains(key) { return nil }
         let icon: NSImage?
@@ -267,6 +279,10 @@ enum RadialNowPlayingApplication {
             icon = NSWorkspace.shared.icon(forFile: url.path)
         } else {
             icon = nil
+        }
+        if icons.count + missingIcons.count >= cacheLimit {
+            icons.removeAll()
+            missingIcons.removeAll()
         }
         if let icon {
             icons[key] = icon

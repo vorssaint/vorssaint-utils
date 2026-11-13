@@ -638,7 +638,8 @@ final class MediaService: ObservableObject {
                                     options: MediaImageOptions,
                                     watermarkLogo: CGImage?,
                                     token: MediaCancellationToken) throws -> PreparedImage {
-        guard let source = CGImageSourceCreateWithURL(inputURL as CFURL, nil),
+        guard let source = CGImageSourceCreateWithURL(inputURL as CFURL,
+            [kCGImageSourceShouldCache: false] as CFDictionary),
               let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] else {
             throw MediaFailureBox(.unsupported)
         }
@@ -655,13 +656,7 @@ final class MediaService: ObservableObject {
                                                               resizeMode: options.resizeMode) else {
             throw MediaFailureBox(.imageTooLarge)
         }
-        let imageOptions: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceShouldCacheImmediately: true,
-            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
-        ]
-        guard let sourceImage = CGImageSourceCreateThumbnailAtIndex(source, 0, imageOptions as CFDictionary) else {
+        guard let sourceImage = MediaImageProcessing.decode(source, maximumDimension: maxPixel) else {
             throw MediaFailureBox(.unsupported)
         }
         let targetSize = options.resizeMode.targetSize(
@@ -692,7 +687,7 @@ final class MediaService: ObservableObject {
             try writePDF(image: image, outputURL: outputURL,
                          quality: MediaSupport.sanitizedQuality(options.quality))
         } else {
-            let type = typeIdentifier(for: options.format)
+            let type = options.format.contentType.identifier
             guard let destination = CGImageDestinationCreateWithURL(outputURL as CFURL, type as CFString, 1, nil) else {
                 throw MediaFailureBox(.unsupported)
             }
@@ -1136,15 +1131,6 @@ final class MediaService: ObservableObject {
         pdf.draw(encoded, in: mediaBox)
         pdf.endPDFPage()
         pdf.closePDF()
-    }
-
-    private func typeIdentifier(for format: MediaImageFormat) -> String {
-        switch format {
-        case .jpeg: return UTType.jpeg.identifier
-        case .heic: return UTType.heic.identifier
-        case .png: return UTType.png.identifier
-        case .pdf: return UTType.pdf.identifier
-        }
     }
 
     private func fileSize(_ url: URL) -> Int64 {

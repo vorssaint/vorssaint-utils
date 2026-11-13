@@ -7,9 +7,10 @@ import QuartzCore
 enum NotchEqualizerTests {
     /// Real native views and layers, with visibility supplied by a window
     /// that is never ordered onscreen. No player or user preference is touched.
-    private final class Window: NSWindow {
+    private final class Window: NSWindow, NotchWaveHold {
         var shown = true
         var exposed = true
+        var holdsWave = false
         override var isVisible: Bool { shown }
         override var occlusionState: NSWindow.OcclusionState { exposed ? [.visible] : [] }
         func notifyVisibility() {
@@ -146,6 +147,93 @@ enum NotchEqualizerTests {
             discardedLink = clock.displayLink
         }
         expect(discardedLink == nil, "a discarded running clock takes its display link off the run loop")
+
+        let leading = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        let following = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        container.addSubview(leading)
+        container.addSubview(following)
+        leading.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        following.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(leading.isMoving && following.isMoving && leading.motionStart == following.motionStart
+               && leading.motionStart != 0,
+               "copies of the music wave share one phase, so trading displays does not jump it")
+        leading.removeFromSuperview()
+        following.removeFromSuperview()
+
+        let arrived = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        container.addSubview(arrived)
+        arrived.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        let pose: [CGFloat] = [4, 8, 12, 16, 12, 8, 4]
+        arrived.adopt(heights: pose)
+        expect(arrived.barHeights() == pose, "the arriving island takes the bars already on that display")
+        arrived.step(at: arrived.motionStart + 0.2)
+        expect(arrived.barHeights() == pose, "a display tick cannot replace a pose held for the arrival")
+        window.holdsWave = true
+        window.shown = false
+        window.exposed = false
+        window.notifyVisibility()
+        expect(arrived.barHeights() == pose && arrived.motionStart == leading.motionStart,
+               "covering that display keeps the copied bars and their phase")
+        window.shown = true
+        window.exposed = true
+        window.notifyVisibility()
+        expect(arrived.barHeights() == pose, "the first visible frame still shows the bars it covered")
+        arrived.releasePose()
+        arrived.step(at: arrived.motionStart + 0.4)
+        expect(arrived.barHeights() != pose, "releasing an arrival pose resumes the shared wave")
+        arrived.adopt(heights: pose)
+        arrived.configure(animates: false, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(!arrived.isMoving && arrived.barHeights().allSatisfy { $0 == 2 },
+               "pause or reduced motion releases a pose held for an arrival")
+        window.holdsWave = false
+        window.shown = false
+        window.exposed = false
+        window.notifyVisibility()
+        expect((arrived.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+               "letting the copied pose go drops the wave once the window is away")
+        arrived.removeFromSuperview()
+        window.shown = true
+        window.exposed = true
+
+        let wave = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        container.addSubview(wave)
+        wave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(wave.isMoving, "a panel's music wave is moving before the display change")
+        let phase = wave.motionStart
+        window.holdsWave = true
+        window.shown = false
+        window.exposed = false
+        window.notifyVisibility()
+        expect(wave.isMoving && wave.motionStart == phase
+               && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height > $0.bounds.width },
+               "a display change keeps the music wave drawn and in phase while the window is away")
+        wave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white,
+                       levels: [1, 1, 1, 1, 1, 1, 1])
+        expect(wave.motionStart == phase
+               && (wave.layer?.sublayers ?? []).allSatisfy { abs($0.bounds.height - 20) < 0.001 },
+               "live levels keep updating the held wave without restarting its phase")
+        window.holdsWave = false
+        window.notifyVisibility()
+        expect(!wave.isMoving && (wave.layer?.sublayers ?? []).allSatisfy { $0.bounds.height == $0.bounds.width },
+               "a window that is still away drops the wave once the display change lets it go")
+        wave.removeFromSuperview()
+
+        // Use the production panel setter: releasing a hidden hold must stop
+        // its clock even if no later occlusion notification arrives.
+        let panel = NotchPanel(contentRect: CGRect(x: 0, y: 0, width: 80, height: 40),
+                               styleMask: .borderless, backing: .buffered, defer: false)
+        panel.isReleasedWhenClosed = false
+        let heldWave = NotchEqualizerView(frame: CGRect(x: 0, y: 0, width: 40, height: 20))
+        panel.contentView = heldWave
+        heldWave.configure(animates: true, bars: 7, barWidth: 2, height: 20, tint: .white)
+        expect(!heldWave.isMoving, "a production panel starts with its hidden wave stopped")
+        panel.holdsWave = true
+        expect(heldWave.isMoving, "a production relocation hold starts the hidden wave")
+        panel.holdsWave = false
+        expect(!heldWave.isMoving && heldWave.barHeights().allSatisfy { $0 == 2 },
+               "releasing the production hold stops the hidden wave without a visibility event")
+        panel.contentView = nil
+        panel.close()
 
         let swing = (0...40).map { NotchDecorativeClock.swing(Double($0) / 10) }
         expect(abs(swing[0]) < 1e-9 && abs(swing[10] - 1) < 1e-9 && abs(swing[20]) < 1e-9
