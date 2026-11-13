@@ -277,13 +277,15 @@ final class CommandBarService: ObservableObject {
                                                   storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
-        if available {
+        if enabled {
             // Build the one view tree after launch, outside the keystroke that
             // asks to see it for the first time, and lay it out: a window draws
             // itself before it first appears, and keys typed meanwhile would
-            // still reach the app in front.
+            // still reach the app in front. With the shortcut off nothing holds
+            // a panel or its view tree; the first surface that opens the
+            // Command Bar (menu panel, island, Settings) builds it then.
             DispatchQueue.main.async { [weak self] in
-                guard AppFeature.commandBar.isAvailable, let self else { return }
+                guard enabled, AppFeature.commandBar.isAvailable, let self else { return }
                 let panel = self.ensurePanel()
                 if !panel.isVisible {
                     panel.contentViewController?.view.layoutSubtreeIfNeeded()

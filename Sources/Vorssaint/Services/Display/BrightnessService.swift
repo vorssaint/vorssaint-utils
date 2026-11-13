@@ -1252,13 +1252,23 @@ final class BrightnessService: ObservableObject {
         }
     }
 
+    /// Whether a previous run left a display switched off, answered from the
+    /// saved list alone. The launch path asks this before touching `shared`, so
+    /// a launch with nothing to restore never builds the service, its key taps
+    /// or its session binding. A launch for someone who kept the feature off in
+    /// the hub pays nothing either.
+    static var hasDisplaysToRestore: Bool {
+        BrightnessSupport.hasDisplaysToRestore(
+            stored: UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int])
+    }
+
     /// Recovers displays a previous run left off, using the identity saved
     /// before the connection disappeared. Called at startup on main, before
     /// display work. A display that cannot be switched back on yet keeps its
     /// power-on control and is tried again when the screens wake.
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
-        guard !stored.isEmpty else { return }
+        guard BrightnessSupport.hasDisplaysToRestore(stored: stored) else { return }
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
         let fingerprints = UserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
             as? [String: String] ?? [:]

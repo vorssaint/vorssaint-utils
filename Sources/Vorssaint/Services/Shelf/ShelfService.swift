@@ -167,8 +167,11 @@ final class ShelfService: ObservableObject {
     private var lastSummon: TimeInterval = 0
     /// Screen frame of the app's menu bar icon, set by the AppDelegate. The
     /// docked shelf hangs right under it, so this service can anchor there
-    /// without reaching into the app layer.
-    var statusItemFrameProvider: (() -> NSRect?)?
+    /// without reaching into the app layer. It lives on the type, not the
+    /// instance: launch registers the anchor whether or not the shelf is
+    /// installed, and assigning it must not bring this service — its saved
+    /// items and their restore — to life for someone who has no shelf.
+    static var statusItemFrameProvider: (() -> NSRect?)?
     /// The shelf docked under the menu bar icon (the "keep it in the menu bar"
     /// option). It stays put while the shelf has items and only shrinks to a
     /// pill or grows back to the full card in place, never a second window and
@@ -681,7 +684,7 @@ final class ShelfService: ObservableObject {
     private func updateDockedProximity(at now: TimeInterval) -> Bool {
         var changed = false
         let mouse = NSEvent.mouseLocation
-        let anchor = statusItemFrameProvider?()
+        let anchor = Self.statusItemFrameProvider?()
         let screen = anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
         }?.frame ?? NSScreen.main?.frame
@@ -1004,7 +1007,7 @@ final class ShelfService: ObservableObject {
         let view = panel.contentViewController!.view
         view.layoutSubtreeIfNeeded()
         let size = view.fittingSize
-        let anchor = statusItemFrameProvider?()
+        let anchor = Self.statusItemFrameProvider?()
         let screen = anchor.flatMap { rect in
             NSScreen.screens.first { $0.frame.intersects(rect) }
         } ?? NSScreen.withMouse
