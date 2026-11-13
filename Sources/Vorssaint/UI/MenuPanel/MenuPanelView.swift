@@ -2724,6 +2724,7 @@ struct KeepAwakeCard: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.clamshellBatteryLimit) private var clamshellBatteryLimit = 0
     @State private var optionsExpanded = false
     @State private var automationExpanded = false
     /// The last started end time, which the popover opens on.
@@ -2824,6 +2825,9 @@ struct KeepAwakeCard: View {
                           isOn: $awake.clamshellPreferred,
                           disabled: awake.clamshellSetupInProgress,
                           captionIsError: awake.clamshellSetupFailed)
+                if awake.clamshellPreferred, PowerSampler.hasInternalBattery {
+                    clamshellBatteryLimitRow
+                }
             }
             .panelCard()
         }
@@ -3002,6 +3006,24 @@ struct KeepAwakeCard: View {
                 .foregroundStyle(.secondary)
             Spacer(minLength: 0)
             KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+        }
+    }
+
+    private var clamshellBatteryLimitRow: some View {
+        HStack(spacing: 8) {
+            Text(l10n.s.clamshellBatteryLimitTitle)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            Picker("", selection: $clamshellBatteryLimit) {
+                ForEach(Defaults.allowedClamshellBatteryLimits, id: \.self) { minutes in
+                    Text(minutes == 0 ? l10n.s.batteryNever : "\(minutes) min").tag(minutes)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .controlSize(.small)
+            .fixedSize()
         }
     }
 
