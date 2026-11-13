@@ -495,6 +495,7 @@ extension RadialMenuQuickToggle {
         case .darkMode:
             return toggles.systemAppearanceIsDark == true ? strings.darkModeToLight : strings.darkModeToDark
         case .emptyTrash: return strings.emptyTrashTitle
+        case .quitAllApps: return strings.quitAllTitle
         case .ejectDisks: return strings.ejectTitle
         case .hiddenFiles: return toggles.hiddenFilesShown ? strings.hiddenFilesHide : strings.hiddenFilesShow
         case .desktopIcons: return toggles.desktopIconsShown ? strings.desktopIconsHide : strings.desktopIconsShow

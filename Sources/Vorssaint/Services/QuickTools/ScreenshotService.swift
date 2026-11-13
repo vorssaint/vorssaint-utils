@@ -3,7 +3,6 @@
 
 import AppKit
 import ImageIO
-import UniformTypeIdentifiers
 
 /// The screenshot tool: freeze-first area, window and full screen capture
 /// with an annotation editor, pinned floating captures and direct clipboard
@@ -33,12 +32,8 @@ final class ScreenshotService: ObservableObject {
     private let lastCaptureHotkey = QuickToolHotkey(id: 22)
     private let fullScreenHotkey = QuickToolHotkey(id: 23)
     private let clipboardHotkey = QuickToolHotkey(id: 24)
-    private var session: ScreenshotSelectionController?
     private var preview: ScreenshotQuickPreviewController?
     private var editors: [ScreenshotEditorController] = []
-    private var countdown: DispatchWorkItem?
-    private var countdownRemaining = 0
-    private var countdownMode: CaptureMode = .standard
     private var directCaptureTask: Task<Void, Never>?
     private var autoCopyTask: Task<Void, Never>?
     private var autoCopyGeneration = 0
@@ -49,12 +44,7 @@ final class ScreenshotService: ObservableObject {
     private var scrollingTask: Task<Void, Never>?
     private var scrollingCaptureID: UUID?
     private var scrollingFinishSignal: ScreenshotScrollingCapture.FinishSignal?
-
-    private enum CaptureMode {
-        case standard
-        case fullScreen
-        case scrolling
-    }
+    private let scrollingRegionGuide = CaptureRegionGuide()
 
     private var hideVorssaintWindows: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.screenshotHideVorssaintWindows)
@@ -65,14 +55,16 @@ final class ScreenshotService: ObservableObject {
     /// after a few seconds: back-to-back captures would otherwise photograph
     /// the previous capture's toast.
     private var workflowWindowIDs: Set<CGWindowID> {
-        var ids = session?.protectedWindowIDs ?? []
+        var ids = ScreenCaptureService.shared.protectedWindowIDs
         if NotchSupport.isEnabled() { ids.formUnion(NotchService.shared.protectedWindowIDs) }
         ids.formUnion(preview?.protectedWindowIDs ?? [])
-        ids.formUnion(ScreenCaptureService.shared.protectedWindowIDs)
         if let number = QuickToolHUD.currentWindowNumber, number > 0 {
             ids.insert(CGWindowID(number))
         }
         if let number = QuickToolHUD.currentScrollingWindowNumber, number > 0 {
+            ids.insert(CGWindowID(number))
+        }
+        if let number = scrollingRegionGuide.windowNumber, number > 0 {
             ids.insert(CGWindowID(number))
         }
         return ids
@@ -188,8 +180,7 @@ final class ScreenshotService: ObservableObject {
     /// Hub-off means gone: open editors, pins and a selection in progress
     /// all leave the screen.
     private func teardownSurfaces() {
-        countdown?.cancel()
-        countdown = nil
+        ScreenCaptureService.shared.cancelCountdownIfActive()
         directCaptureTask?.cancel()
         directCaptureTask = nil
         autoCopyTask?.cancel()
@@ -200,9 +191,8 @@ final class ScreenshotService: ObservableObject {
         scrollingTask = nil
         scrollingCaptureID = nil
         scrollingFinishSignal = nil
+        scrollingRegionGuide.hide()
         QuickToolHUD.dismissScrollingCapture()
-        session?.cancel()
-        session = nil
         invalidateLatestCaptureUploads()
         preview?.close()
         preview = nil
@@ -222,105 +212,32 @@ final class ScreenshotService: ObservableObject {
     }
 
     func captureScrolling() {
-        startCapture(.scrolling)
+        ScreenCaptureService.shared.capture(initial: .scrolling)
+    }
+
+    var hasActiveCapture: Bool { scrollingTask != nil || directCaptureTask != nil }
+
+    @discardableResult
+    func finishScrollingCaptureIfActive() -> Bool {
+        guard scrollingTask != nil else { return false }
+        QuickToolHUD.markScrollingCaptureFinishing()
+        scrollingFinishSignal?.request()
+        return true
     }
 
     func captureFullScreen() {
-        startCapture(.fullScreen)
-    }
-
-    private func startCapture(_ mode: CaptureMode) {
-        // Repeating the same action finishes a long capture at the current
-        // point. It can never open a second selection or capture task.
-        if scrollingTask != nil {
-            QuickToolHUD.markScrollingCaptureFinishing()
-            scrollingFinishSignal?.request()
-            return
-        }
-        // Another feature may already own the capture surface (copying text
-        // off the screen picks an area the same way).
-        guard session == nil, directCaptureTask == nil,
+        let chooser = ScreenCaptureService.shared
+        guard !finishScrollingCaptureIfActive(), !chooser.cancelCountdownIfActive(),
+              directCaptureTask == nil,
               !ScreenshotSelectionController.isSessionOnScreen else { return }
-        if countdown != nil {
-            countdown?.cancel()
-            countdown = nil
-            return
-        }
         guard Permissions.shared.screenRecording else {
             Permissions.shared.requestScreenRecording()
             return
         }
         let delay = ScreenshotSupport.sanitizedDelay(
             UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
-        if delay > 0 {
-            countdownMode = mode
-            countdownRemaining = delay
-            tickCountdown()
-        } else {
-            beginCapture(mode)
-        }
-    }
-
-    private func tickCountdown() {
-        guard countdownRemaining > 0 else {
-            let mode = countdownMode
-            countdown = nil
-            beginCapture(mode)
-            return
-        }
-        QuickToolHUD.showCountdown(countdownRemaining)
-        let work = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            self.countdownRemaining -= 1
-            self.tickCountdown()
-        }
-        countdown = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: work)
-    }
-
-    private func beginCapture(_ mode: CaptureMode) {
-        if mode == .fullScreen {
-            beginFullScreenCapture()
-        } else {
-            beginSelection(mode)
-        }
-    }
-
-    private func beginSelection(_ mode: CaptureMode) {
-        guard session == nil, !ScreenshotSelectionController.isSessionOnScreen else { return }
-        preview?.close()
-        preview = nil
-        let defaults = UserDefaults.standard
-        let controller = ScreenshotSelectionController(
-            freeze: mode == .scrolling
-                ? false
-                : defaults.bool(forKey: DefaultsKey.screenshotFreeze),
-            includePointer: defaults.bool(forKey: DefaultsKey.screenshotIncludePointer),
-            showLastRegion: defaults.bool(forKey: DefaultsKey.screenshotShowLastRegion),
-            hideVorssaintWindows: hideVorssaintWindows,
-            protectedWindowIDs: { [weak self] in self?.protectedWindowIDs ?? [] },
-            purpose: mode == .scrolling ? strings.scrollingCaptureTitle : nil,
-            mode: mode == .scrolling ? .geometry : .image,
-            supportsScrollingCapture: mode == .standard)
-        session = controller
-        controller.begin { [weak self] outcome in
-            guard let self else { return }
-            self.session = nil
-            switch outcome {
-            case .captured(let capture):
-                self.route(capture)
-            case .region(let region):
-                guard mode == .scrolling else { break }
-                self.captureScrolling(region)
-            case .scrollingRegion(let region):
-                self.captureScrolling(region)
-            case .color:
-                break
-            case .cancelled:
-                break
-            case .failed:
-                QuickToolHUD.show(icon: "camera.viewfinder", message: self.strings.captureFailed)
-            }
+        chooser.performAfterDelay(delay) { [weak self] in
+            self?.beginFullScreenCapture()
         }
     }
 
@@ -372,17 +289,30 @@ final class ScreenshotService: ObservableObject {
 
     private func captureScrolling(_ region: RecorderSupport.Region) {
         guard scrollingTask == nil else { return }
+        let automatic = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotScrollingAutoScroll)
+        if automatic, !Permissions.shared.accessibility {
+            Permissions.shared.requestAccessibility()
+            return
+        }
+        let hideWindows = hideVorssaintWindows
+        let scroller = automatic ? ScreenshotAutomaticScroller(
+            region: region, hideVorssaintWindows: hideWindows, protectedWindowIDs: protectedWindowIDs) : nil
+        if automatic, scroller == nil {
+            QuickToolHUD.show(icon: "rectangle.stack", message: strings.captureFailed)
+            return
+        }
         let finishSignal = ScreenshotScrollingCapture.FinishSignal()
         scrollingFinishSignal = finishSignal
+        scrollingRegionGuide.show(for: region)
         QuickToolHUD.showScrollingCapture(
-            message: strings.scrollingCaptureProgressHUD,
+            message: automatic ? strings.scrollingAutoScrollProgressHUD : strings.scrollingCaptureProgressHUD,
             finishTitle: strings.done,
             cancelTitle: strings.cancel,
+            avoiding: automatic ? CGPoint(x: region.anchorRect.midX, y: region.anchorRect.midY) : nil,
             onFinish: { finishSignal.request() },
             onCancel: { [weak self] in self?.scrollingTask?.cancel() })
         // Read after the controls are on screen so their window is protected,
         // and once for the whole run: the picture must not change halfway.
-        let hideWindows = hideVorssaintWindows
         let protectedIDs = protectedWindowIDs
         let captureID = UUID()
         scrollingCaptureID = captureID
@@ -394,6 +324,7 @@ final class ScreenshotService: ObservableObject {
                 hideVorssaintWindows: hideWindows,
                 protectedWindowIDs: protectedIDs,
                 finishSignal: finishSignal,
+                autoScroll: scroller,
                 onProgress: { height in
                     QuickToolHUD.updateScrollingCapture(height: height)
                 })
@@ -401,6 +332,7 @@ final class ScreenshotService: ObservableObject {
             self.scrollingCaptureID = nil
             self.scrollingTask = nil
             self.scrollingFinishSignal = nil
+            self.scrollingRegionGuide.hide()
             QuickToolHUD.dismissScrollingCapture()
             switch result {
             case .success(let capture):
@@ -719,48 +651,80 @@ final class ScreenshotService: ObservableObject {
         openEditor(with: capture)
     }
 
+    private enum ImageImportSource: Hashable {
+        case clipboard, file
+    }
+    private var imageImportsInProgress: Set<ImageImportSource> = []
+
     private func openClipboardImage() {
-        GeneralPasteboardAccess.shared.async { [weak self] in
-            let capture = autoreleasepool {
-                Self.clipboardCapture(from: NSPasteboard.general)
-            }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, AppFeature.screenshot.isAvailable else { return }
-                guard let capture else {
-                    QuickToolHUD.show(icon: "photo", message: self.strings.clipboardImageMissing)
-                    return
-                }
-                self.openEditor(with: capture)
-            }
+        importImage({ ScreenshotImageImport(pasteboard: .general) }, from: .clipboard) { [weak self] capture in
+            self?.openEditor(with: capture)
         }
     }
 
-    /// Opens a picture from the shelf, read off the main thread. A file that
-    /// does not read as an image only beeps.
+    /// Opens a picture from the shelf through the same size choice as the clipboard.
     func editImage(at url: URL) {
-        guard AppFeature.screenshot.isAvailable else { return }
-        DispatchQueue.global(qos: .userInitiated).async {
-            let capture = autoreleasepool {
-                NSImage(contentsOf: url).flatMap { Self.imageCapture(from: $0) }
-            }
-            DispatchQueue.main.async {
-                guard AppFeature.screenshot.isAvailable else { return }
-                guard let capture else {
-                    NSSound.beep()
-                    return
-                }
-                NotchService.shared.perform {
-                    ScreenshotService.shared.openEditor(with: capture)
-                }
+        importImage({ ScreenshotImageImport(url: url) }, from: .file) { capture in
+            NotchService.shared.perform {
+                ScreenshotService.shared.openEditor(with: capture)
             }
         }
     }
 
-    private static func clipboardCapture(
-        from pasteboard: NSPasteboard
-    ) -> ScreenshotSelectionController.Capture? {
-        guard let image = clipboardImage(from: pasteboard) else { return nil }
-        return imageCapture(from: image)
+    private func importImage(_ read: @escaping () -> ScreenshotImageImport?,
+                             from source: ImageImportSource,
+                             then completion: @escaping (ScreenshotSelectionController.Capture) -> Void) {
+        guard AppFeature.screenshot.isAvailable, imageImportsInProgress.insert(source).inserted else { return }
+        let imported: (ScreenshotImageImport?) -> Void = { [weak self] input in
+            guard let self else { return }
+            guard AppFeature.screenshot.isAvailable else {
+                self.imageImportsInProgress.remove(source)
+                return
+            }
+            guard let input else {
+                self.imageImportsInProgress.remove(source)
+                QuickToolHUD.show(icon: "photo", message: self.strings.imageImportFailed)
+                return
+            }
+            if input.requiresSizeChoice {
+                let strings = self.strings
+                let alert = NSAlert()
+                alert.alertStyle = .warning
+                alert.messageText = strings.largeImageTitle
+                alert.informativeText = strings.largeImageMessageFormat
+                alert.addButton(withTitle: strings.editReducedImage)
+                alert.addButton(withTitle: strings.cancel).keyEquivalent = "\u{1b}"
+                WindowActivationPolicy.retain()
+                NSApp.activate(ignoringOtherApps: true)
+                let response = alert.runModal()
+                WindowActivationPolicy.release()
+                guard response == .alertFirstButtonReturn else {
+                    self.imageImportsInProgress.remove(source)
+                    return
+                }
+            }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let decoded = autoreleasepool { input.decode() }
+                DispatchQueue.main.async {
+                    self.imageImportsInProgress.remove(source)
+                    guard AppFeature.screenshot.isAvailable else { return }
+                    guard let decoded else {
+                        QuickToolHUD.show(icon: "photo", message: self.strings.imageImportFailed)
+                        return
+                    }
+                    completion(.init(image: decoded.image, scale: decoded.scale, anchorRect: .zero,
+                                     sourceFormat: input.sourceFormat))
+                }
+            }
+        }
+        if source == .clipboard {
+            GeneralPasteboardAccess.shared.async({ autoreleasepool(invoking: read) }, then: imported)
+        } else {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let input = autoreleasepool(invoking: read)
+                DispatchQueue.main.async { imported(input) }
+            }
+        }
     }
 
     static func imageCapture(from image: NSImage) -> ScreenshotSelectionController.Capture? {
@@ -782,12 +746,7 @@ final class ScreenshotService: ObservableObject {
     /// Copying a file in Finder leaves both its URL and a small icon preview on
     /// the pasteboard, so the file on disk wins whenever it is a readable image.
     static func clipboardImage(from pasteboard: NSPasteboard) -> NSImage? {
-        let options: [NSPasteboard.ReadingOptionKey: Any] = [
-            .urlReadingFileURLsOnly: true,
-            .urlReadingContentsConformToTypes: [UTType.image.identifier]
-        ]
-        if let url = (pasteboard.readObjects(forClasses: [NSURL.self],
-                                             options: options) as? [NSURL])?.first as URL?,
+        if let url = ScreenshotImageImport.fileURL(from: pasteboard),
            let image = NSImage(contentsOf: url),
            image.size.width > 0, image.size.height > 0 {
             return image
@@ -807,7 +766,9 @@ final class ScreenshotService: ObservableObject {
     /// would reveal an empty clipboard before the paste.
     private func autoCopy(_ capture: ScreenshotSelectionController.Capture) {
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
-        guard let folder = ScreenshotSupport.copiedFilesDirectory() else {
+        let imageOnly = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly)
+        let folder = imageOnly ? nil : ScreenshotSupport.copiedFilesDirectory()
+        guard imageOnly || folder != nil else {
             NSSound.beep()
             return
         }
@@ -819,11 +780,12 @@ final class ScreenshotService: ObservableObject {
         autoCopyTask = Task { @MainActor [weak self] in
             let output = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
-                    return nil as (URL, ScreenshotEditorController.ClipboardPayload)?
+                    return nil as (URL?, ScreenshotEditorController.ClipboardPayload)?
                 }
                 let payload = ScreenshotEditorController.clipboardPayload(from: export)
-                guard let png = payload.png,
-                      let url = try? ScreenshotSupport.copiedFile(
+                guard let png = payload.png else { return nil }
+                if imageOnly { return (nil, payload) }
+                guard let folder, let url = try? ScreenshotSupport.copiedFile(
                         data: png, name: name, directory: folder) else { return nil }
                 return (url, payload)
             }.value
@@ -836,16 +798,19 @@ final class ScreenshotService: ObservableObject {
                   pasteboardChangeCount == NSPasteboard.general.changeCount,
                   AppFeature.screenshot.isAvailable
             else {
-                try? FileManager.default.removeItem(at: output.0)
+                if let url = output.0 { try? FileManager.default.removeItem(at: url) }
                 return
             }
-            guard ScreenshotEditorController.copyFile(output.0, payload: output.1)
+            guard ScreenshotEditorController.copyFile(output.0, payload: output.1,
+                                                       imageOnly: imageOnly)
             else {
-                try? FileManager.default.removeItem(at: output.0)
+                if let url = output.0 { try? FileManager.default.removeItem(at: url) }
                 NSSound.beep()
                 return
             }
-            ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: output.0)
+            if let folder, let url = output.0 {
+                ScreenshotSupport.pruneCopiedFiles(in: folder, preserving: url)
+            }
             self.autoCopyTask = nil
         }
     }
@@ -1024,12 +989,14 @@ final class ScreenshotService: ObservableObject {
             downscaleTo1x: downscaleTo1x)
     }
 
-    /// Vends a full-resolution PNG for dragging into a folder or another app.
+    /// Vends a full-resolution image for dragging into a folder or another app.
     /// The temporary write begins only when the person starts the drag.
     static func dragItemProvider(image: CGImage,
                                  scale: CGFloat,
-                                 strings: ScreenshotFeatureStrings) -> NSItemProvider? {
-        guard let url = temporaryExportFile(image: image, scale: scale, strings: strings) else {
+                                 strings: ScreenshotFeatureStrings,
+                                 preferredFormat: MediaImageFormat = .png) -> NSItemProvider? {
+        guard let url = temporaryExportFile(image: image, scale: scale, strings: strings,
+                                           preferredFormat: preferredFormat) else {
             return nil
         }
         guard let provider = NSItemProvider(contentsOf: url) else {
@@ -1039,17 +1006,20 @@ final class ScreenshotService: ObservableObject {
         return provider
     }
 
-    /// A dated PNG in its own temporary folder, for a drag or the system
+    /// A dated image in its own temporary folder, for a drag or the system
     /// share sheet. The receiving side reads the file after the gesture ends,
     /// so the folder stays for an hour before it is removed.
     static func temporaryExportFile(image: CGImage,
                                     scale: CGFloat,
-                                    strings: ScreenshotFeatureStrings) -> URL? {
-        guard let data = ScreenshotRenderer.pngData(from: image, scale: scale) else {
+                                    strings: ScreenshotFeatureStrings,
+                                    preferredFormat: MediaImageFormat = .png) -> URL? {
+        guard let file = ScreenshotImageFile.encode(.init(image: image, scale: scale),
+                                                    preferredFormat: preferredFormat) else {
             return nil
         }
-        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-        guard let url = try? ScreenshotSupport.temporaryDragFile(data: data, name: name) else {
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date(),
+                                             fileExtension: file.format.fileExtension)
+        guard let url = try? ScreenshotSupport.temporaryDragFile(data: file.data, name: name) else {
             return nil
         }
         let folder = url.deletingLastPathComponent()
@@ -1063,7 +1033,8 @@ final class ScreenshotService: ObservableObject {
 
     /// The configured folder when it still exists, otherwise the Desktop,
     /// with a unique dated file name.
-    static func saveDestination(strings: ScreenshotFeatureStrings) -> (url: URL, consumedNumber: Int?) {
+    static func saveDestination(strings: ScreenshotFeatureStrings,
+                                fileExtension: String = "png") -> (url: URL, consumedNumber: Int?) {
         let manager = FileManager.default
         var folder: URL?
         let stored = UserDefaults.standard.string(forKey: DefaultsKey.screenshotSaveFolder) ?? ""
@@ -1089,7 +1060,7 @@ final class ScreenshotService: ObservableObject {
                 destination = dated
             }
         }
-        let (name, consumedNumber) = Self.fileName(strings: strings)
+        let (name, consumedNumber) = Self.fileName(strings: strings, fileExtension: fileExtension)
         let unique = ScreenshotSupport.uniqueFileName(name) { candidate in
             manager.fileExists(atPath: destination.appendingPathComponent(candidate).path)
         }
@@ -1100,22 +1071,24 @@ final class ScreenshotService: ObservableObject {
     /// when no pattern is set, otherwise the pattern with date tokens and
     /// an optional "%#" number sequence expanded. Advances and persists the
     /// number sequence when the pattern actually uses it.
-    private static func fileName(strings: ScreenshotFeatureStrings) -> (name: String, consumedNumber: Int?) {
+    private static func fileName(strings: ScreenshotFeatureStrings,
+                                  fileExtension: String) -> (name: String, consumedNumber: Int?) {
         let defaults = UserDefaults.standard
         let pattern = (defaults.string(forKey: DefaultsKey.screenshotFileNamePattern) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !pattern.isEmpty else {
-            return (ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date()), nil)
+            return (ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date(),
+                                               fileExtension: fileExtension), nil)
         }
 
         if ScreenshotSupport.fileNamePatternUsesNumber(pattern) {
             let number = defaults.integer(forKey: DefaultsKey.screenshotFileNumberNext)
             let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: number)
             defaults.set(number + 1, forKey: DefaultsKey.screenshotFileNumberNext)
-            return (expanded + ".png", number)
+            return (expanded + "." + fileExtension, number)
         } else {
             let expanded = ScreenshotSupport.expandFileNamePattern(pattern, date: Date(), number: 0)
-            return (expanded + ".png", nil)
+            return (expanded + "." + fileExtension, nil)
         }
     }
 
