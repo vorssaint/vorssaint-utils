@@ -11,6 +11,7 @@ final class FocusFollowsMouseService {
     private let queryQueue = DispatchQueue(label: "com.vorssaint.focus-follows-mouse")
     private var timer: Timer?
     private var mouseMonitor: Any?
+    private var clickMonitor: Any?
     private var observers: [NSObjectProtocol] = []
     private var state = FocusFollowsMouseState()
     private var delayMilliseconds = FocusFollowsMouseSupport.defaultDelayMilliseconds
@@ -44,6 +45,8 @@ final class FocusFollowsMouseService {
         resetMovement()
         if let mouseMonitor { NSEvent.removeMonitor(mouseMonitor) }
         mouseMonitor = nil
+        if let clickMonitor { NSEvent.removeMonitor(clickMonitor) }
+        clickMonitor = nil
         observers.forEach(NotificationCenter.default.removeObserver)
         observers.removeAll()
         isRunning = false
@@ -63,6 +66,13 @@ final class FocusFollowsMouseService {
             }
         ) else { return }
         self.mouseMonitor = mouseMonitor
+        clickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown],
+            handler: { [weak self] event in
+                guard let point = event.cgEvent?.location else { return }
+                self?.recordClick(at: point)
+            }
+        )
 
         let workspaceCenter = NSWorkspace.shared.notificationCenter
         observers.append(workspaceCenter.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification,
@@ -97,6 +107,19 @@ final class FocusFollowsMouseService {
         startEvaluationTimerIfNeeded()
     }
 
+    /// Whatever the click opens (a pop-up, a dialog, a new window) keeps
+    /// focus while the pointer stays over the window it clicked in.
+    private func recordClick(at point: CGPoint) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { [weak self] in
+                self?.recordClick(at: point)
+            }
+            return
+        }
+        guard isRunning else { return }
+        state.recordClick(in: Self.receivingWindow(at: point))
+    }
+
     private func startEvaluationTimerIfNeeded() {
         guard isRunning, timer == nil, state.hasPendingEvaluation else { return }
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in self?.evaluateIfSettled() }
@@ -105,8 +128,9 @@ final class FocusFollowsMouseService {
         self.timer = timer
     }
 
-    private func finishEvaluation(_ evaluation: FocusFollowsMouseEvaluation, succeeded: Bool) {
-        state.finishEvaluation(evaluation, succeeded: succeeded)
+    private func finishEvaluation(_ evaluation: FocusFollowsMouseEvaluation, succeeded: Bool,
+                                  settlingOn windowID: CGWindowID? = nil) {
+        state.finishEvaluation(evaluation, succeeded: succeeded, settlingOn: windowID)
         startEvaluationTimerIfNeeded()
     }
 
@@ -147,6 +171,12 @@ final class FocusFollowsMouseService {
             finishEvaluation(evaluation, succeeded: false)
             return
         }
+        // Still over the window hover settled on or the user clicked: focus
+        // that left it since went somewhere on purpose.
+        if state.hasSettled(on: pointerWindowID) {
+            finishEvaluation(evaluation, succeeded: true)
+            return
+        }
 
         // WindowServer cannot report ignoresMouseEvents. Read our windows on
         // main so full-screen brightness overlays do not block focus everywhere.
@@ -175,7 +205,7 @@ final class FocusFollowsMouseService {
                         && self.state.isCurrent(evaluation)
                         && Self.receivingWindow(at: evaluation.point) == pointerWindowID
                 }
-                guard isCurrent(),
+                guard isCurrent(), !self.state.hasSettled(on: pointerWindowID),
                       let app = NSRunningApplication(processIdentifier: target.processID),
                       app.activationPolicy == .regular, !app.isTerminated
                 else {
@@ -188,7 +218,7 @@ final class FocusFollowsMouseService {
                     focusedWindowBlocksTarget: target.focusedWindowBlocksTarget,
                     focusedWindowSharesRoot: target.focusedWindowSharesRoot,
                     targetAppIsFrontmost: targetAppIsFrontmost) else {
-                    self.finishEvaluation(evaluation, succeeded: true)
+                    self.finishEvaluation(evaluation, succeeded: true, settlingOn: pointerWindowID)
                     return
                 }
                 // The window server reports a desktop switch only once
@@ -207,7 +237,8 @@ final class FocusFollowsMouseService {
                         replacing: targetAppIsFrontmost ? target.focusedWindowID : nil,
                         while: { isCurrent() && WindowActivator.isCurrentActivation(activation) },
                         completion: { [weak self] succeeded in
-                            self?.finishEvaluation(evaluation, succeeded: succeeded)
+                            self?.finishEvaluation(evaluation, succeeded: succeeded,
+                                                   settlingOn: pointerWindowID)
                         })
                     return
                 }
@@ -215,7 +246,7 @@ final class FocusFollowsMouseService {
                                          windowID: target.windowID,
                                          appName: app.localizedName ?? "",
                                          retry: false)
-                self.finishEvaluation(evaluation, succeeded: true)
+                self.finishEvaluation(evaluation, succeeded: true, settlingOn: pointerWindowID)
             }
         }
     }

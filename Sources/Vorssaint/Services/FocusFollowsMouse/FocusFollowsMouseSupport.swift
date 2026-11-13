@@ -110,9 +110,23 @@ struct FocusFollowsMouseState: Equatable {
     private var windowID: CGWindowID?
     private var lastMovementAt: TimeInterval = 0
     private var movedDuringEvaluation = false
+    /// The window hover last settled on, or the one last clicked. Focus moved
+    /// away from it by a click, a shortcut or the app itself (a pop-up, a new
+    /// window) is not taken back while the pointer stays over it.
+    private(set) var settledWindowID: CGWindowID?
 
     var hasPendingEvaluation: Bool {
         point != nil && phase == .pending
+    }
+
+    /// Hover acts on entering a window, not on resting in one.
+    func hasSettled(on windowID: CGWindowID) -> Bool {
+        settledWindowID == windowID
+    }
+
+    /// A click chooses focus itself, so the window it lands in needs no hover.
+    mutating func recordClick(in windowID: CGWindowID?) {
+        settledWindowID = windowID
     }
 
     /// With a window ID, the delay counts time over that window, so moving
@@ -137,6 +151,7 @@ struct FocusFollowsMouseState: Equatable {
 
     mutating func reset() {
         point = nil
+        settledWindowID = nil
         generation &+= 1
         phase = .pending
         movedDuringEvaluation = false
@@ -155,8 +170,11 @@ struct FocusFollowsMouseState: Equatable {
 
     /// A failed lookup or canceled handoff consumes no successful focus. Wait
     /// for movement, or preserve movement that arrived while the attempt ran.
-    mutating func finishEvaluation(_ evaluation: FocusFollowsMouseEvaluation, succeeded: Bool) {
+    /// A successful one settles on the window the pointer was over.
+    mutating func finishEvaluation(_ evaluation: FocusFollowsMouseEvaluation, succeeded: Bool,
+                                   settlingOn windowID: CGWindowID? = nil) {
         guard isCurrent(evaluation) else { return }
+        if succeeded, let windowID { settledWindowID = windowID }
         phase = succeeded ? .completed : .cancelled
         if !succeeded, movedDuringEvaluation {
             movedAt = lastMovementAt
