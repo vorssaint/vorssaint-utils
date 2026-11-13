@@ -375,6 +375,41 @@ enum RepositoryFeatureTests {
         expectEqual(URLCleaning.clean("https://www.xiaohongshu.com/?shareRedId=a&exSource=b&id=1")?.url ?? "",
                     "https://www.xiaohongshu.com/?id=1",
                     "a built-in name spelled in mixed case by the site is still removed")
+        // Amazon product pages come down to `/dp/ASIN`, keeping only the
+        // variant, condition and seller, on every storefront (#3601).
+        let amazonFromSearch = URLCleaning.clean(
+            "https://www.amazon.de/Barkleys-Dog-Treats-tins/dp/B07LCMVJ8L/ref=sr_1_3?crid=2X&dib=eyJ2&dib_tag=se&qid=1761&sprefix=bark%2Caps&sr=8-3&th=1")
+        expectEqual(amazonFromSearch?.url ?? "", "https://www.amazon.de/dp/B07LCMVJ8L?th=1",
+                    "an Amazon product link from a search keeps its ASIN and variant")
+        suite.expect(amazonFromSearch?.removed == ["ref", "crid", "dib", "dib_tag", "qid", "sprefix", "sr"],
+               "an Amazon product link names what it lost: \(amazonFromSearch?.removed ?? [])")
+        expectEqual(URLCleaning.clean("https://www.amazon.de/Barkleys-Dog-Treats-tins/dp/B07LCMVJ8L/")?.url ?? "",
+                    "https://www.amazon.de/dp/B07LCMVJ8L",
+                    "an Amazon product link without a query still loses its title slug")
+        expectEqual(URLCleaning.clean("https://www.amazon.co.uk/gp/product/b07lcmvj8l/ref=ppx_yo_dt?ie=UTF8&psc=1&smid=A3P5&tag=aff-21&linkCode=ll1#reviews")?.url ?? "",
+                    "https://www.amazon.co.uk/dp/B07LCMVJ8L?psc=1&smid=A3P5#reviews",
+                    "a /gp/product link becomes /dp and drops affiliate fields")
+        expectEqual(URLCleaning.clean("https://www.amazon.com/s?k=dog+treats&crid=2X&qid=1761&sprefix=dog&ref=nb_sb_noss&rh=n%3A2975")?.url ?? "",
+                    "https://www.amazon.com/s?k=dog+treats&rh=n%3A2975",
+                    "an Amazon search keeps its terms and filters")
+        let keptAmazonTag = URLCleaning.rules(globalNames: nil, siteNames: nil, disabledNames: "amazon.*|tag")
+        expectEqual(URLCleaning.clean("https://www.amazon.com/dp/B07LCMVJ8L?tag=aff-20&qid=1",
+                                      rules: keptAmazonTag)?.url ?? "",
+                    "https://www.amazon.com/dp/B07LCMVJ8L?tag=aff-20",
+                    "an Amazon name switched off survives on a product page")
+        let amazonOff = URLCleaning.rules(
+            globalNames: nil, siteNames: nil,
+            disabledNames: URLCleaning.ruleGroups(rules: .none).first { $0.site == URLCleaning.amazonSite }?
+                .entries.map { "\(URLCleaning.amazonSite)|\($0.name)" }.joined(separator: ",") ?? "")
+        let slugLink = "https://www.amazon.com/Some-Title/dp/B07LCMVJ8L?qid=1"
+        expectEqual(URLCleaning.clean(slugLink, rules: amazonOff)?.url ?? "", slugLink,
+                    "switching Amazon off leaves its product links alone")
+        let lookalike = "https://example.com/item/dp/B07LCMVJ8L?qid=1&tag=x"
+        expectEqual(URLCleaning.clean(lookalike)?.url ?? "", lookalike,
+                    "a /dp/ path elsewhere is not an Amazon product")
+        expectEqual(URLCleaning.clean("https://www.amazon.com/gp/help/customer/display.html?nodeId=508510&ref_=footer")?.url ?? "",
+                    "https://www.amazon.com/gp/help/customer/display.html?nodeId=508510",
+                    "other Amazon pages keep their path")
         let upperCaseBuiltIns = URLCleaning.ruleGroups(rules: .none)
             .flatMap(\.entries).map(\.name).filter { $0 != $0.lowercased() }
         suite.expect(upperCaseBuiltIns.isEmpty,
