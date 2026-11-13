@@ -152,6 +152,17 @@ enum MenuBarBatteryWarningTests {
                 }
             }
         }
+        var styledImages: [NSImage?] = []
+        for batteryStyle in ["regular", "stacked", "inside"] {
+            defaults.set(batteryStyle, forKey: DefaultsKey.menuBarBatteryStyle)
+            let styled = image(metrics: [.battery])
+            suite.expect(styled != nil, "battery style \(batteryStyle) produces an image attachment")
+            styledImages.append(styled)
+        }
+        defaults.removeObject(forKey: DefaultsKey.menuBarBatteryStyle)
+        suite.expect(styledImages.allSatisfy { $0 != nil }
+                     && Set(styledImages.compactMap { $0.map { "\($0.size.width)x\($0.size.height)" } }).count == 3,
+                     "regular, stacked and inside styles draw distinct block sizes")
         Renderer.overrideSegments = [.metricBlock(label: "RAM", value: "42%", minimumValue: "100%", style: .dense, pressure: .warning)]
         let memory = image()
         suite.expect(warnings(Renderer.overrideSegments!) == [.none]
