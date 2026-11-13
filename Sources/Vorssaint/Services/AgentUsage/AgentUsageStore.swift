@@ -264,6 +264,12 @@ final class AgentUsageStore {
         summary.invalidate()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
+            if records[position].provider == .antigravity,
+               billables[position].tokens.total == 0, billables[position].webSearches == 0 {
+                records[position].cost = nil
+                records[position].savings = 0
+                continue
+            }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
             // A zero OpenCode recorded for a model the list still does not
             // know stays that reply's cost.
@@ -475,8 +481,14 @@ struct AgentLogRoot: Equatable {
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser,
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
-        return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+        let pairs: [(AgentProvider, String)] = [
+            (.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+            (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+            (.antigravity, ".gemini/antigravity/brain"),
+            (.antigravity, ".gemini/antigravity-ide/brain"),
+            (.antigravity, ".gemini/antigravity-cli/brain"),
+        ]
+        return claude + pairs.map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,6 +512,11 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
+        if provider == .antigravity {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == ".system_generated" && parts[2] == "logs" && parts[3] == "transcript.jsonl"
+        }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -555,10 +572,18 @@ final class AgentLogCursor {
     let provider: AgentProvider
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        provider == .claude ? parent == nil : (provider == .antigravity ? !state.antigravitySubagent : (provider == .codex ? !state.codexSubagent : true))
     }
-    /// The session log a Claude subagent works for.
-    let parent: String?
+    private let claudeParent: String?
+    private let antigravitySession: String?
+    /// The session log a Claude or Antigravity subagent works for.
+    var parent: String? {
+        if provider == .claude { return claudeParent }
+        if provider == .antigravity, state.antigravitySubagent, !state.antigravityRoot.isEmpty {
+            return Self.antigravityParent(of: path, root: state.antigravityRoot)
+        }
+        return nil
+    }
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
     var offset: UInt64 = 0
@@ -579,8 +604,10 @@ final class AgentLogCursor {
     init(path: String, provider: AgentProvider) {
         self.path = path
         self.provider = provider
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
-        self.parent = parent
+        self.claudeParent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        let session = provider == .antigravity ? AgentLogCursor.antigravitySession(of: path) : nil
+        self.antigravitySession = session
+        if let session { state.session = session }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -629,6 +656,7 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        if let session = antigravitySession { state.session = session }
         fingerprinted = nil
         codexParentSearch = -1
     }
@@ -673,6 +701,7 @@ final class AgentLogCursor {
         discarding = saved.discarding
         modified = saved.modified
         state = saved.state
+        if state.session.isEmpty, let session = antigravitySession { state.session = session }
         fingerprinted = (saved.offset, saved.identity, saved.fingerprint)
     }
 
@@ -681,6 +710,27 @@ final class AgentLogCursor {
     static func parent(of path: String) -> String? {
         guard let range = path.range(of: "/subagents/", options: .backwards) else { return nil }
         return String(path[..<range.lowerBound]) + ".jsonl"
+    }
+
+    private static let antigravityTranscriptSuffix = "/.system_generated/logs/transcript.jsonl"
+
+    static func antigravitySession(of path: String) -> String? {
+        guard path.hasSuffix(antigravityTranscriptSuffix) else { return nil }
+        let folder = String(path.dropLast(antigravityTranscriptSuffix.count))
+        let id = (folder as NSString).lastPathComponent
+        guard !id.isEmpty, !id.hasPrefix("."), folder.contains("/") else { return nil }
+        return AgentLogParser.native(id)
+    }
+
+    static func antigravityParent(of path: String, root: String) -> String? {
+        guard path.hasSuffix(antigravityTranscriptSuffix),
+              !root.isEmpty, !root.hasPrefix("."), !root.contains("/") else { return nil }
+        let folder = String(path.dropLast(antigravityTranscriptSuffix.count))
+        let session = (folder as NSString).lastPathComponent
+        guard session != root else { return nil }
+        let brainRoot = (folder as NSString).deletingLastPathComponent
+        guard !brainRoot.isEmpty else { return nil }
+        return (brainRoot as NSString).appendingPathComponent(root) + antigravityTranscriptSuffix
     }
 }
 
@@ -757,6 +807,31 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            // An Antigravity brain folder holds `scratch/` workspaces and media
+            // beside `.system_generated/logs/transcript.jsonl`. Probe the fixed
+            // shallow path directly and peek at its header so subagents sort
+            // after root conversations.
+            if root.provider == .antigravity {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions {
+                    let transcript = session.appending(path: ".system_generated/logs/transcript.jsonl")
+                    guard root.accepts(transcript.path),
+                          let values = try? transcript.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
+                          let modified = values.contentModificationDate, modified >= horizon else { continue }
+                    var subagent = false
+                    if let handle = try? FileHandle(forReadingFrom: transcript) {
+                        defer { try? handle.close() }
+                        if let head = try? handle.read(upToCount: 512),
+                           AgentLogParser.contains(head, "SYSTEM_MESSAGE"),
+                           AgentLogParser.contains(head, "sender=") {
+                            subagent = true
+                        }
+                    }
+                    found.append((transcript.path, root.provider, modified, subagent))
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,

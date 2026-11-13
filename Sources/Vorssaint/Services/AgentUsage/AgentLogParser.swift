@@ -68,6 +68,31 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+    /// Antigravity's named workspace, which outranks shell working directories.
+    var antigravityNamedWorkspace = ""
+    /// An Antigravity subagent owns no turn; its usage counts toward `antigravityRoot`.
+    var antigravitySubagent = false
+    var antigravityRoot = ""
+    /// Each model an Antigravity conversation ran on and when it began to,
+    /// which says what a subagent started then inherited.
+    var antigravityModels: [AntigravityModelChange] = []
+}
+
+struct AntigravityModelChange: Equatable {
+    let date: Date
+    let model: String
+}
+
+extension AgentLogState {
+    mutating func adoptAntigravityModel(_ model: String, at date: Date) {
+        guard model != self.model else { return }
+        self.model = model
+        antigravityModels.append(AntigravityModelChange(date: date, model: model))
+    }
+
+    func antigravityModel(at date: Date) -> String? {
+        antigravityModels.last { $0.date <= date }?.model
+    }
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
