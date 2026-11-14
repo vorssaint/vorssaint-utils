@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
+    case cpu, gpu, memory, weather, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
 
     var id: String { rawValue }
 
@@ -14,6 +14,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .cpu: return DefaultsKey.menuBarCPU
         case .gpu: return DefaultsKey.menuBarGPU
         case .memory: return DefaultsKey.menuBarMemory
+        case .weather: return DefaultsKey.menuBarWeather
         case .cpuTemperature: return DefaultsKey.menuBarCPUTemperature
         case .gpuTemperature: return DefaultsKey.menuBarGPUTemperature
         case .batteryTemperature: return DefaultsKey.menuBarBatteryTemperature
@@ -34,6 +35,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .cpu: return "cpu"
         case .gpu: return "rectangle.connected.to.line.below"
         case .memory: return "memorychip"
+        case .weather: return "cloud.sun.fill"
         case .cpuTemperature: return "cpu"
         case .gpuTemperature: return "rectangle.connected.to.line.below"
         case .batteryTemperature: return "battery.100"
@@ -54,6 +56,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .cpu: return strings.monitorShowCPU
         case .gpu: return strings.monitorShowGPU
         case .memory: return strings.monitorShowMemory
+        case .weather: return FeatureStrings.weather(L10n.shared.language).title
         case .cpuTemperature: return strings.monitorShowCPUTemperature
         case .gpuTemperature: return strings.monitorShowGPUTemperature
         case .batteryTemperature: return strings.monitorShowBatteryTemperature
@@ -72,7 +75,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
     static let defaultOrder: [MenuBarMetric] = [
         .cpu, .cpuTemperature,
         .gpu, .gpuTemperature,
-        .memory,
+        .memory, .weather,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
         .network, .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
     ]
@@ -95,6 +98,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .cpu, .cpuTemperature: return .monitorCPU
         case .gpu, .gpuTemperature: return .monitorGPU
         case .memory: return .monitorMemory
+        case .weather: return .weather
         case .network: return .monitorNetwork
         case .diskUsage, .diskActivity: return .monitorDisk
         case .connectedDevices: return .connectedDevices
@@ -114,20 +118,24 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         }
     }
 
+    /// One metric's own conditions, shared by the two readers below. Weather
+    /// also needs its feature switched on, not just installed: the hub install
+    /// alone must not keep a block in the bar after Weather was turned off.
+    static func isEnabled(_ metric: MenuBarMetric, in defaults: UserDefaults) -> Bool {
+        guard defaults.bool(forKey: metric.defaultsKey),
+              defaults.bool(forKey: metric.feature.availabilityKey),
+              metric.isAvailableOnCurrentHardware
+        else { return false }
+        guard metric == .weather else { return true }
+        return WeatherSupport.isMenuBarWeatherEnabled(in: defaults)
+    }
+
     static func enabled(in defaults: UserDefaults) -> [MenuBarMetric] {
-        order(in: defaults).filter {
-            defaults.bool(forKey: $0.defaultsKey)
-                && defaults.bool(forKey: $0.feature.availabilityKey)
-                && $0.isAvailableOnCurrentHardware
-        }
+        order(in: defaults).filter { isEnabled($0, in: defaults) }
     }
 
     static func anyEnabled(in defaults: UserDefaults) -> Bool {
-        allCases.contains {
-            defaults.bool(forKey: $0.defaultsKey)
-                && defaults.bool(forKey: $0.feature.availabilityKey)
-                && $0.isAvailableOnCurrentHardware
-        }
+        allCases.contains { isEnabled($0, in: defaults) }
     }
 }
 
@@ -204,6 +212,7 @@ enum MenuBarSegment {
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, externalConnected: Bool,
                       warning: BatteryWarning = .none, style: MenuBarBlockStyle)
+    case weatherBlock(symbol: String?, value: String?, minimumValue: String, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
 }
@@ -251,16 +260,18 @@ enum MenuBarRenderer {
 
     static func lines(for snapshot: SystemSnapshot,
                       metrics: [MenuBarMetric],
-                      allowStacked: Bool = true) -> [[MenuBarSegment]] {
-        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: .dense)
+                      allowStacked: Bool = true,
+                      weather: WeatherMenuBarReading? = nil) -> [[MenuBarSegment]] {
+        let denseSegments = blockSegments(for: snapshot, metrics: metrics, style: .dense, weather: weather)
         return denseSegments.isEmpty ? [] : [denseSegments]
     }
 
     static func segments(for snapshot: SystemSnapshot,
                          metrics: [MenuBarMetric],
-                         allowStacked: Bool = true) -> [MenuBarSegment] {
+                         allowStacked: Bool = true,
+                         weather: WeatherMenuBarReading? = nil) -> [MenuBarSegment] {
         var segments: [MenuBarSegment] = []
-        for (index, line) in lines(for: snapshot, metrics: metrics, allowStacked: allowStacked).enumerated() {
+        for (index, line) in lines(for: snapshot, metrics: metrics, allowStacked: allowStacked, weather: weather).enumerated() {
             if index > 0 { segments.append(.text("\n")) }
             segments.append(contentsOf: line)
         }
@@ -269,8 +280,9 @@ enum MenuBarRenderer {
 
     static func usesStackedLayout(for snapshot: SystemSnapshot,
                                   metrics: [MenuBarMetric],
-                                  allowStacked: Bool = true) -> Bool {
-        lines(for: snapshot, metrics: metrics, allowStacked: allowStacked).count > 1
+                                  allowStacked: Bool = true,
+                                  weather: WeatherMenuBarReading? = nil) -> Bool {
+        lines(for: snapshot, metrics: metrics, allowStacked: allowStacked, weather: weather).count > 1
     }
 
     static func statusFont(stacked: Bool) -> NSFont {
@@ -306,7 +318,8 @@ enum MenuBarRenderer {
 
     static func reservedStatusItemLength(for metrics: [MenuBarMetric],
                                          includesCountdown: Bool,
-                                         allowStacked: Bool = true) -> CGFloat {
+                                         allowStacked: Bool = true,
+                                         weather: WeatherMenuBarReading? = nil) -> CGFloat {
         let preset = MenuBarPreset.current
         let stacked = !includesCountdown && estimatedUsesStackedLayout(for: metrics,
                                                                        preset: preset,
@@ -320,7 +333,8 @@ enum MenuBarRenderer {
         estimated.append(attributed(for: estimatedSnapshot(fanCount: fanCount),
                                     metrics: metrics,
                                     allowStacked: allowStacked && !includesCountdown,
-                                    linePrefix: includesCountdown ? " " : ""))
+                                    linePrefix: includesCountdown ? " " : "",
+                                    weather: weather))
         guard estimated.length > 0 else { return NSStatusItem.variableLength }
 
         estimated.addAttribute(.font, value: font, range: NSRange(location: 0, length: estimated.length))
@@ -331,7 +345,8 @@ enum MenuBarRenderer {
 
     static func reservedContentColumns(for metrics: [MenuBarMetric],
                                        includesCountdown: Bool,
-                                       allowStacked: Bool = true) -> Int {
+                                       allowStacked: Bool = true,
+                                       weather: WeatherMenuBarReading? = nil) -> Int {
         let columns = reservedColumns(for: metrics,
                                       includesCountdown: includesCountdown,
                                       allowStacked: allowStacked)
@@ -340,7 +355,8 @@ enum MenuBarRenderer {
 
     private static func blockSegments(for snapshot: SystemSnapshot,
                                       metrics: [MenuBarMetric],
-                                      style: MenuBarBlockStyle) -> [MenuBarSegment] {
+                                      style: MenuBarBlockStyle,
+                                      weather: WeatherMenuBarReading? = nil) -> [MenuBarSegment] {
         var groups: [[MenuBarSegment]] = []
         let appearance = MenuBarMetricAppearance.current
         let usesBars = appearance == .bars
@@ -598,6 +614,14 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: nil)])
                 }
+            case .weather:
+                guard let weather else { break }
+                if weather.menuBarSymbolName != nil || weather.menuBarText != nil {
+                    groups.append([.weatherBlock(symbol: weather.menuBarSymbolName,
+                                                 value: weather.menuBarText,
+                                                 minimumValue: weather.reservedValue,
+                                                 style: style)])
+                }
             }
         }
         return blockJoined(groups, style: style)
@@ -661,6 +685,8 @@ enum MenuBarRenderer {
             return 11      // symbol + " CPU 100%"
         case (_, .memory):
             return MemoryMenuBarStyle.current.showsDot ? 13 : 11
+        case (_, .weather):
+            return 11      // symbol + " 72°" / " 72/54" / " 40%"
         case (_, .cpuTemperature), (_, .gpuTemperature), (_, .batteryTemperature):
             return 11      // symbol + " CPU 999°" / " GPU 999°" / " BAT 999°"
         case (_, .peripheralBattery):
@@ -717,10 +743,14 @@ enum MenuBarRenderer {
     static func attributed(for snapshot: SystemSnapshot,
                            metrics: [MenuBarMetric],
                            allowStacked: Bool = true,
-                           linePrefix: String = "") -> NSAttributedString {
+                           linePrefix: String = "",
+                           weather: WeatherMenuBarReading? = nil) -> NSAttributedString {
         let result = NSMutableAttributedString()
-        let stacked = usesStackedLayout(for: snapshot, metrics: metrics, allowStacked: allowStacked)
-        for segment in segments(for: snapshot, metrics: metrics, allowStacked: allowStacked) {
+        let stacked = usesStackedLayout(for: snapshot,
+                                        metrics: metrics,
+                                        allowStacked: allowStacked,
+                                        weather: weather)
+        for segment in segments(for: snapshot, metrics: metrics, allowStacked: allowStacked, weather: weather) {
             switch segment {
             case let .text(string):
                 let rendered = string == "\n" && !linePrefix.isEmpty ? "\n" + linePrefix : string
@@ -736,6 +766,11 @@ enum MenuBarRenderer {
                                                     style: style,
                                                     pressure: pressure,
                                                     warning: warning))
+            case let .weatherBlock(symbol, value, minimumValue, style):
+                result.append(weatherBlockAttachment(symbol: symbol,
+                                                     value: value,
+                                                     minimumValue: minimumValue,
+                                                     style: style))
             case let .usageBarBlock(label, fraction, style, pressure):
                 result.append(usageBarBlockAttachment(label: label,
                                                       fraction: fraction,
@@ -803,7 +838,26 @@ enum MenuBarRenderer {
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
+                                   y: metricBlockAttachmentOffset(style: style),
+                                   width: image.size.width,
+                                   height: image.size.height)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func metricBlockAttachmentOffset(style: MenuBarBlockStyle) -> CGFloat {
+        (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge
+    }
+
+    private static func weatherBlockAttachment(symbol: String?,
+                                              value: String?,
+                                              minimumValue: String,
+                                              style: MenuBarBlockStyle) -> NSAttributedString {
+        let image = weatherBlockImage(symbol: symbol, value: value,
+                                      minimumValue: minimumValue, style: style)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -904,6 +958,17 @@ enum MenuBarRenderer {
         let drawnGroupWidth = dotDiameter + dotGap + valueSize.width
         let width = ceil(max(labelSize.width, reservedGroupWidth) + (style == .readable ? 2 : 0.5))
         let height: CGFloat = style == .readable ? 23 : 21
+        // A block with no label is a single-line value. Center that value on
+        // the icon instead of leaving it in the label-and-value layout's
+        // bottom slot, which sits low on the status bar.
+        let valueY: CGFloat
+        if label.isEmpty {
+            let iconCenter: CGFloat = -1.8 + 11.4 / 2
+            let glyphCenter = (valueFont.ascender + valueFont.descender) / 2
+            valueY = iconCenter - metricBlockAttachmentOffset(style: style) - glyphCenter
+        } else {
+            valueY = style == .readable ? -0.4 : -0.8
+        }
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
             NSColor.clear.setFill()
             rect.fill()
@@ -923,8 +988,65 @@ enum MenuBarRenderer {
                 NSBezierPath(ovalIn: dotRect).fill()
                 valueX += dotDiameter + dotGap
             }
-            (value as NSString).draw(at: NSPoint(x: valueX, y: style == .readable ? -0.4 : -0.8),
+            (value as NSString).draw(at: NSPoint(x: valueX, y: valueY),
                                      withAttributes: valueAttrs)
+            return true
+        }
+        image.isTemplate = false
+        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
+        return image
+    }
+
+    /// One image for the weather icon and value so both share the same
+    /// optical centre. The earlier symbol-plus-block pair sat the icon low and
+    /// the number high because each used a different baseline.
+    private static func weatherBlockImage(symbol: String?,
+                                          value: String?,
+                                          minimumValue: String,
+                                          style: MenuBarBlockStyle) -> NSImage {
+        let cacheKey = "weather|\(symbol ?? "")|\(value ?? "")|\(minimumValue)|\(style)" as NSString
+        if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
+
+        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
+                                                         weight: .semibold)
+        let valueAttrs = dynamicTextAttributes(font: valueFont)
+        let valueSize = ((value ?? "") as NSString).size(withAttributes: valueAttrs)
+        let reservedSize = (minimumValue as NSString).size(withAttributes: valueAttrs)
+        let symbolWidth: CGFloat = style == .readable ? 20 : 18
+        let gap: CGFloat = style == .readable ? 5 : 4
+        let height: CGFloat = style == .readable ? 22 : 20
+        let hasSymbol = symbol?.isEmpty == false
+        let hasValue = value?.isEmpty == false
+        let textWidth = hasValue ? max(valueSize.width, reservedSize.width) : 0
+        let width = ceil((hasSymbol ? symbolWidth : 0)
+                         + (hasSymbol && hasValue ? gap : 0)
+                         + textWidth)
+        let image = NSImage(size: NSSize(width: max(width, 1), height: height), flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+            var x: CGFloat = 0
+            if let symbol, hasSymbol {
+                let config = NSImage.SymbolConfiguration(pointSize: style == .readable ? 17.0 : 15.5,
+                                                         weight: .semibold)
+                    .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
+                if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config) {
+                    let natural = image.size
+                    let scale = min(symbolWidth / natural.width, height / natural.height, 1)
+                    let drawSize = NSSize(width: natural.width * scale, height: natural.height * scale)
+                    image.draw(in: NSRect(x: x + (symbolWidth - drawSize.width) / 2,
+                                          y: (height - drawSize.height) / 2,
+                                          width: drawSize.width, height: drawSize.height))
+                }
+                x += symbolWidth + (hasValue ? gap : 0)
+            }
+            if let value, hasValue {
+                // Centre the value in its reserved slot, like the metric
+                // blocks, so digit-width reserve does not become right padding.
+                (value as NSString).draw(at: NSPoint(x: x + (textWidth - valueSize.width) / 2,
+                                                     y: (height - valueSize.height) / 2),
+                                         withAttributes: valueAttrs)
+            }
             return true
         }
         image.isTemplate = false

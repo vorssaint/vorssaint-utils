@@ -94,8 +94,12 @@ enum MetricDetailKind: String, Equatable, Identifiable {
 }
 
 extension MenuBarMetric {
-    var detailKind: MetricDetailKind {
+    /// None when the reading has no System Monitor breakdown page; Weather
+    /// opens its own panel section instead.
+    var detailKind: MetricDetailKind? {
         switch self {
+        case .weather:
+            return nil
         case .cpu, .cpuTemperature:
             return .cpu
         case .gpu, .gpuTemperature:
