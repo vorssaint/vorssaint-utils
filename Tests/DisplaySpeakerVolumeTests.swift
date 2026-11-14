@@ -9,6 +9,7 @@ import Foundation
 enum DisplaySpeakerVolumeTests {
     typealias DispatchQueue = MixerOutputAdjustmentContract.DispatchQueue
     typealias Queue = MixerOutputAdjustmentContract.Queue
+    typealias ProcessInfo = MixerOutputAdjustmentContract.ProcessInfo
     struct BrightnessDisplay {
         struct Audio: Equatable {
             let target: BrightnessSupport.SpeakerTarget
@@ -54,6 +55,8 @@ enum DisplaySpeakerVolumeTests {
         var audioRoutes: [UInt32: AudioRoute] = [:]
         var pendingSpeakerUnmutes: [String: UInt64] = [:]
         var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
+        var speakerBeliefs: [String: BrightnessSupport.SpeakerBelief] = [:]
+        var speakerTransactions: UInt64 = 0
         var audioLifetime: UInt64 = 0
         var speakerLevelRevisions: [String: UInt64] = [:]
         var pendingAudio: [PendingAudio] = []

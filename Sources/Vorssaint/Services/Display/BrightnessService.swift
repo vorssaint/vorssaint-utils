@@ -230,6 +230,12 @@ final class BrightnessService: ObservableObject {
     // inherits the unfinished unmute only on this physical connection.
     private var pendingSpeakerUnmutes: [String: UInt64] = [:]
     private var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
+    /// The level each monitor's speakers were last known to have, so the next
+    /// key does not have to read it first. Under stateLock.
+    private var speakerBeliefs: [String: BrightnessSupport.SpeakerBelief] = [:]
+    /// Speaker transactions finished so far. Main thread only. A read waiting
+    /// for the keys to go quiet gives way once another transaction finishes.
+    private var speakerTransactions: UInt64 = 0
     private struct PendingAudio {
         let target: BrightnessSupport.SpeakerTarget
         let change: BrightnessSupport.SpeakerChange
@@ -701,6 +707,7 @@ final class BrightnessService: ObservableObject {
         knownMirrorSources = [:]
         stateLock.unlock()
         cancelPendingAudio()
+        stateLock.withLock { speakerBeliefs = [:] }
         workQueue.async { [weak self] in
             self?.speakerRestoreLevels = [:]
             self?.pendingSpeakerUnmutes = [:]
@@ -2651,6 +2658,7 @@ final class BrightnessService: ObservableObject {
             let connectedPaths = Set(newAudioRoutes.values.map(\.path))
             speakerLevelRevisions = speakerLevelRevisions.filter { connectedPaths.contains($0.key) }
             pendingSpeakerUnmutes = pendingSpeakerUnmutes.filter { connectedPaths.contains($0.key) }
+            speakerBeliefs = speakerBeliefs.filter { connectedPaths.contains($0.key) }
             speakerRestoreLevels = speakerRestoreLevels.filter { connectedPaths.contains($0.key) }
             scannedAudio = probesAudio
             audioScanQueued = nil
@@ -3162,9 +3170,29 @@ final class BrightnessService: ObservableObject {
                     if result == nil { self.refresh(force: true) }
                 }
                 pending.completion(current && result != nil)
+                self.speakerTransactions &+= 1
+                if current, result != nil { self.scheduleSpeakerVerification(for: pending.target) }
                 self.audioWriteInFlight = false
                 self.drainPendingAudio()
             }
+        }
+    }
+
+    /// A level written without a reading before it is confirmed once the keys
+    /// go quiet: one read, which publishes what the monitor really took. A key
+    /// pressed meanwhile starts a transaction of its own and takes its place.
+    private func scheduleSpeakerVerification(for target: BrightnessSupport.SpeakerTarget) {
+        guard stateLock.withLock({ speakerBeliefs[target.path]?.predicted == true }) else { return }
+        let transactions = speakerTransactions
+        DispatchQueue.main.asyncAfter(deadline: .now() + BrightnessSupport.speakerVerifyDelay) { [weak self] in
+            guard let self, self.speakerTransactions == transactions,
+                  !self.audioWriteInFlight, self.pendingAudio.isEmpty else { return }
+            let panel = BrightnessSupport.SpeakerTarget(displayID: target.displayID, path: target.path,
+                                                       connectionGeneration: target.connectionGeneration)
+            guard self.acceptsSpeakerTarget(panel, requiresKeys: false) else { return }
+            self.pendingAudio.append(PendingAudio(target: panel, change: .verification, requiresKeys: false,
+                                                  levelRevision: nil, completion: { _ in }))
+            self.drainPendingAudio()
         }
     }
 
@@ -3201,6 +3229,30 @@ final class BrightnessService: ObservableObject {
         var restore = speakerRestoreLevels[target.path]
         var needsUnmute = pendingSpeakerUnmutes[target.path] == target.connectionGeneration
         let keySettings = pending.requiresKeys ? monitorVolumeKeySettings : MonitorVolumeKeySettings()
+        let generation = target.connectionGeneration
+        let panel = BrightnessSupport.SpeakerTarget(displayID: id, path: target.path, connectionGeneration: generation)
+        // Every exchange with a monitor's speakers is slow, so a level seen
+        // moments ago is stepped from as it stands: one write, no read before
+        // it and none after it. The read that confirms it follows once the keys
+        // go quiet, and a refused write leaves nothing to step from. A monitor
+        // still owed an unmute takes the full transaction, which sends it.
+        if !needsUnmute, let belief = stateLock.withLock({ speakerBeliefs[target.path] }),
+           let known = BrightnessSupport.knownLevelTarget(
+               for: pending.change, belief: belief, generation: generation,
+               now: ProcessInfo.processInfo.systemUptime, keySettings: keySettings) {
+            let packet = BrightnessSupport.writePacket(code: BrightnessSupport.audioVolumeCode, value: known.raw)
+            let written = ddcSend(to: id, service: route.service, chip: route.chipAddress, packet: packet) {
+                current() && (!pending.requiresKeys || self.monitorVolumeKeySettings == keySettings)
+            }
+            stateLock.withLock {
+                speakerBeliefs[target.path] = written
+                    ? BrightnessSupport.SpeakerBelief(level: known, muted: false, generation: generation,
+                                                      readAt: belief.readAt, predicted: true)
+                    : nil
+            }
+            guard written else { return nil }
+            return BrightnessDisplay.Audio(target: panel, volume: known.volume, muted: false)
+        }
         var sentUnmute = false
         let result = BrightnessSupport.applySpeakerChange(pending.change, hasNativeMute: route.hasNativeMute,
             unmutesLeavingZero: route.unmutesLeavingZero, keySettings: keySettings, restore: &restore,
@@ -3227,9 +3279,14 @@ final class BrightnessService: ObservableObject {
             })
         pendingSpeakerUnmutes[target.path] = needsUnmute ? target.connectionGeneration : nil
         speakerRestoreLevels[target.path] = restore
+        let readAt = ProcessInfo.processInfo.systemUptime
+        stateLock.withLock {
+            speakerBeliefs[target.path] = result.map {
+                BrightnessSupport.SpeakerBelief(level: $0.level, muted: $0.muted, generation: generation,
+                                                readAt: readAt, predicted: false)
+            }
+        }
         guard let result else { return nil }
-        let panel = BrightnessSupport.SpeakerTarget(displayID: id, path: target.path,
-                                                   connectionGeneration: target.connectionGeneration)
         return BrightnessDisplay.Audio(target: panel, volume: result.level.volume, muted: result.muted)
     }
 
