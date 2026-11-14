@@ -26,6 +26,8 @@ struct RadialMenuFeatureStrings {
     let kindFile: String
     let kindURL: String
     let kindShortcut: String
+    let kindAppleShortcut: String
+    let kindScript: String
     let kindTool: String
     let kindMedia: String
     let kindSubmenu: String
@@ -106,6 +108,10 @@ struct RadialMenuFeatureStrings {
     let trackpadTapLabel: String
     let trackpadTapConflict: String
     let profileNoTrigger: String
+    let appleShortcutLabel: String
+    let appleShortcutsEmpty: String
+    let appleShortcutMissing: String
+    let scriptCaption: String
 }
 
 extension FeatureStrings {
@@ -154,6 +160,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Open a file or folder",
         kindURL: "Open a link",
         kindShortcut: "Press a shortcut",
+        kindAppleShortcut: "Run from Shortcuts",
+        kindScript: "Run a script",
         kindTool: "Vorssaint tool",
         kindMedia: "Media control",
         kindSubmenu: "Submenu",
@@ -233,7 +241,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Hide list",
         trackpadTapLabel: "Open with a four-finger tap",
         trackpadTapConflict: "Middle click already uses the four-finger tap, so the tap does not open this wheel.",
-        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it."
+        profileNoTrigger: "Picking a profile here only edits it. Give this one a shortcut, a mouse button or the four-finger tap below to open it.",
+        appleShortcutLabel: "Shortcut",
+        appleShortcutsEmpty: "No shortcuts found. Create one in the Shortcuts app.",
+        appleShortcutMissing: "Shortcut not found",
+        scriptCaption: "Runs this executable file with no input. Its output is not shown, and a beep means it failed."
     )
 
     static let ptBR = RadialMenuFeatureStrings(
@@ -259,6 +271,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Abrir arquivo ou pasta",
         kindURL: "Abrir um link",
         kindShortcut: "Pressionar um atalho",
+        kindAppleShortcut: "Executar do app Atalhos",
+        kindScript: "Executar um script",
         kindTool: "Ferramenta do Vorssaint",
         kindMedia: "Controle de mídia",
         kindSubmenu: "Submenu",
@@ -338,7 +352,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir com um toque de quatro dedos",
         trackpadTapConflict: "O botão do meio já usa o toque de quatro dedos, então o toque não abre esta roda.",
-        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo."
+        profileNoTrigger: "Escolher um perfil aqui serve só para editá-lo. Para abrir este perfil, dê a ele um atalho, um botão do mouse ou o toque de quatro dedos abaixo.",
+        appleShortcutLabel: "Atalho",
+        appleShortcutsEmpty: "Nenhum atalho encontrado. Crie um no app Atalhos.",
+        appleShortcutMissing: "Atalho não encontrado",
+        scriptCaption: "Executa este arquivo executável sem entrada. A saída não é exibida, e um bipe indica que ele falhou."
     )
 
     static let tr = RadialMenuFeatureStrings(
@@ -364,6 +382,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Dosya veya klasör aç",
         kindURL: "Bağlantı aç",
         kindShortcut: "Kısayola bas",
+        kindAppleShortcut: "Kestirmeler’den çalıştır",
+        kindScript: "Betik çalıştır",
         kindTool: "Vorssaint aracı",
         kindMedia: "Ortam denetimi",
         kindSubmenu: "Alt menü",
@@ -443,7 +463,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Listeyi gizle",
         trackpadTapLabel: "Dört parmakla dokunarak aç",
         trackpadTapConflict: "Dört parmakla dokunma zaten orta tıklamaya ayrılmış, bu yüzden dokunma bu çarkı açmaz.",
-        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin."
+        profileNoTrigger: "Burada bir profil seçmek yalnızca onu düzenlemenizi sağlar. Açmak için bu profile aşağıdan bir kısayol, bir fare düğmesi veya dört parmakla dokunma verin.",
+        appleShortcutLabel: "Kestirme",
+        appleShortcutsEmpty: "Kestirme bulunamadı. Kestirmeler uygulamasında bir tane oluşturun.",
+        appleShortcutMissing: "Kestirme bulunamadı",
+        scriptCaption: "Bu çalıştırılabilir dosyayı girdi olmadan çalıştırır. Çıktısı gösterilmez, bip sesi başarısız olduğu anlamına gelir."
     )
 
     static let ru = RadialMenuFeatureStrings(
@@ -469,6 +493,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Открыть файл или папку",
         kindURL: "Открыть ссылку",
         kindShortcut: "Нажать сочетание клавиш",
+        kindAppleShortcut: "Запустить из «Быстрых команд»",
+        kindScript: "Запустить скрипт",
         kindTool: "Инструмент Vorssaint",
         kindMedia: "Управление медиа",
         kindSubmenu: "Подменю",
@@ -548,7 +574,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Скрыть список",
         trackpadTapLabel: "Открывать касанием четырьмя пальцами",
         trackpadTapConflict: "Касание четырьмя пальцами уже занято средней кнопкой, поэтому оно не открывает это колесо.",
-        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами."
+        profileNoTrigger: "Выбор профиля здесь только открывает его для правки. Чтобы этот профиль открывался, задайте ему ниже сочетание клавиш, кнопку мыши или касание четырьмя пальцами.",
+        appleShortcutLabel: "Быстрая команда",
+        appleShortcutsEmpty: "Быстрые команды не найдены. Создайте команду в приложении «Быстрые команды».",
+        appleShortcutMissing: "Быстрая команда не найдена",
+        scriptCaption: "Запускает этот исполняемый файл без входных данных. Вывод не показывается, а звуковой сигнал означает ошибку."
     )
 
     static let es = RadialMenuFeatureStrings(
@@ -574,6 +604,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Abrir un archivo o carpeta",
         kindURL: "Abrir un enlace",
         kindShortcut: "Pulsar un atajo",
+        kindAppleShortcut: "Ejecutar desde Atajos",
+        kindScript: "Ejecutar un script",
         kindTool: "Herramienta de Vorssaint",
         kindMedia: "Control multimedia",
         kindSubmenu: "Submenú",
@@ -653,7 +685,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Ocultar lista",
         trackpadTapLabel: "Abrir con un toque de cuatro dedos",
         trackpadTapConflict: "El clic central ya usa el toque de cuatro dedos, así que el toque no abre esta rueda.",
-        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo."
+        profileNoTrigger: "Elegir un perfil aquí solo sirve para editarlo. Dale a este un atajo, un botón del ratón o el toque de cuatro dedos de abajo para abrirlo.",
+        appleShortcutLabel: "Atajo",
+        appleShortcutsEmpty: "No se encontraron atajos. Crea uno en la app Atajos.",
+        appleShortcutMissing: "Atajo no encontrado",
+        scriptCaption: "Ejecuta este archivo ejecutable sin entrada. Su salida no se muestra, y un pitido indica que falló."
     )
 
     static let sk = RadialMenuFeatureStrings(
@@ -679,6 +715,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Otvoriť súbor alebo priečinok",
         kindURL: "Otvoriť odkaz",
         kindShortcut: "Stlačiť skratku",
+        kindAppleShortcut: "Spustiť zo Skratiek",
+        kindScript: "Spustiť skript",
         kindTool: "Nástroj Vorssaint",
         kindMedia: "Ovládanie médií",
         kindSubmenu: "Podmenu",
@@ -758,7 +796,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Skryť zoznam",
         trackpadTapLabel: "Otvoriť ťuknutím štyrmi prstami",
         trackpadTapConflict: "Stredné kliknutie už používa ťuknutie štyrmi prstami, takže toto ťuknutie koleso neotvorí.",
-        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami."
+        profileNoTrigger: "Tu iba vyberáte profil, ktorý upravujete. Aby sa tento profil otváral, priraďte mu nižšie skratku, tlačidlo myši alebo ťuknutie štyrmi prstami.",
+        appleShortcutLabel: "Skratka",
+        appleShortcutsEmpty: "Nenašli sa žiadne skratky. Vytvorte si nejakú v apke Skratky.",
+        appleShortcutMissing: "Skratka sa nenašla",
+        scriptCaption: "Spustí tento spustiteľný súbor bez vstupu. Výstup sa nezobrazí a pípnutie znamená chybu."
     )
 
     static let de = RadialMenuFeatureStrings(
@@ -784,6 +826,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Datei oder Ordner öffnen",
         kindURL: "Link öffnen",
         kindShortcut: "Kurzbefehl drücken",
+        kindAppleShortcut: "Über Kurzbefehle ausführen",
+        kindScript: "Skript ausführen",
         kindTool: "Vorssaint-Werkzeug",
         kindMedia: "Mediensteuerung",
         kindSubmenu: "Untermenü",
@@ -863,7 +907,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Liste ausblenden",
         trackpadTapLabel: "Mit Vier-Finger-Tippen öffnen",
         trackpadTapConflict: "Der Mittelklick nutzt bereits das Vier-Finger-Tippen, daher öffnet das Tippen dieses Rad nicht.",
-        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen."
+        profileNoTrigger: "Hier wählst du nur das Profil aus, das du bearbeitest. Damit es sich öffnet, gib ihm unten einen Kurzbefehl, eine Maustaste oder das Vier-Finger-Tippen.",
+        appleShortcutLabel: "Kurzbefehl",
+        appleShortcutsEmpty: "Keine Kurzbefehle gefunden. Erstellen Sie einen in der App „Kurzbefehle“.",
+        appleShortcutMissing: "Kurzbefehl nicht gefunden",
+        scriptCaption: "Führt diese ausführbare Datei ohne Eingabe aus. Die Ausgabe wird nicht angezeigt, und ein Signalton bedeutet einen Fehler."
     )
 
     static let fr = RadialMenuFeatureStrings(
@@ -889,6 +937,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Ouvrir un fichier ou un dossier",
         kindURL: "Ouvrir un lien",
         kindShortcut: "Appuyer sur un raccourci",
+        kindAppleShortcut: "Exécuter depuis Raccourcis",
+        kindScript: "Exécuter un script",
         kindTool: "Outil Vorssaint",
         kindMedia: "Contrôle multimédia",
         kindSubmenu: "Sous-menu",
@@ -968,7 +1018,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Masquer la liste",
         trackpadTapLabel: "Ouvrir d’un toucher à quatre doigts",
         trackpadTapConflict: "Le clic du milieu utilise déjà le toucher à quatre doigts, donc ce toucher n’ouvre pas cette roue.",
-        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir."
+        profileNoTrigger: "Choisir un profil ici sert seulement à le modifier. Donnez à celui-ci un raccourci, un bouton de la souris ou le toucher à quatre doigts ci-dessous pour l’ouvrir.",
+        appleShortcutLabel: "Raccourci",
+        appleShortcutsEmpty: "Aucun raccourci trouvé. Créez-en un dans l’app Raccourcis.",
+        appleShortcutMissing: "Raccourci introuvable",
+        scriptCaption: "Exécute ce fichier exécutable sans entrée. Sa sortie n’est pas affichée, et un bip signale un échec."
     )
 
     static let it = RadialMenuFeatureStrings(
@@ -994,6 +1048,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Apri un file o una cartella",
         kindURL: "Apri un link",
         kindShortcut: "Premi un’abbreviazione",
+        kindAppleShortcut: "Esegui da Comandi Rapidi",
+        kindScript: "Esegui uno script",
         kindTool: "Strumento Vorssaint",
         kindMedia: "Controllo multimediale",
         kindSubmenu: "Sottomenu",
@@ -1073,7 +1129,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Nascondi elenco",
         trackpadTapLabel: "Apri con un tocco a quattro dita",
         trackpadTapConflict: "Il clic centrale usa già il tocco a quattro dita, quindi il tocco non apre questa ruota.",
-        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo."
+        profileNoTrigger: "Scegliere un profilo qui serve solo a modificarlo. Assegna a questo un’abbreviazione, un pulsante del mouse o il tocco a quattro dita qui sotto per aprirlo.",
+        appleShortcutLabel: "Comando rapido",
+        appleShortcutsEmpty: "Nessun comando rapido trovato. Creane uno nell’app Comandi Rapidi.",
+        appleShortcutMissing: "Comando rapido non trovato",
+        scriptCaption: "Esegue questo file eseguibile senza input. L’output non viene mostrato e un segnale acustico indica un errore."
     )
 
     static let ja = RadialMenuFeatureStrings(
@@ -1099,6 +1159,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "ファイルまたはフォルダを開く",
         kindURL: "リンクを開く",
         kindShortcut: "ショートカットを押す",
+        kindAppleShortcut: "ショートカットAppから実行",
+        kindScript: "スクリプトを実行",
         kindTool: "Vorssaintのツール",
         kindMedia: "メディアコントロール",
         kindSubmenu: "サブメニュー",
@@ -1178,7 +1240,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "リストを非表示",
         trackpadTapLabel: "4本指のタップで開く",
         trackpadTapConflict: "4本指のタップは中クリックで使用中のため、このホイールは開きません。",
-        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。"
+        profileNoTrigger: "ここでプロファイルを選んでも編集するだけです。このプロファイルを開くには、下でショートカット、マウスボタン、または4本指のタップを設定してください。",
+        appleShortcutLabel: "ショートカット",
+        appleShortcutsEmpty: "ショートカットが見つかりません。ショートカットAppで作成してください。",
+        appleShortcutMissing: "ショートカットが見つかりません",
+        scriptCaption: "この実行可能ファイルを入力なしで実行します。出力は表示されず、失敗した場合はビープ音が鳴ります。"
     )
 
     static let ko = RadialMenuFeatureStrings(
@@ -1204,6 +1270,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "파일 또는 폴더 열기",
         kindURL: "링크 열기",
         kindShortcut: "단축키 누르기",
+        kindAppleShortcut: "단축어에서 실행",
+        kindScript: "스크립트 실행",
         kindTool: "Vorssaint 도구",
         kindMedia: "미디어 제어",
         kindSubmenu: "하위 메뉴",
@@ -1283,7 +1351,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "목록 숨기기",
         trackpadTapLabel: "네 손가락 탭으로 열기",
         trackpadTapConflict: "네 손가락 탭은 이미 가운데 클릭에 사용 중이므로 이 휠을 열지 않습니다.",
-        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요."
+        profileNoTrigger: "여기서 프로필을 고르면 편집만 됩니다. 이 프로필을 열려면 아래에서 단축키, 마우스 버튼 또는 네 손가락 탭을 지정하세요.",
+        appleShortcutLabel: "단축어",
+        appleShortcutsEmpty: "단축어가 없습니다. 단축어 앱에서 만들어 보세요.",
+        appleShortcutMissing: "단축어를 찾을 수 없음",
+        scriptCaption: "이 실행 파일을 입력 없이 실행합니다. 출력은 표시되지 않으며, 실패하면 경고음이 울립니다."
     )
 
     static let zhHans = RadialMenuFeatureStrings(
@@ -1309,6 +1381,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "打开文件或文件夹",
         kindURL: "打开链接",
         kindShortcut: "按下快捷键",
+        kindAppleShortcut: "从快捷指令运行",
+        kindScript: "运行脚本",
         kindTool: "Vorssaint 工具",
         kindMedia: "媒体控制",
         kindSubmenu: "子菜单",
@@ -1388,7 +1462,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隐藏列表",
         trackpadTapLabel: "用四指轻点打开",
         trackpadTapConflict: "四指轻点已用于中键点按，因此不会打开这个转盘。",
-        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。"
+        profileNoTrigger: "在这里选择配置只是为了编辑它。要打开这个配置，请在下方为它设置快捷键、鼠标按钮或四指轻点。",
+        appleShortcutLabel: "快捷指令",
+        appleShortcutsEmpty: "未找到快捷指令。请在“快捷指令”App 中创建。",
+        appleShortcutMissing: "未找到快捷指令",
+        scriptCaption: "不带输入运行此可执行文件。不会显示输出，发出提示音表示运行失败。"
     )
 
     static let zhTW = RadialMenuFeatureStrings(
@@ -1414,6 +1492,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "打開檔案或檔案夾",
         kindURL: "打開連結",
         kindShortcut: "按下快速鍵",
+        kindAppleShortcut: "從捷徑執行",
+        kindScript: "執行腳本",
         kindTool: "Vorssaint 工具",
         kindMedia: "媒體控制",
         kindSubmenu: "子選單",
@@ -1493,7 +1573,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
         trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
-        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。"
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快速鍵、滑鼠按鈕或四指輕點。",
+        appleShortcutLabel: "捷徑",
+        appleShortcutsEmpty: "找不到捷徑。請在「捷徑」App 中製作。",
+        appleShortcutMissing: "找不到捷徑",
+        scriptCaption: "不帶輸入執行此可執行檔案。不會顯示輸出，發出提示聲表示執行失敗。"
     )
 
     static let zhHK = RadialMenuFeatureStrings(
@@ -1519,6 +1603,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "打開檔案或資料夾",
         kindURL: "打開連結",
         kindShortcut: "按下快速鍵",
+        kindAppleShortcut: "從捷徑執行",
+        kindScript: "執行腳本",
         kindTool: "Vorssaint 工具",
         kindMedia: "媒體控制",
         kindSubmenu: "子選單",
@@ -1598,7 +1684,11 @@ extension RadialMenuFeatureStrings {
         hideListButton: "隱藏列表",
         trackpadTapLabel: "用四指輕點打開",
         trackpadTapConflict: "四指輕點已用於中鍵點按，因此不會打開這個轉盤。",
-        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。"
+        profileNoTrigger: "在這裡選擇設定檔只是為了編輯它。若要打開這個設定檔，請在下方為它設定快捷鍵、滑鼠按鈕或四指輕點。",
+        appleShortcutLabel: "捷徑",
+        appleShortcutsEmpty: "找不到捷徑。請在「捷徑」App 中製作。",
+        appleShortcutMissing: "找不到捷徑",
+        scriptCaption: "不帶輸入執行此可執行檔案。不會顯示輸出，發出提示聲表示執行失敗。"
     )
     static let uk = RadialMenuFeatureStrings(
         pageTitle: "Радіальне меню",
@@ -1623,6 +1713,8 @@ extension RadialMenuFeatureStrings {
         kindFile: "Відкрити файл або папку",
         kindURL: "Відкрити посилання",
         kindShortcut: "Натисніть клавіатурне скорочення",
+        kindAppleShortcut: "Запустити зі «Швидких команд»",
+        kindScript: "Запустити скрипт",
         kindTool: "Інструмент Vorssaint",
         kindMedia: "Керування медіа",
         kindSubmenu: "Підменю",
@@ -1702,6 +1794,10 @@ extension RadialMenuFeatureStrings {
         hideListButton: "Сховати список",
         trackpadTapLabel: "Відкривати дотиком чотирма пальцями",
         trackpadTapConflict: "Дотик чотирма пальцями вже зайнятий середньою кнопкою, тому він не відкриває це колесо.",
-        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями."
+        profileNoTrigger: "Вибір профілю тут лише відкриває його для редагування. Щоб цей профіль відкривався, задайте йому нижче клавіатурне скорочення, кнопку миші або дотик чотирма пальцями.",
+        appleShortcutLabel: "Швидка команда",
+        appleShortcutsEmpty: "Швидких команд не знайдено. Створіть команду в програмі «Швидкі команди».",
+        appleShortcutMissing: "Швидку команду не знайдено",
+        scriptCaption: "Запускає цей виконуваний файл без вхідних даних. Вивід не показується, а звуковий сигнал означає помилку."
     )
 }
