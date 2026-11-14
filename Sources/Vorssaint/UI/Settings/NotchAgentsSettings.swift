@@ -20,6 +20,10 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
+    @AppStorage(DefaultsKey.notchAgentsNeedsInput) private var needsInput = true
+    @AppStorage(DefaultsKey.notchAgentsNeedsInputAlert) private var needsInputAlert = true
+    @State private var hookStatus: ClaudeHookSetup.Status?
+    @State private var hookFailed = false
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
@@ -102,6 +106,7 @@ struct NotchAgentsSettingsControls: View {
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
                                       provider: claude ? .claude : codex ? .codex : opencode ? .opencode : .copilot)
                     .padding(.leading, settingsRowTextInset)
+                if claude { needsInputSettings }
             }
 
             Divider()
@@ -115,6 +120,9 @@ struct NotchAgentsSettingsControls: View {
                     }
                 }
                 .padding(.leading, settingsRowTextInset)
+            }
+            if claude, liveActivity, needsInput {
+                switchRow("questionmark.bubble", inputText.alertTitle, isOn: $needsInputAlert)
             }
             switchRow("exclamationmark.triangle", text.limitAlert, isOn: $limitAlert)
             if limitAlert {
@@ -268,6 +276,56 @@ struct NotchAgentsSettingsControls: View {
     private func findRoots() {
         let found = AgentLogRoot.all(claudeProfile: ClaudeAccountProfile(directory: claudeProfile)).filter(\.exists).map(\.provider)
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
+    }
+
+    private var inputText: AgentInputStrings { FeatureStrings.agentInput(l10n.language) }
+
+    /// Claude waiting on its person: the option, then whether Claude Code
+    /// is connected, with the button that connects or disconnects it.
+    @ViewBuilder private var needsInputSettings: some View {
+        SettingsRow(symbol: "questionmark.circle", title: inputText.settingTitle, caption: inputText.settingCaption) {
+            Toggle(inputText.settingTitle, isOn: $needsInput).labelsHidden().toggleStyle(.switch)
+        }
+        if needsInput {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    let connected = hookStatus == .connected
+                    Label(hookStatus == .unreadable ? inputText.unreadable
+                          : connected ? inputText.connected : inputText.notConnected,
+                          systemImage: connected ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .font(.callout)
+                        .foregroundStyle(connected ? Color.green : Color.orange)
+                    Spacer(minLength: 12)
+                    Button(connected ? inputText.remove : inputText.setUp) {
+                        changeHook(connect: !connected)
+                    }
+                    .disabled(hookStatus == nil || hookStatus == .unreadable)
+                }
+                Text(hookFailed ? inputText.setupFailed : inputText.setupCaption)
+                    .font(.caption)
+                    .foregroundStyle(hookFailed ? Color.red : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.leading, settingsRowTextInset)
+            .onAppear { refreshHookStatus() }
+        }
+    }
+
+    private func refreshHookStatus() {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let status = ClaudeHookSetup.status()
+            DispatchQueue.main.async { hookStatus = status }
+        }
+    }
+
+    private func changeHook(connect: Bool) {
+        hookFailed = false
+        do {
+            if connect { try ClaudeHookSetup.connect() } else { try ClaudeHookSetup.disconnect() }
+        } catch {
+            hookFailed = true
+        }
+        refreshHookStatus()
     }
 
     private func switchRow(_ symbol: String, _ title: String, isOn: Binding<Bool>) -> some View {
