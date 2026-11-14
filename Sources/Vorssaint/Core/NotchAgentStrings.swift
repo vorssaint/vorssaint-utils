@@ -101,6 +101,12 @@ struct NotchAgentStrings {
     let resetsUpdate: String
     let resetsCheckFailed: String
     let resetsHelp: String
+    let claudeResetConfirm: String
+    let resetsSaved: String
+    let resetsBusy: String
+    let resetsNeedClaude: String
+    let resetsClaudeSignIn: String
+    let claudeResetsHelp: String
 
     func tokens(_ count: String) -> String { String(format: tokensFormat, count) }
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
@@ -285,7 +291,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Sign in to Codex with a plan to see resets",
         resetsUpdate: "Update Codex to use resets here",
         resetsCheckFailed: "Couldn’t check resets",
-        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.")
+        resetsHelp: "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+        claudeResetConfirm: "Reset your Claude limits now?",
+        resetsSaved: "Saved for when you reach a limit",
+        resetsBusy: "Claude asked to wait · checks again shortly",
+        resetsNeedClaude: "Needs Claude Code, signed in",
+        resetsClaudeSignIn: "Sign in to Claude Code with a plan to see resets",
+        claudeResetsHelp: "A reset renews the Claude limits it covers. Claude Code doesn’t share resets with other apps, so Vorssaint reads the sign-in Claude Code keeps in your keychain for each check and use, and never stores it.")
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
@@ -384,7 +396,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Увійдіть у Codex із планом, щоб бачити скидання",
         resetsUpdate: "Оновіть Codex, щоб використовувати скидання тут",
         resetsCheckFailed: "Не вдалося перевірити скидання",
-        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.")
+        resetsHelp: "Скидання одразу поновлює ліміти сеансу й тижня Codex. Codex перевіряє ваші скидання через власний вхід, який Vorssaint ніколи не читає.",
+        claudeResetConfirm: "Скинути ліміти Claude зараз?",
+        resetsSaved: "Збережено до досягнення ліміту",
+        resetsBusy: "Claude просить зачекати · перевірка незабаром",
+        resetsNeedClaude: "Потрібен Claude Code із виконаним входом",
+        resetsClaudeSignIn: "Увійдіть у Claude Code із планом, щоб бачити скидання",
+        claudeResetsHelp: "Скидання поновлює ліміти Claude, які воно охоплює. Claude Code не ділиться скиданнями з іншими програмами, тому Vorssaint для кожної перевірки й використання читає вхід, який Claude Code зберігає у вашій зв’язці ключів, і ніколи його не зберігає.")
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
@@ -483,7 +501,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Entre no Codex com um plano para ver as redefinições",
         resetsUpdate: "Atualize o Codex para usar as redefinições aqui",
         resetsCheckFailed: "Não foi possível verificar as redefinições",
-        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.")
+        resetsHelp: "Uma redefinição renova de uma vez os limites da sessão e da semana do Codex. O Codex verifica suas redefinições com o próprio login, que o Vorssaint nunca lê.",
+        claudeResetConfirm: "Redefinir agora os limites do Claude?",
+        resetsSaved: "Guardada para quando você atingir um limite",
+        resetsBusy: "O Claude pediu para esperar · nova verificação em breve",
+        resetsNeedClaude: "Requer o Claude Code com sessão iniciada",
+        resetsClaudeSignIn: "Entre no Claude Code com um plano para ver as redefinições",
+        claudeResetsHelp: "Uma redefinição renova os limites do Claude que ela cobre. O Claude Code não compartilha redefinições com outros apps, então o Vorssaint lê o login que o Claude Code guarda nas suas Chaves a cada verificação e uso, e nunca o armazena.")
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
@@ -582,7 +606,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Inicia sesión en Codex con un plan para ver los reinicios",
         resetsUpdate: "Actualiza Codex para usar los reinicios aquí",
         resetsCheckFailed: "No se pudieron comprobar los reinicios",
-        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.")
+        resetsHelp: "Un reinicio renueva a la vez los límites de la sesión y de la semana de Codex. Codex comprueba tus reinicios con su propio inicio de sesión, que Vorssaint nunca lee.",
+        claudeResetConfirm: "¿Restablecer ahora los límites de Claude?",
+        resetsSaved: "Guardado para cuando alcances un límite",
+        resetsBusy: "Claude pidió esperar · se comprobará de nuevo pronto",
+        resetsNeedClaude: "Requiere Claude Code con sesión iniciada",
+        resetsClaudeSignIn: "Inicia sesión en Claude Code con un plan para ver los restablecimientos",
+        claudeResetsHelp: "Un restablecimiento renueva los límites de Claude que cubre. Claude Code no comparte los restablecimientos con otras apps, así que Vorssaint lee el inicio de sesión que Claude Code guarda en tu llavero en cada comprobación y uso, y nunca lo almacena.")
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
@@ -681,7 +711,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Prihláste sa do Codexu s plánom, aby ste videli obnovenia",
         resetsUpdate: "Aktualizujte Codex, aby ste tu mohli používať obnovenia",
         resetsCheckFailed: "Obnovenia sa nepodarilo skontrolovať",
-        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.")
+        resetsHelp: "Obnovenie naraz obnoví limity relácie aj týždňa v Codexe. Codex kontroluje vaše obnovenia vlastným prihlásením, ktoré Vorssaint nikdy nečíta.",
+        claudeResetConfirm: "Obnoviť limity Claude teraz?",
+        resetsSaved: "Uložené na chvíľu, keď dosiahnete limit",
+        resetsBusy: "Claude požiadal o počkanie · čoskoro sa overí znova",
+        resetsNeedClaude: "Vyžaduje prihlásený Claude Code",
+        resetsClaudeSignIn: "Prihláste sa do Claude Code s plánom, aby ste videli obnovenia",
+        claudeResetsHelp: "Obnovenie obnoví limity Claude, na ktoré sa vzťahuje. Claude Code nezdieľa obnovenia s inými aplikáciami, preto Vorssaint pri každej kontrole a použití prečíta prihlásenie, ktoré Claude Code uchováva vo vašej kľúčenke, a nikdy ho neuloží.")
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
@@ -780,7 +816,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Melde dich in Codex mit einem Plan an, um Zurücksetzungen zu sehen",
         resetsUpdate: "Aktualisiere Codex, um Zurücksetzungen hier zu nutzen",
         resetsCheckFailed: "Zurücksetzungen konnten nicht geprüft werden",
-        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.")
+        resetsHelp: "Eine Zurücksetzung erneuert das Sitzungs- und das Wochenlimit von Codex auf einmal. Codex prüft deine Zurücksetzungen mit seiner eigenen Anmeldung, die Vorssaint nie liest.",
+        claudeResetConfirm: "Claude-Limits jetzt zurücksetzen?",
+        resetsSaved: "Aufgehoben, bis du ein Limit erreichst",
+        resetsBusy: "Claude bittet um Geduld · prüft bald erneut",
+        resetsNeedClaude: "Benötigt angemeldetes Claude Code",
+        resetsClaudeSignIn: "Melde dich in Claude Code mit einem Tarif an, um Resets zu sehen",
+        claudeResetsHelp: "Ein Reset erneuert die Claude-Limits, die er abdeckt. Claude Code teilt Resets nicht mit anderen Apps, daher liest Vorssaint für jede Prüfung und Nutzung die Anmeldung, die Claude Code in deinem Schlüsselbund ablegt, und speichert sie nie.")
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
@@ -879,7 +921,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Connectez-vous à Codex avec un forfait pour voir les réinitialisations",
         resetsUpdate: "Mettez à jour Codex pour utiliser les réinitialisations ici",
         resetsCheckFailed: "Impossible de vérifier les réinitialisations",
-        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.")
+        resetsHelp: "Une réinitialisation renouvelle d’un coup les limites de la session et de la semaine de Codex. Codex vérifie vos réinitialisations avec sa propre connexion, que Vorssaint ne lit jamais.",
+        claudeResetConfirm: "Réinitialiser maintenant les limites de Claude ?",
+        resetsSaved: "Gardée pour quand vous atteignez une limite",
+        resetsBusy: "Claude demande d’attendre · nouvelle vérification bientôt",
+        resetsNeedClaude: "Nécessite Claude Code, connecté",
+        resetsClaudeSignIn: "Connectez-vous à Claude Code avec un forfait pour voir les réinitialisations",
+        claudeResetsHelp: "Une réinitialisation renouvelle les limites de Claude qu’elle couvre. Claude Code ne partage pas les réinitialisations avec d’autres apps : Vorssaint lit donc, à chaque vérification et utilisation, la connexion que Claude Code garde dans votre trousseau, sans jamais la conserver.")
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
@@ -978,7 +1026,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Accedi a Codex con un piano per vedere i ripristini",
         resetsUpdate: "Aggiorna Codex per usare i ripristini qui",
         resetsCheckFailed: "Impossibile controllare i ripristini",
-        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.")
+        resetsHelp: "Un ripristino rinnova insieme i limiti della sessione e della settimana di Codex. Codex controlla i tuoi ripristini con il proprio accesso, che Vorssaint non legge mai.",
+        claudeResetConfirm: "Reimpostare ora i limiti di Claude?",
+        resetsSaved: "Conservato per quando raggiungi un limite",
+        resetsBusy: "Claude ha chiesto di attendere · nuovo controllo a breve",
+        resetsNeedClaude: "Richiede Claude Code con accesso eseguito",
+        resetsClaudeSignIn: "Accedi a Claude Code con un piano per vedere i reset",
+        claudeResetsHelp: "Un reset rinnova i limiti di Claude che copre. Claude Code non condivide i reset con altre app, quindi Vorssaint legge l’accesso che Claude Code conserva nel tuo portachiavi a ogni controllo e uso, senza mai salvarlo.")
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
@@ -1077,7 +1131,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Войдите в Codex с тарифом, чтобы видеть сбросы",
         resetsUpdate: "Обновите Codex, чтобы использовать сбросы здесь",
         resetsCheckFailed: "Не удалось проверить сбросы",
-        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.")
+        resetsHelp: "Сброс сразу обновляет лимиты сессии и недели Codex. Codex проверяет ваши сбросы через собственный вход, который Vorssaint никогда не читает.",
+        claudeResetConfirm: "Сбросить лимиты Claude сейчас?",
+        resetsSaved: "Сохранено до достижения лимита",
+        resetsBusy: "Claude просит подождать · проверка скоро",
+        resetsNeedClaude: "Нужен Claude Code с выполненным входом",
+        resetsClaudeSignIn: "Войдите в Claude Code с тарифом, чтобы видеть сбросы",
+        claudeResetsHelp: "Сброс обновляет лимиты Claude, которые он покрывает. Claude Code не делится сбросами с другими программами, поэтому Vorssaint при каждой проверке и использовании читает вход, который Claude Code хранит в вашей связке ключей, и никогда его не сохраняет.")
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
@@ -1176,7 +1236,13 @@ extension NotchAgentStrings {
         resetsSignIn: "Sıfırlamaları görmek için Codex’te bir planla oturum açın",
         resetsUpdate: "Sıfırlamaları burada kullanmak için Codex’i güncelleyin",
         resetsCheckFailed: "Sıfırlamalar denetlenemedi",
-        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.")
+        resetsHelp: "Bir sıfırlama, Codex’in oturum ve haftalık sınırlarını tek seferde yeniler. Codex sıfırlamalarınızı kendi oturum açma bilgisiyle denetler. Vorssaint bunu hiçbir zaman okumaz.",
+        claudeResetConfirm: "Claude limitleri şimdi sıfırlansın mı?",
+        resetsSaved: "Bir limite ulaştığınızda kullanılmak üzere saklandı",
+        resetsBusy: "Claude beklemeyi istedi · kısa süre sonra yeniden denetlenecek",
+        resetsNeedClaude: "Oturum açılmış Claude Code gerekir",
+        resetsClaudeSignIn: "Sıfırlamaları görmek için Claude Code’da planlı bir hesapla oturum açın",
+        claudeResetsHelp: "Sıfırlama, kapsadığı Claude limitlerini yeniler. Claude Code sıfırlamaları başka uygulamalarla paylaşmaz; bu yüzden Vorssaint her denetim ve kullanımda Claude Code’un anahtar zincirinizde tuttuğu oturumu okur ve hiçbir zaman saklamaz.")
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
@@ -1275,7 +1341,13 @@ extension NotchAgentStrings {
         resetsSignIn: "リセットを見るには、プランでCodexにサインインしてください",
         resetsUpdate: "ここでリセットを使うにはCodexをアップデートしてください",
         resetsCheckFailed: "リセットを確認できませんでした",
-        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。")
+        resetsHelp: "リセットを使うと、Codexのセッションと週の上限が同時に回復します。Codexは独自のサインイン情報でリセットを確認し、Vorssaintがそれを読み取ることはありません。",
+        claudeResetConfirm: "今すぐ Claude の上限をリセットしますか？",
+        resetsSaved: "上限に達したときのために保存中",
+        resetsBusy: "Claude から待機を求められました · まもなく再確認します",
+        resetsNeedClaude: "サインイン済みの Claude Code が必要です",
+        resetsClaudeSignIn: "リセットを表示するには、プランのあるアカウントで Claude Code にサインインしてください",
+        claudeResetsHelp: "リセットは、対象となる Claude の上限を更新します。Claude Code はリセットをほかの App と共有しないため、Vorssaint は確認と使用のたびに Claude Code がキーチェーンに保存しているサインイン情報を読み取り、保存することはありません。")
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
@@ -1374,7 +1446,13 @@ extension NotchAgentStrings {
         resetsSignIn: "초기화를 보려면 플랜으로 Codex에 로그인하세요",
         resetsUpdate: "여기서 초기화를 사용하려면 Codex를 업데이트하세요",
         resetsCheckFailed: "초기화를 확인할 수 없습니다",
-        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.")
+        resetsHelp: "초기화를 사용하면 Codex의 세션 및 주간 한도가 한 번에 갱신됩니다. Codex는 자체 로그인으로 초기화를 확인하며, Vorssaint는 이를 읽지 않습니다.",
+        claudeResetConfirm: "지금 Claude 한도를 재설정할까요?",
+        resetsSaved: "한도에 도달할 때를 위해 보관됨",
+        resetsBusy: "Claude가 대기를 요청했습니다 · 곧 다시 확인합니다",
+        resetsNeedClaude: "로그인된 Claude Code가 필요합니다",
+        resetsClaudeSignIn: "재설정을 보려면 요금제가 있는 계정으로 Claude Code에 로그인하세요",
+        claudeResetsHelp: "재설정은 해당하는 Claude 한도를 갱신합니다. Claude Code는 다른 앱과 재설정을 공유하지 않으므로, Vorssaint는 확인하고 사용할 때마다 Claude Code가 키체인에 보관한 로그인 정보를 읽으며 이를 저장하지 않습니다.")
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
@@ -1473,7 +1551,13 @@ extension NotchAgentStrings {
         resetsSignIn: "使用套餐登录 Codex 后即可查看重置",
         resetsUpdate: "请更新 Codex 以在此使用重置",
         resetsCheckFailed: "无法检查重置",
-        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。")
+        resetsHelp: "一次重置会同时恢复 Codex 的会话额度和每周额度。Codex 用自己的登录信息检查你的重置，Vorssaint 从不读取这些信息。",
+        claudeResetConfirm: "现在重置 Claude 限额吗？",
+        resetsSaved: "留到达到限额时使用",
+        resetsBusy: "Claude 要求稍候 · 稍后会再次检查",
+        resetsNeedClaude: "需要已登录的 Claude Code",
+        resetsClaudeSignIn: "使用有套餐的账户登录 Claude Code 以查看重置",
+        claudeResetsHelp: "重置会续期其涵盖的 Claude 限额。Claude Code 不与其他应用共享重置，因此 Vorssaint 每次检查和使用时都会读取 Claude Code 保存在钥匙串中的登录信息，且从不存储。")
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
@@ -1572,7 +1656,13 @@ extension NotchAgentStrings {
         resetsSignIn: "使用方案登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資訊檢查你的重設，Vorssaint 從不讀取這些資訊。",
+        claudeResetConfirm: "現在重設 Claude 限額嗎？",
+        resetsSaved: "保留到達到限額時使用",
+        resetsBusy: "Claude 要求稍候 · 稍後會再次檢查",
+        resetsNeedClaude: "需要已登入的 Claude Code",
+        resetsClaudeSignIn: "使用有方案的帳號登入 Claude Code 以查看重設",
+        claudeResetsHelp: "重設會續期其涵蓋的 Claude 限額。Claude Code 不與其他 App 共享重設，因此 Vorssaint 每次檢查與使用時都會讀取 Claude Code 儲存在鑰匙圈中的登入資訊，且從不儲存。")
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
@@ -1671,5 +1761,11 @@ extension NotchAgentStrings {
         resetsSignIn: "使用計劃登入 Codex 後即可查看重設",
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
-        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+        resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。",
+        claudeResetConfirm: "現在重設 Claude 限額嗎？",
+        resetsSaved: "保留至達到限額時使用",
+        resetsBusy: "Claude 要求稍候 · 稍後會再次檢查",
+        resetsNeedClaude: "需要已登入的 Claude Code",
+        resetsClaudeSignIn: "使用有計劃的帳戶登入 Claude Code 以查看重設",
+        claudeResetsHelp: "重設會續期其涵蓋的 Claude 限額。Claude Code 不與其他 App 共享重設，因此 Vorssaint 每次檢查和使用時都會讀取 Claude Code 儲存在鑰匙圈中的登入資料，並且從不儲存。")
 }
