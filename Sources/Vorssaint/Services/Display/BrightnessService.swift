@@ -260,6 +260,10 @@ final class BrightnessService: ObservableObject {
     /// only on the work queue.
     private var ddcRetryAttempts: [String: Int] = [:]
     private var serviceDiscoveryRetries = BrightnessSupport.ServiceDiscoveryRetries()
+    /// Displays the system stopped answering for, with the times it was asked
+    /// again since the last wake or display change. Touched only on the work
+    /// queue.
+    private var systemRouteRechecks: [CGDirectDisplayID: Int] = [:]
     /// The scan waiting to read a failed monitor again. Main thread only.
     private var ddcRetry: DispatchWorkItem?
     /// Uptime of the last rescan a volume key started. Main thread only.
@@ -2154,6 +2158,7 @@ final class BrightnessService: ObservableObject {
             self?.recheckedWriteOnlyPaths = []
             self?.ddcRetryAttempts = [:]
             self?.serviceDiscoveryRetries = .init()
+            self?.systemRouteRechecks = [:]
         }
     }
 
@@ -2230,6 +2235,7 @@ final class BrightnessService: ObservableObject {
         var newAudioRoutes: [CGDirectDisplayID: AudioRoute] = [:]
         var externalNames: [(id: UInt32, name: String)] = []
         var virtualIDs = Set<CGDirectDisplayID>()
+        var systemRecheckDelay: TimeInterval?
 
         for id in onlineIDs {
             let info = Self.displayInfoDictionary(id)
@@ -2288,6 +2294,7 @@ final class BrightnessService: ObservableObject {
                                                brightness: trusted, readable: !asleep))
                 newRoutes[id] = Route(method: .system, service: nil, maximum: 100,
                                       chipAddress: BrightnessSupport.chipAddress)
+                systemRouteRechecks[id] = nil
                 if !asleep {
                     stateLock.lock()
                     levelKnownAt[id] = Date()
@@ -2296,6 +2303,17 @@ final class BrightnessService: ObservableObject {
                 continue
             }
             guard let externalIdentity else { continue }
+            // A display the system answered for and now does not: ask again a
+            // few times before settling for the monitor's own control.
+            if previousDisplays.contains(where: { $0.id == id && $0.method == .system })
+                || systemRouteRechecks[id] != nil {
+                let attempt = (systemRouteRechecks[id] ?? 0) + 1
+                if let delay = BrightnessSupport.systemRouteRecheckDelay(attempt: attempt) {
+                    systemRouteRechecks[id] = attempt
+                    systemRecheckDelay = min(systemRecheckDelay ?? delay, delay)
+                    Self.log.log("system brightness silent for display \(id); asking again in \(delay)s")
+                }
+            }
             ddcCandidates.append((built.count, externalIdentity))
             // Placeholder; the DDC pass below fills brightness and route.
             built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
@@ -2324,6 +2342,7 @@ final class BrightnessService: ObservableObject {
                 recheckedWriteOnlyPaths = []
                 ddcRetryAttempts = [:]
                 serviceDiscoveryRetries = .init()
+                systemRouteRechecks = [:]
             }
             // The power control only becomes safe when it sees the new active
             // set. Brightness routes remain untouched until probing finishes.
@@ -2370,7 +2389,7 @@ final class BrightnessService: ObservableObject {
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
-        var retryDelay: TimeInterval?
+        var retryDelay: TimeInterval? = systemRecheckDelay
         // Candidates the pass found no service for. Without a note here they
         // fall to software dimming silently, which hid why one launch never
         // probed a monitor that answered on every launch after it.
