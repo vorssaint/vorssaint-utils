@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Brightness keys keep working on a monitor the system controls after the Mac wakes. If the system does not answer for the monitor right when the screen comes back, Vorssaint now asks again a few times instead of settling for the monitor's own control, which some monitors lock, for example while showing HDR.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
