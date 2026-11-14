@@ -11,7 +11,7 @@
 "NSMicrophoneUsageDescription" = "Vorssaint nimmt dein Mikrofon nur auf, wenn du es für eine Bildschirmaufnahme einschaltest. Der Ton bleibt auf deinem Mac, außer du erstellst einen temporären Link.";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";
+"NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac. Die Gesichtsentsperrung nutzt sie ebenfalls, nur bei gesperrtem Mac und wenn du sie eingeschaltet hast, um dich zu erkennen; es wird kein Bild gespeichert.";
 
 /* macOS Downloads folder permission prompt. */
 "NSDownloadsFolderUsageDescription" = "Vorssaint prüft lokale Metadaten in Downloads, um nur ausgewählte bestätigte WhatsApp-Dateien zu prüfen, zu organisieren oder in den Papierkorb zu verschieben. Aufräumen sucht außerdem nach vergessenen Bildschirmfotos, wenn du sie hier speicherst.";

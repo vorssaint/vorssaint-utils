@@ -425,6 +425,13 @@ if (( TEST )); then
         Sources/Vorssaint/Core/FeatureStrings.swift
         Sources/Vorssaint/Core/KillProcessStrings.swift
         Sources/Vorssaint/Core/PortManagerStrings.swift
+        Sources/Vorssaint/Core/FaceUnlockStrings.swift
+        Sources/Vorssaint/Core/PrivacyLockStrings.swift
+        Sources/Vorssaint/Services/PrivacyLock/PrivacyLockSupport.swift
+        Sources/Vorssaint/Services/PrivacyLock/LockedItemVault.swift
+        Sources/Vorssaint/Services/PrivacyLock/PrivacyLockKeychain.swift
+        Sources/Vorssaint/Services/PrivacyLock/PrivacyLockQuickActions.swift
+        Sources/Vorssaint/Services/FaceUnlock/FaceUnlockSupport.swift
         Sources/Vorssaint/Core/WhatsAppDownloadStrings.swift
         Sources/Vorssaint/Core/WhatsAppOrganizerStrings.swift
         Sources/Vorssaint/Core/ReleaseNotes.swift
@@ -699,6 +706,14 @@ if [[ -n "$ADAPTIVE_SKIP" ]]; then
     cp "$ICON_TMP/actool.log" build/actool-failure.log 2>/dev/null || true
     echo "  adaptive icon skipped: $ADAPTIVE_SKIP (Dock falls back to AppIcon.icns)"
 fi
+echo "▸ Compiling the face model…"
+FACE_MODEL_DIR="build/FaceModel"
+rm -rf "$FACE_MODEL_DIR"
+mkdir -p "$FACE_MODEL_DIR"
+xcrun coremlcompiler compile Resources/Models/ArcFace.mlpackage "$FACE_MODEL_DIR" >/dev/null \
+    || { echo "✗ Resources/Models/ArcFace.mlpackage failed to compile" >&2; exit 1; }
+[[ -d "$FACE_MODEL_DIR/ArcFace.mlmodelc" ]] \
+    || { echo "✗ the compiled face model is missing" >&2; exit 1; }
 echo "▸ Assembling and signing bundle…"
 STAGE_TMP="$(mktemp -d)"
 STAGE="$STAGE_TMP/$APP_NAME.app"
@@ -714,6 +729,7 @@ cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
+cp -R "$FACE_MODEL_DIR/ArcFace.mlmodelc" "$STAGE/Contents/Resources/ArcFace.mlmodelc"
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done

@@ -44,7 +44,32 @@ struct NotchLockScreenIsland: View {
     var window: CGSize? = nil
     var origin: CGPoint = .zero
     @ObservedObject private var music = NotchMusicService.shared
+    /// Face Unlock's scan, answer and retry live in the right wing, beside
+    /// the music's bars; a tap there looks again.
+    @ObservedObject private var face = FaceUnlockService.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var showsFace: Bool { FaceUnlockSupport.showsOnLockScreen() }
+
+    /// The right wing carries Face Unlock while it looks, answers or waits to
+    /// look again; otherwise it keeps the music's bars.
+    private var faceIndicator: (symbol: String, tint: Color, pulses: Bool, opacity: Double)? {
+        guard showsFace else { return nil }
+        switch face.phase {
+        case .scanning: return ("faceid", .white, true, 1)
+        case .success: return ("checkmark", .green, false, 1)
+        case .failure: return ("faceid", .orange, false, 1)
+        case .armed: return ("faceid", .white, false, 0.5)
+        case .idle: return nil
+        }
+    }
+
+    /// The padlock stays a padlock: closed while locked, open once the Mac
+    /// unlocks, and open as soon as a face is accepted.
+    private var padlockSymbol: String {
+        let open = model.padlockOpen || (showsFace && face.phase == .success)
+        return open ? "lock.open.fill" : "lock.fill"
+    }
 
     var body: some View {
         let wing = max(0, (size.width - cameraWidth) / 2)
@@ -54,7 +79,7 @@ struct NotchLockScreenIsland: View {
             .fill(.black)
             .overlay {
                 HStack(spacing: 0) {
-                    Image(systemName: model.padlockOpen ? "lock.open.fill" : "lock.fill")
+                    Image(systemName: padlockSymbol)
                         .font(.system(size: min(13, size.height * 0.42), weight: .semibold))
                         .foregroundStyle(.white)
                         .contentTransition(.symbolEffect(.replace))
@@ -64,13 +89,32 @@ struct NotchLockScreenIsland: View {
                         .padding(.leading, max(0, min(geometry.compactMusicArtworkInset, wing - padlockSide)))
                         .frame(width: wing, height: size.height, alignment: .leading)
                     Spacer(minLength: 0)
-                    NotchEqualizerBars(isPlaying: playing, bars: NotchLayout.compactMusicBarCount,
-                                       barWidth: NotchLayout.compactMusicBarWidth, height: geometry.compactMusicBarHeight,
-                                       tint: music.artworkTint?.color ?? .white)
-                        .opacity(playing ? 1 : 0)
-                        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
-                        .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))
-                        .frame(width: wing, height: size.height, alignment: .trailing)
+                    ZStack {
+                        NotchEqualizerBars(isPlaying: playing, bars: NotchLayout.compactMusicBarCount,
+                                           barWidth: NotchLayout.compactMusicBarWidth, height: geometry.compactMusicBarHeight,
+                                           tint: music.artworkTint?.color ?? .white)
+                            .opacity(playing && faceIndicator == nil ? 1 : 0)
+                            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playing)
+                            .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - NotchLayout.compactMusicBarsWidth)))
+                            .frame(width: wing, height: size.height, alignment: .trailing)
+                        if let indicator = faceIndicator {
+                            Image(systemName: indicator.symbol)
+                                .font(.system(size: min(13, size.height * 0.42), weight: .semibold))
+                                .foregroundStyle(indicator.tint)
+                                .opacity(indicator.opacity)
+                                .contentTransition(.symbolEffect(.replace))
+                                .symbolEffect(.pulse, options: .repeating, isActive: !reduceMotion && indicator.pulses)
+                                .symbolEffect(.bounce, options: .speed(1.4),
+                                              value: reduceMotion ? false : face.phase == .success)
+                                .contentShape(Rectangle())
+                                .onTapGesture { FaceUnlockService.shared.retry() }
+                                .animation(reduceMotion ? nil : .smooth(duration: 0.25), value: face.phase)
+                                .frame(width: padlockSide, height: padlockSide)
+                                .padding(.trailing, max(0, min(geometry.compactMusicBarsInset, wing - padlockSide)))
+                                .frame(width: wing, height: size.height, alignment: .trailing)
+                        }
+                    }
+                    .frame(width: wing, height: size.height)
                 }
             }
             .frame(width: size.width, height: size.height)

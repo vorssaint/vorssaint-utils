@@ -378,6 +378,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     /// alive. Without this, a hidden icon would strand the app running with no way
     /// in. (A cold launch can't happen while running, so this is the recovery path.)
     /// Reopens that Siri and Shortcuts send on their own are ignored.
+    /// A locked item double-clicked in Finder opens here and asks for its password.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated { FileLockController.shared.open(urls) }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         let requester = ReopenRequestSupport.currentSender()
         guard ReopenRequestSupport.isPersonOpeningApp(requester) else {

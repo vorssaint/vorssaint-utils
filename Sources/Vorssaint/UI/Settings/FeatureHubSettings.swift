@@ -444,6 +444,7 @@ struct FeatureHubSettings: View {
         case .tools: return hub.groupTools
         case .dynamicIsland: return FeatureStrings.notch(l10n.language).title
         case .monitor: return hub.groupMonitor
+        case .authentication: return FeatureStrings.authenticationGroupTitle(l10n.language)
         }
     }
 }
@@ -591,6 +592,7 @@ private extension FeatureGroup {
         case .tools: return "wrench.and.screwdriver.fill"
         case .dynamicIsland: return AppFeature.notch.symbolName
         case .monitor: return "chart.line.uptrend.xyaxis"
+        case .authentication: return "lock.shield.fill"
         }
     }
 }
@@ -1209,6 +1211,8 @@ extension AppFeature {
         case .uninstaller: return s.uninstallerName
         case .killProcess: return FeatureStrings.killProcess(language).pageTitle
         case .portManager: return FeatureStrings.portManager(language).title
+        case .faceUnlock: return FeatureStrings.faceUnlock(language).title
+        case .privacyLock: return FeatureStrings.privacyLock(language).title
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(language).pageTitle
         case .monitorCPU: return s.monitorShowCPU
@@ -1302,6 +1306,8 @@ extension AppFeature {
         case .uninstaller: return hub.descUninstaller
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).hubDescription
         case .portManager: return FeatureStrings.portManager(L10n.shared.language).hubDescription
+        case .faceUnlock: return FeatureStrings.faceUnlock(L10n.shared.language).hubDescription
+        case .privacyLock: return FeatureStrings.privacyLock(L10n.shared.language).hubDescription
         case .homebrew: return hub.descHomebrew
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).hubDescription
         case .monitorCPU: return hub.descMonitorCPU

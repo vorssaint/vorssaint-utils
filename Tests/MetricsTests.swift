@@ -144,6 +144,8 @@ struct MetricsTests {
             ("shortcut-clearing", { ShortcutClearingTests.run(suite) }),
             ("utilities", {
                 UtilitiesFeatureTests.run(suite)
+                FaceUnlockTests.run(suite)
+                PrivacyLockTests.run(suite)
                 TextSnippetExpansionTests.run(suite)
                 QuickTogglesAlertTests.run(suite)
                 QuickTogglesQuitAllTests.run(suite)

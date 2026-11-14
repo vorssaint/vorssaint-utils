@@ -142,6 +142,9 @@ enum SettingsBackupSupport {
         DefaultsKey.spacesOrderRestartPending,
         // A Bluetooth restore owed by one sleeping Mac means nothing on another.
         DefaultsKey.bluetoothSleepRestorePending,
+        // Camera ids name the devices of one Mac. The password and the faces
+        // are never preferences: they live in the Keychain and a sealed file.
+        DefaultsKey.faceUnlockCameraID,
         DefaultsKey.micMuteActive,
         DefaultsKey.micMuteSavedVolume,
         // Levels and device ids belong to the microphones of one Mac.

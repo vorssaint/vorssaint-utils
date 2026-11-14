@@ -54,6 +54,14 @@ final class NotchLockScreenService {
         }
     }
 
+    /// Face Unlock was installed, switched on or off, or its lock screen choice
+    /// changed: the island's window takes clicks only while it can scan.
+    func faceUnlockDidChange() {
+        guard space != nil else { return }
+        hide(unlocking: false, stopsSources: false)
+        show(closingPadlock: false)
+    }
+
     /// The island is off: nothing it started keeps running.
     func close() {
         wasLocked = false
@@ -121,7 +129,8 @@ final class NotchLockScreenService {
         }
         let island = frames.island.flatMap { frame in
             frames.islandSurface.map { surface in
-                Self.makePanel(frame: frame, content: NotchLockScreenIsland(
+                Self.makePanel(frame: frame, interactive: FaceUnlockSupport.showsOnLockScreen(),
+                               content: NotchLockScreenIsland(
                     model: model, size: surface.size, cameraWidth: NotchService.shared.geometry.bareCutout.width,
                     geometry: NotchService.shared.geometry.lockScreenMusicGeometry,
                     window: frame.size, origin: CGPoint(x: surface.minX - frame.minX, y: frame.maxY - surface.maxY)))
