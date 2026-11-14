@@ -284,7 +284,7 @@ enum SettingsDirectory {
             .init([FeatureStrings.notchClipboardSize(language).entrySize], feature: .clipboardHistory,
                   notch: .module(.clipboard), when: state.on(DefaultsKey.notchClipboardWindow)),
             .init(["camera"], feature: .cameraPreview, notch: .module(.camera)),
-            .init([notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens", notchAgents.resetsCard,
+            .init([notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "Oh My Pi", "AI", "tokens", notchAgents.resetsCard,
                    notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
