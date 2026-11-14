@@ -265,7 +265,7 @@ enum CommandBarUnitCatalog {
         add("km", l, scale: 1e3, foundation: UnitLength.kilometers,
             ["km", "kilometer", "kilometers", "kilometre", "kilometres", "quilometro", "quilometros"])
         add("in", l, scale: 0.0254, foundation: UnitLength.inches,
-            ["inch", "inches", "polegada", "polegadas", "\"", "″", "”"])
+            ["in", "inch", "inches", "polegada", "polegadas", "\"", "″", "”"])
         add("ft", l, scale: 0.3048, foundation: UnitLength.feet,
             ["ft", "foot", "feet", "pe", "pes", "'", "′", "’"])
         add("yd", l, scale: 0.9144, foundation: UnitLength.yards,
