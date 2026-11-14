@@ -227,6 +227,14 @@ enum SettingsBackup {
             isDeveloperBuild: AppInfo.isDeveloperBuild)
     }
 
+    /// The Advanced page's explicit save to the settings file. The app never
+    /// writes it on its own; this is the same complete snapshot as an export,
+    /// with the same refusal to replace a read-only or non-regular target.
+    static func writeConfigFile() -> Bool {
+        ScratchpadService.shared.prepareForSettingsBackup()
+        return write(to: configFileURL)
+    }
+
     /// A normal app launch overlays the declared keys after migrating local
     /// settings, so a migration cannot copy a declaration into an omitted key.
     /// The plist is owned by the user or their dotfiles manager.

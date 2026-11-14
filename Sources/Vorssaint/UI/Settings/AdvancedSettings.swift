@@ -18,6 +18,7 @@ struct AdvancedSettings: View {
     @State private var importFailed = false
     @State private var pendingImport: [String: Any]?
     @State private var showImportConfirm = false
+    @State private var showConfigFileConfirm = false
 
     private var backup: BackupFeatureStrings {
         FeatureStrings.backup(l10n.language)
@@ -49,6 +50,13 @@ struct AdvancedSettings: View {
                         }
                     } label: {
                         Label(backup.importButton, systemImage: "square.and.arrow.down")
+                    }
+                    Button {
+                        exported = nil
+                        importFailed = false
+                        showConfigFileConfirm = true
+                    } label: {
+                        Label(backup.configFileButton, systemImage: "doc.badge.gearshape")
                     }
                 }
                 if exported == true {
@@ -149,6 +157,17 @@ struct AdvancedSettings: View {
         } message: {
             Text(SettingsBackupSupport.omitsDynamicIslandSettings(pendingImport ?? [:])
                  ? backup.importMissingIslandBody : backup.importConfirmBody)
+        }
+        .alert(backup.configFileConfirmTitle, isPresented: $showConfigFileConfirm) {
+            Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            Button(backup.configFileAction) {
+                exported = SettingsBackup.writeConfigFile()
+            }
+        } message: {
+            // The path names the folder XDG_CONFIG_HOME selected, so a user
+            // can tell which file a dotfiles manager will see change.
+            Text(String(format: backup.configFileConfirmFormat,
+                        (SettingsBackup.configFileURL.path as NSString).abbreviatingWithTildeInPath))
         }
     }
 }
