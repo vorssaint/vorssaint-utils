@@ -9,10 +9,10 @@ enum NotchKeyboardLightTests {
             for state in [0, 10, 11, 255] {
                 for repeatBit in [0, 1] {
                     let payload = (code << 16) | (state << 8) | repeatBit
-                    suite.expect(BrightnessSupport.isKeyboardLightPress(subtype: 8, data1: payload)
-                           == ((21...23).contains(code) && state == 10),
-                           "keyboard light notices recognize only native illumination key-downs, including repeats")
-                    suite.expect(!BrightnessSupport.isKeyboardLightPress(subtype: 1, data1: payload),
+                    suite.expect(BrightnessSupport.isKeyboardLightEvent(subtype: 8, data1: payload)
+                           == ((21...23).contains(code) && (state == 10 || state == 11)),
+                           "keyboard light routing recognizes native illumination presses and releases, including repeats")
+                    suite.expect(!BrightnessSupport.isKeyboardLightEvent(subtype: 1, data1: payload),
                            "other system event types never become keyboard light notices")
                 }
             }
