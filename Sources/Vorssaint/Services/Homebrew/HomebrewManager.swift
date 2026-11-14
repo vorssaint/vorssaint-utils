@@ -236,6 +236,17 @@ final class HomebrewManager: ObservableObject {
         perform(.install, package: package)
     }
 
+    /// Installs the two local command-line tools used by the media downloader
+    /// through the same serialized Homebrew operation lane as package actions.
+    func installMediaDownloaderDependencies() {
+        guard let brewPath = brewPath ?? detectBrewPath() else {
+            openHomebrewInstaller()
+            return
+        }
+        let command = HomebrewCommand(executable: brewPath, arguments: ["install", "yt-dlp", "ffmpeg"])
+        perform(.install, package: nil, command: command)
+    }
+
     func uninstall(_ package: HomebrewPackage, fromUninstaller: Bool = false) {
         perform(.uninstall, package: package, fromUninstaller: fromUninstaller)
     }

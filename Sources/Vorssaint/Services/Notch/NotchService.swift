@@ -529,8 +529,10 @@ final class NotchService: ObservableObject {
     }
 
     var hasDownloadActivity: Bool {
-        NotchSupport.routes(.download)
-            && NotchDownloadService.shared.items.contains { $0.active && !$0.completed }
+        (NotchSupport.routes(.download)
+            && NotchDownloadService.shared.items.contains { $0.active && !$0.completed })
+            || (AppFeature.mediaDownloader.isAvailable
+                && (MediaDownloaderService.shared.isDownloading || MediaDownloaderService.shared.isBatchRunning))
     }
 
     var hasMusicActivity: Bool {
@@ -683,6 +685,7 @@ final class NotchService: ObservableObject {
                                                  wing: timerStripWing(for: companion, in: geometry))
         case .downloads:
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
+                ?? MediaDownloaderService.shared.activeDownloadTitle
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
@@ -1069,6 +1072,10 @@ final class NotchService: ObservableObject {
         let layout = NotchCapsuleLayout.self
         let language = L10n.shared.language
         let download = NotchDownloadService.shared.items.first { $0.active && !$0.completed }
+        let downloadName = download?.name ?? MediaDownloaderService.shared.activeDownloadTitle
+            ?? FeatureStrings.notchFiles(language).downloadsTitle
+        let downloadHasProgress = download?.fraction != nil
+            || MediaDownloaderService.shared.activeDownloadFraction != nil
         let working = Set(AgentUsageService.shared.snapshot.live.map(\.provider)).count
         switch activity {
         case .music:
@@ -1083,11 +1090,11 @@ final class NotchService: ObservableObject {
             return layout.timerSurface(reading: NotchTimerSupport.compactText(for: timer.session, at: timer.now,
                                                                               locale: Locale(identifier: language.rawValue)),
                                        companion: companion, workingAgents: working,
-                                       downloadPercent: download?.fraction != nil, geometry: geometry, language: language,
+                                       downloadPercent: downloadHasProgress, geometry: geometry, language: language,
                                        calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
         case .downloads:
-            return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
-                                          hasProgress: download?.fraction != nil, geometry: geometry, language: language)
+            return layout.downloadSurface(name: downloadName,
+                                          hasProgress: downloadHasProgress, geometry: geometry, language: language)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
@@ -1097,7 +1104,7 @@ final class NotchService: ObservableObject {
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
-                                                  downloadPercent: download?.fraction != nil, geometry: geometry,
+                                                  downloadPercent: downloadHasProgress, geometry: geometry,
                                                   language: language, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
             }
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),

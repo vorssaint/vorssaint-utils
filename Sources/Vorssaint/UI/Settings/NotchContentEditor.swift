@@ -158,6 +158,7 @@ struct NotchPagePreview: View {
         case .notifications:
             NotchNotificationsView(size: size).notchBand(trailing: { NotchClearNotificationsButton() })
         case .downloads: NotchDownloadsView(size: size)
+        case .mediaDownloader: MediaDownloaderView(compact: true)
         case .calendar: NotchCalendarView(size: size)
         case .controls: NotchControlsView(service: notch, size: size)
         case .mixer: NotchMixerView(size: size)
@@ -403,6 +404,7 @@ extension NotchModule {
         case .timer: return .mint
         case .camera: return .teal
         case .downloads: return .blue
+        case .mediaDownloader: return .blue
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
         case .watch: return .purple

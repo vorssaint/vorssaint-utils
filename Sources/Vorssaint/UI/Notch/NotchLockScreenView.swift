@@ -326,13 +326,14 @@ struct NotchLockScreenActivities: View {
 
     private func available(at date: Date) -> [NotchLockScreenActivity] {
         let gates = model.gates
+        let mediaDownloading = MediaDownloaderService.shared.isDownloading
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
             calendar: calendar.countdown.map {
                 ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
             agents: gates.agents && !usage.snapshot.live.isEmpty,
-            downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })
+            downloads: gates.downloads && (mediaDownloading || downloads.items.contains { $0.active && !$0.completed }))
     }
 
     private func line(_ items: [NotchLockScreenActivity], at date: Date) -> some View {
@@ -401,6 +402,7 @@ struct NotchLockScreenActivities: View {
         case .downloads:
             // Progress without the file's name, which stays off the lock screen.
             let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction
+                ?? MediaDownloaderService.shared.activeDownloadFraction
             HStack(spacing: 7) {
                 Image(systemName: "arrow.down.circle.fill").foregroundStyle(.blue)
                 if let fraction {

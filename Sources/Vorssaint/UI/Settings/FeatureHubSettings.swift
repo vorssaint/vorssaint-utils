@@ -1205,6 +1205,7 @@ extension AppFeature {
         case .commandBar: return FeatureStrings.commandBar(language).pageTitle
         case .cleaningMode: return s.cleaningMenuItem
         case .mediaTools: return s.mediaName
+        case .mediaDownloader: return "Online Media Downloader"
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
         case .killProcess: return FeatureStrings.killProcess(language).pageTitle
@@ -1292,6 +1293,7 @@ extension AppFeature {
         case .commandBar: return FeatureStrings.commandBar(L10n.shared.language).hubDescription
         case .cleaningMode: return hub.descCleaningMode
         case .mediaTools: return hub.descMediaTools
+        case .mediaDownloader: return "Download video and audio from supported platforms."
         case .cleaner:
             let description = hub.descCleaner
             guard WhatsAppDownloadSupport.isEnabled else {

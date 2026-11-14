@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, mediaDownloader, scratchpad, agents, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -20,6 +20,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .timer: return "timer"
         case .camera: return "web.camera"
         case .downloads: return "arrow.down.circle"
+        case .mediaDownloader: return "film"
         case .notifications: return "bell"
         case .calendar: return "calendar"
         case .clipboard: return "doc.on.clipboard"
@@ -50,6 +51,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .timer: return "r"
         case .camera: return "w"
         case .downloads: return "d"
+        case .mediaDownloader: return "l"
         case .scratchpad: return "p"
         case .agents: return "g"
         case .watch: return "o"
@@ -62,6 +64,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .timer: return AppFeature.notchTimer.isAvailable(in: defaults)
         case .camera: return AppFeature.cameraPreview.isAvailable(in: defaults)
         case .downloads: return AppFeature.notchDownloads.isAvailable(in: defaults)
+        case .mediaDownloader: return AppFeature.mediaDownloader.isAvailable(in: defaults)
         case .notifications: return AppFeature.notchNotifications.isAvailable(in: defaults)
         case .calendar: return AppFeature.notchCalendar.isAvailable(in: defaults)
         case .mixer: return AppFeature.mixer.isAvailable(in: defaults)
@@ -845,7 +848,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return .timer
         case .watch: return .watch
-        case .downloads: return .downloads
+        case .downloads: return MediaDownloaderService.shared.isDownloading ? .mediaDownloader : .downloads
         case .agents: return .agents
         case .calendar: return .calendar
         case .music: return .music
@@ -2791,7 +2794,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .mediaDownloader, .camera, .scratchpad, .watch:
                 contentHeight = budget
             }
         }
