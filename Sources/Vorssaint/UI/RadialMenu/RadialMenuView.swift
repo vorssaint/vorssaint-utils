@@ -454,6 +454,12 @@ extension RadialMenuItem {
             return URL(string: normalized)?.host ?? payload
         case .shortcut:
             return GlobalShortcut(storageValue: payload)?.displayString ?? text.kindShortcut
+        case .snippet:
+            let snippets = TextSnippetSupport.decode(UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))
+            if let snippet = RadialMenuSupport.snippet(for: self, in: snippets) {
+                return snippet.name.isEmpty ? snippet.trigger : snippet.name
+            }
+            return AppFeature.textSnippets.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))
         case .tool:
             guard let tool else { return text.kindTool }
             return tool.feature.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))

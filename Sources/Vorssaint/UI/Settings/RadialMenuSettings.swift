@@ -680,6 +680,8 @@ private struct RadialItemRow: View {
         case .file: return text.kindFile
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
+        case .snippet: return AppFeature.textSnippets.hubTitle(L10n.shared.s,
+                                                                hub: FeatureStrings.hub(L10n.shared.language))
         case .tool: return text.kindTool
         case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
@@ -834,6 +836,15 @@ private struct RadialItemEditor: View {
         RadialMenuTool.allCases.filter { $0.isRunnable() }
     }
 
+    private var availableSnippets: [TextSnippet] {
+        TextSnippetSupport.sortedForDisplay(TextSnippetSupport.decode(
+            UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))).filter(\.enabled)
+    }
+
+    private var snippetTitle: String {
+        AppFeature.textSnippets.hubTitle(l10n.s, hub: FeatureStrings.hub(l10n.language))
+    }
+
     private var availableQuickToggles: [RadialMenuQuickToggle] {
         RadialMenuQuickToggle.allCases.filter { $0.feature.isAvailable }
     }
@@ -846,6 +857,7 @@ private struct RadialItemEditor: View {
     // the wheel would silently drop.
     private var saveDisabled: Bool {
         !RadialMenuSupport.isValidPayload(item)
+            || (item.kind == .snippet && RadialMenuSupport.snippet(for: item, in: availableSnippets) == nil)
     }
 
     var body: some View {
@@ -859,6 +871,9 @@ private struct RadialItemEditor: View {
                     Text(text.kindFile).tag(RadialMenuItem.Kind.file)
                     Text(text.kindURL).tag(RadialMenuItem.Kind.url)
                     Text(text.kindShortcut).tag(RadialMenuItem.Kind.shortcut)
+                    if AppFeature.textSnippets.isAvailable && (!availableSnippets.isEmpty || item.kind == .snippet) {
+                        Text(snippetTitle).tag(RadialMenuItem.Kind.snippet)
+                    }
                     if !availableTools.isEmpty {
                         Text(text.kindTool).tag(RadialMenuItem.Kind.tool)
                     }
@@ -951,6 +966,7 @@ private struct RadialItemEditor: View {
             if kind != .url { item.customIconData = nil }
             switch kind {
             case .tool: item.payload = availableTools.first?.rawValue ?? ""
+            case .snippet: item.payload = availableSnippets.first?.id.uuidString ?? ""
             case .quickToggle: item.payload = availableQuickToggles.first?.rawValue ?? ""
             case .windowLayout: item.payload = WindowLayoutAction.leftHalf.rawValue
             case .media: item.payload = RadialMenuMediaKey.playPause.rawValue
@@ -1046,6 +1062,13 @@ private struct RadialItemEditor: View {
                                            shortcutMessage = nil
                                        })
                     .frame(width: 108)
+            }
+        case .snippet:
+            Picker(snippetTitle, selection: $item.payload) {
+                ForEach(availableSnippets) { snippet in
+                    Text(snippet.name.isEmpty ? snippet.trigger : snippet.name)
+                        .tag(snippet.id.uuidString)
+                }
             }
         case .tool:
             Picker(text.toolLabel, selection: $item.payload) {

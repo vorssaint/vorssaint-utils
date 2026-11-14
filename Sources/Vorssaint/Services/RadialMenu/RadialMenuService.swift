@@ -745,6 +745,16 @@ final class RadialMenuService: ObservableObject {
             if let shortcut = GlobalShortcut(storageValue: item.payload) {
                 postWhenModifiersReleased(attempt: 0) { Self.postShortcut(shortcut) }
             }
+        case .snippet:
+            guard AppFeature.textSnippets.isAvailable,
+                  UserDefaults.standard.bool(forKey: DefaultsKey.textSnippetsEnabled),
+                  let snippet = RadialMenuSupport.snippet(
+                    for: item,
+                    in: TextSnippetSupport.decode(UserDefaults.standard.data(forKey: DefaultsKey.textSnippets))) else {
+                NSSound.beep()
+                return
+            }
+            SnippetLibraryService.shared.insert(snippet)
         case .media:
             if let key = item.mediaKey {
                 if key == .nowPlaying {
