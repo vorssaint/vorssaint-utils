@@ -111,7 +111,7 @@ struct TextSnippetsSettings: View {
                     SnippetRow(snippet: snippet,
                                modeLabel: snippet.expansion == .immediate
                                    ? text.expansionImmediate
-                                   : text.expansionDelimiter,
+                                   : snippet.expansion == .afterTab ? text.expansionTab : text.expansionDelimiter,
                                toggle: { setEnabled($0, id: snippet.id) },
                                edit: { editing = snippet })
                 }
@@ -316,6 +316,7 @@ private struct SnippetEditor: View {
                     .font(.body.monospaced())
                 Picker(text.expansionLabel, selection: $snippet.expansion) {
                     Text(text.expansionDelimiter).tag(TextSnippet.Expansion.afterDelimiter)
+                    Text(text.expansionTab).tag(TextSnippet.Expansion.afterTab)
                     Text(text.expansionImmediate).tag(TextSnippet.Expansion.immediate)
                 }
                 Toggle(text.ignoreCaseLabel, isOn: $snippet.ignoresCase)
