@@ -149,7 +149,9 @@ extension AppFeature {
                 || BrightnessSupport.KeyStep.sanitized(
                     defaults.string(forKey: DefaultsKey.brightnessKeyStep)) != .standard
                 ? .keyboard : .idle
-        case .mouseAcceleration, .spacesOrder, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
+        // Always On Top watches windows only while something is pinned; at
+        // rest it holds a shortcut.
+        case .mouseAcceleration, .spacesOrder, .alwaysOnTop, .pastePlain, .soundOutputSwitcher, .audioPriority, .micMute,
              .bluetoothSleep, .keepAwake, .quickLauncher, .quickToggles, .quitApps, .colorPicker,
              .screenOCR, .cleaningMode, .mediaTools, .cleaner, .uninstaller, .homebrew, .screenshot,
              .cameraPreview, .scratchpad, .commandBar, .screenRecorder, .wallpaper, .fanControl,
