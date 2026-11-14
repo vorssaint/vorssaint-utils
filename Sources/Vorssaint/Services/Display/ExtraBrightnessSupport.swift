@@ -4,8 +4,8 @@
 import CoreGraphics
 import Foundation
 
-/// Pure math for the extra brightness boost, kept free of AppKit and Metal so
-/// the unit tests can pin its behavior.
+/// Decisions and math for the extra brightness boost, kept free of AppKit and
+/// Metal so unit tests can pin its behavior.
 ///
 /// The boost is a fullscreen overlay whose Metal layer composites with a
 /// multiply filter: every pixel beneath is multiplied by a gray above 1.0 in
@@ -13,6 +13,10 @@ import Foundation
 /// panel reserves for HDR. Blacks stay black and contrast is preserved, since
 /// multiplication only scales.
 enum ExtraBrightnessSupport {
+    static func isNativeCaptureProcess(_ name: String) -> Bool {
+        name == "screencapture" || name == "screencaptureui"
+    }
+
     /// The overlay needs to show extended range content before macOS engages
     /// the panel's headroom, so the first frame renders this small boost;
     /// polling then ramps to the real factor as the headroom rises.
