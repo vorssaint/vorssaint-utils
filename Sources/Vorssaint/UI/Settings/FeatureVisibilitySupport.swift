@@ -39,6 +39,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case dock
     case dockClick
     case spacesOrder
+    case dockTweaks
     case finderCutPaste
     case finderRename
     case clipboardHistory
@@ -72,7 +73,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
              .middleClick, .mouseClickDebounce:
             return .mouse
         case .switcher: return .switcher
-        case .dock, .dockClick, .spacesOrder: return .dock
+        case .dock, .dockClick, .spacesOrder, .dockTweaks: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad,
@@ -328,6 +329,7 @@ extension AppFeature {
         case .dockPreview: return FeatureSettingsDestination(.dock, sectionAnchor: .dock)
         case .dockClick: return FeatureSettingsDestination(.dock, sectionAnchor: .dockClick)
         case .spacesOrder: return FeatureSettingsDestination(.dock, sectionAnchor: .spacesOrder)
+        case .dockTweaks: return FeatureSettingsDestination(.dock, sectionAnchor: .dockTweaks)
         case .windowMaximizer:
             return FeatureSettingsDestination(.windowLayout, sectionAnchor: .windowMaximizer)
         case .windowLayout: return FeatureSettingsDestination(.windowLayout)
@@ -461,7 +463,7 @@ enum FeatureVisibilitySupport {
         case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher]
-        case .dock: return [.dockPreview, .dockClick, .spacesOrder]
+        case .dock: return [.dockPreview, .dockClick, .spacesOrder, .dockTweaks]
         case .windowLayout: return [.windowLayout, .windowMaximizer]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]

@@ -454,6 +454,8 @@ enum SettingsDirectory {
                                                       s.dockClickMinimize, s.dockClickHide,
                                                       s.dockClickCycleWindows]),
                                         (.spacesOrder, [s.spacesOrderName]),
+                                        (.dockTweaks, [FeatureStrings.settingsPages(language).dockTweaks,
+                                                       FeatureStrings.settingsPages(language).dockSizeLock]),
                                        ], terms: [
                                         .init([s.dockPreviewOpenDelay, s.dockPreviewBackgroundOpacity,
                                                s.dockPreviewQuitAppOnClose, s.dockPreviewKeepDockVisible,
