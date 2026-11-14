@@ -16,6 +16,146 @@ extension AgentProvider {
     }
 }
 
+/// When a limit renews, in teal: good news, kept apart from the agents'
+/// colors and the green, yellow and red of spending.
+let agentResetTint = Color(red: 0x40 / 255, green: 0xC8 / 255, blue: 0xE0 / 255)
+
+/// An amount at API prices: green under $100, yellow to $500, red beyond.
+func agentSpendTint(_ value: Double) -> Color {
+    switch AgentFormat.spendLevel(value) {
+    case .low: return Color(red: 0x5F / 255, green: 0xD0 / 255, blue: 0x68 / 255)
+    case .medium: return Color(red: 0xF2 / 255, green: 0xC9 / 255, blue: 0x4C / 255)
+    case .high: return Color(red: 1, green: 0x45 / 255, blue: 0x3A / 255)
+    }
+}
+
+/// A terminal's prompt, `>_`, drawn to fit any square.
+struct NotchAgentTerminalMark: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width, h = rect.height
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX + w * 0.16, y: rect.minY + h * 0.24))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.44, y: rect.minY + h * 0.5))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.16, y: rect.minY + h * 0.76))
+        path.move(to: CGPoint(x: rect.minX + w * 0.54, y: rect.minY + h * 0.8))
+        path.addLine(to: CGPoint(x: rect.minX + w * 0.84, y: rect.minY + h * 0.8))
+        return path
+    }
+}
+
+/// Where a session runs: the terminal's prompt in white, or an app tile in
+/// the agent's own color with its mark in white.
+struct NotchAgentPlaceIcon: View {
+    let place: AgentSessionPlace
+    let provider: AgentProvider
+    let size: CGFloat
+    var tint: Color = .white
+
+    var body: some View {
+        Group {
+            switch place {
+            case .terminal:
+                NotchAgentTerminalMark()
+                    .stroke(tint, style: StrokeStyle(lineWidth: max(1, size * 0.13), lineCap: .round, lineJoin: .round))
+            case .app:
+                RoundedRectangle(cornerRadius: size * 0.27, style: .continuous)
+                    .fill(provider.tint)
+                    .overlay(NotchAgentMark(provider: provider, size: size * 0.62, tint: .white))
+            }
+        }
+        .frame(width: size, height: size)
+        .accessibilityHidden(true)
+    }
+}
+
+/// The closed island's mark while agents work: the agent inside its limit
+/// ring, read as the person chose (used or left), and on the ring a badge for
+/// each place it works.
+struct NotchAgentWorkingMark: View {
+    let layout: NotchAgentWorkingLayout
+    let window: AgentLimitWindow?
+    let used: Bool
+
+    /// The terminal's badge, grey beside the agent-colored app tile.
+    private static let terminalFill = Color(red: 0x3A / 255, green: 0x3A / 255, blue: 0x3C / 255)
+
+    var body: some View {
+        ZStack {
+            if let window {
+                NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
+                               tint: ringTint(window), lineWidth: layout.lineWidth, track: 0.24)
+            } else {
+                Circle().stroke(.white.opacity(0.24), lineWidth: layout.lineWidth)
+            }
+            NotchAgentMark(provider: layout.provider, size: layout.markSize, tint: layout.provider.tint)
+        }
+        .frame(width: layout.ring, height: layout.ring)
+        // Badges overhang the ring's box; nothing here may clip them.
+        .overlay(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                if layout.terminal > 0 { badge(.terminal, count: layout.terminal) }
+                if layout.app > 0 { badge(.app, count: layout.app) }
+            }
+        }
+        .frame(width: layout.width, height: layout.ring, alignment: .leading)
+        .accessibilityHidden(true)
+    }
+
+    /// White while the window has room; the resting island's yellow and red
+    /// as it runs low, whichever way the ring is read.
+    private func ringTint(_ window: AgentLimitWindow) -> Color {
+        let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
+        return status == .normal ? .white : agentStatusTint(status)
+    }
+
+    private func badge(_ place: AgentSessionPlace, count: Int) -> some View {
+        let height = layout.badgeHeight
+        let glyph = layout.glyph(place)
+        let anchor = layout.anchor(place)
+        let radius = height * 0.3
+        let cut = NotchAgentWorkingLayout.cut
+        return HStack(spacing: 1) {
+            Group {
+                switch place {
+                case .terminal:
+                    NotchAgentTerminalMark()
+                        .stroke(.white, style: StrokeStyle(lineWidth: max(1, glyph * 0.13), lineCap: .round, lineJoin: .round))
+                case .app:
+                    NotchAgentMark(provider: layout.provider, size: glyph, tint: .white)
+                }
+            }
+            .frame(width: glyph, height: glyph)
+            if count > 1 {
+                Text("\(count)")
+                    .font(.system(size: layout.countSize, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        .padding(.leading, count > 1 ? layout.padding(place) : 0)
+        .frame(width: layout.badgeWidth(place, count: count), height: height,
+               alignment: count > 1 ? .leading : .center)
+        .background(RoundedRectangle(cornerRadius: radius, style: .continuous)
+            .fill(place == .terminal ? Self.terminalFill : layout.provider.tint))
+        .background(RoundedRectangle(cornerRadius: radius + cut, style: .continuous)
+            .fill(.black)
+            .padding(-cut))
+        .offset(x: anchor.x - height / 2, y: anchor.y - height / 2)
+    }
+}
+
+/// The resting island's colors: green while a window has room, yellow once
+/// it runs low and red when it is almost out, as the system draws them dark.
+func agentStatusTint(_ status: NotchAgentRestingStatus) -> Color {
+    switch status {
+    case .normal: return Color(red: 0x30 / 255, green: 0xD1 / 255, blue: 0x58 / 255)
+    case .low: return Color(red: 1, green: 0xD6 / 255, blue: 0x0A / 255)
+    case .almostOut: return Color(red: 1, green: 0x45 / 255, blue: 0x3A / 255)
+    }
+}
+
 /// Green reads as fine and red as trouble only when it earns it: the agent's
 /// own color while there is room, orange once a window runs low.
 func agentLimitTint(_ provider: AgentProvider, usedFraction: Double) -> Color {
@@ -24,16 +164,22 @@ func agentLimitTint(_ provider: AgentProvider, usedFraction: Double) -> Color {
     return provider.tint
 }
 
-/// A card on the AI page: the same surface as the island's system cards.
+/// A card on the AI page: the same surface as the island's system cards,
+/// and the widgets' glass tile on the lock screen.
 struct NotchAgentCardChrome<Content: View>: View {
     @ViewBuilder let content: Content
+    @Environment(\.notchAgentsLockScreen) private var lockScreen
 
     var body: some View {
-        content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+        if lockScreen != nil {
+            content.lockScreenTile(horizontal: 17, vertical: 13)
+        } else {
+            content
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
+        }
     }
 }
 
@@ -110,11 +256,12 @@ struct NotchAgentRing: View {
     let value: Double
     var tint: Color = .white
     var lineWidth: CGFloat = 2.5
+    var track: Double = 0.18
 
     var body: some View {
         let fraction = value.isFinite ? min(1, max(0, value)) : 0
         ZStack {
-            Circle().stroke(.white.opacity(0.18), lineWidth: lineWidth)
+            Circle().stroke(.white.opacity(track), lineWidth: lineWidth)
             Circle()
                 .trim(from: 0, to: fraction)
                 .stroke(tint, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
@@ -399,8 +546,37 @@ struct NotchAgentMark: View {
     let provider: AgentProvider
     var size: CGFloat = 13
     var tint: Color?
+    /// A box the mark must fit, as inside the resting ring. Boxed, an app
+    /// icon is never drawn: its own colors and margin read as a smudge.
+    var box: CGFloat? = nil
 
     var body: some View {
+        if let box {
+            boxed(box)
+        } else {
+            sized
+        }
+    }
+
+    @ViewBuilder private func boxed(_ box: CGFloat) -> some View {
+        if case .template(let image) = AgentMarks.mark(for: provider) {
+            // The menu bar images keep a margin; the knot's fills the box.
+            let side = box * provider.markScale / 1.2
+            Image(nsImage: image)
+                .renderingMode(.template)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: side, height: side)
+                .foregroundStyle(tint ?? provider.tint)
+        } else {
+            Image(systemName: provider.symbol)
+                .font(.system(size: box * 0.72, weight: .semibold))
+                .foregroundStyle(tint ?? provider.tint)
+        }
+    }
+
+    @ViewBuilder private var sized: some View {
         switch AgentMarks.mark(for: provider) {
         case .template(let image):
             Image(nsImage: image)
@@ -421,6 +597,123 @@ struct NotchAgentMark: View {
             Image(systemName: provider.symbol)
                 .font(.system(size: size, weight: .semibold))
                 .foregroundStyle(tint ?? provider.tint)
+        }
+    }
+}
+
+/// One account at rest: its mark inside the ring of the limit it shows,
+/// filled as the person reads limits, used or left. Single's ring is the
+/// working strip's, so an agent starting leaves it as it is.
+struct NotchAgentRestingGauge: View {
+    let meter: NotchAgentRestingMeter
+    let used: Bool
+    var ring: CGFloat = NotchAgentRestingGauge.ring
+    /// The working strip's ring beside a 32-point camera.
+    static let ring: CGFloat = 22
+    /// One per side's, which leaves its number room in the wing.
+    static let splitRing: CGFloat = 14
+
+    var body: some View {
+        let window = meter.window
+        // The working strip's stroke and track; a small ring keeps a mark
+        // large enough to tell the agents apart.
+        let lineWidth = max(1.6, ring * 0.114)
+        ZStack {
+            if !used, window.remainingFraction <= 0 {
+                // Nothing left to fill: a faint red track still reads as
+                // empty, not as missing.
+                Circle().stroke(agentStatusTint(.almostOut).opacity(0.35), lineWidth: lineWidth)
+            } else {
+                NotchAgentRing(value: used ? window.usedFraction : window.remainingFraction,
+                               tint: notchAgentRestingInk(window, room: .white), lineWidth: lineWidth, track: 0.24)
+            }
+            NotchAgentMark(provider: meter.provider, size: ring * (ring < Self.ring ? 0.6 : 0.48),
+                           tint: meter.provider.tint)
+        }
+        .frame(width: ring, height: ring)
+        .accessibilityHidden(true)
+    }
+}
+
+/// A resting limit's color: white while it has room, then the resting
+/// island's yellow and red, whichever way it is read.
+func notchAgentRestingInk(_ window: AgentLimitWindow, room: Color = .white.opacity(0.92)) -> Color {
+    let status = NotchAgentSupport.restingStatus(usedFraction: window.usedFraction)
+    return status == .normal ? room : agentStatusTint(status)
+}
+
+/// A resting limit's number, and with it the time that limit renews, in
+/// teal. No word says left or used: the person chose which, the ring's fill
+/// shows it, and VoiceOver says it.
+struct NotchAgentRestingAmount: View {
+    enum Style {
+        /// Single's wing: the number over the time, at full length where
+        /// the wing has room for it.
+        case stacked
+        /// One per side's wing, beside a gauge: the bare number over the
+        /// short time.
+        case compact
+        /// The capsule's row: the number and the time on one line.
+        case inline
+    }
+
+    let window: AgentLimitWindow
+    let used: Bool
+    let reset: NotchAgentRestingReset?
+    var style: Style = .stacked
+    var alignment: HorizontalAlignment = .trailing
+
+    var body: some View {
+        let fraction = used ? window.usedFraction : window.remainingFraction
+        let digits = String(Int((fraction * 100).rounded()))
+        Group {
+            switch style {
+            case .stacked:
+                VStack(alignment: alignment, spacing: 0) {
+                    number(digits, size: 13)
+                    time(size: 7.5)
+                }
+            case .compact:
+                VStack(alignment: alignment, spacing: 0) {
+                    number(digits, size: 11, percent: false)
+                    time(size: 7, short: true)
+                }
+            case .inline:
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    number(digits, size: 12)
+                    time(size: 9)
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    private func number(_ digits: String, size: CGFloat, percent: Bool = true) -> some View {
+        (Text(digits).font(.system(size: size, weight: .semibold, design: .rounded)).monospacedDigit()
+            + Text(percent ? "%" : "").font(.system(size: size * 0.7, weight: .semibold, design: .rounded)))
+            .foregroundStyle(notchAgentRestingInk(window))
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
+    }
+
+    @ViewBuilder private func time(size: CGFloat, short: Bool = false) -> some View {
+        if let reset {
+            Group {
+                if short {
+                    Text(reset.short).minimumScaleFactor(0.8)
+                } else {
+                    // "Sat 15:33" is wider than a 44-point wing leaves;
+                    // there it says "Sat".
+                    ViewThatFits(in: .horizontal) {
+                        Text(reset.full)
+                        Text(reset.short).minimumScaleFactor(0.8)
+                    }
+                }
+            }
+            .font(.system(size: size, weight: .semibold, design: .rounded))
+            .monospacedDigit()
+            .foregroundStyle(agentResetTint)
+            .lineLimit(1)
         }
     }
 }

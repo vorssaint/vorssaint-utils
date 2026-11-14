@@ -10,7 +10,7 @@ struct SettingsSearchState: Equatable {
     }
 
     let hardware: Hardware
-    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows: Bool
+    let bars, batteryRest, capsule, customSize, minimalMascot, groupsMinimizedWindows, topBar: Bool
     private let switches: Set<String>
 
     init(defaults: UserDefaults, hardware: Hardware) {
@@ -19,6 +19,7 @@ struct SettingsSearchState: Equatable {
         batteryRest = defaults.string(forKey: DefaultsKey.notchIdleContent) == NotchIdleContent.battery.rawValue
         capsule = defaults.string(forKey: DefaultsKey.notchSilhouette) != NotchSilhouette.notch.rawValue
         customSize = defaults.string(forKey: DefaultsKey.notchSize) == NotchSize.custom.rawValue
+        topBar = NotchNavigationStyle.current(in: defaults) == .topBar
         minimalMascot = (NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "")
             ?? .minimal) == .minimal
         groupsMinimizedWindows = (defaults.string(forKey: DefaultsKey.switcherMinimizedPlacement)
@@ -35,6 +36,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
+            DefaultsKey.notchLockScreen, DefaultsKey.notchLockScreenAgents, DefaultsKey.notchLockScreenMac,
         ].filter { defaults.bool(forKey: $0) })
     }
 
@@ -246,7 +248,9 @@ enum SettingsDirectory {
         let notchMusic = FeatureStrings.notchMusicExtras(language)
         let notchCalendar = FeatureStrings.notchCalendar(language)
         let notchAgents = FeatureStrings.notchAgents(language)
+        let claudeBilling = FeatureStrings.claudeBilling(language)
         let notchLowBattery = NotchLowBatteryStrings.localized(language)
+        let navigation = NotchNavigationStrings.localized(language)
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
@@ -270,6 +274,8 @@ enum SettingsDirectory {
             .init([notch.withoutNotch], notch: .layout, when: state.hardware.plainDisplay),
             .init([notch.capsuleFit, notch.width, notch.height, notch.fromTop],
                   notch: .layout, when: state.hardware.plainDisplay && state.capsule),
+            .init([navigation.styleTitle], notch: .navigation),
+            .init([navigation.itemsTitle, navigation.secondaryClick], notch: .navigation, when: state.topBar),
             .init([activities.keepAwakeActivity], notch: .module(.controls)),
             .init([notch.playingMusic, notchMusic.includeOtherPlayers, notchMusic.showVolume, notchMusic.preferredPlayer,
                    notchMusic.enableLyrics, notchMusic.browserCovers, notchMusic.enableQueue, notchMusic.liveEqualizer,
@@ -285,15 +291,23 @@ enum SettingsDirectory {
                   notch: .module(.clipboard), when: state.on(DefaultsKey.notchClipboardWindow)),
             .init(["camera"], feature: .cameraPreview, notch: .module(.camera)),
             .init([notchAgents.title, "Claude", "Codex", "OpenCode", "GitHub Copilot", "AI", "tokens", notchAgents.resetsCard,
-                   notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
+                   notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.restingLayout, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
-            .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,
+            .init([FeatureStrings.claudeAccount(language).title, claudeBilling.billsTo, claudeBilling.creditsTitle],
+                  feature: .notchAgents,
                   notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
             .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
                    notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
+            .init([lockScreen.mac, lockScreen.jobProfile, lockScreen.wallpaper, lockScreen.widgets,
+                   lockScreen.lifetimeSpending], notch: .activity,
+                  when: state.on(DefaultsKey.notchLockScreen)),
+            .init([lockScreen.hideEvents], notch: .activity,
+                  when: state.on(DefaultsKey.notchLockScreen) && state.on(DefaultsKey.notchLockScreenMac)),
+            .init([lockScreen.hideProjects, lockScreen.hideAmounts], feature: .notchAgents, notch: .activity,
+                  when: state.on(DefaultsKey.notchLockScreen) && state.on(DefaultsKey.notchLockScreenAgents)),
             .init([notchLowBattery.title], feature: .monitorPower, notch: .activity, when: batteryRest),
             .init([notchLowBattery.threshold, notchLowBattery.early, notchLowBattery.menuBar],
                   feature: .monitorPower, notch: .activity, when: tintedBattery),

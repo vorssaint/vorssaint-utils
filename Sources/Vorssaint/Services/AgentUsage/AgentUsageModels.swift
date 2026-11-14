@@ -80,9 +80,13 @@ struct AgentUsageRecord: Equatable {
     var savings: Double
     /// Whether cost was reported directly by the provider rather than derived from list pricing.
     var reportedCost: Bool = false
+    /// Claude Code inside the Claude app, which signs in with the plan; its
+    /// sessions in a terminal or an editor bill an API key when one is set.
+    var claudeApp: Bool = false
 
     init(provider: AgentProvider, date: Date, model: String, project: String, session: String,
-         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false) {
+         requests: Int = 1, tokens: AgentTokens, cost: Double?, savings: Double, reportedCost: Bool = false,
+         claudeApp: Bool = false) {
         self.provider = provider
         self.date = date
         self.model = model
@@ -93,6 +97,7 @@ struct AgentUsageRecord: Equatable {
         self.cost = cost
         self.savings = savings
         self.reportedCost = reportedCost
+        self.claudeApp = claudeApp
     }
 }
 
@@ -112,6 +117,9 @@ struct AgentLimitWindow: Equatable, Identifiable {
     let resetsAt: Date?
     /// A presentation estimate, never a deadline for clearing usage or alerts.
     var estimatedResetsAt: Date? = nil
+    /// A session's last reading from before it renewed, when the readings
+    /// show the renewal but not its time: nothing spent before it counts.
+    var renewedAfter: Date? = nil
 
     var usedFraction: Double { min(1, max(0, usedPercent / 100)) }
     var remainingFraction: Double { 1 - usedFraction }
@@ -131,6 +139,16 @@ struct AgentLimits: Equatable {
     var windows: [AgentLimitWindow]
     let observedAt: Date
     let source: Source
+
+    /// The earliest the open session can have begun, so its spend leaves out
+    /// earlier windows however the logs chain them. The app's renewal is the
+    /// latest the session can end, which would place its start too late.
+    func sessionStart(at now: Date) -> Date? {
+        guard let session = windows.first(where: { $0.kind == .session }) else { return nil }
+        if let renewed = session.renewedAfter { return renewed }
+        guard source != .claudeApp, let resets = session.resetsAt, let minutes = session.minutes else { return nil }
+        return resets <= now ? resets : resets.addingTimeInterval(-TimeInterval(minutes) * 60)
+    }
 }
 
 /// The subscription an account is on, when the agent's local files say.
@@ -138,6 +156,12 @@ struct AgentPlan: Equatable {
     let name: String
     /// Monthly list price in US dollars, used only to compare API value.
     let monthlyPrice: Double?
+}
+
+/// Where a person runs an agent: its command line in a terminal, or its own
+/// desktop app.
+enum AgentSessionPlace: Equatable {
+    case terminal, app
 }
 
 /// A turn an agent is working on right now, from its session log.
@@ -150,6 +174,7 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    var place: AgentSessionPlace = .terminal
 }
 
 /// Something worth a moment in the closed island.
