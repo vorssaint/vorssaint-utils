@@ -11,6 +11,9 @@ struct WeatherNotchView: View {
     @ObservedObject private var alerts = WeatherAlertsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
+    @AppStorage(DefaultsKey.weatherNotchHourly) private var showHourly = true
+    @AppStorage(DefaultsKey.weatherNotchGraphs) private var showGraphs = true
+    @AppStorage(DefaultsKey.weatherNotchDetails) private var showDetails = true
     @Environment(\.notchSettingsPreview) private var preview
     @State private var resolvingLocation = false
     @State private var locationError: String?
@@ -116,12 +119,17 @@ struct WeatherNotchView: View {
                 if alertsEnabled, let alert = alerts.alerts.first {
                     WeatherAlertBanner(alert: alert, strings: text, locale: locale, compact: true)
                 }
-                if !hourly.isEmpty {
+                if showHourly, !hourly.isEmpty {
                     hourlyStrip(hourly, formatter: hourFormatter,
                                 timeZoneIdentifier: snapshot.timezoneIdentifier,
                                 now: snapshot.current.time)
                 }
-                details(snapshot, formatter: clockFormatter)
+                if showGraphs, hourly.count >= 2 {
+                    graphs(hourly, snapshot: snapshot)
+                }
+                if showDetails {
+                    details(snapshot, formatter: clockFormatter)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
@@ -219,6 +227,23 @@ struct WeatherNotchView: View {
         .frame(width: 46, height: 64)
         .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .accessibilityElement(children: .combine)
+    }
+
+    private func graphs(_ hours: [WeatherHour], snapshot: WeatherSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(text.graphsTitle)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+            WeatherGraphView(hours: hours,
+                             preferences: weather.preferences,
+                             timeZoneIdentifier: snapshot.timezoneIdentifier,
+                             locale: locale,
+                             temperatureTitle: l10n.s.temperatures,
+                             precipitationTitle: text.precipitationLabel,
+                             windTitle: text.windLabel)
+        }
+        .padding(9)
+        .modifier(NotchControlSurface(cornerRadius: 12, interactive: false))
     }
 
     private func details(_ snapshot: WeatherSnapshot, formatter: DateFormatter) -> some View {

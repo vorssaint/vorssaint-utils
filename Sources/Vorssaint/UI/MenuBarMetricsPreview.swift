@@ -181,6 +181,21 @@ struct MenuBarMetricsPreview: View {
                         style: style,
                         pressure: pressure,
                         warning: warning)
+        case let .weatherBlock(symbol, value, _, style):
+            HStack(spacing: style == .readable ? 5 : 4) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: style == .readable ? 17 : 15.5, weight: .semibold))
+                }
+                if let value {
+                    Text(value)
+                        .font(.system(size: style == .readable ? 13 : 12,
+                                      weight: .semibold,
+                                      design: .monospaced))
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(.white)
         case let .usageBarBlock(label, fraction, style, pressure):
             usageBarBlock(label: label,
                           fraction: fraction,
@@ -250,8 +265,10 @@ struct MenuBarMetricsPreview: View {
                              pressure: MemoryPressure?,
                              warning: BatteryWarning) -> some View {
         VStack(spacing: -1) {
-            Text(label)
-                .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+            }
             HStack(spacing: pressure == nil || value.isEmpty ? 0 : 4) {
                 if let pressure {
                     Circle()

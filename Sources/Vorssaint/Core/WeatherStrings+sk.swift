@@ -73,6 +73,7 @@ extension WeatherStrings {
         s.showInNotch = "Zobraziť v Dynamic Islande"
         s.showInMenuBar = "Zobraziť v lište s ponukami"
         s.menuBarStyle = "Štýl lišty s ponukami"
+        s.showTemperatureUnit = "Zobraziť jednotku"
         s.unitsTitle = "Jednotky"
         s.gustsLabel = "Nárazy vetra"
         s.cloudCoverLabel = "Oblačnosť"

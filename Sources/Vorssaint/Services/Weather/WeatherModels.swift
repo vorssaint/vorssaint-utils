@@ -185,19 +185,28 @@ struct WeatherMenuBarReading: Equatable {
     let highLow: String
     let precipitationChance: String
     let style: WeatherMenuBarStyle
+    /// Empty unless the menu bar setting asks for `°C` or `°F`.
+    let unitSuffix: String
 
     init(snapshot: WeatherSnapshot,
          preferences: WeatherUnitPreferences,
          defaults: UserDefaults = .standard) {
         let current = snapshot.current
+        let showsUnit = defaults.bool(forKey: DefaultsKey.weatherMenuBarShowsUnit)
+        let suffix = showsUnit ? "°\(preferences.temperatureUnitSymbol)" : ""
+        unitSuffix = suffix
         symbolName = current.condition.symbolName(isDay: current.isDay)
-        temperature = preferences.formattedTemperature(current.temperature)
+        temperature = preferences.formattedTemperature(current.temperature) + (showsUnit ? preferences.temperatureUnitSymbol : "")
 
         if let today = snapshot.daily.first {
             let high = preferences.formattedTemperature(today.temperatureMax)
             let low = preferences.formattedTemperature(today.temperatureMin)
             // One shared degree sign keeps the pair inside its menu bar block.
-            highLow = "\(high.replacingOccurrences(of: "°", with: ""))/\(low.replacingOccurrences(of: "°", with: ""))"
+            var pair = "\(high.replacingOccurrences(of: "°", with: ""))/\(low.replacingOccurrences(of: "°", with: ""))"
+            if showsUnit {
+                pair += "°\(preferences.temperatureUnitSymbol)"
+            }
+            highLow = pair
         } else {
             highLow = ""
         }
@@ -232,8 +241,8 @@ struct WeatherMenuBarReading: Equatable {
     var reservedValue: String {
         switch style {
         case .symbolOnly: return ""
-        case .temperatureOnly, .symbolTemperature: return "-99°"
-        case .highLow: return "-99/-99"
+        case .temperatureOnly, .symbolTemperature: return "-99\(unitSuffix)"
+        case .highLow: return "-99/-99\(unitSuffix)"
         case .precipitationChance: return "100%"
         }
     }
@@ -324,6 +333,10 @@ struct WeatherUnitPreferences: Codable, Hashable {
     }
 
     // MARK: Conversions
+
+    var temperatureUnitSymbol: String {
+        temperature == .celsius ? "C" : "F"
+    }
 
     func temperatureValue(_ celsius: Double) -> Double {
         switch temperature {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// The "Weather" card: current conditions, the next day, a small graph and the
@@ -11,17 +12,26 @@ struct WeatherPanelSection: View {
     @ObservedObject private var weather = WeatherService.shared
     @ObservedObject private var alerts = WeatherAlertsService.shared
     @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
-    @State private var radarLocation: WeatherLocation?
+    @AppStorage(DefaultsKey.weatherPanelHourly) private var showHourly = true
+    @AppStorage(DefaultsKey.weatherPanelGraphs) private var showGraphs = true
+    @AppStorage(DefaultsKey.weatherPanelRadar) private var showRadar = true
+    @AppStorage(DefaultsKey.weatherPanelDetails) private var showDetails = true
+    @AppStorage(DefaultsKey.weatherPanelDaily) private var showDaily = true
+    @AppStorage(DefaultsKey.panelWeatherOrder) private var blockOrderRaw = ""
+    @State private var radarExpanded = false
+    @State private var draggingBlock: Block?
     var collapsible = true
 
     private var strings: WeatherStrings { FeatureStrings.weather(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
 
     var body: some View {
-        PanelSection(.weather, title: strings.sectionTitle, collapsible: collapsible) {
+        PanelSection(.weather, title: strings.sectionTitle, collapsible: collapsible,
+                     supportsEditing: true,
+                     resetAction: resetPanelDefaults) { editing in
             Group {
                 if let snapshot = weather.snapshot {
-                    loaded(snapshot)
+                    loaded(snapshot, editing: editing)
                 } else if weather.state.isLoading {
                     loading
                 } else if case .failed(let message) = weather.state,
@@ -33,9 +43,6 @@ struct WeatherPanelSection: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .panelCard()
-        }
-        .sheet(item: $radarLocation) { location in
-            WeatherRadarSheet(location: location)
         }
     }
 
@@ -94,21 +101,128 @@ struct WeatherPanelSection: View {
 
     // MARK: Loaded
 
-    private func loaded(_ snapshot: WeatherSnapshot) -> some View {
+    private func loaded(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             hero(snapshot)
             alertsSection
-            Divider()
-            hourly(snapshot)
-            Divider()
-            graphs(snapshot)
-            Divider()
-            radarCard(snapshot.location)
-            Divider()
-            details(snapshot)
-            Divider()
-            daily(snapshot)
+            let currentBlocks = blocks(editing: editing)
+            ForEach(Array(currentBlocks.enumerated()), id: \.element) { index, block in
+                if index > 0 { Divider() }
+                PanelReorderableItem(item: block,
+                                     isEnabled: editing,
+                                     order: blockOrderBinding,
+                                     dragging: $draggingBlock) {
+                    HStack(alignment: .top, spacing: 8) {
+                        if editing {
+                            PanelDragHandle()
+                        }
+                        blockContent(block, snapshot: snapshot, editing: editing)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+            if !currentBlocks.isEmpty { Divider() }
             attribution
+        }
+    }
+
+    // MARK: Panel blocks
+
+    private enum Block: String, PanelOrderItem {
+        case hourly, graphs, radar, details, daily
+    }
+
+    private var orderedBlocks: [Block] {
+        _ = blockOrderRaw
+        return PanelLayout.itemOrder(Block.self, key: DefaultsKey.panelWeatherOrder)
+    }
+
+    private var blockOrderBinding: Binding<[Block]> {
+        Binding {
+            orderedBlocks
+        } set: { newValue in
+            PanelLayout.setItemOrder(newValue, key: DefaultsKey.panelWeatherOrder)
+        }
+    }
+
+    private func blocks(editing: Bool) -> [Block] {
+        editing ? orderedBlocks : orderedBlocks.filter(isVisible)
+    }
+
+    private func isVisible(_ block: Block) -> Bool {
+        switch block {
+        case .hourly: return showHourly
+        case .graphs: return showGraphs
+        case .radar: return showRadar
+        case .details: return showDetails
+        case .daily: return showDaily
+        }
+    }
+
+    private func visibility(_ block: Block) -> Binding<Bool> {
+        switch block {
+        case .hourly: return $showHourly
+        case .graphs: return $showGraphs
+        case .radar: return $showRadar
+        case .details: return $showDetails
+        case .daily: return $showDaily
+        }
+    }
+
+    private func blockTitle(_ block: Block) -> String {
+        switch block {
+        case .hourly: return strings.hourlyTitle
+        case .graphs: return strings.graphsTitle
+        case .radar: return strings.radarTitle
+        case .details: return strings.detailsTitle
+        case .daily: return strings.dailyTitle
+        }
+    }
+
+    private func blockSymbol(_ block: Block) -> String {
+        switch block {
+        case .hourly: return "clock"
+        case .graphs: return "chart.xyaxis.line"
+        case .radar: return "dot.radiowaves.left.and.right"
+        case .details: return "list.bullet.rectangle"
+        case .daily: return "calendar"
+        }
+    }
+
+    private func resetPanelDefaults() {
+        PanelLayout.resetItemOrder(key: DefaultsKey.panelWeatherOrder)
+        blockOrderRaw = ""
+        showHourly = true
+        showGraphs = true
+        showRadar = true
+        showDetails = true
+        showDaily = true
+    }
+
+    @ViewBuilder
+    private func blockContent(_ block: Block, snapshot: WeatherSnapshot, editing: Bool) -> some View {
+        if !isVisible(block) && editing {
+            PanelHiddenItemRow(title: blockTitle(block),
+                               systemImage: blockSymbol(block),
+                               isVisible: visibility(block))
+        } else {
+            switch block {
+            case .hourly: hourly(snapshot, editing: editing)
+            case .graphs: graphs(snapshot, editing: editing)
+            case .radar: radarBlock(snapshot, editing: editing)
+            case .details: details(snapshot, editing: editing)
+            case .daily: daily(snapshot, editing: editing)
+            }
+        }
+    }
+
+    private func blockHeader(_ title: String, isVisible: Binding<Bool>, editing: Bool) -> some View {
+        HStack(spacing: 6) {
+            subsectionLabel(title)
+            if editing {
+                Spacer(minLength: 0)
+                PanelInlineHideButton(isVisible: isVisible)
+            }
         }
     }
 
@@ -179,6 +293,19 @@ struct WeatherPanelSection: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                Button(action: openWeatherApp) {
+                    Image(systemName: "arrow.up.forward.app")
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .frame(width: 22, height: 22)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(strings.title)
+                .accessibilityLabel(strings.title)
                 Button {
                     weather.refresh(force: true)
                 } label: {
@@ -213,17 +340,24 @@ struct WeatherPanelSection: View {
         }
     }
 
+    private func openWeatherApp() {
+        let fallback = URL(fileURLWithPath: "/System/Applications/Weather.app")
+        let url = NSWorkspace.shared
+            .urlForApplication(withBundleIdentifier: "com.apple.weather") ?? fallback
+        NSWorkspace.shared.open(url)
+    }
+
     private func locationLine(_ snapshot: WeatherSnapshot) -> String {
         [snapshot.location.name, snapshot.location.detail ?? ""]
             .filter { !$0.isEmpty }
             .joined(separator: ", ")
     }
 
-    private func hourly(_ snapshot: WeatherSnapshot) -> some View {
+    private func hourly(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
         let preferences = weather.preferences
         let hours = upcomingHours(snapshot)
         return VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(strings.hourlyTitle)
+            blockHeader(strings.hourlyTitle, isVisible: $showHourly, editing: editing)
             if hours.isEmpty {
                 Text("—")
                     .font(.system(size: 10.5))
@@ -260,10 +394,10 @@ struct WeatherPanelSection: View {
         }
     }
 
-    private func graphs(_ snapshot: WeatherSnapshot) -> some View {
+    private func graphs(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
         let hours = upcomingHours(snapshot)
         return VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(strings.graphsTitle)
+            blockHeader(strings.graphsTitle, isVisible: $showGraphs, editing: editing)
             if hours.count >= 2 {
                 WeatherGraphView(hours: hours,
                                  preferences: weather.preferences,
@@ -280,35 +414,53 @@ struct WeatherPanelSection: View {
         }
     }
 
-    /// One compact row; the sheet itself is where the map lives.
-    private func radarCard(_ location: WeatherLocation) -> some View {
-        Button {
-            radarLocation = location
-        } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "dot.radiowaves.left.and.right")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 16)
-                Text(strings.radarTitle)
-                    .font(.system(size: 10.5, weight: .semibold))
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right")
+    /// One compact row that expands the map in place. A sheet here left the
+    /// popover unresponsive after it closed.
+    private func radarBlock(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if editing {
+                radarRow(editing: true)
+            } else {
+                Button {
+                    radarExpanded.toggle()
+                } label: {
+                    radarRow(editing: false)
+                }
+                .buttonStyle(.plain)
+                if radarExpanded {
+                    WeatherRadarView(location: snapshot.location, compact: true)
+                }
+            }
+        }
+    }
+
+    private func radarRow(editing: Bool) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "dot.radiowaves.left.and.right")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(strings.radarTitle)
+                .font(.system(size: 10.5, weight: .semibold))
+            Spacer(minLength: 0)
+            if editing {
+                PanelInlineHideButton(isVisible: $showRadar)
+            } else {
+                Image(systemName: radarExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.tertiary)
             }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.primary.opacity(0.045))
-            )
-            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.primary.opacity(0.045))
+        )
+        .contentShape(Rectangle())
     }
 
-    private func details(_ snapshot: WeatherSnapshot) -> some View {
+    private func details(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
         let preferences = weather.preferences
         let current = snapshot.current
         let hour = currentHour(snapshot)
@@ -350,7 +502,7 @@ struct WeatherPanelSection: View {
                                     symbol: "sunrise.fill"))
         }
         return VStack(alignment: .leading, spacing: 6) {
-            subsectionLabel(strings.detailsTitle)
+            blockHeader(strings.detailsTitle, isVisible: $showDetails, editing: editing)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 6),
                                 GridItem(.flexible())], spacing: 6) {
                 ForEach(Array(items.enumerated()), id: \.offset) { _, item in
@@ -386,13 +538,13 @@ struct WeatherPanelSection: View {
         )
     }
 
-    private func daily(_ snapshot: WeatherSnapshot) -> some View {
+    private func daily(_ snapshot: WeatherSnapshot, editing: Bool) -> some View {
         let preferences = weather.preferences
         let days = Array(snapshot.daily.prefix(7))
         let scaleLow = days.map(\.temperatureMin).min() ?? 0
         let scaleHigh = days.map(\.temperatureMax).max() ?? 1
         return VStack(alignment: .leading, spacing: 5) {
-            subsectionLabel(strings.dailyTitle)
+            blockHeader(strings.dailyTitle, isVisible: $showDaily, editing: editing)
             ForEach(days.indices, id: \.self) { index in
                 let day = days[index]
                 HStack(spacing: 6) {

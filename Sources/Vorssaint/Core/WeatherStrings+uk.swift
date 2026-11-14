@@ -73,6 +73,7 @@ extension WeatherStrings {
         s.showInNotch = "Показати в Dynamic Island"
         s.showInMenuBar = "Показати на смузі меню"
         s.menuBarStyle = "Стиль смуги меню"
+        s.showTemperatureUnit = "Показувати одиницю"
         s.unitsTitle = "Одиниці"
         s.gustsLabel = "Пориви"
         s.cloudCoverLabel = "Хмарність"

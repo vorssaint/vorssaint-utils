@@ -16,7 +16,17 @@ struct WeatherSettings: View {
     @AppStorage(DefaultsKey.menuBarWeather) private var showInMenuBar = false
     @AppStorage(DefaultsKey.weatherMenuBarStyle) private var menuBarStyle =
         WeatherMenuBarStyle.symbolTemperature.rawValue
+    @AppStorage(DefaultsKey.weatherMenuBarShowsUnit) private var menuBarShowsUnit = false
     @AppStorage(DefaultsKey.panelShowWeather) private var showInPanel = true
+    @AppStorage(DefaultsKey.weatherPanelHourly) private var showPanelHourly = true
+    @AppStorage(DefaultsKey.weatherPanelGraphs) private var showPanelGraphs = true
+    @AppStorage(DefaultsKey.weatherPanelRadar) private var showPanelRadar = true
+    @AppStorage(DefaultsKey.weatherPanelDetails) private var showPanelDetails = true
+    @AppStorage(DefaultsKey.weatherPanelDaily) private var showPanelDaily = true
+    @AppStorage(DefaultsKey.weatherNotchHourly) private var showNotchHourly = true
+    @AppStorage(DefaultsKey.weatherNotchGraphs) private var showNotchGraphs = true
+    @AppStorage(DefaultsKey.weatherNotchDetails) private var showNotchDetails = true
+    @AppStorage(DefaultsKey.notchHiddenModules) private var hiddenNotchModules = ""
     @AppStorage(DefaultsKey.weatherAlertsEnabled) private var alertsEnabled = false
 
     @State private var query = ""
@@ -41,6 +51,7 @@ struct WeatherSettings: View {
                 unitsCard
                 menuBarCard
                 panelCard
+                notchCard
                 alertsCard
                 dataCard
             }
@@ -259,6 +270,12 @@ struct WeatherSettings: View {
             }
             .disabled(!showInMenuBar)
             .opacity(showInMenuBar ? 1 : 0.45)
+            SettingsRow(symbol: "textformat.123", title: strings.showTemperatureUnit) {
+                Toggle(strings.showTemperatureUnit, isOn: $menuBarShowsUnit)
+                    .labelsHidden()
+            }
+            .disabled(!showInMenuBar)
+            .opacity(showInMenuBar ? 1 : 0.45)
         }
     }
 
@@ -268,6 +285,47 @@ struct WeatherSettings: View {
                 Toggle(strings.showInPanel, isOn: $showInPanel)
                     .labelsHidden()
             }
+            if showInPanel {
+                Divider()
+                contentToggle("clock", strings.hourlyTitle, $showPanelHourly)
+                contentToggle("chart.xyaxis.line", strings.graphsTitle, $showPanelGraphs)
+                contentToggle("dot.radiowaves.left.and.right", strings.radarTitle, $showPanelRadar)
+                contentToggle("list.bullet.rectangle", strings.detailsTitle, $showPanelDetails)
+                contentToggle("calendar", strings.dailyTitle, $showPanelDaily)
+            }
+        }
+    }
+
+    private var notchCard: some View {
+        SettingsCard {
+            SettingsRow(symbol: "capsule", title: strings.showInNotch) {
+                Toggle(strings.showInNotch, isOn: showInNotch)
+                    .labelsHidden()
+            }
+            if showInNotch.wrappedValue {
+                Divider()
+                contentToggle("clock", strings.hourlyTitle, $showNotchHourly)
+                contentToggle("chart.xyaxis.line", strings.graphsTitle, $showNotchGraphs)
+                contentToggle("list.bullet.rectangle", strings.detailsTitle, $showNotchDetails)
+            }
+        }
+    }
+
+    private func contentToggle(_ symbol: String, _ title: String,
+                               _ isOn: Binding<Bool>) -> some View {
+        SettingsRow(symbol: symbol, title: title) {
+            Toggle(title, isOn: isOn)
+                .labelsHidden()
+        }
+    }
+
+    private var showInNotch: Binding<Bool> {
+        Binding {
+            !hiddenNotchModules.split(separator: ",").contains("weather")
+        } set: { shown in
+            var values = Set(hiddenNotchModules.split(separator: ",").map(String.init))
+            if shown { values.remove("weather") } else { values.insert("weather") }
+            hiddenNotchModules = values.sorted().joined(separator: ",")
         }
     }
 

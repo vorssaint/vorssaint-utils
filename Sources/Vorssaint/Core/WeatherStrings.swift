@@ -92,6 +92,7 @@ struct WeatherStrings {
     var showInNotch = "Show in Dynamic Island"
     var showInMenuBar = "Show in menu bar"
     var menuBarStyle = "Menu bar style"
+    var showTemperatureUnit = "Show unit"
     var unitsTitle = "Units"
     var gustsLabel = "Gusts"
     var cloudCoverLabel = "Cloud cover"

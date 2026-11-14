@@ -80,6 +80,7 @@ extension WeatherStrings {
         s.showInNotch = "다이나믹 아일랜드에 표시"
         s.showInMenuBar = "메뉴 막대에 표시"
         s.menuBarStyle = "메뉴 막대 스타일"
+        s.showTemperatureUnit = "단위 표시"
         s.unitsTitle = "단위"
         s.gustsLabel = "돌풍"
         s.cloudCoverLabel = "구름량"

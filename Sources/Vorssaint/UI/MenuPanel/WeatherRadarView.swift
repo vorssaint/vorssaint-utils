@@ -5,15 +5,15 @@ import AppKit
 import MapKit
 import SwiftUI
 
-/// The radar sheet: RainViewer's last two hours of frames drawn over a map
-/// centred on the forecast's place. It loads only while it is open, and the
-/// map keeps whatever the person panned or zoomed to as frames advance.
-struct WeatherRadarSheet: View {
+/// RainViewer's last two hours of frames drawn over a map centred on the
+/// forecast's place. It loads only while it is visible, and the map keeps
+/// whatever the person panned or zoomed to as frames advance.
+struct WeatherRadarView: View {
     let location: WeatherLocation
+    var compact = false
 
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var radar = WeatherRadarService.shared
-    @Environment(\.dismiss) private var dismiss
     @State private var selectedPath: String?
     @State private var isPlaying = false
     @State private var playbackTask: Task<Void, Never>?
@@ -23,13 +23,11 @@ struct WeatherRadarSheet: View {
     private var locale: Locale { l10n.language.formattingLocale() }
     private var frames: [WeatherRadarFrame] { radar.maps?.frames ?? [] }
 
+    private var mapHeight: CGFloat { compact ? 200 : 280 }
+    private var stateHeight: CGFloat { compact ? 180 : 280 }
+
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Divider()
-            content
-        }
-        .frame(width: 440)
+        content
         .onAppear {
             loadTask = Task { await radar.load() }
         }
@@ -41,31 +39,6 @@ struct WeatherRadarSheet: View {
     }
 
     // MARK: States
-
-    private var header: some View {
-        HStack {
-            Text(strings.radarTitle)
-                .font(.title3.weight(.semibold))
-            Spacer()
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 11, weight: .semibold))
-                    .frame(width: 22, height: 22)
-                    .background(
-                        RoundedRectangle(cornerRadius: 7, style: .continuous)
-                            .fill(Color.primary.opacity(0.08))
-                    )
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help(l10n.s.menuClose)
-            .accessibilityLabel(l10n.s.menuClose)
-            .keyboardShortcut(.cancelAction)
-        }
-        .padding(18)
-    }
 
     @ViewBuilder
     private var content: some View {
@@ -90,8 +63,7 @@ struct WeatherRadarSheet: View {
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity, minHeight: 280)
-        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: stateHeight)
     }
 
     private var failureState: some View {
@@ -104,27 +76,25 @@ struct WeatherRadarSheet: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         }
-        .frame(maxWidth: .infinity, minHeight: 280)
-        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: stateHeight)
     }
 
     private var emptyState: some View {
         Text(strings.radarUnavailable)
             .font(.system(size: 10.5))
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, minHeight: 280)
-            .padding(18)
+            .frame(maxWidth: .infinity, minHeight: stateHeight)
     }
 
     private func radarContent(_ maps: WeatherRadarMaps) -> some View {
-        VStack(spacing: 12) {
+        VStack(spacing: compact ? 8 : 12) {
             WeatherRadarMapView(
                 coordinate: CLLocationCoordinate2D(latitude: location.latitude,
                                                    longitude: location.longitude),
                 host: maps.host,
                 frame: currentFrame
             )
-            .frame(height: 280)
+            .frame(height: mapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             controls
             HStack(spacing: 4) {
@@ -134,7 +104,6 @@ struct WeatherRadarSheet: View {
             .font(.system(size: 9))
             .foregroundStyle(.tertiary)
         }
-        .padding(18)
     }
 
     // MARK: Timeline

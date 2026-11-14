@@ -80,6 +80,7 @@ extension WeatherStrings {
         s.showInNotch = "在灵动岛中显示"
         s.showInMenuBar = "在菜单栏中显示"
         s.menuBarStyle = "菜单栏样式"
+        s.showTemperatureUnit = "显示单位"
         s.unitsTitle = "单位"
         s.gustsLabel = "阵风"
         s.cloudCoverLabel = "云量"

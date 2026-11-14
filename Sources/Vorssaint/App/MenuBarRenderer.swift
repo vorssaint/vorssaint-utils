@@ -212,6 +212,7 @@ enum MenuBarSegment {
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, externalConnected: Bool,
                       warning: BatteryWarning = .none, style: MenuBarBlockStyle)
+    case weatherBlock(symbol: String?, value: String?, minimumValue: String, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
     case separator
 }
@@ -615,19 +616,12 @@ enum MenuBarRenderer {
                 }
             case .weather:
                 guard let weather else { break }
-                var group: [MenuBarSegment] = []
-                if let symbol = weather.menuBarSymbolName {
-                    group.append(.symbol(symbol))
+                if weather.menuBarSymbolName != nil || weather.menuBarText != nil {
+                    groups.append([.weatherBlock(symbol: weather.menuBarSymbolName,
+                                                 value: weather.menuBarText,
+                                                 minimumValue: weather.reservedValue,
+                                                 style: style)])
                 }
-                if let text = weather.menuBarText {
-                    if !group.isEmpty { group.append(.text(" ")) }
-                    group.append(.metricBlock(label: "",
-                                              value: text,
-                                              minimumValue: weather.reservedValue,
-                                              style: style,
-                                              pressure: nil))
-                }
-                if !group.isEmpty { groups.append(group) }
             }
         }
         return blockJoined(groups, style: style)
@@ -772,6 +766,11 @@ enum MenuBarRenderer {
                                                     style: style,
                                                     pressure: pressure,
                                                     warning: warning))
+            case let .weatherBlock(symbol, value, minimumValue, style):
+                result.append(weatherBlockAttachment(symbol: symbol,
+                                                     value: value,
+                                                     minimumValue: minimumValue,
+                                                     style: style))
             case let .usageBarBlock(label, fraction, style, pressure):
                 result.append(usageBarBlockAttachment(label: label,
                                                       fraction: fraction,
@@ -839,7 +838,26 @@ enum MenuBarRenderer {
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
-                                   y: (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge,
+                                   y: metricBlockAttachmentOffset(style: style),
+                                   width: image.size.width,
+                                   height: image.size.height)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func metricBlockAttachmentOffset(style: MenuBarBlockStyle) -> CGFloat {
+        (style == .readable ? -5.9 : -5.7) + legacyBlockAttachmentNudge
+    }
+
+    private static func weatherBlockAttachment(symbol: String?,
+                                              value: String?,
+                                              minimumValue: String,
+                                              style: MenuBarBlockStyle) -> NSAttributedString {
+        let image = weatherBlockImage(symbol: symbol, value: value,
+                                      minimumValue: minimumValue, style: style)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -5.7 : -5.5) + legacyBlockAttachmentNudge,
                                    width: image.size.width,
                                    height: image.size.height)
         return NSAttributedString(attachment: attachment)
@@ -940,6 +958,17 @@ enum MenuBarRenderer {
         let drawnGroupWidth = dotDiameter + dotGap + valueSize.width
         let width = ceil(max(labelSize.width, reservedGroupWidth) + (style == .readable ? 2 : 0.5))
         let height: CGFloat = style == .readable ? 23 : 21
+        // A block with no label is a single-line value. Center that value on
+        // the icon instead of leaving it in the label-and-value layout's
+        // bottom slot, which sits low on the status bar.
+        let valueY: CGFloat
+        if label.isEmpty {
+            let iconCenter: CGFloat = -1.8 + 11.4 / 2
+            let glyphCenter = (valueFont.ascender + valueFont.descender) / 2
+            valueY = iconCenter - metricBlockAttachmentOffset(style: style) - glyphCenter
+        } else {
+            valueY = style == .readable ? -0.4 : -0.8
+        }
         let image = NSImage(size: NSSize(width: width, height: height), flipped: false) { rect in
             NSColor.clear.setFill()
             rect.fill()
@@ -959,8 +988,65 @@ enum MenuBarRenderer {
                 NSBezierPath(ovalIn: dotRect).fill()
                 valueX += dotDiameter + dotGap
             }
-            (value as NSString).draw(at: NSPoint(x: valueX, y: style == .readable ? -0.4 : -0.8),
+            (value as NSString).draw(at: NSPoint(x: valueX, y: valueY),
                                      withAttributes: valueAttrs)
+            return true
+        }
+        image.isTemplate = false
+        blockImageCache.setObject(image, forKey: cacheKey, cost: blockImageCost(image))
+        return image
+    }
+
+    /// One image for the weather icon and value so both share the same
+    /// optical centre. The earlier symbol-plus-block pair sat the icon low and
+    /// the number high because each used a different baseline.
+    private static func weatherBlockImage(symbol: String?,
+                                          value: String?,
+                                          minimumValue: String,
+                                          style: MenuBarBlockStyle) -> NSImage {
+        let cacheKey = "weather|\(symbol ?? "")|\(value ?? "")|\(minimumValue)|\(style)" as NSString
+        if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
+
+        let valueFont = NSFont.monospacedDigitSystemFont(ofSize: style == .readable ? 13.0 : 12.0,
+                                                         weight: .semibold)
+        let valueAttrs = dynamicTextAttributes(font: valueFont)
+        let valueSize = ((value ?? "") as NSString).size(withAttributes: valueAttrs)
+        let reservedSize = (minimumValue as NSString).size(withAttributes: valueAttrs)
+        let symbolWidth: CGFloat = style == .readable ? 20 : 18
+        let gap: CGFloat = style == .readable ? 5 : 4
+        let height: CGFloat = style == .readable ? 22 : 20
+        let hasSymbol = symbol?.isEmpty == false
+        let hasValue = value?.isEmpty == false
+        let textWidth = hasValue ? max(valueSize.width, reservedSize.width) : 0
+        let width = ceil((hasSymbol ? symbolWidth : 0)
+                         + (hasSymbol && hasValue ? gap : 0)
+                         + textWidth)
+        let image = NSImage(size: NSSize(width: max(width, 1), height: height), flipped: false) { rect in
+            NSColor.clear.setFill()
+            rect.fill()
+            var x: CGFloat = 0
+            if let symbol, hasSymbol {
+                let config = NSImage.SymbolConfiguration(pointSize: style == .readable ? 17.0 : 15.5,
+                                                         weight: .semibold)
+                    .applying(NSImage.SymbolConfiguration(paletteColors: [.labelColor]))
+                if let image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+                    .withSymbolConfiguration(config) {
+                    let natural = image.size
+                    let scale = min(symbolWidth / natural.width, height / natural.height, 1)
+                    let drawSize = NSSize(width: natural.width * scale, height: natural.height * scale)
+                    image.draw(in: NSRect(x: x + (symbolWidth - drawSize.width) / 2,
+                                          y: (height - drawSize.height) / 2,
+                                          width: drawSize.width, height: drawSize.height))
+                }
+                x += symbolWidth + (hasValue ? gap : 0)
+            }
+            if let value, hasValue {
+                // Centre the value in its reserved slot, like the metric
+                // blocks, so digit-width reserve does not become right padding.
+                (value as NSString).draw(at: NSPoint(x: x + (textWidth - valueSize.width) / 2,
+                                                     y: (height - valueSize.height) / 2),
+                                         withAttributes: valueAttrs)
+            }
             return true
         }
         image.isTemplate = false

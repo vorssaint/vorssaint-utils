@@ -80,6 +80,7 @@ extension WeatherStrings {
         s.showInNotch = "ダイナミックアイランドに表示"
         s.showInMenuBar = "メニューバーに表示"
         s.menuBarStyle = "メニューバーのスタイル"
+        s.showTemperatureUnit = "単位を表示"
         s.unitsTitle = "単位"
         s.gustsLabel = "突風"
         s.cloudCoverLabel = "雲量"

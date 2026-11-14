@@ -529,7 +529,16 @@ enum DefaultsKey {
     static let weatherPressureUnit = "weatherPressureUnit"         // hPa | inHg
     static let weatherDistanceUnit = "weatherDistanceUnit"         // km | mi
     static let weatherMenuBarStyle = "weatherMenuBarStyle"         // symbolOnly | temperatureOnly | symbolTemperature | highLow | precipitationChance
+    static let weatherMenuBarShowsUnit = "weatherMenuBarShowsUnit"
     static let weatherAlertsEnabled = "weatherAlertsEnabled"
+    static let weatherPanelHourly = "weatherPanelHourly"
+    static let weatherPanelGraphs = "weatherPanelGraphs"
+    static let weatherPanelRadar = "weatherPanelRadar"
+    static let weatherPanelDetails = "weatherPanelDetails"
+    static let weatherPanelDaily = "weatherPanelDaily"
+    static let weatherNotchHourly = "weatherNotchHourly"
+    static let weatherNotchGraphs = "weatherNotchGraphs"
+    static let weatherNotchDetails = "weatherNotchDetails"
     static let menuBarWeather = "menuBarWeather"
     static let panelShowWeather = "panelShowWeather"
     // Menu panel layout — the order the major sections appear in and which are
@@ -540,6 +549,7 @@ enum DefaultsKey {
     static let panelControlOrder = "panelControlOrder"
     static let panelToggleOrder = "panelToggleOrder"
     static let panelSystemOrder = "panelSystemOrder"
+    static let panelWeatherOrder = "panelWeatherOrder"
     static let panelNetworkOrder = "panelNetworkOrder"
     static let panelDiskOrder = "panelDiskOrder"
     static let panelPowerOrder = "panelPowerOrder"
@@ -1818,7 +1828,16 @@ enum Defaults {
         DefaultsKey.weatherPressureUnit: WeatherUnitPreferences.localeDefault.pressure.rawValue,
         DefaultsKey.weatherDistanceUnit: WeatherUnitPreferences.localeDefault.distance.rawValue,
         DefaultsKey.weatherMenuBarStyle: WeatherMenuBarStyle.symbolTemperature.rawValue,
+        DefaultsKey.weatherMenuBarShowsUnit: false,
         DefaultsKey.weatherAlertsEnabled: false,
+        DefaultsKey.weatherPanelHourly: true,
+        DefaultsKey.weatherPanelGraphs: true,
+        DefaultsKey.weatherPanelRadar: true,
+        DefaultsKey.weatherPanelDetails: true,
+        DefaultsKey.weatherPanelDaily: true,
+        DefaultsKey.weatherNotchHourly: true,
+        DefaultsKey.weatherNotchGraphs: true,
+        DefaultsKey.weatherNotchDetails: true,
         DefaultsKey.menuBarWeather: false,
         DefaultsKey.panelShowWeather: true,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,

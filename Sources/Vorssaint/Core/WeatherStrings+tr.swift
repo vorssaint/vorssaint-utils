@@ -73,6 +73,7 @@ extension WeatherStrings {
         s.showInNotch = "Dynamic Island’da göster"
         s.showInMenuBar = "Menü çubuğunda göster"
         s.menuBarStyle = "Menü çubuğu stili"
+        s.showTemperatureUnit = "Birimi göster"
         s.unitsTitle = "Birimler"
         s.gustsLabel = "Rüzgâr hamlesi"
         s.cloudCoverLabel = "Bulut örtüsü"

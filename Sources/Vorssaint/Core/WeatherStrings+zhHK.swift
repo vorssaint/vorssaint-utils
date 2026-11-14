@@ -80,6 +80,7 @@ extension WeatherStrings {
         s.showInNotch = "在動態島中顯示"
         s.showInMenuBar = "在選單列中顯示"
         s.menuBarStyle = "選單列樣式"
+        s.showTemperatureUnit = "顯示單位"
         s.unitsTitle = "單位"
         s.gustsLabel = "陣風"
         s.cloudCoverLabel = "雲量"

@@ -535,6 +535,18 @@ enum WeatherTests {
         suite.expect(reading(.symbolTemperature, of: snapshot(weatherCode: 0, isDay: false)).menuBarSymbolName
                         == WeatherCondition.clear.symbolName(isDay: false),
                      "the menu bar symbol follows the day and night form")
+        defaults.set(true, forKey: DefaultsKey.weatherMenuBarShowsUnit)
+        let metricUnit = reading(.symbolTemperature, of: forecast)
+        suite.expect(metricUnit.menuBarText == "11°C" && metricUnit.reservedValue == "-99°C",
+                     "the unit suffix follows the saved temperature unit")
+        suite.expect(reading(.highLow, of: forecast).menuBarText == "13/7°C",
+                     "high and low carries one shared unit suffix")
+        defaults.set(WeatherMenuBarStyle.symbolTemperature.rawValue, forKey: DefaultsKey.weatherMenuBarStyle)
+        suite.expect(WeatherMenuBarReading(snapshot: forecast, preferences: .imperial, defaults: defaults).menuBarText == "53°F",
+                     "the menu bar unit follows Fahrenheit settings")
+        defaults.set(false, forKey: DefaultsKey.weatherMenuBarShowsUnit)
+        suite.expect(reading(.symbolTemperature, of: forecast).menuBarText == "11°",
+                     "the unit suffix stays off until it is enabled")
         defaults.set("nonsense", forKey: DefaultsKey.weatherMenuBarStyle)
         suite.expect(WeatherMenuBarReading(snapshot: forecast, preferences: .metric, defaults: defaults).style
                         == .symbolTemperature,

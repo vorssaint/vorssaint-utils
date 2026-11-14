@@ -73,6 +73,7 @@ extension WeatherStrings {
         s.showInNotch = "In der Dynamic Island anzeigen"
         s.showInMenuBar = "In der Menüleiste anzeigen"
         s.menuBarStyle = "Menüleistenstil"
+        s.showTemperatureUnit = "Einheit anzeigen"
         s.unitsTitle = "Einheiten"
         s.gustsLabel = "Böen"
         s.cloudCoverLabel = "Bewölkung"
