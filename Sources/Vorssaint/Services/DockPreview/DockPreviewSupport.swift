@@ -137,6 +137,49 @@ enum DockPreviewSupport {
         quitAppOnClose ? .quitApp : .closeWindow
     }
 
+    /// Puts the windows the user has arranged where they put them, and leaves
+    /// anything opened since in the order the chosen rule gave it. Windows in
+    /// the arrangement that have closed simply drop out of it.
+    static func applyingManualOrder(_ windows: [SwitcherItem],
+                                    ids: [CGWindowID]) -> [SwitcherItem] {
+        guard !ids.isEmpty else { return windows }
+        var remaining = windows
+        var arranged: [SwitcherItem] = []
+        for id in ids {
+            guard let index = remaining.firstIndex(where: { $0.windowID == id }) else { continue }
+            arranged.append(remaining.remove(at: index))
+        }
+        return arranged + remaining
+    }
+
+    /// Whether the panel shows the whole run at once. A run that scrolls
+    /// keeps part of itself off the panel, so the slot a pointer names can no
+    /// longer be read from the panel's own edge, and a drag there stays the
+    /// drag that carries a window out.
+    static func showsWholeRun(panelFrame: CGRect, count: Int, stacksVertically: Bool) -> Bool {
+        guard count > 1 else { return true }
+        let cardExtent = stacksVertically ? cardHeight : cardWidth
+        let needed = CGFloat(count) * cardExtent + CGFloat(count - 1) * cardSpacing + panelPadding * 2
+        let available = stacksVertically ? panelFrame.height : panelFrame.width
+        return needed <= available + 0.5
+    }
+
+    /// Which slot a card dragged to this point belongs in. The run is a fixed
+    /// grid, so the distance along it names the slot without the view having
+    /// to report a frame for every card.
+    static func reorderIndex(pointer: CGPoint, panelFrame: CGRect, count: Int,
+                             stacksVertically: Bool) -> Int {
+        guard count > 1 else { return 0 }
+        let step = (stacksVertically ? cardHeight : cardWidth) + cardSpacing
+        guard step > 0 else { return 0 }
+        // AppKit measures up from the bottom, so a vertical run counts down
+        // from the panel's top edge.
+        let travelled = stacksVertically
+            ? (panelFrame.maxY - panelPadding) - pointer.y
+            : pointer.x - (panelFrame.minX + panelPadding)
+        return min(count - 1, max(0, Int((travelled / step).rounded(.down))))
+    }
+
     /// Reorders Dock Preview cards. Last-use keeps the enumerator’s MRU order;
     /// creation sorts by ascending window ID (a stable creation-time proxy).
     static func orderedWindows(_ windows: [SwitcherItem],
