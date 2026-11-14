@@ -156,6 +156,8 @@ enum SuperKeyTapContract {
         static var drainWatchdog: DispatchWorkItem?
         static var heldKeyCode: Int64?
         static var drainingKeyCode: Int64?
+        static var drainGeneration = 0
+        static var drainIsSettled: Bool { drainingKeyCode == nil }
         static var superState = SuperKeySupport.State()
         static var superKeyTap: CFMachPort?
         static var observingSession = false
@@ -234,6 +236,7 @@ enum SuperKeyTapContract {
             RecordingState.superKeyTap = nil
             RecordingState.heldKeyCode = nil
             RecordingState.drainingKeyCode = nil
+            RecordingState.drainGeneration = 0
             RecordingState.observingSession = false
         }
         let trigger = SuperKeySupport.triggerKeyCode
