@@ -290,6 +290,12 @@ enum DisplaySpeakerVolumeTests {
                      && BrightnessSupport.shouldProbeLuminance(pathKey: nil, writeOnlyPaths: ["a"],
                         probesAudio: false, recheckedPaths: []),
                      "a remembered write-only path is read again once while speakers are wanted, then trusted")
+        suite.expect(BrightnessSupport.systemRouteRecheckDelay(attempt: 1) == 2
+                     && BrightnessSupport.systemRouteRecheckDelay(attempt: 2) == 5
+                     && BrightnessSupport.systemRouteRecheckDelay(attempt: 3) == 15
+                     && BrightnessSupport.systemRouteRecheckDelay(attempt: 0) == nil
+                     && BrightnessSupport.systemRouteRecheckDelay(attempt: 4) == nil,
+                     "a display the system stopped answering for is asked about again three times, then left to its own control")
         suite.expect(BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: true, repliedThisSession: true) == 2
                      && BrightnessSupport.ddcRetryDelay(attempt: 2, probesAudio: true, repliedThisSession: true) == 5
                      && BrightnessSupport.ddcRetryDelay(attempt: 3, probesAudio: true, repliedThisSession: true) == 15,

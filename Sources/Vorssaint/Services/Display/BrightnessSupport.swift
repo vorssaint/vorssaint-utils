@@ -259,6 +259,17 @@ enum BrightnessSupport {
         return ddcRetryDelays[attempt - 1]
     }
 
+    /// How long to wait before asking the system about a display again, after
+    /// it answered for that display earlier and has just stopped. Right after
+    /// a wake the system pipeline can lag behind the monitor; settling for the
+    /// monitor's own control then strands a display whose control the monitor
+    /// locks (some do while showing HDR) until the next wake. `attempt` counts
+    /// from 1.
+    static func systemRouteRecheckDelay(attempt: Int) -> TimeInterval? {
+        guard attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
+        return ddcRetryDelays[attempt - 1]
+    }
+
     static let volumeKeyRescanInterval: TimeInterval = 10
 
     /// Whether a volume key that no monitor claimed rescans the displays: only
