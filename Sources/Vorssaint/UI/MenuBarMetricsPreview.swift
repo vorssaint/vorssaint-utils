@@ -26,6 +26,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarConnectedDevices) private var connectedDevices = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
+    @AppStorage(DefaultsKey.menuBarFontWeight) private var fontWeight = "automatic"
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
     @AppStorage(DefaultsKey.menuBarUsageBarNormalColor) private var usageBarNormalColor = "#64D2FF"
     @AppStorage(DefaultsKey.menuBarUsageBarElevatedColor) private var usageBarElevatedColor = "#FFD60A"
@@ -46,6 +47,7 @@ struct MenuBarMetricsPreview: View {
         let _ = metricOrder
         let _ = combineTemperatures
         let _ = metricAppearance
+        let _ = fontWeight
         let _ = usageBarNormalColor
         let _ = usageBarElevatedColor
         let _ = usageBarCriticalColor
@@ -144,9 +146,7 @@ struct MenuBarMetricsPreview: View {
         switch segment {
         case let .text(string):
             Text(string)
-                .font(.system(size: MenuBarRenderer.statusFontSize(stacked: stacked),
-                              weight: stacked ? .semibold : .medium,
-                              design: .monospaced))
+                .font(Font(MenuBarRenderer.statusFont(stacked: stacked, fontWeight: .current())))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .fixedSize(horizontal: true, vertical: false)
@@ -180,9 +180,7 @@ struct MenuBarMetricsPreview: View {
                 Text(rows[1].0 + rows[1].1)
                     .lineLimit(1)
             }
-            .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
-                          weight: .semibold,
-                          design: .monospaced))
+            .font(Font(MenuBarRenderer.rateFont(style: style)))
             .foregroundStyle(.white)
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
@@ -194,9 +192,7 @@ struct MenuBarMetricsPreview: View {
                 Text("W\(write)")
                     .lineLimit(1)
             }
-            .font(.system(size: MenuBarRenderer.networkBlockFontSize(style: style),
-                          weight: .semibold,
-                          design: .monospaced))
+            .font(Font(MenuBarRenderer.rateFont(style: style)))
             .foregroundStyle(.white)
             .frame(width: MenuBarRenderer.rateBlockWidth(style: style),
                    height: style == .readable ? 22 : 20,
@@ -208,9 +204,7 @@ struct MenuBarMetricsPreview: View {
                                                                     externalConnected: externalConnected))
                     .font(.system(size: style == .readable ? 17 : 15.5, weight: .regular))
                 Text("\(max(0, min(100, percent)))%")
-                    .font(.system(size: style == .readable ? 13 : 12,
-                                  weight: .semibold,
-                                  design: .monospaced))
+                    .font(Font(MenuBarRenderer.metricValueFont(style: style)))
                     .frame(minWidth: style == .readable ? 33 : 30, alignment: .leading)
             }
             .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
@@ -237,7 +231,7 @@ struct MenuBarMetricsPreview: View {
                              warning: BatteryWarning) -> some View {
         VStack(spacing: -1) {
             Text(label)
-                .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+                .font(Font(MenuBarRenderer.metricLabelFont(style: style)))
             HStack(spacing: pressure == nil || value.isEmpty ? 0 : 4) {
                 if let pressure {
                     Circle()
@@ -248,9 +242,7 @@ struct MenuBarMetricsPreview: View {
                 if !value.isEmpty {
                     Text(value)
                         .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
-                        .font(.system(size: style == .readable ? 13 : 12,
-                                      weight: .semibold,
-                                      design: .monospaced))
+                        .font(Font(MenuBarRenderer.metricValueFont(style: style)))
                         .frame(minWidth: metricValueMinWidth(minimumValue: minimumValue, style: style),
                                alignment: .center)
                 }
@@ -274,8 +266,7 @@ struct MenuBarMetricsPreview: View {
             VStack(spacing: -1.8) {
                 ForEach(Array(label.prefix(3).enumerated()), id: \.offset) { _, character in
                     Text(String(character))
-                        .font(.system(size: style == .readable ? 6.5 : 6.1,
-                                      weight: .semibold))
+                        .font(Font(MenuBarRenderer.usageBarLabelFont(style: style)))
                         .frame(height: (size.height - 2) / 3)
                 }
             }
