@@ -23,7 +23,9 @@ import Foundation
 enum CommandBarUnitCatalog {
     // MARK: - Dimensions
 
-    /// Exponents over the six base dimensions. Hashable so it keys lookups.
+    /// Exponents over the base dimensions. Hashable so it keys lookups. Seven
+    /// of them: the six mechanical ones plus electric current, so volts, ohms
+    /// and farads compose the same way kilometers per hour does.
     struct Dimensions: Hashable, Equatable {
         var length = 0
         var mass = 0
@@ -31,15 +33,18 @@ enum CommandBarUnitCatalog {
         var temperature = 0
         var data = 0
         var angle = 0
+        var current = 0
 
         static let none = Dimensions()
 
         var isNone: Bool {
-            length == 0 && mass == 0 && time == 0 && temperature == 0 && data == 0 && angle == 0
+            length == 0 && mass == 0 && time == 0 && temperature == 0 && data == 0
+                && angle == 0 && current == 0
         }
 
         var isNegated: Bool {
-            length < 0 && mass < 0 && time < 0 && temperature < 0 && data < 0 && angle < 0
+            length < 0 && mass < 0 && time < 0 && temperature < 0 && data < 0
+                && angle < 0 && current < 0
         }
 
         static func * (left: Dimensions, right: Dimensions) -> Dimensions {
@@ -48,7 +53,8 @@ enum CommandBarUnitCatalog {
                        time: left.time + right.time,
                        temperature: left.temperature + right.temperature,
                        data: left.data + right.data,
-                       angle: left.angle + right.angle)
+                       angle: left.angle + right.angle,
+                       current: left.current + right.current)
         }
 
         static func / (left: Dimensions, right: Dimensions) -> Dimensions {
@@ -57,17 +63,20 @@ enum CommandBarUnitCatalog {
                        time: left.time - right.time,
                        temperature: left.temperature - right.temperature,
                        data: left.data - right.data,
-                       angle: left.angle - right.angle)
+                       angle: left.angle - right.angle,
+                       current: left.current - right.current)
         }
 
         func negated() -> Dimensions {
             Dimensions(length: -length, mass: -mass, time: -time,
-                       temperature: -temperature, data: -data, angle: -angle)
+                       temperature: -temperature, data: -data, angle: -angle,
+                       current: -current)
         }
 
         func scaled(by factor: Int) -> Dimensions {
             Dimensions(length: length * factor, mass: mass * factor, time: time * factor,
-                       temperature: temperature * factor, data: data * factor, angle: angle * factor)
+                       temperature: temperature * factor, data: data * factor, angle: angle * factor,
+                       current: current * factor)
         }
 
         /// True when every exponent is divisible by `n`, so an n-th root stays
@@ -75,11 +84,13 @@ enum CommandBarUnitCatalog {
         func allDivisible(by n: Int) -> Bool {
             length % n == 0 && mass % n == 0 && time % n == 0
                 && temperature % n == 0 && data % n == 0 && angle % n == 0
+                && current % n == 0
         }
 
         func dividedExponents(by n: Int) -> Dimensions {
             Dimensions(length: length / n, mass: mass / n, time: time / n,
-                       temperature: temperature / n, data: data / n, angle: angle / n)
+                       temperature: temperature / n, data: data / n, angle: angle / n,
+                       current: current / n)
         }
     }
 
@@ -226,14 +237,23 @@ enum CommandBarUnitCatalog {
     static let all: [Unit] = {
         var units: [Unit] = []
         func add(_ id: String, _ dimensions: Dimensions, scale: Double, offset: Double = 0,
-                 foundation: Foundation.Dimension? = nil, _ names: [String],
+                 foundation: Foundation.Dimension? = nil, symbol: String? = nil, _ names: [String],
                  exact: [String] = []) {
             units.append(Unit(id, dimensions, scale: scale, offset: offset,
-                              foundation: foundation, names: names, exactNames: exact))
+                              foundation: foundation, symbol: symbol, names: names, exactNames: exact))
         }
         let l = Dimensions(length: 1), a = Dimensions(length: 2), v = Dimensions(length: 3)
         let m = Dimensions(mass: 1), t = Dimensions(time: 1), temp = Dimensions(temperature: 1)
-        let d = Dimensions(data: 1), ang = Dimensions(angle: 1)
+        let d = Dimensions(data: 1), ang = Dimensions(angle: 1), i = Dimensions(current: 1)
+        // Volt, ohm, farad, weber, siemens, henry and tesla derive from the
+        // same power dimensions watts already carry.
+        let voltDims = m * l * l / (t * t * t) / i
+        let ohmDims = voltDims / i
+        let faradDims = i * t * i * t * t * t / (m * l * l)
+        let weberDims = voltDims * t
+        let siemensDims = i * i * t * t * t / (m * l * l)
+        let henryDims = weberDims / i
+        let teslaDims = m / (t * t) / i
 
         // Length.
         add("mm", l, scale: 1e-3, foundation: UnitLength.millimeters,
@@ -252,7 +272,7 @@ enum CommandBarUnitCatalog {
             ["yd", "yard", "yards", "jarda", "jardas"])
         add("mi", l, scale: 1609.344, foundation: UnitLength.miles,
             ["mi", "mile", "miles", "milha", "milhas"])
-        add("nmi", l, scale: 1852, foundation: UnitLength.nauticalMiles,
+        add("nmi", l, scale: 1852, foundation: UnitLength.nauticalMiles, symbol: "nmi",
             ["nmi", "nauticalmile", "nauticalmiles", "nautical mile", "nautical miles",
              "milha nautica", "milhas nauticas"])
         add("fathom", l, scale: 1.8288, foundation: UnitLength.fathoms,
@@ -285,7 +305,7 @@ enum CommandBarUnitCatalog {
             ["st", "stone", "stones"])
         add("ct", m, scale: 2e-4, foundation: UnitMass.carats,
             ["ct", "carat", "carats", "quilate", "quilates"])
-        add("ozt", m, scale: 0.0311034768, foundation: UnitMass.ouncesTroy,
+        add("ozt", m, scale: 0.0311034768, foundation: UnitMass.ouncesTroy, symbol: "ozt",
             ["ozt", "troyounce", "troyounces", "troy ounce", "troy ounces"])
 
         // Temperature: affine scales, never increments.
@@ -358,17 +378,17 @@ enum CommandBarUnitCatalog {
             ["tbsp", "tablespoon", "tablespoons"])
         add("tsp", v, scale: 4.92892159375e-6, foundation: UnitVolume.teaspoons,
             ["tsp", "teaspoon", "teaspoons"])
-        add("ukgal", v, scale: 4.54609e-3, foundation: UnitVolume.imperialGallons,
+        add("ukgal", v, scale: 4.54609e-3, foundation: UnitVolume.imperialGallons, symbol: "ukgal",
             ["ukgal", "ukgallon", "ukgallons", "uk gallon", "uk gallons",
              "imperialgallon", "imperialgallons", "imperial gallon", "imperial gallons"])
-        add("ukqt", v, scale: 1.1365225e-3, foundation: UnitVolume.imperialQuarts,
+        add("ukqt", v, scale: 1.1365225e-3, foundation: UnitVolume.imperialQuarts, symbol: "ukqt",
             ["ukqt", "imperialquart", "imperialquarts", "imperial quart", "imperial quarts"])
-        add("ukpint", v, scale: 5.6826125e-4, foundation: UnitVolume.imperialPints,
+        add("ukpint", v, scale: 5.6826125e-4, foundation: UnitVolume.imperialPints, symbol: "ukpint",
             ["ukpint", "imperialpint", "imperialpints", "imperial pint", "imperial pints"])
-        add("ukfloz", v, scale: 2.84130625e-5, foundation: UnitVolume.imperialFluidOunces,
+        add("ukfloz", v, scale: 2.84130625e-5, foundation: UnitVolume.imperialFluidOunces, symbol: "ukfloz",
             ["ukfloz", "imperialfluidounce", "imperialfluidounces",
              "imperial fluid ounce", "imperial fluid ounces"])
-        add("ukbsp", v, scale: 1.7758e-5, foundation: UnitVolume.imperialTablespoons,
+        add("ukbsp", v, scale: 1.7758e-5, foundation: UnitVolume.imperialTablespoons, symbol: "ukbsp",
             ["ukbsp", "imperialtablespoon", "imperialtablespoons",
              "imperial tablespoon", "imperial tablespoons"])
         add("bbl", v, scale: 0.158987294928,
@@ -457,7 +477,7 @@ enum CommandBarUnitCatalog {
             ["mpg", "milespergallon", "miles per gallon"])
 
         // Pressure.
-        add("pa", m / l * t * t, scale: 1, foundation: UnitPressure.pascals,
+        add("pa", m / l * t * t, scale: 1, foundation: UnitPressure.pascals, symbol: "pa",
             ["pa", "pascal", "pascals"])
         add("kpa", m / l * t * t, scale: 1e3, foundation: UnitPressure.kilopascals,
             ["kpa", "kilopascal", "kilopascals"])
@@ -532,6 +552,57 @@ enum CommandBarUnitCatalog {
             ["rpm"])
         add("rps", t.negated(), scale: 1, foundation: CommandBarUnitCatalog.customRPS,
             ["rps"])
+
+        // Electrical. The ampere is the base, so volts, ohms, farads and the
+        // rest fall out of the same exponent arithmetic as km/h. The bare
+        // letters stay reserved for their older meanings: F is Fahrenheit, C
+        // Celsius, H hours, S seconds and T tonnes, so those quantities are
+        // only ever written out ("farad", "coulomb as As").
+        add("a", i, scale: 1, foundation: UnitElectricCurrent.amperes,
+            ["a", "amp", "amps", "ampere", "amperes"], exact: ["A"])
+        add("ma", i, scale: 1e-3, foundation: UnitElectricCurrent.milliamperes,
+            ["ma", "milliamp", "milliamps", "milliampere", "milliamperes"], exact: ["mA"])
+        add("ka", i, scale: 1e3, foundation: UnitElectricCurrent.kiloamperes,
+            ["ka", "kiloamp", "kiloamps", "kiloampere", "kiloamperes"], exact: ["kA"])
+        add("v", voltDims, scale: 1, foundation: UnitElectricPotentialDifference.volts,
+            ["v", "volt", "volts"], exact: ["V"])
+        add("mv", voltDims, scale: 1e-3, foundation: UnitElectricPotentialDifference.millivolts,
+            ["mv", "millivolt", "millivolts"], exact: ["mV"])
+        add("kv", voltDims, scale: 1e3, foundation: UnitElectricPotentialDifference.kilovolts,
+            ["kv", "kilovolt", "kilovolts"], exact: ["kV"])
+        add("ohm", ohmDims, scale: 1, foundation: UnitElectricResistance.ohms,
+            ["ohm", "ohms", "ω", "Ω"], exact: ["Ω"])
+        add("kohm", ohmDims, scale: 1e3,
+            ["kohm", "kohms", "kiloohm", "kiloohms", "kω", "kΩ"], exact: ["kΩ"])
+        add("mohm", ohmDims, scale: 1e-3,
+            ["mohm", "mohms", "milliohm", "milliohms", "mω", "mΩ"], exact: ["mΩ"])
+        add("farad", faradDims, scale: 1, foundation: UnitElectricCapacitance.farads,
+            ["farad", "farads"])
+        add("uf", faradDims, scale: 1e-6, foundation: UnitElectricCapacitance.microfarads,
+            ["uf", "µf", "μf", "microfarad", "microfarads"], exact: ["µF", "μF", "uF"])
+        add("nf", faradDims, scale: 1e-9, foundation: UnitElectricCapacitance.nanofarads,
+            ["nf", "nanofarad", "nanofarads"], exact: ["nF"])
+        add("pf", faradDims, scale: 1e-12, foundation: UnitElectricCapacitance.picofarads,
+            ["pf", "picofarad", "picofarads"], exact: ["pF"])
+        add("weber", weberDims, scale: 1, symbol: "Wb",
+            ["wb", "weber", "webers"], exact: ["Wb"])
+        add("tesla", teslaDims, scale: 1, symbol: "T",
+            ["tesla", "teslas"])
+        add("mt", teslaDims, scale: 1e-3, symbol: "mT",
+            ["mt", "millitesla", "milliteslas"], exact: ["mT"])
+        add("gauss", teslaDims, scale: 1e-4,
+            ["gauss"])
+        add("henry", henryDims, scale: 1, foundation: UnitElectricInductance.henries,
+            ["henry", "henries"])
+        add("mh", henryDims, scale: 1e-3, foundation: UnitElectricInductance.millihenries,
+            ["mh", "millihenry", "millihenries"], exact: ["mH"])
+        add("siemens", siemensDims, scale: 1, foundation: UnitElectricConductance.siemens,
+            ["siemens"])
+        // Charge: the coulomb is the base, written out because C is Celsius.
+        add("mah", i * t, scale: 3.6, foundation: UnitElectricCharge.milliampereHours,
+            ["mah", "milliamphour", "milliamphours", "milliamp hour", "milliamp hours"], exact: ["mAh"])
+        add("ah", i * t, scale: 3600,
+            ["ah", "amphour", "amphours", "amp hour", "amp hours"], exact: ["Ah"])
 
         return units
     }()
