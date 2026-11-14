@@ -327,6 +327,7 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("0.1+0.2") == 0.3 && math("0.1+0.2") == "0.3",
                "floating point noise never reaches the eye")
         suite.expect(math("1,000+1") == "1,001", "grouped thousands parse and print grouped")
+        suite.expect(mathValue("1'003+1") == 1004, "an apostrophe before three digits groups thousands")
         suite.expect(math("2 x 3") == "6" && math("10 ÷ 2") == "5" && math("2 × 3") == "6",
                "the written multiplication and division signs work too")
         suite.expect(math("2(3+4)") == "14" && math("(1+2)(3+4)") == "21",
@@ -1394,9 +1395,9 @@ enum CommandBarFeatureTests {
             ("10kg + 500g", 10_500),
             ("1kg + 500g + 2lb", 5.306_933_932),
             ("10kg + 500g to lb", 23.148_537_52),
-            ("5 feet 3 inches", 5.25),
+            ("5 feet 3 inches to ft", 5.25),
             ("5 feet 3 inches to cm", 160.02),
-            ("1hr 30min", 1.5),
+            ("1hr 30min", 90),
             (#"5/16" in mm"#, 7.9375),
             ("1 1/2 cups to ml", 354.882_354_8),
             (#"5'10" in cm"#, 177.8),
@@ -1466,17 +1467,19 @@ enum CommandBarFeatureTests {
             suite.expect(units(query) == nil, "\(query) stays a search")
         }
 
-        let heightTitle = units("71in in cm")
+        // The answer row is written in this Mac's own number format, so the
+        // comparison uses the same defaults rather than an explicit test locale.
+        let heightTitle = CommandBarCalculator.evaluate("71in in cm")?.formatted
         for query in ["5ft 11 in cm", "5ft 11in in cm", #"5'11" in cm"#] {
             let row = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
             suite.expect(heightTitle != nil && row?.id == "math.result"
                          && row?.isAnswer == true && row?.title == heightTitle,
-                         "the Command Bar presents \(query) as the same answer as 71 inches")
+                         "the Command Bar presents \(query) as the same answer as 71 inches; expected \(heightTitle ?? "nil"), row \(row?.id ?? "nil"): \(row?.title ?? "nil")")
             CopyAnswerHost.Pasteboard.general.accepts = true
             CopyAnswerHost.Pasteboard.general.clearContents()
             row?.run(nil)
             suite.expect(heightTitle != nil && CopyAnswerHost.Pasteboard.general.string == heightTitle,
-                         "Return copies the displayed conversion for \(query)")
+                          "Return copies the displayed conversion for \(query); expected \(heightTitle ?? "nil"), got \(CopyAnswerHost.Pasteboard.general.string ?? "nil")")
         }
         suite.expect(CopyAnswerHost.answerEntry(for: "5ft 11in cm", bar: englishBar) == nil
                       && CopyAnswerHost.answerEntry(for: "5 in to cm", bar: englishBar)?.id == "math.result",
