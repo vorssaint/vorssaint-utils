@@ -1724,7 +1724,7 @@ enum CommandBarCatalog {
     /// The pinned first row when what was typed is a sum or a conversion.
     /// Enter copies it.
     static func answerEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
-        if let result = CommandBarMath.evaluate(query) {
+        if let result = CommandBarCalculator.evaluate(query) {
             var expression = query.trimmingCharacters(in: .whitespacesAndNewlines)
             if expression.hasSuffix("=") { expression.removeLast() }
             let completed = result.closingBrackets.isEmpty ? ""
@@ -1737,16 +1737,6 @@ enum CommandBarCatalog {
                 isAnswer: true,
                 countsUsage: false,
                 run: { _ in copyAnswer(result.formatted) })
-        }
-        if let converted = CommandBarUnits.convert(query) {
-            return CommandBarEntry(
-                id: "units.result",
-                title: converted.formatted,
-                subtitle: bar.copyHint,
-                icon: .symbol("arrow.left.arrow.right"),
-                isAnswer: true,
-                countsUsage: false,
-                run: { _ in copyAnswer(converted.formatted) })
         }
         if let converted = CommandBarColors.convert(query) {
             return CommandBarEntry(

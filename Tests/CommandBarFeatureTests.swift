@@ -301,17 +301,18 @@ enum CommandBarFeatureTests {
 
         // MARK: Command bar calculator
 
+        func calculate(_ input: String, decimal: String = ".", grouping: String = ",",
+                       locale: Locale = Locale(identifier: "en_US")) -> CommandBarCalculator.Result? {
+            CommandBarCalculator.evaluate(input,
+                                          locale: locale,
+                                          decimalSeparator: decimal,
+                                          groupingSeparator: grouping)
+        }
         func math(_ input: String, decimal: String = ".", grouping: String = ",") -> String? {
-            CommandBarMath.evaluate(input,
-                                    decimalSeparator: decimal,
-                                    groupingSeparator: grouping,
-                                    locale: Locale(identifier: "en_US"))?.formatted
+            calculate(input, decimal: decimal, grouping: grouping)?.formatted
         }
         func mathValue(_ input: String, decimal: String = ".", grouping: String = ",") -> Double? {
-            CommandBarMath.evaluate(input,
-                                    decimalSeparator: decimal,
-                                    groupingSeparator: grouping,
-                                    locale: Locale(identifier: "en_US"))?.value
+            calculate(input, decimal: decimal, grouping: grouping)?.value
         }
 
         suite.expect(math("2+2") == "4", "the calculator answers a sum")
@@ -326,6 +327,7 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("0.1+0.2") == 0.3 && math("0.1+0.2") == "0.3",
                "floating point noise never reaches the eye")
         suite.expect(math("1,000+1") == "1,001", "grouped thousands parse and print grouped")
+        suite.expect(mathValue("1'003+1") == 1004, "an apostrophe before three digits groups thousands")
         suite.expect(math("2 x 3") == "6" && math("10 ÷ 2") == "5" && math("2 × 3") == "6",
                "the written multiplication and division signs work too")
         suite.expect(math("2(3+4)") == "14" && math("(1+2)(3+4)") == "21",
@@ -351,6 +353,19 @@ enum CommandBarFeatureTests {
         suite.expect(math("20% de 480") == "96", "the same in the other words people type")
         suite.expect(math("50%") == nil, "a lone percentage is not a question")
         suite.expect(math("200*10%") == "20", "a percentage multiplies as a fraction")
+        suite.expect(math("10 percent of 50") == "5" && math("20% off 500") == "400",
+                     "spoken percentages and discounts are expressions")
+        suite.expect(math("4 squared") == "16" && math("3 cubed") == "27"
+                     && math("2 to the power of 10") == "1,024",
+                     "spoken square, cube and power notation")
+        suite.expect(math("10 mod 3") == "1" && math("-10 mod 3") == "-1",
+                     "modulo keeps the sign of its left operand")
+        suite.expect(math("1e5") == "100,000" && math("10k") == "10,000",
+                     "scientific notation and thousand suffix")
+        suite.expect(mathValue("round(2/3)") == 1 && mathValue("2/3").map { abs($0 - 2.0 / 3) < 1e-9 } == true,
+                     "fractions remain numeric and can be rounded")
+        suite.expect(mathValue("10kg + 20%").map { abs($0 - 12) < 1e-9 } == true,
+                     "a percentage added to a unit quantity is relative")
 
         suite.expect(math("5") == nil, "a lone number is a search, not an answer")
         suite.expect(math("hello") == nil, "words are not expressions")
@@ -370,27 +385,31 @@ enum CommandBarFeatureTests {
                      && math("2^39") == "549,755,813,888" && math("10000000000+0.5") == "10,000,000,000.5"
                      && math("1234567890.25+0") == "1,234,567,890.25",
                "an answer short of that keeps every digit it prints")
-        suite.expect(CommandBarMath.evaluate("100000.1-100000", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "0.1",
-               "a small difference of large numbers still loses its binary noise")
-        suite.expect(CommandBarMath.evaluate("1234567890123+1", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "1234567890124",
-               "reusing an answer shown in scientific notation keeps every whole digit")
-        suite.expect(CommandBarMath.evaluate("2^56", decimalSeparator: ".", groupingSeparator: ",")
-                         .map { CommandBarMath.reusableExpression(for: $0, decimalSeparator: ".") } == "7.20575940379279e+16",
-               "reusing a huge answer keeps fifteen digits without binary noise")
+        suite.expect(calculate("100000.1-100000")?.reusableExpression == "0.1",
+                "a small difference of large numbers still loses its binary noise")
+        suite.expect(calculate("1234567890123+1")?.reusableExpression == "1234567890124",
+                "reusing an answer shown in scientific notation keeps every whole digit")
+        suite.expect(calculate("2^56")?.reusableExpression == "7.20575940379279e+16",
+                "reusing a huge answer keeps fifteen digits without binary noise")
 
         // The same numbers as the owner's Mac writes them.
-        suite.expect(CommandBarMath.evaluate("1.234,5 + 1",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))?.formatted == "1.235,5",
-               "a comma decimal parses and prints back in the same shape")
-        suite.expect(CommandBarMath.evaluate("1,5*2",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))?.value == 3,
-               "the comma is the decimal point where that is the custom")
+        suite.expect(calculate("1.234,5 + 1", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))?.formatted == "1.235,5",
+                "a comma decimal parses and prints back in the same shape")
+        suite.expect(calculate("1,5*2", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))?.value == 3,
+                "the comma is the decimal point where that is the custom")
+        let usLocale = Locale(identifier: "en_US")
+        let ruLocale = Locale(identifier: "ru_RU")
+        suite.expect(calculate("1,234.5+1", decimal: ".", grouping: ",", locale: usLocale)?.formatted == "1,235.5",
+                     "en_US keeps decimal point and comma grouping")
+        suite.expect(calculate("1.234,5+1", decimal: ",",
+                               grouping: ruLocale.groupingSeparator ?? "\u{00A0}",
+                               locale: ruLocale)?.value == 1235.5
+                     && calculate("1.234,5+1", decimal: ",",
+                                  grouping: ruLocale.groupingSeparator ?? "\u{00A0}",
+                                  locale: ruLocale)?.formatted.contains(",5") == true,
+                     "ru_RU parses and formats a decimal comma")
         suite.expect(math("1.500+1", decimal: ",", grouping: ".") == "1,501",
                "three digits after the grouping separator read as thousands")
 
@@ -444,15 +463,15 @@ enum CommandBarFeatureTests {
         suite.expect(mathValue("0\u{00A0}125+1", decimal: ",", grouping: "\u{00A0}") == nil,
                "a grouping space after a lone zero is not thousands")
 
-        suite.expect(CommandBarMath.evaluate("([2+3")?.closingBrackets == "])"
-                && CommandBarMath.evaluate("2+3")?.closingBrackets == "",
-               "virtual closers preserve bracket kind and nesting")
+        suite.expect(CommandBarCalculator.evaluate("([2+3")?.closingBrackets == "])"
+                && CommandBarCalculator.evaluate("2+3")?.closingBrackets == "",
+                "virtual closers preserve bracket kind and nesting")
         suite.expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
                "functions and nested brackets evaluate before closers are typed")
         for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
                            "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
             suite.expect(mathValue(expression) == nil
-                    && CommandBarMath.evaluate(expression)?.closingBrackets == nil,
+                    && CommandBarCalculator.evaluate(expression)?.closingBrackets == nil,
                    "invalid calculator input has neither an answer nor ghost brackets: \(expression)")
         }
         for (expression, expected) in [
@@ -477,10 +496,7 @@ enum CommandBarFeatureTests {
                    "small trigonometric values remain available to the rest of the calculation: \(expression)")
         }
         for expression in ["0.1+0.2", "1/3", "-2^2", "1e-9+0", "2^100"] {
-            if let result = CommandBarMath.evaluate(expression,
-                                                     decimalSeparator: ".",
-                                                     groupingSeparator: ",") {
-                let reusable = CommandBarMath.reusableExpression(for: result, decimalSeparator: ".")
+            if let result = calculate(expression), let reusable = result.reusableExpression {
                 suite.expect(mathValue(reusable + "+0") == result.value,
                        "reusing \(expression) preserves its stored value")
                 if result.value == 0.3 {
@@ -490,8 +506,8 @@ enum CommandBarFeatureTests {
                     suite.expect(mathValue(reusable + "^2") == 16,
                            "negative reuse preserves power precedence")
                 }
-                let comma = CommandBarMath.reusableExpression(for: result, decimalSeparator: ",")
-                suite.expect(mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
+                let comma = calculate(expression, decimal: ",", grouping: ".")?.reusableExpression ?? ""
+                suite.expect(!comma.isEmpty && mathValue(comma + "+0", decimal: ",", grouping: ".") == result.value,
                        "reused answers also round-trip in decimal-comma locales")
             } else {
                 suite.expect(false, "calculator produces an answer to reuse for \(expression)")
@@ -1347,18 +1363,74 @@ enum CommandBarFeatureTests {
 
         // MARK: Command bar unit conversion
 
-        func units(_ input: String) -> String? {
-            CommandBarUnits.convert(input,
-                                    decimalSeparator: ".",
-                                    groupingSeparator: ",",
-                                    locale: Locale(identifier: "en_US"))?.formatted
+        func units(_ input: String, decimal: String = ".", grouping: String = ",",
+                   locale: Locale = Locale(identifier: "en_US")) -> String? {
+            calculate(input, decimal: decimal, grouping: grouping, locale: locale)?.formatted
         }
-        func unitValue(_ input: String) -> Double? {
-            CommandBarUnits.convert(input,
-                                    decimalSeparator: ".",
-                                    groupingSeparator: ",",
-                                    locale: Locale(identifier: "en_US"))?.value
+        func unitValue(_ input: String, decimal: String = ".", grouping: String = ",",
+                       locale: Locale = Locale(identifier: "en_US")) -> Double? {
+            calculate(input, decimal: decimal, grouping: grouping, locale: locale)?.value
         }
+        func calculatorNumbers(_ text: String?) -> [Double] {
+            (text ?? "").split(whereSeparator: { !"0123456789.,-".contains($0) })
+                .compactMap { Double($0.replacingOccurrences(of: ",", with: ".")) }
+        }
+        func expectSplit(_ input: String, _ numbers: [Double], units expectedUnits: [String]) {
+            let result = calculate(input)
+            let actualNumbers = calculatorNumbers(result?.formatted)
+            let matchesNumbers = actualNumbers.count == numbers.count
+                && zip(actualNumbers, numbers).allSatisfy { abs($0 - $1) < 1e-7 }
+            let matchesUnits = expectedUnits.allSatisfy {
+                result?.formatted.localizedCaseInsensitiveContains($0) == true
+            }
+            suite.expect(matchesNumbers && matchesUnits,
+                         "\(input) shows \(numbers) and \(expectedUnits), got \(result?.formatted ?? "nil")")
+        }
+
+        // The calculator owns arithmetic, unit conversion and rates in one
+        // parse, so these assert displayed-unit values rather than a second
+        // conversion API's independent result.
+        for (query, expected) in [
+            ("5feet + 1m", 2.524),
+            ("10kg + 500g", 10_500),
+            ("1kg + 500g + 2lb", 5.306_933_932),
+            ("10kg + 500g to lb", 23.148_537_52),
+            ("5 feet 3 inches to ft", 5.25),
+            ("5 feet 3 inches to cm", 160.02),
+            ("1hr 30min", 90),
+            (#"5/16" in mm"#, 7.9375),
+            ("1 1/2 cups to ml", 354.882_354_8),
+            (#"5'10" in cm"#, 177.8),
+            ("56/7 fl oz in ml", 236.588_236_5),
+            ("5m * 4m", 20),
+            ("2m * 3m * 4m to l", 24_000),
+            ("sqrt(25m2)", 5),
+            ("100km / 2h to km/h", 50),
+            ("90km/h * 20min to km", 30),
+            ("60 mph * 2.5 hours", 150),
+            ("1GB / 100mbps to s", 80),
+            ("1500w * 2h to kwh", 3),
+            ("1 / 20ms to hz", 50),
+            ("2kg / 4m3", 0.5),
+            ("1kg/m3 to g/cm3", 0.001),
+            ("how many feet in a mile", 5_280),
+            ("cm in 5 inches", 12.7),
+            ("convert 5 km into miles", 3.106_855_961),
+            ("10l / 2min to l/min", 5),
+            ("10 km/h to min/km", 6),
+        ] {
+            let result = calculate(query)
+            let tolerance = max(1.0, abs(expected)) * 1e-8
+            suite.expect(result?.value.map { abs($0 - expected) <= tolerance } == true,
+                         "\(query) should be \(expected), got \(result?.formatted ?? "nil")")
+        }
+
+        expectSplit("145 mins to timespan", [2, 25], units: ["hr", "min"])
+        expectSplit("1.75 m to feet and inches", [5, 8.897_637_795], units: ["ft", "in"])
+        expectSplit("2.5 kg to lb oz", [5, 8.184_904_874], units: ["lb", "oz"])
+        expectSplit("100 days to weeks and days", [14, 2], units: ["wk", "d"])
+        expectSplit("1m", [3, 3.370_078_74], units: ["ft", "in"])
+        expectSplit("1hr", [60], units: ["min"])
 
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
@@ -1385,10 +1457,9 @@ enum CommandBarFeatureTests {
             suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
                          "\(query) converts to \(expected)")
         }
-        suite.expect(CommandBarUnits.convert("5 pés 11,5 polegadas em cm",
-                                             decimalSeparator: ",", groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-            .map { abs($0.value - 181.61) < 0.001 } == true,
+        suite.expect(unitValue("5 pés 11,5 polegadas em cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 181.61) < 0.001 } == true,
                      "mixed lengths use the same localized names and decimal parser as single units")
         for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
                       "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
@@ -1396,20 +1467,22 @@ enum CommandBarFeatureTests {
             suite.expect(units(query) == nil, "\(query) stays a search")
         }
 
-        let heightTitle = CommandBarUnits.convert("71in in cm")?.formatted
+        // The answer row is written in this Mac's own number format, so the
+        // comparison uses the same defaults rather than an explicit test locale.
+        let heightTitle = CommandBarCalculator.evaluate("71in in cm")?.formatted
         for query in ["5ft 11 in cm", "5ft 11in in cm", #"5'11" in cm"#] {
             let row = CopyAnswerHost.answerEntry(for: query, bar: englishBar)
-            suite.expect(heightTitle != nil && row?.id == "units.result"
+            suite.expect(heightTitle != nil && row?.id == "math.result"
                          && row?.isAnswer == true && row?.title == heightTitle,
-                         "the Command Bar presents \(query) as the same answer as 71 inches")
+                         "the Command Bar presents \(query) as the same answer as 71 inches; expected \(heightTitle ?? "nil"), row \(row?.id ?? "nil"): \(row?.title ?? "nil")")
             CopyAnswerHost.Pasteboard.general.accepts = true
             CopyAnswerHost.Pasteboard.general.clearContents()
             row?.run(nil)
             suite.expect(heightTitle != nil && CopyAnswerHost.Pasteboard.general.string == heightTitle,
-                         "Return copies the displayed conversion for \(query)")
+                          "Return copies the displayed conversion for \(query); expected \(heightTitle ?? "nil"), got \(CopyAnswerHost.Pasteboard.general.string ?? "nil")")
         }
         suite.expect(CopyAnswerHost.answerEntry(for: "5ft 11in cm", bar: englishBar) == nil
-                     && CopyAnswerHost.answerEntry(for: "5 in to cm", bar: englishBar)?.id == "units.result",
+                      && CopyAnswerHost.answerEntry(for: "5 in to cm", bar: englishBar)?.id == "math.result",
                      "an attached inch mark cannot replace the connector and standalone inches still convert")
         suite.expect(unitValue("2 h to min").map { abs($0 - 120) < 0.001 } == true,
                "hours become minutes")
@@ -1429,29 +1502,21 @@ enum CommandBarFeatureTests {
                "days become weeks")
         suite.expect(unitValue("365 d to yr").map { abs($0 - 1) < 0.001 } == true,
                "days become years")
-        suite.expect(CommandBarUnits.convert("2 semanas para dias",
-                                             decimalSeparator: ",",
-                                             groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 14) < 0.001 } == true,
+        suite.expect(unitValue("2 semanas para dias", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 14) < 0.001 } == true,
                "Portuguese week becomes days")
-        suite.expect(CommandBarUnits.convert("1 ano para dias",
-                                             decimalSeparator: ",",
-                                             groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 365) < 0.001 } == true,
+        suite.expect(unitValue("1 ano para dias", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 365) < 0.001 } == true,
                "Portuguese year becomes days")
-        suite.expect(CommandBarUnits.convert("365 dias para anos",
-                                             decimalSeparator: ",",
-                                             groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 1) < 0.001 } == true,
+        suite.expect(unitValue("365 dias para anos", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 1) < 0.001 } == true,
                "Portuguese days become years")
-        suite.expect(CommandBarUnits.convert("3 dias para horas",
-                                             decimalSeparator: ",",
-                                             groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 72) < 0.001 } == true,
+        suite.expect(unitValue("3 dias para horas", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 72) < 0.001 } == true,
                "Portuguese days become hours")
         suite.expect(units("1d to hr") == units("24 hr to hr") && units("24 hr to d") == "1 d"
                 && units("14 d to wk") == "2 wk" && units("1 yr to d") == "365 d"
@@ -1512,20 +1577,16 @@ enum CommandBarFeatureTests {
                 && unitValue("1 d to s").map { abs($0 - 86400) < 0.001 } == true
                 && unitValue("1 yr to s").map { abs($0 - 31_536_000) < 0.001 } == true,
                "full duration span conversions between seconds, minutes, hours, days, weeks, years")
-        suite.expect(CommandBarUnits.convert("1,5 dia para horas",
-                                             decimalSeparator: ",",
-                                             groupingSeparator: ".",
-                                             locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 36) < 0.001 } == true,
+        suite.expect(unitValue("1,5 dia para horas", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 36) < 0.001 } == true,
                "Portuguese fractional duration converts")
         suite.expect(units("5 xyz to cm") == nil, "an unknown unit is refused, never guessed")
         suite.expect(units("minutes to read the article") == nil,
                "a sentence that happens to contain a unit word stays a search")
-        suite.expect(CommandBarUnits.convert("1,5 m to cm",
-                                       decimalSeparator: ",",
-                                       groupingSeparator: ".",
-                                       locale: Locale(identifier: "pt_BR"))
-                .map { abs($0.value - 150) < 0.001 } == true,
+        suite.expect(unitValue("1,5 m to cm", decimal: ",", grouping: ".",
+                               locale: Locale(identifier: "pt_BR"))
+                .map { abs($0 - 150) < 0.001 } == true,
                "a comma decimal converts where that is the custom")
 
         // A first group of 0 is never thousands, so "0,250" is a quarter where
@@ -1555,17 +1616,13 @@ enum CommandBarFeatureTests {
             ("fr_FR", ",", "\u{202F}", commaDecimalInputs),
         ] {
             for (number, expected) in inputs {
-                let converted = CommandBarUnits.convert("\(number) m to cm",
-                                                       decimalSeparator: decimal,
-                                                       groupingSeparator: grouping,
-                                                       locale: Locale(identifier: "en_US"))
-                suite.expect(converted.map { abs($0.value - expected) < 0.001 } == true,
+                let converted = unitValue("\(number) m to cm", decimal: decimal, grouping: grouping,
+                                          locale: Locale(identifier: "en_US"))
+                suite.expect(converted.map { abs($0 - expected) < 0.001 } == true,
                              "unit conversion in \(region) reads \(number) as \(expected) cm")
             }
             for number in ["1,,5", "1..5", "--1", "1-5"] {
-                suite.expect(CommandBarUnits.convert("\(number) m to cm",
-                                                     decimalSeparator: decimal,
-                                                     groupingSeparator: grouping) == nil,
+                suite.expect(unitValue("\(number) m to cm", decimal: decimal, grouping: grouping) == nil,
                              "unit conversion in \(region) refuses malformed number \(number)")
             }
         }
@@ -1595,10 +1652,8 @@ enum CommandBarFeatureTests {
                "a negative length keeps the existing decimal format")
         suite.expect(unitNumbers(units("180 cm to in")) == ["70.87"],
                "converting to inches specifically stays a plain decimal, unaffected by the feet formatting")
-        suite.expect(unitNumbers(CommandBarUnits.convert("180 cm para pes",
-                                                   decimalSeparator: ",",
-                                                   groupingSeparator: ".",
-                                                   locale: Locale(identifier: "pt_BR"))?.formatted)
+        suite.expect(unitNumbers(units("180 cm para pes", decimal: ",", grouping: ".",
+                                       locale: Locale(identifier: "pt_BR")))
                 == ["5", "10,87"],
                "feet and inches follow the person's number format")
 

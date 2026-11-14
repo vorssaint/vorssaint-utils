@@ -2021,8 +2021,8 @@ final class CommandBarService: ObservableObject {
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
-        if entry.id == "math.result", let result = CommandBarMath.evaluate(query) {
-            let completion = CommandBarMath.reusableExpression(for: result)
+        if entry.id == "math.result", let result = CommandBarCalculator.evaluate(query),
+           let completion = result.reusableExpression {
             if let editor = panel?.firstResponder as? NSTextView, editor.string == query {
                 // Native replacement keeps undo and puts the caret after the reused value.
                 editor.insertText(completion, replacementRange: NSRange(location: 0, length: (query as NSString).length))
