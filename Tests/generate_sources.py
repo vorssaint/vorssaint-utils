@@ -463,6 +463,7 @@ def main():
           + "".join(declaration(brightness, prefix).replace("private func", "func", 1) for prefix in [
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
               "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
+              "    private func scheduleSpeakerVerification(",
               "    func monitorSpeakerOutput(", "    private func probeAudio("])
           + "}\n}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"

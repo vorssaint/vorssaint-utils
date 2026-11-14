@@ -46,6 +46,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - Settings opens on Macs without a backlit keyboard and only offers keyboard light controls on supported hardware. Thanks to @13v13reddy.
 - Super Key waits for a Bluetooth keyboard after login or wake and checks its existing mappings before turning on. Thanks to @iva-zhu.
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
+- Volume changes for monitor speakers respond faster. A key press or slider move soon after another goes straight to the monitor, and Vorssaint reads the level back once you stop.
 
 ### Contributors
 Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
