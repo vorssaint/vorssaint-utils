@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Switch a monitor's input from the keyboard, for example from DisplayPort to HDMI. Turn on Switch monitor input in Displays settings, then press the shortcut (⌃⌥⌘X by default) with the pointer on the monitor. Only monitors that accept an input change from the computer respond, and Displays settings lists them with a menu of their inputs.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
