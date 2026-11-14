@@ -18,6 +18,8 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -32,7 +34,9 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, deepseek ? .deepseek : nil,
+         cursor ? .cursor : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
                 || ($0 == .claude && !usage.claudeProfile.isDefault) }
     }
@@ -430,8 +434,8 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .claude {
             Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
             setUpLimits
-        } else if provider == .opencode {
-            let todayUsage = snapshot.usage(.today).byProvider[.opencode]
+        } else if provider == .opencode || provider == .deepseek || provider == .cursor {
+            let todayUsage = snapshot.usage(.today).byProvider[provider]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
                 let costText: String = {
                     if todayUsage.unpriced > 0 {

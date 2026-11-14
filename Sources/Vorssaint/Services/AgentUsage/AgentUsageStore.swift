@@ -169,6 +169,37 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
+                // A DeepSeek session's projection is cumulative: its step count
+                // can grow while the token totals stand still, and it can switch
+                // models. Both need the stored record repriced.
+                if record.provider == .deepseek {
+                    let modelChanged = !record.model.isEmpty && record.model != old.model
+                    let requestsChanged = record.requests > old.requests
+                    if modelChanged || requestsChanged {
+                        // A model change moves the session's totals between
+                        // model buckets, which a token delta cannot express.
+                        if modelChanged {
+                            summary.invalidate()
+                        } else {
+                            summary.recordChanged(at: position, previous: old)
+                        }
+                        if modelChanged {
+                            let priced = AgentPricing.cost(billables[position], model: record.model)
+                            let extra = (priced.cost ?? 0) - (old.cost ?? 0)
+                            records[position].model = record.model
+                            records[position].cost = priced.cost
+                            records[position].savings = priced.savings
+                            records[position].reportedCost = false
+                            if let file, var turn = turns[file] ?? waiting[file],
+                               record.date >= turn.started.addingTimeInterval(-1) {
+                                waiting[file] = nil
+                                turn.cost += extra
+                                turns[file] = turn
+                            }
+                        }
+                        if requestsChanged { records[position].requests = record.requests }
+                    }
+                }
                 if record.provider == .opencode {
                     let newCost: Double?
                     let isReported: Bool
@@ -197,7 +228,13 @@ final class AgentUsageStore {
                 }
                 return
             }
-            summary.recordChanged(at: position, previous: old)
+            let modelChanged = record.provider == .deepseek
+                && !record.model.isEmpty && record.model != old.model
+            if modelChanged {
+                summary.invalidate()
+            } else {
+                summary.recordChanged(at: position, previous: old)
+            }
             var combined = billables[position]
             combined.tokens = merged
             combined.longCacheWrite = max(combined.longCacheWrite, billable.longCacheWrite)
@@ -205,7 +242,10 @@ final class AgentUsageStore {
             combined.fast = combined.fast || billable.fast
             combined.domestic = combined.domestic || billable.domestic
             combined.isAggregate = combined.isAggregate || billable.isAggregate
-            let priced = AgentPricing.cost(combined, model: old.model)
+            // A DeepSeek session's projection names the model it last used;
+            // price the cumulative totals under that model.
+            let model = record.provider == .deepseek && !record.model.isEmpty ? record.model : old.model
+            let priced = AgentPricing.cost(combined, model: model)
             let newCost: Double?
             let isReported: Bool
             if record.provider == .opencode {
@@ -231,9 +271,13 @@ final class AgentUsageStore {
             extra = (newCost ?? 0) - (old.cost ?? 0)
             billables[position] = combined
             records[position].tokens = merged
+            records[position].model = model
             records[position].cost = newCost
             records[position].savings = priced.savings
             records[position].reportedCost = isReported
+            if record.provider == .deepseek {
+                records[position].requests = max(old.requests, record.requests)
+            }
         } else {
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
@@ -476,7 +520,9 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.deepseek, ".dsh/storages/session_projcache/sessions"),
+         (.cursor, ".cursor/projects")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +545,14 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return name.hasPrefix("session-") && name.hasSuffix(".json")
+        }
+        if provider == .cursor {
+            return path.contains("/sdk-agent-store/")
+                && (path.hasSuffix("/index.db") || path.hasSuffix("/index.db-wal"))
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,6 +747,12 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        // DeepSeek Harness rewrites one projection cache per session in place.
+        if path.hasSuffix(".json") { return true }
+        // Cursor keeps each agent store's run index in a nested SQLite file;
+        // its write-ahead log can hold the newest runs.
+        if path.contains("/sdk-agent-store/")
+            && (path.hasSuffix("/index.db") || path.hasSuffix("/index.db-wal")) { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -735,7 +795,11 @@ enum AgentLogReader {
         func include(_ url: URL, from root: AgentLogRoot) {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
-                  let modified = values.contentModificationDate, modified >= horizon else { return }
+                  let baseModified = values.contentModificationDate else { return }
+            // Cursor's WAL can hold runs newer than the base index file.
+            let modified = root.provider == .cursor
+                ? (AgentOpenCodeReader.modified(url.path) ?? baseModified) : baseModified
+            guard modified >= horizon else { return }
             let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
             found.append((url.path, root.provider, modified, subagent))
         }
@@ -759,6 +823,25 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // DeepSeek Harness keeps one flat JSON cache per session.
+            if root.provider == .deepseek {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions { include(session, from: root) }
+                continue
+            }
+            // Cursor keeps one run index in each project's agent store.
+            if root.provider == .cursor {
+                let projects = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for project in projects {
+                    let store = project.appending(path: "sdk-agent-store", directoryHint: .isDirectory)
+                    let stores = (try? FileManager.default.contentsOfDirectory(
+                        at: store, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                    for entry in stores { include(entry.appending(path: "index.db"), from: root) }
+                }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -779,6 +862,14 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .deepseek {
+            AgentDeepSeekReader.read(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .cursor {
+            AgentCursorReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()
