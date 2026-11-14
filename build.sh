@@ -514,6 +514,11 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CommandBar/CommandBarEmoji.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarLinks.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDates.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDatesLexicon.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDatesParsing.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDatesAnswers.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDatesSpans.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarDatesZones.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarRowShortcuts.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSystemSettingsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarFileSearchSupport.swift

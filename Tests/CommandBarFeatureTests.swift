@@ -2322,6 +2322,69 @@ enum CommandBarFeatureTests {
                    "\"\(innocent)\" is a search, not a date")
         }
 
+        // Dates written with a month name, and the questions people ask
+        // about them: how long until, how long since, what day it lands on.
+        var moscow = Calendar(identifier: .gregorian)
+        moscow.timeZone = TimeZone(identifier: "Europe/Moscow")!
+        let moscowNow = moscow.date(from: DateComponents(year: 2026, month: 11, day: 10,
+                                                          hour: 10, minute: 0))!
+        func msk(_ input: String, _ locale: Locale = english) -> CommandBarDates.Result? {
+            CommandBarDates.evaluate(input, now: moscowNow, calendar: moscow, locale: locale)
+        }
+        for (question, answer) in [
+            ("days till 9 apr", "150 days"),
+            ("hrs till 9am", "23 hours"),
+            ("days since 9jul", "124 days"),
+            ("jul 4 - today", "-129 days"),
+            ("today - jul 4", "129 days"),
+            ("may 1 to may 31", "30 days"),
+            ("days between june 1 and june 29", "28 days"),
+            ("weekday on 1 january 2030", "Tuesday"),
+            ("days in february 2028", "29 days"),
+            ("age 3 may 1990", "36 years"),
+            ("aug 25", "August 25, 2026"),
+            ("25 august", "August 25, 2026"),
+            ("9 april", "April 9, 2027"),
+            ("april 9", "April 9, 2027"),
+            ("28. aug", "August 28, 2026"),
+            ("october 28th", "October 28, 2026"),
+            ("9jul", "July 9, 2026"),
+            ("9 apr", "April 9, 2027"),
+            ("9 april 2027", "April 9, 2027"),
+            ("apr 2027", "April 1, 2027"),
+            ("may 1 through may 31", "31 days"),
+        ] {
+            suite.expect(msk(question)?.formatted == answer,
+                   "\"\(question)\" answers \(answer)")
+        }
+        suite.expect(msk("days till 9 apr")?.detail == "April 9, 2027",
+               "a countdown says which day it is counting to")
+        suite.expect(msk("days in february 2028")?.detail == "February 2028",
+               "a month's length keeps its month, not the next year")
+        // Clocks carry a narrow no-break space before AM and PM on this
+        // system, so the hour is what the test pins.
+        suite.expect(msk("5pm ldn in sf")?.formatted.hasPrefix("9:00") == true,
+               "five in London is nine in San Francisco")
+        suite.expect(msk("time in tokyo when it's 5pm in london")?.formatted.hasPrefix("2:00") == true,
+               "a time in one place read in another crosses midnight")
+        suite.expect(msk("oct 28 1pm et in cet")?.formatted.hasPrefix("6:00") == true,
+               "a dated time converts with the offset of that day")
+        suite.expect(msk("tomorrow 3pm pst")?.formatted.contains("(tomorrow)") == true
+                && msk("tomorrow 3pm pst")?.detail.hasPrefix("Moscow") == true,
+               "a place named for the moment is answered where this Mac is")
+        suite.expect(msk("10am utc+5:30 in london")?.formatted.hasPrefix("4:30") == true,
+               "a written UTC offset is a place too")
+        suite.expect(msk("1pm et in london, tokyo, sydney")?.formatted.hasPrefix("6:00") == true
+                && msk("1pm et in london, tokyo, sydney")?.detail.contains("Tokyo") == true,
+               "several places on one card keep the first as the answer")
+        // The same questions in the language the interface is in.
+        suite.expect(msk("дней до 9 апреля", Locale(identifier: "ru_RU"))?.formatted == "150 дней",
+               "a countdown in Russian")
+        suite.expect(msk("через 3 недели", Locale(identifier: "ru_RU"))?.formatted.hasPrefix("1 декабря") == true,
+               "a relative date in Russian")
+        suite.expect(msk("время в токио", Locale(identifier: "ru_RU"))?.detail.hasPrefix("Tokyo") == true,
+               "a place's clock in Russian")
+
         // The places the person saves themselves.
         suite.expect(CommandBarLinks.expand("https://x.com/search?q={query}", kind: .link,
                                       query: "café com leite")
