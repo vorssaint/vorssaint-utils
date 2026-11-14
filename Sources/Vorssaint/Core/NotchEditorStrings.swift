@@ -91,6 +91,7 @@ struct NotchEditorStrings {
         case .timer: return timerSummary
         case .camera: return cameraSummary
         case .downloads: return downloadsSummary
+        case .mediaDownloader: return downloadsSummary
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary

@@ -122,6 +122,7 @@ enum ReleaseChangeAliases {
         case .mediaTools: return ["media tools", "image conversion", "video editor", "convert media",
             .exact("Media"), "image profiles", "video compression", "gif compression", "video and gif tools",
             "image converter"]
+        case .mediaDownloader: return ["online media downloader", "media downloader"]
         case .cleaner: return [.exact("Cleaner")]
         case .uninstaller: return ["uninstaller"]
         case .homebrew: return ["homebrew", "package management", "package manager", "package updates",

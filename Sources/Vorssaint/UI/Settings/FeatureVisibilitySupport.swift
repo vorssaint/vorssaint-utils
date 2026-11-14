@@ -8,7 +8,7 @@ import Foundation
 /// below and the unit tests can reason about pages without pulling UI in.
 enum SettingsPage: Hashable {
     case general, features, energy, monitor
-    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
+    case mouse, switcher, dock, keyDebounce, superKey, cutPaste, autoQuit, quitProtection, cleaner, uninstaller, urlCleaner, homebrew, appUpdates, media, mediaDownloader, clipboard, windowLayout, shelf, quickTools, textSnippets, screenshot, radialMenu, commandBar, killProcess, portManager, notch, notchMascot
     case shortcuts, advanced, about, releaseNotes, support
 }
 
@@ -405,6 +405,7 @@ extension AppFeature {
         case .cleaningMode:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cleaningMode)
         case .mediaTools: return FeatureSettingsDestination(.media)
+        case .mediaDownloader: return FeatureSettingsDestination(.mediaDownloader)
         case .cleaner: return FeatureSettingsDestination(.cleaner)
         case .uninstaller: return FeatureSettingsDestination(.uninstaller)
         case .killProcess: return FeatureSettingsDestination(.killProcess)
@@ -469,6 +470,7 @@ enum FeatureVisibilitySupport {
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
+        case .mediaDownloader: return [.mediaDownloader]
         case .quickTools: return [.quickLauncher, .quickToggles, .quitApps, .micMute,
                                   .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
         case .urlCleaner: return [.urlCleaner]
