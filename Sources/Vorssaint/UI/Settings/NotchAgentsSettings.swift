@@ -20,6 +20,7 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchAgentsReadout) private var readout = NotchAgentReadout.elapsed.rawValue
     @AppStorage(DefaultsKey.notchAgentsFinishAlert) private var finishAlert = true
+    @AppStorage(DefaultsKey.notchAgentsAnimation) private var animation = AgentDotAnimation.classicID
     @AppStorage(DefaultsKey.notchAgentsFinishMinimum) private var finishMinimum = NotchAgentSupport.defaultFinishMinimum
     @AppStorage(DefaultsKey.notchAgentsLimitAlert) private var limitAlert = true
     @AppStorage(DefaultsKey.notchAgentsLimitThreshold) private var limitThreshold = NotchAgentSupport.defaultLimitThreshold
@@ -94,6 +95,13 @@ struct NotchAgentsSettingsControls: View {
                 SettingsMenuRow(symbol: "camera.metering.center.weighted", title: text.readout, selection: $readout) {
                     ForEach(NotchAgentReadout.allCases) { option in
                         Text(text.readout(option)).tag(option.rawValue)
+                    }
+                }
+                .padding(.leading, settingsRowTextInset)
+                SettingsMenuRow(symbol: "sparkles", title: animationText.animationTitle, selection: $animation) {
+                    Text(animationText.classic).tag(AgentDotAnimation.classicID)
+                    ForEach(AgentDotAnimation.thinking) { dots in
+                        Text(animationText.name(dots.id)).tag(dots.id)
                     }
                 }
                 .padding(.leading, settingsRowTextInset)
@@ -269,6 +277,8 @@ struct NotchAgentsSettingsControls: View {
         let found = AgentLogRoot.all(claudeProfile: ClaudeAccountProfile(directory: claudeProfile)).filter(\.exists).map(\.provider)
         roots = Dictionary(uniqueKeysWithValues: AgentProvider.allCases.map { ($0, found.contains($0)) })
     }
+
+    private var animationText: AgentAnimationStrings { FeatureStrings.agentAnimations(l10n.language) }
 
     private func switchRow(_ symbol: String, _ title: String, isOn: Binding<Bool>) -> some View {
         SettingsRow(symbol: symbol, title: title) {

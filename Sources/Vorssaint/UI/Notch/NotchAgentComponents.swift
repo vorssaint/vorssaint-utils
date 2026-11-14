@@ -147,13 +147,22 @@ struct NotchAgentGlyph: View {
     var size: CGFloat = 13
     var working = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchAgentsAnimation) private var animation = AgentDotAnimation.classicID
 
     var body: some View {
-        NotchAgentGlyphBridge(provider: provider, size: size, animates: working && !reduceMotion)
-            // Room for the widest mark, the Claude one, drawn past its size.
-            .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
-            .accessibilityHidden(true)
-            .allowsHitTesting(false)
+        Group {
+            // A working agent can show a chosen dot animation in its color
+            // instead of its breathing mark.
+            if working, let dots = AgentDotAnimation.thinking.first(where: { $0.id == animation }) {
+                AgentDotAnimationView(animation: dots, tint: provider.tint, size: size)
+            } else {
+                NotchAgentGlyphBridge(provider: provider, size: size, animates: working && !reduceMotion)
+            }
+        }
+        // Room for the widest mark, the Claude one, drawn past its size.
+        .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 }
 
