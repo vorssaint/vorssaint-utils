@@ -74,12 +74,14 @@ extension CommandBarDates {
         if let when = words.firstIndex(of: "when"), when + 1 < words.count,
            let targetIn = words[..<when].lastIndex(of: "in") {
             let targetWords = Array(words[(targetIn + 1)..<when])
-            let sourceWords = words[(when + 1)...].filter { !["it's", "its", "it", "is"].contains($0) }
-            guard let target = zone(for: targetWords), !sourceWords.isEmpty else { return nil }
+            let sourceWords = words[(when + 1)...].filter {
+                !["it's", "its", "it", "is", "in", "at", "on"].contains($0)
+            }
+            guard zone(for: targetWords) != nil, !sourceWords.isEmpty else { return nil }
             var rewritten = Array(sourceWords)
             rewritten.append("in")
             rewritten.append(contentsOf: targetWords)
-            return conversionAnswer(rewritten, context, targets: [target])
+            return conversionAnswer(rewritten, context, targets: nil)
         }
         return conversionAnswer(words, context, targets: nil)
     }
@@ -175,7 +177,7 @@ extension CommandBarDates {
         var taken = false
         while count > 0 {
             let tail = Array(words.suffix(count))
-            if let zone = zone(for: tail) {
+            if let zone = exactZone(tail) {
                 source = zone
                 words.removeLast(count)
                 taken = true
@@ -197,11 +199,8 @@ extension CommandBarDates {
         while count > 0 {
             let tail = Array(words.suffix(count))
             let head = Array(words.prefix(words.count - count))
-            if let source = zone(for: tail), !head.isEmpty {
-                let sourceContext = Context(now: context.now,
-                                            calendar: context.calendar(in: source),
-                                            locale: context.locale)
-                if let base = moment(head[...], sourceContext) {
+            if let source = exactZone(tail), !head.isEmpty {
+                if let base = sourceMoment(head, in: source, context) {
                     return convert(base, to: [context.zone], mode: .clock, later: nil,
                                    lead: nil, context: context)
                 }
@@ -209,6 +208,19 @@ extension CommandBarDates {
             count -= 1
         }
         return nil
+    }
+
+    /// A moment whose day words ("today", "tomorrow") are read where this Mac
+    /// sits, but whose clock is read where the place is: "tomorrow 3pm pst" is
+    /// tomorrow here at 3 in San Francisco, not the place's already-passed day.
+    private static func sourceMoment(_ head: [String], in source: TimeZone,
+                                     _ context: Context) -> Moment? {
+        guard let own = moment(head[...], context) else { return nil }
+        guard own.hasTime else { return own }
+        let wall = context.calendar.dateComponents([.year, .month, .day, .hour, .minute],
+                                                   from: own.date)
+        guard let date = context.calendar(in: source).date(from: wall) else { return nil }
+        return Moment(date: date, hasTime: true, zone: source)
     }
 
     // MARK: - Writing a converted moment
@@ -259,13 +271,20 @@ extension CommandBarDates {
     }
 
     /// How many days the answer sits from the day the question named: 1 is
-    /// tomorrow, -1 yesterday, anything else needs no note.
+    /// tomorrow, -1 yesterday, anything else needs no note. Compared as pure
+    /// calendar days, not hours, so a midnight crossing in the target zone is
+    /// "tomorrow" even when the two instants are only a few hours apart.
     static func dayOffset(from reference: Date, in referenceZone: TimeZone,
                           to date: Date, in zone: TimeZone, _ context: Context) -> Int {
         let here = context.calendar(in: referenceZone)
         let there = context.calendar(in: zone)
-        return there.dateComponents([.day], from: here.startOfDay(for: reference),
-                                    to: there.startOfDay(for: date)).day ?? 0
+        let sourceDay = here.dateComponents([.year, .month, .day], from: reference)
+        let targetDay = there.dateComponents([.year, .month, .day], from: date)
+        var neutral = Calendar(identifier: .gregorian)
+        neutral.timeZone = TimeZone(identifier: "UTC")!
+        guard let source = neutral.date(from: sourceDay),
+              let target = neutral.date(from: targetDay) else { return 0 }
+        return neutral.dateComponents([.day], from: source, to: target).day ?? 0
     }
 
     /// Places written as a list: "london, tokyo, sydney" or "london & tokyo".

@@ -219,7 +219,15 @@ extension CommandBarDates {
 
         // "aug 25", "august 25th", "sept 3 2027".
         if let month = months[foldedWord(token)] {
-            guard index + 1 < tokens.count, let day = dayNumber(tokens[index + 1]),
+            guard index + 1 < tokens.count else { return nil }
+            // "apr 2027": a month followed by a year has no day to read, so it
+            // is the first of that month.
+            if let year = yearNumber(tokens[index + 1]) {
+                guard let date = nearestDate(month: month, day: 1, year: year, context)
+                else { return nil }
+                return (date, index + 2)
+            }
+            guard let day = dayNumber(tokens[index + 1]),
                   (1...31).contains(day) else { return nil }
             var next = index + 2
             var year: Int?

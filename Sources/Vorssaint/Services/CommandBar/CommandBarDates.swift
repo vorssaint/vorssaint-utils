@@ -130,7 +130,12 @@ enum CommandBarDates {
                 flush()
             case "+", "-", ",", "&", "\u{2013}", "\u{2014}", "\u{2212}":
                 // A sign glued to "utc" is an offset, not a sum: "utc+5:30"
-                // is one token, or the arithmetic would eat it.
+                // is one token, or the arithmetic would eat it. It arrives
+                // both glued ("utc+5:30") and spaced ("utc +5:30").
+                if character == "+" || character == "-", buffer == "utc" || buffer == "gmt" {
+                    buffer += String(character)
+                    continue
+                }
                 if character == "+" || character == "-", buffer.isEmpty,
                    let last = tokens.last, last == "utc" || last == "gmt" {
                     tokens.removeLast()

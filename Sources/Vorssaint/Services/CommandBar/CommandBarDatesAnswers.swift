@@ -198,18 +198,20 @@ extension CommandBarDates {
     }
 
     /// "till" looks forward and "since" looks back, whatever year the nearest
-    /// reading of the written date landed in.
+    /// reading of the written date landed in. A bare time rolls within a day
+    /// (the next "9am" after 10 is tomorrow's), a bare date within a year.
     static func withDirection(_ moment: Moment, backwards: Bool, _ context: Context) -> Moment {
         let calendar = context.calendar(in: moment.zone)
-        let today = calendar.startOfDay(for: context.now)
+        let component: Calendar.Component = moment.hasTime ? .day : .year
+        let floor: Date = moment.hasTime ? context.now : calendar.startOfDay(for: context.now)
         var candidate = moment
-        for _ in 0..<8 {
+        for _ in 0..<16 {
             if backwards {
-                if candidate.date <= context.now { return candidate }
-            } else if candidate.date >= today {
+                if candidate.date <= floor { return candidate }
+            } else if candidate.date >= floor {
                 return candidate
             }
-            guard let shifted = calendar.date(byAdding: .year, value: backwards ? -1 : 1,
+            guard let shifted = calendar.date(byAdding: component, value: backwards ? -1 : 1,
                                               to: candidate.date) else { return candidate }
             candidate.date = shifted
         }

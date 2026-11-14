@@ -167,13 +167,15 @@ extension CommandBarDates {
         for identifier in appLanguages {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: identifier)
-            let names = (formatter.monthSymbols ?? [])
-                + (formatter.shortMonthSymbols ?? [])
-                + (formatter.standaloneMonthSymbols ?? [])
-            for (offset, name) in names.enumerated() {
-                let key = foldedWord(name)
-                guard !key.isEmpty else { continue }
-                table[key] = offset + 1
+            // Each list is its own twelve months; numbering them together would
+            // turn the first short name "Jan" into month 13 instead of 1.
+            for names in [formatter.monthSymbols, formatter.shortMonthSymbols,
+                          formatter.standaloneMonthSymbols] {
+                for (offset, name) in (names ?? []).enumerated() {
+                    let key = foldedWord(name)
+                    guard !key.isEmpty else { continue }
+                    table[key] = offset + 1
+                }
             }
         }
         // Typed far more often than it is printed.
@@ -189,11 +191,12 @@ extension CommandBarDates {
         for identifier in appLanguages {
             let formatter = DateFormatter()
             formatter.locale = Locale(identifier: identifier)
-            let names = (formatter.weekdaySymbols ?? []) + (formatter.shortWeekdaySymbols ?? [])
-            for (offset, name) in names.enumerated() {
-                let key = foldedWord(name)
-                guard !key.isEmpty else { continue }
-                table[key] = offset + 1
+            for names in [formatter.weekdaySymbols, formatter.shortWeekdaySymbols] {
+                for (offset, name) in (names ?? []).enumerated() {
+                    let key = foldedWord(name)
+                    guard !key.isEmpty else { continue }
+                    table[key] = offset + 1
+                }
             }
         }
         table["tues"] = 3
@@ -248,6 +251,17 @@ extension CommandBarDates {
         }
         // An offset is a place too: "utc+5:30", "gmt-3".
         if folded.count == 1, let zone = offsetZone(folded[0]) { return zone }
+        return nil
+    }
+
+    /// A place written as exactly these words and nothing else: "ldn" resolves,
+    /// "5pm ldn" does not. Used where a time or date rides before the place and
+    /// the looser `zone(for:)` would swallow the clock along with the city.
+    static func exactZone(_ words: [String]) -> TimeZone? {
+        guard !words.isEmpty else { return nil }
+        let name = words.map(foldedWord).joined(separator: " ")
+        if let zone = zonesByCity[name] { return zone }
+        if words.count == 1, let zone = offsetZone(words[0]) { return zone }
         return nil
     }
 

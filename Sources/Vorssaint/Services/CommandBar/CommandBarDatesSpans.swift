@@ -28,6 +28,7 @@ extension CommandBarDates {
         var left: ArraySlice<String>
         var right: ArraySlice<String>
         var inclusive = false
+        var arithmetic = false
         if let between = words.firstIndex(of: "between") {
             guard let and = words[(between + 1)...].firstIndex(of: "and") else { return nil }
             left = words[(between + 1)..<and]
@@ -38,8 +39,11 @@ extension CommandBarDates {
                 if words[index] == "through" || words[index] == "thru" {
                     separator = index
                     inclusive = true
-                } else if words[index] == "to" || words[index] == "-" {
+                } else if words[index] == "to" {
                     separator = index
+                } else if words[index] == "-" {
+                    separator = index
+                    arithmetic = true
                 } else {
                     continue
                 }
@@ -58,6 +62,13 @@ extension CommandBarDates {
         // Two times without a date run forward: 10pm to 2am is four hours.
         if start.hasTime, end.hasTime, endDate < start.date,
            let next = context.calendar.date(byAdding: .day, value: 1, to: endDate) {
+            endDate = next
+        }
+        // Two dates read without a year each pick their own nearest year, which
+        // can leave "may 1 to may 31" with the end a year before the start. A
+        // span runs forward, so hold the end to the start's year.
+        if !arithmetic, !start.hasTime, !end.hasTime, endDate < start.date,
+           let next = context.calendar.date(byAdding: .year, value: 1, to: endDate) {
             endDate = next
         }
         // "through" counts the last day too.
@@ -84,6 +95,13 @@ extension CommandBarDates {
             target.date = last
         } else {
             target.date = endDate
+        }
+
+        // A "-" between two dates is subtraction, not a span: "jul 4 - today"
+        // is a negative count and keeps its sign.
+        if arithmetic, !start.hasTime, !end.hasTime {
+            guard let signed = gap(from: end.date, to: start.date, unit: unit, context) else { return nil }
+            return result(count: signed, unit: unit, at: start, context)
         }
         return result(count: abs(value), unit: unit, at: target, context)
     }
