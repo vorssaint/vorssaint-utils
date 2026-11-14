@@ -12,6 +12,9 @@ struct NotchButtonStyle: ButtonStyle {
     var lifts = true
     /// A light wash under the pointer.
     var highlights = true
+    /// How far the wash reaches past the label on every side, so it can
+    /// frame a control without taking space from the layout.
+    var washInset: CGFloat = 0
     @State private var hovered = false
     @Environment(\.isEnabled) private var enabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,6 +25,7 @@ struct NotchButtonStyle: ButtonStyle {
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.white.opacity(active && highlights ? 0.09 : 0))
+                    .padding(-washInset)
                     .allowsHitTesting(false)
             }
             .opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.4)
