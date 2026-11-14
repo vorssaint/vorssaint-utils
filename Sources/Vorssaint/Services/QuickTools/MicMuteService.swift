@@ -193,21 +193,26 @@ final class MicMuteService: ObservableObject {
     }
 
     /// Runs on `halQueue`. True when a microphone this app muted was opened by
-    /// something else while another process is recording from it.
+    /// something else while another process is recording from it. Reading a
+    /// device's controls is cheap; asking the audio server who is recording
+    /// costs milliseconds, and a re-assert can come many times a second. The
+    /// controls go first, and only a device that looks opened is worth the
+    /// second question.
     private func callAppOpenedTheMicrophone() -> Bool {
         let owned = Set(UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices) ?? [])
         guard !owned.isEmpty, !silencedAfterSweep.isEmpty else { return false }
-        let captured = Self.devicesCapturedByOtherProcesses()
-        guard !captured.isEmpty else { return false }
-        return Self.inputDevices().contains { device in
+        let opened = Self.inputDevices().filter { device in
             guard owned.contains(device.uid) else { return false }
             return MicMuteSupport.isExternalUnmute(
                 wasSilenced: silencedAfterSweep.contains(device.uid),
                 silenced: Self.isSilenced(device.id),
                 switchWasEngaged: engagedSwitchesAfterSweep.contains(device.uid),
                 muteSwitch: Self.muteSwitchValue(of: device.id),
-                capturedByOtherProcess: captured.contains(device.id))
+                capturedByOtherProcess: true)
         }
+        guard !opened.isEmpty else { return false }
+        let captured = Self.devicesCapturedByOtherProcesses()
+        return opened.contains { captured.contains($0.id) }
     }
 
     /// Runs on `halQueue`, right after a sweep. A device is remembered once it

@@ -4236,6 +4236,15 @@ enum ScreenshotFeatureTests {
                 && micMuteServiceSource.contains("self.apply(muted: false, announce: true)")
                 && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted)"),
                "a device change asks whether a call app opened the microphone, and each mute sweep records what it left quiet")
+        let callCheck = micMuteServiceSource.range(of: "private func callAppOpenedTheMicrophone() -> Bool {")
+            .map { micMuteServiceSource[$0.lowerBound...] }
+            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
+            .map(String.init) ?? ""
+        let controlsRead = callCheck.range(of: "guard !opened.isEmpty else { return false }")
+        let serverAsked = callCheck.range(of: "Self.devicesCapturedByOtherProcesses()")
+        suite.expect(controlsRead != nil && serverAsked != nil
+                && controlsRead!.upperBound <= serverAsked!.lowerBound,
+               "the audio server is asked who is recording only once a device's controls already look opened")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
