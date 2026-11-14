@@ -792,6 +792,7 @@ struct Strings {
     let mixerUnavailable: String
     let mixerPermissionBody: String
     let mixerResetTooltip: String
+    let mixerMutedValue: String
     let mixerOutputDefault: String
     let mixerOutputCurrent: String
     let mixerOutputUnavailable: String
@@ -1947,6 +1948,7 @@ extension Strings {
         mixerUnavailable: "Disponível a partir do macOS 14.4",
         mixerPermissionBody: "Para ajustar o volume por app, permita “Gravação de Tela e Áudio do Sistema” nos Ajustes do Sistema. O áudio nunca é gravado.",
         mixerResetTooltip: "Voltar para 100%",
+        mixerMutedValue: "Silenciado",
         mixerOutputDefault: "Padrão",
         mixerOutputCurrent: "atual",
         mixerOutputUnavailable: "Saída indisponível",
@@ -3077,6 +3079,7 @@ extension Strings {
         mixerUnavailable: "Available on macOS 14.4 and later",
         mixerPermissionBody: "To adjust per-app volume, allow “Screen & System Audio Recording” in System Settings. Audio is never recorded.",
         mixerResetTooltip: "Reset to 100%",
+        mixerMutedValue: "Muted",
         mixerOutputDefault: "Default",
         mixerOutputCurrent: "current",
         mixerOutputUnavailable: "Output unavailable",

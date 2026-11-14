@@ -358,14 +358,15 @@ enum MixerRoutingSupport {
         volume < 0.005
     }
 
-    /// Inactive apps with a custom volume or output remain visible so hiding
-    /// idle rows can never conceal a setting the user may want to undo.
+    /// Inactive apps with a custom volume, a mute or an output remain visible
+    /// so hiding idle rows can never conceal a setting the user may want to undo.
     static func shouldShowApp(isPlaying: Bool,
                               volume: Double,
+                              isMuted: Bool,
                               selectedOutputDeviceUID: String?,
                               hideInactiveApps: Bool) -> Bool {
         guard hideInactiveApps else { return true }
-        return isPlaying || !isUnity(volume) || selectedOutputDeviceUID != nil
+        return isPlaying || isMuted || !isUnity(volume) || selectedOutputDeviceUID != nil
     }
 
     /// Turns the text entered beside a mixer slider into its level. The field
@@ -546,13 +547,16 @@ enum MixerRoutingSupport {
     }
 
     /// The last gate before a tap is built: a row is tapped only when the user
-    /// adjusted its volume, chose its output, or asked to move all audio to an
-    /// output that this process did not follow. Merely listing an app never
-    /// makes it part of a tap.
+    /// adjusted its volume, muted it, chose its output, or asked to move all
+    /// audio to an output that this process did not follow. Merely listing an
+    /// app never makes it part of a tap. A mute needs the tap even at 100%:
+    /// the tap is what silences the app.
     static func rowMayBeTapped(savedVolume: Double?,
+                               savedMute: Bool,
                                savedRouteUID: String?,
                                defaultOutputDeviceUID: String?,
                                universalOutputRouteUID: String? = nil) -> Bool {
+        if savedMute { return true }
         if let savedVolume, !isUnity(savedVolume) { return true }
         if savedRouteUID != nil { return true }
         guard let universalOutputRouteUID else { return false }
@@ -968,6 +972,40 @@ enum MixerRoutingSupport {
             return nil
         }
         return trimmed
+    }
+}
+
+extension MixerRoutingSupport {
+    /// The level a muted app played at while mutes were saved as volumes: a
+    /// saved volume at or below it migrates to a mute
+    /// (Defaults.migrateMutedAppVolumes).
+    static let legacyMuteThreshold: Double = 0.001
+
+    /// What an app plays at: nothing while muted, its level otherwise.
+    static func effectiveVolume(_ volume: Double, isMuted: Bool) -> Double {
+        isMuted ? 0 : volume
+    }
+
+    /// A row is muted when its key was saved as muted and it is not bypassed:
+    /// an app that manages its own audio is never muted, as its level stays at 100%.
+    static func rowIsMuted(savedMute: Bool, isBypassed: Bool) -> Bool {
+        savedMute && !isBypassed
+    }
+
+    /// The saved mutes as stored: sanitized persistence ids. Anything else in
+    /// the list (an old backup, a hand-edited plist) is dropped.
+    static func sanitizedMutedApps(_ raw: [Any]) -> Set<String> {
+        var sanitized = Set<String>()
+        for value in raw {
+            guard let text = value as? String, let appID = sanitizedAppID(text) else { continue }
+            sanitized.insert(appID)
+        }
+        return sanitized
+    }
+
+    /// "44%", or "44%, Muted" while muted: what VoiceOver reads for an app's level.
+    static func volumeAccessibilityValue(percent: Int, isMuted: Bool, mutedText: String) -> String {
+        isMuted ? "\(percent)%, \(mutedText)" : "\(percent)%"
     }
 }
 
