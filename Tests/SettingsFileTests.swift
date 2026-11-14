@@ -55,6 +55,17 @@ enum SettingsFileTests {
                              && restored[0].showsInLibrary && restored[0].folder.isEmpty,
                              "the existing backup path restores a snippet from before library options existed")
             } else { suite.expect(false, "explicit export can be read as a backup") }
+            // Saving from the Advanced page writes this snapshot to the file the
+            // next launch reads, so saving and relaunching must change nothing,
+            // including volumes the file holds as gains rather than positions.
+            defaults.set(["com.example.player": 0.4], forKey: DefaultsKey.appVolumes)
+            defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            suite.expect(Backup.write(to: link, from: defaults),
+                         "saving to the settings file replaces the earlier snapshot")
+            let beforeLaunch = defaults.persistentDomain(forName: domain) as NSDictionary?
+            _ = launch()
+            suite.expect(defaults.persistentDomain(forName: domain) as NSDictionary? == beforeLaunch,
+                         "a launch after saving to the settings file leaves every preference as it was")
 
             let featureKey = AppFeature.textSnippets.availabilityKey
             let partial = try plist([DefaultsKey.appearance: "dark", featureKey: true,
