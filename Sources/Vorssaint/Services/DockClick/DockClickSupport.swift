@@ -9,6 +9,7 @@ enum DockClickAction: Equatable {
     case restore
     case hide
     case cycleWindows
+    case openFinderReplacement(URL)
     case passThrough
 }
 
@@ -47,6 +48,31 @@ struct DockTilePairing<Tile> {
 extension DockTilePairing: Equatable where Tile: Equatable {}
 
 enum DockClickSupport {
+    /// Resolve on preference changes, outside the event tap. Only existing,
+    /// executable app bundles other than Finder or the host qualify.
+    static func validatedFinderReplacementURL(path: String) -> URL? {
+        guard path.hasPrefix("/") else { return nil }
+        let url = URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL
+        guard url.pathExtension.lowercased() == "app",
+              let bundle = Bundle(url: url),
+              let identifier = bundle.bundleIdentifier,
+              identifier != "com.apple.finder",
+              !isOwnBundleIdentifier(identifier),
+              let executable = bundle.executableURL,
+              FileManager.default.isExecutableFile(atPath: executable.path)
+        else { return nil }
+        return url
+    }
+
+    /// Finder redirection takes precedence over the window actions, including
+    /// when Finder is in the background or has no windows. A nil result leaves
+    /// the ordinary Dock click decision in charge.
+    static func finderReplacementAction(clickedBundleIdentifier: String?,
+                                        replacementURL: URL?) -> DockClickAction? {
+        guard clickedBundleIdentifier == "com.apple.finder", let replacementURL else { return nil }
+        return .openFinderReplacement(replacementURL)
+    }
+
     /// Both local and published builds may be running during development.
     /// Neither is ever a valid target for the other's global Dock click tap.
     static func isOwnBundleIdentifier(_ bundleIdentifier: String?) -> Bool {
@@ -170,7 +196,7 @@ enum DockClickSupport {
         switch lastAction {
         case .minimize: return .toggle(.restore)
         case .restore: return .toggle(.minimize)
-        case .hide, .cycleWindows: return .deriveFromState
+        case .hide, .cycleWindows, .openFinderReplacement: return .deriveFromState
         case .passThrough: return .deriveFromState
         }
     }
