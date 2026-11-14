@@ -4,6 +4,7 @@
 import Foundation
 
 struct MenuBarAppearanceStrings {
+    let batteryPercentage: String
     let label: String
     let values: String
     let bars: String
@@ -40,6 +41,7 @@ extension FeatureStrings {
 
 extension MenuBarAppearanceStrings {
     static let enUS = MenuBarAppearanceStrings(
+        batteryPercentage: "Show battery percentage",
         label: "Usage display",
         values: "Values",
         bars: "Bars",
@@ -53,6 +55,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let ptBR = MenuBarAppearanceStrings(
+        batteryPercentage: "Mostrar porcentagem da bateria",
         label: "Exibição de uso",
         values: "Valores",
         bars: "Barras",
@@ -66,6 +69,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let tr = MenuBarAppearanceStrings(
+        batteryPercentage: "Pil yüzdesini göster",
         label: "Kullanım görünümü",
         values: "Değerler",
         bars: "Çubuklar",
@@ -79,6 +83,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let ru = MenuBarAppearanceStrings(
+        batteryPercentage: "Показывать процент заряда батареи",
         label: "Отображение нагрузки",
         values: "Значения",
         bars: "Шкалы",
@@ -92,6 +97,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let es = MenuBarAppearanceStrings(
+        batteryPercentage: "Mostrar porcentaje de batería",
         label: "Vista de uso",
         values: "Valores",
         bars: "Barras",
@@ -105,6 +111,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let sk = MenuBarAppearanceStrings(
+        batteryPercentage: "Zobraziť percento batérie",
         label: "Zobrazenie vyťaženia",
         values: "Hodnoty",
         bars: "Pruhy",
@@ -118,6 +125,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let de = MenuBarAppearanceStrings(
+        batteryPercentage: "Batterieprozentsatz anzeigen",
         label: "Auslastungsanzeige",
         values: "Werte",
         bars: "Balken",
@@ -131,6 +139,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let fr = MenuBarAppearanceStrings(
+        batteryPercentage: "Afficher le pourcentage de batterie",
         label: "Affichage de l’utilisation",
         values: "Valeurs",
         bars: "Barres",
@@ -144,6 +153,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let it = MenuBarAppearanceStrings(
+        batteryPercentage: "Mostra percentuale batteria",
         label: "Visualizzazione utilizzo",
         values: "Valori",
         bars: "Barre",
@@ -157,6 +167,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let ja = MenuBarAppearanceStrings(
+        batteryPercentage: "バッテリー残量の割合を表示",
         label: "使用率の表示",
         values: "数値",
         bars: "バー",
@@ -170,6 +181,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let ko = MenuBarAppearanceStrings(
+        batteryPercentage: "배터리 잔량 백분율 표시",
         label: "사용량 표시",
         values: "값",
         bars: "막대",
@@ -183,6 +195,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let zhHans = MenuBarAppearanceStrings(
+        batteryPercentage: "显示电池百分比",
         label: "使用率显示",
         values: "数值",
         bars: "条形",
@@ -196,6 +209,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let zhTW = MenuBarAppearanceStrings(
+        batteryPercentage: "顯示電池百分比",
         label: "使用率顯示",
         values: "數值",
         bars: "長條",
@@ -209,6 +223,7 @@ extension MenuBarAppearanceStrings {
     )
 
     static let zhHK = MenuBarAppearanceStrings(
+        batteryPercentage: "顯示電池百分比",
         label: "使用率顯示",
         values: "數值",
         bars: "長條",
@@ -221,6 +236,7 @@ extension MenuBarAppearanceStrings {
         highFrom: "高負載起點"
     )
     static let uk = MenuBarAppearanceStrings(
+        batteryPercentage: "Показувати відсоток заряду батареї",
         label: "Відображення використання",
         values: "Значення",
         bars: "Смуги",
