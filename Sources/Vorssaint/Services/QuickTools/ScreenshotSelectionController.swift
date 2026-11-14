@@ -474,9 +474,9 @@ final class ScreenshotSelectionController {
 
     private func selectCaptureTool(for event: NSEvent) -> Bool {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
-              let tool = ScreenCaptureTool.matchingShortcut(event.charactersIgnoringModifiers),
               let screenCaptureOptions,
-              screenCaptureOptions.availableTools.contains(tool)
+              let tool = ScreenCaptureTool.matchingShortcut(event.charactersIgnoringModifiers,
+                                                            in: screenCaptureOptions.availableTools)
         else { return false }
         screenCaptureOptions.select(tool)
         return true
@@ -2041,7 +2041,8 @@ private struct UnifiedCaptureGuideContent: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
             if options.availableTools.count > 1 {
-                CaptureKeyHint(key: options.availableTools.map(\.shortcutKey).joined(separator: " "), icon: "keyboard")
+                CaptureKeyHint(key: options.availableTools.compactMap { $0.shortcutKey(in: options.availableTools) }
+                    .joined(separator: " "), icon: "keyboard")
             }
             if options.selectedTool != .color {
                 if !scrollingCaptureEnabled || options.selectedTool == .scrolling {
@@ -2121,7 +2122,7 @@ private struct UnifiedCaptureGuideContent: View {
         } label: {
             VStack(spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(tool.shortcutKey)
+                    Text(tool.shortcutKey(in: options.availableTools) ?? "")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundStyle(selected ? Color.white : Color.primary)
                         .frame(width: 19, height: 19)
@@ -2153,9 +2154,9 @@ private struct UnifiedCaptureGuideContent: View {
                 hoveredTool = hovering ? tool : nil
             }
         }
-        .help("\(title) (\(tool.shortcutKey))")
+        .help("\(title) (\(tool.shortcutKey(in: options.availableTools) ?? ""))")
         .accessibilityLabel(title)
-        .accessibilityValue(tool.shortcutKey)
+        .accessibilityValue(tool.shortcutKey(in: options.availableTools) ?? "")
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
