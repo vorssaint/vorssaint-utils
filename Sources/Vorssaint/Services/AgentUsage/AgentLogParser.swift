@@ -65,6 +65,8 @@ struct AgentLogState: Equatable {
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
     var openCodeSessions: [String: OpenCodeSessionState] = [:]
+    /// Oh My Pi stores all sessions in one database too.
+    var ompSessions: [String: OhMyPiSessionState] = [:]
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
@@ -88,6 +90,17 @@ struct OpenCodeSessionState: Equatable {
     var seenUserMessageIDs: Set<String> = []
     var completedAssistantMessageIDs: Set<String> = []
     var completedUserMessageIDs: Set<String> = []
+}
+
+/// Per-session turn and model tracking for Oh My Pi databases. Its rows say
+/// how each reply ended, so no settling wait is kept here.
+struct OhMyPiSessionState: Equatable {
+    var project = ""
+    var model = ""
+    var turnOpen = false
+    var turnStarted: Date?
+    /// The newest moment the session's rows tell of.
+    var lastActivity: Date?
 }
 
 enum AgentLogParser {
@@ -165,6 +178,12 @@ enum AgentLogParser {
 
     static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         OpenCodeReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Oh My Pi
+
+    static func parseOhMyPi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        OhMyPiReader().parse(line, state: &state, now: now)
     }
 
     // MARK: GitHub Copilot

@@ -169,7 +169,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
-                if record.provider == .opencode {
+                if record.provider.isDatabase {
                     let newCost: Double?
                     let isReported: Bool
                     if record.reportedCost {
@@ -208,7 +208,7 @@ final class AgentUsageStore {
             let priced = AgentPricing.cost(combined, model: old.model)
             let newCost: Double?
             let isReported: Bool
-            if record.provider == .opencode {
+            if record.provider.isDatabase {
                 if record.reportedCost {
                     newCost = record.cost
                     isReported = true
@@ -265,9 +265,9 @@ final class AgentUsageStore {
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
-            // A zero OpenCode recorded for a model the list still does not
+            // A zero recorded for a model the list still does not
             // know stays that reply's cost.
-            let recordedZero = records[position].provider == .opencode && records[position].cost == 0
+            let recordedZero = records[position].provider.isDatabase && records[position].cost == 0
             records[position].cost = priced.cost ?? (recordedZero ? 0 : nil)
             records[position].savings = priced.savings
         }
@@ -370,8 +370,8 @@ final class AgentUsageStore {
     var showsClaudeTurn: Bool { turns.values.contains { $0.provider == .claude } }
 
     /// What is kept between launches: every counter the logs gave, and none
-    /// of their text. OpenCode's database is read again at each launch, so
-    /// nothing it gave is kept.
+    /// of their text. The agents' databases are read again at each launch, so
+    /// nothing they gave is kept.
     struct Saved: Equatable {
         struct Record: Equatable {
             let key: String
@@ -391,14 +391,14 @@ final class AgentUsageStore {
     var saved: Saved {
         var keys = [String](repeating: "", count: records.count)
         for (key, position) in index { keys[position] = key }
-        let kept = records.indices.filter { records[$0].provider != .opencode }.map {
+        let kept = records.indices.filter { !records[$0].provider.isDatabase }.map {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
                      limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
-                     turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
-                     waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })
+                     turns: turns.values.filter { !$0.provider.isDatabase }.sorted { $0.id < $1.id },
+                     waiting: waiting.values.filter { !$0.provider.isDatabase }.sorted { $0.id < $1.id })
     }
 
     convenience init(saved: Saved) {
@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.omp, ".omp")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +500,7 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .omp { return path == url.appending(path: AgentOhMyPiReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -561,6 +563,8 @@ final class AgentLogCursor {
     let parent: String?
     /// Replies still being written and the rows read last, for a database.
     var openCode = AgentOpenCodeProgress()
+    /// How far Oh My Pi's prompts have been read, for its database.
+    var ohMyPi = AgentOhMyPiProgress()
     var offset: UInt64 = 0
     var identity: UInt64 = 0
     var pending = Data()
@@ -693,6 +697,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        if name == AgentOhMyPiReader.database || name == AgentOhMyPiReader.database + "-wal" { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -740,11 +745,14 @@ enum AgentLogReader {
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {
-            // OpenCode keeps its database beside the snapshots, clones and
-            // logs of its data folder, which are never walked.
-            if root.provider == .opencode {
-                let path = root.url.appending(path: AgentOpenCodeReader.database).path
-                if let modified = AgentOpenCodeReader.modified(path), modified >= horizon {
+            // Each database agent keeps its database beside the rest of
+            // its data folder, which is never walked.
+            if root.provider.isDatabase {
+                let path = root.url.appending(path: root.provider == .opencode
+                                               ? AgentOpenCodeReader.database : AgentOhMyPiReader.database).path
+                let modified = root.provider == .opencode
+                    ? AgentOpenCodeReader.modified(path) : AgentOhMyPiReader.modified(path)
+                if let modified, modified >= horizon {
                     found.append((path, root.provider, modified, false))
                 }
                 continue
@@ -779,6 +787,10 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .omp {
+            AgentOhMyPiReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()

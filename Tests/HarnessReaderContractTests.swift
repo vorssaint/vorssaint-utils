@@ -11,6 +11,7 @@ enum HarnessReaderContractTests {
         claudeGolden(suite)
         codexGolden(suite)
         openCodeGolden(suite)
+        ohMyPiGolden(suite)
         copilotGolden(suite)
     }
 
@@ -115,6 +116,28 @@ enum HarnessReaderContractTests {
         let reset = line(#"{"type":"reset"}"#)
         suite.expect(reader.parse(reset, state: &state, now: now) == [.reset(now)],
                      "an OpenCode reset restarts every session")
+    }
+
+    private static func ohMyPiGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let reader = AgentProvider.omp.reader
+        let user = line(#"{"type":"user","id":"u1","session":"s_omp_1","folder":"-code-app","timestamp":1790088000000,"model":"omp-test-model"}"#)
+        suite.expect(reader.parse(user, state: &state, now: now)
+                        == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                     "an Oh My Pi prompt opens its session turn")
+        let tool = line(#"{"type":"assistant","id":"a1","session":"s_omp_1","folder":"-code-app","model":"omp-test-model","timestamp":1790088010000,"stop":"toolUse","error":false,"tokens":{"input":10,"output":5,"cacheRead":2,"cacheWrite":1},"cost":0.25,"unpriced":false,"agent":"main"}"#)
+        let working = reader.parse(tool, state: &state, now: now)
+        suite.expect(working.last == .turnActive(Date(timeIntervalSince1970: 1_790_088_010))
+                        && working.contains { if case .usage = $0 { return true }; return false },
+                     "an Oh My Pi reply that called tools counts and keeps working")
+        let stop = line(#"{"type":"assistant","id":"a2","session":"s_omp_1","folder":"-code-app","model":"omp-test-model","timestamp":1790088020000,"stop":"stop","error":false,"tokens":{"input":10,"output":5,"cacheRead":2,"cacheWrite":1},"cost":0.25,"unpriced":false,"agent":"main"}"#)
+        suite.expect(reader.parse(stop, state: &state, now: now).last
+                        == .turnEnded(Date(timeIntervalSince1970: 1_790_088_020), completed: true, duration: 20),
+                     "an Oh My Pi reply that stopped ends its turn with its duration")
+        let reset = line(#"{"type":"reset"}"#)
+        suite.expect(reader.parse(reset, state: &state, now: now) == [.reset(now)],
+                     "an Oh My Pi reset restarts every session")
     }
 
     private static func copilotGolden(_ suite: TestSuite) {
