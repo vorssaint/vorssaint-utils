@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Darwin
 import Metal
 import QuartzCore
 
@@ -320,6 +321,29 @@ final class ExtraBrightnessService: ObservableObject {
         return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.AppStore"
     }
 
+    /// Native screenshot selection treats the full-screen brightness windows
+    /// as selectable windows even though they do not share their contents.
+    private static func nativeScreenshotPickerIsActive() -> Bool {
+        let capacity = proc_listallpids(nil, 0) + 32
+        guard capacity > 0 else { return false }
+        var pids = [pid_t](repeating: 0, count: Int(capacity))
+        let count = pids.withUnsafeMutableBufferPointer {
+            proc_listallpids($0.baseAddress, Int32($0.count * MemoryLayout<pid_t>.stride))
+        }
+        guard count > 0 else { return false }
+        for pid in pids.prefix(Int(count)) where pid > 0 {
+            let nameSize = 64
+            var name = [CChar](repeating: 0, count: nameSize)
+            let length = name.withUnsafeMutableBufferPointer {
+                proc_name(pid, $0.baseAddress, UInt32(nameSize))
+            }
+            if length > 0, ExtraBrightnessSupport.isNativeCaptureProcess(String(cString: name)) {
+                return true
+            }
+        }
+        return false
+    }
+
     /// The windows belong to every Space and sit out Exposé. Bound to a single
     /// Space it travelled with that Space: swiping to another desktop slid the
     /// overlay off screen for the whole animation, taking the boost with it
@@ -363,8 +387,8 @@ final class ExtraBrightnessService: ObservableObject {
             window.ignoresMouseEvents = true
             window.isReleasedWhenClosed = false
             window.animationBehavior = .none
-            // Screenshots and recordings must show the real content, not the
-            // boosted composite (the overlay would wash captures out).
+            // Legacy capture paths should not include the boosted composite;
+            // the native window picker can still select this window.
             window.sharingType = .none
             window.collectionBehavior = Self.overlayCollectionBehavior
 
@@ -485,7 +509,7 @@ final class ExtraBrightnessService: ObservableObject {
         // third-party app's own in-app purchase flow — that would not make
         // the App Store frontmost, and neither signal here is confirmed to
         // catch it; that path is still untested and may still be affected.
-        guard !Self.systemAuthorizationUIIsActive() else {
+        guard !Self.systemAuthorizationUIIsActive(), !Self.nativeScreenshotPickerIsActive() else {
             overlayWindows.forEach { $0.orderOut(nil) }
             triggerWindow?.orderOut(nil)
             return
