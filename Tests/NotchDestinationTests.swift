@@ -38,6 +38,13 @@ enum NotchDestinationContract {
         struct Reader { func rememberPasteTarget() {} }
     }
     enum QuickLauncherService { static var shared = QuickLauncherContract.Launcher() }
+    enum CameraPreviewService {
+        static let shared = Camera()
+        final class Camera {
+            var starts = 0
+            func showEmbedded() { starts += 1 }
+        }
+    }
     enum MenuPanelFocus {
         static let shared = Focus()
         final class Focus {
@@ -172,6 +179,7 @@ enum NotchDestinationContract {
         reopeningContracts(defaults: defaults, suite: suite)
         countdownContracts(defaults: defaults, suite: suite)
         stepBackContracts(suite)
+        cameraContracts(suite)
         // A page opened while the Command Bar is in the island takes its place.
         let barHost = Service()
         barHost.expanded = true
@@ -289,6 +297,44 @@ enum NotchDestinationContract {
         page.open(.music)
         suite.expect(!page.expanded && page.captureControlsExpansions == 1,
                      "opening a page while the capture controls are up expands them instead")
+    }
+
+    /// Choosing the camera page starts its mirror; anything else that lands
+    /// there, or passes it by, leaves the camera off.
+    private static func cameraContracts(_ suite: TestSuite) {
+        let camera = CameraPreviewService.shared
+        camera.starts = 0
+        let chosen = Service()
+        chosen.open(.camera)
+        suite.expect(chosen.selected == .camera && camera.starts == 1,
+                     "choosing the camera page starts its mirror without a second click")
+        chosen.open(.camera)
+        suite.expect(camera.starts == 1, "asking for the page it already shows does not restart a stopped mirror")
+        chosen.open(.music)
+        suite.expect(camera.starts == 1, "choosing another page leaves the camera off")
+        chosen.open(.camera)
+        chosen.toggleSections()
+        let galleryWaited = chosen.showingSections && camera.starts == 2
+        chosen.toggleSections()
+        suite.expect(galleryWaited && chosen.selected == .camera && camera.starts == 3,
+                     "the gallery over the camera page leaves it off, and going back to the page starts it again")
+
+        camera.starts = 0
+        let hovered = Service()
+        hovered.open(.camera)
+        hovered.collapse()
+        hovered.open(takeFocus: false)
+        let hoverWaited = hovered.expanded && hovered.selected == .camera && camera.starts == 1
+        hovered.collapse()
+        hovered.open()
+        suite.expect(hoverWaited && camera.starts == 2,
+                     "opening onto the camera page under the pointer waits for its button, a click starts it")
+
+        camera.starts = 0
+        let detour = Service()
+        detour.open(.camera, appPanel: true)
+        detour.open(.camera, metric: .cpu)
+        suite.expect(camera.starts == 0, "the app panel or a detail shown over the camera page leaves it off")
     }
 
     /// Escape steps back through what the island shows, then closes it.
