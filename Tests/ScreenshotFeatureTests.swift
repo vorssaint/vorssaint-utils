@@ -4186,6 +4186,35 @@ enum ScreenshotFeatureTests {
                 == .unreadable
                 && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
                "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
+        // A call app that opens the microphone is followed; everything else is
+        // still put back, as the mute always did.
+        suite.expect(MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: false,
+                                                     switchWasEngaged: true, muteSwitch: 0,
+                                                     capturedByOtherProcess: true),
+               "a call app that raises a muted microphone's level while recording from it is followed")
+        suite.expect(MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
+                                                     switchWasEngaged: true, muteSwitch: 0,
+                                                     capturedByOtherProcess: true),
+               "a call app that only clears the mute switch, level still zero, is followed too")
+        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: false,
+                                                      switchWasEngaged: true, muteSwitch: 0,
+                                                      capturedByOtherProcess: false),
+               "with nobody recording, a raised level is an app nudging gain and is put back")
+        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: false, silenced: false,
+                                                      switchWasEngaged: false, muteSwitch: 0,
+                                                      capturedByOtherProcess: true),
+               "a microphone the mute never silenced is not reported as unmuted by a call app")
+        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
+                                                      switchWasEngaged: false, muteSwitch: 0,
+                                                      capturedByOtherProcess: true),
+               "a driver that reads its mute switch as 0 whatever it is told never looks like an unmute")
+        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
+                                                      switchWasEngaged: true, muteSwitch: 1,
+                                                      capturedByOtherProcess: true)
+                && !MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
+                                                    switchWasEngaged: true, muteSwitch: nil,
+                                                    capturedByOtherProcess: true),
+               "a microphone still quiet, or a switch that cannot be read, stays muted")
         suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
@@ -4200,8 +4229,22 @@ enum ScreenshotFeatureTests {
             .map(String.init) ?? ""
         suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
                 && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted"),
+                    "private func apply(muted: Bool, announce: Bool, followingCallApps: Bool = false) {\n        wantsMute = muted"),
                "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
+        suite.expect(micMuteServiceSource.contains("callAppOpenedTheMicrophone()")
+                && micMuteServiceSource.contains("apply(muted: true, announce: false, followingCallApps: true)")
+                && micMuteServiceSource.contains("self.apply(muted: false, announce: true)")
+                && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted)"),
+               "a device change asks whether a call app opened the microphone, and each mute sweep records what it left quiet")
+        let callCheck = micMuteServiceSource.range(of: "private func callAppOpenedTheMicrophone() -> Bool {")
+            .map { micMuteServiceSource[$0.lowerBound...] }
+            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
+            .map(String.init) ?? ""
+        let controlsRead = callCheck.range(of: "guard !opened.isEmpty else { return false }")
+        let serverAsked = callCheck.range(of: "Self.devicesCapturedByOtherProcesses()")
+        suite.expect(controlsRead != nil && serverAsked != nil
+                && controlsRead!.upperBound <= serverAsked!.lowerBound,
+               "the audio server is asked who is recording only once a device's controls already look opened")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")

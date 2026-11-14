@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Mic Mute follows you when you unmute inside a call app. If Teams or another call app opens a microphone Vorssaint had muted while it is recording from it, the mute is released and your own input level is restored, instead of being put back over the call app's unmute. A level change with no call recording, such as a device arriving, is still put back.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
