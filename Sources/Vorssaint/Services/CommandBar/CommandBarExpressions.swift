@@ -215,6 +215,12 @@ enum CommandBarExpressions {
             if character.isLetter {
                 let raw = readLetterRun()
                 let lower = fold(raw)
+                // In "how many feet in a mile", "a" is one mile, not the
+                // conversion keyword it means in phrases such as "meters a feet".
+                if lower == "a", tokens.last == .inKeyword {
+                    tokens.append(.number(1, interesting: false))
+                    continue
+                }
                 if let token = wordToken(for: lower, characters: characters, index: &index) {
                     tokens.append(token)
                     continue
@@ -1098,7 +1104,7 @@ enum CommandBarExpressions {
 
 extension CommandBarExpressions.Value {
     /// Whether this is an affine temperature reading rather than a length.
-    var isTemperature: Bool { unit?.offset != 0 }
+    var isTemperature: Bool { unit.map { $0.offset != 0 } ?? false }
 }
 
 // MARK: - Unit composition

@@ -33,9 +33,27 @@ enum CommandBarCalculator {
 
         guard let parsed = CommandBarExpressions.parse(expression,
                                                        decimalSeparator: decimalSeparator,
-                                                       groupingSeparator: groupingSeparator),
-              parsed.isCalculation
+                                                       groupingSeparator: groupingSeparator)
         else { return nil }
+        guard parsed.isCalculation else {
+            // These two useful bare measurements have established answers in
+            // the launcher: a meter as feet and inches, and an hour as minutes.
+            // Keep other lone quantities as searches rather than answering
+            // every number-plus-unit phrase.
+            guard case .value(let value) = parsed.outcome, value.hasNumber,
+                  let unit = value.unit
+            else { return nil }
+            let target: String
+            switch unit.id {
+            case "m": target = "feet and inches"
+            case "h": target = "minutes"
+            default: return nil
+            }
+            return evaluate("\(expression) to \(target)",
+                            locale: locale,
+                            decimalSeparator: decimalSeparator,
+                            groupingSeparator: groupingSeparator)
+        }
 
         switch parsed.outcome {
         case .value(let value):
