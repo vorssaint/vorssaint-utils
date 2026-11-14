@@ -169,6 +169,12 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
+                // A DeepSeek session's projection is cumulative: its step count
+                // can grow while the token totals stand still.
+                if record.provider == .deepseek, record.requests > old.requests {
+                    summary.recordChanged(at: position, previous: old)
+                    records[position].requests = record.requests
+                }
                 if record.provider == .opencode {
                     let newCost: Double?
                     let isReported: Bool
@@ -234,6 +240,9 @@ final class AgentUsageStore {
             records[position].cost = newCost
             records[position].savings = priced.savings
             records[position].reportedCost = isReported
+            if record.provider == .deepseek {
+                records[position].requests = max(old.requests, record.requests)
+            }
         } else {
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
@@ -476,7 +485,9 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.deepseek, ".dsh/storages/session_projcache/sessions"),
+         (.cursor, ".cursor/projects")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +510,13 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return name.hasPrefix("session-") && name.hasSuffix(".json")
+        }
+        if provider == .cursor {
+            return path.contains("/sdk-agent-store/") && path.hasSuffix("/index.db")
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,6 +711,10 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        // DeepSeek Harness rewrites one projection cache per session in place.
+        if path.hasSuffix(".json") { return true }
+        // Cursor keeps each agent store's run index in a nested SQLite file.
+        if path.contains("/sdk-agent-store/") && path.hasSuffix("/index.db") { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -759,6 +781,25 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // DeepSeek Harness keeps one flat JSON cache per session.
+            if root.provider == .deepseek {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions { include(session, from: root) }
+                continue
+            }
+            // Cursor keeps one run index in each project's agent store.
+            if root.provider == .cursor {
+                let projects = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for project in projects {
+                    let store = project.appending(path: "sdk-agent-store", directoryHint: .isDirectory)
+                    let stores = (try? FileManager.default.contentsOfDirectory(
+                        at: store, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                    for entry in stores { include(entry.appending(path: "index.db"), from: root) }
+                }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -779,6 +820,14 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .deepseek {
+            AgentDeepSeekReader.read(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .cursor {
+            AgentCursorReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()
