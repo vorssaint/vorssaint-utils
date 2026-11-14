@@ -16,6 +16,8 @@ struct NotchNotice: Equatable {
     var notificationID: UUID? = nil
     /// The agent an AI notice is about, which tints its mark.
     var agent: AgentProvider? = nil
+    /// A session waiting on its person: a click brings its app forward.
+    var inputRequest: AgentInputRequest? = nil
     /// With the companion on, it takes the symbol's place in the notice and
     /// plays this, so the notice itself is its reaction.
     var mascot: NotchMascotReaction? = nil
@@ -334,6 +336,9 @@ final class NotchService: ObservableObject {
     private var musicRequestWork: DispatchWorkItem?
     /// The next refresh fits the strip to its name, or back, without a swing.
     private var musicStripFitsInPlace = false
+    /// The agent strip trading "Needs you" for a reading, or back: it stays
+    /// on screen and only fits its new width.
+    private var agentStripFitsInPlace = false
     /// The companion's stroll through the closed island, or its moment out
     /// over what the island shows.
     @Published private(set) var mascotVisit: NotchMascotVisit? {
@@ -541,7 +546,8 @@ final class NotchService: ObservableObject {
     }
 
     var hasAgentActivity: Bool {
-        NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
+        NotchAgentSupport.showsLiveActivity()
+            && (!AgentUsageService.shared.snapshot.live.isEmpty || !NotchAgentSupport.waitingRequests().isEmpty)
     }
 
     var hasCalendarActivity: Bool {
@@ -805,9 +811,10 @@ final class NotchService: ObservableObject {
     /// and air beside the camera.
     private func agentStripWing(in geometry: NotchGeometry) -> CGFloat {
         let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
-        let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
-        let shape = NotchAgentSupport.readingShape(NotchAgentSupport.stripReading(
-            AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
+        let size = NotchAgentSupport.agentStripTextSize(height: provisional.compactActivityContentHeight)
+        let shape = NotchAgentSupport.readingShape(NotchAgentSupport.liveReading(
+            AgentUsageService.shared.snapshot, waiting: NotchAgentSupport.waitingRequests(),
+            readout: NotchAgentSupport.readout(),
             display: NotchAgentSupport.limitDisplay(), focus: NotchAgentSupport.limitFocus(), now: Date()))
         let width = (shape as NSString).size(withAttributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
@@ -1089,9 +1096,11 @@ final class NotchService: ObservableObject {
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
         case .agents:
-            let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
-                                                         display: NotchAgentSupport.limitDisplay(),
-                                                         focus: NotchAgentSupport.limitFocus(), now: Date())
+            let reading = NotchAgentSupport.liveReading(AgentUsageService.shared.snapshot,
+                                                        waiting: NotchAgentSupport.waitingRequests(),
+                                                        readout: NotchAgentSupport.readout(),
+                                                        display: NotchAgentSupport.limitDisplay(),
+                                                        focus: NotchAgentSupport.limitFocus(), now: Date())
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
@@ -1336,6 +1345,7 @@ final class NotchService: ObservableObject {
         heldMusic = nil
         awaitsTrackNotice = false
         subscriptions.removeAll()
+        AgentInputMonitor.shared.stop()
         stopPower()
         NotchMusicService.shared.stop()
         NotchAudioLevelService.shared.stop()
@@ -2379,6 +2389,12 @@ final class NotchService: ObservableObject {
         let shown = stripNotice
         guard shown?.clickTarget == selectedNotice.clickTarget
             || (fromEdgePress && shown == nil) else { return }
+        if let request = selectedNotice.inputRequest {
+            // The answer is given in the session's own app, not the island.
+            dismissNotice()
+            AgentInputMonitor.bringForward(request)
+            return
+        }
         if let id = selectedNotice.notificationID {
             guard NotchNotificationService.shared.openingID == nil else { return }
             // The pointer stays where the banner was; like a click on the
@@ -2652,13 +2668,22 @@ final class NotchService: ObservableObject {
         presentedMusic = shown
     }
 
+    /// The agent strip's reading changed shape, as "Needs you" giving way
+    /// to the time or a timer gaining a digit: it eases to its new width.
+    func fitAgentStrip() {
+        agentStripFitsInPlace = true
+        refreshPresentation()
+    }
+
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
         // A notice with a new reading, or the music strip naming its song,
         // fits its new width in place.
         let fitsInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
             || musicStripFitsInPlace && compactMusicIsVisible
+            || agentStripFitsInPlace && compactActivity == .agents && notice == nil && !expanded && !peeking
         noticeFitsInPlace = false
         musicStripFitsInPlace = false
+        agentStripFitsInPlace = false
         // SwiftUI reports no exit from a view it removes, so whatever takes
         // the strip's place ends the part under the pointer. A name and a held
         // song stay through a notice or an opening while the pointer does, and
@@ -4234,6 +4259,26 @@ final class NotchService: ObservableObject {
             }
             NotchDownloadService.shared.onFailure = { [weak self] in self?.reactMascot(.confused) }
         }
+        // Sessions waiting on the person come from Claude Code's hook, not
+        // the logs, and only matter while live activity shows.
+        if modules.contains(.agents), NotchAgentSupport.showsNeedsInput() {
+            AgentInputMonitor.shared.start()
+            AgentInputMonitor.shared.$requests
+                .map { $0.map(\.session) }
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    // Between waiting and working the strip's mark and reading
+                    // both change, and so does its width: cross-fade them while
+                    // the silhouette eases to its new width without a swing.
+                    self?.agentStripFitsInPlace = true
+                    self?.refreshPresentation(transitionContent: .replace)
+                }.store(in: &subscriptions)
+        } else {
+            AgentInputMonitor.shared.stop()
+        }
         if modules.contains(.agents) {
             // Only what changes the island's size or strip: a turn starting or
             // ending, the first read landing, which agents have cards, and
@@ -4290,6 +4335,9 @@ final class NotchService: ObservableObject {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
+            AgentInputMonitor.shared.arrived.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showInputRequest($0) }
+                .store(in: &subscriptions)
         }
         stopPower()
         if NotchSupport.routes(.volume) {
@@ -4327,6 +4375,17 @@ final class NotchService: ObservableObject {
         }
         // The companion loves being plugged in, so it listens for the charger too.
         if NotchSupport.routes(.battery) || idleContent == .battery || NotchMascotSupport.isEnabled() { startPower() }
+    }
+
+    /// A session has just started waiting: one notice that says why, and a
+    /// click on it brings the session's app forward.
+    private func showInputRequest(_ request: AgentInputRequest) {
+        guard NotchAgentSupport.needsInputAlert() else { return }
+        let text = FeatureStrings.agentInput(L10n.shared.language)
+        show(NotchNotice(event: .agents, title: text.noticeTitle(AgentProvider.claude.displayName),
+                         detail: [text.reason(request.reason), request.project]
+                            .filter { !$0.isEmpty }.joined(separator: " · "),
+                         symbol: "questionmark", agent: .claude, inputRequest: request))
     }
 
     private func showAgentEvent(_ event: AgentUsageEvent) {
