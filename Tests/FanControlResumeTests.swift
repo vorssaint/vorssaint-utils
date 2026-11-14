@@ -172,5 +172,33 @@ enum FanControlResumeContract {
         suite.expect(storedResume == nil && service.events == ["unregister"],
                      "removing the feature forgets the kept control before unregistering the helper")
         reset()
+
+        let transient: [FanControlStopReason] = [.hardwareChanged, .temperatureUnavailable,
+                                                 .thermalPressure, .heartbeatLost]
+        suite.expect(transient.allSatisfy(FanControlReapplyPolicy.isTransientStop),
+                     "a safety stop the helper makes on its own is followed by a re-apply")
+        suite.expect(!FanControlReapplyPolicy.isTransientStop(nil)
+                        && !FanControlReapplyPolicy.isTransientStop(.timeLimit)
+                        && !FanControlReapplyPolicy.isTransientStop(.appDisconnected)
+                        && !FanControlReapplyPolicy.isTransientStop(.recovery),
+                     "a return to System, a time limit and crash cleanup are never undone by a re-apply")
+        let waits = (0..<FanControlReapplyPolicy.delays.count)
+            .compactMap(FanControlReapplyPolicy.delay(attempt:))
+        suite.expect(waits == FanControlReapplyPolicy.delays && waits == waits.sorted()
+                        && (waits.first ?? 0) >= 5,
+                     "each consecutive re-apply waits at least as long as the one before")
+        suite.expect(FanControlReapplyPolicy.delay(attempt: FanControlReapplyPolicy.delays.count) == nil
+                        && FanControlReapplyPolicy.delay(attempt: -1) == nil,
+                     "a stop that keeps coming back leaves the fans with the system")
+        suite.expect(FanControlReapplyPolicy.attempt(after: 3, heldFor: 10) == 3
+                        && FanControlReapplyPolicy.attempt(after: 3, heldFor: nil) == 3
+                        && FanControlReapplyPolicy.attempt(
+                            after: 3, heldFor: FanControlReapplyPolicy.settledAfter) == 0,
+                     "only control that held for a while starts the waits over")
+        suite.expect(FanControlReapplyPolicy.thermalStateAllows(.nominal)
+                        && FanControlReapplyPolicy.thermalStateAllows(.fair)
+                        && !FanControlReapplyPolicy.thermalStateAllows(.serious)
+                        && !FanControlReapplyPolicy.thermalStateAllows(.critical),
+                     "a re-apply waits out the thermal pressure that made the helper stop")
     }
 }
