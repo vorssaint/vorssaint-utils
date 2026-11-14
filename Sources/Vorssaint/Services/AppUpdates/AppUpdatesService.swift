@@ -826,8 +826,9 @@ final class AppUpdatesService: ObservableObject {
                 as? [String: Any] else { return nil }
         guard let bundleID = plist["CFBundleIdentifier"] as? String,
               !isOwnBundle(bundleID) else { return nil }
-        let version = (plist["CFBundleShortVersionString"] as? String)
+        let bundleVersion = (plist["CFBundleShortVersionString"] as? String)
             ?? (plist["CFBundleVersion"] as? String) ?? ""
+        let version = HermesInstalledVersion.resolve(bundleID: bundleID, bundleVersion: bundleVersion)
         var name = url.deletingPathExtension().lastPathComponent
         if let display = plist["CFBundleDisplayName"] as? String, !display.isEmpty {
             name = display
