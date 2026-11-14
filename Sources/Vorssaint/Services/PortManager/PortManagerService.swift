@@ -61,7 +61,7 @@ final class PortManagerService: ObservableObject {
 
     private static func snapshot() -> [PortManagerEntry]? {
         let identities = startTimes()
-        let result = Shell.run("/usr/sbin/lsof", ["-nP", "+c0", "-iTCP", "-sTCP:LISTEN", "-F", "pcnPT"])
+        let result = Shell.run("/usr/sbin/lsof", PortManagerSupport.lsofArguments)
         // Negative status means Shell.run hit its own timeout — always bail.
         guard result.status >= 0 else { return nil }
         let parsed = PortManagerSupport.parseLsof(result.output).map { entry in
