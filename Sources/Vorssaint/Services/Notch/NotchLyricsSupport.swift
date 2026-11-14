@@ -11,6 +11,7 @@ struct NotchMusicIdentity: Equatable {
     let bundle: String?
     let pid: Int32?
     let itemIdentifier: String?
+    let catalogIdentifier: String?
 
     init(_ playback: NotchPlayback) {
         title = playback.track.title ?? ""
@@ -20,12 +21,59 @@ struct NotchMusicIdentity: Equatable {
         bundle = playback.track.appBundleIdentifier
         pid = playback.track.appPID
         itemIdentifier = playback.itemIdentifier
+        catalogIdentifier = playback.catalogIdentifier
     }
+}
+
+struct NotchLyricSyllable: Equatable {
+    let range: NSRange
+    let begin: Double
+    let end: Double
+    var background = false
+
+    func progress(at time: Double) -> Double {
+        guard time.isFinite, end > begin else { return 0 }
+        return min(1, max(0, (time - begin) / (end - begin)))
+    }
+}
+
+enum NotchLyricSide: Equatable { case leading, trailing, center }
+
+struct NotchLyricGap: Equatable {
+    let begin: Double
+    let end: Double
+    let nextIndex: Int?
+    var id: String { "gap:\(begin)" }
+    func progress(at time: Double) -> Double {
+        min(1, max(0, (time - begin) / max(0.001, end - begin)))
+    }
+}
+
+enum NotchLyricScrollTarget: Hashable { case start, gap(Double), line(Int) }
+
+struct NotchLyricVoice: Equatable, Identifiable {
+    let text: String
+    let time: Double
+    let end: Double
+    let agent: String?
+    let side: NotchLyricSide
+    let background: Bool
+    let syllables: [NotchLyricSyllable]
+    var id: String { "\(agent ?? "")/\(background)/\(time)/\(text)" }
+    var line: NotchLyricLine {
+        .init(time: time, text: text, end: end, syllables: syllables, side: side, background: background)
+    }
+    func isActive(at time: Double) -> Bool { time >= self.time && time < end }
 }
 
 struct NotchLyricLine: Equatable, Identifiable {
     let time: Double
     let text: String
+    var end: Double? = nil
+    var syllables: [NotchLyricSyllable] = []
+    var voices: [NotchLyricVoice] = []
+    var side: NotchLyricSide = .leading
+    var background = false
     var id: Double { time }
 }
 
@@ -33,6 +81,7 @@ struct NotchLyrics: Equatable {
     let lines: [NotchLyricLine]
     let plain: String
     let instrumental: Bool
+    var writers: [String] = []
 
     /// Highlighting changes only at lyric boundaries. Rebuild this schedule
     /// when playback or the user's offset changes, with no clock while paused.
@@ -41,8 +90,19 @@ struct NotchLyrics: Equatable {
         guard playback.isPlaying, playback.hasPosition, playback.rate.isFinite, playback.rate > 0,
               offset.isFinite else { return dates }
         let position = playback.position(at: now)
-        for line in lines {
-            let target = line.time + offset
+        var points = lines.flatMap { line -> [Double] in
+            var values = [line.time]
+            if let end = line.end { values += [end, end + 0.45] }
+            for voice in line.voices { values += [voice.time, voice.end, voice.end + 0.45] }
+            return values
+        }
+        points += instrumentalGaps(duration: playback.duration).flatMap { gap -> [Double] in
+            [gap.begin, gap.end, gap.end + NotchKaraokeMotion.gapCollapseDuration]
+                + (gap.nextIndex == nil ? [] : [gap.end - NotchKaraokeMotion.gapHandoffLead])
+        }
+        let boundaries = Set(points).sorted()
+        for boundary in boundaries {
+            let target = boundary + offset
             guard target > position, target <= playback.duration else { continue }
             let time = playback.sampledAt.timeIntervalSinceReferenceDate
                 + (target - playback.elapsed) / playback.rate
@@ -69,6 +129,73 @@ struct NotchLyrics: Equatable {
         }
         return lower == 0 ? nil : lower - 1
     }
+
+    /// Overlapping singers remain active independently. LRC, which has no end
+    /// times, retains its original latest-boundary semantics.
+    func activeIndices(at position: Double, offset: Double = 0, duration: Double? = nil) -> Set<Int> {
+        guard position.isFinite, offset.isFinite else { return [] }
+        let time = position - offset
+        var result = Set<Int>()
+        for (index, line) in lines.enumerated() where !line.text.isEmpty {
+            if let end = line.end, line.time <= time && time < end { result.insert(index) }
+        }
+        if result.isEmpty, let index = activeIndex(at: position, offset: offset) {
+            let end = duration ?? lines.last?.time ?? 0
+            let inInterlude = instrumentalGaps(duration: end).contains { time >= $0.begin && time < $0.end }
+            if !inInterlude, let verse = (0...index).last(where: { !lines[$0].text.isEmpty }) { result.insert(verse) }
+        }
+        return result
+    }
+
+    /// Hold the preceding verse during silence instead of jumping to the top.
+    func focusIndex(at position: Double, offset: Double = 0) -> Int? {
+        if let first = activeIndices(at: position, offset: offset).min() { return first }
+        guard let index = activeIndex(at: position, offset: offset) else { return nil }
+        return (0...index).last(where: { !lines[$0].text.isEmpty })
+    }
+
+    /// Only explicit silent cues or the known intro establish a vocal gap.
+    /// Ordinary LRC without an end/blank cue cannot reveal when a verse ends.
+    func instrumentalGap(at position: Double, offset: Double = 0, duration: Double) -> NotchLyricGap? {
+        guard position.isFinite, offset.isFinite, duration.isFinite, duration > 0 else { return nil }
+        let time = position - offset
+        guard time >= 0, time < duration,
+              !lines.contains(where: { !$0.text.isEmpty && $0.time <= time && ($0.end ?? $0.time) > time }) else { return nil }
+        return instrumentalGaps(duration: duration).first { time >= $0.begin && time < $0.end }
+    }
+
+    /// Metadata-derived intervals are stable across playback samples. The view
+    /// presents only the current interval and collapses its row after vocals enter.
+    func instrumentalGaps(duration: Double) -> [NotchLyricGap] {
+        guard duration.isFinite, duration > 0 else { return [] }
+        var result: [NotchLyricGap] = []
+        if let first = lines.enumerated().first(where: { !$0.element.text.isEmpty }), first.element.time > 9 {
+            result.append(.init(begin: 0, end: min(first.element.time, duration), nextIndex: first.offset))
+        }
+        for (index, line) in lines.enumerated() where line.text.isEmpty {
+            let next = lines.enumerated().dropFirst(index + 1).first { !$0.element.text.isEmpty }
+            let previousEnd = lines.prefix(index).filter { !$0.text.isEmpty }.compactMap(\.end).max() ?? line.time
+            let begin = max(line.time, previousEnd)
+            let end = min(duration, next?.element.time ?? duration)
+            guard end - begin > 9, !result.contains(where: { $0.begin == begin }) else { continue }
+            result.append(.init(begin: begin, end: end, nextIndex: next?.offset))
+        }
+        return result
+    }
+
+    func scrollTarget(at position: Double, offset: Double = 0, duration: Double) -> NotchLyricScrollTarget {
+        if let gap = instrumentalGap(at: position, offset: offset, duration: duration) {
+            if let next = gap.nextIndex, position - offset >= gap.end - NotchKaraokeMotion.gapHandoffLead { return .line(next) }
+            return .gap(gap.begin)
+        }
+        if let focus = focusIndex(at: position, offset: offset) { return .line(focus) }
+        return .start
+    }
+
+    func presentedGap(at position: Double, offset: Double = 0, duration: Double) -> NotchLyricGap? {
+        let time = position - offset
+        return instrumentalGaps(duration: duration).first { time >= $0.begin && time < $0.end + NotchKaraokeMotion.gapCollapseDuration }
+    }
 }
 
 /// At most one recording's lyrics and adjustment remain in memory. Hiding the
@@ -77,18 +204,21 @@ struct NotchLyricsMemory {
     private(set) var track: NotchMusicIdentity?
     private(set) var lyrics: NotchLyrics?
     private(set) var offset = 0.0
+    private(set) var importedName: String?
 
     mutating func select(_ next: NotchMusicIdentity?) {
         guard next != track else { return }
         track = next
         lyrics = nil
         offset = 0
+        importedName = nil
     }
 
-    @discardableResult mutating func replace(_ lyrics: NotchLyrics?, for expected: NotchMusicIdentity) -> Bool {
+    @discardableResult mutating func replace(_ lyrics: NotchLyrics?, for expected: NotchMusicIdentity, importedName: String? = nil) -> Bool {
         guard track == expected else { return false }
         self.lyrics = lyrics
         offset = 0
+        self.importedName = lyrics == nil ? nil : importedName
         return true
     }
 

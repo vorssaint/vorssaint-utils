@@ -132,6 +132,10 @@ public func vorssaintNowPlayingGet() {
     let receiveInfo: InfoCallback = { info in
         let info = (info as? [String: Any]) ?? [:]
         if watching { set("itemIdentifier", info["kMRMediaRemoteNowPlayingInfoContentItemIdentifier"] as? String) }
+        if watching, let identifier = info["kMRMediaRemoteNowPlayingInfoiTunesStoreIdentifier"] as? NSNumber,
+           identifier.int64Value > 0 {
+            set("catalogIdentifier", identifier.stringValue)
+        }
         for key in ["kMRMediaRemoteNowPlayingInfoTitle",
                     "kMRMediaRemoteNowPlayingInfoArtist",
                     "kMRMediaRemoteNowPlayingInfoAlbum"] {

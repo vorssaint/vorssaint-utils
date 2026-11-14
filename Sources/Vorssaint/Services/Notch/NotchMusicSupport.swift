@@ -39,6 +39,7 @@ struct NotchPlayback: Equatable {
     let canSeek: Bool
     var hasPosition: Bool = true
     var itemIdentifier: String? = nil
+    var catalogIdentifier: String? = nil
     var commandContext: NotchPlaybackContext? = nil
     var canSendCommandsDirectly = false
     /// Nil when the player's commands could not be read.
@@ -90,6 +91,7 @@ struct NotchPlayback: Equatable {
                              hasPosition: (reply.info["kMRMediaRemoteNowPlayingInfoElapsedTime"] as? NSNumber)
                                 .map { $0.doubleValue.isFinite && $0.doubleValue >= 0 } == true,
                              itemIdentifier: reply.info["itemIdentifier"] as? String,
+                             catalogIdentifier: reply.info["catalogIdentifier"] as? String,
                              commandContext: commandContext?.pid == track.appPID ? commandContext : nil,
                              canSendCommandsDirectly: canSendCommandsDirectly,
                              canSkipNext: reply.info["canSkipNext"] as? Bool,

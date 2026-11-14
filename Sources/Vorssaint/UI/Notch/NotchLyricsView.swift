@@ -8,13 +8,18 @@ struct NotchLyricsView: View {
     @ObservedObject private var service = NotchLyricsService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchLyricsOnline) private var online = false
+    @AppStorage(DefaultsKey.notchLyricsProvider) private var provider = NotchLyricsProvider.lrclib.rawValue
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchMusicExtrasStrings { FeatureStrings.notchMusicExtras(l10n.language) }
+    private var apple: NotchAppleMusicLyricsStrings { FeatureStrings.notchAppleMusicLyrics(l10n.language) }
 
     // The verses sit on the island itself, as a player's own lyrics do, and
     // a song without them says so like the island's other empty pages.
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if let name = service.importedName {
+                Label(name, systemImage: "doc.text").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
             if let lyrics = service.lyrics {
                 if lyrics.instrumental {
                     NotchEmptyView(symbol: "music.note", message: text.instrumental) {
@@ -50,9 +55,15 @@ struct NotchLyricsView: View {
                 } else {
                     if !playback.hasPosition { Text(text.noPosition).font(.caption).foregroundStyle(.secondary) }
                     ScrollView {
-                        Text(lyrics.plain.isEmpty ? lyrics.lines.map(\.text).joined(separator: "\n") : lyrics.plain)
-                            .font(.system(size: 15, weight: .medium)).textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                        VStack(alignment: .leading, spacing: 18) {
+                            Text(lyrics.plain.isEmpty ? lyrics.lines.map(\.text).joined(separator: "\n") : lyrics.plain)
+                                .font(.system(size: 15, weight: .medium)).textSelection(.enabled)
+                            if !lyrics.writers.isEmpty {
+                                Text("\(text.writtenBy): \(lyrics.writers.joined(separator: ", "))")
+                                    .font(.system(size: 12, weight: .medium)).foregroundStyle(.secondary)
+                                    .textSelection(.enabled)
+                            }
+                        }.frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .notchScrollEdgeFade()
                     Button { service.importLyrics() } label: { Label(text.importLyrics, systemImage: "doc.badge.plus") }
@@ -86,6 +97,7 @@ struct NotchLyricsView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: online) { update() }
+        .onChange(of: provider) { update() }
     }
 
     private func update() { service.update(playback: playback, visible: true) }
@@ -93,19 +105,33 @@ struct NotchLyricsView: View {
     /// An import that read no timed lines fails even with online lookup off,
     /// so the failure stays above the disclosure the next step needs.
     private var emptyMessage: String {
+        if service.usesAppleMusic {
+            if !online { return apple.hint }
+            switch service.state {
+            case .appleMusicSignIn: return apple.signIn
+            case .appleMusicSubscription: return apple.subscription
+            case .appleMusicDenied: return apple.denied
+            case .appleMusicOnly: return apple.only
+            case .failed: return text.failed
+            default: return text.unavailable
+            }
+        }
         let reason: String? = service.state == .failed ? text.failed : online ? text.unavailable : nil
         return [reason, online ? nil : text.onlineHint].compactMap { $0 }.joined(separator: "\n")
     }
 
     @ViewBuilder private var nextStep: some View {
-        if online {
+        if online, service.usesAppleMusic,
+           [.appleMusicSignIn, .appleMusicSubscription, .appleMusicDenied].contains(service.state) {
+            NotchPillButton(title: apple.connect, prominent: true, action: service.connectAppleMusic)
+        } else if online {
             NotchPillButton(title: text.retry, prominent: true, action: service.retry)
         } else {
             NotchPillButton(title: text.online, prominent: true) { online = true }
         }
     }
 
-    private var importButton: some View {
+    @ViewBuilder private var importButton: some View {
         // A file being added, not the usual download arrow, which reads as saving.
         Button { service.importLyrics() } label: { Image(systemName: "doc.badge.plus") }
             .buttonStyle(.borderless)
@@ -114,35 +140,8 @@ struct NotchLyricsView: View {
     }
 
     private func synced(_ lyrics: NotchLyrics) -> some View {
-        TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: .now))) { context in
-            let active = lyrics.activeIndex(at: playback.position(at: context.date), offset: service.offset)
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
-                        if active == nil {
-                            Text(text.waiting).font(.caption).foregroundStyle(.secondary).id("start")
-                        }
-                        // Every verse keeps one size, so the lines never
-                        // rewrap as the song moves. The sung one lights up.
-                        ForEach(Array(lyrics.lines.enumerated()), id: \.element.id) { index, line in
-                            Text(line.text.isEmpty ? "♪" : line.text)
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(.white.opacity(index == active ? 1 : 0.35))
-                                .animation(reduceMotion ? nil : .smooth(duration: 0.28), value: index == active)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .id(index)
-                        }
-                    }.padding(.vertical, 6)
-                }
-                .notchScrollEdgeFade(length: 24)
-                .onChange(of: active, initial: true) { _, index in
-                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.28)) {
-                        if let index { proxy.scrollTo(index, anchor: .center) }
-                        else { proxy.scrollTo("start", anchor: .top) }
-                    }
-                }
-            }
-        }
+        NotchSyncedLyricsView(lyrics: lyrics, playback: playback, offset: service.offset,
+                             waiting: text.waiting, instrumental: text.instrumental, writtenBy: text.writtenBy)
+            .notchScrollEdgeFade(length: 24)
     }
 }

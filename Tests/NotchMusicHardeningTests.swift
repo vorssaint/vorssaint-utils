@@ -5,14 +5,16 @@ import Foundation
 import UniformTypeIdentifiers
 
 typealias ProductionLyricsParser = NotchLyricsSupport
+private typealias ProductionTTMLParser = NotchAppleMusicLyricsSupport
 
 /// Production lifecycle bodies are extracted by generate_sources.py. Only the
 /// session, chooser, preference source and network entry point are test doubles.
 enum NotchLyricsContract {
-    enum State { case idle, consent, loading, unavailable, failed, ready }
+    enum State { case idle, consent, loading, unavailable, failed, ready, appleMusicSignIn, appleMusicSubscription, appleMusicDenied, appleMusicOnly }
     enum Preferences {
         static var enabled = true
         static var online = false
+        static var appleMusic = false
         static func isEnabled() -> Bool { enabled }
         static func onlineEnabled() -> Bool { enabled && online }
         static let maximumBytes = ProductionLyricsParser.maximumBytes
@@ -42,6 +44,26 @@ enum NotchLyricsContract {
         }
     }
     typealias NotchLyricsSupport = Preferences
+    enum NotchAppleMusicLyricsSupport {
+        static func decode(_ data: Data, duration: Double) -> NotchLyrics? {
+            ProductionTTMLParser.decode(data, duration: duration)
+        }
+        static func isSelected() -> Bool { Preferences.enabled && Preferences.appleMusic }
+        static func canLoad(_ track: NotchMusicIdentity) -> Bool {
+            isSelected() && Preferences.online && track.bundle == "com.apple.Music"
+        }
+    }
+    final class NotchAppleMusicLyricsProvider {
+        static let shared = NotchAppleMusicLyricsProvider()
+        enum Result { case ready(NotchLyrics), signIn, subscription, denied, unavailable, failed }
+        var replies: [(Result) -> Void] = []
+        func load(_ track: NotchMusicIdentity, completion: @escaping (Result) -> Void) { replies.append(completion) }
+        func cancel() {}
+        func suspend() {}
+        func close() {}
+        func connect(onClose: @escaping () -> Void) { onClose() }
+        func disconnect(onComplete: @escaping () -> Void) { onComplete() }
+    }
     enum NotchLyricsDownload {
         struct Request {
             let url: URL
@@ -760,6 +782,8 @@ enum NotchMusicHardeningTests {
         Context.Preferences.online = true
         defer {
             Context.Preferences.online = false
+            Context.Preferences.appleMusic = false
+            Context.NotchAppleMusicLyricsProvider.shared.replies = []
             Context.NotchLyricsDownload.requests = []
             Context.resetPresentation()
         }
@@ -965,7 +989,30 @@ enum NotchMusicHardeningTests {
                          "late identity replies cannot launch catalog queries after hiding, track changes or lost consent")
             Context.Preferences.online = true
         }
-
+        let applePlayback = NotchPlayback(
+            track: RadialNowPlayingSnapshot(title: playback.track.title, artist: playback.track.artist,
+                                           album: playback.track.album, artworkData: nil,
+                                           appBundleIdentifier: "com.apple.Music", appPID: 42),
+            isPlaying: true, elapsed: 0, duration: 219, rate: 1, sampledAt: .now, canSeek: false)
+        let switching = start(applePlayback)
+        let pendingLRCLIB = reachMetadata(switching)
+        let priorRequests = Context.NotchLyricsDownload.requests.count
+        let appleProvider = Context.NotchAppleMusicLyricsProvider.shared
+        appleProvider.replies = []
+        Context.Preferences.appleMusic = true
+        switching.update(playback: applePlayback, visible: true)
+        pendingLRCLIB?.completion(.payload(artistReply))
+        Context.DispatchQueue.main.drain()
+        suite.expect(pendingLRCLIB?.session.cancelled == true && appleProvider.replies.count == 1
+                     && Context.NotchLyricsDownload.requests.count == priorRequests && switching.lyrics == nil,
+                     "switching to Apple Music cancels an in-flight LRCLIB metadata fallback and ignores its late reply")
+        Context.Preferences.appleMusic = false
+        switching.update(playback: applePlayback, visible: true)
+        appleProvider.replies.first?(.ready(NotchLyrics(lines: [], plain: "Old Apple reply", instrumental: false)))
+        suite.expect(Context.NotchLyricsDownload.requests.count == priorRequests + 1
+                     && Context.NotchLyricsDownload.requests.last?.url.path == "/api/get"
+                     && switching.state == .loading && switching.lyrics == nil,
+                     "switching back resumes the exact LRCLIB lookup and ignores the old Apple reply")
     }
 
     private static func lyricPicker(_ suite: TestSuite) {
@@ -973,7 +1020,7 @@ enum NotchMusicHardeningTests {
         Context.Preferences.enabled = true
         Context.Preferences.online = false
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("notch-lyrics-picker-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: folder); Context.resetPresentation() }
+        defer { try? FileManager.default.removeItem(at: folder); Context.resetPresentation(); Context.Preferences.appleMusic = false }
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             let file = folder.appendingPathComponent("selected.lrc")
@@ -1003,6 +1050,36 @@ enum NotchMusicHardeningTests {
                 suite.expect(service.lyrics?.lines.first?.text == "Selected verse" && service.visible,
                        "the real bounded import and parser retain the chosen lyrics for the unchanged song")
             }
+            let ttml = folder.appendingPathComponent("selected.ttml")
+            let document = """
+            <?xml version="1.0" encoding="UTF-16"?>
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
+            <head><metadata><ttm:agent xml:id="a" type="person"/><ttm:agent xml:id="b" type="person"/></metadata></head>
+            <body><div><p begin="1" end="4" ttm:agent="a"><span begin="1" end="2">Local</span> <span begin="2" end="4">words</span></p>
+            <p begin="2" end="4" ttm:agent="b">Duet</p></div></body></tt>
+            """
+            try document.data(using: .utf16)!.write(to: ttml)
+            for appleMusic in [false, true] {
+                Context.resetPresentation()
+                Context.Preferences.appleMusic = appleMusic
+                let service = Context.Service()
+                service.update(playback: playback("same-song"), visible: true)
+                service.importLyrics()
+                guard let panel = service.importPanel else { suite.expect(false, "TTML imports are reachable with either provider"); continue }
+                panel.url = ttml
+                panel.finish(.OK)
+                Context.DispatchQueue.main.drain()
+                Context.DispatchQueue.worker.drain()
+                Context.DispatchQueue.main.drain()
+                suite.expect(service.state == .ready && service.lyrics?.lines.first?.syllables.count == 2
+                    && service.lyrics?.lines.filter({ !$0.text.isEmpty }).last?.voices.first?.side == .trailing
+                    && service.memory.importedName == "selected.ttml",
+                             "the real file import preserves UTF-16 TTML, word timing, duet metadata and local source identity")
+                service.playbackChanged(playback("different-song"))
+                suite.expect(service.memory.importedName == nil && service.lyrics == nil,
+                             "a track change clears the imported file's data and source label")
+            }
+            Context.Preferences.appleMusic = false
             for interruption in 0..<6 {
                 Context.resetPresentation()
                 let service = Context.Service()
