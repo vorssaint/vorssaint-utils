@@ -147,6 +147,8 @@ struct ShortcutsSettings: View {
                     if feature == .brightness, !roles.contains(where: \.isKeyboardBrightness) {
                         DisplayBrightnessShortcutControls(showsShortcutRows: false)
                             .disclosureIndent()
+                        MonitorInputControls(showsShortcutRow: false, showsPicker: false)
+                            .disclosureIndent()
                     }
                     ForEach(roles) { role in
                         roleRow(role, showsFeatureContext: false)

@@ -107,6 +107,11 @@ final class BrightnessService: ObservableObject {
     @Published private(set) var keyboardLightEnabled: Bool?
     @Published private(set) var displayBrightnessShortcutRegistrationFailed = false
     @Published private(set) var keyboardBrightnessShortcutRegistrationFailed = false
+    @Published private(set) var monitorInputShortcutRegistrationFailed = false
+    /// The monitors the settings picker offers, from the last scan: the ones
+    /// that answered the input control and list more than one input.
+    @Published private(set) var monitorInputMonitors: [MonitorInputSupport.Monitor] = []
+    @Published private(set) var monitorInputScanning = false
     /// The display the island's brightness level shows: the one the
     /// brightness keys last moved, or the one picked there. Nil shows the
     /// built-in panel.
@@ -379,6 +384,18 @@ final class BrightnessService: ObservableObject {
     private let displayBrightnessIncreaseHotkey = QuickToolHotkey(id: 60)
     private let keyboardBrightnessDecreaseHotkey = QuickToolHotkey(id: 57)
     private let keyboardBrightnessIncreaseHotkey = QuickToolHotkey(id: 58)
+    private let monitorInputHotkey = QuickToolHotkey(id: 64)
+    /// The inputs each monitor listed in its capability string, by connection
+    /// path. Asking for the string takes several bus transactions and it does
+    /// not change while the monitor stays connected, so it is read once.
+    /// Touched only on the work queue.
+    private var monitorInputCapabilities: [String: [UInt16]] = [:]
+    /// Bumped by every press, pick and stop, so a confirmation that was
+    /// overtaken ends without a word. Main thread only.
+    private var monitorInputGeneration = 0
+    /// A press or a pick is being carried out. Main thread only.
+    private var monitorInputBusy = false
+    private var monitorInputScansInFlight = 0
     /// Stale rebuilds (an unplug mid-scan) must not overwrite fresh state.
     private var rebuildGeneration = 0
     /// The topology a queued or running rebuild already covers. Opening the
@@ -398,6 +415,9 @@ final class BrightnessService: ObservableObject {
         }
         keyboardBrightnessIncreaseHotkey.onPress = { [weak self] in
             self?.stepKeyboardLight(direction: 1)
+        }
+        monitorInputHotkey.onPress = { [weak self] in
+            self?.switchMonitorInput()
         }
     }
 
@@ -577,6 +597,7 @@ final class BrightnessService: ObservableObject {
         syncKeyTap()
         syncKeyboardBrightnessHotkeys()
         syncDisplayBrightnessHotkeys()
+        syncMonitorInputHotkey()
         PreciseVolumeRollerService.shared.syncWithPreferences()
     }
 
@@ -641,6 +662,165 @@ final class BrightnessService: ObservableObject {
             || !(decreaseRegistered && increaseRegistered)
     }
 
+    // MARK: - Monitor input (main thread)
+
+    /// A monitor that can be asked to switch input, with the DDC service that
+    /// reaches it.
+    private struct MonitorInputTarget {
+        let id: CGDirectDisplayID
+        let name: String
+        let service: CFTypeRef
+        /// Nil when the monitor or its connection cannot be told apart, so
+        /// nothing is remembered about it.
+        let pathKey: String?
+    }
+
+    private enum MonitorInputOutcome {
+        /// The monitor accepted the write. Whether it switched is checked after.
+        case written(UInt16, MonitorInputTarget)
+        case noMonitor
+        /// Several monitors can switch and the pointer is on none of them.
+        case ambiguous
+        case unreadable
+        case noOtherInput
+        case failed
+    }
+
+    private func syncMonitorInputHotkey() {
+        let enabled = running && AppFeature.brightness.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.monitorInputShortcutEnabled)
+        let shortcut = GlobalShortcutRole.monitorInput.savedShortcut
+        let conflicts = enabled && shortcut.conflictsWithSystemShortcut
+            && !SystemShortcutTakeover.isTakenOver(GlobalShortcutRole.monitorInput.storageKey)
+        let registered = monitorInputHotkey.sync(
+            enabled: enabled && !conflicts, shortcut: shortcut,
+            storageKey: GlobalShortcutRole.monitorInput.storageKey)
+        monitorInputShortcutRegistrationFailed = conflicts || !registered
+    }
+
+    /// The shortcut: the monitor under the pointer moves to its next input.
+    private func switchMonitorInput() {
+        guard running, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
+              UserDefaults.standard.bool(forKey: DefaultsKey.monitorInputShortcutEnabled),
+              !monitorInputBusy else { return }
+        let pointerDisplay = Self.displayUnderPointer()
+        carryOutMonitorInputChange { [self] in
+            moveToNextInput(pointerDisplay: pointerDisplay)
+        }
+    }
+
+    /// The settings picker: one monitor moves to the input that was chosen.
+    func selectMonitorInput(_ value: UInt16, on id: CGDirectDisplayID) {
+        guard running, AppFeature.brightness.isAvailable, SessionActivity.shared.isActive,
+              !monitorInputBusy else { return }
+        carryOutMonitorInputChange { [self] in
+            guard let target = monitorInputTargets().first(where: { $0.id == id }) else { return .noMonitor }
+            return writeMonitorInput(value, to: target)
+        }
+    }
+
+    /// Reads which monitors can switch and what inputs they have, for the
+    /// picker. A monitor that does not answer is simply not listed.
+    func refreshMonitorInputs() {
+        guard running, AppFeature.brightness.isAvailable else {
+            if !monitorInputMonitors.isEmpty { monitorInputMonitors = [] }
+            return
+        }
+        monitorInputScansInFlight += 1
+        monitorInputScanning = true
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            let monitors = self.monitorInputTargets().compactMap { target in
+                let state = self.monitorInputState(of: target)
+                return MonitorInputSupport.pickerMonitor(id: target.id, name: target.name,
+                                                         current: state.current, supported: state.supported)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.monitorInputScansInFlight -= 1
+                self.monitorInputScanning = self.monitorInputScansInFlight > 0
+                guard self.running else { return }
+                if self.monitorInputMonitors != monitors { self.monitorInputMonitors = monitors }
+            }
+        }
+    }
+
+    /// Runs one change on the work queue, shows what came of it and, when the
+    /// monitor took the write, keeps an eye on whether it really switched.
+    private func carryOutMonitorInputChange(_ change: @escaping () -> MonitorInputOutcome) {
+        monitorInputBusy = true
+        monitorInputGeneration &+= 1
+        let generation = monitorInputGeneration
+        workQueue.async { [weak self] in
+            guard let self else { return }
+            let outcome = change()
+            DispatchQueue.main.async { [weak self] in
+                guard let self, generation == self.monitorInputGeneration else { return }
+                self.monitorInputBusy = false
+                self.showMonitorInputOutcome(outcome, generation: generation)
+            }
+        }
+    }
+
+    private func showMonitorInputOutcome(_ outcome: MonitorInputOutcome, generation: Int) {
+        let strings = FeatureStrings.brightness(L10n.shared.language)
+        let problem: String
+        switch outcome {
+        case .written(let value, let target):
+            // The monitor leaves for another input a moment after this, so the
+            // name goes up at once: waiting for the confirmation would show
+            // it on a screen that is no longer there.
+            QuickToolHUD.show(icon: "display", message: MonitorInputSupport.name(of: value))
+            if let index = monitorInputMonitors.firstIndex(where: { $0.id == target.id }) {
+                monitorInputMonitors[index].current = value
+            }
+            confirmMonitorInput(target, expecting: value, generation: generation, readings: [])
+            return
+        case .noMonitor: problem = strings.monitorInputNoMonitor
+        case .ambiguous: problem = strings.monitorInputPointAtMonitor
+        case .unreadable: problem = strings.monitorInputUnreadable
+        case .noOtherInput: problem = strings.monitorInputNoOther
+        case .failed: problem = strings.monitorInputNotSwitched
+        }
+        QuickToolHUD.show(icon: "exclamationmark.triangle", message: problem)
+    }
+
+    /// Reads the input again at a spacing, until it shows the wanted one or
+    /// the reads run out. A monitor that kept answering with the old input is
+    /// reported; one that went quiet is not, because nobody saw it refuse.
+    private func confirmMonitorInput(_ target: MonitorInputTarget, expecting value: UInt16,
+                                     generation: Int, readings: [UInt16?]) {
+        guard readings.count < MonitorInputSupport.confirmationReads else {
+            if MonitorInputSupport.result(readings: readings, target: value) == .notSwitched {
+                let strings = FeatureStrings.brightness(L10n.shared.language)
+                QuickToolHUD.show(icon: "exclamationmark.triangle", message: strings.monitorInputNotSwitched)
+                refreshMonitorInputs()
+            }
+            return
+        }
+        workQueue.asyncAfter(deadline: .now() + MonitorInputSupport.confirmationInterval) { [weak self] in
+            guard let self else { return }
+            var reading: UInt16?
+            if case .replied(let reported, _) = self.ddcProbe(MonitorInputSupport.inputCode,
+                                                              for: target.id, service: target.service) {
+                reading = MonitorInputSupport.inputValue(fromReply: reported)
+            }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.running, generation == self.monitorInputGeneration else { return }
+                let readings = readings + [reading]
+                if MonitorInputSupport.result(readings: readings, target: value) == .switched { return }
+                self.confirmMonitorInput(target, expecting: value, generation: generation, readings: readings)
+            }
+        }
+    }
+
+    /// Main thread only, like the screens it is read from.
+    private static func displayUnderPointer() -> CGDirectDisplayID? {
+        let pointer = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
+            .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
+    }
+
     private func start() {
         guard !running else { return }
         running = true
@@ -665,6 +845,11 @@ final class BrightnessService: ObservableObject {
         displayBrightnessDecreaseHotkey.unregister()
         displayBrightnessIncreaseHotkey.unregister()
         displayBrightnessShortcutRegistrationFailed = false
+        monitorInputHotkey.unregister()
+        monitorInputShortcutRegistrationFailed = false
+        monitorInputGeneration &+= 1
+        monitorInputBusy = false
+        if !monitorInputMonitors.isEmpty { monitorInputMonitors = [] }
         guard running else { return }
         running = false
         removeFunctionKeyTap()
@@ -3324,6 +3509,125 @@ final class BrightnessService: ObservableObject {
         let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
                                                      connectionGeneration: stateLock.withLock { audioLifetime })
         return (nativeMute != nil, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+    }
+
+    // MARK: - Monitor input (work queue)
+
+    /// Work queue. The press itself: pick the monitor, read where it is and
+    /// what else it has, and write the next input.
+    private func moveToNextInput(pointerDisplay: CGDirectDisplayID?) -> MonitorInputOutcome {
+        let targets = monitorInputTargets()
+        guard let id = MonitorInputSupport.targetDisplay(pointerDisplay: pointerDisplay,
+                                                         candidates: targets.map(\.id)),
+              let target = targets.first(where: { $0.id == id }) else {
+            return targets.count > 1 ? .ambiguous : .noMonitor
+        }
+        let state = monitorInputState(of: target)
+        switch MonitorInputSupport.plan(current: state.current, supported: state.supported) {
+        case .unreadable: return .unreadable
+        case .noOtherInput: return .noOtherInput
+        case .switchTo(let value): return writeMonitorInput(value, to: target)
+        }
+    }
+
+    /// Work queue.
+    private func writeMonitorInput(_ value: UInt16, to target: MonitorInputTarget) -> MonitorInputOutcome {
+        guard ddcSend(to: target.id, service: target.service,
+                      packet: MonitorInputSupport.setInputPacket(value)) else {
+            Self.log.log("display \(target.id) refused the input write")
+            return .failed
+        }
+        Self.log.log("display \(target.id) asked to switch input to \(MonitorInputSupport.name(of: value))")
+        return .written(value, target)
+    }
+
+    /// Work queue. Which input the monitor shows now and which it lists. The
+    /// list is only asked for once the monitor has answered the input read, so
+    /// a monitor that does not do input control costs one failed read.
+    private func monitorInputState(of target: MonitorInputTarget) -> (current: UInt16?, supported: [UInt16]) {
+        guard case .replied(let reported, _) = ddcProbe(MonitorInputSupport.inputCode,
+                                                        for: target.id, service: target.service) else {
+            return (nil, [])
+        }
+        let current = MonitorInputSupport.inputValue(fromReply: reported)
+        if let key = target.pathKey, let cached = monitorInputCapabilities[key] { return (current, cached) }
+        guard let text = MonitorInputSupport.capabilities(fetch: { [self] offset in
+            ddcCapabilitiesFragment(at: offset, for: target.id, service: target.service)
+        }) else { return (current, []) }
+        let inputs = MonitorInputSupport.supportedInputs(fromCapabilities: text)
+        if let key = target.pathKey, !inputs.isEmpty { monitorInputCapabilities[key] = inputs }
+        return (current, inputs)
+    }
+
+    /// Work queue. One Get Capabilities exchange: the request, the settling
+    /// pause, then the reply, tried again a few times like the other reads.
+    private func ddcCapabilitiesFragment(at offset: Int, for id: CGDirectDisplayID,
+                                         service: CFTypeRef) -> [UInt8]? {
+        guard let write = BrightnessBridge.writeI2C,
+              let read = BrightnessBridge.readI2C else { return nil }
+        paceDDCCommand(for: id)
+        defer { recordDDCCommandEnd(for: id) }
+        var request = MonitorInputSupport.capabilitiesRequestPacket(offset: offset)
+        for attempt in 0...BrightnessSupport.retryAttempts {
+            usleep(BrightnessSupport.writePauseMicroseconds)
+            let accepted = write(service, BrightnessSupport.chipAddress, BrightnessSupport.dataAddress,
+                                 &request, UInt32(request.count)) == KERN_SUCCESS
+            usleep(BrightnessSupport.readPauseMicroseconds)
+            var reply = [UInt8](repeating: 0, count: MonitorInputSupport.capabilitiesReplyLength)
+            if accepted, read(service, BrightnessSupport.chipAddress, 0,
+                              &reply, UInt32(reply.count)) == KERN_SUCCESS,
+               let fragment = MonitorInputSupport.parseCapabilitiesReply(reply, offset: offset) {
+                return fragment
+            }
+            if attempt < BrightnessSupport.retryAttempts {
+                usleep(BrightnessSupport.retryPauseMicroseconds)
+            }
+        }
+        return nil
+    }
+
+    /// Work queue. Every external monitor that is on, with the service that
+    /// reaches it. A service is only given to a monitor it clearly belongs to:
+    /// a wrong guess here switches the input of a monitor nobody pointed at.
+    private func monitorInputTargets() -> [MonitorInputTarget] {
+        guard BrightnessBridge.ddcAvailable else { return [] }
+        var ids = [CGDirectDisplayID](repeating: 0, count: 16)
+        var count: UInt32 = 0
+        CGGetOnlineDisplayList(16, &ids, &count)
+        let online = ids.prefix(Int(count))
+        let active = Self.topology(online: Set(online)).active
+        var candidates: [(id: CGDirectDisplayID, name: String, identity: BrightnessSupport.DisplayIdentity)] = []
+        for id in online where active.contains(id) && CGDisplayIsBuiltin(id) == 0 {
+            let info = Self.displayInfoDictionary(id)
+            if let info, (info["kCGDisplayIsVirtualDevice"] as? Bool ?? false)
+                || (info["kCGDisplayIsAirPlay"] as? Bool ?? false) { continue }
+            candidates.append((id, Self.displayName(id, info: info, screenNames: [:]),
+                               Self.displayIdentity(id, info: info)))
+        }
+        guard !candidates.isEmpty else { return [] }
+        let services = Self.externalServices()
+        guard !services.isEmpty else { return [] }
+        let scores = candidates.indices.flatMap { index in
+            services.map { service in
+                (displayIndex: index, serviceOrdinal: service.identity.ordinal,
+                 score: BrightnessSupport.matchScore(service: service.identity,
+                                                     display: candidates[index].identity,
+                                                     requireIdentity: true))
+            }
+        }
+        let ordinals = services.map(\.identity.ordinal)
+        return candidates.indices.compactMap { index in
+            guard let ordinal = MonitorInputSupport.serviceOrdinal(
+                    for: index, scores: scores, displayCount: candidates.count, serviceOrdinals: ordinals),
+                  let matched = services.first(where: { $0.identity.ordinal == ordinal }) else { return nil }
+            let candidate = candidates[index]
+            let location = candidate.identity.ioDisplayLocation.flatMap { $0.isEmpty ? nil : $0 }
+                ?? matched.identity.ioDisplayLocation
+            return MonitorInputTarget(
+                id: candidate.id, name: candidate.name, service: matched.service,
+                pathKey: BrightnessSupport.ddcPathKey(displayFingerprint: Self.displayFingerprint(candidate.id),
+                                                      ioDisplayLocation: location))
+        }
     }
 
     // MARK: - Display identity

@@ -234,6 +234,8 @@ enum DefaultsKey {
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
     static let displayBrightnessIncreaseShortcut = "displayBrightnessIncreaseShortcut"
+    static let monitorInputShortcutEnabled = "monitorInputShortcutEnabled"
+    static let monitorInputShortcut = "monitorInputShortcut"
     static let keyboardBrightnessShortcutsEnabled = "keyboardBrightnessShortcutsEnabled"
     static let keyboardBrightnessDecreaseShortcut = "keyboardBrightnessDecreaseShortcut"
     static let keyboardBrightnessIncreaseShortcut = "keyboardBrightnessIncreaseShortcut"
@@ -1422,6 +1424,8 @@ enum Defaults {
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
         DefaultsKey.displayBrightnessIncreaseShortcut: "shift+command:24",
+        DefaultsKey.monitorInputShortcutEnabled: false,
+        DefaultsKey.monitorInputShortcut: GlobalShortcut.monitorInputDefault.storageValue,
         DefaultsKey.keyboardBrightnessShortcutsEnabled: false,
         DefaultsKey.keyboardBrightnessDecreaseShortcut: "option+command:27",
         DefaultsKey.keyboardBrightnessIncreaseShortcut: "option+command:24",
