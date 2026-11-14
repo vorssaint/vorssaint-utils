@@ -349,6 +349,11 @@ enum MetricsFeatureTests {
                                                       externalConnected: false),
                     "battery.0",
                     "an unplugged Mac keeps the level thresholds it always had")
+        suite.expectClose(BatteryPowerSupport.fillFraction(percent: 91), 0.91,
+                          "the island fills to 91%, not to the full step the menu bar glyph uses")
+        suite.expect(BatteryPowerSupport.fillFraction(percent: -4) == 0
+                     && BatteryPowerSupport.fillFraction(percent: 140) == 1,
+                     "a charge reading out of range stays inside the outline")
 
         suite.expect(BatteryPowerSupport.state(isCharging: false,
                                                externalConnected: true,
