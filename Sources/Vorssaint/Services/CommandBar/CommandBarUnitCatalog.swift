@@ -150,13 +150,13 @@ enum CommandBarUnitCatalog {
     /// The larger unit comes first and the remainder must stay under one of
     /// it; anything else is two numbers that never multiply, i.e. a search.
     static let mixedPairs: [String: (remainder: Unit, ratio: Double)] = [
-        "ft": (Unit(byID: "in")!, 12),
-        "h": (Unit(byID: "min")!, 60),
-        "hr": (Unit(byID: "min")!, 60),
-        "min": (Unit(byID: "s")!, 60),
-        "lb": (Unit(byID: "oz")!, 16),
-        "kg": (Unit(byID: "g")!, 1000),
-        "wk": (Unit(byID: "d")!, 7),
+        "ft": (unit(byID: "in")!, 12),
+        "h": (unit(byID: "min")!, 60),
+        "hr": (unit(byID: "min")!, 60),
+        "min": (unit(byID: "s")!, 60),
+        "lb": (unit(byID: "oz")!, 16),
+        "kg": (unit(byID: "g")!, 1000),
+        "wk": (unit(byID: "d")!, 7),
     ]
 
     /// Two units asked for together split the answer between them ("to feet
@@ -168,25 +168,25 @@ enum CommandBarUnitCatalog {
     /// A squared base unit reads as the area unit when one exists, so 5m * 4m
     /// is "20 m²" written by the system's own formatter.
     static let squaredPartners: [String: Unit] = [
-        "mm": Unit(byID: "mm2")!, "cm": Unit(byID: "cm2")!, "m": Unit(byID: "m2")!,
-        "km": Unit(byID: "km2")!, "in": Unit(byID: "sqin")!, "ft": Unit(byID: "sqft")!,
-        "yd": Unit(byID: "sqyd")!, "mi": Unit(byID: "sqmi")!,
+        "mm": unit(byID: "mm2")!, "cm": unit(byID: "cm2")!, "m": unit(byID: "m2")!,
+        "km": unit(byID: "km2")!, "in": unit(byID: "sqin")!, "ft": unit(byID: "sqft")!,
+        "yd": unit(byID: "sqyd")!, "mi": unit(byID: "sqmi")!,
     ]
 
     /// And a cubed one reads as the volume unit: 2m * 3m * 4m is 24 m³.
     static let cubedPartners: [String: Unit] = [
-        "mm": Unit(byID: "mm3")!, "cm": Unit(byID: "cm3")!, "m": Unit(byID: "m3")!,
-        "in": Unit(byID: "in3")!, "ft": Unit(byID: "ft3")!, "yd": Unit(byID: "yd3")!,
+        "mm": unit(byID: "mm3")!, "cm": unit(byID: "cm3")!, "m": unit(byID: "m3")!,
+        "in": unit(byID: "in3")!, "ft": unit(byID: "ft3")!, "yd": unit(byID: "yd3")!,
     ]
 
     /// The inverse of the square/cube maps above, so roots shrink back to the
     /// base unit: sqrt(25m2) is 5 m.
     static let rootedPartners: [String: Unit] = [
-        "mm2": Unit(byID: "mm")!, "cm2": Unit(byID: "cm")!, "m2": Unit(byID: "m")!,
-        "km2": Unit(byID: "km")!, "sqin": Unit(byID: "in")!, "sqft": Unit(byID: "ft")!,
-        "sqyd": Unit(byID: "yd")!, "sqmi": Unit(byID: "mi")!,
-        "mm3": Unit(byID: "mm")!, "cm3": Unit(byID: "cm")!, "m3": Unit(byID: "m")!,
-        "in3": Unit(byID: "in")!, "ft3": Unit(byID: "ft")!, "yd3": Unit(byID: "yd")!,
+        "mm2": unit(byID: "mm")!, "cm2": unit(byID: "cm")!, "m2": unit(byID: "m")!,
+        "km2": unit(byID: "km")!, "sqin": unit(byID: "in")!, "sqft": unit(byID: "ft")!,
+        "sqyd": unit(byID: "yd")!, "sqmi": unit(byID: "mi")!,
+        "mm3": unit(byID: "mm")!, "cm3": unit(byID: "cm")!, "m3": unit(byID: "m")!,
+        "in3": unit(byID: "in")!, "ft3": unit(byID: "ft")!, "yd3": unit(byID: "yd")!,
     ]
 
     /// Ways a derived unit is written that plain symbol composition would
@@ -477,7 +477,7 @@ enum CommandBarUnitCatalog {
             ["mpg", "milespergallon", "miles per gallon"])
 
         // Pressure.
-        add("pa", m / l * t * t, scale: 1, foundation: UnitPressure.pascals, symbol: "pa",
+        add("pa", m / l * t * t, scale: 1, foundation: UnitPressure.newtonsPerMetersSquared, symbol: "pa",
             ["pa", "pascal", "pascals"])
         add("kpa", m / l * t * t, scale: 1e3, foundation: UnitPressure.kilopascals,
             ["kpa", "kilopascal", "kilopascals"])
@@ -501,7 +501,7 @@ enum CommandBarUnitCatalog {
             ["j", "joule", "joules"], exact: ["J"])
         add("kj", m * l * l / (t * t), scale: 1e3, foundation: UnitEnergy.kilojoules,
             ["kj", "kilojoule", "kilojoules"])
-        add("mj", m * l * l / (t * t), scale: 1e6, foundation: UnitEnergy.megajoules,
+        add("mj", m * l * l / (t * t), scale: 1e6, foundation: CommandBarUnitCatalog.customMegajoule,
             ["mj", "megajoule", "megajoules"])
         add("cal", m * l * l / (t * t), scale: 4.184, foundation: UnitEnergy.calories,
             ["cal", "calorie", "calories"])
@@ -621,7 +621,43 @@ enum CommandBarUnitCatalog {
     static let customKilowattHour = UnitEnergy(symbol: "kWh", converter: UnitConverterLinear(coefficient: 3.6e6))
     static let customMegawattHour = UnitEnergy(symbol: "MWh", converter: UnitConverterLinear(coefficient: 3.6e9))
     static let customGigawattHour = UnitEnergy(symbol: "GWh", converter: UnitConverterLinear(coefficient: 3.6e12))
+    static let customMegajoule = UnitEnergy(symbol: "MJ", converter: UnitConverterLinear(coefficient: 1e6))
     static let customBTU = UnitEnergy(symbol: "BTU", converter: UnitConverterLinear(coefficient: 1055.05585262))
     static let customRPM = UnitFrequency(symbol: "rpm", converter: UnitConverterLinear(coefficient: 1.0 / 60.0))
     static let customRPS = UnitFrequency(symbol: "rps", converter: UnitConverterLinear(coefficient: 1))
+}
+
+// MARK: - Electrical quantities the system does not carry
+
+// Foundation defines current, potential difference, resistance and charge,
+// but not capacitance, inductance or conductance. They are still `Dimension`
+// values, so the catalog treats them like every other unit: a scale from the
+// SI base unit and nothing else.
+final class UnitElectricCapacitance: Dimension, @unchecked Sendable {
+    override class func baseUnit() -> UnitElectricCapacitance { farads }
+
+    static let farads = UnitElectricCapacitance(symbol: "F",
+                                                converter: UnitConverterLinear(coefficient: 1))
+    static let microfarads = UnitElectricCapacitance(symbol: "µF",
+                                                     converter: UnitConverterLinear(coefficient: 1e-6))
+    static let nanofarads = UnitElectricCapacitance(symbol: "nF",
+                                                    converter: UnitConverterLinear(coefficient: 1e-9))
+    static let picofarads = UnitElectricCapacitance(symbol: "pF",
+                                                    converter: UnitConverterLinear(coefficient: 1e-12))
+}
+
+final class UnitElectricInductance: Dimension, @unchecked Sendable {
+    override class func baseUnit() -> UnitElectricInductance { henries }
+
+    static let henries = UnitElectricInductance(symbol: "H",
+                                                converter: UnitConverterLinear(coefficient: 1))
+    static let millihenries = UnitElectricInductance(symbol: "mH",
+                                                     converter: UnitConverterLinear(coefficient: 1e-3))
+}
+
+final class UnitElectricConductance: Dimension, @unchecked Sendable {
+    override class func baseUnit() -> UnitElectricConductance { siemens }
+
+    static let siemens = UnitElectricConductance(symbol: "S",
+                                                 converter: UnitConverterLinear(coefficient: 1))
 }
