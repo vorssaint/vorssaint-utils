@@ -147,6 +147,9 @@ struct NotchCapsuleNoticeView: View {
             NotchMascotView(look: NotchMascotSupport.look(), mood: NotchService.shared.mascotRestingMood,
                             size: side, reaction: NotchMascotSupport.reacts() ? reaction : nil)
                 .frame(width: CapsuleLayout.symbolWidth, height: side)
+        } else if notice.event == .agents, let dots = AgentDotAnimation.forNotice(symbol: notice.symbol) {
+            AgentDotAnimationView(animation: dots, tint: tint, size: CapsuleLayout.symbolSize)
+                .frame(width: CapsuleLayout.symbolWidth)
         } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
             NotchAgentMark(provider: agent, size: CapsuleLayout.symbolSize).frame(width: CapsuleLayout.symbolWidth)
         } else if notice.event == .track {
