@@ -173,8 +173,13 @@ enum NotchAgentTests {
         suite.expect(AgentPricing.displayName("gpt-7") == "GPT-7" && AgentPricing.displayName("claude-opus-6") == "Opus 6"
                         && AgentPricing.displayName("gpt-7-codex") == "GPT-7 Codex",
                      "a model no list knows yet still reads well")
+        // Max 20x subscribers moved to Ultra: https://support.claude.com/en/articles/17728952-what-is-the-ultra-plan
         suite.expect(AgentPlans.claude(organizationType: "claude_max", rateLimitTier: "default_claude_max_20x")
-                        == AgentPlan(name: "Max 20×", monthlyPrice: 200)
+                        == AgentPlan(name: "Ultra", monthlyPrice: 200)
+                        && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
+                        == AgentPlan(name: "Ultra", monthlyPrice: 200)
+                        && AgentPlans.claude(organizationType: "claude_max", rateLimitTier: "default_claude_max_5x")
+                        == AgentPlan(name: "Max", monthlyPrice: 100)
                         && AgentPlans.claude(organizationType: "claude_pro", rateLimitTier: nil)?.monthlyPrice == 20
                         && AgentPlans.claude(organizationType: nil, rateLimitTier: nil) == nil
                         // Pro has multiple monthly prices: https://learn.chatgpt.com/docs/pricing
@@ -183,8 +188,8 @@ enum NotchAgentTests {
                         // Free and Go monthly prices: https://learn.chatgpt.com/docs/pricing
                         && AgentPlans.codex(planType: "free") == AgentPlan(name: "Free", monthlyPrice: 0)
                         && AgentPlans.codex(planType: "go") == AgentPlan(name: "Go", monthlyPrice: 8)
-                        && AgentPlans.claude(organizationType: "claude_ultra", rateLimitTier: "default_claude_ultra")
-                        == AgentPlan(name: "Ultra", monthlyPrice: nil),
+                        && AgentPlans.claude(organizationType: "claude_example", rateLimitTier: nil)
+                        == AgentPlan(name: "Example", monthlyPrice: nil),
                      "plans are recognized, and an unknown one keeps its name without a price")
     }
 
