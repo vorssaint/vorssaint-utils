@@ -323,7 +323,7 @@ final class StatusItemGestureHandler {
             return false
         }
         if !inFlight {
-            beginLeftPress(at: point, time: event.timestamp)
+            beginLeftPress(at: point, time: missedDownTime(for: event))
         }
         // A missed monitor down must still start the release watcher. Do not
         // finish a press while the physical button is held.
@@ -344,6 +344,24 @@ final class StatusItemGestureHandler {
         finishLeftPress(releasedAt: released, handledThrough: max(event.timestamp, released),
                         at: carriesPressTime ? nil : point)
         return true
+    }
+
+    /// When the press behind an action the monitor never saw went down. A
+    /// release action carries the release time, and starting the press there
+    /// would end a hold as a click. The event source still describes that
+    /// press while the release it recorded is this action's own, so its down
+    /// is the press's. Anything else starts at the action's time: a button
+    /// still held, a press-time action, a click the hardware never made, or
+    /// a press already handled or turned away.
+    private func missedDownTime(for event: NSEvent) -> TimeInterval {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard NSEvent.pressedMouseButtons & 0x1 == 0,
+              let released = eventTime(.leftMouseUp, now: now),
+              abs(released - event.timestamp) <= Self.sameEventSlack,
+              let down = eventTime(.leftMouseDown, now: now), down < released,
+              down > handledLeftRelease ?? -.infinity,
+              down > (rejectedLeftDown ?? -.infinity) + Self.sameEventSlack else { return event.timestamp }
+        return down
     }
 
     private func beginLeftPress(at point: NSPoint, time: TimeInterval) {

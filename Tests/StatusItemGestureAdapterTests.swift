@@ -382,6 +382,45 @@ enum StatusItemGestureAdapterTests {
         suite.expect(released.buttonClick(NSEvent(timestamp: 20))
                      && released.results == [.single(point)],
                      "a missing-down action delivered after release still opens the panel")
+
+        // The action arrives with the release, and the event source still
+        // holds the press it ended: the hold is measured from that down.
+        for duration in [0.1, 1.0] {
+            let host = Host()
+            CGEventSource.pressedAt = 50
+            CGEventSource.releasedAt = 50 + duration
+            ProcessInfo.processInfo.systemUptime = 50 + duration + 0.02
+            let expected: StatusItemGesture.Result = duration < 0.5 ? .single(point) : .quick(.screenshot)
+            suite.expect(host.buttonClick(NSEvent(timestamp: 50 + duration)) && host.results == [expected],
+                         "a release action for a missed down keeps the press's own length (hold=\(duration))")
+            suite.expect(host.timer == nil && !host.gesture.isActive, "and ends the press")
+        }
+        // A release the hardware did not make, a press already handled and a
+        // press the monitor turned away lend no down to the action.
+        let synthetic = Host()
+        CGEventSource.pressedAt = 60
+        CGEventSource.releasedAt = 60.1
+        ProcessInfo.processInfo.systemUptime = 65.02
+        suite.expect(synthetic.buttonClick(NSEvent(timestamp: 65)) && synthetic.results == [.single(point)],
+                     "an action whose release the event source did not record stays a click")
+        let handled = Host()
+        handled.handledLeftRelease = 70.5
+        CGEventSource.pressedAt = 70
+        CGEventSource.releasedAt = 71
+        ProcessInfo.processInfo.systemUptime = 71.02
+        suite.expect(handled.buttonClick(NSEvent(timestamp: 71)) && handled.results == [.single(point)],
+                     "a down older than the last handled release is not this action's")
+        let refused = Host()
+        NSEvent.pressedMouseButtons = 1
+        refused.observe(NSEvent(type: .leftMouseDown, timestamp: 80, modifierFlags: .command))
+        NSEvent.pressedMouseButtons = 0
+        CGEventSource.pressedAt = 80
+        CGEventSource.releasedAt = 81
+        ProcessInfo.processInfo.systemUptime = 81.02
+        suite.expect(refused.buttonClick(NSEvent(timestamp: 81)) && refused.results == [.single(point)],
+                     "a press the monitor turned away cannot run the hold through its release action")
+        CGEventSource.pressedAt = nil
+        CGEventSource.releasedAt = nil
         for frame in [nil, CGRect.zero, CGRect(x: 500, y: 500, width: 30, height: 24)] {
             let host = Host()
             host.frame = frame
