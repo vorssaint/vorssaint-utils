@@ -237,6 +237,7 @@ enum SettingsDirectory {
         -> [(title: String, items: [SettingsDirectoryItem])] {
         let categories = FeatureStrings.settingsCategories(language)
         let quitProtection = FeatureStrings.quitProtection(language)
+        let quickActions = StatusItemQuickActionStrings.localized(language)
         let brightness = FeatureStrings.brightness(language)
         let bluetooth = FeatureStrings.bluetoothSleep(language)
         let barStyle = FeatureStrings.menuBarAppearance(language)
@@ -317,6 +318,8 @@ enum SettingsDirectory {
                                        keywords: [s.launchAtLogin, s.languageLabel,
                                                   FeatureStrings.appearance(language).label,
                                                   FeatureStrings.appearance(language).dark,
+                                                  quickActions.title, quickActions.middleClick,
+                                                  quickActions.longPress,
                                                   FeatureStrings.feedback(language).sectionTitle] + liquidGlass,
                                        // The first title of each feature places its sidebar row,
                                        // so these follow the sidebar's order.

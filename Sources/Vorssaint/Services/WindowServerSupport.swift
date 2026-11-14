@@ -97,6 +97,20 @@ enum WindowServerSupport {
         return ownerProcessID(ofWindowID: windowID, in: infos)
     }
 
+    /// Whether a window is the menu bar itself. Where the system draws the
+    /// bar (macOS 27), status items have no window of their own: the hit test
+    /// names this window, which no app owns, over the empty bar and other
+    /// apps' items, and often no window at all over this app's own.
+    static func isMenuBar(windowID: CGWindowID) -> Bool {
+        guard let infos = CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID)
+                as? [[String: Any]],
+              let window = infos.first(where: {
+                  ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID
+              }) else { return false }
+        return (window[kCGWindowLayer as String] as? NSNumber)?.int32Value
+            == CGWindowLevelForKey(.mainMenuWindow)
+    }
+
     /// The scan itself, matching the identifier like the rectangle scan.
     static func ownerProcessID(ofWindowID windowID: CGWindowID, in windows: [[String: Any]]) -> pid_t? {
         for window in windows
