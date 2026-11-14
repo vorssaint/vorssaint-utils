@@ -172,22 +172,97 @@ enum CommandBarCalculator {
         return formatter.string(from: NSNumber(value: value == 0 ? 0 : value)) ?? String(value)
     }
 
+    /// Writes a quantity the way this Mac writes numbers, with the system's
+    /// own word for the unit when it has one. Precision follows the size of the
+    /// number: small ones keep their decimals, big ones lose the noise.
     private static func formatUnit(_ value: Double,
                                    unit: CommandBarUnitCatalog.Unit,
                                    locale: Locale) -> String {
-        if let foundation = unit.foundation {
-            let formatter = MeasurementFormatter()
-            formatter.locale = locale
-            formatter.unitOptions = .providedUnit
-            formatter.unitStyle = .medium
-            formatter.numberFormatter.locale = locale
-            formatter.numberFormatter.minimumFractionDigits = 0
-            formatter.numberFormatter.usesGroupingSeparator = true
-            formatter.numberFormatter.maximumFractionDigits = 15
-            let measurement = Measurement(value: value, unit: foundation)
-            return formatter.string(from: measurement)
+        // Feet are the one unit people read as a pair, so a length of a foot or
+        // more is written as whole feet and the inches left over.
+        if unit.id == "ft", value >= 1, value != value.rounded(.down),
+           let feet = CommandBarUnitCatalog.unit(byID: "ft"),
+           let inches = CommandBarUnitCatalog.unit(byID: "in") {
+            return feetAndInches(value, feet: feet, inches: inches, locale: locale)
         }
-        return "\(unitNumber(value, locale: locale)) \(unit.symbol)"
+        return measured(value, unit: unit, locale: locale, maximumFractionDigits: nil)
+    }
+
+    /// Full precision, for the amounts of a split answer: the person asked for
+    /// "feet and inches", not for a rounded pair.
+    private static func formatUnitPrecisely(_ value: Double,
+                                            unit: CommandBarUnitCatalog.Unit,
+                                            locale: Locale) -> String {
+        measured(value, unit: unit, locale: locale, maximumFractionDigits: 15)
+    }
+
+    private static func measured(_ value: Double,
+                                 unit: CommandBarUnitCatalog.Unit,
+                                 locale: Locale,
+                                 maximumFractionDigits: Int?) -> String {
+        let number = NumberFormatter()
+        number.locale = locale
+        number.minimumFractionDigits = 0
+        number.usesGroupingSeparator = true
+        let magnitude = abs(value)
+        if let maximumFractionDigits {
+            number.numberStyle = .decimal
+            number.maximumFractionDigits = maximumFractionDigits
+        } else if magnitude != 0, magnitude < 0.001, unit.dimensions.temperature != 1 {
+            // Four decimals would print a millionth as "0", which reads as a
+            // wrong answer, so a tiny value keeps its significant digits.
+            number.numberStyle = .decimal
+            number.usesSignificantDigits = true
+            number.maximumSignificantDigits = 4
+        } else {
+            // Temperature offsets can leave a tiny remainder at zero; keep the
+            // decimal precision instead of exposing it.
+            number.numberStyle = .decimal
+            number.maximumFractionDigits = fractionDigits(for: value)
+        }
+
+        guard let foundation = unit.foundation else {
+            let text = number.string(from: NSNumber(value: value == 0 ? 0 : value)) ?? String(value)
+            return "\(text) \(unit.symbol)"
+        }
+        let formatter = MeasurementFormatter()
+        formatter.locale = locale
+        // The unit asked for is the unit shown; nobody types "to mb" hoping for
+        // gigabytes.
+        formatter.unitOptions = .providedUnit
+        formatter.unitStyle = .medium
+        // Foundation here words the number from the system locale it carries
+        // itself, so the prepared formatter is handed over whole.
+        formatter.numberFormatter = number
+        return formatter.string(from: Measurement(value: value == 0 ? 0 : value, unit: foundation))
+    }
+
+    /// Small numbers keep their decimals, big ones lose the noise.
+    private static func fractionDigits(for value: Double) -> Int {
+        let magnitude = abs(value)
+        if magnitude == 0 { return 0 }
+        if magnitude < 1 { return 4 }
+        if magnitude < 100 { return 2 }
+        return 1
+    }
+
+    /// A whole number of feet plus the inches left over, with the inches that
+    /// round up to twelve carried into the next foot.
+    private static func feetAndInches(_ value: Double,
+                                      feet: CommandBarUnitCatalog.Unit,
+                                      inches: CommandBarUnitCatalog.Unit,
+                                      locale: Locale) -> String {
+        var wholeFeet = value.rounded(.down)
+        let rawInches = (value - wholeFeet) * 12
+        let scale = pow(10, Double(fractionDigits(for: rawInches)))
+        var shownInches = (rawInches * scale).rounded() / scale
+        if shownInches >= 12 {
+            wholeFeet += 1
+            shownInches = 0
+        }
+        let feetText = formatUnit(wholeFeet, unit: feet, locale: locale)
+        guard shownInches != 0 else { return feetText }
+        return "\(feetText) \(formatUnit(shownInches, unit: inches, locale: locale))"
     }
 
     private static func formatSplit(_ larger: Double, _ largerUnit: CommandBarUnitCatalog.Unit,
@@ -195,9 +270,9 @@ enum CommandBarCalculator {
                                     locale: Locale) -> String {
         // A whole larger unit plus the remainder in the smaller one, each
         // written by Foundation when it has a word for the unit.
-        let largerText = formatUnit(larger, unit: largerUnit, locale: locale)
+        let largerText = formatUnitPrecisely(larger, unit: largerUnit, locale: locale)
         guard smaller != 0 else { return largerText }
-        let smallerText = formatUnit(smaller, unit: smallerUnit, locale: locale)
+        let smallerText = formatUnitPrecisely(smaller, unit: smallerUnit, locale: locale)
         return "\(largerText) \(smallerText)"
     }
 
