@@ -69,11 +69,12 @@ enum CommandBarExpressions {
     static func parse(_ input: String,
                       decimalSeparator: String,
                       groupingSeparator: String) -> Parsed? {
-        guard let tokens = tokenize(input, decimalSeparator: decimalSeparator,
-                                    groupingSeparator: groupingSeparator),
+        let dbgTokens = tokenize(input, decimalSeparator: decimalSeparator,
+                                 groupingSeparator: groupingSeparator)
+        guard let tokens = dbgTokens,
               let closings = virtualClosings(for: tokens)
         else { return nil }
-        let all = tokens + closings.map { _ in Token.right }
+        let all = tokens + closings.map { Token.right($0) }
         var parser = Parser(tokens: all)
         guard let parsed = parser.parseWhole() else { return nil }
         return Parsed(outcome: parsed.outcome,
@@ -87,7 +88,8 @@ enum CommandBarExpressions {
         case number(Double, interesting: Bool)
         case unit(CommandBarUnitCatalog.Unit)
         case plus, minus, times, divide, power, percent, mod
-        case left, right
+        case left(Character)      // the closer this bracket needs
+        case right(Character)
         case function(Function)
         case constant(Double)
         case to                      // to/into/as/->/→ conversion keyword
@@ -139,6 +141,15 @@ enum CommandBarExpressions {
             let start = p
             if p < characters.count, characters[p].isLetter {
                 while p < characters.count, characters[p].isLetter { p += 1 }
+                // "m2", "cm3" and "ft3" are the names of the squared and cubed
+                // units; the digits are taken only when they complete a unit,
+                // so "5m" stays meters and "25m2" is an area.
+                var withDigits = p
+                while withDigits < characters.count, characters[withDigits].isNumber { withDigits += 1 }
+                if withDigits > p,
+                   CommandBarUnitCatalog.unit(named: fold(String(characters[start..<withDigits]))) != nil {
+                    p = withDigits
+                }
             } else if p < characters.count, isUnitSymbol(characters[p]) {
                 p += 1
             } else {
@@ -177,6 +188,52 @@ enum CommandBarExpressions {
             return nil
         }
 
+        /// The article "a"/"an" standing for one, read without consuming more
+        /// than the article itself.
+        func articleAhead() -> Double? {
+            guard index < characters.count, characters[index].isLetter else { return nil }
+            var p = index
+            while p < characters.count, characters[p].isLetter { p += 1 }
+            let word = fold(String(characters[index..<p]))
+            guard word == "a" || word == "an" else { return nil }
+            // After a number "a" is the ampere the catalog knows.
+            if case .some(.number(_, _)) = tokens.last { return nil }
+            index = p
+            return 1
+        }
+
+        /// Whether a unit name starts at `p`, used to tell "5 ft 11 in cm"
+        /// (the "in" is the connector) from "5 in to cm" (inches).
+        func unitAhead(at start: Int) -> Bool {
+            var p = start
+            while p < characters.count, characters[p].isWhitespace { p += 1 }
+            guard let word = readUnitWord(at: &p) else { return false }
+            return CommandBarUnitCatalog.unit(named: word.folded, exact: word.raw) != nil
+        }
+
+        /// A run of two or more signs glued to a number that carries a unit
+        /// ("--1 m") is a malformed number, not arithmetic.
+        func isMalformedSignedQuantity(at start: Int) -> Bool {
+            var p = start
+            var signs = 0
+            while p < characters.count, characters[p] == "-" || characters[p] == "+" {
+                signs += 1
+                p += 1
+            }
+            guard signs >= 2 else { return false }
+            let digits = p
+            while p < characters.count, characters[p].isNumber { p += 1 }
+            guard p > digits else { return false }
+            while p < characters.count, characters[p].isWhitespace { p += 1 }
+            guard let word = readUnitWord(at: &p) else { return false }
+            return CommandBarUnitCatalog.unit(named: word.folded, exact: word.raw) != nil
+        }
+
+        /// The marks people put between a number and its unit: ' ′ ’ " ″ ”.
+        func isMark(_ raw: String) -> Bool {
+            raw == "'" || raw == "′" || raw == "’" || raw == "\"" || raw == "″" || raw == "”"
+        }
+
         /// Reads a run of letters and returns the raw text.
         func readLetterRun() -> String {
             let start = index
@@ -194,19 +251,55 @@ enum CommandBarExpressions {
                 guard let number = readNumber(&characters, &index, separators: separators)
                 else { return nil }
                 tokens.append(.number(number.value, interesting: number.interesting))
+                // "1-5 m": a hyphen glued between digits and followed by a unit
+                // is a malformed number or a date, never a subtraction.
+                if index + 1 < characters.count, characters[index] == "-", characters[index + 1].isNumber {
+                    var probe = index + 1
+                    while probe < characters.count, characters[probe].isNumber { probe += 1 }
+                    while probe < characters.count, characters[probe].isWhitespace { probe += 1 }
+                    if let word = readUnitWord(at: &probe),
+                       CommandBarUnitCatalog.unit(named: word.folded, exact: word.raw) != nil {
+                        return nil
+                    }
+                }
                 continue
             }
             // A letter or a unit symbol: a unit name, an operator word or a
             // filler word.
             if character.isLetter || isUnitSymbol(character) {
+                // "a mile" is one mile, not the ampere the catalog knows: an
+                // article right after "in" is a quantity.
+                if let article = articleAhead() {
+                    tokens.append(.number(article, interesting: false))
+                    continue
+                }
+                let tokenStart = index
                 if let matched = readUnit() {
-                    // The word "in" is inches only right after a number; between
-                    // two units it is the conversion keyword.
-                    let afterNumber: Bool
-                    if case .some(.number) = tokens.last { afterNumber = true } else { afterNumber = false }
-                    if matched.unit.id == "in", fold(matched.raw) == "in", !afterNumber {
+                    // The word "in" is inches right after a number or after a
+                    // conversion word ("5 in to cm", "5.5ft to in"). Spaced,
+                    // with a unit after it and a unit already given, it is the
+                    // connector: "5ft 11 in cm".
+                    var inchesHere: Bool
+                    switch tokens.last {
+                    case .some(.number(_, _)), .some(.to), .some(.inKeyword): inchesHere = true
+                    default: inchesHere = false
+                    }
+                    if matched.unit.id == "in", fold(matched.raw) == "in", inchesHere,
+                       tokens.contains(where: { if case .unit = $0 { return true } else { return false } }),
+                       tokenStart > 0, characters[tokenStart - 1].isWhitespace,
+                       unitAhead(at: index) {
+                        inchesHere = false
+                    }
+                    if matched.unit.id == "in", fold(matched.raw) == "in", !inchesHere {
                         tokens.append(.inKeyword)
                     } else {
+                        // An apostrophe between digits with three digits after it
+                        // is grouping, not a foot mark: "1'003" is a number.
+                        if isMark(matched.raw), tokenStart > 0, characters[tokenStart - 1].isNumber {
+                            var digits = index
+                            while digits < characters.count, characters[digits].isNumber { digits += 1 }
+                            if digits - index >= 3 { return nil }
+                        }
                         tokens.append(.unit(matched.unit))
                     }
                     continue
@@ -215,6 +308,15 @@ enum CommandBarExpressions {
             if character.isLetter {
                 let raw = readLetterRun()
                 let lower = fold(raw)
+                // A lone x between numbers is the written multiplication sign.
+                if raw.count == 1, lower == "x" {
+                    tokens.append(.times)
+                    continue
+                }
+                if lower == "π" {
+                    tokens.append(.constant(Double.pi))
+                    continue
+                }
                 // In "how many feet in a mile", "a" is one mile, not the
                 // conversion keyword it means in phrases such as "meters a feet".
                 if lower == "a", tokens.last == .inKeyword {
@@ -222,6 +324,9 @@ enum CommandBarExpressions {
                     continue
                 }
                 if let token = wordToken(for: lower, characters: characters, index: &index) {
+                    if case .function = token, index < characters.count, characters[index].isNumber {
+                        return nil
+                    }
                     tokens.append(token)
                     continue
                 }
@@ -234,15 +339,17 @@ enum CommandBarExpressions {
             index += 1
             switch character {
             case "+": tokens.append(.plus)
-            case "-", "\u{2212}": tokens.append(.minus)
+            case "-", "\u{2212}":
+                if isMalformedSignedQuantity(at: index - 1) { return nil }
+                tokens.append(.minus)
             case "*", "\u{00D7}", "x", "X", "\u{00B7}": tokens.append(.times)
             case "/", "\u{00F7}": tokens.append(.divide)
             case "^": tokens.append(.power)
             case "%": tokens.append(.percent)
-            case "(": tokens.append(.left)
-            case "[": tokens.append(.left)
-            case ")": tokens.append(.right)
-            case "]": tokens.append(.right)
+            case "(": tokens.append(.left(")"))
+            case "[": tokens.append(.left("]"))
+            case ")": tokens.append(.right(")"))
+            case "]": tokens.append(.right("]"))
             case ",", ";": tokens.append(.comma)
             case "π": tokens.append(.constant(Double.pi))
             case ">": tokens.append(.to)
@@ -256,8 +363,8 @@ enum CommandBarExpressions {
     /// Words that carry no meaning for a calculation and are skipped, except
     /// "a"/"an" which stand for one of the unit that follows.
     private static func wordIsFiller(_ lower: String) -> Bool {
-        ["what", "is", "are", "how", "many", "much", "the", "calculate", "compute", "convert",
-         "a", "an", "of"].contains(lower)
+        ["what", "is", "are", "how", "many", "much", "the", "calculate", "compute", "convert"]
+            .contains(lower)
     }
 
     /// Maps a single word or a short multi-word phrase to a token.
@@ -291,6 +398,7 @@ enum CommandBarExpressions {
         case "squared": return .squared
         case "cubed": return .cubed
         case "and": return .andWord
+        case "of", "de": return .ofWord
         case "off": return .offWord
         case "base": return .baseWord
         case "thousand": return .scaleWord(1e3)
@@ -302,6 +410,15 @@ enum CommandBarExpressions {
         case "into", "as", "em", "para", "pra", "en", "a", "nach", "zu", "à", "su":
             return .to
         case "in": return .inKeyword
+        case "log":
+            // "log10(100)" is the base-ten logarithm; any other glued base
+            // ("log100(2)") is a typo, not a calculation.
+            var p = index
+            while p < characters.count, characters[p].isNumber { p += 1 }
+            guard p > index else { return .function(.log) }
+            let digits = String(characters[index..<p])
+            index = p
+            return digits == "10" ? .function(.log10) : nil
         case "raised":
             if matchAhead(["to"]) { consume(1); return .powerWord }
             return nil
@@ -366,11 +483,18 @@ enum CommandBarExpressions {
     private static func readNumber(_ characters: inout [Character],
                                    _ index: inout Int,
                                    separators: Separators) -> (value: Double, interesting: Bool)? {
+        let start = index
         var written = ""
         var interesting = false
         while index < characters.count {
             let character = characters[index]
-            guard separators.isPart(ofNumber: character) else { break }
+            var apostropheGroup = false
+            if character == "'", index > start, characters[index - 1].isNumber {
+                var groupEnd = index + 1
+                while groupEnd < characters.count, characters[groupEnd].isNumber { groupEnd += 1 }
+                apostropheGroup = groupEnd - index == 4
+            }
+            guard separators.isPart(ofNumber: character) || apostropheGroup else { break }
             if character == separators.groupingOnly,
                !(index + 1 < characters.count && characters[index + 1].isNumber) { break }
             written.append(character)
@@ -384,6 +508,12 @@ enum CommandBarExpressions {
             guard looksLikeGrouping(String(integerPart), separator: groupingOnly),
                   !written.dropFirst(integerPart.count).contains(groupingOnly) else { return nil }
             raw = written.filter { $0 != groupingOnly }
+        }
+        if separators.groupingOnly != "'", written.contains("'") {
+            let integerPart = written.prefix { $0 != separators.decimal && $0 != separators.alternate }
+            guard looksLikeGrouping(String(integerPart), separator: "'"),
+                  !written.dropFirst(integerPart.count).contains("'") else { return nil }
+            raw = raw.replacingOccurrences(of: "'", with: "")
         }
 
         var exponent = ""
@@ -493,16 +623,16 @@ enum CommandBarExpressions {
     // MARK: - Bracket handling
 
     private static func virtualClosings(for tokens: [Token]) -> String? {
-        var stack: [String] = []
+        var stack: [Character] = []
         for token in tokens {
             switch token {
-            case .left: stack.append(")")
-            case .right:
-                guard stack.popLast() != nil else { return nil }
+            case .left(let closer): stack.append(closer)
+            case .right(let kind):
+                guard stack.popLast() == kind else { return nil }
             default: break
             }
         }
-        return stack.reversed().joined()
+        return String(stack.reversed())
     }
 
     // MARK: - Parser
@@ -512,6 +642,16 @@ enum CommandBarExpressions {
         var index = 0
         var depth = 0
         var isCalculation = false
+
+        func peekIsRight() -> Bool {
+            if case .some(.right) = peek() { return true }
+            return false
+        }
+
+        func peekIsLeft() -> Bool {
+            if case .some(.left) = peek() { return true }
+            return false
+        }
 
         func peek(_ offset: Int = 0) -> Token? {
             let i = index + offset
@@ -535,19 +675,22 @@ enum CommandBarExpressions {
             while true {
                 switch peek() {
                 case .to:
+                    // "day to day" names no amount, so it stays a search.
+                    guard left.hasNumber else { return nil }
                     advance()
                     guard let target = parseConversionTarget() else { return nil }
-                    guard case .value(let converted) = convert(left, target: target) else { return nil }
+                    guard let outcome = convert(left, target: target) else { return nil }
+                    // A split answer is already the whole answer; there is
+                    // nothing left to convert.
+                    guard case .value(let converted) = outcome else { return outcome }
                     left = converted
                 case .inKeyword:
                     advance()
-                    guard let right = parseExpression() else { return nil }
-                    guard case .value(let converted) = convertIn(left: left, right: right) else { return nil }
+                    guard let right = parseExpression(),
+                          case .value(let converted)? = convertIn(left: left, right: right)
+                    else { return nil }
                     left = converted
-                case .unit(let unit):
-                    advance()
-                    guard case .value(let converted) = convert(left, target: .unit(unit)) else { return nil }
-                    left = converted
+
                 default:
                     return .value(left)
                 }
@@ -716,7 +859,7 @@ enum CommandBarExpressions {
                 base = Value(si: value, dims: .none, unit: nil, percentRaw: nil, hasNumber: true)
             case .function(let function):
                 advance()
-                if function == .log, peek() != .left {
+                if function == .log, !peekIsLeft() {
                     // "log 81 base 3": no parentheses, optional base.
                     guard let argument = parseFactor() else { return nil }
                     var arguments = [argument]
@@ -761,20 +904,32 @@ enum CommandBarExpressions {
                 base = Value(si: si, dims: unit.dimensions, unit: unit,
                              percentRaw: nil, hasNumber: base.hasNumber)
                 // Mixed pairs: "5 ft 3 in", "1 hr 30 min".
+                let shownValue = (base.si - unit.offset) / unit.scale
                 if let pair = CommandBarUnitCatalog.mixedPairs[unit.id],
-                   case .number(let remainderValue, _)? = peek(),
-                   case .unit(let remainderUnit)? = peek(1),
-                   remainderUnit.id == pair.remainder.id {
-                    base.si += remainderValue * pair.remainder.scale
-                    advance()
-                    advance()
-                    isCalculation = true
+                   shownValue >= 0, shownValue == shownValue.rounded(.down) {
+                    // "5ft 11in" and "1hr 30min", and the height shorthand that
+                    // leaves the smaller unit out before a connector: "5ft 11 in cm".
+                    if case .number(let remainder, _)? = peek(),
+                       remainder >= 0, remainder < pair.ratio {
+                        if case .unit(let next)? = peek(1), next.id == pair.remainder.id {
+                            base.si += remainder * pair.remainder.scale
+                            advance()
+                            advance()
+                        } else if peek(1) == .to || peek(1) == .inKeyword {
+                            base.si += remainder * pair.remainder.scale
+                            advance()
+                        }
+                    } else if peek() == .minus,
+                              case .number? = peek(1),
+                              case .unit(let next)? = peek(2), next.id == pair.remainder.id {
+                        // "5ft -1in" is a malformed height, not a subtraction.
+                        return nil
+                    }
                 }
             }
 
             if peek() == .percent {
                 advance()
-                isCalculation = true
                 let raw = base.si
                 return Value(si: raw / 100, dims: base.dims, unit: base.unit,
                              percentRaw: raw, hasNumber: base.hasNumber)
@@ -794,11 +949,13 @@ enum CommandBarExpressions {
         }
 
         mutating func parseBracketed() -> Double? {
-            guard peek() == .left else { return nil }
+            guard case .left(let closer)? = peek() else { return nil }
             advance()
             depth += 1
             defer { depth -= 1 }
-            guard depth < 32, let inner = parseExpression(), peek() == .right else { return nil }
+            guard depth < 32, let inner = parseExpression(),
+                  case .right(let kind)? = peek(), kind == closer
+            else { return nil }
             advance()
             guard inner.unit == nil else { return nil }
             return inner.si
@@ -822,19 +979,19 @@ enum CommandBarExpressions {
         }
 
         mutating func parseFunction(_ function: Function) -> Value? {
-            guard peek() == .left else { return nil }
+            guard case .left(let closer)? = peek() else { return nil }
             advance()
             depth += 1
             defer { depth -= 1 }
             var arguments: [Value] = []
             while true {
-                if peek() == .right { break }
+                if peekIsRight() { break }
                 guard let argument = parseExpression() else { return nil }
                 arguments.append(argument)
                 if peek() == .comma { advance(); continue }
                 break
             }
-            guard peek() == .right else { return nil }
+            guard case .right(let kind)? = peek(), kind == closer else { return nil }
             advance()
             isCalculation = true
             // "log 81 base 3" has no parentheses; the tokenizer hands the
@@ -941,8 +1098,12 @@ enum CommandBarExpressions {
         }
 
         private func negate(_ value: Value) -> Value {
-            Value(si: -value.si, dims: value.dims, unit: value.unit,
-                  percentRaw: value.percentRaw.map { -$0 }, hasNumber: value.hasNumber)
+            // A temperature is a reading, not a scale: -459.67 °F is zero
+            // kelvin, so the sign belongs to the number, not to its kelvin.
+            let si = value.unit.map { $0.offset != 0 ? -value.si + 2 * $0.offset : -value.si }
+                ?? -value.si
+            return Value(si: si, dims: value.dims, unit: value.unit,
+                         percentRaw: value.percentRaw.map { -$0 }, hasNumber: value.hasNumber)
         }
 
         private func displayValue(_ value: Value) -> Double {
@@ -977,9 +1138,10 @@ enum CommandBarExpressions {
             }
             guard value.dims == target.dimensions else {
                 // Reciprocal conversion: speed to pace, economy to consumption.
-                if value.dims == target.dimensions.negated() {
-                    let reciprocal = CommandBarExpressions.reciprocal(target)
-                    return Value(si: value.si, dims: reciprocal.dimensions, unit: reciprocal,
+                // Ten kilometres per hour is six minutes per kilometre, so the
+                // amount itself is inverted, not just its unit.
+                if value.dims == target.dimensions.negated(), value.si != 0 {
+                    return Value(si: 1 / value.si, dims: target.dimensions, unit: target,
                                  percentRaw: nil, hasNumber: value.hasNumber)
                 }
                 return nil
