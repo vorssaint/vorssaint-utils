@@ -282,6 +282,17 @@ final class WindowLayoutService: ObservableObject {
             }
             return applied ? finish(.success(restored: false)) : finish(.failure(.failed))
         }
+
+        if action == .minimize {
+            // Same as full screen: a placement still settling must not write
+            // its frame onto a window on its way to the Dock. The frame stays
+            // as it was, so nothing is remembered for restore.
+            cancelSettle(for: target.windowID)
+            assistiveModeSuspensions.removeValue(forKey: target.windowID)?.resume()
+            guard minimize(target: target) else { return finish(.failure(.failed)) }
+            lastActions.removeValue(forKey: target.key)
+            return finish(.success(restored: false))
+        }
         let screens = NSScreen.screens
         guard let screen = bestScreen(for: target.frame, screens: screens) else {
             return finish(.failure(.failed))
@@ -495,6 +506,8 @@ final class WindowLayoutService: ObservableObject {
             hasRequiredCapability = canSetFrame(on: window)
         case .fullScreen:
             hasRequiredCapability = canSetFullScreen(on: window)
+        case .minimize:
+            hasRequiredCapability = canSetMinimized(on: window)
         }
         guard hasRequiredCapability else { return nil }
         let key = WindowLayoutWindowKey(
@@ -2715,6 +2728,14 @@ final class WindowLayoutService: ObservableObject {
                                               "AXFullScreen" as CFString,
                                               &fullScreenSettable) == .success
             && fullScreenSettable.boolValue
+    }
+
+    private func canSetMinimized(on window: AXUIElement) -> Bool {
+        var minimizedSettable = DarwinBoolean(false)
+        return AXUIElementIsAttributeSettable(window,
+                                              kAXMinimizedAttribute as CFString,
+                                              &minimizedSettable) == .success
+            && minimizedSettable.boolValue
     }
 
     private func setPosition(_ point: CGPoint, on element: AXUIElement) -> Bool {
