@@ -498,6 +498,39 @@ enum MediaFeatureTests {
                "Media OCR maps Taiwan Chinese to Vision traditional Chinese")
         suite.expect(MediaSupport.recognitionLanguages(for: "zh-HK") == ["zh-Hant", "en-US"],
                "Media OCR maps Hong Kong Chinese to Vision traditional Chinese")
+
+        let imageA = URL(fileURLWithPath: "/tmp/a.jpg")
+        let imageB = URL(fileURLWithPath: "/tmp/b.png")
+        let video = URL(fileURLWithPath: "/tmp/v.mov")
+        let video2 = URL(fileURLWithPath: "/tmp/w.mov")
+        let pdf = URL(fileURLWithPath: "/tmp/d.pdf")
+        func paste(_ urls: [URL], _ types: [UTType?], allowsMultiple: Bool, tool: [UTType]) -> [URL]? {
+            MediaSupport.pasteAcceptedInputs(urls, inputTypes: tool, allowsMultiple: allowsMultiple) { url in
+                guard let index = urls.firstIndex(of: url) else { return nil }
+                return types[index]
+            }
+        }
+        suite.expect(paste([imageA, imageB], [.jpeg, .png], allowsMultiple: true, tool: [.image]) == [imageA, imageB],
+               "multi-input paste keeps every matching URL")
+        suite.expect(paste([imageA, video], [.jpeg, .movie], allowsMultiple: true, tool: [.image]) == [imageA],
+               "multi-input paste drops a mismatch and keeps the rest")
+        suite.expect(paste([video], [.movie], allowsMultiple: true, tool: [.image]) == nil,
+               "multi-input paste rejects when nothing matches")
+        suite.expect(paste([imageA], [nil], allowsMultiple: true, tool: [.image]) == nil,
+               "multi-input paste rejects an unreadable content type")
+        suite.expect(paste([], [], allowsMultiple: true, tool: [.image]) == nil,
+               "multi-input paste rejects an empty batch")
+        suite.expect(paste([video], [.quickTimeMovie], allowsMultiple: false, tool: [.movie, .video]) == [video],
+               "single-input paste keeps one matching URL")
+        suite.expect(paste([video, video2], [.quickTimeMovie, .mpeg4Movie], allowsMultiple: false, tool: [.movie, .video]) == [video],
+               "single-input paste keeps only the first of several matching URLs")
+        suite.expect(paste([video, imageA], [.quickTimeMovie, .jpeg], allowsMultiple: false, tool: [.movie, .video]) == nil,
+               "single-input paste rejects a partial match")
+        suite.expect(paste([pdf], [.pdf], allowsMultiple: false, tool: [.movie, .video]) == nil,
+               "single-input paste rejects a non-matching single URL")
+        suite.expect(paste([], [], allowsMultiple: false, tool: [.movie, .video]) == nil,
+               "single-input paste rejects an empty batch")
+
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
     }
 }

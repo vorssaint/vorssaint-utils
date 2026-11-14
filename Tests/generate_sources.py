@@ -246,6 +246,12 @@ def main():
           + declaration("Sources/Vorssaint/Services/TransientPaste.swift", "final class TransientPaste {")
               .replace("NSPasteboard.general", "TransientPasteTests.pasteboard")
           + "}\n")
+    write("ClipboardImportService.swift", "import AppKit\nimport UniformTypeIdentifiers\n"
+          + "extension ClipboardImportTests {\n"
+          + declaration("Sources/Vorssaint/Services/Clipboard/ClipboardImportService.swift",
+                        "final class ClipboardImportService {")
+              .replace("NSPasteboard.general", "ClipboardImportTests.pasteboard")
+          + "}\n")
     write("TextSnippetExpansion.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\n"
           + "extension TextSnippetExpansionTests {\n"
           + declaration("Sources/Vorssaint/Services/Snippets/TextSnippetService.swift",
