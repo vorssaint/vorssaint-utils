@@ -19,6 +19,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DiskMenuBarStyle.defaultsKey) private var diskStyle = DiskMenuBarStyle.percent
     @AppStorage(DefaultsKey.menuBarDiskActivity) private var diskActivity = false
     @AppStorage(DefaultsKey.menuBarBattery) private var battery = false
+    @AppStorage(DefaultsKey.menuBarBatteryStyle) private var batteryStyle = MenuBarBatteryStyle.icon
     @AppStorage(DefaultsKey.menuBarBatteryTime) private var batteryTime = false
     @AppStorage(DefaultsKey.menuBarPeripheralBattery) private var peripheralBattery = false
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
@@ -172,6 +173,12 @@ struct MenuBarMetricsPreview: View {
                           fraction: fraction,
                           style: style,
                           pressure: pressure)
+        case let .batteryBarBlock(percent, isCharging, externalConnected, style):
+            usageBarBlock(label: "BAT",
+                          fraction: Double(max(0, min(100, percent))) / 100,
+                          style: style,
+                          pressure: nil,
+                          battery: (isCharging, externalConnected))
         case let .networkBlock(down, up, style):
             let rows = networkUploadFirst ? [("↑", up), ("↓", down)] : [("↓", down), ("↑", up)]
             VStack(alignment: .trailing, spacing: -0.6) {
@@ -263,7 +270,8 @@ struct MenuBarMetricsPreview: View {
     private func usageBarBlock(label: String,
                                fraction: Double?,
                                style: MenuBarBlockStyle,
-                               pressure: MemoryPressure?) -> some View {
+                               pressure: MemoryPressure?,
+                               battery: (isCharging: Bool, externalConnected: Bool)? = nil) -> some View {
         let size = MenuBarRenderer.usageBarSize(style: style, showsPressure: pressure != nil)
         let barWidth: CGFloat = style == .readable ? 10 : 9
         let barHeight: CGFloat = style == .readable ? 20 : 18
@@ -294,7 +302,7 @@ struct MenuBarMetricsPreview: View {
                     .stroke(Color.white, lineWidth: 1.15)
                 if let clamped, clamped > 0 {
                     RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                        .fill(usageBarColor(for: clamped))
+                        .fill(battery.map { batteryBarColor(fraction: clamped, externalConnected: $0.externalConnected) } ?? usageBarColor(for: clamped))
                         .frame(width: barWidth - 4.2,
                                height: max(1, innerHeight * clamped))
                         .padding(.bottom, 2.1)
@@ -303,8 +311,19 @@ struct MenuBarMetricsPreview: View {
                         .fill(Color.white.opacity(0.55))
                         .frame(width: barWidth - 4.8, height: 1)
                 }
+                if battery?.isCharging == true {
+                    let fillTop = 2.1 + ((clamped ?? 0) > 0 ? max(1, innerHeight * (clamped ?? 0)) : 0)
+                    let bolt = ChargingBolt()
+                        .frame(width: barWidth - 4.2, height: min(innerHeight - 2, (barWidth - 4.2) * 1.5))
+                        .frame(maxHeight: .infinity)
+                    // Like the menu bar: cut out of the fill, white above it.
+                    bolt.mask(alignment: .bottom) { Rectangle().frame(height: fillTop) }
+                        .blendMode(.destinationOut)
+                    bolt.mask(alignment: .top) { Rectangle().frame(height: max(0, barHeight - fillTop)) }
+                }
             }
             .frame(width: barWidth, height: barHeight)
+            .compositingGroup()
         }
         .foregroundStyle(.white)
         .frame(width: size.width, height: size.height)
@@ -312,11 +331,21 @@ struct MenuBarMetricsPreview: View {
     }
 
     private func usageBarColor(for fraction: Double) -> Color {
-        let level = MenuBarUsageBarSupport.currentLevel(for: fraction)
+        usageBarColor(level: MenuBarUsageBarSupport.currentLevel(for: fraction))
+    }
+
+    private func usageBarColor(level: MenuBarUsageBarSupport.Level) -> Color {
         let hex = MenuBarUsageBarSupport.currentColorHex(for: level)
         let rgb = MenuBarUsageBarSupport.rgb(for: hex,
                                              fallback: MenuBarUsageBarSupport.defaultNormalColor)
         return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+
+    /// A battery bar takes the usage colors from its charge, low being bad, and
+    /// turns green on external power.
+    private func batteryBarColor(fraction: Double, externalConnected: Bool) -> Color {
+        if externalConnected { return Color(nsColor: .systemGreen) }
+        return usageBarColor(level: MenuBarUsageBarSupport.batteryLevel(forPercent: Int((fraction * 100).rounded())))
     }
 
     private func metricValueMinWidth(minimumValue: String, style: MenuBarBlockStyle) -> CGFloat {
@@ -352,5 +381,17 @@ struct MenuBarMetricsPreview: View {
             }
         }
         .foregroundStyle(.white)
+    }
+}
+
+/// The menu bar's charging bolt, drawn from the same points.
+private struct ChargingBolt: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { path in
+            path.addLines(MenuBarUsageBarSupport.chargingBoltPoints.map {
+                CGPoint(x: rect.minX + $0.x * rect.width, y: rect.maxY - $0.y * rect.height)
+            })
+            path.closeSubpath()
+        }
     }
 }
