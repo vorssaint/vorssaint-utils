@@ -785,6 +785,8 @@ enum DefaultsKey {
     static let panelUtilityPortManager = "panelUtilityPortManager"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
+    static let instantSpacesKeyboard = "instantSpacesKeyboard"
+    static let instantSpacesTrackpad = "instantSpacesTrackpad"
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
     static let windowDirectionalEnabled = "windowDirectionalEnabled"
     static let windowDirectionalShortcut = "windowDirectionalShortcut"
@@ -1997,6 +1999,8 @@ enum Defaults {
         DefaultsKey.screenshotPreviewDuration: ScreenshotSupport.defaultConfirmationPreviewDuration,
         DefaultsKey.screenshotSharingEnabled: true,
         DefaultsKey.panelUtilityScreenshot: true,
+        DefaultsKey.instantSpacesKeyboard: false,
+        DefaultsKey.instantSpacesTrackpad: false,
         DefaultsKey.windowLayoutShortcutsEnabled: false,
         DefaultsKey.windowDirectionalEnabled: false,
         DefaultsKey.windowDirectionalShortcut: GlobalShortcut.windowDirectionalDefault.storageValue,

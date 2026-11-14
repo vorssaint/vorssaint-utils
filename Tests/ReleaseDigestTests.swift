@@ -212,6 +212,13 @@ enum ReleaseDigestTests {
             let found = ReleaseChangeAliases.features(inBullet: text, section: section)
             suite.expect(found == expected, "\"\(text.prefix(48))…\" is about \(expected), got \(found)")
         }
+        suite.expect(ReleaseChangeAliases.features(
+                        inBullet: "Instant Space Switch and Instant Trackpad Swipe honor configured shortcuts.",
+                        section: "Added") == [.instantSpaces],
+                     "keyboard and trackpad changes belong to one Instant Spaces feature")
+        suite.expect(ReleaseChangeAliases.features(
+                        inBullet: "Shortcuts follow System Settings.", section: "Instant Spaces") == [.instantSpaces],
+                     "an Instant Spaces section scopes its changes to the feature")
         suite.expect(ReleaseChangeAliases.features(inBullet: "Downloads keep a calendar of timers.", section: "Fixed").isEmpty,
                      "common words name an island extension only in an island context")
         suite.expect(ReleaseChangeAliases.features(inBullet: "You can watch the wheel notch turn.", section: "Fixed").isEmpty,
