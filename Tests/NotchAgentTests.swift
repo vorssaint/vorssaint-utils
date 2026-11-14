@@ -108,6 +108,15 @@ enum NotchAgentTests {
         suite.expect(AgentPricing.price(for: "gpt-5.2-codex")?.input == 1.75 && AgentPricing.price(for: "gpt-5")?.input == 1.25
                         && AgentPricing.price(for: "gpt-6-astra")?.output == 50,
                      "a family matches at a word boundary, so gpt-5 is not gpt-5.2")
+        suite.expect(AgentPricing.price(for: "grok-4.7")?.input == 2
+                        && AgentPricing.price(for: "grok-4.7")?.output == 6
+                        && AgentPricing.price(for: "grok-4.7")?.cacheRead == 0.5
+                        && AgentPricing.price(for: "grok-4.7")?.longContext == AgentLongContext(above: 200_000, input: 2, output: 2)
+                        && AgentPricing.price(for: "composer-2.5") == nil,
+                     "Grok keeps its own API rates and Cursor's Composer has no public price")
+        suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1000, cacheRead: 100_000, output: 2000)),
+                                            model: "grok-4.7").cost ?? -1,
+                          0.064, "Grok bills input, cache reads and output at xAI's rates")
         suite.expect(AgentPricing.price(for: "gpt-6-astra-mini") == nil && AgentPricing.price(for: "gpt-reserve") == nil
                         && AgentPricing.price(for: "gpt-6-astra-deep-research") == nil && AgentPricing.price(for: "gpt-6-sol-cyber") == nil
                         && AgentPricing.price(for: "codex-auto-review") == nil
@@ -168,7 +177,9 @@ enum NotchAgentTests {
                         && AgentPricing.displayName("gpt-5-2025-08-07") == "GPT-5"
                         && AgentPricing.displayName("claude-mythos-preview") == "Mythos Preview"
                         && AgentPricing.displayName("claude-3-5-sonnet-latest") == "Sonnet 3.5"
-                        && AgentPricing.displayName("gpt-daybreak-red-latest") == "GPT Daybreak Red",
+                        && AgentPricing.displayName("gpt-daybreak-red-latest") == "GPT Daybreak Red"
+                        && AgentPricing.displayName("grok-4.7") == "Grok 4.7"
+                        && AgentPricing.displayName("composer-2.5") == "Composer 2.5",
                      "model names read the way people say them, without snapshot dates")
         suite.expect(AgentPricing.displayName("gpt-7") == "GPT-7" && AgentPricing.displayName("claude-opus-6") == "Opus 6"
                         && AgentPricing.displayName("gpt-7-codex") == "GPT-7 Codex",
@@ -205,15 +216,21 @@ enum NotchAgentTests {
         utc.timeZone = TimeZone(identifier: "UTC")!
         let first = utc.date(from: DateComponents(year: 2026, month: 9, day: 22)) ?? .distantFuture
         suite.expect(shipped.updated >= first && shipped.updated <= Date().addingTimeInterval(86_400)
-                        && shipped.claude.count >= 23 && shipped.codex.count >= 69 && shipped.claudePlans.count >= 6,
-                     "the shipped list carries a real day, both agents' models and the plans")
+                        && shipped.claude.count >= 23 && shipped.codex.count >= 69
+                        && shipped.xai.count >= 1 && shipped.claudePlans.count >= 6,
+                     "the shipped list carries a real day, every agent's models and the plans")
         let minimal = AgentPriceList.decode(priceJSON(extra: #","notes":"a field from a later list""#))
         let long = AgentPriceList.decode(priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":{"above":272000,"inputMultiplier":2,"outputMultiplier":1.5}}"#))
         suite.expect(long?.codex.first?.price.longContext == AgentLongContext(above: 272_000, input: 2, output: 1.5),
                      "a model can carry its own long-context threshold and premium")
         suite.expect(minimal?.codex.first?.price == AgentPrice(input: 10, output: 50, cacheRead: 1, cacheWrite: 10, cacheWriteLong: 10)
-                        && minimal?.codexPlans == [AgentPriceList.Plan(match: "plus", name: "Plus", monthly: 20)],
-                     "unknown fields are ignored and a model without cache writes bills them as input")
+                        && minimal?.codexPlans == [AgentPriceList.Plan(match: "plus", name: "Plus", monthly: 20)]
+                        && minimal?.xai.isEmpty == true,
+                     "unknown fields are ignored, a model without cache writes bills as input, and a list without xAI still loads")
+        let withXAI = AgentPriceList.decode(priceJSON(extra: #","xai":{"models":[{"id":"grok-4.7","input":2,"output":6,"cacheRead":0.5,"cacheWrite":0,"longContext":{"above":200000,"inputMultiplier":2,"outputMultiplier":2}}]}"#))
+        suite.expect(withXAI?.xai.count == 1
+                        && withXAI?.xai.first?.price.longContext == AgentLongContext(above: 200_000, input: 2, output: 2),
+                     "a list can price xAI models with their own long-context tier")
         let refused = [
             priceJSON(schema: "2"), priceJSON(updated: "2026-13-40"), priceJSON(schema: "true"),
             priceJSON(claude: #"{"id":"claude-opus-5","input":-5,"output":25,"cacheRead":0.5}"#),
@@ -221,6 +238,7 @@ enum NotchAgentTests {
             priceJSON(claude: #"{"id":"gpt-6","input":5,"output":25,"cacheRead":0.5}"#),
             priceJSON(codex: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5}"#),
             priceJSON(codex: #"{"id":"GPT 6","input":5,"output":25,"cacheRead":0.5}"#),
+            priceJSON(extra: #","xai":{"models":[{"id":"gpt-6","input":5,"output":25,"cacheRead":0.5}]}"#),
             priceJSON(claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5},{"id":"claude-opus-5","input":6,"output":30,"cacheRead":0.6}"#),
             priceJSON(claude: #"{"id":"claude-opus-5","input":5,"output":25,"cacheRead":0.5,"fastMultiplier":50}"#),
             priceJSON(codex: #"{"id":"gpt-6-astra","input":10,"output":50,"cacheRead":1,"longContext":{"above":5,"inputMultiplier":2,"outputMultiplier":1.5}}"#),
@@ -3169,11 +3187,16 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor],
+                     "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor],
+                     "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor],
+                     "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsCursor)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Cursor keeps its own preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3186,7 +3209,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3205,11 +3228,14 @@ enum NotchAgentTests {
         let limits = NotchAgentTile(card: .limits, provider: .claude)
         let codex = NotchAgentTile(card: .limits, provider: .codex)
         let copilot = NotchAgentTile(card: .limits, provider: .copilot)
+        let cursor = NotchAgentTile(card: .limits, provider: .cursor)
         let spend = NotchAgentTile(card: .spend, provider: nil)
         let trend = NotchAgentTile(card: .trend, provider: nil)
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot])
                         == [limits, codex, trend] && !AgentProvider.copilot.reportsLimits
-                        && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
+                        && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot)
+                        && NotchAgentSupport.tiles(cards: [.limits], providers: [.cursor]) == [cursor]
+                        && AgentProvider.cursor.reportsLimits,
                      "only agents whose local logs report plan allowances get a limits card")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]

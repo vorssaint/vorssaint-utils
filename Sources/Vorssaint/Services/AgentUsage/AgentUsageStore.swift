@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.cursor, ".cursor/projects")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +500,9 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .cursor {
+            return path.contains("/sdk-agent-store/") && path.hasSuffix("/index.db")
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,6 +697,8 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        // Cursor keeps each agent store's run index in a nested SQLite file.
+        if path.contains("/sdk-agent-store/") && path.hasSuffix("/index.db") { return true }
         return path.hasSuffix(".jsonl")
     }
 
@@ -759,6 +765,18 @@ enum AgentLogReader {
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
                 continue
             }
+            // Cursor keeps one run index in each project's agent store.
+            if root.provider == .cursor {
+                let projects = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for project in projects {
+                    let store = project.appending(path: "sdk-agent-store", directoryHint: .isDirectory)
+                    let stores = (try? FileManager.default.contentsOfDirectory(
+                        at: store, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                    for entry in stores { include(entry.appending(path: "index.db"), from: root) }
+                }
+                continue
+            }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
             for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
@@ -779,6 +797,10 @@ enum AgentLogReader {
         guard shouldContinue() else { return }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
+            return
+        }
+        if cursor.provider == .cursor {
+            AgentCursorReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
         var info = stat()

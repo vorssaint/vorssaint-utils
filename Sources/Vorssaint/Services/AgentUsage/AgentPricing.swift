@@ -69,13 +69,29 @@ struct AgentPriceList: Equatable {
     let updated: Date
     let claude: [Model]
     let codex: [Model]
+    /// Models served by xAI's own API, priced separately from the Anthropic
+    /// and OpenAI tables.
+    let xai: [Model]
     let claudePlans: [Plan]
     let codexPlans: [Plan]
     let webSearch: Double
     let usOnlyMultiplier: Double
 
-    static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], claudePlans: [], codexPlans: [],
-                                      webSearch: 0, usOnlyMultiplier: 1)
+    /// A list written before xAI prices were split out carries none.
+    init(updated: Date, claude: [Model], codex: [Model], xai: [Model] = [],
+         claudePlans: [Plan], codexPlans: [Plan], webSearch: Double, usOnlyMultiplier: Double) {
+        self.updated = updated
+        self.claude = claude
+        self.codex = codex
+        self.xai = xai
+        self.claudePlans = claudePlans
+        self.codexPlans = codexPlans
+        self.webSearch = webSearch
+        self.usOnlyMultiplier = usOnlyMultiplier
+    }
+
+    static let empty = AgentPriceList(updated: .distantPast, claude: [], codex: [], xai: [],
+                                      claudePlans: [], codexPlans: [], webSearch: 0, usOnlyMultiplier: 1)
 
     static func decode(_ data: Data) -> AgentPriceList? {
         guard data.count <= maximumSize,
@@ -88,7 +104,16 @@ struct AgentPriceList: Equatable {
               let claudePlans = plans(claude["plans"]), let codexPlans = plans(codex["plans"]),
               let webSearch = number(claude["webSearch"], in: 0...1),
               let usOnly = number(claude["usOnlyMultiplier"], in: 1...3) else { return nil }
-        return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels,
+        // Older lists, including a cached one, carry no xAI table.
+        let xaiModels: [Model]
+        if let value = json["xai"] {
+            guard let table = value as? [String: Any],
+                  let models = models(table["models"], prefix: "grok-") else { return nil }
+            xaiModels = models
+        } else {
+            xaiModels = []
+        }
+        return AgentPriceList(updated: updated, claude: claudeModels, codex: codexModels, xai: xaiModels,
                               claudePlans: claudePlans, codexPlans: codexPlans, webSearch: webSearch,
                               usOnlyMultiplier: usOnly)
     }
@@ -215,7 +240,8 @@ enum AgentPricing {
     /// never inherits the price of the version it extends.
     static func price(for model: String, in list: AgentPriceList = AgentPricing.list) -> AgentPrice? {
         let id = normalized(model)
-        let table = id.hasPrefix("claude-") ? list.claude : list.codex
+        let table = id.hasPrefix("claude-") ? list.claude
+            : id.hasPrefix("grok-") ? list.xai : list.codex
         guard let match = table.filter({ matches(id, family: $0.id) })
             .max(by: { $0.id.count < $1.id.count }) else { return nil }
         // A smaller, larger or specialized sibling the list does not name is
@@ -282,6 +308,14 @@ enum AgentPricing {
             let version = versions.joined(separator: ".")
             let name = [words.first?.capitalized ?? "", version] + words.dropFirst().map(\.capitalized)
             return name.filter { !$0.isEmpty }.joined(separator: " ")
+        }
+        if id.hasPrefix("grok-") {
+            let parts = id.dropFirst("grok-".count).split(separator: "-").map { String($0).capitalized }
+            return (["Grok"] + parts).joined(separator: " ")
+        }
+        if id.hasPrefix("composer-") {
+            let parts = id.dropFirst("composer-".count).split(separator: "-").map { String($0).capitalized }
+            return (["Composer"] + parts).joined(separator: " ")
         }
         guard id.hasPrefix("gpt-") else { return id }
         var parts = id.dropFirst(4).split(separator: "-").map(String.init)

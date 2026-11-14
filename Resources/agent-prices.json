@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-11-13",
+  "updated": "2026-11-14",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://platform.claude.com/docs/en/models/overview",
@@ -111,7 +111,8 @@
     "https://developers.openai.com/api/docs/models/o3-mini",
     "https://developers.openai.com/api/docs/models/o3-pro",
     "https://developers.openai.com/api/docs/models/o4-mini-deep-research",
-    "https://developers.openai.com/api/docs/models/o4-mini"
+    "https://developers.openai.com/api/docs/models/o4-mini",
+    "https://docs.x.ai/docs/models"
   ],
   "notes": [
     "The API promotion for gpt-5.6-sol and its gpt-5.6 and gpt-daybreak-blue-latest aliases ends on 2026-11-30. Review those rates and the Bedrock IDs for the same models after that date.",
@@ -140,7 +141,8 @@
     "Copilot Business costs 19 USD/seat/month and contributes 1900 credits to a shared pool; Enterprise costs 39 and contributes 3900. Copilot access has no included allowance: it has no additional seat charge for licensed GitHub Enterprise Cloud users or costs 10 USD/seat/month for Copilot Standalone. Additional usage is billed at the published token rates after allowances are exhausted, subject to budgets. These plans and credit pools are not supported by the app's plan objects.",
     "Copilot prices gpt-5.6-luna long context above 200K input tokens, versus 272K in the direct OpenAI API. The app uses the direct API threshold. Copilot's paid-plan auto-selection discount is 10% in Chat and cloud agent; Fusion has a 30% discount through 2026-11-30. Review after that date. The app does not apply these discounts, credits or GitHub Actions charges for code review.",
     "Existing annual Copilot Pro/Pro+ subscriptions may retain legacy request-based billing: 300/1500 premium requests monthly, 0.04 USD per additional request, and model-specific request multipliers. Those multipliers are not API fast-mode prices and must not be stored as fastMultiplier.",
-    "Models from other manufacturers, including Gemini, Grok, MAI-Code, Jev, Kimi, GLM, DeepSeek, Qwen, MiniMax, MiMo, Muse, Mistral, LongCat, Step, Hy and Nemotron, have no direct Anthropic/OpenAI price. OpenCode lists Gemini 4 Carbon and Argon at 50% off through 2026-11-30 and Gemini 3.6/3.7/3.8 Flash at 50% off through 2026-12-31. Copilot lists Gemini 4 Carbon and Argon promotions until 2026-12-01 and Gemini 3.8 Flash through 2026-12-31."
+    "Models from other manufacturers, including Gemini, Grok, MAI-Code, Jev, Kimi, GLM, DeepSeek, Qwen, MiniMax, MiMo, Muse, Mistral, LongCat, Step, Hy and Nemotron, have no direct Anthropic/OpenAI price. OpenCode lists Gemini 4 Carbon and Argon at 50% off through 2026-11-30 and Gemini 3.6/3.7/3.8 Flash at 50% off through 2026-12-31. Copilot lists Gemini 4 Carbon and Argon promotions until 2026-12-01 and Gemini 3.8 Flash through 2026-12-31.",
+    "Grok 4.7 is priced from xAI's published API list in its own table, including its 200K long-context tier. Cursor's Composer model has no public API price and stays unpriced, so Cursor runs on it count tokens but not dollars."
   ],
   "claude": {
     "webSearch": 0.01,
@@ -390,6 +392,12 @@
       { "match": "business", "name": "Business" },
       { "match": "enterprise", "name": "Enterprise" },
       { "match": "edu", "name": "Edu" }
+    ]
+  },
+  "xai": {
+    "models": [
+      { "id": "grok-4.7", "input": 2, "output": 6, "cacheRead": 0.5, "cacheWrite": 0,
+        "longContext": { "above": 200000, "inputMultiplier": 2, "outputMultiplier": 2 } }
     ]
   }
 }
