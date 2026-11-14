@@ -437,8 +437,9 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
-                // A database changes in place: its write-ahead log grows instead.
+            if cursor.provider == .opencode || cursor.provider == .deepseek || cursor.provider == .cursor {
+                // A database or a projection cache changes in place: the
+                // modification time is the only signal it changed.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
                 continue

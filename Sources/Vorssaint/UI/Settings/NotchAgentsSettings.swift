@@ -13,6 +13,8 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsDeepSeek) private var deepseek = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -40,6 +42,18 @@ struct NotchAgentsSettingsControls: View {
         return (stored + NotchAgentCard.allCases).filter { seen.insert($0).inserted }
     }
 
+    /// The card order the reorder grid writes back.
+    private var cardOrderBinding: Binding<[NotchAgentCard]> {
+        Binding(get: { orderedCards },
+                set: { cardOrder = $0.map(\.rawValue).joined(separator: ",") })
+    }
+
+    /// The provider the strip sample stands for: the first agent left on.
+    private var sampleProvider: AgentProvider {
+        claude ? .claude : codex ? .codex : opencode ? .opencode
+            : copilot ? .copilot : deepseek ? .deepseek : .cursor
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text(text.settingsDescription)
@@ -50,6 +64,8 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.codex, isOn: $codex)
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
+            providerRow(.deepseek, isOn: $deepseek)
+            providerRow(.cursor, isOn: $cursor)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
 
@@ -57,10 +73,7 @@ struct NotchAgentsSettingsControls: View {
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
                 ForEach(orderedCards) { card in
-                    PanelReorderableItem(item: card,
-                                         order: Binding(get: { orderedCards },
-                                                        set: { cardOrder = $0.map(\.rawValue).joined(separator: ",") }),
-                                         dragging: $dragging) {
+                    PanelReorderableItem(item: card, order: cardOrderBinding, dragging: $dragging) {
                         NotchEditorItem(symbol: card.symbol, title: text.card(card), included: cardBinding(card)) {
                             cardBinding(card).wrappedValue.toggle()
                         }
@@ -100,7 +113,7 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
-                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : .copilot)
+                                      provider: sampleProvider)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -165,7 +178,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(deepseek), String(cursor), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -260,7 +273,7 @@ struct NotchAgentsSettingsControls: View {
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, deepseek, cursor].filter { $0 }.count <= 1)
         }
     }
 
