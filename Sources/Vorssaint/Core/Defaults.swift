@@ -633,6 +633,9 @@ enum DefaultsKey {
     static let quitAppsKeptApps = "quitAppsKeptApps"
     static let cameraPreviewShortcutEnabled = "cameraPreviewShortcutEnabled"
     static let cameraPreviewShortcut = "cameraPreviewShortcut"
+    static let continuityCaptureShortcutEnabled = "continuityCaptureShortcutEnabled"
+    static let continuityCaptureShortcut = "continuityCaptureShortcut"
+    static let continuityCaptureAutoPasteEnabled = "continuityCaptureAutoPasteEnabled"
     static let wallpaperApplyAllDisplays = "wallpaperApplyAllDisplays"
     static let wallpaperFilter = "wallpaperFilter"
     static let wallpaperOwnBookmarks = "wallpaperOwnBookmarks"
@@ -1878,6 +1881,9 @@ enum Defaults {
         DefaultsKey.quitAppsKeptApps: mandatoryAutoQuitExceptionBundleIDs,
         DefaultsKey.cameraPreviewShortcutEnabled: false,
         DefaultsKey.cameraPreviewShortcut: GlobalShortcut.cameraPreviewDefault.storageValue,
+        DefaultsKey.continuityCaptureShortcutEnabled: false,
+        DefaultsKey.continuityCaptureShortcut: GlobalShortcut.continuityCaptureDefault.storageValue,
+        DefaultsKey.continuityCaptureAutoPasteEnabled: true,
         DefaultsKey.wallpaperApplyAllDisplays: true,
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
