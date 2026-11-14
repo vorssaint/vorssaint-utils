@@ -272,7 +272,7 @@ final class CommandBarDroplet {
         bead.add(animation("cornerRadius", motion.frames.map { NSNumber(value: Double($0.radius)) }), forKey: "dropRadius")
         // The island and the bar centre the companion's figure, not its box,
         // so each point the drop carries it to is the figure's own middle.
-        let shift = NotchMascotGeometry.figureOffset(mascot.look) * mascot.size
+        let shift = mascot.figureOffset * mascot.size
         func figure(_ frame: CommandBarDropletFrame) -> CGPoint {
             CGPoint(x: frame.mascot.x, y: frame.mascot.y - shift * frame.mascotScale)
         }
