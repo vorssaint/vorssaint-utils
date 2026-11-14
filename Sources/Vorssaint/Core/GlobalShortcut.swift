@@ -139,6 +139,10 @@ struct GlobalShortcut: Equatable, Hashable {
         keyCode: Int64(kVK_ANSI_Minus), modifiers: [.shift, .command])
     static let displayBrightnessIncreaseDefault = GlobalShortcut(
         keyCode: Int64(kVK_ANSI_Equal), modifiers: [.shift, .command])
+    // X for the monitor's input: the free letter that reads as a switch, on the
+    // control-option-command layer the other quick tools share.
+    static let monitorInputDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_X),
+                                                    modifiers: [.control, .option, .command])
     static let keyboardBrightnessDecreaseDefault = GlobalShortcut(
         keyCode: Int64(kVK_ANSI_Minus), modifiers: [.option, .command])
     static let keyboardBrightnessIncreaseDefault = GlobalShortcut(
@@ -736,6 +740,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case screenRecorder
     case displayBrightnessDecrease
     case displayBrightnessIncrease
+    case monitorInput
     case keyboardBrightnessDecrease
     case keyboardBrightnessIncrease
     case pointerNextDisplay
@@ -775,6 +780,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return DefaultsKey.recorderShortcut
         case .displayBrightnessDecrease: return DefaultsKey.displayBrightnessDecreaseShortcut
         case .displayBrightnessIncrease: return DefaultsKey.displayBrightnessIncreaseShortcut
+        case .monitorInput: return DefaultsKey.monitorInputShortcut
         case .keyboardBrightnessDecrease: return DefaultsKey.keyboardBrightnessDecreaseShortcut
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
@@ -814,6 +820,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return .screenRecorderDefault
         case .displayBrightnessDecrease: return .displayBrightnessDecreaseDefault
         case .displayBrightnessIncrease: return .displayBrightnessIncreaseDefault
+        case .monitorInput: return .monitorInputDefault
         case .keyboardBrightnessDecrease: return .keyboardBrightnessDecreaseDefault
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
@@ -895,6 +902,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).displayBrightnessDecrease
         case .displayBrightnessIncrease:
             return FeatureStrings.brightness(L10n.shared.language).displayBrightnessIncrease
+        case .monitorInput:
+            return FeatureStrings.brightness(L10n.shared.language).monitorInputShortcut
         case .keyboardBrightnessDecrease:
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessDecrease
         case .keyboardBrightnessIncrease:
@@ -961,6 +970,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenRecorder: return [DefaultsKey.recorderShortcutEnabled]
         case .displayBrightnessDecrease, .displayBrightnessIncrease:
             return [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayBrightnessShortcutsEnabled]
+        case .monitorInput:
+            return [DefaultsKey.brightnessControlEnabled, DefaultsKey.monitorInputShortcutEnabled]
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease:
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
@@ -994,7 +1005,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .snippetLibrary: return .textSnippets
         case .commandBar: return .commandBar
         case .screenRecorder: return .screenRecorder
-        case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
+        case .displayBrightnessDecrease, .displayBrightnessIncrease, .monitorInput: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
