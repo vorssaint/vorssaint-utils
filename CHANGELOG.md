@@ -11,6 +11,7 @@ This update improves microphone muting, display controls, window switching, clip
 
 ### Added
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
+- Switch a monitor's input from the keyboard, for example from DisplayPort to HDMI. Turn on Switch monitor input in Displays settings, then press the shortcut (⌃⌥⌘X by default) with the pointer on the monitor. Only monitors that accept an input change from the computer respond, and Displays settings lists them with a menu of their inputs.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
