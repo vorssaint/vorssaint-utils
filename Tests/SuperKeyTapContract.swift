@@ -34,7 +34,9 @@ enum SuperKeyTapContract {
         static var processInfo: Self.Type { Self.self }
         static var systemUptime: TimeInterval = 100
     }
+    final class EventSystemClient {}
     final class Keyboard {
+        weak var client: EventSystemClient?
         static let superMapping = [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage),
                                     "HIDKeyboardModifierMappingDst": NSNumber(value: SuperKeySupport.triggerUsage)]]
         var mapping: [[String: NSNumber]]?
@@ -82,6 +84,11 @@ enum SuperKeyTapContract {
         let mappingRepairInterval: TimeInterval = 3
         var repairs = 0
         var keyboards: [Keyboard] = []
+        typealias IOHIDServiceClient = Keyboard
+        let kHIDPage_GenericDesktop = 1
+        let kHIDUsage_GD_Keyboard = 6
+        var releasedClientAccesses = 0
+        var propertyReads: [String] = []
         var lockReadable = true
         var lockWritable = true
         var soloWrites: [Bool] = []
@@ -105,13 +112,26 @@ enum SuperKeyTapContract {
                 }
             }
         }
-        func connectedKeyboards() -> [Keyboard] { keyboards }
+        func IOHIDEventSystemClientCreateSimpleClient(_ allocator: CFAllocator?) -> EventSystemClient {
+            EventSystemClient()
+        }
+        func IOHIDEventSystemClientCopyServices(_ client: EventSystemClient) -> AnyObject? {
+            for keyboard in keyboards { keyboard.client = client }
+            return keyboards as NSArray
+        }
+        func IOHIDServiceClientConformsTo(_ keyboard: Keyboard, _ page: UInt32, _ usage: UInt32) -> Int {
+            if keyboard.client == nil { releasedClientAccesses += 1 }
+            return 1
+        }
         func IOHIDServiceClientCopyProperty(_ keyboard: Keyboard, _ key: CFString) -> AnyObject? {
+            if keyboard.client == nil { releasedClientAccesses += 1 }
+            propertyReads.append(key as String)
             if key as String == SuperKeySupport.userMappingProperty { return keyboard.mapping as NSArray? }
             guard key as String == "HIDCapsLockState", keyboard.lockReadable else { return nil }
             return NSNumber(value: keyboard.lockOn)
         }
         func IOHIDServiceClientSetProperty(_ keyboard: Keyboard, _ key: CFString, _ value: CFBoolean) -> Bool {
+            if keyboard.client == nil { releasedClientAccesses += 1 }
             guard key as String == "HIDCapsLockState" else { return false }
             keyboard.lockOn = CFBooleanGetValue(value)
             keyboard.deviceWrites.append(keyboard.lockOn)
@@ -184,6 +204,15 @@ enum SuperKeyTapContract {
     }
 
     static func run(_ suite: TestSuite) {
+        let cleanup = SuperKeyService()
+        let native = Keyboard(mapped: false)
+        native.lockOn = true
+        cleanup.keyboards = [native]
+        cleanup.clearUnmappedCapsLock(reportedOn: false)
+        suite.expect(cleanup.propertyReads == [SuperKeySupport.userMappingProperty, "HIDCapsLockState"]
+                     && native.deviceWrites == [false] && cleanup.releasedClientAccesses == 0
+                     && native.client == nil,
+                     "Caps Lock cleanup keeps the HID client alive through keyboard selection, property reads and reset, then releases it")
         Tap.requests = []
         State.isEngaged = true
         let service = SuperKeyService()
