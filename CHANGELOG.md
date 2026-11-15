@@ -32,6 +32,8 @@ This update improves microphone muting, display controls, window switching, clip
 - Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
 - The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
 - Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
+- AI Agents shows OpenCode's rolling five-hour and weekly allowance on its Limits card, beside the camera and in limit alerts, as it shows Codex's.
+- AI Agents prices OpenCode Go's models from the rates OpenCode publishes, so their API value shows instead of $0.00.
 
 ### Contributors
 Thanks to @binjamshid, @davidmessem, @EugeneCarldotme, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @TC-Virtuoso, @trenaryja, @whizzzkid and @Zekuath.

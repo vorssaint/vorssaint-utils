@@ -319,6 +319,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeServer.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift
