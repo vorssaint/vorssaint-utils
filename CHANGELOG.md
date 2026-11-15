@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- The Media image tool’s resize fields accept any pixel size you type, including values the old steppers skipped such as 144×144.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
