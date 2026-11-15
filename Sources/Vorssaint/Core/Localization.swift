@@ -526,6 +526,10 @@ struct Strings {
     let uninstallerCommandBarBrowseTitle: String
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
+    let uninstallerWatchTrashToggle: String
+    let uninstallerWatchTrashCaption: String
+    let uninstallerConfirmTrashCleanup: String
+    let uninstallerTrashUnavailable: String
     let uninstallerCommandBarFinderTitle: String
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
@@ -596,6 +600,8 @@ struct Strings {
     let homebrewOpenTerminal: String
     let homebrewCancelOperation: String
     let homebrewClearLog: String
+    let homebrewLastLogView: String
+    let homebrewLastLogHide: String
     let homebrewLogTitle: String
     let homebrewVersion: String
     let homebrewDescription: String
@@ -1317,6 +1323,9 @@ struct Strings {
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
+    let scrollSpeedName: String
+    let scrollSpeedCaption: String
+    let scrollSpeedMultiplierLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
@@ -1683,6 +1692,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
         uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
         uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerWatchTrashToggle: "Oferecer limpeza ao mover um app para o Lixo",
+        uninstallerWatchTrashCaption: "Abre o Desinstalador quando você apaga um app no Finder. Requer Acesso Total ao Disco.",
+        uninstallerConfirmTrashCleanup: "Se você moveu este app para o Lixo para desinstalá-lo, confirme para mover também os dados selecionados. Se o app estiver sendo atualizado, cancele para manter seus dados.",
+        uninstallerTrashUnavailable: "Só é possível limpar dados do Lixo após mover a última cópia do app da pasta Aplicativos. Se ele ainda estiver instalado ou em atualização, seus dados serão mantidos.",
         uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
         uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
         uninstallerRefusedNotApp: "Só é possível desinstalar apps.",
@@ -1751,6 +1764,8 @@ extension Strings {
         homebrewOpenTerminal: "Abrir terminal",
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
+        homebrewLastLogView: "Ver o último log",
+        homebrewLastLogHide: "Ocultar o último log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Versão",
         homebrewDescription: "Tipo",
@@ -2437,6 +2452,9 @@ extension Strings {
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
+        scrollSpeedName: "Rolar mais rápido segurando uma tecla",
+        scrollSpeedCaption: "Mantenha apenas a tecla escolhida pressionada ao rolar a roda do mouse para multiplicar a distância. O trackpad não muda.",
+        scrollSpeedMultiplierLabel: "Velocidade",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
@@ -2804,6 +2822,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Uninstall Application",
         uninstallerCommandBarToggle: "Show in Command Bar",
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerWatchTrashToggle: "Offer cleanup when an app is moved to the Trash",
+        uninstallerWatchTrashCaption: "Opens the Uninstaller when you delete an app in Finder. Needs Full Disk Access.",
+        uninstallerConfirmTrashCleanup: "If you moved this app to the Trash to uninstall it, confirm to move its selected data to the Trash too. If the app is updating, cancel to keep its data.",
+        uninstallerTrashUnavailable: "Cleanup requires moving the last installed copy from an Applications folder to the Trash. Data is kept while the app is installed or updating.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
         uninstallerRefusedNotApp: "Only apps can be uninstalled.",
@@ -2872,6 +2894,8 @@ extension Strings {
         homebrewOpenTerminal: "Open terminal",
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
+        homebrewLastLogView: "View last log",
+        homebrewLastLogHide: "Hide last log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Version",
         homebrewDescription: "Type",
@@ -3558,6 +3582,9 @@ extension Strings {
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",
+        scrollSpeedName: "Scroll faster while holding a key",
+        scrollSpeedCaption: "Hold only the selected modifier while scrolling the mouse wheel to multiply scroll distance. The trackpad is not affected.",
+        scrollSpeedMultiplierLabel: "Speed",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",

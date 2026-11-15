@@ -14,6 +14,7 @@ extension SliderScroll {
         let phase: Phase
         if !event.momentumPhase.isEmpty { phase = .momentum }
         else if event.phase.contains(.began) { phase = .began }
+        else if event.phase.contains(.mayBegin) { return .pass }
         else if !event.phase.intersection([.changed, .stationary]).isEmpty { phase = .changed }
         else if event.phase.isEmpty { phase = .none }
         else { phase = .ended }
@@ -23,9 +24,10 @@ extension SliderScroll {
     }
 
     /// A scroll the bar does not take goes on to the list around it.
-    static func pass(_ event: NSEvent, from view: NSView) {
-        if let scroll = view.enclosingScrollView { scroll.scrollWheel(with: event) }
-        else { view.nextResponder?.scrollWheel(with: event) }
+    static func pass(_ event: NSEvent, from view: NSView, after pending: [NSEvent] = []) {
+        guard let responder: NSResponder = view.enclosingScrollView ?? view.nextResponder else { return }
+        for held in pending { responder.scrollWheel(with: held) }
+        responder.scrollWheel(with: event)
     }
 }
 

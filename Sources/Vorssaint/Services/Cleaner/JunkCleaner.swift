@@ -274,7 +274,7 @@ final class JunkCleaner: ObservableObject {
             guard isDirectLeftoverRootChild(url),
                   CleanerSupport.isAttributableBundleID(item.detail),
                   !CleanerSupport.isProtectedBundleID(item.detail),
-                  !hasLivingOwner(item.detail, installed: installed) else { return false }
+                  !hasLivingLeftoverOwner(item.detail, at: url, installed: installed) else { return false }
         }
         if item.category == .screenshots {
             guard isScreenshotFolderChild(url), isScreenCapture(url) else { return false }
@@ -379,7 +379,21 @@ final class JunkCleaner: ObservableObject {
         return NSWorkspace.shared.urlForApplication(withBundleIdentifier: candidate) != nil
     }
 
+    private static func hasLivingLeftoverOwner(_ owner: String, at url: URL, installed: Set<String>) -> Bool {
+        if hasLivingOwner(owner, installed: installed) { return true }
+        let isSupportEntry = [NSHomeDirectory() + "/Library", systemLibrary].contains { library in
+            let support = URL(fileURLWithPath: library + "/Application Support", isDirectory: true)
+            return CleanerSupport.isDirectChild(url, of: support)
+        }
+        guard isSupportEntry,
+              CleanerSupport.isOwnedSupportDomain(url.lastPathComponent, byInstalled: installed) else { return false }
+        // A confirmed file remains eligible. Keep the entry if its type cannot be read.
+        return (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) != false
+    }
+
     // MARK: - Category scanners
+
+    private static let systemLibrary = "/Library"
 
     /// Library locations where uninstalled apps leave data behind. Only direct
     /// children are eligible. A selected app's Uninstaller can prove deeper
@@ -415,7 +429,7 @@ final class JunkCleaner: ObservableObject {
     ]
 
     private static func isDirectLeftoverRootChild(_ url: URL) -> Bool {
-        [NSHomeDirectory() + "/Library", "/Library"].contains { library in
+        [NSHomeDirectory() + "/Library", systemLibrary].contains { library in
             leftoverRoots.contains { root in
                 CleanerSupport.isDirectChild(
                     url,
@@ -427,7 +441,7 @@ final class JunkCleaner: ObservableObject {
 
     private static func scanLeftovers(installed: Set<String>) -> [Item] {
         let fm = FileManager.default
-        let libraries = [NSHomeDirectory() + "/Library", "/Library"]
+        let libraries = [NSHomeDirectory() + "/Library", systemLibrary]
         var found: [Item] = []
         for library in libraries {
             for root in leftoverRoots {
@@ -460,7 +474,7 @@ final class JunkCleaner: ObservableObject {
             if let owner = leftoverOwner(entry: entry, url: url,
                                          usesContainerMetadata: usesContainerMetadata) {
                 if CleanerSupport.isProtectedBundleID(owner)
-                    || hasLivingOwner(owner, installed: installed) {
+                    || hasLivingLeftoverOwner(owner, at: url, installed: installed) {
                     continue
                 }
                 found.append(Item(url: url, category: .leftovers,
@@ -499,8 +513,8 @@ final class JunkCleaner: ObservableObject {
     private static func scanOrphanedLaunchPlists(installed: Set<String>) -> [Item] {
         let fm = FileManager.default
         let roots = [NSHomeDirectory() + "/Library/LaunchAgents",
-                     "/Library/LaunchAgents",
-                     "/Library/LaunchDaemons"]
+                     systemLibrary + "/LaunchAgents",
+                     systemLibrary + "/LaunchDaemons"]
         var found: [Item] = []
         for root in roots {
             guard let entries = try? fm.contentsOfDirectory(atPath: root) else { continue }

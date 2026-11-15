@@ -106,7 +106,7 @@ final class MicMuteService: ObservableObject {
     /// go, and to catch a claimed device coming back so it can be released;
     /// they live only as long as one of those is pending.
     private func syncListeners() {
-        if isMuted || (AppFeature.micMute.isAvailable && hasOutstandingClaims) {
+        if isMuted || hasOutstandingClaims {
             installListeners()
         } else {
             removeListeners()
@@ -367,7 +367,9 @@ final class MicMuteService: ObservableObject {
             // main volume can also change its channel controls. Reapplying
             // keeps the first snapshot, including a user's mute or zero gain.
             let addresses = muteAddresses(of: device.id) + volumeAddresses(of: device.id)
-            var snapshot = savedControls[device.uid] ?? [:]
+            let migrating = owned.contains(device.uid) && savedControls[device.uid] == nil
+            let switchSnapshot = migrating ? legacySwitchSnapshot(device, savedVolumes, savedChannelVolumes) : nil
+            var snapshot = savedControls[device.uid] ?? switchSnapshot ?? [:]
             var writable: [AudioObjectPropertyAddress] = []
             for var address in addresses {
                 var settable = DarwinBoolean(false)
@@ -377,7 +379,7 @@ final class MicMuteService: ObservableObject {
                       let current = controlValue(of: device.id, at: address) else { continue }
                 let key = controlKey(address)
                 if snapshot[key] == nil {
-                    snapshot[key] = owned.contains(device.uid) && savedControls[device.uid] == nil
+                    snapshot[key] = migrating && switchSnapshot == nil
                         ? legacyRestoreValue(current, at: address, uid: device.uid,
                                              savedVolumes: savedVolumes,
                                              savedChannelVolumes: savedChannelVolumes,
@@ -436,7 +438,9 @@ final class MicMuteService: ObservableObject {
         let targets = Set(MicMuteSupport.restoreTargets(recorded: mutedDevices, present: present))
         var attempted = false
         for device in devices where targets.contains(device.uid) {
-            if let snapshot = savedControls[device.uid] {
+            let snapshot = savedControls[device.uid] ?? (mutedDevices != nil
+                ? legacySwitchSnapshot(device, savedVolumes, savedChannelVolumes) : nil)
+            if let snapshot {
                 attempted = true
                 let addresses = snapshot.keys.compactMap(controlAddress).sorted {
                     let left = controlRestoreOrder($0)
@@ -778,6 +782,25 @@ final class MicMuteService: ObservableObject {
         }
         let readBack = controlValue(of: device, at: address)
         return status == noErr || readBack.map { !controlValuesMatch($0, current) } == true
+    }
+
+    /// 3.4.3 only flipped the main switch when it worked. No gain or channel
+    /// mute belongs to that restore, even if one happens to be zero.
+    private static func legacySwitchSnapshot(_ device: InputDevice, _ savedVolumes: [String: Double],
+                                             _ savedChannelVolumes: [String: [String: Double]]) -> [String: Double]? {
+        guard savedVolumes[device.uid] == nil, savedChannelVolumes[device.uid] == nil else { return nil }
+        let main = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute,
+                                              mScope: kAudioDevicePropertyScopeInput,
+                                              mElement: kAudioObjectPropertyElementMain)
+        guard let mainMute = controlValue(of: device.id, at: main) else { return nil }
+        // Another client may already have released the switch. With gain
+        // still live and no saved levels, keep the channel mix as found.
+        // Fully zeroed, switch-off devices can still need a legacy gain restore.
+        guard mainMute == 1 || volumeAddresses(of: device.id).contains(where: { address in
+            guard let gain = controlValue(of: device.id, at: address) else { return false }
+            return gain > Double(MicMuteSupport.silenceThreshold)
+        }) else { return nil }
+        return [controlKey(main): 0]
     }
 
     /// An already-owned device may have been muted by a version without

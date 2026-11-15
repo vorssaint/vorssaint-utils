@@ -55,8 +55,17 @@ enum UninstallerBulkSelectionTests {
                          "bulk selection leaves an empty result empty and cannot enable removal")
         }
 
-        // These URLs identify rows only; this contract never opens them.
-        let appURL = URL(fileURLWithPath: "/uninstaller-bulk-fixture/Editor.app")
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.resolvingSymlinksInPath().appendingPathComponent("bulk-\(UUID())")
+        defer { try? fm.removeItem(at: root) }
+        let appURL = root.appendingPathComponent("Editor.app", isDirectory: true)
+        do {
+            try UninstallerTrashTests.writeBundle(at: appURL, id: "org.vorssaint.fixture.editor")
+            uninstaller.targetSelection = UninstallerSupport.selection(for: appURL)
+        } catch {
+            suite.expect(false, "could not create the bulk selection fixture: \(error)")
+            return
+        }
         let original = [
             Fixture.Leftover(url: appURL, category: .app, size: 100),
             Fixture.Leftover(url: appURL.appendingPathExtension("support"), category: .support, size: 20),
