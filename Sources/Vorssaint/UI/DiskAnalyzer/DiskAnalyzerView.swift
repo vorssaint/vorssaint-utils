@@ -332,6 +332,19 @@ struct DiskAnalyzerWorkspaceView: View {
             }
             .buttonStyle(.plain)
             .help(strings.rescan)
+            .accessibilityLabel(strings.rescan)
+
+            Button {
+                service.startNewScan()
+            } label: {
+                Image(systemName: "folder.badge.plus")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help(strings.newScan)
+            .accessibilityLabel(strings.newScan)
         }
         .panelCard()
     }

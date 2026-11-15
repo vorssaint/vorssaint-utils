@@ -24,6 +24,7 @@ struct DiskAnalyzerFeatureStrings {
     let scanStartupDisk: String
     let chooseFolder: String
     let rescan: String
+    let newScan: String
     let cancel: String
     let includeHidden: String
     let includeHiddenCaption: String
@@ -93,6 +94,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Scan Startup Disk",
         chooseFolder: "Choose Folder…",
         rescan: "Rescan",
+
+        newScan: "New Scan",
         cancel: "Cancel",
         includeHidden: "Include hidden files",
         includeHiddenCaption: "Counts dotfiles and other items Finder normally hides.",
@@ -139,6 +142,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Analisar disco de inicialização",
         chooseFolder: "Escolher pasta…",
         rescan: "Analisar de novo",
+
+        newScan: "Nova análise",
         cancel: "Cancelar",
         includeHidden: "Incluir arquivos ocultos",
         includeHiddenCaption: "Conta arquivos com ponto e outros itens que o Finder normalmente oculta.",
@@ -185,6 +190,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Başlangıç diskini tara",
         chooseFolder: "Klasör seç…",
         rescan: "Yeniden tara",
+
+        newScan: "Yeni tarama",
         cancel: "İptal",
         includeHidden: "Gizli dosyaları dahil et",
         includeHiddenCaption: "Finder’ın genelde gizlediği noktalı dosyaları ve diğer öğeleri sayar.",
@@ -231,6 +238,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Сканировать системный диск",
         chooseFolder: "Выбрать папку…",
         rescan: "Повторить",
+
+        newScan: "Новое сканирование",
         cancel: "Отмена",
         includeHidden: "Включать скрытые файлы",
         includeHiddenCaption: "Учитывает файлы с точкой и другое, что Finder обычно скрывает.",
@@ -277,6 +286,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Analizar disco de arranque",
         chooseFolder: "Elegir carpeta…",
         rescan: "Volver a analizar",
+
+        newScan: "Nuevo análisis",
         cancel: "Cancelar",
         includeHidden: "Incluir archivos ocultos",
         includeHiddenCaption: "Cuenta archivos con punto y otros que el Finder suele ocultar.",
@@ -323,6 +334,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Skenovať štartovací disk",
         chooseFolder: "Vybrať priečinok…",
         rescan: "Znova skenovať",
+
+        newScan: "Nové skenovanie",
         cancel: "Zrušiť",
         includeHidden: "Zahrnúť skryté súbory",
         includeHiddenCaption: "Počíta súbory s bodkou a iné položky, ktoré Finder bežne skrýva.",
@@ -369,6 +382,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Startdatenträger scannen",
         chooseFolder: "Ordner wählen…",
         rescan: "Erneut scannen",
+
+        newScan: "Neuer Scan",
         cancel: "Abbrechen",
         includeHidden: "Versteckte Dateien einbeziehen",
         includeHiddenCaption: "Zählt Punktdateien und anderes, was der Finder normalerweise ausblendet.",
@@ -415,6 +430,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Analyser le disque de démarrage",
         chooseFolder: "Choisir un dossier…",
         rescan: "Relancer",
+
+        newScan: "Nouvelle analyse",
         cancel: "Annuler",
         includeHidden: "Inclure les fichiers masqués",
         includeHiddenCaption: "Compte les fichiers point et autres éléments que le Finder masque d’habitude.",
@@ -461,6 +478,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Analizza disco di avvio",
         chooseFolder: "Scegli cartella…",
         rescan: "Ripeti analisi",
+
+        newScan: "Nuova analisi",
         cancel: "Annulla",
         includeHidden: "Includi file nascosti",
         includeHiddenCaption: "Conta i file con punto e altri elementi che il Finder di solito nasconde.",
@@ -507,6 +526,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "起動ディスクをスキャン",
         chooseFolder: "フォルダを選択…",
         rescan: "再スキャン",
+
+        newScan: "新しいスキャン",
         cancel: "キャンセル",
         includeHidden: "非表示ファイルを含める",
         includeHiddenCaption: "Finderが通常隠すドットファイルなどを含めます。",
@@ -553,6 +574,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "시동 디스크 스캔",
         chooseFolder: "폴더 선택…",
         rescan: "다시 스캔",
+
+        newScan: "새 스캔",
         cancel: "취소",
         includeHidden: "숨김 파일 포함",
         includeHiddenCaption: "Finder가 보통 숨기는 점 파일 등을 포함합니다.",
@@ -599,6 +622,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "扫描启动磁盘",
         chooseFolder: "选择文件夹…",
         rescan: "重新扫描",
+
+        newScan: "新建扫描",
         cancel: "取消",
         includeHidden: "包含隐藏文件",
         includeHiddenCaption: "统计以点开头等 Finder 通常隐藏的项目。",
@@ -645,6 +670,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "掃描開機磁碟",
         chooseFolder: "選擇檔案夾…",
         rescan: "重新掃描",
+
+        newScan: "新建掃描",
         cancel: "取消",
         includeHidden: "包含隱藏檔案",
         includeHiddenCaption: "計算以點開頭等 Finder 通常隱藏的項目。",
@@ -691,6 +718,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "掃描開機磁碟",
         chooseFolder: "選擇資料夾…",
         rescan: "重新掃描",
+
+        newScan: "新建掃描",
         cancel: "取消",
         includeHidden: "包含隱藏檔案",
         includeHiddenCaption: "計算以點開頭等 Finder 通常隱藏的項目。",
@@ -737,6 +766,8 @@ extension DiskAnalyzerFeatureStrings {
         scanStartupDisk: "Сканувати системний диск",
         chooseFolder: "Вибрати папку…",
         rescan: "Повторити",
+
+        newScan: "Нове сканування",
         cancel: "Скасувати",
         includeHidden: "Включати приховані файли",
         includeHiddenCaption: "Рахує файли з крапкою та інше, що Finder зазвичай ховає.",

@@ -192,6 +192,19 @@ final class DiskAnalyzerService: ObservableObject {
         scan(url: lastRootURL)
     }
 
+    /// Return to the folder / drive picker without keeping the current tree.
+    func startNewScan() {
+        cancellation?.cancel()
+        cancellation = nil
+        lastRootURL = nil
+        root = nil
+        selectedPath = nil
+        zoomPath = nil
+        trashError = nil
+        progress = DiskAnalyzerSupport.Progress(bytes: 0, files: 0, currentPath: "")
+        phase = .idle
+    }
+
     func cancel() {
         cancellation?.cancel()
         cancellation = nil
