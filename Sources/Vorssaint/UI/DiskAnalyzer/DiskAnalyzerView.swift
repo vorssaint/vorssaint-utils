@@ -288,8 +288,8 @@ struct DiskAnalyzerWorkspaceView: View {
             Button {
                 service.zoomOut()
             } label: {
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 11, weight: .semibold))
+                Image(systemName: "arrow.up.left")
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(service.canZoomOut ? Color.primary : Color.secondary.opacity(0.45))
                     .frame(width: 22, height: 22)
             }
