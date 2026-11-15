@@ -56,7 +56,6 @@ struct DiskAnalyzerWorkspaceView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: compact ? 8 : 0) {
-            scanControls
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -98,36 +97,48 @@ struct DiskAnalyzerWorkspaceView: View {
         }
     }
 
-    private var scanControls: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 4) {
-                iconButton("house.fill", help: strings.scanHome) {
-                    service.scanHome()
-                }
-                .disabled(service.phase == .scanning)
-
-                iconButton("internaldrive", help: strings.scanStartupDisk) {
-                    service.scanStartupDisk()
-                }
-                .disabled(service.phase == .scanning)
-
-                iconButton("folder", help: strings.chooseFolder) {
-                    service.chooseFolderAndScan()
-                }
-                .disabled(service.phase == .scanning)
-
-                Spacer(minLength: 0)
-
-                if service.phase == .scanning {
-                    iconButton("xmark", help: strings.cancel) {
-                        service.cancel()
-                    }
-                } else if service.root != nil {
-                    iconButton("arrow.clockwise", help: strings.rescan) {
-                        service.rescan()
-                    }
-                }
+    @ViewBuilder
+    private var content: some View {
+        switch service.phase {
+        case .idle:
+            startActions
+        case .scanning:
+            scanningState
+        case .failed(let message):
+            VStack(alignment: .leading, spacing: 8) {
+                Label(message, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .panelCard()
+                startActions
             }
+        case .ready:
+            if service.root != nil {
+                analyzerBody
+            } else {
+                startActions
+            }
+        }
+    }
+
+    /// Two equal start actions: pick a folder, or scan the startup disk.
+    private var startActions: some View {
+        VStack(spacing: 8) {
+            startButton(
+                title: strings.emptyTitle,
+                subtitle: strings.emptySubtitle,
+                systemImage: "folder",
+                accessibility: strings.chooseFolder,
+                action: { service.chooseFolderAndScan() }
+            )
+            startButton(
+                title: strings.scanStartupDisk,
+                subtitle: nil,
+                systemImage: "internaldrive",
+                accessibility: strings.scanStartupDisk,
+                action: { service.scanStartupDisk() }
+            )
 
             if !permissions.fullDiskAccess {
                 Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
@@ -136,38 +147,43 @@ struct DiskAnalyzerWorkspaceView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .panelCard()
     }
 
-    @ViewBuilder
-    private var content: some View {
-        switch service.phase {
-        case .idle:
-            emptyState
-        case .scanning:
-            scanningState
-        case .failed(let message):
-            failedState(message)
-        case .ready:
-            if service.root != nil {
-                analyzerBody
-            } else {
-                emptyState
+    private func startButton(title: String,
+                             subtitle: String?,
+                             systemImage: String,
+                             accessibility: String,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 14, weight: .semibold))
+                    .frame(width: 20)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 12, weight: .semibold))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                Spacer(minLength: 0)
             }
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
         }
-    }
-
-    private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(strings.emptyTitle)
-                .font(.system(size: 12, weight: .semibold))
-            Text(strings.emptySubtitle)
-                .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .panelCard()
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibility)
     }
 
     private var scanningState: some View {
@@ -180,16 +196,11 @@ struct DiskAnalyzerWorkspaceView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
+            iconButton("xmark", help: strings.cancel) {
+                service.cancel()
+            }
         }
         .panelCard()
-    }
-
-    private func failedState(_ message: String) -> some View {
-        Label(message, systemImage: "exclamationmark.triangle")
-            .font(.system(size: 10.5))
-            .foregroundStyle(.orange)
-            .fixedSize(horizontal: false, vertical: true)
-            .panelCard()
     }
 
     private var analyzerBody: some View {
@@ -248,15 +259,17 @@ struct DiskAnalyzerWorkspaceView: View {
 
             Spacer(minLength: 0)
 
+            iconButton("arrow.clockwise", help: strings.rescan) {
+                service.rescan()
+            }
+
             if let node = service.selectedNode, !node.isAggregate {
-                HStack(spacing: 2) {
-                    iconButton("arrow.up.forward.app", help: strings.revealInFinder) {
-                        service.revealSelection()
-                    }
-                    if service.canTrashSelection {
-                        iconButton("trash", help: strings.moveToTrash, tint: .red) {
-                            pendingTrash = true
-                        }
+                iconButton("arrow.up.forward.app", help: strings.revealInFinder) {
+                    service.revealSelection()
+                }
+                if service.canTrashSelection {
+                    iconButton("trash", help: strings.moveToTrash, tint: .red) {
+                        pendingTrash = true
                     }
                 }
             }
