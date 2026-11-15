@@ -390,7 +390,9 @@ enum SwitcherModelFeatureTests {
             && guarded.allSatisfy { $0.modifiers.contains(.command) }
             && !guarded.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [])),
             "session guards are bounded and never claim bare password letters")
+        var labelReads = 0
         let localized = SwitcherSupport.secureInputActionShortcuts(for: commandTab, keyLabel: { code, command, shift in
+            labelReads += 1
             if command && code == 0 { return shift ? "Q" : "q" }
             if command && code == 6 { return "W" }
             return nil
@@ -398,6 +400,8 @@ enum SwitcherModelFeatureTests {
         suite.expect(localized.contains(GlobalShortcut(keyCode: 0, modifiers: [.command, .shift]))
             && localized.contains(GlobalShortcut(keyCode: 6, modifiers: [.command])),
             "secure action guards follow the layout's Command Q/W positions")
+        suite.expect(labelReads <= 2 * 128,
+            "opening Command-Tab under secure input scans each Command/Shift table at most once")
         let optionGuards = SwitcherSupport.secureInputActionShortcuts(for: optionTab, keyLabel: { _, _, _ in nil })
         suite.expect(optionGuards.allSatisfy { $0.modifiers.contains(.option) }
             && optionGuards.contains(GlobalShortcut(keyCode: Int64(kVK_ANSI_Q), modifiers: [.option, .command])),
@@ -649,8 +653,8 @@ enum SwitcherModelFeatureTests {
                 suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
                        && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
-                       && BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                          writeOnlyPaths: Set(recheckedPaths)),
+                       && BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                          rememberedPaths: Set(recheckedPaths)),
                        "the checksum fix reopens cached paths with the paired recheck flag \(pairedRecheckCompleted)")
                 suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
                        == ["manual|port"]
@@ -663,8 +667,8 @@ enum SwitcherModelFeatureTests {
                 let laterPaths = migrationDefaults.stringArray(
                     forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) ?? []
                 suite.expect(laterPaths == ["display|port"]
-                       && !BrightnessSupport.shouldProbeDDC(pathKey: "display|port",
-                                                           writeOnlyPaths: Set(laterPaths)),
+                       && !BrightnessSupport.shouldProbe(pathKey: "display|port",
+                                                           rememberedPaths: Set(laterPaths)),
                        "the checksum recheck runs once and keeps later write-only verdicts")
             }
 
@@ -2466,23 +2470,24 @@ enum SwitcherModelFeatureTests {
                "update showcase intro starts unseen")
         suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
                "update showcase media override is empty by default")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
-               "support prompt is deliberately pinned to the 3.4.3 stable release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.3.2")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: nil),
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.4",
+               "support prompt is deliberately pinned to the 3.4.4 stable release")
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: "3.3.2")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: nil),
                "support prompt shows once after updating to its pinned release")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.0-support")
-               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.2-support"),
-               "people who completed the 3.4.2 invitation receive the 3.4.3 invitation")
-        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: "3.4.2-support")
+               && SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: "3.4.3-support"),
+               "people who completed the previous invitation receive the 3.4.4 invitation")
+        suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.5", lastSeenVersion: SupportUpdateIntroInfo.seenVersion)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
                "support prompt stays hidden after it is seen, through later patches")
-        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: "3.4.3"),
+        suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4", lastSeenVersion: "3.4.4"),
                "premature support markers from beta onboarding do not suppress the stable invitation")
         suite.expect(!SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.0", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.2", lastSeenVersion: nil)
-               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3-beta.2", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.3", lastSeenVersion: nil)
+               && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.4-beta.2", lastSeenVersion: nil)
                && !SupportUpdateIntroInfo.shouldShow(appVersion: "3.5.0", lastSeenVersion: nil),
                "support prompt never leaks into another release or a beta")
         suite.expect(AppInfo.discordURL.absoluteString == "https://discord.gg/M6BwWH4BJp",
@@ -2497,13 +2502,13 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.4.3",
+        suite.expect(plistVersion == "3.4.4",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "105",
+        suite.expect(plistBuild == "106",
                "every app version needs its own incremented bundle build")
-        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.3",
-               "the support prompt is prepared for the 3.4.3 stable release")
+        suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.4",
+               "the support prompt is prepared for the 3.4.4 stable release")
         suite.expect(UpdateHighlightsInfo.releaseVersion == "3.4.0",
                "the stable release has its own tour marker without changing the installed version")
         for version in ["3.4.0-beta.1", "3.4.0-beta.2", "3.4.0-beta.2.1", "3.4.0-beta.3", "3.4.0-beta.4", "3.4.0-beta.5", "3.4.0-beta.6", "3.4.0-beta.7", "3.4.0-beta.10"] {
@@ -2528,11 +2533,11 @@ enum SwitcherModelFeatureTests {
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil),
                    "previewing from the current build and other release cycles cannot consume the future beta tour")
         }
-        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.10", "3.4.99"] {
+        for version in ["3.4.0", "3.4.1", "3.4.2", "3.4.3", "3.4.4", "3.4.10", "3.4.99"] {
             suite.expect(UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: nil)
                    && UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.betaSeenVersion)
-                   && (["3.4.0", "3.4.1", "3.4.2"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
-                   "direct hotfix upgraders still receive the stable tour and, from 3.4.3, the support invitation")
+                   && (["3.4.0", "3.4.1", "3.4.2", "3.4.3"].contains(version) || SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: "3.4.0")),
+                   "direct hotfix upgraders still receive the stable tour and, from 3.4.4, the support invitation")
             suite.expect(UpdateHighlightsInfo.seenVersion(for: version) == UpdateHighlightsInfo.releaseVersion
                    && !UpdateHighlightsInfo.shouldShow(appVersion: version, lastSeenVersion: UpdateHighlightsInfo.releaseVersion)
                    && !SupportUpdateIntroInfo.shouldShow(appVersion: version, lastSeenVersion: SupportUpdateIntroInfo.seenVersion),
@@ -2596,6 +2601,12 @@ enum SwitcherModelFeatureTests {
                     == ScrollWheelSupport.defaultLinesPerNotch
                 && registeredDefaults[DefaultsKey.panelControlLinearScroll] as? Bool == true,
                "linear scrolling is opt-in, starts at the default notch and shows in the panel when installed")
+        suite.expect(registeredDefaults[DefaultsKey.scrollSpeedEnabled] as? Bool == false
+                && registeredDefaults[DefaultsKey.scrollSpeedModifier] as? String
+                    == ScrollHorizontalModifier.option.rawValue
+                && registeredDefaults[DefaultsKey.scrollSpeedMultiplier] as? Int
+                    == ScrollWheelSupport.defaultSpeedMultiplier,
+               "modifier-held scroll speed is opt-in with Option and a 3× default")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceEnabled] as? Bool == false,
                "mouse click debounce is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.mouseClickDebounceWindowMs] as? Int

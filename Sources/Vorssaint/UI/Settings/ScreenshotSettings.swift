@@ -5,6 +5,7 @@ import SwiftUI
 
 /// Screenshot-specific sections inside the shared screen-capture page.
 struct ScreenshotCaptureSettings: View {
+    var tool: ScreenCaptureTool = .screenshot
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = ScreenshotService.shared
@@ -15,6 +16,7 @@ struct ScreenshotCaptureSettings: View {
     private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
     private var clipboardShortcutEnabled = false
+    @AppStorage(DefaultsKey.screenshotScrollingAutoScroll) private var autoScroll = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
     @AppStorage(DefaultsKey.screenshotHideVorssaintWindows) private var hideVorssaintWindows = true
     @AppStorage(DefaultsKey.screenshotSaveFolder) private var saveFolder = ""
@@ -59,25 +61,27 @@ struct ScreenshotCaptureSettings: View {
     var body: some View {
         Group {
             Section {
-                HStack(spacing: 10) {
-                    Button {
-                        ScreenshotService.shared.capture()
-                    } label: {
-                        Label(strings.captureButton, systemImage: "camera.viewfinder")
-                            .frame(maxWidth: .infinity)
-                    }
-                    Button {
-                        ScreenshotService.shared.captureScrolling()
-                    } label: {
-                        Label(strings.scrollingCaptureButton, systemImage: "rectangle.stack")
-                            .frame(maxWidth: .infinity)
-                    }
+                Button {
+                    ScreenCaptureService.shared.capture(initial: tool)
+                } label: {
+                    Label(tool == .scrolling ? strings.scrollingCaptureButton : strings.captureButton,
+                          systemImage: tool.systemImageName)
+                        .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                Text(strings.panelCaption)
+                Text(tool == .scrolling ? strings.scrollingCaptureCaption : strings.panelCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                if tool == .scrolling {
+                    Toggle(strings.scrollingAutoScrollToggle, isOn: $autoScroll)
+                    Text(strings.scrollingAutoScrollCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if autoScroll, !permissions.accessibility {
+                        PermissionRow(kind: .accessibility)
+                    }
+                }
                 Toggle(strings.fullScreenShortcutTitle, isOn: $fullScreenShortcutEnabled)
                     .onChange(of: fullScreenShortcutEnabled) { _, _ in
                         ScreenshotService.shared.syncWithPreferences()
@@ -122,15 +126,17 @@ struct ScreenshotCaptureSettings: View {
                     PermissionRow(kind: .screenRecording)
                 }
             } header: {
-                Text(strings.pageTitle)
+                Text(tool.settingsTitle(l10n.s, language: l10n.language))
             }
-            .settingsFormSectionAnchor(.screenshot)
+            .settingsFormSectionAnchor(tool == .scrolling ? .screenshotScrolling : .screenshot)
 
             Section {
-                Toggle(strings.freezeToggle, isOn: $freeze)
-                Text(strings.freezeCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if tool != .scrolling {
+                    Toggle(strings.freezeToggle, isOn: $freeze)
+                    Text(strings.freezeCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Toggle(strings.hideVorssaintWindowsToggle, isOn: $hideVorssaintWindows)
                 Picker(strings.delayLabel, selection: $delay) {
                     ForEach(ScreenshotSupport.allowedDelays, id: \.self) { seconds in
@@ -142,7 +148,9 @@ struct ScreenshotCaptureSettings: View {
                     }
                 }
                 .pickerStyle(.segmented)
-                Toggle(strings.pointerToggle, isOn: $includePointer)
+                if tool != .scrolling {
+                    Toggle(strings.pointerToggle, isOn: $includePointer)
+                }
                 Toggle(strings.lastRegionToggle, isOn: $showLastRegion)
                 Toggle(strings.highlightWindowsToggle, isOn: $highlightWindows)
                 Text(strings.highlightWindowsCaption)

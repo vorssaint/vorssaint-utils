@@ -50,7 +50,8 @@ enum NotchPresentationRefreshContract {
             }
         }
     }
-    enum NotchContentTransition { case none, reveal, depart, replace }
+    enum NotchContentTransition { case none, reveal, dismiss, depart, replace }
+    private static let volume = NotchNotice(event: .volume, title: "Volume", detail: "50%", symbol: "speaker", level: 0.5)
     struct NotchPlayback { let track: Int }
     struct NotchArtworkTint { let value: Int }
     final class NotchMusicService {
@@ -143,7 +144,7 @@ enum NotchPresentationRefreshContract {
                      revealFromHidden: Bool, usesGlass: Bool, steady: Bool) {
             transitions.append(transitionContent)
             self.steady = steady
-            departsContent = transitionContent == .depart
+            departsContent = transitionContent == .depart && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
             self.usesGlass = usesGlass
             self.revealFromHidden = revealFromHidden
             onPresent?(size)
@@ -220,7 +221,10 @@ enum NotchPresentationRefreshContract {
         var departingMusic: NotchCompactMusicSnapshot?
         var musicDepartureWork: DispatchWorkItem?
         var noticeExpanded = false
-        var notice: Bool?
+        var notice: NotchNotice?, departingNotice: NotchNotice?
+        var noticeWork: DispatchWorkItem?, departureWork: DispatchWorkItem?
+        func mascotNoticeBridgeBackStart(from ending: NotchNotice?) -> CGFloat? { nil }
+        func bridgeMascotHome(from offset: CGFloat) {}
         var captureControls: CaptureOptions?
         var captureControlsCollapsed = false, captureSelectionInProgress = false
         var inside = false, trackingMenu = false
@@ -363,7 +367,7 @@ enum NotchPresentationRefreshContract {
         // Whatever takes the strip's place ends the part under the pointer, and
         // with the pointer off the island, the strip's name and held song.
         for hide: (Service) -> Void in [{ $0.expanded = true; $0.compactActivityIsVisible = false },
-                                        { $0.notice = true; $0.compactActivityIsVisible = false },
+                                        { $0.notice = volume; $0.compactActivityIsVisible = false },
                                         { $0.compactActivity = .timer }] {
             for stays in [false, true] {
                 let hidden = Service()
@@ -425,6 +429,24 @@ enum NotchPresentationRefreshContract {
             UserDefaults.standard.hides = false
             UserDefaults.standard.outline = false
         }
+        for reduceMotion in [false, true] {
+            NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = reduceMotion
+            let service = Service()
+            service.expanded = false
+            service.notice = volume
+            service.refreshPresentation()
+            service.dismissNotice()
+            if !reduceMotion {
+                suite.expect(service.stripNotice == volume && service.windowHost?.activationRect == .zero,
+                             "the outgoing notice button keeps clicks until its fade finishes")
+                DispatchQueue.main.advance(NotchMotion.departureHidden)
+            }
+            suite.expect(service.stripNotice == nil && service.windowHost?.activationRect.isEmpty == false,
+                         "the normal activation button returns when the outgoing notice leaves")
+            service.windowHost?.activate?()
+            suite.expect(service.expanded, "the restored native button opens the island")
+        }
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion = false
         let outlined = Service()
         outlined.expanded = false
         UserDefaults.standard.outline = true
@@ -751,7 +773,7 @@ enum NotchPresentationRefreshContract {
             if !isPhysical { hidden.geometry = simulated.geometry }
             hidden.expanded = false
             hidden.compactActivityIsVisible = true
-            hidden.notice = true
+            hidden.notice = volume
             hidden.refreshPresentation()
             suite.expect(hidden.panel?.isVisible == false && !hidden.edgeClicksEnabled && !hidden.showsSystemFeedback,
                    "hidden mode withdraws the entire window, including compact activity and an existing notice")
@@ -796,7 +818,7 @@ enum NotchPresentationRefreshContract {
             waiting.compactActivityIsVisible = false
             waiting.refreshPresentation()
             suite.expect(waiting.panel?.isVisible == false, "a hidden island goes out of sight again once the activity ends")
-            waiting.notice = true
+            waiting.notice = volume
             waiting.refreshPresentation()
             suite.expect(waiting.panel?.isVisible == showsActivity,
                    "a notice brings a hidden island into view only when it is set to show activity")

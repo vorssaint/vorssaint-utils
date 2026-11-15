@@ -212,10 +212,11 @@ enum CommandBarCatalog {
                                        language: AppLanguage,
                                        bar: CommandBarFeatureStrings,
                                        automationDenied: Bool) -> [CommandBarEntry] {
-        actionEntries(s, language: language, bar: bar, automationDenied: automationDenied)
-            + toggleEntries(s, language: language, bar: bar)
-            + systemAnswerEntries(s, bar: bar)
-            + settingsEntries(s, language: language, bar: bar)
+        var actions = actionEntries(s, language: language, bar: bar, automationDenied: automationDenied)
+        let settings = settingsEntries(SettingsDirectory.searchItems(s, language: language),
+                                      language: language, settingsTitle: s.settingsTitle, actions: &actions)
+        return actions + toggleEntries(s, language: language, bar: bar)
+            + systemAnswerEntries(s, bar: bar) + settings
     }
 
     /// Read both languages from the same definitions, including live action
@@ -349,6 +350,7 @@ enum CommandBarCatalog {
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
             let screenshot = FeatureStrings.screenshot(language)
+            let autoScroll = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotScrollingAutoScroll)
             entries.append(CommandBarEntry(
                 id: "action.screenshot",
                 title: screenshot.pageTitle,
@@ -362,7 +364,8 @@ enum CommandBarCatalog {
                 title: screenshot.scrollingCaptureTitle,
                 subtitle: area(.screenshot, under: screenshot.pageTitle),
                 icon: .symbol("rectangle.stack"),
-                trouble: Permissions.shared.screenRecording && Permissions.shared.accessibility
+                shortcut: roleShortcut(.screenshotScrolling),
+                trouble: Permissions.shared.screenRecording && (!autoScroll || Permissions.shared.accessibility)
                     ? nil : .needsPermission,
                 run: { _ in afterBeat { ScreenshotService.shared.captureScrolling() } }))
         }
@@ -892,44 +895,54 @@ enum CommandBarCatalog {
 
     // MARK: - Settings pages
 
-    /// Pages an action row already opens; listing them again would put two
-    /// rows in the list that lead to the same place.
-    private static let pagesCoveredByActions: Set<SettingsPage> = [
-        .general, .cleaner, .uninstaller, .appUpdates,
-    ]
+    /// Collect only visible labels, under the row that actually opens their control.
+    private static func settingsEntries(_ items: [SettingsSearchItem], language: AppLanguage,
+                                        settingsTitle: String, actions: inout [CommandBarEntry],
+                                        isAvailable: @escaping (AppFeature) -> Bool = { $0.isAvailable }) -> [CommandBarEntry] {
+        var rows = items.filter { item in
+            guard FeatureVisibilitySupport.isPageVisible(item.destination.page, isAvailable: isAvailable)
+            else { return false }
+            if case .page = item.id { return true }
+            return item.feature.map(isAvailable) ?? true
+        }
+        var labels: [SettingsSearchItem.ID: [String]] = [:]
+        for item in rows {
+            for group in item.terms where group.isVisible(isAvailable) && !group.titles.isEmpty {
+                let target = group.item(on: item)
+                if case .notch(let location) = target.id, labels[target.id] == nil {
+                    rows.append(SettingsSearchItem(id: target.id, destination: target.destination,
+                                                   title: location.title(language), icon: target.icon))
+                }
+                labels[target.id, default: []].append(contentsOf: group.titles)
+            }
+        }
 
-    private static func settingsEntries(_ s: Strings,
-                                        language: AppLanguage,
-                                        bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
-        SettingsDirectory.searchItems(s, language: language).compactMap { item in
+        // These actions only navigate. Checking for app updates also starts a scan,
+        // so its preferences get their own navigation row.
+        let navigationActions: [SettingsPage: String] = [
+            .general: "action.openSettings", .cleaner: "action.cleaner", .uninstaller: "action.uninstaller",
+        ]
+        return rows.compactMap { item in
+            let keywords = SettingsSearchSupport.commandKeywords([item.title] + (labels[item.id] ?? []))
             let id: String
             switch item.id {
             case .page(let page):
-                guard !pagesCoveredByActions.contains(page),
-                      FeatureVisibilitySupport.isPageVisible(page, isAvailable: { $0.isAvailable })
-                else { return nil }
+                if let actionID = navigationActions[page],
+                   let index = actions.firstIndex(where: { $0.id == actionID }) {
+                    actions[index].keywords += " " + keywords
+                    return nil
+                }
                 id = "settings.\(page)"
-            case .feature(let feature):
-                guard feature.isAvailable,
-                      FeatureVisibilitySupport.isPageVisible(
-                        item.destination.page, isAvailable: { $0.isAvailable })
-                else { return nil }
-                id = "settings.feature.\(feature.rawValue)"
-            case .setting(let anchor):
-                guard item.feature.map(\.isAvailable) ?? true,
-                      FeatureVisibilitySupport.isPageVisible(
-                        item.destination.page, isAvailable: { $0.isAvailable })
-                else { return nil }
-                id = "settings.setting.\(anchor.rawValue)"
+            case .feature(let feature): id = "settings.feature.\(feature.rawValue)"
+            case .setting(let anchor): id = "settings.setting.\(anchor.rawValue)"
+            case .notch(let location): id = "settings.notch.\(location.id)"
             }
             return CommandBarEntry(
-                id: id,
-                title: item.title,
-                subtitle: s.settingsTitle,
-                keywords: item.keywords.joined(separator: " "),
-                icon: .symbol(item.icon),
+                id: id, title: item.title,
+                subtitle: item.destination.notchLocation == nil ? settingsTitle : FeatureStrings.notch(language).title,
+                keywords: keywords, icon: .symbol(item.icon),
                 run: { _ in
-                    let routed = SettingsSearchSupport.route(for: item)
+                    let routed = SettingsSearchSupport.route(for: item, isAvailable: isAvailable)
                     openSettings(at: routed.destination, targetFeature: routed.targetFeature,
                                  sidebarFeature: item.feature)
                 })

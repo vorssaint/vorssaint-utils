@@ -38,6 +38,9 @@ enum DefaultsKey {
     static let keepAwakePauseWhenLocked = "keepAwakePauseWhenLocked"
     static let keepAwakeSwitchUsesUntil = "keepAwakeSwitchUsesUntil" // panel switch restarts the Until chip
     static let keepAwakeUntilTime = "keepAwakeUntilTime"  // last picked end time; 0 = none yet
+    // The running manual session's end (0 = indefinite) and selected preset, if any.
+    // Absent when there is no session to resume. Live state, never backed up.
+    static let keepAwakeSessionEnd = "keepAwakeSessionEnd"
     static let keepAwakeMouseJiggleEnabled = "keepAwakeMouseJiggleEnabled"
     static let keepAwakeMouseJiggleInterval = "keepAwakeMouseJiggleIntervalMinutes"
     static let hotkeyEnabled = "hotkeyEnabled"
@@ -67,6 +70,9 @@ enum DefaultsKey {
     static let linearScrollLines = "linearScrollLines"     // lines per wheel notch while linear scrolling is on
     static let linearScrollHorizontalSeparate = "linearScrollHorizontalSeparate" // a sideways wheel gets its own lines per notch (issue #403)
     static let linearScrollHorizontalLines = "linearScrollHorizontalLines" // lines per sideways notch while that is on
+    static let scrollSpeedEnabled = "scrollSpeedEnabled"   // hold a modifier to multiply mouse wheel distance (issue #521)
+    static let scrollSpeedModifier = "scrollSpeedModifier"
+    static let scrollSpeedMultiplier = "scrollSpeedMultiplier"
     static let mouseAccelerationDisabled = "mouseAccelerationDisabled" // sets HIDMouseAcceleration to -1 for mice
     static let smoothScrollResponse = "smoothScrollResponse" // 0...100, higher follows the wheel sooner
     static let smoothScrollCoast = "smoothScrollCoast" // 0...100, higher coasts the same distance out longer
@@ -89,6 +95,7 @@ enum DefaultsKey {
     // One list of bundle ids per mouse feature: apps it leaves alone (issue #358).
     static let smoothScrollExceptions = "smoothScrollExceptions"
     static let linearScrollExceptions = "linearScrollExceptions"
+    static let scrollSpeedExceptions = "scrollSpeedExceptions"
     static let scrollInverterExceptions = "scrollInverterExceptions"
     static let mouseNavigationExceptions = "mouseNavigationExceptions"
     static let mouseButtonExceptions = "mouseButtonExceptions"
@@ -222,6 +229,9 @@ enum DefaultsKey {
     static let brightnessControlEnabled = "brightnessControlEnabled" // sliders for every display
     static let brightnessKeysEnabled = "brightnessKeysEnabled" // brightness keys act on the display under the pointer
     static let brightnessOSDEnabled = "brightnessOSDEnabled" // brightness adjustment overlay
+    static let ddcVolumeStep = "ddcVolumeStep" // Double percent of the monitor's range per key press
+    static let ddcVolumeMinimum = "ddcVolumeMinimum" // Int percent the volume keys stop at
+    static let ddcVolumeMaximum = "ddcVolumeMaximum" // Int percent the volume keys stop at
     static let brightnessKeyStep = "brightnessKeyStep" // BrightnessSupport.KeyStep raw value
     static let displayBrightnessShortcutsEnabled = "displayBrightnessShortcutsEnabled"
     static let displayBrightnessDecreaseShortcut = "displayBrightnessDecreaseShortcut"
@@ -233,6 +243,13 @@ enum DefaultsKey {
     // answer reads. Kept local so wake handling does not repeatedly probe a
     // sensitive display path.
     static let brightnessDDCWriteOnlyPaths = "brightnessDDCWriteOnlyPaths"
+    static let displayVolumeEnabled = "displayVolumeEnabled" // speakers built into external monitors
+    static let displayVolumeKeysEnabled = "displayVolumeKeysEnabled" // volume keys reach those speakers
+    // Per-monitor connection paths whose display answered the audio controls
+    // with no speakers behind them. Remembered for the same reason as the
+    // write-only paths: two extra reads on a bus paced in tens of
+    // milliseconds are not worth repeating on every scan.
+    static let displayAudioSilentPaths = "displayAudioSilentPaths"
     // Set once the paths cached before paired discovery requests have been
     // dropped, so a monitor written off then is classified again exactly once.
     static let brightnessDDCWriteOnlyPathsRechecked = "brightnessDDCWriteOnlyPathsRechecked"
@@ -321,6 +338,7 @@ enum DefaultsKey {
     static let panelUtilityURLCleaner = "panelUtilityURLCleaner"
     static let panelUtilityUninstaller = "panelUtilityUninstaller"
     static let uninstallerCommandBarEnabled = "uninstallerCommandBarEnabled"
+    static let uninstallerWatchesTrash = "uninstallerWatchesTrash"
     static let killProcessCommandBarEnabled = "killProcessCommandBarEnabled"
     static let killProcessGroupRelated = "killProcessGroupRelated"
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
@@ -678,6 +696,10 @@ enum DefaultsKey {
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
     static let screenshotShortcut = "screenshotShortcut"
+    static let screenshotScrollingAutoScroll = "screenshotScrollingAutoScroll"
+    static let screenshotScrollingShortcutEnabled = "screenshotScrollingShortcutEnabled"
+    static let screenshotScrollingShortcut = "screenshotScrollingShortcut"
+    static let screenshotScrollingShowCaptureMenuOnShortcut = "screenshotScrollingShowCaptureMenuOnShortcut"
     static let unifiedScreenCaptureShortcutMigrated = "unifiedScreenCaptureShortcutMigrated"
     static let restoredScreenCaptureShortcutsMigrated = "restoredScreenCaptureShortcutsMigrated"
     static let orphanedCaptureShortcutMigrated = "orphanedCaptureShortcutMigrated"
@@ -1063,11 +1085,11 @@ enum SupportUpdateIntroInfo {
     /// The stable release that gets this invitation, and the patches after it,
     /// which share one completion marker. The next stable update also includes
     /// people who completed the previous invitation.
-    static let releaseVersion = "3.4.3"
+    static let releaseVersion = "3.4.4"
 
     // Older beta onboarding wrote the release version before this screen was
     // available. A distinct completion marker keeps those upgraders eligible.
-    static let seenVersion = "3.4.3-support"
+    static let seenVersion = "3.4.4-support"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
@@ -1262,6 +1284,9 @@ enum Defaults {
         DefaultsKey.linearScrollLines: ScrollWheelSupport.defaultLinesPerNotch,
         DefaultsKey.linearScrollHorizontalSeparate: false,
         DefaultsKey.linearScrollHorizontalLines: ScrollWheelSupport.defaultLinesPerNotch,
+        DefaultsKey.scrollSpeedEnabled: false,
+        DefaultsKey.scrollSpeedModifier: ScrollHorizontalModifier.option.rawValue,
+        DefaultsKey.scrollSpeedMultiplier: ScrollWheelSupport.defaultSpeedMultiplier,
         DefaultsKey.mouseAccelerationDisabled: false,
         DefaultsKey.smoothScrollResponse: SmoothScrollSupport.defaultResponse,
         DefaultsKey.smoothScrollCoast: SmoothScrollSupport.defaultCoast,
@@ -1279,6 +1304,7 @@ enum Defaults {
         DefaultsKey.superKeySoloAction: SuperKeySoloAction.none.rawValue,
         DefaultsKey.smoothScrollExceptions: [String](),
         DefaultsKey.linearScrollExceptions: [String](),
+        DefaultsKey.scrollSpeedExceptions: [String](),
         DefaultsKey.scrollInverterExceptions: [String](),
         DefaultsKey.focusFollowsMouseExceptions: [String](),
         DefaultsKey.mouseNavigationExceptions: [String](),
@@ -1391,6 +1417,11 @@ enum Defaults {
         DefaultsKey.brightnessControlEnabled: false,
         DefaultsKey.brightnessKeysEnabled: false,
         DefaultsKey.brightnessOSDEnabled: false,
+        DefaultsKey.displayVolumeEnabled: false,
+        DefaultsKey.displayVolumeKeysEnabled: false,
+        DefaultsKey.ddcVolumeStep: MonitorVolumeKeySettings.defaultStepPercent,
+        DefaultsKey.ddcVolumeMinimum: 0,
+        DefaultsKey.ddcVolumeMaximum: 100,
         DefaultsKey.brightnessKeyStep: BrightnessSupport.KeyStep.standard.rawValue,
         DefaultsKey.displayBrightnessShortcutsEnabled: false,
         DefaultsKey.displayBrightnessDecreaseShortcut: "shift+command:27",
@@ -1596,6 +1627,7 @@ enum Defaults {
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
         DefaultsKey.uninstallerCommandBarEnabled: false,
+        DefaultsKey.uninstallerWatchesTrash: false,
         DefaultsKey.killProcessCommandBarEnabled: true,
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",
@@ -1904,6 +1936,10 @@ enum Defaults {
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
         DefaultsKey.colorPickerShowCaptureMenuOnShortcut: true,
+        DefaultsKey.screenshotScrollingAutoScroll: false,
+        DefaultsKey.screenshotScrollingShortcutEnabled: false,
+        DefaultsKey.screenshotScrollingShortcut: GlobalShortcut.screenshotScrollingDefault.storageValue,
+        DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenshotShortcutEnabled: false,
         DefaultsKey.screenshotShortcut: GlobalShortcut.screenshotDefault.storageValue,
         DefaultsKey.unifiedScreenCaptureShortcutMigrated: false,
