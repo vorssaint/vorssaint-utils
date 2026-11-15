@@ -214,12 +214,6 @@ struct DiskAnalyzerWorkspaceView: View {
                     action: { service.scanHome() }
                 )
             }
-            if !permissions.fullDiskAccess {
-                Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
         }
     }
 
