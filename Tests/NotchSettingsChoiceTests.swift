@@ -20,7 +20,8 @@ enum NotchSettingsChoiceTests {
         let column = 16 + settingsRowTextInset
         let indentedColumn = column + settingsRowTextInset
         for (language, _) in LocalizationTests.languages {
-            let destinations = [FeatureStrings.notch(language).files, FeatureStrings.clipboard(language).title,
+            let strings = Strings.localized(language)
+            let destinations = [strings.launcherName, strings.shelfName, FeatureStrings.clipboard(language).title,
                                 FeatureStrings.scratchpad(language).pageTitle]
             let choices = destinations.map { ($0, AnyView(Destination(language: language, title: $0))) }
                 + [(FeatureStrings.notchAgents(language).limitsAs, AnyView(Limits(language: language))),

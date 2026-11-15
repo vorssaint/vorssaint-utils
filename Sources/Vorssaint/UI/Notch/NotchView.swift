@@ -831,9 +831,9 @@ extension NotchModule: PanelOrderItem {
         case .music: return FeatureStrings.radialMenu(language).mediaNowPlaying
         case .clipboard: return FeatureStrings.clipboard(language).title
         case .captures: return FeatureStrings.recentCaptures(language).title
-        case .files: return FeatureStrings.notch(language).files
+        case .files: return Strings.localized(language).shelfName
         case .system: return FeatureStrings.notch(language).system
-        case .tools: return FeatureStrings.notch(language).tools
+        case .tools: return Strings.localized(language).launcherName
         case .scratchpad: return FeatureStrings.scratchpad(language).pageTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .watch: return FeatureStrings.notchWatch(language).title
