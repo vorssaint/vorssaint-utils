@@ -49,36 +49,49 @@ struct MediaDownloaderView: View {
     private var selectedQuality: Int? { selectedHeight == 0 ? nil : selectedHeight }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: compact ? 10 : 16) {
-                heading
-                if !service.dependencies.areReady {
-                    dependencyCard
-                } else {
-                    linkCard
-                    batchCard
-                    if let metadata = service.metadata { downloadCard(metadata) }
-                    if service.isDownloading { progressCard }
-                    if let error = service.errorMessage { messageCard(error, symbol: "exclamationmark.triangle", tint: .orange) }
-                    historyCard
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: compact ? 10 : 16) {
+                    heading
+                    if !service.dependencies.areReady {
+                        dependencyCard
+                    } else {
+                        linkCard
+                        if let metadata = service.metadata {
+                            downloadCard(metadata)
+                                .id("media-downloader-result")
+                        }
+                        if service.isDownloading { progressCard }
+                        if let error = service.errorMessage {
+                            messageCard(error, symbol: "exclamationmark.triangle", tint: .orange)
+                        }
+                        batchCard
+                        historyCard
+                    }
+                }
+                .frame(maxWidth: compact ? .infinity : 700, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(compact ? 0 : 22)
+            }
+            .scrollIndicators(compact ? .hidden : .automatic)
+            .onAppear { service.refreshDependencies() }
+            .onChange(of: homebrew.operationStatus?.finishedAt) { _, finishedAt in
+                guard finishedAt != nil else { return }
+                service.refreshDependencies()
+            }
+            .onChange(of: service.metadata) { _, metadata in
+                if let metadata, !metadata.videoQualities.contains(selectedHeight) {
+                    selectedHeight = 0
+                }
+                guard metadata != nil else { return }
+                DispatchQueue.main.async {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        proxy.scrollTo("media-downloader-result", anchor: .top)
+                    }
                 }
             }
-            .frame(maxWidth: compact ? .infinity : 700, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(compact ? 0 : 22)
+            .onDisappear { inspectTask?.cancel() }
         }
-        .scrollIndicators(compact ? .hidden : .automatic)
-        .onAppear { service.refreshDependencies() }
-        .onChange(of: homebrew.operationStatus?.finishedAt) { _, finishedAt in
-            guard finishedAt != nil else { return }
-            service.refreshDependencies()
-        }
-        .onChange(of: service.metadata) { _, metadata in
-            if let metadata, !metadata.videoQualities.contains(selectedHeight) {
-                selectedHeight = 0
-            }
-        }
-        .onDisappear { inspectTask?.cancel() }
     }
 
     private var heading: some View {
