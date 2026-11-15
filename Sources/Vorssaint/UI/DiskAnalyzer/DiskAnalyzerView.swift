@@ -273,7 +273,7 @@ struct DiskAnalyzerWorkspaceView: View {
                 onTrash: requestTrash
             )
             .frame(maxWidth: .infinity)
-            .frame(height: inNotch ? 240 : 220)
+            .frame(height: treemapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .id("\(service.zoomPath ?? service.root?.path ?? "")-\(service.nestingDepth)")
 
@@ -281,6 +281,14 @@ struct DiskAnalyzerWorkspaceView: View {
                 itemList
             }
         }
+    }
+
+    private var treemapHeight: CGFloat {
+        guard inNotch else { return DiskAnalyzerSupport.panelTreemapHeight }
+        if service.phase == .ready, service.root != nil {
+            return DiskAnalyzerSupport.islandResultsTreemapHeight
+        }
+        return DiskAnalyzerSupport.islandIdleTreemapHeight
     }
 
     private var navigationBar: some View {

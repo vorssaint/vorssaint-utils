@@ -33,6 +33,9 @@ final class DiskAnalyzerService: ObservableObject {
     @Published private(set) var trashError: String?
     /// Bumped when Command Bar (or another launcher) should open the panel host.
     @Published private(set) var panelPresentationID = 0
+    /// Non-nil while Utilities hosts Disk Analyzer in the Dynamic Island and
+    /// a scan has results, so the island can grow past the usual page budget.
+    @Published private(set) var islandContentHeight: CGFloat?
     @Published var includeHidden: Bool {
         didSet { UserDefaults.standard.set(includeHidden, forKey: DefaultsKey.diskAnalyzerIncludeHidden) }
     }
@@ -54,6 +57,8 @@ final class DiskAnalyzerService: ObservableObject {
     private var cancellation: DiskAnalyzerSupport.ScanCancellation?
     private let worker = DispatchQueue(label: "com.vorssaint.utils.disk-analyzer", qos: .userInitiated)
     private var lastRootURL: URL?
+    /// True while `PanelDiskAnalyzerView` is on screen inside the island.
+    private var hostedInIsland = false
 
     private init() {
         let defaults = UserDefaults.standard
@@ -68,6 +73,27 @@ final class DiskAnalyzerService: ObservableObject {
     func presentInMenuPanel() {
         panelPresentationID &+= 1
         appDelegate()?.openUtilitiesPanel()
+    }
+
+    /// The island page reports whether Disk Analyzer is currently hosted
+    /// there so results can enlarge the silhouette without affecting the
+    /// floating menu panel.
+    func setHostedInIsland(_ hosted: Bool) {
+        guard hostedInIsland != hosted else { return }
+        hostedInIsland = hosted
+        publishIslandContentHeight()
+    }
+
+    private func publishIslandContentHeight() {
+        let next: CGFloat?
+        if hostedInIsland, phase == .ready, root != nil {
+            next = DiskAnalyzerSupport.islandResultsContentHeight
+        } else {
+            next = nil
+        }
+        guard islandContentHeight != next else { return }
+        islandContentHeight = next
+        NotchService.shared.refreshPresentation()
     }
 
     var selectedNode: DiskAnalyzerSupport.Node? {
@@ -143,6 +169,7 @@ final class DiskAnalyzerService: ObservableObject {
         zoomPath = nil
         trashError = nil
         progress = DiskAnalyzerSupport.Progress(bytes: 0, files: 0, currentPath: standardized.path)
+        publishIslandContentHeight()
 
         let token = DiskAnalyzerSupport.ScanCancellation()
         cancellation = token
@@ -173,16 +200,19 @@ final class DiskAnalyzerService: ObservableObject {
                 self.cancellation = nil
                 if token.isCancelled {
                     if self.phase == .scanning { self.phase = .idle }
+                    self.publishIslandContentHeight()
                     return
                 }
                 guard let tree else {
                     self.phase = .failed(FeatureStrings.diskAnalyzer(L10n.shared.language).scanFailed)
+                    self.publishIslandContentHeight()
                     return
                 }
                 self.progress.bytes = tree.size
                 self.root = tree
                 self.zoomPath = tree.path
                 self.phase = .ready
+                self.publishIslandContentHeight()
             }
         }
     }
@@ -203,6 +233,7 @@ final class DiskAnalyzerService: ObservableObject {
         trashError = nil
         progress = DiskAnalyzerSupport.Progress(bytes: 0, files: 0, currentPath: "")
         phase = .idle
+        publishIslandContentHeight()
     }
 
     func cancel() {
@@ -210,6 +241,7 @@ final class DiskAnalyzerService: ObservableObject {
         cancellation = nil
         if phase == .scanning {
             phase = root == nil ? .idle : .ready
+            publishIslandContentHeight()
         }
     }
 
@@ -297,6 +329,7 @@ final class DiskAnalyzerService: ObservableObject {
             selectedPath = nil
             phase = .idle
         }
+        publishIslandContentHeight()
         return true
     }
 
@@ -308,5 +341,6 @@ final class DiskAnalyzerService: ObservableObject {
         trashError = nil
         progress = DiskAnalyzerSupport.Progress(bytes: 0, files: 0, currentPath: "")
         phase = .idle
+        publishIslandContentHeight()
     }
 }

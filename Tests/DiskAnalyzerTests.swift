@@ -14,6 +14,29 @@ enum DiskAnalyzerTests {
         scanSkipsHiddenUnlessRequested(suite)
         catalogWiring(suite)
         stringsHaveFormats(suite)
+        islandResultsHeight(suite)
+    }
+
+    private static func islandResultsHeight(_ suite: TestSuite) {
+        suite.expect(DiskAnalyzerSupport.islandResultsTreemapHeight
+                        > DiskAnalyzerSupport.islandIdleTreemapHeight
+                        && DiskAnalyzerSupport.islandResultsContentHeight
+                        > DiskAnalyzerSupport.islandResultsTreemapHeight,
+                     "Disk Analyzer grows the island map once a scan has results")
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .compact)
+        let normal = geometry.contentSize(for: geometry.expandedSize(module: .tools, panel: true)).height
+        let results = geometry.contentSize(for: geometry.expandedSize(
+            module: .tools, panel: true,
+            panelContentHeight: DiskAnalyzerSupport.islandResultsContentHeight)).height
+        suite.expect(normal == geometry.pageBudget
+                        && results == DiskAnalyzerSupport.islandResultsContentHeight
+                        && results > normal,
+                     "Utilities keeps the usual page until Disk Analyzer results ask for a taller island")
+        suite.expect(geometry.expandedSize(module: .music,
+                                           panelContentHeight: DiskAnalyzerSupport.islandResultsContentHeight)
+                        == geometry.expandedSize(module: .music),
+                     "a Disk Analyzer results height does not enlarge unrelated island pages")
     }
 
     private static func treemapOmitsZeroSize(_ suite: TestSuite) {

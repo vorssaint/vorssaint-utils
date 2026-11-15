@@ -7,6 +7,7 @@ import SwiftUI
 struct PanelDiskAnalyzerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
+    @Environment(\.notchPresentation) private var inNotch
 
     var onClose: () -> Void
 
@@ -19,9 +20,14 @@ struct PanelDiskAnalyzerView: View {
         }
         .onAppear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = true
+            service.setHostedInIsland(inNotch)
+        }
+        .onChange(of: inNotch) { _, hosted in
+            service.setHostedInIsland(hosted)
         }
         .onDisappear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            service.setHostedInIsland(false)
             if service.phase == .scanning {
                 service.cancel()
             }

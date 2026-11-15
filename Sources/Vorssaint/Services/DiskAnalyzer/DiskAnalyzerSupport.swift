@@ -41,6 +41,14 @@ enum DiskAnalyzerSupport {
     static let smallFileByteThreshold: Int64 = 512 * 1024
     /// Default nest depth when Settings hasn’t overridden it.
     static let defaultTreemapNestingDepth = 3
+    /// Island content height once a scan has results: tall enough for the
+    /// map and list without nested scrolling inside the Utilities page.
+    static let islandResultsContentHeight: CGFloat = 560
+    /// Treemap height inside the island while results are on screen.
+    static let islandResultsTreemapHeight: CGFloat = 380
+    /// Compact start / scanning map placeholder in the island.
+    static let islandIdleTreemapHeight: CGFloat = 200
+    static let panelTreemapHeight: CGFloat = 220
 
     struct Node: Identifiable, Equatable {
         var id: String { path }
