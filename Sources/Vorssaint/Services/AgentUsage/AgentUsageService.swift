@@ -10,10 +10,11 @@ import Network
 /// the plan limits the Claude app saves. The files are read where they are,
 /// incrementally, and nothing is copied or sent: only counters are kept, in
 /// memory and in the app's private folder so the next launch reads only what
-/// the agents wrote meanwhile. OpenCode's stay in memory only, and its
-/// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
-/// price list is fetched only when the person keeps prices up to date.
+/// the agents wrote meanwhile. OpenCode's counters stay in memory only, its
+/// database is read again at each launch, and the allowance its own server
+/// reports is kept beside the other agents' limits. Claude Code checks
+/// account-wide limits through its own CLI, including use on other machines.
+/// The public price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress
@@ -73,6 +74,11 @@ final class AgentUsageService: ObservableObject {
     private let claudeAccountQueue = DispatchQueue(label: "com.vorssaint.claude-limits", qos: .utility)
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
+    /// OpenCode's own server answers for its workspace, so its allowance is
+    /// read as Codex's is.
+    private var opencodeRequest: AgentOpenCodeServer.Request?
+    private var opencodeAttempted = Date.distantPast
+    private var opencodeFailure: AgentOpenCodeServer.Failure?
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
@@ -147,6 +153,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshOpenCodeLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +167,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelOpenCodeLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,6 +202,9 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelOpenCodeLimits()
+        opencodeFailure = nil
+        opencodeAttempted = .distantPast
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -255,6 +266,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshOpenCodeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -647,6 +659,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshOpenCodeLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -944,6 +957,54 @@ final class AgentUsageService: ObservableObject {
         guard online != self.online else { return }
         self.online = online
         if online { claudeAccountUnreachable = 0 }
+    }
+
+    // MARK: OpenCode limits
+
+    /// OpenCode's own server answers with the workspace's Go allowance, as
+    /// Codex reports its plan's windows. A Settings preview reads too, without
+    /// counting as the page. Main thread.
+    func refreshOpenCodeLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard running, !paused, providers.contains(.opencode), opencodeRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows),
+              now.timeIntervalSince(opencodeAttempted) >= AgentOpenCodeServer.interval(
+                after: opencodeFailure, pageVisible: pageVisible) else { return }
+        opencodeAttempted = now
+        let request = AgentOpenCodeServer.Request()
+        opencodeRequest = request
+        let session = self.session
+        let home = self.home
+        request.start(home: home) { [weak self] result in
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.opencodeRequest === request else { return }
+                self.opencodeRequest = nil
+                switch result {
+                case .success(let limits):
+                    self.opencodeFailure = nil
+                    self.noteLimits(limits)
+                case .failure(let failure):
+                    self.opencodeFailure = failure
+                    if failure == .noAllowance { self.clearOpenCodeLimits() }
+                }
+            }
+        }
+    }
+
+    private func cancelOpenCodeLimits() {
+        guard let request = opencodeRequest else { return }
+        request.cancel()
+        opencodeRequest = nil
+        opencodeAttempted = .distantPast
+    }
+
+    private func clearOpenCodeLimits() {
+        queue.async { [self] in
+            guard readerSession >= 0, enabled.contains(.opencode) else { return }
+            store.clearLimits(.opencode)
+            checkLimits()
+            schedulePublish()
+        }
     }
 
     // MARK: Prices
