@@ -622,6 +622,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
     @AppStorage(DefaultsKey.panelUtilityDiskAnalyzer) private var showDiskAnalyzer = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
+    @ObservedObject private var diskAnalyzer = DiskAnalyzerService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -701,6 +702,10 @@ struct UtilitiesSection: View {
         }
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
+        }
+        .onChange(of: diskAnalyzer.panelPresentationID) { _, id in
+            guard id > 0, features.isAvailable(.diskAnalyzer) else { return }
+            showDiskAnalyzerPanel = true
         }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
@@ -1044,10 +1049,7 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showDiskAnalyzer,
-                                action: {
-                                    appDelegate()?.closePopover()
-                                    DiskAnalyzerService.shared.showWindow()
-                                })
+                                action: { showDiskAnalyzerPanel = true })
         }
     }
 

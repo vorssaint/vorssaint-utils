@@ -1854,6 +1854,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     // MARK: - Windows
 
+    /// Opens the menu panel / island on Utilities so a hosted tool can take over
+    /// the section (Disk Analyzer, etc.).
+    func openUtilitiesPanel() {
+        if NotchSupport.routesAppPanel(), NotchService.shared.acceptsSystemFeedback {
+            MenuPanelFocus.shared.focus(.utilities)
+            NotchService.shared.openAppPanel(toggle: false)
+            return
+        }
+        MenuPanelFocus.shared.focus(.utilities)
+        if !popoverIsOpen {
+            showPopover()
+        }
+    }
+
     func openSettingsWindow() {
         // Intentionally does NOT close the panel: the panel uses applicationDefined
         // dismissal, so it stays open beside Settings for a live preview.

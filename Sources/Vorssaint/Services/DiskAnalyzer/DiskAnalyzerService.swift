@@ -6,7 +6,7 @@ import Combine
 import Foundation
 
 /// Scans a chosen folder into a size tree and owns selection / zoom / trash
-/// for the Disk Analyzer workspace window.
+/// for the Disk Analyzer panel workspace.
 final class DiskAnalyzerService: ObservableObject {
     static let shared = DiskAnalyzerService()
 
@@ -31,6 +31,8 @@ final class DiskAnalyzerService: ObservableObject {
     @Published var selectedPath: String?
     @Published private(set) var zoomPath: String?
     @Published private(set) var trashError: String?
+    /// Bumped when Command Bar (or another launcher) should open the panel host.
+    @Published private(set) var panelPresentationID = 0
     @Published var includeHidden: Bool {
         didSet { UserDefaults.standard.set(includeHidden, forKey: DefaultsKey.diskAnalyzerIncludeHidden) }
     }
@@ -43,8 +45,10 @@ final class DiskAnalyzerService: ObservableObject {
         includeHidden = UserDefaults.standard.object(forKey: DefaultsKey.diskAnalyzerIncludeHidden) as? Bool ?? false
     }
 
-    func showWindow() {
-        DiskAnalyzerWindowController.shared.show()
+    /// Ask the menu panel / island to host Disk Analyzer in Utilities.
+    func presentInMenuPanel() {
+        panelPresentationID &+= 1
+        appDelegate()?.openUtilitiesPanel()
     }
 
     var selectedNode: DiskAnalyzerSupport.Node? {
