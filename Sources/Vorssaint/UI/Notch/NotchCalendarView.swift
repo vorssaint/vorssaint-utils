@@ -395,7 +395,8 @@ private struct NotchCalendarEventRow: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
-            .modifier(NotchCalendarEventMenu(chosen: countdown, text: text, choose: choose, join: join))
+            .modifier(NotchCalendarEventMenu(chosen: countdown, text: text, choose: choose, join: join,
+                                             openInCalendar: open))
     }
 
     private var card: some View {
@@ -462,13 +463,14 @@ private struct NotchCalendarEventRow: View {
     }
 }
 
-/// A meeting link and, for a timed start, its own countdown: both from the
-/// event's menu and as VoiceOver actions.
+/// Join first when a meeting link exists, then Open Calendar, then Add/Remove
+/// Countdown when that choice is available. Join is additive, never a replacement.
 private struct NotchCalendarEventMenu: ViewModifier {
     let chosen: Bool?
     let text: NotchCalendarStrings
     let choose: (Bool) -> Void
     let join: (() -> Void)?
+    let openInCalendar: () -> Void
 
     @ViewBuilder func body(content: Content) -> some View {
         if join == nil, chosen == nil {
@@ -479,6 +481,7 @@ private struct NotchCalendarEventMenu: ViewModifier {
                     if let join {
                         Button(text.joinMeeting, action: join)
                     }
+                    Button(text.openCalendar, action: openInCalendar)
                     if let chosen {
                         Button(chosen ? text.removeCountdown : text.addCountdown) { choose(!chosen) }
                     }
