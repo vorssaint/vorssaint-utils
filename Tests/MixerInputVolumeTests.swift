@@ -1127,6 +1127,28 @@ enum MixerInputVolumeContract {
               "a returning device restores by stable uid even after its audio object id changes")
 
         HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.devices = []
+        AppFeature.micMuteAvailable = false
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        var devicesChanged = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                                        mScope: kAudioObjectPropertyScopeGlobal,
+                                                        mElement: kAudioObjectPropertyElementMain)
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        check(HAL.listeners.contains(Key(system, devicesChanged)),
+              "disabling mic mute keeps device discovery until an unplugged microphone is restored")
+        HAL.devices = [10]
+        if HAL.listeners.contains(Key(system, devicesChanged)) {
+            _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, MicMuteService.shared.listenerClient)
+        }
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0.5 && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "a claimed microphone regains its volume on reconnection with the feature disabled")
+
+        HAL.reset()
         HAL.mute[10] = 1
         HAL.levels[HAL.key(10)] = 0.5
         MicMuteService.shared.setMuted(true)
@@ -1148,18 +1170,44 @@ enum MixerInputVolumeContract {
                 && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
               "teardown drains an in-flight combined mute and restores its exact controls")
 
+        for mainMute in [UInt32(0), 1] {
+            HAL.reset()
+            HAL.mute[10] = mainMute
+            HAL.levels[HAL.key(10, 1)] = 0
+            HAL.levels[HAL.key(10, 2)] = 0.5
+            HAL.muteElements[firstMute] = 1
+            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+            UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+            MicMuteService.shared = MicMuteService()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10, 2)] == 0.5
+                    && HAL.levels[HAL.key(10, 1)] == 0 && HAL.muteElements[firstMute] == 1
+                    && !MicMuteService.shared.hasOutstandingClaims,
+                  "a legacy switch mute preserves the channel mix even if another client already released the switch")
+        }
+
         HAL.reset()
-        HAL.mute[10] = 1
-        HAL.levels[HAL.key(10)] = 0.5
-        UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0
+        UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
         UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
-        MicMuteService.shared = MicMuteService()
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        MicMuteService.shared.setMuted(false)
+        check(HAL.levels[HAL.key(10)] == 0.625 && !MicMuteService.shared.hasOutstandingClaims,
+              "a zeroed legacy gain mute still uses its saved fallback when the main switch is off")
+
+        HAL.reset()
+        HAL.mute[10] = 1
+        HAL.levels[HAL.key(10)] = 0
+        HAL.muteElements[firstMute] = 1
+        UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0.5
+        check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0 && HAL.muteElements[firstMute] == 1
                 && !MicMuteService.shared.hasOutstandingClaims,
-              "a legacy switch mute stays owned when upgrading to combined mute and gain control")
+              "a pending legacy unmute restores only the claimed main switch when the microphone returns")
     }
 }

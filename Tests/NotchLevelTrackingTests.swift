@@ -226,5 +226,50 @@ enum NotchLevelTrackingTests {
         reset()
         click(at: 0.75)
         expectEdit(0.75, "click after re-enabling")
+
+        guard vertical else { return }
+        // The mixer binds these ranges to output/microphone gain and app
+        // volume. Here every write by the production coordinator stays in State.
+        var time: CGEventTimestamp = 10_000_000_000
+        func scroll(_ phase: CGScrollPhase?, dx: Int32 = 0, dy: Int32 = 0,
+                    momentum: CGMomentumScrollPhase = .none, units: CGScrollEventUnit = .pixel) {
+            time += 10_000_000
+            slider.scrollWheel(with: SliderScrollRoutingTests.event(phase, delta: dy, sideways: dx,
+                                                                     momentum: momentum, units: units, timestamp: time))
+        }
+        reset()
+        scroll(.began, dx: 5)
+        scroll(.changed, dy: 6)
+        scroll(.changed, dy: 24)
+        scroll(.ended)
+        scroll(nil, dy: -4)
+        scroll(nil, dx: 12, momentum: .begin)
+        scroll(nil, momentum: .end)
+        suite.expect(state.value == maximum / 2 && state.values.isEmpty,
+                     "\(name): a sideways swipe, its vertical tail and momentum never write the audio binding")
+        scroll(nil, dy: 1, units: .line)
+        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.05,
+                          "\(name): an independent mouse wheel tick still adjusts the volume during the lift gap")
+
+        reset()
+        scroll(.began, dy: 4)
+        scroll(.changed, dy: 16)
+        scroll(.changed, dx: 40)
+        scroll(.ended)
+        scroll(nil, dy: 8)
+        scroll(nil, dy: 20, momentum: .begin)
+        scroll(nil, momentum: .end)
+        suite.expectClose(abs(state.value - maximum / 2), maximum * 0.1,
+                          "\(name): a vertical swipe includes its first four points and ignores sideways drift")
+        suite.expect(state.values.count == 1 && !state.wroteOutsideEdit,
+                     "\(name): the volume binding receives one edit and no write from the tail")
+        if maximum == 1 {
+            reset(disabled: true)
+            scroll(.began, dy: 20)
+            scroll(.ended)
+            scroll(nil, dy: 1, units: .line)
+            suite.expect(state.value == 0.5 && state.values.isEmpty,
+                         "the disabled microphone fader leaves its simulated input gain alone")
+        }
     }
 }

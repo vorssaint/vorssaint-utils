@@ -50,6 +50,21 @@ enum SettingsSidebarSupport {
         return rows
     }
 
+    /// Scrolling capture shares screenshot ownership but has its own destination.
+    static func screenshotRows(_ rows: [SettingsSidebarItem], language: AppLanguage)
+        -> [SettingsSidebarItem] {
+        guard let index = rows.firstIndex(where: { $0.id == .feature(.screenshot) }) else {
+            return rows
+        }
+        var result = rows
+        result.insert(SettingsSidebarItem(
+            id: .setting(.screenshotScrolling),
+            destination: ScreenCaptureTool.scrolling.settingsDestination,
+            title: FeatureStrings.screenshot(language).scrollingCaptureTitle,
+            icon: ScreenCaptureTool.scrolling.systemImageName), at: index + 1)
+        return result
+    }
+
     /// Splits window and control rows, and takes input, file and sound tools
     /// out of Utilities, so the sidebar groups them as the Features page does.
     /// Rows of other groups, or of no feature, stay where they are.
