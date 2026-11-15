@@ -25,12 +25,32 @@ struct VirtualOutputStrings {
             : layout.notation ?? String(format: channels, layout.labels.count)
         return (title, help)
     }
+    static func perceptualVolume(_ language: AppLanguage) -> (title: String, caption: String, error: String) {
+        switch language {
+        case .enUS: return ("Perceptual volume curve", "Software fallback only. 50% = −10 dB instead of −32 dB, with fine control at quiet levels. Switching keeps the current loudness.", "Could not verify the volume curve. Playback remains active at its current level. Try switching the option again.")
+        case .ptBR: return ("Curva de volume perceptual", "Apenas no volume por software. 50% = −10 dB em vez de −32 dB, com ajuste fino em volumes baixos. A troca mantém o volume atual.", "Não foi possível verificar a curva de volume. A reprodução continua no volume atual. Tente alternar a opção novamente.")
+        case .tr: return ("Algısal ses eğrisi", "Yalnızca yazılımsal ses için. %50, −32 dB yerine −10 dB olur; düşük seslerde hassas ayar korunur. Geçişte mevcut ses düzeyi değişmez.", "Ses eğrisi doğrulanamadı. Çalma mevcut ses düzeyinde devam ediyor. Seçeneği yeniden değiştirmeyi deneyin.")
+        case .ru: return ("Перцептивная кривая громкости", "Только для программной регулировки. 50% = −10 дБ вместо −32 дБ, с точной настройкой тихого звука. Переключение сохраняет текущую громкость.", "Не удалось проверить кривую громкости. Воспроизведение продолжается с текущей громкостью. Попробуйте переключить параметр ещё раз.")
+        case .es: return ("Curva de volumen perceptual", "Solo para el volumen por software. 50% = −10 dB en vez de −32 dB, con ajuste fino a bajo volumen. El cambio conserva el volumen actual.", "No se pudo verificar la curva de volumen. La reproducción sigue al volumen actual. Prueba a cambiar la opción de nuevo.")
+        case .sk: return ("Vnemová krivka hlasitosti", "Len pre softvérové ovládanie. 50 % = −10 dB namiesto −32 dB, s jemným ovládaním tichých úrovní. Prepnutie zachová aktuálnu hlasitosť.", "Krivku hlasitosti sa nepodarilo overiť. Prehrávanie pokračuje s aktuálnou hlasitosťou. Skúste voľbu prepnúť znova.")
+        case .de: return ("Wahrnehmungsorientierte Lautstärke", "Nur bei Software-Lautstärke. 50 % = −10 dB statt −32 dB, mit Feineinstellung leiser Pegel. Umschalten erhält die aktuelle Lautstärke.", "Die Lautstärkekurve konnte nicht geprüft werden. Die Wiedergabe läuft mit aktuellem Pegel weiter. Schalten Sie die Option erneut um.")
+        case .fr: return ("Courbe de volume perceptive", "Uniquement pour le volume logiciel. 50 % = −10 dB au lieu de −32 dB, avec un réglage fin à bas volume. Le changement conserve le volume actuel.", "Impossible de vérifier la courbe de volume. La lecture continue au volume actuel. Essayez de changer à nouveau l’option.")
+        case .it: return ("Curva del volume percettiva", "Solo per il volume software. 50% = −10 dB anziché −32 dB, con regolazione fine a basso volume. Il cambio mantiene il volume attuale.", "Impossibile verificare la curva del volume. La riproduzione continua al volume attuale. Prova a cambiare di nuovo l’opzione.")
+        case .ja: return ("聴感に合わせた音量カーブ", "ソフトウェア音量のみ。50% は −32 dB ではなく −10 dB となり、小さな音量も細かく調整できます。切り替えても現在の音量は変わりません。", "音量カーブを確認できませんでした。再生は現在の音量で続行します。もう一度オプションを切り替えてください。")
+        case .ko: return ("청감 기반 음량 곡선", "소프트웨어 음량에만 적용됩니다. 50%는 −32 dB 대신 −10 dB이며 작은 음량도 세밀하게 조절됩니다. 전환 시 현재 음량은 유지됩니다.", "음량 곡선을 확인하지 못했습니다. 현재 음량으로 재생이 계속됩니다. 옵션을 다시 전환해 보세요.")
+        case .uk: return ("Перцептивна крива гучності", "Лише для програмного регулювання. 50% = −10 дБ замість −32 дБ, із точним налаштуванням тихого звуку. Перемикання зберігає поточну гучність.", "Не вдалося перевірити криву гучності. Відтворення триває з поточною гучністю. Спробуйте перемкнути параметр ще раз.")
+        case .zhHans: return ("感知音量曲线", "仅用于软件音量。50% 对应 −10 dB，而非 −32 dB，并保留低音量的精细调节。切换时保持当前音量不变。", "无法验证音量曲线。播放将保持当前音量。请尝试再次切换此选项。")
+        case .zhTW: return ("感知音量曲線", "僅用於軟體音量。50% 對應 −10 dB，而非 −32 dB，並保留低音量的精細調整。切換時維持目前音量不變。", "無法驗證音量曲線。播放會維持目前音量。請嘗試再次切換此選項。")
+        case .zhHK: return ("感知音量曲線", "只用於軟件音量。50% 對應 −10 dB，而非 −32 dB，並保留低音量的精細調校。切換時維持目前音量不變。", "無法驗證音量曲線。播放會維持目前音量。請嘗試再次切換此選項。")
+        }
+    }
     let title: String
     let caption: String
     let install: String
     let update: String
     let updateTitle: String
     let updateBody: String
+    private let curveFailure: String
     private let details: Details
     var installTitle: String { details.installTitle }
     var installBody: String { details.installBody }
@@ -47,12 +67,14 @@ struct VirtualOutputStrings {
         case .stopped: return details.stopped
         case .installerMissing: return details.installerMissing
         case .removalFailed: return details.removalFailed
+        case .curveFailed: return curveFailure
         }
     }
     private init(language: AppLanguage, title: String, caption: String, install: String) {
         self.title = title; self.caption = caption; self.install = install
         (self.update, self.updateTitle, self.updateBody) = Self.updateText(language)
         self.details = Self.extra(language)
+        self.curveFailure = Self.perceptualVolume(language).error
     }
     static func localized(_ language: AppLanguage) -> Self {
         switch language {

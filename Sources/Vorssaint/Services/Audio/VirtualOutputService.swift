@@ -28,6 +28,8 @@ final class VirtualOutputService: ObservableObject {
     private var virtual: AudioObjectID?
     private var virtualUID = VirtualOutputSupport.deviceUID
     private var ownsVirtualOutput = false
+    private var perceptualVolume = false // Applied driver mode, lifecycle queue only.
+    private var volumeCurveVerified = false
     private var previousOutput: String?
     private var previousSystemOutput: String?
     private var lastCycles: Int64 = 0
@@ -66,6 +68,7 @@ final class VirtualOutputService: ObservableObject {
                 return
             }
             if let bridge {
+                updateVolumeCurve()
                 let current = VirtualOutputHAL.defaultUID()
                 if current != virtualUID {
                     if let current, VirtualOutputHAL.physicalDevices().contains(where: { $0.uid == current }) {
@@ -233,14 +236,14 @@ final class VirtualOutputService: ObservableObject {
             }
         }
     }
-    private func publish(error issue: VirtualOutputSupport.Issue? = nil) {
+    private func publish(error issue: VirtualOutputSupport.Issue? = nil, refreshApps: Bool = true) {
         let active = bridge != nil, uid = bridge?.physicalUID
         DispatchQueue.main.async {
             self.isActive = active
             self.isStarting = false
             self.physicalOutputUID = uid
             self.error = issue.map { VirtualOutputStrings.localized(L10n.shared.language).message($0) }
-            AppVolumeMixer.shared.refreshApps()
+            if refreshApps { AppVolumeMixer.shared.refreshApps() }
         }
     }
     private func replaceBridge(physicalUID: String) {
@@ -261,8 +264,9 @@ final class VirtualOutputService: ObservableObject {
         }
         ownsVirtualOutput = true
         do {
+            try applyVolumeCurve()
             let levels = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes)
-            let level = MixerSoftwareVolumeSupport.savedLevel(levels?[physicalUID])
+            let level = MixerSoftwareVolumeSupport.savedLevel(levels?[physicalUID], perceptual: perceptualVolume)
             // The virtual default may already carry playback from another
             // physical destination. Its pump must see the new controls before
             // the bridge constructor starts physical IO, including mute.
@@ -340,15 +344,44 @@ final class VirtualOutputService: ObservableObject {
     }
     private func rememberLevel() {
         guard ownsVirtualOutput, let virtual, let uid = bridge?.physicalUID,
-              let level = VirtualOutputHAL.outputLevel(virtual) else { return }
+              let decibels = VirtualOutputHAL.outputDecibels(virtual) else { return }
         var muted: UInt32 = 0
         _ = VirtualOutputHAL.read(virtual, kAudioDevicePropertyMute, into: &muted, scope: kAudioObjectPropertyScopeOutput)
-        let value = muted != 0 ? 0 : level
         var saved = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes) ?? [:]
-        if (saved[uid] as? NSNumber)?.doubleValue != value {
-            saved[uid] = value
+        // Keep the original numeric, linear-dB storage coordinate. It is
+        // independent of the selected UI curve and remains readable by older
+        // builds, so rolling back cannot reinterpret a louder slider position.
+        let stored = MixerSoftwareVolumeSupport.level(forDecibels: muted != 0 ? -64 : decibels)
+        if (saved[uid] as? NSNumber)?.doubleValue != stored {
+            saved[uid] = stored
             UserDefaults.standard.set(saved, forKey: DefaultsKey.mixerSoftwareVolumes)
         }
+    }
+    private func updateVolumeCurve() {
+        guard bridge != nil, ownsVirtualOutput else { return }
+        if !volumeCurveVerified || perceptualVolume != UserDefaults.standard.bool(forKey: DefaultsKey.mixerPerceptualVolumeEnabled) {
+            rememberLevel()
+            do { try applyVolumeCurve(); publish() }
+            catch {
+                // The driver only re-labels unchanged gain. Losing attenuation
+                // by restoring the raw physical path would be unsafe here.
+                // refreshApps synchronizes this service again. Do not create
+                // a self-triggering retry loop while the property is failing.
+                publish(error: .curveFailed, refreshApps: false)
+            }
+        }
+    }
+    private func applyVolumeCurve() throws {
+        guard let virtual, ownsVirtualOutput else {
+            throw VirtualOutputBridge.Failure("Cannot configure an unowned volume control")
+        }
+        let requested = UserDefaults.standard.bool(forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
+        volumeCurveVerified = false
+        guard VirtualOutputHAL.setPerceptualVolume(virtual, enabled: requested) else {
+            throw VirtualOutputBridge.Failure("Could not verify native volume curve")
+        }
+        perceptualVolume = requested
+        volumeCurveVerified = true
     }
     private func deactivate() {
         rememberLevel()

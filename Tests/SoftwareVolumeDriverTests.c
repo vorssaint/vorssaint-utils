@@ -40,6 +40,74 @@ static OSStatus owner(AudioServerPlugInDriverRef driver, pid_t pid, UInt32 value
  if (value>1) CFRelease(payload);
  return status;
 }
+static void check_volume_curve(AudioServerPlugInDriverRef driver) {
+ AudioObjectPropertyAddress scalar=prop(kAudioLevelControlPropertyScalarValue);
+ AudioObjectPropertyAddress decibels=prop(kAudioLevelControlPropertyDecibelValue);
+ AudioObjectPropertyAddress toDB=prop(kAudioLevelControlPropertyConvertScalarToDecibels);
+ AudioObjectPropertyAddress toScalar=prop(kAudioLevelControlPropertyConvertDecibelsToScalar);
+ UInt32 size=0;
+ // Existing behavior is the default; an owner can opt into the new curve.
+ float half=.5f, initial=99;
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(half),&half)==noErr);
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&decibels,0,NULL,sizeof(initial),&size,&initial)==noErr && fabsf(initial+32)<1e-5f);
+ CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr);
+ AudioObjectPropertyAddress mode=prop('vper'); CFPropertyListRef enabled=kCFBooleanTrue;
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getppid(),&mode,0,NULL,sizeof(enabled),&enabled)==kAudioDevicePermissionsError);
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getpid(),&mode,0,NULL,sizeof(enabled),&enabled)==noErr);
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&decibels,0,NULL,sizeof(initial),&size,&initial)==noErr && fabsf(initial+32)<1e-5f);
+ const float positions[]={0, .01f, .015625f, .0625f, .25f, .5f, .75f, 1};
+ const float expected[]={-64, -63.201f, -60, -40, -20, -10, -4.150375f, 0};
+ for(unsigned i=0;i<sizeof(positions)/sizeof(*positions);i++) {
+  float value=positions[i], db=99, converted=value, restored=99;
+  CHECK((*driver)->SetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(value),&value)==noErr);
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&decibels,0,NULL,sizeof(db),&size,&db)==noErr);
+  CHECK(fabsf(db-expected[i])<.002f);
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&toDB,0,NULL,sizeof(converted),&size,&converted)==noErr && fabsf(db-converted)<1e-4f);
+  restored=db;
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&toScalar,0,NULL,sizeof(restored),&size,&restored)==noErr && fabsf(restored-value)<1e-5f);
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(restored),&size,&restored)==noErr && fabsf(restored-value)<1e-5f);
+  CHECK(value!=0 || atomic_load(&gVolume_Master_Value)==0);
+  CHECK(value!=1 || atomic_load(&gVolume_Master_Value)==1);
+ }
+ float previous=-65;
+ for(unsigned i=0;i<=10000;i++) {
+  float converted=i/10000.f, original=converted;
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&toDB,0,NULL,sizeof(converted),&size,&converted)==noErr && converted>=previous && converted>=-64 && converted<=0);
+  previous=converted;
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&toScalar,0,NULL,sizeof(converted),&size,&converted)==noErr && fabsf(converted-original)<.001f);
+ }
+ for(unsigned i=0;i<2;i++) {
+  AudioObjectPropertyAddress address=i ? toDB : toScalar;
+  float invalid=NAN;
+  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&address,0,NULL,sizeof(invalid),&size,&invalid)==kAudioHardwareIllegalOperationError);
+ }
+ float quarter=-20, restored=0;
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&decibels,0,NULL,sizeof(quarter),&quarter)==noErr);
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(restored),&size,&restored)==noErr && fabsf(restored-.25f)<1e-5f);
+ // A copied build-6 plist cannot identify an older still-loaded implementation.
+ AudioObjectPropertyAddress curve=prop('vcrv'); CFPropertyListRef version=NULL;
+ CHECK((*driver)->HasProperty(driver,kObjectID_Device,getpid(),&curve));
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&curve,0,NULL,sizeof(version),&size,&version)==noErr);
+ int number=0;
+ CHECK(version && CFGetTypeID(version)==CFNumberGetTypeID() && CFNumberGetValue(version,kCFNumberIntType,&number) && number==2);
+ if(version) CFRelease(version);
+ Boolean settable=true;
+ CHECK((*driver)->IsPropertySettable(driver,kObjectID_Device,getpid(),&curve,&settable)==noErr && !settable);
+ float gain=atomic_load(&gVolume_Master_Value);
+ CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr && atomic_load(&afPerceptualVolume)); // heartbeat keeps mode
+ CHECK(owner(driver,getpid(),0,sizeof(CFPropertyListRef))==noErr && !atomic_load(&afPerceptualVolume) && atomic_load(&gVolume_Master_Value)==gain);
+ CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr && !atomic_load(&afPerceptualVolume)); // old app gets original mapping
+ enabled=kCFBooleanTrue;
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getpid(),&mode,0,NULL,sizeof(enabled),&enabled)==noErr);
+ VorssaintAudioExpireOwner(afHeartbeat+6);
+ CHECK(!atomic_load(&afPerceptualVolume) && atomic_load(&gVolume_Master_Value)==gain);
+ CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr && !atomic_load(&afPerceptualVolume));
+ enabled=kCFBooleanFalse;
+ CHECK((*driver)->SetPropertyData(driver,kObjectID_Device,getpid(),&mode,0,NULL,sizeof(enabled),&enabled)==noErr);
+ CHECK(atomic_load(&gVolume_Master_Value)==gain);
+ CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(restored),&size,&restored)==noErr && fabsf(restored-.6875f)<1e-5f);
+ CHECK(owner(driver,getpid(),0,sizeof(CFPropertyListRef))==noErr);
+}
 static void check_channel_pcm(AudioServerPlugInDriverRef driver, unsigned channels) {
  AudioObjectPropertyAddress keyAddress = prop('vkey'), pcm = prop('vpcm');
  CFDataRef key = NULL; UInt32 size = 0;
@@ -73,7 +141,7 @@ int main(void) {
  AudioObjectPropertyAddress translation=prop(kAudioPlugInPropertyTranslateUIDToDevice);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_PlugIn,getpid(),&translation,sizeof(uid),&uid,sizeof(translated),&translatedSize,&translated)==noErr && translated==kObjectID_Device);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_PlugIn,getpid(),&translation,1,&uid,sizeof(translated),&translatedSize,&translated)==kAudioHardwareBadPropertySizeError);
- AudioServerPlugInCustomPropertyInfo info[5]; UInt32 infoSize=0;
+ AudioServerPlugInCustomPropertyInfo info[7]; UInt32 infoSize=0;
  AudioObjectPropertyAddress custom=prop(kAudioObjectPropertyCustomPropertyInfoList);
  CHECK((*driver)->GetPropertyData(driver,kObjectID_Device,getpid(),&custom,0,NULL,sizeof(info),&infoSize,info)==noErr
   && infoSize==sizeof(info) && info[0].mPropertyDataType==kAudioServerPlugInCustomPropertyDataTypeCFPropertyList);
@@ -151,6 +219,7 @@ int main(void) {
  CHECK((*driver)->GetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(actual),&controlSize,&actual)==noErr && fabsf(actual-requested)<1e-5f);
  requested=NAN;
  CHECK((*driver)->SetPropertyData(driver,kObjectID_Volume_Output_Master,getpid(),&scalar,0,NULL,sizeof(requested),&requested)==kAudioHardwareIllegalOperationError);
+ check_volume_curve(driver);
  // Exercise mixed output transfer through qualified, repeatable HAL reads.
  CHECK(owner(driver,getpid(),1,sizeof(CFPropertyListRef))==noErr);
  VSRequest request={.magic=VS_MAGIC,.version=VS_VERSION,.nonce=1};

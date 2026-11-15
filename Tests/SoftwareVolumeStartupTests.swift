@@ -9,8 +9,13 @@ enum SoftwareVolumeStartupTests {
     enum Preferences { static var standard: Foundation.UserDefaults! }
     enum HAL {
         static var level = 0.8, muted: UInt32 = 0
-        static var levelWriteSucceeds = true, muteWriteSucceeds = true
+        static var levelWriteSucceeds = true, muteWriteSucceeds = true, curveWriteSucceeds = true
+        static func setPerceptualVolume(_ device: AudioObjectID, enabled: Bool) -> Bool { curveWriteSucceeds }
         static var levelReadback: Double?, muteReadback: UInt32?
+        static var decibelsReadback: Double?
+        static func outputDecibels(_ device: AudioObjectID) -> Double? {
+            decibelsReadback ?? MixerSoftwareVolumeSupport.decibels(for: level)
+        }
         static var muteReadSucceeds = true
         static func outputLevel(_ device: AudioObjectID) -> Double? { levelReadback ?? level }
         static func setOutputLevel(_ device: AudioObjectID, level: Double) -> Bool {
@@ -63,14 +68,18 @@ enum SoftwareVolumeStartupTests {
         var virtual: AudioObjectID? = 99
         var virtualUID = VirtualOutputSupport.deviceUID
         var bridge: Bridge?
-        var ownsVirtualOutput = true, suspended = false, isStarting = false
+        var ownsVirtualOutput = true, suspended = false, isStarting = false, perceptualVolume = false, volumeCurveVerified = false
         var error: VirtualOutputSupport.Issue?
         var queue = DispatchQueue(label: "com.vorssaint.tests.startup-controls")
         var timer: Timers.Timer?
         var lastCycles: Int64 = 0, lastProgress = 0.0
         var deactivated = false
+        var refreshRequests = 0
         func heartbeat() {}
-        func publish(error: VirtualOutputSupport.Issue? = nil) { self.error = error }
+        func publish(error: VirtualOutputSupport.Issue? = nil, refreshApps: Bool = true) {
+            self.error = error
+            if refreshApps { refreshRequests += 1 }
+        }
         func deactivate() { bridge?.stop(); bridge = nil; ownsVirtualOutput = false; deactivated = true }
     }
 
@@ -86,19 +95,21 @@ enum SoftwareVolumeStartupTests {
         func replace(saved: Double?, previousMuted: UInt32 = 0,
                      configure: () -> Void = {}) -> Host {
             HAL.level = 0.8; HAL.muted = previousMuted
-            HAL.levelWriteSucceeds = true; HAL.muteWriteSucceeds = true
+            HAL.levelWriteSucceeds = true; HAL.muteWriteSucceeds = true; HAL.curveWriteSucceeds = true
             HAL.levelReadback = nil; HAL.muteReadback = nil; HAL.muteReadSucceeds = true
+            HAL.decibelsReadback = nil
             let host = Host()
             host.bridge = try! Bridge(virtual: 99, physicalUID: "previous")
             Bridge.firstCallbacks = []
-            preferences.set(saved.map { ["destination": $0] } ?? [:], forKey: DefaultsKey.mixerSoftwareVolumes)
+            preferences.set(saved.map { ["destination": ["decibels": MixerSoftwareVolumeSupport.decibels(for: $0)]] } ?? [:], forKey: DefaultsKey.mixerSoftwareVolumes)
+            preferences.set(false, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
             configure()
             host.replaceBridge(physicalUID: "destination")
             return host
         }
         for (saved, muted, expected) in [(0.1, UInt32(0), 0.1), (0, 0, 0), (0.2, 1, 0.2)] {
             let host = replace(saved: saved, previousMuted: muted)
-            suite.expect(Bridge.firstCallbacks == [.init(uid: "destination", level: expected, muted: saved == 0 ? 1 : 0)],
+            suite.expect(Bridge.firstCallbacks.count == 1 && Bridge.firstCallbacks[0].uid == "destination" && abs(Bridge.firstCallbacks[0].level - expected) < 0.000001 && Bridge.firstCallbacks[0].muted == (saved == 0 ? 1 : 0),
                          "replacement first callback uses the destination's saved gain/mute, never the previous output's controls")
             suite.expect(host.bridge?.physicalUID == "destination" && host.error == nil,
                          "validated destination controls permit replacement playback")
@@ -107,10 +118,42 @@ enum SoftwareVolumeStartupTests {
                          "replacement remembers the previous output before installing destination controls")
         }
         _ = replace(saved: nil)
-        suite.expect(Bridge.firstCallbacks == [.init(uid: "destination", level: 0.5, muted: 0)],
+        suite.expect(Bridge.firstCallbacks == [.init(uid: "destination", level: MixerSoftwareVolumeSupport.savedLevel(nil), muted: 0)],
                      "a new destination's first callback starts at the safe default rather than inherited gain")
+        let curveHost = replace(saved: 0.5) {
+            preferences.set(true, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
+        }
+        suite.expect(curveHost.perceptualVolume && abs((Bridge.firstCallbacks.first?.level ?? -1) - 0.1088188204120155) < 0.00001,
+                     "opt-in curve is configured before the first callback and preserves the destination's -32 dB")
+        let readbackHost = replace(saved: 0.5)
+        // A curve write may succeed while verification fails. Save actual dB,
+        // even if the app cannot yet confirm the driver's current UI mapping.
+        HAL.level = 0.1088188204120155; HAL.decibelsReadback = -32
+        readbackHost.rememberLevel()
+        let remembered = preferences.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes)?["destination"] as? NSNumber
+        suite.expect(remembered?.doubleValue == 0.5,
+                     "actual dB survives an unverified curve change in the numeric format older apps understand")
+        let liveHost = replace(saved: 0.5)
+        let activeBridge = liveHost.bridge
+        let refreshesBeforeFailure = liveHost.refreshRequests
+        HAL.curveWriteSucceeds = false
+        preferences.set(true, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
+        liveHost.updateVolumeCurve()
+        suite.expect(liveHost.bridge === activeBridge && liveHost.ownsVirtualOutput && !liveHost.suspended && !liveHost.deactivated,
+                     "a failed live curve verification never releases attenuation or restores raw output")
+        suite.expect(liveHost.error == .curveFailed && !liveHost.volumeCurveVerified,
+                     "an unverified curve is reported and remains retryable")
+        suite.expect(liveHost.refreshRequests == refreshesBeforeFailure,
+                     "curve failures cannot trigger the refreshApps-to-sync retry feedback loop")
+        // Flip back after a write succeeded but its readback could not be
+        // verified: this must reapply even when the last confirmed mode matches.
+        preferences.set(false, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
+        HAL.curveWriteSucceeds = true
+        liveHost.updateVolumeCurve()
+        suite.expect(liveHost.volumeCurveVerified && !liveHost.perceptualVolume && liveHost.error == nil && liveHost.bridge === activeBridge,
+                     "retrying the previous mode reconciles uncertain driver state without rebuilding IO")
         let failures: [() -> Void] = [
-            { HAL.levelWriteSucceeds = false }, { HAL.muteWriteSucceeds = false },
+            { HAL.curveWriteSucceeds = false }, { HAL.levelWriteSucceeds = false }, { HAL.muteWriteSucceeds = false },
             { HAL.levelReadback = 0.8 }, { HAL.muteReadback = 1 },
             { HAL.muteReadSucceeds = false }
         ]

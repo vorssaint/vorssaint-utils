@@ -1140,6 +1140,8 @@ def main():
           + "extension SoftwareVolumeStartupTests.Host {\n"
           + declaration(virtual_service, "    private func replaceBridge(").replace("private func", "func", 1)
           + declaration(virtual_service, "    private func rememberLevel(").replace("private func", "func", 1)
+          + declaration(virtual_service, "    private func applyVolumeCurve(").replace("private func", "func", 1)
+          + declaration(virtual_service, "    private func updateVolumeCurve(").replace("private func", "func", 1)
           + "}\n")
     route_prefix = "    private func routeOutput("
     write("VirtualOutputSelection.swift", "import CoreAudio\nimport Foundation\n"

@@ -30,6 +30,15 @@ struct MixerSection: View {
     @State private var dropTarget: MixerAppDropTarget?
     var collapsible = true
     var settingsMode = false
+    private let optionsExpansionRequest: UUID?
+
+    init(collapsible: Bool = true, settingsMode: Bool = false, optionsInitiallyExpanded: Bool = false,
+         optionsExpansionRequest: UUID? = nil) {
+        self.collapsible = collapsible
+        self.settingsMode = settingsMode
+        _optionsExpanded = State(initialValue: optionsInitiallyExpanded)
+        self.optionsExpansionRequest = optionsExpansionRequest
+    }
 
     private var glassEnabled: Bool {
         LiquidGlassSupport.isEnabled(inNotch: inNotch, windows: windowsGlass, island: islandGlass)
@@ -54,6 +63,9 @@ struct MixerSection: View {
             refreshSliderTint()
         }
         .onAppear { mixer.refreshApps() }
+        .onChange(of: optionsExpansionRequest) { _, request in
+            if request != nil { optionsExpanded = true }
+        }
     }
 
     private var mixerControls: some View {
@@ -576,6 +588,8 @@ struct MixerOptionsControls: View {
     private var preciseVolumeRollerEnabled = false
     @AppStorage(DefaultsKey.mixerSoftwareVolumeEnabled)
     private var softwareVolumeEnabled = false
+    @AppStorage(DefaultsKey.mixerPerceptualVolumeEnabled)
+    private var perceptualVolumeEnabled = false
     @State private var showListChooser = false
     @State private var showSoftwareVolumeInstaller = false
     @State private var showSoftwareVolumeRemoval = false
@@ -698,6 +712,24 @@ struct MixerOptionsControls: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if softwareVolumeEnabled {
+                let curve = VirtualOutputStrings.perceptualVolume(l10n.language)
+                VStack(alignment: .leading, spacing: 3) {
+                    Toggle(curve.title, isOn: $perceptualVolumeEnabled)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .disabled(!virtualOutput.componentReady || virtualOutput.isRemoving || virtualOutput.isStarting)
+                        .onChange(of: perceptualVolumeEnabled) { _, _ in
+                            mixer.syncSoftwareOutputWithPreferences()
+                        }
+                    Text(curve.caption)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.leading, 18)
+                .padding(.top, 4)
+            }
             if showComponentManagement {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     Button(nativeStrings.privacyTitle) { showAudioPrivacy = true }

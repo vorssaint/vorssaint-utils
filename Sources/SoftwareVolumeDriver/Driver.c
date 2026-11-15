@@ -28,6 +28,49 @@ static _Atomic uint32_t afChannelCount = 2;
 static VSQueue afPCM;
 static _Atomic uint64_t afGeneration=1;
 static uint8_t afCapability[32];
+static _Atomic Boolean afPerceptualVolume = false;
+
+// Control-thread conversions only; the audio callback still reads one atomic
+// linear gain. Above 1/64, halving the position reduces level by 10 dB.
+// A C1-continuous quiet tail retains the original -64 dB floor without a
+// clamped/dead region at the first usable slider positions. Keep the inverse
+// and app persistence conversions in MixerSoftwareVolumeSupport in sync.
+static Float32 afVolumeDecibels(Float32 scalar) {
+    if (scalar <= 0) return -64;
+    if (scalar >= 1) return 0;
+    const double exponent = log(10.0) / log(4.0);
+    const double tail = 20 * exponent / (4 * log(10.0));
+    return scalar < 1.0 / 64 ? -64 + 4 * pow(scalar * 64, tail) : 20 * exponent * log10(scalar);
+}
+static Float32 afVolumeScalar(Float32 decibels) {
+    if (decibels <= -64) return 0;
+    if (decibels >= 0) return 1;
+    const double exponent = log(10.0) / log(4.0);
+    const double tail = 20 * exponent / (4 * log(10.0));
+    return decibels < -60 ? pow((decibels + 64) / 4.0, 1 / tail) / 64 : pow(10, decibels / (20 * exponent));
+}
+static Boolean afVolumeControl(AudioObjectID object) {
+    return object == kObjectID_Volume_Output_Master || object == kObjectID_Volume_Input_Master;
+}
+static Float32 afControlDecibels(Float32 scalar) {
+    return atomic_load(&afPerceptualVolume) ? afVolumeDecibels(scalar) : -64 + 64 * fminf(1, fmaxf(0, scalar));
+}
+static Float32 afControlScalar(Float32 decibels) {
+    return atomic_load(&afPerceptualVolume) ? afVolumeScalar(decibels) : fminf(1, fmaxf(0, (decibels + 64) / 64));
+}
+
+static void afNotifyVolumeCurve(void) {
+    if (!gPlugIn_Host) return;
+    AudioObjectPropertyAddress controls[] = {
+        {kAudioLevelControlPropertyScalarValue,kAudioObjectPropertyScopeGlobal,kAudioObjectPropertyElementMain},
+        {kAudioLevelControlPropertyConvertScalarToDecibels,kAudioObjectPropertyScopeGlobal,kAudioObjectPropertyElementMain},
+        {kAudioLevelControlPropertyConvertDecibelsToScalar,kAudioObjectPropertyScopeGlobal,kAudioObjectPropertyElementMain}
+    };
+    gPlugIn_Host->PropertiesChanged(gPlugIn_Host,kObjectID_Volume_Output_Master,3,controls);
+    gPlugIn_Host->PropertiesChanged(gPlugIn_Host,kObjectID_Volume_Input_Master,3,controls);
+    AudioObjectPropertyAddress mode = {'vper',kAudioObjectPropertyScopeGlobal,kAudioObjectPropertyElementMain};
+    gPlugIn_Host->PropertiesChanged(gPlugIn_Host,kObjectID_Device,1,&mode);
+}
 
 static pthread_mutex_t afOwnerMutex = PTHREAD_MUTEX_INITIALIZER;
 static pid_t afOwner = 0;
@@ -100,7 +143,7 @@ static Boolean afCustom(AudioObjectID object, const AudioObjectPropertyAddress *
         && address->mScope == kAudioObjectPropertyScopeGlobal
         && address->mElement == kAudioObjectPropertyElementMain
         && (address->mSelector == 'vown' || address->mSelector == 'vact' || address->mSelector == 'vpcm'
-            || address->mSelector == 'vkey' || address->mSelector == 'vcfg');
+            || address->mSelector == 'vkey' || address->mSelector == 'vcfg' || address->mSelector == 'vcrv' || address->mSelector == 'vper');
 }
 static Boolean afDeviceList(AudioObjectID object, const AudioObjectPropertyAddress *address) {
     return address && ((object==kObjectID_PlugIn && address->mSelector==kAudioPlugInPropertyDeviceList)
@@ -116,7 +159,9 @@ static const AudioServerPlugInCustomPropertyInfo afProperties[] = {
     {'vact', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
     {'vpcm', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeCFPropertyList},
     {'vkey', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
-    {'vcfg', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone}
+    {'vcfg', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
+    {'vcrv', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone},
+    {'vper', kAudioServerPlugInCustomPropertyDataTypeCFPropertyList, kAudioServerPlugInCustomPropertyDataTypeNone}
 };
 static Boolean afIsActive(void) {
     pthread_mutex_lock(&afOwnerMutex);
@@ -141,8 +186,10 @@ static void afNotify(void) {
 static void VorssaintAudioExpireOwner(double now) {
     pthread_mutex_lock(&afOwnerMutex);
     Boolean expired = afOwner > 0 && (now-afHeartbeat > 5 || (kill(afOwner,0) != 0 && errno == ESRCH));
+    Boolean curveChanged = expired && atomic_exchange(&afPerceptualVolume,false);
     if (expired) { afOwner = 0; afHeartbeat = 0; afGeneration++; memset(afCapability,0,sizeof(afCapability));vs_ack(&afPCM,vs_written(&afPCM)); }
     pthread_mutex_unlock(&afOwnerMutex);
+    if (curveChanged) afNotifyVolumeCurve();
     if (expired) afNotify();
 }
 static OSStatus AFInitialize(AudioServerPlugInDriverRef driver, AudioServerPlugInHostRef host) {
@@ -164,7 +211,7 @@ static Boolean AFHas(AudioServerPlugInDriverRef driver, AudioObjectID object, pi
 static OSStatus AFSettable(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, Boolean *value) {
     if (driver != gAudioServerPlugInDriverRef || !value || !address) return kAudioHardwareIllegalOperationError;
     if (afInfo(object,address)) { *value=false; return noErr; }
-    if (afCustom(object,address)) { *value=address->mSelector=='vown' || address->mSelector=='vcfg'; return noErr; }
+    if (afCustom(object,address)) { *value=address->mSelector=='vown' || address->mSelector=='vcfg' || address->mSelector=='vper'; return noErr; }
     return BlackHole_IsPropertySettable(driver,object,pid,address,value);
 }
 static OSStatus AFSize(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, UInt32 qualifierSize, const void *qualifier, UInt32 *size) {
@@ -176,6 +223,36 @@ static OSStatus AFSize(AudioServerPlugInDriverRef driver, AudioObjectID object, 
 }
 static OSStatus AFGet(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, UInt32 qualifierSize, const void *qualifier, UInt32 capacity, UInt32 *size, void *data) {
     if (driver != gAudioServerPlugInDriverRef || !data || !size || !address) return kAudioHardwareIllegalOperationError;
+    if (afVolumeControl(object)) {
+        UInt32 selector = address->mSelector;
+        if (selector == kAudioLevelControlPropertyScalarValue
+            || selector == kAudioLevelControlPropertyConvertScalarToDecibels
+            || selector == kAudioLevelControlPropertyConvertDecibelsToScalar) {
+            if (capacity < sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
+            if (selector == kAudioLevelControlPropertyScalarValue) {
+                *(Float32 *)data = afControlScalar(volume_to_decibel(atomic_load(&gVolume_Master_Value)));
+            } else {
+                Float32 value = *(Float32 *)data;
+                if (!isfinite(value)) return kAudioHardwareIllegalOperationError;
+                *(Float32 *)data = selector == kAudioLevelControlPropertyConvertScalarToDecibels
+                    ? afControlDecibels(value) : afControlScalar(value);
+            }
+            *size = sizeof(Float32);
+            return noErr;
+        }
+    }
+    if (afCustom(object,address) && address->mSelector=='vper') {
+        if (capacity < sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
+        *(CFPropertyListRef *)data = CFRetain(atomic_load(&afPerceptualVolume) ? kCFBooleanTrue : kCFBooleanFalse);
+        *size = sizeof(CFPropertyListRef); return noErr;
+    }
+    if (afCustom(object,address) && address->mSelector=='vcrv') {
+        if (capacity < sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
+        int version = 2;
+        CFNumberRef value = CFNumberCreate(NULL,kCFNumberIntType,&version);
+        if (!value) return kAudioHardwareUnspecifiedError;
+        *(CFPropertyListRef *)data = value; *size = sizeof(CFPropertyListRef); return noErr;
+    }
     if (afDeviceList(object,address)) {
         *size=gBox_Acquired && capacity>=sizeof(AudioObjectID) ? sizeof(AudioObjectID):0;
         if(*size) *(AudioObjectID*)data=kObjectID_Device;return noErr;
@@ -278,6 +355,21 @@ static OSStatus AFGet(AudioServerPlugInDriverRef driver, AudioObjectID object, p
 }
 static OSStatus AFSet(AudioServerPlugInDriverRef driver, AudioObjectID object, pid_t pid, const AudioObjectPropertyAddress *address, UInt32 qualifierSize, const void *qualifier, UInt32 size, const void *data) {
     if (driver != gAudioServerPlugInDriverRef || !data || !address) return kAudioHardwareIllegalOperationError;
+    if (afCustom(object,address) && address->mSelector=='vper') {
+        if (size != sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
+        CFPropertyListRef payload = *(const CFPropertyListRef *)data;
+        if (!payload || CFGetTypeID(payload) != CFBooleanGetTypeID()) return kAudioHardwareIllegalOperationError;
+        if (!afCallerTrusted(pid)) return kAudioDevicePermissionsError;
+        VorssaintAudioExpireOwner(VorssaintAudioNow());
+        pthread_mutex_lock(&afOwnerMutex);
+        if (pid <= 0 || afOwner != pid) { pthread_mutex_unlock(&afOwnerMutex); return kAudioDevicePermissionsError; }
+        Boolean value = CFBooleanGetValue(payload);
+        Boolean changed = atomic_exchange(&afPerceptualVolume,value) != value;
+        pthread_mutex_unlock(&afOwnerMutex);
+        // Re-label the existing gain; never change PCM, mute or device format.
+        if (changed) afNotifyVolumeCurve();
+        return noErr;
+    }
     if (afCustom(object,address) && address->mSelector=='vcfg') {
         if (size != sizeof(CFPropertyListRef)) return kAudioHardwareBadPropertySizeError;
         CFPropertyListRef payload = *(const CFPropertyListRef *)data;
@@ -313,17 +405,29 @@ static OSStatus AFSet(AudioServerPlugInDriverRef driver, AudioObjectID object, p
         pthread_mutex_lock(&afOwnerMutex);
         if (afOwner && afOwner!=pid) { pthread_mutex_unlock(&afOwnerMutex); return kAudioHardwareIllegalOperationError; }
         Boolean changed=(afOwner>0)!=value;
+        // Each owner session starts with the original curve so older clients
+        // remain compatible. Same-owner heartbeats must not reset the choice.
+        Boolean curveChanged=changed && atomic_exchange(&afPerceptualVolume,false);
         if(changed) {afGeneration++;if(value)arc4random_buf(afCapability,sizeof(afCapability));else memset(afCapability,0,sizeof(afCapability));vs_ack(&afPCM,vs_written(&afPCM));}
         afOwner=value ? pid : 0; afHeartbeat=value ? VorssaintAudioNow() : 0;
         pthread_mutex_unlock(&afOwnerMutex);
+        if (curveChanged) afNotifyVolumeCurve();
         if (changed) afNotify();
         return noErr;
     }
     // Upstream's conversions accept NaN; reject malformed control writes.
-    if ((object==kObjectID_Volume_Output_Master || object==kObjectID_Volume_Input_Master)
+    if (afVolumeControl(object)
         && (address->mSelector==kAudioLevelControlPropertyScalarValue || address->mSelector==kAudioLevelControlPropertyDecibelValue)) {
         if (size!=sizeof(Float32)) return kAudioHardwareBadPropertySizeError;
         if (!isfinite(*(const Float32*)data)) return kAudioHardwareIllegalOperationError;
+        if (address->mSelector == kAudioLevelControlPropertyScalarValue) {
+            Float32 decibels = afControlDecibels(*(const Float32 *)data);
+            AudioObjectPropertyAddress converted = *address;
+            converted.mSelector = kAudioLevelControlPropertyDecibelValue;
+            // Preserve the original driver's synchronization and paired scalar /
+            // dB notifications, and keep PCM gain application unchanged.
+            return BlackHole_SetPropertyData(driver,object,pid,&converted,qualifierSize,qualifier,sizeof(decibels),&decibels);
+        }
     }
     return BlackHole_SetPropertyData(driver,object,pid,address,qualifierSize,qualifier,size,data);
 }

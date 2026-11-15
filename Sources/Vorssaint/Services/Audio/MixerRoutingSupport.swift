@@ -16,9 +16,29 @@ struct MixerOutputPreferences: Equatable {
 }
 
 enum MixerSoftwareVolumeSupport {
-    static func savedLevel(_ value: Any?) -> Double {
-        guard let value = value as? NSNumber, value.doubleValue.isFinite else { return 0.5 }
-        return min(1, max(0, value.doubleValue))
+    // Matches the driver's master control curve, not the per-app boost curve.
+    private static let exponent = log(10.0) / log(4.0)
+    private static let tail = 20 * exponent / (4 * log(10.0))
+    static func decibels(for level: Double, perceptual: Bool = false) -> Double {
+        guard level.isFinite, level > 0 else { return -64 }
+        if level >= 1 { return 0 }
+        if !perceptual { return -64 + 64 * level }
+        return level < 1.0 / 64 ? -64 + 4 * pow(level * 64, tail) : 20 * exponent * log10(level)
+    }
+    static func level(forDecibels decibels: Double, perceptual: Bool = false) -> Double {
+        guard decibels.isFinite, decibels > -64 else { return 0 }
+        if decibels >= 0 { return 1 }
+        if !perceptual { return (decibels + 64) / 64 }
+        return decibels < -60 ? pow((decibels + 64) / 4, 1 / tail) / 64 : pow(10, decibels / (20 * exponent))
+    }
+    static func savedLevel(_ value: Any?, perceptual: Bool = false) -> Double {
+        if let record = value as? [String: Double], let decibels = record["decibels"], decibels.isFinite {
+            return level(forDecibels: decibels, perceptual: perceptual)
+        }
+        // Old numbers used -64 + 64 * scalar. Convert the audible level,
+        // never reinterpret the same position on a much louder new curve.
+        let legacy = (value as? NSNumber)?.doubleValue ?? 0.5
+        return level(forDecibels: decibels(for: legacy.isFinite ? legacy : 0.5), perceptual: perceptual)
     }
 }
 

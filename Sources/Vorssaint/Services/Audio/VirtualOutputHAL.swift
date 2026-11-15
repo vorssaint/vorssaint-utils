@@ -67,6 +67,20 @@ enum VirtualOutputHAL {
         }
         return false
     }
+    static func outputDecibels(_ device: AudioObjectID) -> Double? {
+        var value: Float32 = 0
+        guard read(device, kAudioDevicePropertyVolumeDecibels, into: &value, scope: kAudioObjectPropertyScopeOutput),
+              value.isFinite else { return nil }
+        return Double(min(0, max(-64, value)))
+    }
+    static func setPerceptualVolume(_ device: AudioObjectID, enabled: Bool) -> Bool {
+        let requested = enabled ? kCFBooleanTrue! : kCFBooleanFalse!
+        guard write(device, 0x76706572, value: requested) == noErr else { return false }
+        var reference: Unmanaged<CFBoolean>?
+        guard read(device, 0x76706572, into: &reference), let reference else { return false }
+        let actual = reference.takeRetainedValue()
+        return CFGetTypeID(actual) == CFBooleanGetTypeID() && CFBooleanGetValue(actual) == enabled
+    }
     static func hasHardwareVolume(_ uid: String) -> Bool {
         guard let device = device(uid) else { return false }
         for selector in [kAudioHardwareServiceDeviceProperty_VirtualMainVolume, kAudioDevicePropertyVolumeScalar] {
@@ -102,13 +116,21 @@ enum VirtualOutputHAL {
             guard let version = component.info["CFBundleVersion"] as? String,
                   (Int(version) ?? 0) >= requiredComponentBuild,
                   let device = device(component.uid) else { continue }
-            // A newly copied plist must not make an old, still-loaded duplex
-            // driver appear ready while Core Audio is restarting.
+            // Check the loaded implementation, not just the new on-disk plist.
+            // A build-5 driver uses a different master-volume curve.
             let selectors: [AudioObjectPropertySelector] = [VirtualOutputSupport.ownerSelector, 0x766b6579, 0x7670636d, 0x76636667]
             if selectors.allSatisfy({ selector in
                 var property = address(selector)
                 return AudioObjectHasProperty(device, &property)
-            }) { return device }
+            }) {
+                var reference: Unmanaged<CFNumber>?
+                guard read(device, 0x76637276, into: &reference), let reference else { continue }
+                let curve = reference.takeRetainedValue()
+                var version: Int32 = 0
+                guard CFGetTypeID(curve) == CFNumberGetTypeID(),
+                      CFNumberGetValue(curve, .sInt32Type, &version), version == 2 else { continue }
+                return device
+            }
         }
         return nil
     }

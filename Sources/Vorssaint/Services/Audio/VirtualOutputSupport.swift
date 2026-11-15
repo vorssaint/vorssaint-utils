@@ -80,7 +80,7 @@ enum VirtualOutputSupport {
 
     /// The bundle stamps the exact optional-driver build it ships. Keep the
     /// output-only protocol floor even if that metadata is absent or invalid.
-    static func requiredComponentBuild(bundledBuild: Int?) -> Int { max(5, bundledBuild ?? 5) }
+    static func requiredComponentBuild(bundledBuild: Int?) -> Int { max(6, bundledBuild ?? 6) }
     static func needsComponentUpdate(installed: Bool, build: Int?, required: Int) -> Bool {
         installed && (build ?? 0) < required
     }
@@ -98,7 +98,7 @@ enum VirtualOutputSupport {
         if !requested { return .disable }
         return componentReady ? .enable : .install
     }
-    enum Issue { case outputUnavailable, setupFailed, privacyUnverified, inUse, stopped, installerMissing, removalFailed }
+    enum Issue { case outputUnavailable, setupFailed, privacyUnverified, inUse, stopped, installerMissing, removalFailed, curveFailed }
 
     enum InputSource { case physicalOutput(streams: Int), processTap(physicalStreams: Int) }
     static func inputMask(streamCount: Int, source: InputSource) -> [UInt32]? {

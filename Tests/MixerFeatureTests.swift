@@ -23,10 +23,44 @@ enum MixerFeatureTests {
                 && !unavailable.devices && !unavailable.processes,
                "output switcher alone watches devices without starting per-app mixer taps")
 
-        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(NSNumber(value: 0.27)), 0.27,
-            "device volume restores its own saved level")
-        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(NSNumber(value: Double.infinity)), 0.5,
-            "non-finite saved level falls back to a safe middle level")
+        // Legacy scalar values represent a linear -64...0 dB curve. Preserve
+        // their audible gain when changing the UI curve, including the default.
+        for legacy in [0.0, 0.01, 0.1, 0.27, 0.5, 0.9, 1.0] {
+            let level = MixerSoftwareVolumeSupport.savedLevel(NSNumber(value: legacy), perceptual: true)
+            let record = ["decibels": MixerSoftwareVolumeSupport.decibels(for: level, perceptual: true)]
+            suite.expectClose(record["decibels"] ?? 99, -64 * (1 - legacy), "legacy device volume migrates without changing its gain", tol: 0.00001)
+            suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(record, perceptual: true), level,
+                "decibel-based persistence is stable across repeated restores")
+        }
+        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(["decibels": -10.0], perceptual: true), 0.5,
+            "new persisted levels use the perceptual curve")
+        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(["decibels": 0.0]), 1,
+            "unity gain survives persistence")
+        suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(["decibels": -64.0]), 0,
+            "mute survives persistence")
+        for invalid: Any in [Double.infinity, Double.nan, ["decibels": Double.nan], "invalid"] {
+            suite.expectClose(MixerSoftwareVolumeSupport.savedLevel(invalid), MixerSoftwareVolumeSupport.savedLevel(nil),
+                "invalid preferences retain the previous safe default gain")
+        }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.mixerPerceptualVolumeEnabled] as? Bool == false,
+            "the original software-volume curve remains the default")
+        for language in AppLanguage.allCases {
+            let text = VirtualOutputStrings.perceptualVolume(language)
+            suite.expect(!text.title.isEmpty && text.caption.contains("−10") && text.caption.contains("−32"),
+                "every supported language describes the optional curve and both midpoints")
+        }
+        for perceptual in [false, true] {
+            for index in 0...1000 {
+                let level = Double(index) / 1000
+                let db = MixerSoftwareVolumeSupport.decibels(for: level, perceptual: perceptual)
+                suite.expectClose(MixerSoftwareVolumeSupport.level(forDecibels: db, perceptual: perceptual), level,
+                    "both volume curves round-trip across the usable range", tol: 0.00001)
+                let record = ["decibels": MixerSoftwareVolumeSupport.decibels(for: level, perceptual: perceptual)]
+                let other = MixerSoftwareVolumeSupport.savedLevel(record, perceptual: !perceptual)
+                suite.expectClose(MixerSoftwareVolumeSupport.decibels(for: other, perceptual: !perceptual), db,
+                    "switching curves preserves audible gain", tol: 0.00001)
+            }
+        }
         suite.expectClose(Defaults.sanitizedAppVolume(1.5), 1.5, "valid app volume is preserved")
         suite.expectClose(Defaults.sanitizedAppVolume(3), 2, "high app volume clamps to boost maximum")
         suite.expectClose(Defaults.sanitizedAppVolume(-1), 0, "negative app volume clamps to mute")
