@@ -291,6 +291,25 @@ enum NotchWatchTests {
         suite.expect(NotchWatchCondition.saved(in: defaults) == .changes, "a first watch speaks up on any change")
         defaults.set("settles", forKey: DefaultsKey.notchWatchCondition)
         suite.expect(NotchWatchCondition.saved(in: defaults) == .settles, "the last rule chosen is kept")
+        suite.expect(NotchWatchSupport.isSoundEnabled(in: defaults)
+                        && NotchWatchSupport.resolvedSoundName(in: defaults) == Defaults.defaultNotchWatchSoundName
+                        && !NotchWatchSupport.repeatsSound(in: defaults),
+                     "a first watch still dings once with Glass")
+        defaults.set("Tink", forKey: DefaultsKey.notchWatchSoundName)
+        defaults.set(true, forKey: DefaultsKey.notchWatchSoundRepeat)
+        suite.expect(NotchWatchSupport.resolvedSoundName(in: defaults) == "Tink"
+                        && NotchWatchSupport.repeatsSound(in: defaults),
+                     "the chosen sound and a repeating alert are kept")
+        defaults.set("MissingTone", forKey: DefaultsKey.notchWatchSoundName)
+        suite.expect(NotchWatchSupport.resolvedSoundName(in: defaults) == Defaults.defaultNotchWatchSoundName,
+                     "a sound this Mac no longer has falls back to Glass")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchWatchSoundName] as? String
+                        == Defaults.defaultNotchWatchSoundName
+                        && Defaults.registeredDefaults[DefaultsKey.notchWatchSoundRepeat] as? Bool == false
+                        && SettingsBackupSupport.exportKeys().isSuperset(of: [
+                            DefaultsKey.notchWatchSoundName, DefaultsKey.notchWatchSoundRepeat
+                        ]),
+                     "Watch sound preferences are registered and travel with settings backups")
         defaults.set("watch", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchWatchSupport.isEnabled(in: defaults) && !NotchSupport.routes(.watch, in: defaults),
                      "a hidden page stops watching")
