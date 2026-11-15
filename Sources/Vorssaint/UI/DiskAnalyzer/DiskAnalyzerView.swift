@@ -16,7 +16,7 @@ struct DiskAnalyzerView: View {
     var body: some View {
         Form {
             Section {
-                Text(strings.openFromUtilities)
+                Text(strings.settingsIntro)
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
