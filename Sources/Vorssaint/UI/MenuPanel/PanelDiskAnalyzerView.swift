@@ -13,26 +13,34 @@ struct PanelDiskAnalyzerView: View {
 
     private var strings: DiskAnalyzerFeatureStrings { FeatureStrings.diskAnalyzer(l10n.language) }
 
+    private var showsResults: Bool {
+        if case .ready = service.phase { return service.root != nil }
+        return false
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             header
             DiskAnalyzerWorkspaceView(compact: true)
+                .frame(maxHeight: inNotch && showsResults ? .infinity : nil, alignment: .top)
         }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // Pin to the Utilities scroll viewport so the outer page does not
+        // scroll; the file list keeps its own scroller underneath the map.
+        .frame(height: inNotch && showsResults ? DiskAnalyzerSupport.islandResultsBodyHeight : nil,
+               alignment: .top)
         .onAppear {
             PanelInteractionState.shared.viewKeepsPopoverOpen = true
-            service.setHostedInIsland(inNotch)
-        }
-        .onChange(of: inNotch) { _, hosted in
-            service.setHostedInIsland(hosted)
         }
         .onDisappear {
+            // Island growth recreates this view; only tear down when Utilities
+            // actually closed the tool.
+            guard !service.isPresentedInUtilities else { return }
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
-            service.setHostedInIsland(false)
             if service.phase == .scanning {
                 service.cancel()
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {

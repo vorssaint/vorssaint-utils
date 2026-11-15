@@ -41,14 +41,26 @@ enum DiskAnalyzerSupport {
     static let smallFileByteThreshold: Int64 = 512 * 1024
     /// Default nest depth when Settings hasn’t overridden it.
     static let defaultTreemapNestingDepth = 3
-    /// Island content height once a scan has results: tall enough for the
-    /// map and list without nested scrolling inside the Utilities page.
-    static let islandResultsContentHeight: CGFloat = 560
-    /// Treemap height inside the island while results are on screen.
-    static let islandResultsTreemapHeight: CGFloat = 380
+    /// MenuPanelView reserves this much of the island content for the
+    /// Utilities section chrome above and below its scroll view.
+    static let islandUtilitiesChromeHeight: CGFloat = 96
+    /// PanelSection still draws its Utilities title above the tool.
+    static let islandSectionHeaderHeight: CGFloat = 32
+    /// Island content height once a scan has results: large enough that the
+    /// map and list fit in the scroll viewport, so only the file list scrolls.
+    static let islandResultsContentHeight: CGFloat = 840
+    /// Height pinned on the Disk Analyzer body inside that viewport.
+    static var islandResultsBodyHeight: CGFloat {
+        islandResultsContentHeight - islandUtilitiesChromeHeight - islandSectionHeaderHeight
+    }
+    /// Fixed file-list viewport; rows scroll inside it.
+    static let islandResultsListHeight: CGFloat = 200
+    /// Fallback treemap height when the body is not filling a fixed frame.
+    static let islandResultsTreemapHeight: CGFloat = 420
     /// Compact start / scanning map placeholder in the island.
     static let islandIdleTreemapHeight: CGFloat = 200
     static let panelTreemapHeight: CGFloat = 220
+    static let panelListHeight: CGFloat = 180
 
     struct Node: Identifiable, Equatable {
         var id: String { path }

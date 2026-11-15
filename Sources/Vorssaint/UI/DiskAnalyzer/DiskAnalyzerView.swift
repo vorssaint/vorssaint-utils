@@ -258,6 +258,13 @@ struct DiskAnalyzerWorkspaceView: View {
         .panelCard()
     }
 
+    private var showsResults: Bool {
+        if case .ready = service.phase { return service.root != nil }
+        return false
+    }
+
+    private var fillsIslandResults: Bool { inNotch && showsResults }
+
     private var analyzerBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             navigationBar
@@ -273,7 +280,8 @@ struct DiskAnalyzerWorkspaceView: View {
                 onTrash: requestTrash
             )
             .frame(maxWidth: .infinity)
-            .frame(height: treemapHeight)
+            .frame(maxHeight: fillsIslandResults ? .infinity : nil)
+            .frame(height: fillsIslandResults ? nil : treemapHeight)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .id("\(service.zoomPath ?? service.root?.path ?? "")-\(service.nestingDepth)")
 
@@ -281,31 +289,16 @@ struct DiskAnalyzerWorkspaceView: View {
                 itemList
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: fillsIslandResults ? .infinity : nil, alignment: .top)
     }
 
     private var treemapHeight: CGFloat {
         guard inNotch else { return DiskAnalyzerSupport.panelTreemapHeight }
-        if service.phase == .ready, service.root != nil {
-            return DiskAnalyzerSupport.islandResultsTreemapHeight
-        }
         return DiskAnalyzerSupport.islandIdleTreemapHeight
     }
 
     private var navigationBar: some View {
         HStack(spacing: 6) {
-            Button {
-                service.zoomOut()
-            } label: {
-                Image(systemName: "arrow.up.left")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(service.canZoomOut ? Color.primary : Color.secondary.opacity(0.45))
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(.plain)
-            .disabled(!service.canZoomOut)
-            .help(strings.goUp)
-            .accessibilityLabel(strings.goUp)
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 4) {
                     ForEach(Array(service.breadcrumbs.enumerated()), id: \.element.id) { index, node in
@@ -365,7 +358,8 @@ struct DiskAnalyzerWorkspaceView: View {
                 }
             }
         }
-        .frame(maxHeight: inNotch ? 200 : 180)
+        .frame(height: inNotch ? DiskAnalyzerSupport.islandResultsListHeight
+                               : DiskAnalyzerSupport.panelListHeight)
     }
 
     private func itemRow(_ item: DiskAnalyzerSupport.Node) -> some View {

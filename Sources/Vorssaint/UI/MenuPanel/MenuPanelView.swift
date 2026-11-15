@@ -601,7 +601,6 @@ struct UtilitiesSection: View {
     @State private var showRecentCapturesPanel = false
     @State private var showWindowLayoutPanel = false
     @State private var showPortManagerPanel = false
-    @State private var showDiskAnalyzerPanel = false
     @AppStorage(DefaultsKey.panelUtilityCleaning) private var showCleaning = true
     @AppStorage(DefaultsKey.panelUtilityURLCleaner) private var showCleanURL = true
     @AppStorage(DefaultsKey.panelUtilityUninstaller) private var showUninstallerAction = true
@@ -680,10 +679,10 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showPortManagerPanel = false
                 }
-            } else if showDiskAnalyzerPanel {
+            } else if diskAnalyzer.isPresentedInUtilities {
                 PanelDiskAnalyzerView {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
-                    showDiskAnalyzerPanel = false
+                    diskAnalyzer.setPresentedInUtilities(false)
                 }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
@@ -705,11 +704,13 @@ struct UtilitiesSection: View {
         }
         .onChange(of: diskAnalyzer.panelPresentationID) { _, id in
             guard id > 0, features.isAvailable(.diskAnalyzer) else { return }
-            showDiskAnalyzerPanel = true
+            diskAnalyzer.setPresentedInUtilities(true)
         }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
             // tool off screen with it; a closed panel does not, and keeps it.
+            // Do not clear Disk Analyzer presentation here: island resizes
+            // recreate this section and must keep the taller results layout.
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
             PanelInteractionState.shared.hostedSettingsPage = nil
         }
@@ -730,7 +731,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
-        if showDiskAnalyzerPanel { return .diskAnalyzer }
+        if diskAnalyzer.isPresentedInUtilities { return .diskAnalyzer }
         return nil
     }
 
@@ -741,7 +742,7 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
-            || showDiskAnalyzerPanel
+            || diskAnalyzer.isPresentedInUtilities
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -1049,7 +1050,7 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showDiskAnalyzer,
-                                action: { showDiskAnalyzerPanel = true })
+                                action: { diskAnalyzer.setPresentedInUtilities(true) })
         }
     }
 

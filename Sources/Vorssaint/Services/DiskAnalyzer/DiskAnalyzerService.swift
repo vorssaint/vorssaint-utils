@@ -57,8 +57,10 @@ final class DiskAnalyzerService: ObservableObject {
     private var cancellation: DiskAnalyzerSupport.ScanCancellation?
     private let worker = DispatchQueue(label: "com.vorssaint.utils.disk-analyzer", qos: .userInitiated)
     private var lastRootURL: URL?
-    /// True while `PanelDiskAnalyzerView` is on screen inside the island.
-    private var hostedInIsland = false
+    /// True while Utilities is showing Disk Analyzer (island or menu panel).
+    /// Lives on the service so island resizes that recreate SwiftUI state
+    /// cannot drop the open tool or clear the taller content height.
+    @Published private(set) var isPresentedInUtilities = false
 
     private init() {
         let defaults = UserDefaults.standard
@@ -75,16 +77,20 @@ final class DiskAnalyzerService: ObservableObject {
         appDelegate()?.openUtilitiesPanel()
     }
 
-    /// The island page reports whether Disk Analyzer is currently hosted
-    /// there so results can enlarge the silhouette without affecting the
-    /// floating menu panel.
-    func setHostedInIsland(_ hosted: Bool) {
-        guard hostedInIsland != hosted else { return }
-        hostedInIsland = hosted
+    /// Open or close Disk Analyzer inside Utilities. Growing the island is
+    /// gated separately on `NotchService.showingAppPanel`.
+    func setPresentedInUtilities(_ presented: Bool) {
+        guard isPresentedInUtilities != presented else {
+            publishIslandContentHeight()
+            return
+        }
+        isPresentedInUtilities = presented
         publishIslandContentHeight()
     }
 
     private func publishIslandContentHeight() {
+        let notch = NotchService.shared
+        let hostedInIsland = isPresentedInUtilities && notch.expanded && notch.showingAppPanel
         let next: CGFloat?
         if hostedInIsland, phase == .ready, root != nil {
             next = DiskAnalyzerSupport.islandResultsContentHeight
@@ -93,7 +99,7 @@ final class DiskAnalyzerService: ObservableObject {
         }
         guard islandContentHeight != next else { return }
         islandContentHeight = next
-        NotchService.shared.refreshPresentation()
+        notch.refreshPresentation()
     }
 
     var selectedNode: DiskAnalyzerSupport.Node? {
@@ -267,21 +273,6 @@ final class DiskAnalyzerService: ObservableObject {
     func zoomIntoSelection() {
         guard let node = selectedNode, node.isDirectory, !node.isAggregate else { return }
         zoom(to: node.path)
-    }
-
-    var canZoomOut: Bool {
-        guard let root, let zoomPath else { return false }
-        return zoomPath != root.path
-    }
-
-    /// Move one level up toward the scan root (WizTree “parent folder”).
-    func zoomOut() {
-        guard let root, let zoomPath, zoomPath != root.path else { return }
-        let parent = URL(fileURLWithPath: zoomPath).deletingLastPathComponent().path
-        let destination = DiskAnalyzerSupport.node(at: parent, in: root)?.path
-            ?? DiskAnalyzerSupport.breadcrumb(to: zoomPath, in: root).dropLast().last?.path
-            ?? root.path
-        zoom(to: destination)
     }
 
     func revealSelection() {

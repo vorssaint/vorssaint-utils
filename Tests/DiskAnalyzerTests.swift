@@ -18,11 +18,16 @@ enum DiskAnalyzerTests {
     }
 
     private static func islandResultsHeight(_ suite: TestSuite) {
-        suite.expect(DiskAnalyzerSupport.islandResultsTreemapHeight
-                        > DiskAnalyzerSupport.islandIdleTreemapHeight
-                        && DiskAnalyzerSupport.islandResultsContentHeight
-                        > DiskAnalyzerSupport.islandResultsTreemapHeight,
-                     "Disk Analyzer grows the island map once a scan has results")
+        suite.expect(DiskAnalyzerSupport.islandResultsContentHeight
+                        > NotchLayout.pageContentHeight
+                        && DiskAnalyzerSupport.islandResultsBodyHeight
+                        == DiskAnalyzerSupport.islandResultsContentHeight
+                        - DiskAnalyzerSupport.islandUtilitiesChromeHeight
+                        - DiskAnalyzerSupport.islandSectionHeaderHeight
+                        && DiskAnalyzerSupport.islandResultsBodyHeight
+                        > DiskAnalyzerSupport.islandResultsListHeight
+                        + DiskAnalyzerSupport.islandResultsTreemapHeight,
+                     "Disk Analyzer results reserve a tall island page so only the file list scrolls")
         let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
         let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 180, layout: .compact)
         let normal = geometry.contentSize(for: geometry.expandedSize(module: .tools, panel: true)).height
