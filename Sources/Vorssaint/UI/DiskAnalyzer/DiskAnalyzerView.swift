@@ -83,7 +83,6 @@ struct DiskAnalyzerView: View {
 struct DiskAnalyzerWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
-    @ObservedObject private var permissions = Permissions.shared
     @Environment(\.notchPresentation) private var inNotch
     @State private var pendingTrash = false
     @State private var pendingTrashPath: String?
