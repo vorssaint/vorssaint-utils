@@ -285,7 +285,6 @@ struct DiskAnalyzerWorkspaceView: View {
                     HStack(spacing: 8) {
                         if !node.isAggregate {
                             Button(strings.revealInFinder) { service.revealSelection() }
-                            Button(strings.open) { service.openSelection() }
                             Button(strings.copyPath) { service.copySelectionPath() }
                         }
                         if node.isDirectory, !node.isAggregate {
@@ -357,10 +356,6 @@ struct DiskAnalyzerWorkspaceView: View {
                             Button(strings.revealInFinder) {
                                 service.select(path: item.path)
                                 service.revealSelection()
-                            }
-                            Button(strings.open) {
-                                service.select(path: item.path)
-                                service.openSelection()
                             }
                             if DiskAnalyzerSupport.canTrash(item.url) {
                                 Button(strings.moveToTrash, role: .destructive) {

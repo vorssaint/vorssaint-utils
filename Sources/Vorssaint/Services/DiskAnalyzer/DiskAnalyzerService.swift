@@ -221,11 +221,6 @@ final class DiskAnalyzerService: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
     }
 
-    func openSelection() {
-        guard let node = selectedNode, !node.isAggregate else { return }
-        NSWorkspace.shared.open(node.url)
-    }
-
     func copySelectionPath() {
         guard let node = selectedNode, !node.isAggregate else { return }
         NSPasteboard.general.clearContents()
