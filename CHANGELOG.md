@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Mic Mute always toggles again after mute: unmute no longer loses its finish when restoring gain notifies device listeners, and the shortcut follows the request in flight. Mute still zeros input volume and reapplies if something raises it.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

@@ -21,6 +21,9 @@ enum MicMuteSupport {
     /// Below this, a level is treated as silence. Matching the older volume
     /// save check keeps unmute from restoring a zero it never meant to keep.
     static let silenceThreshold: Float = 0.01
+    /// Drivers often nudge a restored master a hair off the saved scalar.
+    /// Mute switches stay exact; only gain uses this slack.
+    static let volumeMatchTolerance: Double = 0.05
     /// Devices without a readable stream layout still get the stereo pair
     /// tried, the way the mute used to.
     static let minimumChannelCount = 2
@@ -89,6 +92,15 @@ enum MicMuteSupport {
         if let value = saved[uid], value > Double(silenceThreshold) { return Float(value) }
         if legacy > Double(silenceThreshold) { return Float(legacy) }
         return fallbackVolume
+    }
+
+    /// Mute is on or off; gain may settle a little away from the saved value
+    /// after a master/channel write. A still-zero gain must not count as a
+    /// match for a saved audible level.
+    static func controlValuesMatch(_ left: Double, _ right: Double, isMute: Bool) -> Bool {
+        guard left.isFinite && right.isFinite else { return false }
+        if isMute { return abs(left - right) <= 0.0001 }
+        return abs(left - right) <= volumeMatchTolerance
     }
 
     /// Master first, then every channel the stream layout named, never fewer

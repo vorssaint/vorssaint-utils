@@ -38,6 +38,11 @@ final class MicMuteService: ObservableObject {
     /// A sweep that finished after a newer one started must not publish what
     /// it saw.
     private var applyGeneration = 0
+    /// True from the moment a sweep is queued until its generation publishes.
+    /// An unmute restore writes volume, which used to notify the mute
+    /// listeners and queue another unmute that bumped the generation and
+    /// discarded the finish that clears the UI — leaving mute stuck on.
+    private var applyInFlight = false
     /// What the last request asked for, kept from the moment it is queued.
     /// `isMuted` and the persisted flag only follow once the sweep has
     /// published, so a device change or a preference sync that lands while a
@@ -127,7 +132,10 @@ final class MicMuteService: ObservableObject {
     }
 
     func toggle() {
-        setMuted(!isMuted)
+        // Flip the request in flight, not the last published result: a mute
+        // or unmute that has not finished yet still has to reverse on the
+        // next press, or the shortcut looks dead until the sweep lands.
+        setMuted(!wantsMute)
     }
 
     func setMuted(_ muted: Bool) {
@@ -161,6 +169,7 @@ final class MicMuteService: ObservableObject {
         // Any sweep still in flight loses its right to publish, and this one
         // runs behind it on the same serial queue.
         applyGeneration += 1
+        applyInFlight = false
         wantsMute = false
         _ = halQueue.sync {
             let outcome = Self.sweep(muted: false)
@@ -184,6 +193,10 @@ final class MicMuteService: ObservableObject {
         if wantsMute {
             apply(muted: true, announce: false)
         } else if hasOutstandingClaims {
+            // A restore write must not start a second unmute on top of the
+            // one already draining claims: that bumps the generation and the
+            // first finish never clears the published mute.
+            guard !applyInFlight else { return }
             apply(muted: false, announce: false)
         }
     }
@@ -198,9 +211,16 @@ final class MicMuteService: ObservableObject {
             inputVolumeBlocked = muted
             inputVolumeLifetime = UUID()
         }
+        applyInFlight = true
         applyGeneration += 1
         let generation = applyGeneration
         halQueue.async { [weak self] in
+            // Drop per-device watchers before an unmute touches gain. Leaving
+            // them up meant our own restore notified the mute path and could
+            // race the finish that turns the feature off.
+            if !muted {
+                self?.removeDeviceListeners()
+            }
             let outcome = Self.sweep(muted: muted)
             if muted {
                 if outcome.applied { self?.syncDeviceListeners(muted: true) }
@@ -248,6 +268,7 @@ final class MicMuteService: ObservableObject {
     /// Main thread. Publishes one sweep.
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
         guard generation == applyGeneration else { return }
+        applyInFlight = false
         if outcome.applied {
             if isMuted != muted { isMuted = muted }
             UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
@@ -255,8 +276,11 @@ final class MicMuteService: ObservableObject {
         } else {
             // Nothing was reached, so the request is dropped as it always was:
             // the published state stays what it is, and so does the wanted one.
+            // An unmute that stripped device watchers before failing must put
+            // them back while mute is still latched, or gain can rise quietly.
             wantsMute = isMuted
             inputVolumeLock.withLock { inputVolumeBlocked = isMuted }
+            syncListeners()
         }
         guard announce else { return }
         // Report a known failure even when no device could be changed. The
@@ -454,12 +478,20 @@ final class MicMuteService: ObservableObject {
                 // Check the final state after all writes. Later writes can
                 // affect earlier controls through a driver's master/channel
                 // aliases. Missing or unreadable controls stay ours to retry.
-                let restored = !snapshot.isEmpty && addresses.count == snapshot.count
-                    && addresses.allSatisfy { address in
-                        guard let expected = snapshot[controlKey(address)],
-                              let current = controlValue(of: device.id, at: address) else { return false }
-                        return controlValuesMatch(current, expected)
-                    }
+                var restored = controlsMatchSnapshot(snapshot, on: device.id, addresses: addresses)
+                // Still quiet after the snapshot write: push the switch and a
+                // usable level once more. A driver that only drifted gain is
+                // already handled by the volume match slack above.
+                if !restored, isSilenced(device.id) {
+                    let restore = MicMuteSupport.volumeToRestore(uid: device.uid,
+                                                                 saved: savedVolumes,
+                                                                 legacy: legacyVolume)
+                    _ = setMuteSwitch(false, of: device.id)
+                    _ = setInputVolume(restore, of: device.id,
+                                       channels: savedChannelVolumes[device.uid] ?? [:])
+                    restored = controlsMatchSnapshot(snapshot, on: device.id, addresses: addresses)
+                        || !isSilenced(device.id)
+                }
                 if restored {
                     outcome.applied = true
                     outcome.savedControls.removeValue(forKey: device.uid)
@@ -712,7 +744,8 @@ final class MicMuteService: ObservableObject {
         }
         return !addresses.isEmpty && addresses.allSatisfy { address in
             guard let current = controlValue(of: device, at: address) else { return false }
-            return controlValuesMatch(current, channels[String(address.mElement)] ?? Double(volume))
+            return controlValuesMatch(current, channels[String(address.mElement)] ?? Double(volume),
+                                      isMute: false)
         }
     }
 
@@ -735,8 +768,21 @@ final class MicMuteService: ObservableObject {
         return address.mSelector == kAudioDevicePropertyVolumeScalar ? 1 : 2
     }
 
-    private static func controlValuesMatch(_ left: Double, _ right: Double) -> Bool {
-        left.isFinite && right.isFinite && abs(left - right) <= 0.0001
+    private static func controlValuesMatch(_ left: Double, _ right: Double,
+                                           isMute: Bool = false) -> Bool {
+        MicMuteSupport.controlValuesMatch(left, right, isMute: isMute)
+    }
+
+    private static func controlsMatchSnapshot(_ snapshot: [String: Double],
+                                              on device: AudioDeviceID,
+                                              addresses: [AudioObjectPropertyAddress]) -> Bool {
+        !snapshot.isEmpty && addresses.count == snapshot.count
+            && addresses.allSatisfy { address in
+                guard let expected = snapshot[controlKey(address)],
+                      let current = controlValue(of: device, at: address) else { return false }
+                return controlValuesMatch(current, expected,
+                                          isMute: address.mSelector == kAudioDevicePropertyMute)
+            }
     }
 
     private static func controlValue(of device: AudioDeviceID,
@@ -765,7 +811,8 @@ final class MicMuteService: ObservableObject {
         guard value.isFinite, value >= 0, value <= 1,
               address.mSelector != kAudioDevicePropertyMute || value == 0 || value == 1,
               let current = controlValue(of: device, at: address) else { return false }
-        if controlValuesMatch(current, value) { return false }
+        if controlValuesMatch(current, value,
+                              isMute: address.mSelector == kAudioDevicePropertyMute) { return false }
         var address = address
         var settable = DarwinBoolean(false)
         guard AudioObjectIsPropertySettable(device, &address, &settable) == noErr,
@@ -781,7 +828,9 @@ final class MicMuteService: ObservableObject {
                                                 UInt32(MemoryLayout<Float>.size), &target)
         }
         let readBack = controlValue(of: device, at: address)
-        return status == noErr || readBack.map { !controlValuesMatch($0, current) } == true
+        let isMute = address.mSelector == kAudioDevicePropertyMute
+        return status == noErr
+            || readBack.map { !controlValuesMatch($0, current, isMute: isMute) } == true
     }
 
     /// 3.4.3 only flipped the main switch when it worked. No gain or channel
