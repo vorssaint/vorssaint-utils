@@ -35,11 +35,10 @@ enum DiskAnalyzerSupport {
 
     /// Soft caps keep Home / startup-disk scans responsive: only the largest
     /// children stay expandable; the rest roll into an aggregate leaf.
-    static let maxChildrenPerDirectory = 64
-    /// Only fold tiny files when a folder has many of them — WizTree keeps
-    /// individual files visible so their sizes show up in the map.
-    static let smallFileByteThreshold: Int64 = 64 * 1024
-    static let smallFileFoldCount = 40
+    static let maxChildrenPerDirectory = 48
+    /// Files below this size roll into one “Smaller files” leaf so the map
+    /// stays dominated by real space hogs (WizTree / WinDirStat behavior).
+    static let smallFileByteThreshold: Int64 = 512 * 1024
     /// How deep to nest boxes inside the current zoom folder. Deeper levels
     /// remain reachable by zooming in (like WizTree drill-down).
     static let treemapNestingDepth = 3
@@ -336,8 +335,9 @@ enum DiskAnalyzerSupport {
         }
 
         if smallFilesCount > 0, smallFilesSize > 0 {
-            // Keep small files as their own leaves unless the folder is crowded.
-            if smallFilesCount <= smallFileFoldCount || large.isEmpty {
+            // Always fold small files into one leaf unless they *are* the folder
+            // (nothing large to compare against) and there are only a few.
+            if large.isEmpty, smallFilesCount <= 12 {
                 let small = children.filter {
                     !$0.isDirectory && !$0.isAggregate && $0.size < smallFileByteThreshold && $0.size > 0
                 }
@@ -502,18 +502,23 @@ enum DiskAnalyzerSupport {
 
     /// Squarified treemap (Bruls, Huizing, van Wijk). Children must be sorted
     /// largest-first for stable packing; callers already sort by size.
+    ///
+    /// Area uses the **remaining** free rect and **remaining** size sum.
+    /// Using the original total against a shrunk free rect under-sized middle
+    /// rows and dumped leftover pixels onto the last (often tiny) files.
     static func squarify(_ children: [Node], in bounds: CGRect) -> [Placed] {
         let total = children.reduce(Int64(0)) { $0 + $1.size }
         guard total > 0, bounds.width > 0, bounds.height > 0 else { return [] }
 
         var remaining = children
+        var remainingSize = total
         var free = bounds
         var result: [Placed] = []
 
         while !remaining.isEmpty {
             let vertical = free.width >= free.height
             let side = vertical ? free.height : free.width
-            guard side > 0 else { break }
+            guard side > 0, remainingSize > 0 else { break }
 
             var row: [Node] = []
             var rowSize: Int64 = 0
@@ -526,7 +531,7 @@ enum DiskAnalyzerSupport {
                 let worst = worstAspect(sizes: nextRow.map(\.size),
                                         rowSize: nextSize,
                                         side: side,
-                                        total: total,
+                                        remainingSize: remainingSize,
                                         freeArea: free.width * free.height)
                 if row.isEmpty || worst <= bestWorst {
                     row = nextRow
@@ -539,9 +544,10 @@ enum DiskAnalyzerSupport {
             }
 
             let isLast = remaining.isEmpty
-            let rowArea = CGFloat(rowSize) / CGFloat(total) * (free.width * free.height)
+            // Strip thickness ∝ rowSize / remainingSize of the current free rect.
+            let fraction = CGFloat(rowSize) / CGFloat(remainingSize)
             if vertical {
-                let rowWidth = isLast ? free.width : rowArea / max(free.height, 0.0001)
+                let rowWidth = isLast ? free.width : fraction * free.width
                 var y = free.minY
                 for (index, node) in row.enumerated() {
                     let isLastItem = index == row.count - 1
@@ -556,7 +562,7 @@ enum DiskAnalyzerSupport {
                 free.origin.x += rowWidth
                 free.size.width = max(0, free.width - rowWidth)
             } else {
-                let rowHeight = isLast ? free.height : rowArea / max(free.width, 0.0001)
+                let rowHeight = isLast ? free.height : fraction * free.height
                 var x = free.minX
                 for (index, node) in row.enumerated() {
                     let isLastItem = index == row.count - 1
@@ -571,6 +577,7 @@ enum DiskAnalyzerSupport {
                 free.origin.y += rowHeight
                 free.size.height = max(0, free.height - rowHeight)
             }
+            remainingSize -= rowSize
         }
         return result
     }
@@ -578,12 +585,12 @@ enum DiskAnalyzerSupport {
     private static func worstAspect(sizes: [Int64],
                                     rowSize: Int64,
                                     side: CGFloat,
-                                    total: Int64,
+                                    remainingSize: Int64,
                                     freeArea: CGFloat) -> CGFloat {
-        guard rowSize > 0, total > 0, side > 0, freeArea > 0 else {
+        guard rowSize > 0, remainingSize > 0, side > 0, freeArea > 0 else {
             return CGFloat.greatestFiniteMagnitude
         }
-        let rowArea = CGFloat(rowSize) / CGFloat(total) * freeArea
+        let rowArea = CGFloat(rowSize) / CGFloat(remainingSize) * freeArea
         let rowOther = rowArea / side
         guard rowOther > 0 else { return CGFloat.greatestFiniteMagnitude }
         var worst: CGFloat = 1

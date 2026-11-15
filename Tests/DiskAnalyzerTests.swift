@@ -76,6 +76,28 @@ enum DiskAnalyzerTests {
                          || bounds.intersects(item.rect),
                          "rectangles stay inside parent bounds")
         }
+
+        // Area must track size: a 1% file must not eat a huge leftover strip.
+        let skewed = [
+            DiskAnalyzerSupport.Node(path: "/r/huge", name: "huge", size: 990, isDirectory: false, children: []),
+            DiskAnalyzerSupport.Node(path: "/r/mid", name: "mid", size: 9, isDirectory: false, children: []),
+            DiskAnalyzerSupport.Node(path: "/r/tiny", name: "tiny", size: 1, isDirectory: false, children: []),
+        ]
+        let skewedPlaced = DiskAnalyzerSupport.squarify(
+            skewed, in: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+        let totalArea = skewedPlaced.reduce(CGFloat(0)) { $0 + $1.rect.width * $1.rect.height }
+        for item in skewedPlaced {
+            let share = (item.rect.width * item.rect.height) / totalArea
+            let expectedShare = CGFloat(item.node.size) / 1000
+            suite.expect(abs(share - expectedShare) < 0.02,
+                         "box area tracks file size (\(item.node.name): got \(share) want ~\(expectedShare))")
+        }
+        if let tiny = skewedPlaced.first(where: { $0.node.name == "tiny" }),
+           let huge = skewedPlaced.first(where: { $0.node.name == "huge" }) {
+            suite.expect(tiny.rect.width * tiny.rect.height < huge.rect.width * huge.rect.height * 0.05,
+                         "tiny files stay visually tiny next to large ones")
+        }
     }
 
     private static func treeRemovalUpdatesAncestors(_ suite: TestSuite) {
