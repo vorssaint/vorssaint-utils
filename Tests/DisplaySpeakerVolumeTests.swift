@@ -594,6 +594,20 @@ enum DisplaySpeakerVolumeTests {
                      && BrightnessSupport.speakerService(for: 1, scores: [(1, 7, 2), (1, 8, 2)]) == nil
                      && BrightnessSupport.speakerService(for: 1, scores: [(1, 7, 10), (2, 7, 2)]) == 7,
                      "a speaker service needs a unique display and endpoint, while a matched connection is usable")
+        // A DisplayLink monitor can report the same EDID as a DDC monitor of
+        // the same model connected beside it.
+        var model = BrightnessSupport.DisplayIdentity()
+        model.productName = "DELL P2419H"
+        model.serialNumber = 42
+        var modelEndpoint = BrightnessSupport.ServiceIdentity()
+        modelEndpoint.productName = "DELL P2419H"
+        modelEndpoint.serialNumber = 42
+        modelEndpoint.ordinal = 7
+        suite.expect(BrightnessSupport.speakerServices(
+                        displays: [(index: 0, identity: model, isVirtual: false),
+                                   (index: 1, identity: model, isVirtual: true)],
+                        services: [modelEndpoint]) == [0: 7],
+                     "a virtual display never takes a monitor speaker, nor blocks the matching real monitor")
         var screen = BrightnessSupport.DisplayIdentity()
         screen.ioDisplayLocation = "port-a"
         screen.serialNumber = 5

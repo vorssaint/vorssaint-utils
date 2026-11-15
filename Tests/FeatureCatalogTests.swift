@@ -2911,6 +2911,14 @@ enum FeatureCatalogTests {
                                                        isActive: isActive) == .systemThenDDC,
                    "a physical display keeps its row and its DDC route")
         }
+        suite.expect(BrightnessSupport.keepsRowWithoutBrightness(isVirtual: false, hasSpeaker: false,
+                                                                 canSwitchPower: true)
+                     && BrightnessSupport.keepsRowWithoutBrightness(isVirtual: false, hasSpeaker: true,
+                                                                    canSwitchPower: false),
+               "a physical display without a brightness route keeps its row for its power button or speaker")
+        suite.expect(!BrightnessSupport.keepsRowWithoutBrightness(isVirtual: true, hasSpeaker: false,
+                                                                  canSwitchPower: true),
+               "a virtual display without a gamma curve is not listed, because it has no control left")
         // Measured on a MacBook whose panel (1) mirrors an HDMI monitor (2)
         // beside an extended one (3): the active list was [2, 3].
         let mirrored = BrightnessSupport.participatingDisplayIDs(
