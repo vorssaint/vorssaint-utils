@@ -4,9 +4,8 @@
 import AppKit
 import SwiftUI
 
-/// AppKit-backed treemap. SwiftUI Canvas rebuilt nested boxes on every
-/// selection change; this caches a filled bitmap and only overlays selection.
-/// Hover shows a fast tooltip so users can identify blocks without clicking.
+/// AppKit treemap drawn in view coordinates (no bitmap flip). Nested cells
+/// match WizTree: hit-testing always picks the deepest box under the pointer.
 struct DiskAnalyzerTreemapView: NSViewRepresentable {
     let root: DiskAnalyzerSupport.Node?
     let selectedPath: String?
@@ -36,13 +35,13 @@ final class DiskAnalyzerTreemapNSView: NSView {
     private var hoveredPath: String?
     private var cells: [DiskAnalyzerSupport.TreemapCell] = []
     private var layoutSize: CGSize = .zero
-    private var baseImage: CGImage?
     private var lastClickTime: TimeInterval = 0
     private var lastClickPath: String?
     private var trackingArea: NSTrackingArea?
     private let hoverTip = DiskAnalyzerHoverTipView()
 
     override var isFlipped: Bool { true }
+    override var isOpaque: Bool { false }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -62,7 +61,8 @@ final class DiskAnalyzerTreemapNSView: NSView {
     func update(root: DiskAnalyzerSupport.Node?, selectedPath: String?) {
         let rootChanged = self.root?.path != root?.path
             || self.root?.size != root?.size
-            || self.root?.children.count != root?.children.count
+            || self.root?.children.map(\.path) != root?.children.map(\.path)
+            || self.root?.children.map(\.size) != root?.children.map(\.size)
         let selectionChanged = self.selectedPath != selectedPath
         self.root = root
         self.selectedPath = selectedPath
@@ -71,7 +71,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
         let sizeChanged = abs(layoutSize.width - size.width) > 0.5
             || abs(layoutSize.height - size.height) > 0.5
 
-        if rootChanged || sizeChanged || baseImage == nil {
+        if rootChanged || sizeChanged || cells.isEmpty {
             rebuild(size: size)
         } else if selectionChanged {
             needsDisplay = true
@@ -80,9 +80,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
-        if let trackingArea {
-            removeTrackingArea(trackingArea)
-        }
+        if let trackingArea { removeTrackingArea(trackingArea) }
         let area = NSTrackingArea(
             rect: bounds,
             options: [.activeInKeyWindow, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect],
@@ -103,28 +101,49 @@ final class DiskAnalyzerTreemapNSView: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
-        context.setFillColor(NSColor.labelColor.withAlphaComponent(0.04).cgColor)
-        context.fill(bounds)
+        NSColor.labelColor.withAlphaComponent(0.04).setFill()
+        bounds.fill()
 
-        if let baseImage {
-            context.interpolationQuality = .none
-            context.draw(baseImage, in: CGRect(origin: .zero, size: layoutSize))
+        // Parents first, then nested children (layout append order).
+        for cell in cells {
+            let fill = DiskAnalyzerSupport.color(for: cell.colorIndex, depth: cell.depth)
+            fill.setFill()
+            cell.rect.fill()
+            NSColor.black.withAlphaComponent(0.22).setStroke()
+            let border = NSBezierPath(rect: cell.rect)
+            border.lineWidth = 0.5
+            border.stroke()
+        }
+
+        // Labels on larger boxes; prefer shallower depth so nested files stay
+        // uncluttered when their parent already shows a title.
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
+            .foregroundColor: NSColor.white
+        ]
+        for cell in cells where cell.rect.width > 54 && cell.rect.height > 18 {
+            if cell.depth > 0, cell.rect.height < 28 { continue }
+            let text = NSAttributedString(string: cell.name, attributes: attrs)
+            let textSize = text.size()
+            guard textSize.width + 8 < cell.rect.width else { continue }
+            text.draw(at: CGPoint(x: cell.rect.midX - textSize.width / 2,
+                                  y: cell.rect.minY + 3))
         }
 
         if let hoveredPath,
            hoveredPath != selectedPath,
-           let cell = cells.first(where: { $0.path == hoveredPath }) {
-            context.setStrokeColor(NSColor.white.withAlphaComponent(0.7).cgColor)
-            context.setLineWidth(1.5)
-            context.stroke(cell.rect.insetBy(dx: 0.75, dy: 0.75))
+           let cell = cell(for: hoveredPath) {
+            NSColor.white.withAlphaComponent(0.75).setStroke()
+            let path = NSBezierPath(rect: cell.rect.insetBy(dx: 0.75, dy: 0.75))
+            path.lineWidth = 1.5
+            path.stroke()
         }
 
-        if let selectedPath,
-           let cell = cells.first(where: { $0.path == selectedPath }) {
-            context.setStrokeColor(NSColor.white.cgColor)
-            context.setLineWidth(2)
-            context.stroke(cell.rect.insetBy(dx: 1, dy: 1))
+        if let selectedPath, let cell = cell(for: selectedPath) {
+            NSColor.white.setStroke()
+            let path = NSBezierPath(rect: cell.rect.insetBy(dx: 1, dy: 1))
+            path.lineWidth = 2
+            path.stroke()
         }
     }
 
@@ -142,7 +161,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        guard let cell = cells.first(where: { $0.rect.contains(point) }) else { return }
+        guard let cell = deepestCell(at: point) else { return }
         let now = ProcessInfo.processInfo.systemUptime
         let isDouble = lastClickPath == cell.path && (now - lastClickTime) < NSEvent.doubleClickInterval
         lastClickTime = now
@@ -153,8 +172,19 @@ final class DiskAnalyzerTreemapNSView: NSView {
         }
     }
 
+    /// Deepest nested box under the pointer — parents contain children, so
+    /// first-match would always select the folder and never a file inside.
+    private func deepestCell(at point: CGPoint) -> DiskAnalyzerSupport.TreemapCell? {
+        cells.reversed().first { $0.rect.contains(point) }
+    }
+
+    private func cell(for path: String) -> DiskAnalyzerSupport.TreemapCell? {
+        // Prefer the deepest cell with this path (should be unique).
+        cells.reversed().first { $0.path == path }
+    }
+
     private func updateHover(at point: CGPoint) {
-        let cell = cells.first { $0.rect.contains(point) }
+        let cell = deepestCell(at: point)
         let path = cell?.path
         if path != hoveredPath {
             hoveredPath = path
@@ -163,7 +193,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
                 hoverTip.isHidden = true
                 return
             }
-            let parentSize = max(root?.size ?? cell.size, 1)
+            let parentSize = max(cell.parentSize, 1)
             let fraction = Double(cell.size) / Double(parentSize)
             let strings = FeatureStrings.diskAnalyzer(L10n.shared.language)
             let percent = String(format: "%.1f%%", fraction * 100)
@@ -171,7 +201,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
                 title: cell.name,
                 sizeLine: "\(strings.sizeLabel): \(DiskAnalyzerSupport.formatBytes(cell.size))",
                 percentLine: String(format: strings.percentOfParentFormat, percent),
-                pathLine: prettyPath(cell.path)
+                pathLine: prettyPath(cell.path, isAggregate: cell.isAggregate)
             )
             hoverTip.isHidden = false
         }
@@ -204,8 +234,8 @@ final class DiskAnalyzerTreemapNSView: NSView {
         hoverTip.frame.origin = origin
     }
 
-    private func prettyPath(_ path: String) -> String {
-        if path.contains(".__vorssaint_") { return "" }
+    private func prettyPath(_ path: String, isAggregate: Bool) -> String {
+        if isAggregate || path.contains(".__vorssaint_") { return "" }
         return path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
     }
 
@@ -217,61 +247,11 @@ final class DiskAnalyzerTreemapNSView: NSView {
         } else {
             cells = []
         }
-        baseImage = renderBaseImage()
         clearHover()
         needsDisplay = true
     }
-
-    private func renderBaseImage() -> CGImage? {
-        guard layoutSize.width > 1, layoutSize.height > 1, !cells.isEmpty else { return nil }
-        let scale = max(window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2, 1)
-        let pixelWidth = Int((layoutSize.width * scale).rounded())
-        let pixelHeight = Int((layoutSize.height * scale).rounded())
-        guard pixelWidth > 0, pixelHeight > 0 else { return nil }
-
-        let colorSpace = CGColorSpaceCreateDeviceRGB()
-        guard let context = CGContext(
-            data: nil,
-            width: pixelWidth,
-            height: pixelHeight,
-            bitsPerComponent: 8,
-            bytesPerRow: 0,
-            space: colorSpace,
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-
-        context.translateBy(x: 0, y: CGFloat(pixelHeight))
-        context.scaleBy(x: scale, y: -scale)
-
-        for cell in cells {
-            context.setFillColor(DiskAnalyzerSupport.color(for: cell.colorIndex, depth: 0).cgColor)
-            context.fill(cell.rect)
-            context.setStrokeColor(NSColor.black.withAlphaComponent(0.22).cgColor)
-            context.setLineWidth(0.5)
-            context.stroke(cell.rect)
-        }
-
-        NSGraphicsContext.saveGraphicsState()
-        let nsContext = NSGraphicsContext(cgContext: context, flipped: true)
-        NSGraphicsContext.current = nsContext
-        for cell in cells where cell.rect.width > 56 && cell.rect.height > 22 {
-            let attrs: [NSAttributedString.Key: Any] = [
-                .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
-                .foregroundColor: NSColor.white
-            ]
-            let text = NSAttributedString(string: cell.name, attributes: attrs)
-            let textSize = text.size()
-            guard textSize.width + 8 < cell.rect.width else { continue }
-            text.draw(at: CGPoint(x: cell.rect.midX - textSize.width / 2,
-                                  y: cell.rect.minY + 6))
-        }
-        NSGraphicsContext.restoreGraphicsState()
-
-        return context.makeImage()
-    }
 }
 
-/// Compact hover card for treemap blocks.
 private final class DiskAnalyzerHoverTipView: NSView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let sizeLabel = NSTextField(labelWithString: "")

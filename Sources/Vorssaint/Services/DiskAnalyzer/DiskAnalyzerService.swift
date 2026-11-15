@@ -184,17 +184,36 @@ final class DiskAnalyzerService: ObservableObject {
 
     func zoom(to path: String?) {
         guard let root else { return }
-        if let path, DiskAnalyzerSupport.node(at: path, in: root)?.isDirectory == true {
+        if let path,
+           let node = DiskAnalyzerSupport.node(at: path, in: root),
+           node.isDirectory,
+           !node.isAggregate {
             zoomPath = path
             selectedPath = path
         } else if path == nil {
             zoomPath = root.path
+            selectedPath = nil
         }
     }
 
     func zoomIntoSelection() {
-        guard let node = selectedNode, node.isDirectory else { return }
+        guard let node = selectedNode, node.isDirectory, !node.isAggregate else { return }
         zoom(to: node.path)
+    }
+
+    var canZoomOut: Bool {
+        guard let root, let zoomPath else { return false }
+        return zoomPath != root.path
+    }
+
+    /// Move one level up toward the scan root (WizTree “parent folder”).
+    func zoomOut() {
+        guard let root, let zoomPath, zoomPath != root.path else { return }
+        let parent = URL(fileURLWithPath: zoomPath).deletingLastPathComponent().path
+        let destination = DiskAnalyzerSupport.node(at: parent, in: root)?.path
+            ?? DiskAnalyzerSupport.breadcrumb(to: zoomPath, in: root).dropLast().last?.path
+            ?? root.path
+        zoom(to: destination)
     }
 
     func revealSelection() {

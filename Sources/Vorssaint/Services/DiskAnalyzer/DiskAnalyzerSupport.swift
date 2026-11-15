@@ -35,8 +35,14 @@ enum DiskAnalyzerSupport {
 
     /// Soft caps keep Home / startup-disk scans responsive: only the largest
     /// children stay expandable; the rest roll into an aggregate leaf.
-    static let maxChildrenPerDirectory = 48
-    static let smallFileByteThreshold: Int64 = 512 * 1024
+    static let maxChildrenPerDirectory = 64
+    /// Only fold tiny files when a folder has many of them — WizTree keeps
+    /// individual files visible so their sizes show up in the map.
+    static let smallFileByteThreshold: Int64 = 64 * 1024
+    static let smallFileFoldCount = 40
+    /// How deep to nest boxes inside the current zoom folder. Deeper levels
+    /// remain reachable by zooming in (like WizTree drill-down).
+    static let treemapNestingDepth = 3
 
     struct Node: Identifiable, Equatable {
         var id: String { path }
@@ -67,7 +73,9 @@ enum DiskAnalyzerSupport {
         let path: String
         let name: String
         let size: Int64
+        let parentSize: Int64
         let isDirectory: Bool
+        let isAggregate: Bool
         let rect: CGRect
         /// Index among the zoom root's immediate children; descendants inherit
         /// the ancestor's index so a folder keeps one hue through nesting.
@@ -328,16 +336,20 @@ enum DiskAnalyzerSupport {
         }
 
         if smallFilesCount > 0, smallFilesSize > 0 {
-            // Keep a handful of small files visible when the folder is tiny.
-            if large.isEmpty, children.count <= 24 {
-                return children.sorted { $0.size > $1.size }
+            // Keep small files as their own leaves unless the folder is crowded.
+            if smallFilesCount <= smallFileFoldCount || large.isEmpty {
+                let small = children.filter {
+                    !$0.isDirectory && !$0.isAggregate && $0.size < smallFileByteThreshold && $0.size > 0
+                }
+                result.append(contentsOf: small)
+            } else {
+                result.append(Node(path: parentPath + "/.__vorssaint_small__",
+                                   name: labels.smallerFiles,
+                                   size: smallFilesSize,
+                                   isDirectory: false,
+                                   isAggregate: true,
+                                   children: []))
             }
-            result.append(Node(path: parentPath + "/.__vorssaint_small__",
-                               name: labels.smallerFiles,
-                               size: smallFilesSize,
-                               isDirectory: false,
-                               isAggregate: true,
-                               children: []))
         }
         return result.sorted { $0.size > $1.size }
     }
@@ -409,22 +421,77 @@ enum DiskAnalyzerSupport {
 
     // MARK: - Treemap (squarified)
 
-    /// Lays out only the zoom folder's immediate children. Nested grandchildren
-    /// are intentionally omitted — deep nesting made the Canvas UI lag; zoom
-    /// is how you drill down instead.
+    /// WizTree-style nested layout of the zoom folder: children fill the map
+    /// by size, and directories nest their own children inside (up to
+    /// `treemapNestingDepth`). Files appear as leaf boxes. Cells are ordered
+    /// parents-then-children so hit-testing can take the deepest match.
     static func layoutTreemap(root: Node,
                               in bounds: CGRect,
-                              minArea: CGFloat = 36) -> [TreemapCell] {
+                              minArea: CGFloat = 24) -> [TreemapCell] {
         guard bounds.width > 1, bounds.height > 1 else { return [] }
-        let positive = root.children.filter { $0.size > 0 }
-        guard !positive.isEmpty else { return [] }
-        // Ignore the unused minArea parameter for the flat layout; kept so
-        // call sites and tests stay stable.
-        _ = minArea
-        return squarify(positive, in: bounds).enumerated().map { index, pair in
-            TreemapCell(path: pair.node.path, name: pair.node.name, size: pair.node.size,
-                        isDirectory: pair.node.isDirectory, rect: pair.rect,
-                        colorIndex: index, depth: 0)
+        var cells: [TreemapCell] = []
+        layoutChildren(root.children,
+                       in: bounds,
+                       parentSize: max(root.size, 1),
+                       colorBase: nil,
+                       depth: 0,
+                       maxDepth: treemapNestingDepth,
+                       minArea: minArea,
+                       into: &cells)
+        return cells
+    }
+
+    private static func layoutChildren(_ children: [Node],
+                                       in bounds: CGRect,
+                                       parentSize: Int64,
+                                       colorBase: Int?,
+                                       depth: Int,
+                                       maxDepth: Int,
+                                       minArea: CGFloat,
+                                       into cells: inout [TreemapCell]) {
+        let positive = children.filter { $0.size > 0 }
+        guard !positive.isEmpty, bounds.width > 1, bounds.height > 1 else { return }
+        let placed = squarify(positive, in: bounds)
+        for (index, pair) in placed.enumerated() {
+            let node = pair.node
+            let colorIndex = colorBase ?? index
+            cells.append(TreemapCell(
+                path: node.path,
+                name: node.name,
+                size: node.size,
+                parentSize: parentSize,
+                isDirectory: node.isDirectory,
+                isAggregate: node.isAggregate,
+                rect: pair.rect,
+                colorIndex: colorIndex,
+                depth: depth
+            ))
+            let area = pair.rect.width * pair.rect.height
+            if node.isDirectory,
+               !node.isAggregate,
+               !node.children.isEmpty,
+               depth + 1 < maxDepth,
+               area >= minArea * 6 {
+                // Leave a header strip so the folder name stays readable, like
+                // WizTree / WinDirStat nested maps.
+                let header: CGFloat = min(16, max(10, pair.rect.height * 0.18))
+                let inset = CGRect(
+                    x: pair.rect.minX + 1.5,
+                    y: pair.rect.minY + header,
+                    width: max(0, pair.rect.width - 3),
+                    height: max(0, pair.rect.height - header - 1.5)
+                )
+                if inset.width > 4, inset.height > 4 {
+                    layoutChildren(node.children,
+                                   in: inset,
+                                   parentSize: max(node.size, 1),
+                                   colorBase: colorIndex,
+                                   depth: depth + 1,
+                                   maxDepth: maxDepth,
+                                   minArea: minArea,
+                                   into: &cells)
+                }
+            }
         }
     }
 

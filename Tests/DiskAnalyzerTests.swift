@@ -29,6 +29,33 @@ enum DiskAnalyzerTests {
         )
         suite.expect(cells.contains { $0.path == "/root/a" }, "positive children appear in treemap")
         suite.expect(!cells.contains { $0.path == "/root/empty" }, "zero-size children are omitted")
+
+        let nestedRoot = DiskAnalyzerSupport.Node(
+            path: "/root", name: "root", size: 100, isDirectory: true,
+            children: [
+                .init(path: "/root/dir", name: "dir", size: 100, isDirectory: true, children: [
+                    .init(path: "/root/dir/file.bin", name: "file.bin", size: 60,
+                          isDirectory: false, children: []),
+                    .init(path: "/root/dir/other.bin", name: "other.bin", size: 40,
+                          isDirectory: false, children: []),
+                ]),
+            ]
+        )
+        let nested = DiskAnalyzerSupport.layoutTreemap(
+            root: nestedRoot, in: CGRect(x: 0, y: 0, width: 400, height: 300), minArea: 1
+        )
+        suite.expect(nested.contains { $0.path == "/root/dir" }, "folder boxes appear")
+        suite.expect(nested.contains { $0.path == "/root/dir/file.bin" },
+                     "file sizes appear nested inside folder boxes")
+        let fileCell = nested.first { $0.path == "/root/dir/file.bin" }
+        let folderCell = nested.first { $0.path == "/root/dir" }
+        if let fileCell, let folderCell {
+            suite.expect(folderCell.rect.contains(fileCell.rect.insetBy(dx: 1, dy: 1))
+                         || folderCell.rect.intersects(fileCell.rect),
+                         "nested file rects sit inside their folder")
+            suite.expect(fileCell.parentSize == folderCell.size,
+                         "hover percent uses the immediate parent size")
+        }
     }
 
     private static func treemapFillsBounds(_ suite: TestSuite) {
@@ -155,9 +182,10 @@ enum DiskAnalyzerTests {
                      "disk analyzer has no separate enable key")
 
         var many: [DiskAnalyzerSupport.Node] = []
-        for index in 0..<60 {
+        let count = DiskAnalyzerSupport.maxChildrenPerDirectory + 20
+        for index in 0..<count {
             many.append(.init(path: "/r/\(index)", name: "\(index)",
-                              size: Int64(60 - index) * 1_000_000,
+                              size: Int64(count - index) * 1_000_000,
                               isDirectory: false, children: []))
         }
         let capped = DiskAnalyzerSupport.capChildren(many, parentPath: "/r")

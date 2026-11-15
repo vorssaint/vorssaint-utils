@@ -222,25 +222,36 @@ struct DiskAnalyzerWorkspaceView: View {
     }
 
     private var breadcrumbs: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(Array(service.breadcrumbs.enumerated()), id: \.element.id) { index, node in
-                    if index > 0 {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.tertiary)
+        HStack(spacing: 8) {
+            Button {
+                service.zoomOut()
+            } label: {
+                Label(strings.goUp, systemImage: "arrow.up.left")
+            }
+            .controlSize(.small)
+            .disabled(!service.canZoomOut)
+            .help(strings.goUp)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(service.breadcrumbs.enumerated()), id: \.element.id) { index, node in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Button(node.name.isEmpty ? "/" : node.name) {
+                            service.zoom(to: node.path)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: index == service.breadcrumbs.count - 1 ? .semibold : .regular))
+                        .foregroundStyle(index == service.breadcrumbs.count - 1 ? Color.primary : Color.secondary)
                     }
-                    Button(node.name.isEmpty ? "/" : node.name) {
-                        service.zoom(to: node.path)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: index == service.breadcrumbs.count - 1 ? .semibold : .regular))
-                    .foregroundStyle(index == service.breadcrumbs.count - 1 ? Color.primary : Color.secondary)
                 }
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
     }
 
     private var detailBar: some View {
@@ -279,6 +290,9 @@ struct DiskAnalyzerWorkspaceView: View {
                         }
                         if node.isDirectory, !node.isAggregate {
                             Button(strings.zoomIn) { service.zoomIntoSelection() }
+                        }
+                        if service.canZoomOut {
+                            Button(strings.goUp) { service.zoomOut() }
                         }
                         if service.canTrashSelection {
                             Button(strings.moveToTrash, role: .destructive) {
