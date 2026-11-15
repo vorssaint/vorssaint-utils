@@ -78,7 +78,9 @@ enum DiskAnalyzerTests {
         try? FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
         let data = Data(repeating: 0x61, count: 4096)
         try? data.write(to: nested.appendingPathComponent("blob.bin"))
-        try? Data("tiny".utf8).write(to: root.appendingPathComponent("tiny.txt"))
+        // Above the small-file fold threshold so it stays an expandable leaf.
+        let large = Data(repeating: 0x62, count: Int(DiskAnalyzerSupport.smallFileByteThreshold) + 1024)
+        try? large.write(to: root.appendingPathComponent("large.bin"))
 
         let cancellation = DiskAnalyzerSupport.ScanCancellation()
         let tree = DiskAnalyzerSupport.scan(root: root, includeHidden: false,
@@ -87,8 +89,8 @@ enum DiskAnalyzerTests {
         suite.expect((tree?.size ?? 0) > 0, "scanned tree reports allocated size")
         suite.expect(tree?.children.contains { $0.name == "nested" } == true,
                      "scan includes nested directories")
-        suite.expect(tree?.children.contains { $0.name == "tiny.txt" } == true,
-                     "scan includes files")
+        suite.expect(tree?.children.contains { $0.name == "large.bin" } == true,
+                     "scan includes large files as their own leaves")
     }
 
     private static func scanSkipsSymlinks(_ suite: TestSuite) {
@@ -151,6 +153,33 @@ enum DiskAnalyzerTests {
                      "disk analyzer uses the treemap symbol")
         suite.expect(AppFeature.diskAnalyzer.enabledKeys.isEmpty,
                      "disk analyzer has no separate enable key")
+
+        var many: [DiskAnalyzerSupport.Node] = []
+        for index in 0..<60 {
+            many.append(.init(path: "/r/\(index)", name: "\(index)",
+                              size: Int64(60 - index) * 1_000_000,
+                              isDirectory: false, children: []))
+        }
+        let capped = DiskAnalyzerSupport.capChildren(many, parentPath: "/r")
+        suite.expect(capped.count <= DiskAnalyzerSupport.maxChildrenPerDirectory,
+                     "capChildren limits per-directory fanout")
+        suite.expect(capped.contains { $0.isAggregate },
+                     "overflow rolls into an aggregate leaf")
+
+        let tree = DiskAnalyzerSupport.Node(
+            path: "/root", name: "root", size: 90, isDirectory: true,
+            children: [
+                .init(path: "/root/keep", name: "keep", size: 40, isDirectory: false, children: []),
+                .init(path: "/root/gone", name: "gone", size: 50, isDirectory: true, children: [
+                    .init(path: "/root/gone/file", name: "file", size: 50, isDirectory: false, children: []),
+                ]),
+            ]
+        )
+        let afterTrash = DiskAnalyzerSupport.removing(path: "/root/gone", from: tree)
+        suite.expect(afterTrash?.size == 40, "trashing a folder updates the root size")
+        let crumb = DiskAnalyzerSupport.breadcrumb(to: "/root/gone/file", in: afterTrash ?? tree)
+        suite.expect(crumb.last?.path == "/root" || crumb.allSatisfy { $0.path != "/root/gone" },
+                     "breadcrumb after trash stays on surviving ancestors")
     }
 
     private static func stringsHaveFormats(_ suite: TestSuite) {

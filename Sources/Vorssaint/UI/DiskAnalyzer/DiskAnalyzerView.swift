@@ -4,9 +4,49 @@
 import AppKit
 import SwiftUI
 
-/// Disk Analyzer settings page: pick a root, scan into a size tree, and
-/// explore it as a colored squarified treemap with inspect / trash actions.
+/// Settings page: preferences and a button that opens the workspace window.
 struct DiskAnalyzerView: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = DiskAnalyzerService.shared
+    @ObservedObject private var permissions = Permissions.shared
+
+    private var strings: DiskAnalyzerFeatureStrings { FeatureStrings.diskAnalyzer(l10n.language) }
+
+    var body: some View {
+        Form {
+            Section {
+                Button {
+                    service.showWindow()
+                } label: {
+                    Label(strings.openWindow, systemImage: "square.grid.3x3.fill")
+                }
+                Text(strings.openWindowCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                Toggle(strings.includeHidden, isOn: $service.includeHidden)
+                Text(strings.includeHiddenCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !permissions.fullDiskAccess {
+                Section {
+                    Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// Floating workspace: scan controls, details, size-sorted list, and treemap.
+struct DiskAnalyzerWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
     @ObservedObject private var permissions = Permissions.shared
@@ -21,7 +61,6 @@ struct DiskAnalyzerView: View {
             content
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onDisappear { service.cancel() }
         .alert(pendingTrashTitle,
                isPresented: $pendingTrash) {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}
@@ -62,14 +101,11 @@ struct DiskAnalyzerView: View {
                 Button(strings.chooseFolder) { service.chooseFolderAndScan() }
                     .disabled(service.phase == .scanning)
                 Spacer()
+                Toggle(strings.includeHidden, isOn: $service.includeHidden)
+                    .toggleStyle(.checkbox)
+                    .disabled(service.phase == .scanning)
             }
             .controlSize(.small)
-
-            Toggle(strings.includeHidden, isOn: $service.includeHidden)
-                .disabled(service.phase == .scanning)
-            Text(strings.includeHiddenCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if !permissions.fullDiskAccess {
                 Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
@@ -110,7 +146,7 @@ struct DiskAnalyzerView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: 420)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -131,7 +167,7 @@ struct DiskAnalyzerView: View {
                 .foregroundStyle(.tertiary)
                 .lineLimit(2)
                 .truncationMode(.middle)
-                .frame(maxWidth: 420)
+                .frame(maxWidth: 520)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -148,7 +184,7 @@ struct DiskAnalyzerView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 360)
+                .frame(maxWidth: 420)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,22 +195,28 @@ struct DiskAnalyzerView: View {
         VStack(spacing: 0) {
             breadcrumbs
             Divider()
-            HStack(spacing: 0) {
+            detailBar
+            Divider()
+            HSplitView {
+                itemList
+                    .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
+                // Identity on the zoom folder so selection changes do not
+                // recreate the representable — the NSView caches the bitmap.
                 DiskAnalyzerTreemapView(
                     root: service.zoomNode,
                     selectedPath: service.selectedPath,
                     onSelect: { service.select(path: $0) },
                     onActivate: { path in
                         service.select(path: path)
-                        if let node = service.selectedNode, node.isDirectory {
+                        if let root = service.root,
+                           let node = DiskAnalyzerSupport.node(at: path, in: root),
+                           node.isDirectory, !node.isAggregate {
                             service.zoom(to: path)
                         }
                     }
                 )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                Divider()
-                detailPanel
-                    .frame(width: 240)
+                .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                .id(service.zoomPath ?? service.root?.path ?? "")
             }
         }
     }
@@ -201,70 +243,123 @@ struct DiskAnalyzerView: View {
         }
     }
 
-    private var detailPanel: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    private var detailBar: some View {
+        Group {
             if let node = service.selectedNode {
-                Text(node.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .lineLimit(2)
-                Text(node.path)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-                    .truncationMode(.middle)
-                labeled(strings.sizeLabel, DiskAnalyzerSupport.formatBytes(node.size))
-                if let parentSize = parentSize(for: node), parentSize > 0 {
-                    let fraction = Double(node.size) / Double(parentSize)
-                    Text(String(format: strings.percentOfParentFormat,
-                                String(format: "%.1f%%", fraction * 100)))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                if node.isDirectory {
-                    Text(String(format: strings.filesFormat, node.children.count))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Button(strings.revealInFinder) { service.revealSelection() }
-                    Button(strings.open) { service.openSelection() }
-                    Button(strings.copyPath) { service.copySelectionPath() }
-                    if node.isDirectory {
-                        Button(strings.zoomIn) { service.zoomIntoSelection() }
-                    }
-                    if service.canTrashSelection {
-                        Button(strings.moveToTrash, role: .destructive) {
-                            pendingTrash = true
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Text(node.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .lineLimit(1)
+                        Text(DiskAnalyzerSupport.formatBytes(node.size))
+                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                        if let parentSize = parentSize(for: node), parentSize > 0 {
+                            let fraction = Double(node.size) / Double(parentSize)
+                            Text(String(format: strings.percentOfParentFormat,
+                                        String(format: "%.1f%%", fraction * 100)))
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
                         }
+                        Spacer(minLength: 0)
                     }
-                }
-                .controlSize(.small)
-
-                if let error = service.trashError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                        .fixedSize(horizontal: false, vertical: true)
+                    if !node.isAggregate {
+                        Text(node.path)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    HStack(spacing: 8) {
+                        if !node.isAggregate {
+                            Button(strings.revealInFinder) { service.revealSelection() }
+                            Button(strings.open) { service.openSelection() }
+                            Button(strings.copyPath) { service.copySelectionPath() }
+                        }
+                        if node.isDirectory, !node.isAggregate {
+                            Button(strings.zoomIn) { service.zoomIntoSelection() }
+                        }
+                        if service.canTrashSelection {
+                            Button(strings.moveToTrash, role: .destructive) {
+                                pendingTrash = true
+                            }
+                        }
+                        Spacer(minLength: 0)
+                    }
+                    .controlSize(.small)
+                    if let error = service.trashError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
             } else {
                 Text(strings.selectedNone)
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            Spacer(minLength: 0)
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func labeled(_ title: String, _ value: String) -> some View {
-        HStack {
-            Text(title).foregroundStyle(.secondary)
-            Spacer()
-            Text(value).monospacedDigit()
+    private var itemList: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(strings.itemsInFolder)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            Divider()
+            List(selection: Binding(
+                get: { service.selectedPath },
+                set: { service.select(path: $0) }
+            )) {
+                ForEach(service.listedItems) { item in
+                    HStack(spacing: 8) {
+                        Image(systemName: item.isDirectory ? "folder.fill" : (item.isAggregate ? "square.stack.3d.up" : "doc"))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 14)
+                        Text(item.name)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Text(DiskAnalyzerSupport.formatBytes(item.size))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .tag(item.path)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        service.select(path: item.path)
+                        if item.isDirectory, !item.isAggregate {
+                            service.zoom(to: item.path)
+                        }
+                    }
+                    .contextMenu {
+                        if !item.isAggregate {
+                            Button(strings.revealInFinder) {
+                                service.select(path: item.path)
+                                service.revealSelection()
+                            }
+                            Button(strings.open) {
+                                service.select(path: item.path)
+                                service.openSelection()
+                            }
+                            if DiskAnalyzerSupport.canTrash(item.url) {
+                                Button(strings.moveToTrash, role: .destructive) {
+                                    service.select(path: item.path)
+                                    pendingTrash = true
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            .listStyle(.inset)
         }
-        .font(.caption)
     }
 
     private func parentSize(for node: DiskAnalyzerSupport.Node) -> Int64? {
@@ -273,62 +368,5 @@ struct DiskAnalyzerView: View {
         if parentPath == node.path { return nil }
         return DiskAnalyzerSupport.node(at: parentPath, in: root)?.size
             ?? (service.zoomNode?.path == parentPath ? service.zoomNode?.size : nil)
-    }
-}
-
-struct DiskAnalyzerTreemapView: View {
-    let root: DiskAnalyzerSupport.Node?
-    let selectedPath: String?
-    let onSelect: (String) -> Void
-    let onActivate: (String) -> Void
-
-    var body: some View {
-        GeometryReader { geo in
-            let cells = DiskAnalyzerSupport.layoutTreemap(
-                root: root ?? DiskAnalyzerSupport.Node(path: "", name: "", size: 0,
-                                                       isDirectory: true, children: []),
-                in: CGRect(origin: .zero, size: geo.size)
-            )
-            Canvas { context, _ in
-                for cell in cells {
-                    let color = Color(nsColor: DiskAnalyzerSupport.color(for: cell.colorIndex,
-                                                                         depth: cell.depth))
-                    context.fill(Path(cell.rect), with: .color(color))
-                    if cell.path == selectedPath {
-                        context.stroke(Path(cell.rect.insetBy(dx: 0.5, dy: 0.5)),
-                                       with: .color(.white), lineWidth: 2)
-                    } else {
-                        context.stroke(Path(cell.rect), with: .color(.black.opacity(0.25)),
-                                       lineWidth: 0.5)
-                    }
-                    if cell.rect.width > 48, cell.rect.height > 18, cell.depth <= 1 {
-                        let text = Text(cell.name).font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.white)
-                        context.draw(text, at: CGPoint(x: cell.rect.midX, y: cell.rect.minY + 10),
-                                     anchor: .center)
-                    }
-                }
-            }
-            .gesture(
-                SpatialTapGesture().onEnded { value in
-                    if let cell = hit(cells, at: value.location) {
-                        onSelect(cell.path)
-                    }
-                }
-            )
-            .onTapGesture(count: 2) {
-                // Double-tap uses last selection; SpatialTapGesture already selected.
-                if let path = selectedPath { onActivate(path) }
-            }
-            .contentShape(Rectangle())
-        }
-        .padding(8)
-        .background(Color.primary.opacity(0.04))
-    }
-
-    private func hit(_ cells: [DiskAnalyzerSupport.TreemapCell],
-                     at point: CGPoint) -> DiskAnalyzerSupport.TreemapCell? {
-        // Prefer the deepest (last laid-out nested) cell under the point.
-        cells.reversed().first { $0.rect.contains(point) }
     }
 }

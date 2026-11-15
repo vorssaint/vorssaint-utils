@@ -33,15 +33,33 @@ enum DiskAnalyzerSupport {
         var currentPath: String
     }
 
+    /// Soft caps keep Home / startup-disk scans responsive: only the largest
+    /// children stay expandable; the rest roll into an aggregate leaf.
+    static let maxChildrenPerDirectory = 48
+    static let smallFileByteThreshold: Int64 = 512 * 1024
+
     struct Node: Identifiable, Equatable {
         var id: String { path }
         let path: String
         let name: String
         var size: Int64
         let isDirectory: Bool
+        /// Synthetic rolled-up buckets (smaller files / other items) are not
+        /// real paths and cannot be trashed or revealed.
+        let isAggregate: Bool
         var children: [Node]
 
         var url: URL { URL(fileURLWithPath: path, isDirectory: isDirectory) }
+
+        init(path: String, name: String, size: Int64, isDirectory: Bool,
+             isAggregate: Bool = false, children: [Node]) {
+            self.path = path
+            self.name = name
+            self.size = size
+            self.isDirectory = isDirectory
+            self.isAggregate = isAggregate
+            self.children = children
+        }
     }
 
     struct TreemapCell: Equatable, Identifiable {
@@ -88,11 +106,14 @@ enum DiskAnalyzerSupport {
 
     /// Builds a size tree under `root`. Symlinks are skipped. Children on a
     /// different device (another volume) are skipped so a startup-disk scan
-    /// does not walk every mount. Returns nil when cancelled.
+    /// does not walk every mount. Top-level directories are scanned in
+    /// parallel. Returns nil when cancelled.
     static func scan(root: URL,
                      includeHidden: Bool,
                      cancellation: ScanCancellation,
-                     progress: (Progress) -> Void) -> Node? {
+                     progress: @escaping (Progress) -> Void,
+                     smallerFilesName: String = "Smaller files",
+                     otherItemsName: String = "Other items") -> Node? {
         let fm = FileManager.default
         var isDir: ObjCBool = false
         guard fm.fileExists(atPath: root.path, isDirectory: &isDir) else { return nil }
@@ -110,82 +131,215 @@ enum DiskAnalyzerSupport {
                         isDirectory: false, children: [])
         }
 
-        return scanDirectory(root, includeHidden: includeHidden, rootDevice: rootDevice,
-                             cancellation: cancellation, progress: &seen, report: progress)
+        let labels = AggregateLabels(smallerFiles: smallerFilesName, otherItems: otherItemsName)
+        let state = ScanState(report: progress)
+        guard let node = scanDirectory(root, includeHidden: includeHidden, rootDevice: rootDevice,
+                                       parallelChildren: true, labels: labels,
+                                       cancellation: cancellation, state: state)
+        else { return nil }
+        progress(state.snapshot(currentPath: root.path))
+        return node
     }
+
+    private struct AggregateLabels {
+        let smallerFiles: String
+        let otherItems: String
+    }
+
+    private final class ScanState: @unchecked Sendable {
+        private let lock = NSLock()
+        private var bytes: Int64 = 0
+        private var files = 0
+        private var lastReport = Date.distantPast
+        private let report: (Progress) -> Void
+
+        init(report: @escaping (Progress) -> Void) {
+            self.report = report
+        }
+
+        func add(fileBytes: Int64, path: String) {
+            lock.lock()
+            bytes += fileBytes
+            files += 1
+            let shouldReport = files % 256 == 0 || Date().timeIntervalSince(lastReport) >= 0.2
+            let snapshot = Progress(bytes: bytes, files: files, currentPath: path)
+            if shouldReport { lastReport = Date() }
+            lock.unlock()
+            if shouldReport { report(snapshot) }
+        }
+
+        func snapshot(currentPath: String) -> Progress {
+            lock.lock()
+            defer { lock.unlock() }
+            return Progress(bytes: bytes, files: files, currentPath: currentPath)
+        }
+    }
+
+    private static let resourceKeys: [URLResourceKey] = [
+        .isDirectoryKey, .isSymbolicLinkKey, .isVolumeKey,
+        .totalFileAllocatedSizeKey, .fileAllocatedSizeKey
+    ]
 
     private static func scanDirectory(_ url: URL,
                                       includeHidden: Bool,
                                       rootDevice: dev_t?,
+                                      parallelChildren: Bool,
+                                      labels: AggregateLabels,
                                       cancellation: ScanCancellation,
-                                      progress: inout Progress,
-                                      report: (Progress) -> Void) -> Node? {
+                                      state: ScanState) -> Node? {
         if cancellation.isCancelled { return nil }
-        progress.currentPath = url.path
-        report(progress)
 
         let fm = FileManager.default
-        let keys: [URLResourceKey] = [
-            .isDirectoryKey, .isSymbolicLinkKey, .isVolumeKey,
-            .totalFileAllocatedSizeKey, .fileAllocatedSizeKey, .isHiddenKey
-        ]
+        var options: FileManager.DirectoryEnumerationOptions = []
+        if !includeHidden { options.insert(.skipsHiddenFiles) }
         let childrenURLs = (try? fm.contentsOfDirectory(at: url,
-                                                        includingPropertiesForKeys: keys,
-                                                        options: [])) ?? []
-        var children: [Node] = []
-        var total: Int64 = 0
+                                                        includingPropertiesForKeys: resourceKeys,
+                                                        options: options)) ?? []
+        if childrenURLs.isEmpty {
+            return Node(path: url.path, name: url.lastPathComponent, size: 0,
+                        isDirectory: true, children: [])
+        }
 
-        for childURL in childrenURLs.sorted(by: { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedAscending }) {
+        var collected: [Node] = []
+        collected.reserveCapacity(childrenURLs.count)
+
+        if parallelChildren, childrenURLs.count > 1 {
+            let lock = NSLock()
+            let group = DispatchGroup()
+            let queue = DispatchQueue(label: "com.vorssaint.utils.disk-analyzer.scan",
+                                      qos: .userInitiated, attributes: .concurrent)
+            for childURL in childrenURLs {
+                group.enter()
+                queue.async {
+                    defer { group.leave() }
+                    guard !cancellation.isCancelled,
+                          let node = scanEntry(childURL, parent: url, includeHidden: includeHidden,
+                                               rootDevice: rootDevice, labels: labels,
+                                               cancellation: cancellation, state: state)
+                    else { return }
+                    lock.lock()
+                    collected.append(node)
+                    lock.unlock()
+                }
+            }
+            // Poll so Cancel / window close can return without waiting for
+            // every top-level folder on a startup-disk scan to finish.
+            while group.wait(timeout: .now() + 0.05) == .timedOut {
+                if cancellation.isCancelled { return nil }
+            }
             if cancellation.isCancelled { return nil }
-            let name = childURL.lastPathComponent
-            if !includeHidden && isHiddenName(name) { continue }
-            if isSymbolicLink(childURL) { continue }
-            if let rootDevice, let childDevice = deviceID(of: childURL), childDevice != rootDevice {
-                continue
-            }
-
-            let values = try? childURL.resourceValues(forKeys: Set(keys))
-            let isDirectory = values?.isDirectory == true
-            // A nested volume mount appears as a directory on a different
-            // device; the device check above already skipped those. isVolume
-            // catches the rare case where device IDs match but the entry is
-            // still a volume root we should not recurse into from Home.
-            if isDirectory, values?.isVolume == true, childURL.standardizedFileURL != url.standardizedFileURL {
-                if let rootDevice, let childDevice = deviceID(of: childURL), childDevice != rootDevice {
-                    continue
-                }
-            }
-
-            if isDirectory {
-                guard let node = scanDirectory(childURL, includeHidden: includeHidden,
-                                               rootDevice: rootDevice,
-                                               cancellation: cancellation,
-                                               progress: &progress, report: report)
-                else { return nil }
-                if node.size > 0 || !node.children.isEmpty {
-                    children.append(node)
-                    total += node.size
-                }
-            } else {
-                let size = Int64(values?.totalFileAllocatedSize
-                                 ?? values?.fileAllocatedSize
-                                 ?? Int(allocatedSize(of: childURL)))
-                progress.bytes += size
-                progress.files += 1
-                progress.currentPath = childURL.path
-                if progress.files % 64 == 0 { report(progress) }
-                if size > 0 {
-                    children.append(Node(path: childURL.path, name: name, size: size,
-                                         isDirectory: false, children: []))
-                    total += size
+        } else {
+            for childURL in childrenURLs {
+                if cancellation.isCancelled { return nil }
+                if let node = scanEntry(childURL, parent: url, includeHidden: includeHidden,
+                                        rootDevice: rootDevice, labels: labels,
+                                        cancellation: cancellation, state: state) {
+                    collected.append(node)
                 }
             }
         }
 
-        children.sort { $0.size > $1.size }
-        report(progress)
+        let capped = capChildren(collected, parentPath: url.path, labels: labels)
+        let total = capped.reduce(Int64(0)) { $0 + $1.size }
         return Node(path: url.path, name: url.lastPathComponent, size: total,
-                    isDirectory: true, children: children)
+                    isDirectory: true, children: capped)
+    }
+
+    private static func scanEntry(_ childURL: URL,
+                                  parent: URL,
+                                  includeHidden: Bool,
+                                  rootDevice: dev_t?,
+                                  labels: AggregateLabels,
+                                  cancellation: ScanCancellation,
+                                  state: ScanState) -> Node? {
+        if cancellation.isCancelled { return nil }
+        let name = childURL.lastPathComponent
+        if !includeHidden && isHiddenName(name) { return nil }
+
+        let values = try? childURL.resourceValues(forKeys: Set(resourceKeys))
+        if values?.isSymbolicLink == true { return nil }
+        // Prefer resource values; fall back to one lstat for device checks.
+        if let rootDevice {
+            let childDevice = deviceID(of: childURL)
+            if let childDevice, childDevice != rootDevice { return nil }
+        }
+        if values?.isVolume == true, childURL.standardizedFileURL != parent.standardizedFileURL {
+            return nil
+        }
+
+        if values?.isDirectory == true {
+            return scanDirectory(childURL, includeHidden: includeHidden, rootDevice: rootDevice,
+                                 parallelChildren: false, labels: labels,
+                                 cancellation: cancellation, state: state)
+        }
+
+        let size = Int64(values?.totalFileAllocatedSize
+                         ?? values?.fileAllocatedSize
+                         ?? Int(allocatedSize(of: childURL)))
+        state.add(fileBytes: size, path: childURL.path)
+        guard size > 0 else { return nil }
+        return Node(path: childURL.path, name: name, size: size,
+                    isDirectory: false, children: [])
+    }
+
+    /// Keeps the largest children expandable; folds small files and overflow
+    /// into aggregate leaves so the treemap stays interactive.
+    static func capChildren(_ children: [Node],
+                            parentPath: String,
+                            smallerFilesName: String = "Smaller files",
+                            otherItemsName: String = "Other items") -> [Node] {
+        capChildren(children, parentPath: parentPath,
+                    labels: AggregateLabels(smallerFiles: smallerFilesName,
+                                            otherItems: otherItemsName))
+    }
+
+    private static func capChildren(_ children: [Node],
+                                    parentPath: String,
+                                    labels: AggregateLabels) -> [Node] {
+        var large: [Node] = []
+        var smallFilesSize: Int64 = 0
+        var smallFilesCount = 0
+        for child in children {
+            if !child.isDirectory, !child.isAggregate, child.size < smallFileByteThreshold {
+                smallFilesSize += child.size
+                smallFilesCount += 1
+            } else {
+                large.append(child)
+            }
+        }
+        large.sort { $0.size > $1.size }
+
+        var result: [Node] = []
+        if large.count > maxChildrenPerDirectory {
+            let kept = Array(large.prefix(maxChildrenPerDirectory - 1))
+            let overflow = Array(large.dropFirst(maxChildrenPerDirectory - 1))
+            let overflowSize = overflow.reduce(Int64(0)) { $0 + $1.size }
+            result = kept
+            if overflowSize > 0 {
+                result.append(Node(path: parentPath + "/.__vorssaint_other__",
+                                   name: labels.otherItems,
+                                   size: overflowSize,
+                                   isDirectory: false,
+                                   isAggregate: true,
+                                   children: []))
+            }
+        } else {
+            result = large
+        }
+
+        if smallFilesCount > 0, smallFilesSize > 0 {
+            // Keep a handful of small files visible when the folder is tiny.
+            if large.isEmpty, children.count <= 24 {
+                return children.sorted { $0.size > $1.size }
+            }
+            result.append(Node(path: parentPath + "/.__vorssaint_small__",
+                               name: labels.smallerFiles,
+                               size: smallFilesSize,
+                               isDirectory: false,
+                               isAggregate: true,
+                               children: []))
+        }
+        return result.sorted { $0.size > $1.size }
     }
 
     // MARK: - Tree edits
@@ -255,43 +409,22 @@ enum DiskAnalyzerSupport {
 
     // MARK: - Treemap (squarified)
 
-    /// Lays out `root`'s descendants into nested rectangles. Empty / zero-size
-    /// children are omitted. Nesting stops when a cell's area is below
-    /// `minArea` so tiny boxes do not explode the cell count.
+    /// Lays out only the zoom folder's immediate children. Nested grandchildren
+    /// are intentionally omitted — deep nesting made the Canvas UI lag; zoom
+    /// is how you drill down instead.
     static func layoutTreemap(root: Node,
                               in bounds: CGRect,
                               minArea: CGFloat = 36) -> [TreemapCell] {
-        guard bounds.width > 1, bounds.height > 1, root.size > 0 else { return [] }
-        var cells: [TreemapCell] = []
-        layoutChildren(root.children, in: bounds, colorBase: nil, depth: 0,
-                       minArea: minArea, into: &cells)
-        return cells
-    }
-
-    private static func layoutChildren(_ children: [Node],
-                                       in bounds: CGRect,
-                                       colorBase: Int?,
-                                       depth: Int,
-                                       minArea: CGFloat,
-                                       into cells: inout [TreemapCell]) {
-        let positive = children.filter { $0.size > 0 }
-        guard !positive.isEmpty else { return }
-        let rects = squarify(positive, in: bounds)
-        for (index, pair) in rects.enumerated() {
-            let node = pair.node
-            let rect = pair.rect
-            let colorIndex = colorBase ?? index
-            cells.append(TreemapCell(path: node.path, name: node.name, size: node.size,
-                                     isDirectory: node.isDirectory, rect: rect,
-                                     colorIndex: colorIndex, depth: depth))
-            let area = rect.width * rect.height
-            if node.isDirectory, !node.children.isEmpty, area >= minArea * 4 {
-                let inset = rect.insetBy(dx: 1.5, dy: 1.5)
-                if inset.width > 2, inset.height > 2 {
-                    layoutChildren(node.children, in: inset, colorBase: colorIndex,
-                                   depth: depth + 1, minArea: minArea, into: &cells)
-                }
-            }
+        guard bounds.width > 1, bounds.height > 1 else { return [] }
+        let positive = root.children.filter { $0.size > 0 }
+        guard !positive.isEmpty else { return [] }
+        // Ignore the unused minArea parameter for the flat layout; kept so
+        // call sites and tests stay stable.
+        _ = minArea
+        return squarify(positive, in: bounds).enumerated().map { index, pair in
+            TreemapCell(path: pair.node.path, name: pair.node.name, size: pair.node.size,
+                        isDirectory: pair.node.isDirectory, rect: pair.rect,
+                        colorIndex: index, depth: 0)
         }
     }
 

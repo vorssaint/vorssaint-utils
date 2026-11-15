@@ -6,7 +6,7 @@ import Combine
 import Foundation
 
 /// Scans a chosen folder into a size tree and owns selection / zoom / trash
-/// for the Disk Analyzer settings page and panel.
+/// for the Disk Analyzer workspace window.
 final class DiskAnalyzerService: ObservableObject {
     static let shared = DiskAnalyzerService()
 
@@ -43,6 +43,10 @@ final class DiskAnalyzerService: ObservableObject {
         includeHidden = UserDefaults.standard.object(forKey: DefaultsKey.diskAnalyzerIncludeHidden) as? Bool ?? false
     }
 
+    func showWindow() {
+        DiskAnalyzerWindowController.shared.show()
+    }
+
     var selectedNode: DiskAnalyzerSupport.Node? {
         guard let root, let selectedPath else { return nil }
         return DiskAnalyzerSupport.node(at: selectedPath, in: root)
@@ -59,8 +63,13 @@ final class DiskAnalyzerService: ObservableObject {
         return DiskAnalyzerSupport.breadcrumb(to: zoomPath ?? root.path, in: root)
     }
 
+    /// Children of the current zoom folder, largest first — the cleanup list.
+    var listedItems: [DiskAnalyzerSupport.Node] {
+        zoomNode?.children ?? []
+    }
+
     var canTrashSelection: Bool {
-        guard let node = selectedNode else { return false }
+        guard let node = selectedNode, !node.isAggregate else { return false }
         return DiskAnalyzerSupport.canTrash(node.url)
     }
 
@@ -116,21 +125,25 @@ final class DiskAnalyzerService: ObservableObject {
         cancellation = token
         let includeHidden = self.includeHidden
 
+        let strings = FeatureStrings.diskAnalyzer(L10n.shared.language)
         worker.async {
             var lastPublish = Date.distantPast
             let tree = DiskAnalyzerSupport.scan(
                 root: standardized,
                 includeHidden: includeHidden,
-                cancellation: token
-            ) { snapshot in
-                let now = Date()
-                guard now.timeIntervalSince(lastPublish) >= 0.12 else { return }
-                lastPublish = now
-                DispatchQueue.main.async {
-                    guard self.cancellation === token else { return }
-                    self.progress = snapshot
-                }
-            }
+                cancellation: token,
+                progress: { snapshot in
+                    let now = Date()
+                    guard now.timeIntervalSince(lastPublish) >= 0.12 else { return }
+                    lastPublish = now
+                    DispatchQueue.main.async {
+                        guard self.cancellation === token else { return }
+                        self.progress = snapshot
+                    }
+                },
+                smallerFilesName: strings.smallerFiles,
+                otherItemsName: strings.otherItems
+            )
 
             DispatchQueue.main.async {
                 guard self.cancellation === token else { return }
@@ -185,17 +198,17 @@ final class DiskAnalyzerService: ObservableObject {
     }
 
     func revealSelection() {
-        guard let node = selectedNode else { return }
+        guard let node = selectedNode, !node.isAggregate else { return }
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
     }
 
     func openSelection() {
-        guard let node = selectedNode else { return }
+        guard let node = selectedNode, !node.isAggregate else { return }
         NSWorkspace.shared.open(node.url)
     }
 
     func copySelectionPath() {
-        guard let node = selectedNode else { return }
+        guard let node = selectedNode, !node.isAggregate else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(node.path, forType: .string)
     }
@@ -205,7 +218,7 @@ final class DiskAnalyzerService: ObservableObject {
     @discardableResult
     func trashSelection() -> Bool {
         trashError = nil
-        guard let node = selectedNode, let current = root else { return false }
+        guard let node = selectedNode, !node.isAggregate, let current = root else { return false }
         guard DiskAnalyzerSupport.canTrash(node.url) else {
             trashError = FeatureStrings.diskAnalyzer(L10n.shared.language).trashUnavailable
             return false
@@ -219,8 +232,13 @@ final class DiskAnalyzerService: ObservableObject {
         let removedPath = node.path
         if let updated = DiskAnalyzerSupport.removing(path: removedPath, from: current) {
             root = updated
-            if zoomPath == removedPath || (zoomPath?.hasPrefix(removedPath + "/") == true) {
-                zoomPath = updated.path
+            if let zoomPath,
+               zoomPath == removedPath || zoomPath.hasPrefix(removedPath + "/") {
+                // Land on the deepest surviving ancestor instead of jumping
+                // all the way back to the scan root.
+                self.zoomPath = DiskAnalyzerSupport.breadcrumb(to: removedPath, in: updated)
+                    .last(where: { $0.path != removedPath })?.path
+                    ?? updated.path
             }
             selectedPath = nil
         } else {

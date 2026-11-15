@@ -1044,7 +1044,10 @@ struct UtilitiesSection: View {
                                 isEditing: editing,
                                 showsDragHandle: true,
                                 visibility: $showDiskAnalyzer,
-                                action: { showDiskAnalyzerPanel = true })
+                                action: {
+                                    appDelegate()?.closePopover()
+                                    DiskAnalyzerService.shared.showWindow()
+                                })
         }
     }
 

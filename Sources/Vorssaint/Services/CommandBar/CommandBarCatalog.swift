@@ -761,7 +761,7 @@ enum CommandBarCatalog {
                 subtitle: area(.diskAnalyzer, under: diskStrings.pageTitle),
                 keywords: diskStrings.panelCaption,
                 icon: .symbol("square.grid.3x3.fill"),
-                run: { _ in openSettings(at: .diskAnalyzer) }))
+                run: { _ in DiskAnalyzerService.shared.showWindow() }))
         }
         if AppFeature.uninstaller.isAvailable {
             entries.append(CommandBarEntry(

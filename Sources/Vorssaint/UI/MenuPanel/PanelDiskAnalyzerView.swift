@@ -3,8 +3,8 @@
 
 import SwiftUI
 
-/// Compact Disk Analyzer entry for the utilities section. Scans Home by
-/// default and opens the full Settings page for the treemap workspace.
+/// Compact Disk Analyzer entry for the utilities section. Opens the workspace
+/// window where scanning and cleanup happen.
 struct PanelDiskAnalyzerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
@@ -62,20 +62,15 @@ struct PanelDiskAnalyzerView: View {
             Text(strings.panelCaption)
                 .font(.system(size: 10.5))
                 .foregroundStyle(.secondary)
-            HStack(spacing: 6) {
-                Button(strings.scanHome) {
-                    service.scanHome()
-                    openFullAnalyzer()
-                }
-                .controlSize(.small)
-                .disabled(service.phase == .scanning)
-                Button(strings.chooseFolder) {
-                    service.chooseFolderAndScan()
-                    openFullAnalyzer()
-                }
-                .controlSize(.small)
-                .disabled(service.phase == .scanning)
+            Button {
+                service.showWindow()
+                onClose()
+            } label: {
+                Label(strings.openWindow, systemImage: "square.grid.3x3.fill")
+                    .font(.system(size: 11, weight: .semibold))
             }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
             if !permissions.fullDiskAccess {
                 Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
                     .font(.system(size: 9.5))
@@ -99,8 +94,6 @@ struct PanelDiskAnalyzerView: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                Button(strings.cancel) { service.cancel() }
-                    .controlSize(.mini)
             }
             .panelCard()
         case .ready:
@@ -115,14 +108,6 @@ struct PanelDiskAnalyzerView: View {
                         .monospacedDigit()
                 }
                 .panelCard()
-                Button {
-                    openFullAnalyzer()
-                } label: {
-                    Label(strings.pageTitle, systemImage: "square.grid.3x3.fill")
-                        .font(.system(size: 11, weight: .semibold))
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
             }
         case .failed(let message):
             Label(message, systemImage: "exclamationmark.triangle")
@@ -133,11 +118,5 @@ struct PanelDiskAnalyzerView: View {
         case .idle:
             EmptyView()
         }
-    }
-
-    private func openFullAnalyzer() {
-        SettingsRouter.shared.page = .diskAnalyzer
-        appDelegate()?.openSettingsWindow()
-        onClose()
     }
 }

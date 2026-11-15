@@ -7,6 +7,8 @@ struct DiskAnalyzerFeatureStrings {
     let pageTitle: String
     let hubDescription: String
     let panelCaption: String
+    let openWindow: String
+    let openWindowCaption: String
     let scanHome: String
     let scanStartupDisk: String
     let chooseFolder: String
@@ -31,6 +33,9 @@ struct DiskAnalyzerFeatureStrings {
     let filesFormat: String
     let selectedNone: String
     let fullDiskNote: String
+    let itemsInFolder: String
+    let smallerFiles: String
+    let otherItems: String
 }
 
 extension FeatureStrings {
@@ -58,8 +63,10 @@ extension FeatureStrings {
 extension DiskAnalyzerFeatureStrings {
     static let enUS = DiskAnalyzerFeatureStrings(
         pageTitle: "Disk Analyzer",
-        hubDescription: "See what fills your disk with a colored treemap, then reveal or trash large folders",
+        hubDescription: "Open a workspace to map disk usage, list the largest items, and trash what you no longer need",
         panelCaption: "Find what uses space",
+        openWindow: "Open Disk Analyzer",
+        openWindowCaption: "Opens a workspace window with the treemap and a size-sorted list so you can trash what you no longer need.",
         scanHome: "Scan Home",
         scanStartupDisk: "Scan Startup Disk",
         chooseFolder: "Choose Folder…",
@@ -83,13 +90,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ of parent",
         filesFormat: "%d items",
         selectedNone: "Click a box to inspect it",
-        fullDiskNote: "Full Disk Access unlocks system folders the scan can’t see yet."
+        fullDiskNote: "Full Disk Access unlocks system folders the scan can’t see yet.",
+        itemsInFolder: "Largest items",
+        smallerFiles: "Smaller files",
+        otherItems: "Other items"
     )
 
     static let ptBR = DiskAnalyzerFeatureStrings(
         pageTitle: "Analisador de Disco",
         hubDescription: "Veja o que ocupa o disco em um mapa de cores e revele ou envie pastas grandes à Lixeira",
         panelCaption: "Descubra o que usa espaço",
+        openWindow: "Abrir Analisador de Disco",
+        openWindowCaption: "Abre uma janela com o mapa e uma lista por tamanho para enviar o que não precisa à Lixeira.",
         scanHome: "Analisar Início",
         scanStartupDisk: "Analisar disco de inicialização",
         chooseFolder: "Escolher pasta…",
@@ -113,13 +125,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ do pai",
         filesFormat: "%d itens",
         selectedNone: "Clique em uma caixa para inspecionar",
-        fullDiskNote: "O Acesso Total ao Disco libera pastas do sistema que a análise ainda não vê."
+        fullDiskNote: "O Acesso Total ao Disco libera pastas do sistema que a análise ainda não vê.",
+        itemsInFolder: "Maiores itens",
+        smallerFiles: "Arquivos menores",
+        otherItems: "Outros itens"
     )
 
     static let tr = DiskAnalyzerFeatureStrings(
         pageTitle: "Disk Analizi",
         hubDescription: "Renkli bir treemap ile diski neyin doldurduğunu görün, büyük klasörleri gösterin veya Çöp Kutusu’na taşıyın",
         panelCaption: "Alanı neyin kullandığını bulun",
+        openWindow: "Disk Analizini Aç",
+        openWindowCaption: "Treemap ve boyuta göre liste içeren bir pencere açar; gereksizleri Çöp Kutusu’na taşıyabilirsiniz.",
         scanHome: "Ana Klasörü Tara",
         scanStartupDisk: "Başlangıç diskini tara",
         chooseFolder: "Klasör seç…",
@@ -143,13 +160,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "üst öğenin %@",
         filesFormat: "%d öğe",
         selectedNone: "İncelemek için bir kutuya tıklayın",
-        fullDiskNote: "Tam Disk Erişimi, taramanın henüz göremediği sistem klasörlerini açar."
+        fullDiskNote: "Tam Disk Erişimi, taramanın henüz göremediği sistem klasörlerini açar.",
+        itemsInFolder: "En büyük öğeler",
+        smallerFiles: "Daha küçük dosyalar",
+        otherItems: "Diğer öğeler"
     )
 
     static let ru = DiskAnalyzerFeatureStrings(
         pageTitle: "Анализ диска",
         hubDescription: "Цветная карта покажет, что занимает место; можно открыть или удалить крупные папки",
         panelCaption: "Найти, что занимает место",
+        openWindow: "Открыть анализ диска",
+        openWindowCaption: "Открывает окно с картой и списком по размеру, чтобы удалить ненужное в Корзину.",
         scanHome: "Сканировать Домой",
         scanStartupDisk: "Сканировать системный диск",
         chooseFolder: "Выбрать папку…",
@@ -173,13 +195,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ от родителя",
         filesFormat: "%d объектов",
         selectedNone: "Нажмите на блок, чтобы проверить его",
-        fullDiskNote: "Полный доступ к диску открывает системные папки, которые пока не видны."
+        fullDiskNote: "Полный доступ к диску открывает системные папки, которые пока не видны.",
+        itemsInFolder: "Крупнейшие объекты",
+        smallerFiles: "Мелкие файлы",
+        otherItems: "Прочее"
     )
 
     static let es = DiskAnalyzerFeatureStrings(
         pageTitle: "Analizador de disco",
         hubDescription: "Mira qué llena el disco con un mapa de colores y revela o mueve carpetas grandes a la Papelera",
         panelCaption: "Descubre qué ocupa espacio",
+        openWindow: "Abrir analizador de disco",
+        openWindowCaption: "Abre una ventana con el mapa y una lista por tamaño para mover a la Papelera lo que no necesites.",
         scanHome: "Analizar Inicio",
         scanStartupDisk: "Analizar disco de arranque",
         chooseFolder: "Elegir carpeta…",
@@ -203,13 +230,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ del superior",
         filesFormat: "%d elementos",
         selectedNone: "Haz clic en un cuadro para inspeccionarlo",
-        fullDiskNote: "El acceso completo al disco abre carpetas del sistema que el análisis aún no ve."
+        fullDiskNote: "El acceso completo al disco abre carpetas del sistema que el análisis aún no ve.",
+        itemsInFolder: "Elementos más grandes",
+        smallerFiles: "Archivos pequeños",
+        otherItems: "Otros elementos"
     )
 
     static let sk = DiskAnalyzerFeatureStrings(
         pageTitle: "Analyzátor disku",
         hubDescription: "Farebná mapa ukáže, čo zapĺňa disk; veľké priečinky môžete zobraziť alebo presunúť do Koša",
         panelCaption: "Zistite, čo zaberá miesto",
+        openWindow: "Otvoriť Analyzátor disku",
+        openWindowCaption: "Otvorí okno s mapou a zoznamom podľa veľkosti, aby ste mohli presunúť nepotrebné do Koša.",
         scanHome: "Skenovať Domov",
         scanStartupDisk: "Skenovať štartovací disk",
         chooseFolder: "Vybrať priečinok…",
@@ -233,13 +265,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ z nadradeného",
         filesFormat: "%d položiek",
         selectedNone: "Kliknite na políčko na kontrolu",
-        fullDiskNote: "Úplný prístup k disku odomkne systémové priečinky, ktoré sken ešte nevidí."
+        fullDiskNote: "Úplný prístup k disku odomkne systémové priečinky, ktoré sken ešte nevidí.",
+        itemsInFolder: "Najväčšie položky",
+        smallerFiles: "Menšie súbory",
+        otherItems: "Ostatné položky"
     )
 
     static let de = DiskAnalyzerFeatureStrings(
         pageTitle: "Festplattenanalyse",
         hubDescription: "Farbige Karte zeigt, was den Speicher füllt; große Ordner anzeigen oder in den Papierkorb legen",
         panelCaption: "Speicherfresser finden",
+        openWindow: "Festplattenanalyse öffnen",
+        openWindowCaption: "Öffnet ein Fenster mit Karte und größenbasierter Liste, um Unnötiges in den Papierkorb zu legen.",
         scanHome: "Benutzerordner scannen",
         scanStartupDisk: "Startdatenträger scannen",
         chooseFolder: "Ordner wählen…",
@@ -263,13 +300,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ des Übergeordneten",
         filesFormat: "%d Elemente",
         selectedNone: "Klicke auf ein Feld zur Prüfung",
-        fullDiskNote: "Voller Festplattenzugriff öffnet Systemordner, die der Scan noch nicht sieht."
+        fullDiskNote: "Voller Festplattenzugriff öffnet Systemordner, die der Scan noch nicht sieht.",
+        itemsInFolder: "Größte Einträge",
+        smallerFiles: "Kleinere Dateien",
+        otherItems: "Sonstige"
     )
 
     static let fr = DiskAnalyzerFeatureStrings(
         pageTitle: "Analyseur de disque",
         hubDescription: "Carte colorée de l’espace disque ; affichez ou mettez à la Corbeille les gros dossiers",
         panelCaption: "Trouver ce qui prend de la place",
+        openWindow: "Ouvrir l’analyseur de disque",
+        openWindowCaption: "Ouvre une fenêtre avec la carte et une liste par taille pour mettre à la Corbeille ce qui est inutile.",
         scanHome: "Analyser Accueil",
         scanStartupDisk: "Analyser le disque de démarrage",
         chooseFolder: "Choisir un dossier…",
@@ -293,13 +335,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ du parent",
         filesFormat: "%d éléments",
         selectedNone: "Cliquez une case pour l’inspecter",
-        fullDiskNote: "L’accès complet au disque ouvre les dossiers système encore invisibles."
+        fullDiskNote: "L’accès complet au disque ouvre les dossiers système encore invisibles.",
+        itemsInFolder: "Éléments les plus volumineux",
+        smallerFiles: "Fichiers plus petits",
+        otherItems: "Autres éléments"
     )
 
     static let it = DiskAnalyzerFeatureStrings(
         pageTitle: "Analizzatore disco",
         hubDescription: "Mappa colorata di cosa occupa il disco; mostra o sposta cartelle grandi nel Cestino",
         panelCaption: "Scopri cosa usa spazio",
+        openWindow: "Apri Analizzatore disco",
+        openWindowCaption: "Apre una finestra con la mappa e un elenco per dimensione per spostare nel Cestino ciò che non serve.",
         scanHome: "Analizza Inizio",
         scanStartupDisk: "Analizza disco di avvio",
         chooseFolder: "Scegli cartella…",
@@ -323,13 +370,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ del genitore",
         filesFormat: "%d elementi",
         selectedNone: "Fai clic su una casella per ispezionarla",
-        fullDiskNote: "L’accesso completo al disco sblocca cartelle di sistema ancora non visibili."
+        fullDiskNote: "L’accesso completo al disco sblocca cartelle di sistema ancora non visibili.",
+        itemsInFolder: "Elementi più grandi",
+        smallerFiles: "File più piccoli",
+        otherItems: "Altri elementi"
     )
 
     static let ja = DiskAnalyzerFeatureStrings(
         pageTitle: "ディスクアナライザー",
         hubDescription: "色分けされたマップでディスクの使用状況を確認し、大きなフォルダを表示またはゴミ箱へ移動",
         panelCaption: "容量を使うものを探す",
+        openWindow: "ディスクアナライザーを開く",
+        openWindowCaption: "マップとサイズ順リストのウィンドウを開き、不要なものをゴミ箱に入れられます。",
         scanHome: "ホームをスキャン",
         scanStartupDisk: "起動ディスクをスキャン",
         chooseFolder: "フォルダを選択…",
@@ -353,13 +405,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "親の%@",
         filesFormat: "%d 項目",
         selectedNone: "ボックスをクリックして確認",
-        fullDiskNote: "フルディスクアクセスで、まだ見えないシステムフォルダを開けます。"
+        fullDiskNote: "フルディスクアクセスで、まだ見えないシステムフォルダを開けます。",
+        itemsInFolder: "大きい項目",
+        smallerFiles: "小さいファイル",
+        otherItems: "その他"
     )
 
     static let ko = DiskAnalyzerFeatureStrings(
         pageTitle: "디스크 분석기",
         hubDescription: "색상 트리맵으로 디스크를 채우는 항목을 보고 큰 폴더를 열거나 휴지통으로 이동",
         panelCaption: "공간을 쓰는 항목 찾기",
+        openWindow: "디스크 분석기 열기",
+        openWindowCaption: "트리맵과 크기순 목록이 있는 창을 열어 필요 없는 항목을 휴지통으로 옮길 수 있습니다.",
         scanHome: "홈 스캔",
         scanStartupDisk: "시동 디스크 스캔",
         chooseFolder: "폴더 선택…",
@@ -383,13 +440,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "상위 항목의 %@",
         filesFormat: "%d개 항목",
         selectedNone: "상자를 클릭해 검사",
-        fullDiskNote: "전체 디스크 접근으로 아직 보이지 않는 시스템 폴더를 엽니다."
+        fullDiskNote: "전체 디스크 접근으로 아직 보이지 않는 시스템 폴더를 엽니다.",
+        itemsInFolder: "가장 큰 항목",
+        smallerFiles: "작은 파일",
+        otherItems: "기타 항목"
     )
 
     static let zhHans = DiskAnalyzerFeatureStrings(
         pageTitle: "磁盘分析",
         hubDescription: "用彩色树状图查看磁盘占用，并可显示或将大文件夹移到废纸篓",
         panelCaption: "找出占用空间的内容",
+        openWindow: "打开磁盘分析",
+        openWindowCaption: "打开带树状图和按大小排序列表的窗口，可将不需要的内容移到废纸篓。",
         scanHome: "扫描主文件夹",
         scanStartupDisk: "扫描启动磁盘",
         chooseFolder: "选择文件夹…",
@@ -413,13 +475,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "占上级 %@",
         filesFormat: "%d 项",
         selectedNone: "点击方块以检查",
-        fullDiskNote: "完整磁盘访问可打开扫描尚不可见的系统文件夹。"
+        fullDiskNote: "完整磁盘访问可打开扫描尚不可见的系统文件夹。",
+        itemsInFolder: "最大项目",
+        smallerFiles: "较小文件",
+        otherItems: "其他项目"
     )
 
     static let zhTW = DiskAnalyzerFeatureStrings(
         pageTitle: "磁碟分析",
         hubDescription: "用彩色樹狀圖查看磁碟占用，並可顯示或將大型檔案夾移到垃圾桶",
         panelCaption: "找出占用空間的內容",
+        openWindow: "打開磁碟分析",
+        openWindowCaption: "打開含樹狀圖與依大小排序清單的視窗，可將不需要的內容移到垃圾桶。",
         scanHome: "掃描主檔案夾",
         scanStartupDisk: "掃描開機磁碟",
         chooseFolder: "選擇檔案夾…",
@@ -443,13 +510,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "佔上層 %@",
         filesFormat: "%d 項目",
         selectedNone: "按一下方塊以檢查",
-        fullDiskNote: "完整磁碟取用可開啟掃描尚不可見的系統檔案夾。"
+        fullDiskNote: "完整磁碟取用可開啟掃描尚不可見的系統檔案夾。",
+        itemsInFolder: "最大項目",
+        smallerFiles: "較小檔案",
+        otherItems: "其他項目"
     )
 
     static let zhHK = DiskAnalyzerFeatureStrings(
         pageTitle: "磁碟分析",
         hubDescription: "用彩色樹狀圖查看磁碟佔用，並可顯示或將大型資料夾移到廢紙簍",
         panelCaption: "找出佔用空間的內容",
+        openWindow: "打開磁碟分析",
+        openWindowCaption: "打開含樹狀圖與按大小排序清單的視窗，可將不需要的內容移到廢紙簍。",
         scanHome: "掃描主資料夾",
         scanStartupDisk: "掃描開機磁碟",
         chooseFolder: "選擇資料夾…",
@@ -473,13 +545,18 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "佔上層 %@",
         filesFormat: "%d 項目",
         selectedNone: "按一下方塊以檢查",
-        fullDiskNote: "完整磁碟取用可開啟掃描尚不可見的系統資料夾。"
+        fullDiskNote: "完整磁碟取用可開啟掃描尚不可見的系統資料夾。",
+        itemsInFolder: "最大項目",
+        smallerFiles: "較小檔案",
+        otherItems: "其他項目"
     )
 
     static let uk = DiskAnalyzerFeatureStrings(
         pageTitle: "Аналіз диска",
         hubDescription: "Кольорова карта покаже, що займає місце; можна відкрити або перемістити великі папки в Смітник",
         panelCaption: "Знайти, що займає місце",
+        openWindow: "Відкрити аналіз диска",
+        openWindowCaption: "Відкриває вікно з картою та списком за розміром, щоб перемістити зайве в Смітник.",
         scanHome: "Сканувати Домівку",
         scanStartupDisk: "Сканувати системний диск",
         chooseFolder: "Вибрати папку…",
@@ -503,6 +580,9 @@ extension DiskAnalyzerFeatureStrings {
         percentOfParentFormat: "%@ від батьківського",
         filesFormat: "%d об’єктів",
         selectedNone: "Натисніть блок, щоб перевірити",
-        fullDiskNote: "Повний доступ до диска відкриває системні папки, які ще не видно."
+        fullDiskNote: "Повний доступ до диска відкриває системні папки, які ще не видно.",
+        itemsInFolder: "Найбільші об’єкти",
+        smallerFiles: "Менші файли",
+        otherItems: "Інше"
     )
 }
