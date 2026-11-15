@@ -42,6 +42,44 @@ enum AudioPriorityTests {
             "speakers", in: ["offline", "speakers"], isCurrent: true, tier: tier)
             == ["offline", "speakers"],
             "a device the list already ranks keeps its place")
+        let imac = "Jimmy's iMac"
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["speakers", "airplay-old", "display"],
+            connected: [(uid: "speakers", name: "Speakers"), (uid: "airplay-new", name: imac)],
+            storedNames: ["airplay-old": imac, "display": "Display"])
+            == ["speakers", "airplay-new", "display"],
+            "an AirPlay device that reconnects with a new UID takes its old slot instead of adding an entry")
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["airplay-1", "speakers", "airplay-2", "airplay-3", "airplay-4"],
+            connected: [(uid: "speakers", name: "Speakers"), (uid: "airplay-4", name: imac)],
+            storedNames: ["airplay-1": imac, "airplay-2": imac, "airplay-3": imac])
+            == ["airplay-4", "speakers"],
+            "existing duplicates collapse into the highest slot, held by the connected device")
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["airplay-1", "speakers", "airplay-2"],
+            connected: [(uid: "speakers", name: "Speakers")],
+            storedNames: ["airplay-1": imac, "airplay-2": imac])
+            == ["airplay-1", "speakers"],
+            "disconnected duplicates keep only the highest entry")
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["usb-a", "speakers", "usb-b"],
+            connected: [(uid: "usb-a", name: "USB Audio"), (uid: "speakers", name: "Speakers"),
+                        (uid: "usb-b", name: "USB Audio")],
+            storedNames: [:])
+            == ["usb-a", "speakers", "usb-b"],
+            "two connected devices with the same name both keep their places")
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["speakers", "offline"],
+            connected: [(uid: "speakers", name: "Speakers"), (uid: "headphones", name: "Headphones")],
+            storedNames: ["offline": "Display"])
+            == ["speakers", "offline"],
+            "a device with a new name is left for normal placement")
+        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
+            ["speakers", "unnamed"],
+            connected: [(uid: "speakers", name: "Speakers"), (uid: "other", name: " ")],
+            storedNames: [:])
+            == ["speakers", "unnamed"],
+            "entries without a known name are never matched")
         suite.expect(MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeBuiltIn) == .builtIn
                 && MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeVirtual) == .virtual
                 && MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeAggregate) == .virtual

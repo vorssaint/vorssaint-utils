@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Audio device priority keeps one entry for an AirPlay device that reconnects with a new identifier, such as another Mac, and merges the duplicates it already added. You can now remove unavailable devices from either list. Thanks to @TC-Virtuoso.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

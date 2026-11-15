@@ -912,6 +912,62 @@ enum MixerRoutingSupport {
         return placed
     }
 
+    /// Matches devices by name when their UID changes. An AirPlay receiver,
+    /// such as another Mac, can come back with a new UID on every reconnect.
+    /// Without this step each reconnect adds another entry with the same name.
+    ///
+    /// A connected device the list does not hold yet takes the place of the
+    /// first disconnected entry stored under its name. When several entries
+    /// share a name, the first one keeps its slot and a connected member moves
+    /// into it. The other disconnected members go. Connected devices that
+    /// share a name, such as two identical USB interfaces, all stay.
+    static func mergingPriorityDevicesByName(_ list: [String],
+                                             connected: [(uid: String, name: String)],
+                                             storedNames: [String: String]) -> [String] {
+        var connectedNames: [String: String] = [:]
+        for device in connected where connectedNames[device.uid] == nil {
+            connectedNames[device.uid] = device.name
+        }
+        func name(of uid: String) -> String? {
+            guard let raw = connectedNames[uid] ?? storedNames[uid] else { return nil }
+            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        }
+        func isConnected(_ uid: String) -> Bool { connectedNames[uid] != nil }
+
+        var rebound = list
+        for device in connected where !rebound.contains(device.uid) {
+            guard let deviceName = name(of: device.uid),
+                  let slot = rebound.firstIndex(where: { !isConnected($0) && name(of: $0) == deviceName })
+            else { continue }
+            rebound[slot] = device.uid
+        }
+
+        var membersByName: [String: [String]] = [:]
+        for uid in rebound {
+            if let entryName = name(of: uid) { membersByName[entryName, default: []].append(uid) }
+        }
+        var result: [String] = []
+        var placed = Set<String>()
+        var startedNames = Set<String>()
+        for uid in rebound {
+            guard let entryName = name(of: uid),
+                  let members = membersByName[entryName], members.count > 1 else {
+                result.append(uid)
+                continue
+            }
+            if startedNames.insert(entryName).inserted {
+                let lead = members.first(where: isConnected) ?? uid
+                result.append(lead)
+                placed.insert(lead)
+            } else if isConnected(uid), !placed.contains(uid) {
+                result.append(uid)
+                placed.insert(uid)
+            }
+        }
+        return result
+    }
+
     /// Whether a CoreAudio write should be requested: only when the target
     /// exists and differs from the current default. Avoids redundant writes
     /// when the desired device is already active.
