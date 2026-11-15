@@ -4,8 +4,8 @@
 import AppKit
 import SwiftUI
 
-/// Settings page: preferences only. Scanning and cleanup live in the menu
-/// panel / island Utilities section like the other first-party tools.
+/// Settings page for Disk Analyzer preferences. The utility itself lives in
+/// the menu panel / island Utilities section.
 struct DiskAnalyzerView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
@@ -20,19 +20,56 @@ struct DiskAnalyzerView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
+                Button {
+                    service.presentInMenuPanel()
+                } label: {
+                    Label(strings.openInUtilities, systemImage: "square.grid.3x3.fill")
+                }
             }
-            Section {
+
+            Section(strings.scanOptionsSection) {
                 Toggle(strings.includeHidden, isOn: $service.includeHidden)
                 Text(strings.includeHiddenCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Toggle(strings.showScanHome, isOn: $service.showScanHome)
+                Text(strings.showScanHomeCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Toggle(strings.confirmTrash, isOn: $service.confirmTrash)
+                Text(strings.confirmTrashCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            if !permissions.fullDiskAccess {
-                Section {
-                    Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
+
+            Section(strings.displaySection) {
+                Toggle(strings.showItemList, isOn: $service.showItemList)
+                Text(strings.showItemListCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Picker(strings.nestingDepth, selection: $service.nestingDepth) {
+                    Text("1").tag(1)
+                    Text("2").tag(2)
+                    Text("3").tag(3)
+                    Text("4").tag(4)
+                }
+                Text(strings.nestingDepthCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section(strings.permissionsSection) {
+                if permissions.fullDiskAccess {
+                    Label(strings.fullDiskGranted, systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(strings.fullDiskNote)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    Button(strings.grantFullDiskAccess) {
+                        Permissions.shared.requestFullDiskAccess()
+                    }
                 }
             }
         }
@@ -41,15 +78,16 @@ struct DiskAnalyzerView: View {
     }
 }
 
-/// Shared workspace used by the menu panel / island (compact) layout.
+/// Compact Utilities workspace: map-first, click to drill in, right-click for
+/// Reveal / Trash, chevron + breadcrumbs to go up.
 struct DiskAnalyzerWorkspaceView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = DiskAnalyzerService.shared
     @ObservedObject private var permissions = Permissions.shared
     @Environment(\.notchPresentation) private var inNotch
     @State private var pendingTrash = false
+    @State private var pendingTrashPath: String?
 
-    /// When true, fits the menu popover / island: vertical treemap + list.
     var compact: Bool = true
 
     private var strings: DiskAnalyzerFeatureStrings { FeatureStrings.diskAnalyzer(l10n.language) }
@@ -62,11 +100,13 @@ struct DiskAnalyzerWorkspaceView: View {
         .alert(pendingTrashTitle,
                isPresented: Binding(
                 get: { pendingTrash && !inNotch },
-                set: { if !$0 { pendingTrash = false } }
+                set: { if !$0 { pendingTrash = false; pendingTrashPath = nil } }
                )) {
-            Button(l10n.s.uninstallerCancel, role: .cancel) {}
+            Button(l10n.s.uninstallerCancel, role: .cancel) {
+                pendingTrashPath = nil
+            }
             Button(strings.moveToTrash, role: .destructive) {
-                _ = service.trashSelection()
+                commitTrash()
             }
         } message: {
             Text(strings.confirmTrashMessage)
@@ -79,12 +119,35 @@ struct DiskAnalyzerWorkspaceView: View {
     }
 
     private var pendingTrashTitle: String {
-        guard let name = service.selectedNode?.name else { return strings.moveToTrash }
+        let name = pendingTrashPath.map { URL(fileURLWithPath: $0).lastPathComponent }
+            ?? service.selectedNode?.name
+        guard let name else { return strings.moveToTrash }
         return String(format: strings.confirmTrashFormat, name)
+    }
+
+    private func requestTrash(path: String) {
+        service.select(path: path)
+        guard service.canTrashSelection else { return }
+        if service.confirmTrash {
+            pendingTrashPath = path
+            pendingTrash = true
+        } else {
+            pendingTrashPath = path
+            commitTrash()
+        }
+    }
+
+    private func commitTrash() {
+        if let path = pendingTrashPath {
+            service.select(path: path)
+        }
+        _ = service.trashSelection()
+        pendingTrashPath = nil
     }
 
     private func confirmTrashAboveIsland() {
         let title = pendingTrashTitle
+        let path = pendingTrashPath
         DispatchQueue.main.async {
             guard NSAlert.confirmAboveIsland(
                 title,
@@ -92,8 +155,12 @@ struct DiskAnalyzerWorkspaceView: View {
                 action: strings.moveToTrash,
                 destructive: true,
                 cancel: l10n.s.uninstallerCancel
-            ) else { return }
-            _ = service.trashSelection()
+            ) else {
+                pendingTrashPath = nil
+                return
+            }
+            pendingTrashPath = path
+            commitTrash()
         }
     }
 
@@ -122,7 +189,6 @@ struct DiskAnalyzerWorkspaceView: View {
         }
     }
 
-    /// Two equal start actions: pick a folder, or scan the startup disk.
     private var startActions: some View {
         VStack(spacing: 8) {
             startButton(
@@ -139,7 +205,15 @@ struct DiskAnalyzerWorkspaceView: View {
                 accessibility: strings.scanStartupDisk,
                 action: { service.scanStartupDisk() }
             )
-
+            if service.showScanHome {
+                startButton(
+                    title: strings.scanHome,
+                    subtitle: nil,
+                    systemImage: "house",
+                    accessibility: strings.scanHome,
+                    action: { service.scanHome() }
+                )
+            }
             if !permissions.fullDiskAccess {
                 Label(strings.fullDiskNote, systemImage: "externaldrive.badge.person.crop")
                     .font(.system(size: 9.5))
@@ -173,7 +247,7 @@ struct DiskAnalyzerWorkspaceView: View {
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -196,9 +270,16 @@ struct DiskAnalyzerWorkspaceView: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
-            iconButton("xmark", help: strings.cancel) {
+            Button {
                 service.cancel()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
             }
+            .buttonStyle(.plain)
+            .help(strings.cancel)
         }
         .panelCard()
     }
@@ -209,25 +290,27 @@ struct DiskAnalyzerWorkspaceView: View {
             DiskAnalyzerTreemapView(
                 root: service.zoomNode,
                 selectedPath: service.selectedPath,
-                onSelect: { path in
-                    handleMapSelect(path)
+                nestingDepth: service.nestingDepth,
+                onSelect: handleMapSelect,
+                onReveal: { path in
+                    service.select(path: path)
+                    service.revealSelection()
                 },
-                onActivate: { path in
-                    handleMapSelect(path)
-                }
+                onTrash: requestTrash
             )
             .frame(maxWidth: .infinity)
-            .frame(height: inNotch ? 220 : 200)
+            .frame(height: inNotch ? 240 : 220)
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .id(service.zoomPath ?? service.root?.path ?? "")
+            .id("\(service.zoomPath ?? service.root?.path ?? "")-\(service.nestingDepth)")
 
-            itemList
+            if service.showItemList {
+                itemList
+            }
         }
     }
 
-    /// Current folder name + size, one up icon, and selection actions as icons.
     private var navigationBar: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             Button {
                 service.zoomOut()
             } label: {
@@ -241,45 +324,42 @@ struct DiskAnalyzerWorkspaceView: View {
             .help(strings.goUp)
             .accessibilityLabel(strings.goUp)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(currentFolderTitle)
-                    .font(.system(size: 11.5, weight: .semibold))
-                    .lineLimit(1)
-                if let node = service.selectedNode, node.path != service.zoomPath {
-                    Text("\(node.name) · \(DiskAnalyzerSupport.formatBytes(node.size))")
-                        .font(.system(size: 9.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                } else if let zoom = service.zoomNode {
-                    Text(DiskAnalyzerSupport.formatBytes(zoom.size))
-                        .font(.system(size: 9.5, design: .rounded).monospacedDigit())
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            iconButton("arrow.clockwise", help: strings.rescan) {
-                service.rescan()
-            }
-
-            if let node = service.selectedNode, !node.isAggregate {
-                iconButton("arrow.up.forward.app", help: strings.revealInFinder) {
-                    service.revealSelection()
-                }
-                if service.canTrashSelection {
-                    iconButton("trash", help: strings.moveToTrash, tint: .red) {
-                        pendingTrash = true
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(Array(service.breadcrumbs.enumerated()), id: \.element.id) { index, node in
+                        if index > 0 {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 8, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Button(node.name.isEmpty ? "/" : node.name) {
+                            service.zoom(to: node.path)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: index == service.breadcrumbs.count - 1 ? .semibold : .regular))
+                        .foregroundStyle(index == service.breadcrumbs.count - 1 ? Color.primary : Color.secondary)
                     }
                 }
             }
+
+            if let zoom = service.zoomNode {
+                Text(DiskAnalyzerSupport.formatBytes(zoom.size))
+                    .font(.system(size: 10, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            Button {
+                service.rescan()
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 22, height: 22)
+            }
+            .buttonStyle(.plain)
+            .help(strings.rescan)
         }
         .panelCard()
-    }
-
-    private var currentFolderTitle: String {
-        let name = service.zoomNode?.name ?? ""
-        return name.isEmpty ? "/" : name
     }
 
     private var itemList: some View {
@@ -290,7 +370,7 @@ struct DiskAnalyzerWorkspaceView: View {
                 }
             }
         }
-        .frame(maxHeight: inNotch ? 220 : 200)
+        .frame(maxHeight: inNotch ? 200 : 180)
     }
 
     private func itemRow(_ item: DiskAnalyzerSupport.Node) -> some View {
@@ -316,11 +396,7 @@ struct DiskAnalyzerWorkspaceView: View {
         )
         .contentShape(Rectangle())
         .onTapGesture {
-            if item.isDirectory, !item.isAggregate {
-                service.zoom(to: item.path)
-            } else {
-                service.select(path: item.path)
-            }
+            handleMapSelect(item.path)
         }
         .contextMenu {
             if !item.isAggregate {
@@ -330,15 +406,14 @@ struct DiskAnalyzerWorkspaceView: View {
                 }
                 if DiskAnalyzerSupport.canTrash(item.url) {
                     Button(strings.moveToTrash, role: .destructive) {
-                        service.select(path: item.path)
-                        pendingTrash = true
+                        requestTrash(path: item.path)
                     }
                 }
             }
         }
     }
 
-    /// Click a map block: directories drill in; files become the selection.
+    /// Click: directories drill in; files select.
     private func handleMapSelect(_ path: String) {
         guard let root = service.root,
               let node = DiskAnalyzerSupport.node(at: path, in: root) else {
@@ -350,20 +425,5 @@ struct DiskAnalyzerWorkspaceView: View {
         } else {
             service.select(path: path)
         }
-    }
-
-    private func iconButton(_ systemName: String,
-                            help: String,
-                            tint: Color? = nil,
-                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(tint ?? Color.secondary)
-                .frame(width: 24, height: 22)
-        }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
     }
 }

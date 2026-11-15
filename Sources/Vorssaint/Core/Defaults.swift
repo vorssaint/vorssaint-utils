@@ -342,6 +342,10 @@ enum DefaultsKey {
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
     static let killProcessSortAscending = "killProcessSortAscending"
     static let diskAnalyzerIncludeHidden = "diskAnalyzerIncludeHidden"
+    static let diskAnalyzerConfirmTrash = "diskAnalyzerConfirmTrash"
+    static let diskAnalyzerShowItemList = "diskAnalyzerShowItemList"
+    static let diskAnalyzerShowScanHome = "diskAnalyzerShowScanHome"
+    static let diskAnalyzerNestingDepth = "diskAnalyzerNestingDepth"
     static let diskAnalyzerLastRootPath = "diskAnalyzerLastRootPath"
     static let panelUtilityDiskAnalyzer = "panelUtilityDiskAnalyzer"
     static let panelUtilityCleaner = "panelUtilityCleaner"
@@ -1632,6 +1636,11 @@ enum Defaults {
         DefaultsKey.killProcessSortBy: "cpu",
         DefaultsKey.killProcessSortAscending: false,
         DefaultsKey.diskAnalyzerIncludeHidden: false,
+        DefaultsKey.diskAnalyzerConfirmTrash: true,
+        DefaultsKey.diskAnalyzerShowItemList: true,
+        DefaultsKey.diskAnalyzerShowScanHome: true,
+        DefaultsKey.diskAnalyzerNestingDepth: 3,
+        DefaultsKey.panelUtilityDiskAnalyzer: true,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.homebrewGroupDependencies: true,
@@ -1932,7 +1941,6 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
-        DefaultsKey.panelUtilityDiskAnalyzer: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

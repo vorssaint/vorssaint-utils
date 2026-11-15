@@ -4,39 +4,43 @@
 import AppKit
 import SwiftUI
 
-/// AppKit treemap drawn in view coordinates (no bitmap flip). Nested cells
-/// match WizTree: hit-testing always picks the deepest box under the pointer.
+/// AppKit treemap drawn in view coordinates. Click drills into folders;
+/// right-click offers Reveal / Trash.
 struct DiskAnalyzerTreemapView: NSViewRepresentable {
     let root: DiskAnalyzerSupport.Node?
     let selectedPath: String?
+    let nestingDepth: Int
     let onSelect: (String) -> Void
-    let onActivate: (String) -> Void
+    let onReveal: (String) -> Void
+    let onTrash: (String) -> Void
 
     func makeNSView(context: Context) -> DiskAnalyzerTreemapNSView {
         let view = DiskAnalyzerTreemapNSView()
         view.onSelect = onSelect
-        view.onActivate = onActivate
+        view.onReveal = onReveal
+        view.onTrash = onTrash
         return view
     }
 
     func updateNSView(_ view: DiskAnalyzerTreemapNSView, context: Context) {
         view.onSelect = onSelect
-        view.onActivate = onActivate
-        view.update(root: root, selectedPath: selectedPath)
+        view.onReveal = onReveal
+        view.onTrash = onTrash
+        view.update(root: root, selectedPath: selectedPath, nestingDepth: nestingDepth)
     }
 }
 
 final class DiskAnalyzerTreemapNSView: NSView {
     var onSelect: ((String) -> Void)?
-    var onActivate: ((String) -> Void)?
+    var onReveal: ((String) -> Void)?
+    var onTrash: ((String) -> Void)?
 
     private var root: DiskAnalyzerSupport.Node?
     private var selectedPath: String?
+    private var nestingDepth = DiskAnalyzerSupport.defaultTreemapNestingDepth
     private var hoveredPath: String?
     private var cells: [DiskAnalyzerSupport.TreemapCell] = []
     private var layoutSize: CGSize = .zero
-    private var lastClickTime: TimeInterval = 0
-    private var lastClickPath: String?
     private var trackingArea: NSTrackingArea?
     private let hoverTip = DiskAnalyzerHoverTipView()
 
@@ -58,14 +62,17 @@ final class DiskAnalyzerTreemapNSView: NSView {
         addSubview(hoverTip)
     }
 
-    func update(root: DiskAnalyzerSupport.Node?, selectedPath: String?) {
+    func update(root: DiskAnalyzerSupport.Node?, selectedPath: String?, nestingDepth: Int) {
+        let depth = min(4, max(1, nestingDepth))
         let rootChanged = self.root?.path != root?.path
             || self.root?.size != root?.size
             || self.root?.children.map(\.path) != root?.children.map(\.path)
             || self.root?.children.map(\.size) != root?.children.map(\.size)
+            || self.nestingDepth != depth
         let selectionChanged = self.selectedPath != selectedPath
         self.root = root
         self.selectedPath = selectedPath
+        self.nestingDepth = depth
 
         let size = CGSize(width: floor(bounds.width), height: floor(bounds.height))
         let sizeChanged = abs(layoutSize.width - size.width) > 0.5
@@ -104,7 +111,6 @@ final class DiskAnalyzerTreemapNSView: NSView {
         NSColor.labelColor.withAlphaComponent(0.04).setFill()
         bounds.fill()
 
-        // Parents first, then nested children (layout append order).
         for cell in cells {
             let fill = DiskAnalyzerSupport.color(for: cell.colorIndex, depth: cell.depth)
             fill.setFill()
@@ -115,8 +121,6 @@ final class DiskAnalyzerTreemapNSView: NSView {
             border.stroke()
         }
 
-        // Labels on larger boxes; prefer shallower depth so nested files stay
-        // uncluttered when their parent already shows a title.
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10, weight: .semibold),
             .foregroundColor: NSColor.white
@@ -162,24 +166,49 @@ final class DiskAnalyzerTreemapNSView: NSView {
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         guard let cell = deepestCell(at: point) else { return }
-        let now = ProcessInfo.processInfo.systemUptime
-        let isDouble = lastClickPath == cell.path && (now - lastClickTime) < NSEvent.doubleClickInterval
-        lastClickTime = now
-        lastClickPath = cell.path
         onSelect?(cell.path)
-        if isDouble {
-            onActivate?(cell.path)
-        }
     }
 
-    /// Deepest nested box under the pointer — parents contain children, so
-    /// first-match would always select the folder and never a file inside.
+    override func rightMouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard let cell = deepestCell(at: point), !cell.isAggregate else { return }
+        onSelect?(cell.path)
+
+        let strings = FeatureStrings.diskAnalyzer(L10n.shared.language)
+        let menu = NSMenu()
+        let reveal = menu.addItem(
+            withTitle: strings.revealInFinder,
+            action: #selector(contextReveal(_:)),
+            keyEquivalent: "")
+        reveal.target = self
+        reveal.representedObject = cell.path
+
+        if DiskAnalyzerSupport.canTrash(URL(fileURLWithPath: cell.path, isDirectory: cell.isDirectory)) {
+            let trash = menu.addItem(
+                withTitle: strings.moveToTrash,
+                action: #selector(contextTrash(_:)),
+                keyEquivalent: "")
+            trash.target = self
+            trash.representedObject = cell.path
+        }
+        NSMenu.popUpContextMenu(menu, with: event, for: self)
+    }
+
+    @objc private func contextReveal(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        onReveal?(path)
+    }
+
+    @objc private func contextTrash(_ sender: NSMenuItem) {
+        guard let path = sender.representedObject as? String else { return }
+        onTrash?(path)
+    }
+
     private func deepestCell(at point: CGPoint) -> DiskAnalyzerSupport.TreemapCell? {
         cells.reversed().first { $0.rect.contains(point) }
     }
 
     private func cell(for path: String) -> DiskAnalyzerSupport.TreemapCell? {
-        // Prefer the deepest cell with this path (should be unique).
         cells.reversed().first { $0.path == path }
     }
 
@@ -201,7 +230,7 @@ final class DiskAnalyzerTreemapNSView: NSView {
                 title: cell.name,
                 sizeLine: "\(strings.sizeLabel): \(DiskAnalyzerSupport.formatBytes(cell.size))",
                 percentLine: String(format: strings.percentOfParentFormat, percent),
-                pathLine: prettyPath(cell.path, isAggregate: cell.isAggregate)
+                pathLine: ""
             )
             hoverTip.isHidden = false
         }
@@ -234,16 +263,11 @@ final class DiskAnalyzerTreemapNSView: NSView {
         hoverTip.frame.origin = origin
     }
 
-    private func prettyPath(_ path: String, isAggregate: Bool) -> String {
-        if isAggregate || path.contains(".__vorssaint_") { return "" }
-        return path.replacingOccurrences(of: NSHomeDirectory(), with: "~")
-    }
-
     private func rebuild(size: CGSize) {
         layoutSize = size
         let rect = CGRect(origin: .zero, size: size)
         if let root, size.width > 1, size.height > 1 {
-            cells = DiskAnalyzerSupport.layoutTreemap(root: root, in: rect)
+            cells = DiskAnalyzerSupport.layoutTreemap(root: root, in: rect, maxDepth: nestingDepth)
         } else {
             cells = []
         }

@@ -36,13 +36,36 @@ final class DiskAnalyzerService: ObservableObject {
     @Published var includeHidden: Bool {
         didSet { UserDefaults.standard.set(includeHidden, forKey: DefaultsKey.diskAnalyzerIncludeHidden) }
     }
+    @Published var confirmTrash: Bool {
+        didSet { UserDefaults.standard.set(confirmTrash, forKey: DefaultsKey.diskAnalyzerConfirmTrash) }
+    }
+    @Published var showItemList: Bool {
+        didSet { UserDefaults.standard.set(showItemList, forKey: DefaultsKey.diskAnalyzerShowItemList) }
+    }
+    @Published var showScanHome: Bool {
+        didSet { UserDefaults.standard.set(showScanHome, forKey: DefaultsKey.diskAnalyzerShowScanHome) }
+    }
+    /// How many nested box levels the treemap draws under the current folder.
+    @Published var nestingDepth: Int {
+        didSet {
+            let clamped = min(4, max(1, nestingDepth))
+            if clamped != nestingDepth { nestingDepth = clamped; return }
+            UserDefaults.standard.set(clamped, forKey: DefaultsKey.diskAnalyzerNestingDepth)
+        }
+    }
 
     private var cancellation: DiskAnalyzerSupport.ScanCancellation?
     private let worker = DispatchQueue(label: "com.vorssaint.utils.disk-analyzer", qos: .userInitiated)
     private var lastRootURL: URL?
 
     private init() {
-        includeHidden = UserDefaults.standard.object(forKey: DefaultsKey.diskAnalyzerIncludeHidden) as? Bool ?? false
+        let defaults = UserDefaults.standard
+        includeHidden = defaults.object(forKey: DefaultsKey.diskAnalyzerIncludeHidden) as? Bool ?? false
+        confirmTrash = defaults.object(forKey: DefaultsKey.diskAnalyzerConfirmTrash) as? Bool ?? true
+        showItemList = defaults.object(forKey: DefaultsKey.diskAnalyzerShowItemList) as? Bool ?? true
+        showScanHome = defaults.object(forKey: DefaultsKey.diskAnalyzerShowScanHome) as? Bool ?? true
+        let depth = defaults.object(forKey: DefaultsKey.diskAnalyzerNestingDepth) as? Int ?? 3
+        nestingDepth = min(4, max(1, depth))
     }
 
     /// Ask the menu panel / island to host Disk Analyzer in Utilities.

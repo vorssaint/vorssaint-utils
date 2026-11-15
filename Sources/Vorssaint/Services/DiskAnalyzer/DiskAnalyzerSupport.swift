@@ -39,9 +39,8 @@ enum DiskAnalyzerSupport {
     /// Files below this size roll into one “Smaller files” leaf so the map
     /// stays dominated by real space hogs (WizTree / WinDirStat behavior).
     static let smallFileByteThreshold: Int64 = 512 * 1024
-    /// How deep to nest boxes inside the current zoom folder. Deeper levels
-    /// remain reachable by zooming in (like WizTree drill-down).
-    static let treemapNestingDepth = 3
+    /// Default nest depth when Settings hasn’t overridden it.
+    static let defaultTreemapNestingDepth = 3
 
     struct Node: Identifiable, Equatable {
         var id: String { path }
@@ -423,11 +422,12 @@ enum DiskAnalyzerSupport {
 
     /// WizTree-style nested layout of the zoom folder: children fill the map
     /// by size, and directories nest their own children inside (up to
-    /// `treemapNestingDepth`). Files appear as leaf boxes. Cells are ordered
+    /// `maxDepth`). Files appear as leaf boxes. Cells are ordered
     /// parents-then-children so hit-testing can take the deepest match.
     static func layoutTreemap(root: Node,
                               in bounds: CGRect,
-                              minArea: CGFloat = 24) -> [TreemapCell] {
+                              minArea: CGFloat = 24,
+                              maxDepth: Int = defaultTreemapNestingDepth) -> [TreemapCell] {
         guard bounds.width > 1, bounds.height > 1 else { return [] }
         var cells: [TreemapCell] = []
         layoutChildren(root.children,
@@ -435,7 +435,7 @@ enum DiskAnalyzerSupport {
                        parentSize: max(root.size, 1),
                        colorBase: nil,
                        depth: 0,
-                       maxDepth: treemapNestingDepth,
+                       maxDepth: max(1, maxDepth),
                        minArea: minArea,
                        into: &cells)
         return cells
