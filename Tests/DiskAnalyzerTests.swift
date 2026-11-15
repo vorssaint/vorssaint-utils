@@ -1,0 +1,171 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import CoreGraphics
+import Foundation
+
+enum DiskAnalyzerTests {
+    static func run(_ suite: TestSuite) {
+        treemapOmitsZeroSize(suite)
+        treemapFillsBounds(suite)
+        treeRemovalUpdatesAncestors(suite)
+        scanBuildsTree(suite)
+        scanSkipsSymlinks(suite)
+        scanSkipsHiddenUnlessRequested(suite)
+        catalogWiring(suite)
+        stringsHaveFormats(suite)
+    }
+
+    private static func treemapOmitsZeroSize(_ suite: TestSuite) {
+        let root = DiskAnalyzerSupport.Node(
+            path: "/root", name: "root", size: 100, isDirectory: true,
+            children: [
+                .init(path: "/root/a", name: "a", size: 100, isDirectory: false, children: []),
+                .init(path: "/root/empty", name: "empty", size: 0, isDirectory: false, children: []),
+            ]
+        )
+        let cells = DiskAnalyzerSupport.layoutTreemap(
+            root: root, in: CGRect(x: 0, y: 0, width: 200, height: 100), minArea: 1
+        )
+        suite.expect(cells.contains { $0.path == "/root/a" }, "positive children appear in treemap")
+        suite.expect(!cells.contains { $0.path == "/root/empty" }, "zero-size children are omitted")
+    }
+
+    private static func treemapFillsBounds(_ suite: TestSuite) {
+        let children = [
+            DiskAnalyzerSupport.Node(path: "/r/a", name: "a", size: 50, isDirectory: false, children: []),
+            DiskAnalyzerSupport.Node(path: "/r/b", name: "b", size: 30, isDirectory: false, children: []),
+            DiskAnalyzerSupport.Node(path: "/r/c", name: "c", size: 20, isDirectory: false, children: []),
+        ]
+        let bounds = CGRect(x: 0, y: 0, width: 300, height: 200)
+        let placed = DiskAnalyzerSupport.squarify(children, in: bounds)
+        suite.expect(placed.count == 3, "squarify places every positive child")
+        let area = placed.reduce(CGFloat(0)) { $0 + $1.rect.width * $1.rect.height }
+        let expected = bounds.width * bounds.height
+        suite.expect(abs(area - expected) < 1.0, "squarified rectangles fill the parent area")
+        for item in placed {
+            suite.expect(item.rect.width > 0 && item.rect.height > 0, "each rectangle has area")
+            suite.expect(bounds.contains(item.rect.insetBy(dx: 0.01, dy: 0.01))
+                         || bounds.intersects(item.rect),
+                         "rectangles stay inside parent bounds")
+        }
+    }
+
+    private static func treeRemovalUpdatesAncestors(_ suite: TestSuite) {
+        let root = DiskAnalyzerSupport.Node(
+            path: "/root", name: "root", size: 90, isDirectory: true,
+            children: [
+                .init(path: "/root/keep", name: "keep", size: 40, isDirectory: false, children: []),
+                .init(path: "/root/dir", name: "dir", size: 50, isDirectory: true, children: [
+                    .init(path: "/root/dir/file", name: "file", size: 50, isDirectory: false, children: []),
+                ]),
+            ]
+        )
+        let updated = DiskAnalyzerSupport.removing(path: "/root/dir/file", from: root)
+        suite.expect(updated?.size == 40, "ancestor size shrinks after prune")
+        suite.expect(updated?.children.contains { $0.path == "/root/keep" } == true,
+                     "sibling survives prune")
+        suite.expect(DiskAnalyzerSupport.removing(path: "/root", from: root) == nil,
+                     "removing the root yields nil")
+    }
+
+    private static func scanBuildsTree(_ suite: TestSuite) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-disk-analyzer-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let nested = root.appendingPathComponent("nested", isDirectory: true)
+        try? FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        let data = Data(repeating: 0x61, count: 4096)
+        try? data.write(to: nested.appendingPathComponent("blob.bin"))
+        try? Data("tiny".utf8).write(to: root.appendingPathComponent("tiny.txt"))
+
+        let cancellation = DiskAnalyzerSupport.ScanCancellation()
+        let tree = DiskAnalyzerSupport.scan(root: root, includeHidden: false,
+                                            cancellation: cancellation) { _ in }
+        suite.expect(tree != nil, "scan returns a tree")
+        suite.expect((tree?.size ?? 0) > 0, "scanned tree reports allocated size")
+        suite.expect(tree?.children.contains { $0.name == "nested" } == true,
+                     "scan includes nested directories")
+        suite.expect(tree?.children.contains { $0.name == "tiny.txt" } == true,
+                     "scan includes files")
+    }
+
+    private static func scanSkipsSymlinks(_ suite: TestSuite) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-disk-analyzer-link-\(UUID().uuidString)",
+                                    isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let real = root.appendingPathComponent("real.txt")
+        try? Data(repeating: 0x62, count: 2048).write(to: real)
+        let link = root.appendingPathComponent("alias.txt")
+        try? FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let tree = DiskAnalyzerSupport.scan(
+            root: root, includeHidden: true,
+            cancellation: DiskAnalyzerSupport.ScanCancellation()
+        ) { _ in }
+        suite.expect(tree?.children.contains { $0.name == "alias.txt" } != true,
+                     "symlinks are not followed or listed as sized children")
+        suite.expect(tree?.children.contains { $0.name == "real.txt" } == true,
+                     "real files still appear")
+    }
+
+    private static func scanSkipsHiddenUnlessRequested(_ suite: TestSuite) {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("vorssaint-disk-analyzer-hidden-\(UUID().uuidString)",
+                                    isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try? Data("secret".utf8).write(to: root.appendingPathComponent(".secret"))
+        try? Data("visible".utf8).write(to: root.appendingPathComponent("visible.txt"))
+
+        let withoutHidden = DiskAnalyzerSupport.scan(
+            root: root, includeHidden: false,
+            cancellation: DiskAnalyzerSupport.ScanCancellation()
+        ) { _ in }
+        suite.expect(withoutHidden?.children.contains { $0.name == ".secret" } != true,
+                     "hidden files skipped by default")
+        suite.expect(withoutHidden?.children.contains { $0.name == "visible.txt" } == true,
+                     "visible files remain")
+
+        let withHidden = DiskAnalyzerSupport.scan(
+            root: root, includeHidden: true,
+            cancellation: DiskAnalyzerSupport.ScanCancellation()
+        ) { _ in }
+        suite.expect(withHidden?.children.contains { $0.name == ".secret" } == true,
+                     "hidden files included when requested")
+    }
+
+    private static func catalogWiring(_ suite: TestSuite) {
+        suite.expect(AppFeature.diskAnalyzer.group == .tools, "disk analyzer is a tools feature")
+        suite.expect(AppFeature.diskAnalyzer.energyProfile == .idle, "disk analyzer is on-demand")
+        suite.expect(AppFeature.diskAnalyzer.installedByDefault == false,
+                     "disk analyzer is opt-in")
+        suite.expect(AppFeature.diskAnalyzer.permissions == [.fullDiskAccess, .filesAndFolders],
+                     "disk analyzer declares FDA and files permissions")
+        suite.expect(AppFeature.diskAnalyzer.settingsDestination.page == .diskAnalyzer,
+                     "disk analyzer opens its settings page")
+        suite.expect(AppFeature.diskAnalyzer.symbolName == "square.grid.3x3.fill",
+                     "disk analyzer uses the treemap symbol")
+        suite.expect(AppFeature.diskAnalyzer.enabledKeys.isEmpty,
+                     "disk analyzer has no separate enable key")
+    }
+
+    private static func stringsHaveFormats(_ suite: TestSuite) {
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.diskAnalyzer(language)
+            suite.expect(strings.scanningFormat.contains("%@") && strings.scanningFormat.contains("%d"),
+                         "scanning format keeps placeholders (\(language))")
+            suite.expect(strings.confirmTrashFormat.contains("%@"),
+                         "trash confirm format keeps name (\(language))")
+            suite.expect(strings.percentOfParentFormat.contains("%@"),
+                         "percent format keeps placeholder (\(language))")
+            suite.expect(strings.filesFormat.contains("%d"),
+                         "files format keeps count (\(language))")
+            suite.expect(!strings.pageTitle.isEmpty && !strings.hubDescription.isEmpty,
+                         "disk analyzer strings are filled (\(language))")
+        }
+    }
+}

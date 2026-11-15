@@ -549,6 +549,10 @@ enum SettingsDirectory {
                                       title: FeatureStrings.portManager(language).title,
                                       icon: "network",
                                       keywords: ["port", "ports", "listening", "socket", "PID", "kill port"]),
+                SettingsDirectoryItem(page: .diskAnalyzer,
+                                      title: FeatureStrings.diskAnalyzer(language).pageTitle,
+                                      icon: "square.grid.3x3.fill",
+                                      keywords: ["disk", "storage", "space", "treemap", "windirstat", "wiztree", "usage", "analyzer"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,
