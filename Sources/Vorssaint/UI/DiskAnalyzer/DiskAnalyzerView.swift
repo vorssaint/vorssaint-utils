@@ -192,14 +192,12 @@ struct DiskAnalyzerWorkspaceView: View {
         VStack(spacing: 8) {
             startButton(
                 title: strings.emptyTitle,
-                subtitle: strings.emptySubtitle,
                 systemImage: "folder",
                 accessibility: strings.chooseFolder,
                 action: { service.chooseFolderAndScan() }
             )
             startButton(
                 title: strings.scanStartupDisk,
-                subtitle: nil,
                 systemImage: "internaldrive",
                 accessibility: strings.scanStartupDisk,
                 action: { service.scanStartupDisk() }
@@ -207,7 +205,6 @@ struct DiskAnalyzerWorkspaceView: View {
             if service.showScanHome {
                 startButton(
                     title: strings.scanHome,
-                    subtitle: nil,
                     systemImage: "house",
                     accessibility: strings.scanHome,
                     action: { service.scanHome() }
@@ -217,7 +214,6 @@ struct DiskAnalyzerWorkspaceView: View {
     }
 
     private func startButton(title: String,
-                             subtitle: String?,
                              systemImage: String,
                              accessibility: String,
                              action: @escaping () -> Void) -> some View {
@@ -226,21 +222,12 @@ struct DiskAnalyzerWorkspaceView: View {
                 Image(systemName: systemImage)
                     .font(.system(size: 14, weight: .semibold))
                     .frame(width: 20)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold))
-                    if let subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
             .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
