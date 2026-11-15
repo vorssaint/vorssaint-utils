@@ -36,7 +36,9 @@ The code and tests are reviewable; they are not an independent security certific
 
 ## Local development signing and audit limits
 
-The earlier local audit of driver 1.2.0/build 4 passed strict signature verification. Its HAL directory and ancestors are owned by root, with no writable group/other permissions or symlinks found. The driver runs in a Core Audio host under `_coreaudiod`, rather than in the application's user process. At that audit, driver/PCM/caller-trust source files matched the installed Corresponding Source. Build 6 requires a fresh installed-driver audit after its update. A fresh untrusted-process probe was denied both the session-key property and a zero-frame PCM request; it recorded no sound or key material.
+On 15 November 2026, the installed driver 1.4.0/build 6 passed strict signature verification. Its HAL directory and audited ancestors are owned by root with mode 0755; no writable group/other entries or symlinks were found inside the driver. All 13 bundled Corresponding Source files matched the working source tree. The driver runs in a Core Audio host under `_coreaudiod`, rather than in the application's user process. This verifies the installed package's filesystem/source/signature state, not all possible runtime attacks.
+
+An earlier separate untrusted-process probe was denied both the session-key property and a zero-frame PCM request; it recorded no sound or key material. That earlier denial test is historical evidence, not a new build-6 adversarial test.
 
 This Mac uses the repository's self-signed development certificate, not a notarized Developer ID release. The local signing setup makes that key available to this developer account; software that can use the key could sign an allowed app identity and satisfy the driver's certificate policy. The current local installer package is unsigned, although its contained driver and enclosing app have valid local signatures. These facts prevent a strong guarantee against malware with access to this user's signing key or a claim of public-release authenticity. Public distribution needs protected signing keys and an authenticated, appropriately signed release package.
 

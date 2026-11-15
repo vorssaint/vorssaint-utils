@@ -253,6 +253,26 @@ enum NotchNotificationReaderTests {
 
         let first = snapshot.items[0]
         let second = NotchSystemNotification(id: UUID(), content: first.content, received: first.received, canOpen: true)
+        inbox = NotchNotificationInbox()
+        _ = inbox.update([])
+        inbox.windowCreated(at: 15)
+        _ = inbox.update([first])
+        access.time = 15.1
+        access.focused = true
+        _ = reader.read()
+        access.time = 15.4
+        access.focused = false
+        guard let brief = inbox.arrivalCheck else { suite.expect(false, "history waits for a decision"); return }
+        suite.expect(inbox.settleArrivals(brief, centerFocused: reader.centerWasFocused(since: brief.openedAt),
+                                         checkedAt: access.time)?.isEmpty == true && inbox.items.isEmpty,
+                     "a center opened and closed during the grace cannot publish its history")
+        inbox.windowCreated(at: 16)
+        _ = inbox.update([second])
+        access.time = 16.4
+        guard let later = inbox.arrivalCheck else { suite.expect(false, "a later banner waits for its own check"); return }
+        suite.expect(inbox.settleArrivals(later, centerFocused: reader.centerWasFocused(since: later.openedAt),
+                                         checkedAt: access.time)?.map(\.id) == [second.id],
+                     "observing focus during an older opening does not suppress a later banner")
         for focused in [false, true] {
             inbox = NotchNotificationInbox()
             _ = inbox.update([])

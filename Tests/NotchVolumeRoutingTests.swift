@@ -19,6 +19,11 @@ enum NotchVolumeRoutingTests {
             key == DefaultsKey.preciseVolumeRollerEnabled && precise
         }
     }
+    enum AppFeature {
+        case mixer
+        static var mixerAvailable = true
+        var isAvailable: Bool { Self.mixerAvailable }
+    }
     enum NotchSupport {
         enum Module { case volume }
         static func routes(_ module: Module) -> Bool { true }
