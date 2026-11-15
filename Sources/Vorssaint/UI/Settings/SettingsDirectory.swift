@@ -552,7 +552,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .diskAnalyzer,
                                       title: FeatureStrings.diskAnalyzer(language).pageTitle,
                                       icon: "square.grid.3x3.fill",
-                                      keywords: ["disk", "storage", "space", "treemap", "windirstat", "wiztree", "usage", "analyzer"]),
+                                      keywords: ["disk", "storage", "space", "map", "treemap", "windirstat", "wiztree", "usage", "analyzer", "finder"]),
             ]),
             (categories.utilities, [
                 SettingsDirectoryItem(page: .notch,

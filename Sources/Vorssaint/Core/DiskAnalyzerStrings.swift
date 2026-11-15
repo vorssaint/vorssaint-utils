@@ -74,7 +74,7 @@ extension FeatureStrings {
 
 extension DiskAnalyzerFeatureStrings {
     static let enUS = DiskAnalyzerFeatureStrings(
-        pageTitle: "Disk Analyzer",
+        pageTitle: "Disk Storage Map",
         hubDescription: "See what fills the disk, list the largest items, and trash what you no longer need",
         panelCaption: "Find what uses space",
         settingsIntro: "See what fills the disk with a size map, drill into large folders, and move what you no longer need to the Trash.",
@@ -122,7 +122,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let ptBR = DiskAnalyzerFeatureStrings(
-        pageTitle: "Analisador de Disco",
+        pageTitle: "Mapa de Armazenamento",
         hubDescription: "Veja o que ocupa o disco em um mapa de cores e revele ou envie pastas grandes à Lixeira",
         panelCaption: "Descubra o que usa espaço",
         settingsIntro: "Veja o que ocupa o disco em um mapa por tamanho, explore pastas grandes e envie o que não precisa à Lixeira.",
@@ -170,7 +170,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let tr = DiskAnalyzerFeatureStrings(
-        pageTitle: "Disk Analizi",
+        pageTitle: "Disk Depolama Haritası",
         hubDescription: "Renkli bir treemap ile diski neyin doldurduğunu görün, büyük klasörleri gösterin veya Çöp Kutusu’na taşıyın",
         panelCaption: "Alanı neyin kullandığını bulun",
         settingsIntro: "Boyut haritasıyla diski neyin doldurduğunu görün, büyük klasörlere inin ve gereksizleri Çöp Kutusu’na taşıyın.",
@@ -218,7 +218,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let ru = DiskAnalyzerFeatureStrings(
-        pageTitle: "Анализ диска",
+        pageTitle: "Карта дискового пространства",
         hubDescription: "Цветная карта покажет, что занимает место; можно открыть или удалить крупные папки",
         panelCaption: "Найти, что занимает место",
         settingsIntro: "Карта по размеру покажет, что занимает место; можно углубиться в крупные папки и удалить ненужное в Корзину.",
@@ -266,7 +266,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let es = DiskAnalyzerFeatureStrings(
-        pageTitle: "Analizador de disco",
+        pageTitle: "Mapa de almacenamiento",
         hubDescription: "Mira qué llena el disco con un mapa de colores y revela o mueve carpetas grandes a la Papelera",
         panelCaption: "Descubre qué ocupa espacio",
         settingsIntro: "Mira qué llena el disco con un mapa por tamaño, entra en carpetas grandes y mueve a la Papelera lo que no necesites.",
@@ -314,7 +314,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let sk = DiskAnalyzerFeatureStrings(
-        pageTitle: "Analyzátor disku",
+        pageTitle: "Mapa úložiska",
         hubDescription: "Farebná mapa ukáže, čo zapĺňa disk; veľké priečinky môžete zobraziť alebo presunúť do Koša",
         panelCaption: "Zistite, čo zaberá miesto",
         settingsIntro: "Mapa podľa veľkosti ukáže, čo zapĺňa disk; môžete vstúpiť do veľkých priečinkov a nepotrebné presunúť do Koša.",
@@ -362,7 +362,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let de = DiskAnalyzerFeatureStrings(
-        pageTitle: "Festplattenanalyse",
+        pageTitle: "Speicherplatzkarte",
         hubDescription: "Farbige Karte zeigt, was den Speicher füllt; große Ordner anzeigen oder in den Papierkorb legen",
         panelCaption: "Speicherfresser finden",
         settingsIntro: "Sieh auf einer Größenkarte, was den Speicher füllt, öffne große Ordner und lege Unnötiges in den Papierkorb.",
@@ -410,7 +410,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let fr = DiskAnalyzerFeatureStrings(
-        pageTitle: "Analyseur de disque",
+        pageTitle: "Carte de stockage",
         hubDescription: "Carte colorée de l’espace disque ; affichez ou mettez à la Corbeille les gros dossiers",
         panelCaption: "Trouver ce qui prend de la place",
         settingsIntro: "Voyez ce qui remplit le disque sur une carte par taille, explorez les gros dossiers et mettez à la Corbeille ce qui est inutile.",
@@ -458,7 +458,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let it = DiskAnalyzerFeatureStrings(
-        pageTitle: "Analizzatore disco",
+        pageTitle: "Mappa di archiviazione",
         hubDescription: "Mappa colorata di cosa occupa il disco; mostra o sposta cartelle grandi nel Cestino",
         panelCaption: "Scopri cosa usa spazio",
         settingsIntro: "Scopri cosa occupa il disco con una mappa per dimensione, esplora le cartelle grandi e sposta nel Cestino ciò che non serve.",
@@ -506,7 +506,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let ja = DiskAnalyzerFeatureStrings(
-        pageTitle: "ディスクアナライザー",
+        pageTitle: "ディスクストレージマップ",
         hubDescription: "色分けされたマップでディスクの使用状況を確認し、大きなフォルダを表示またはゴミ箱へ移動",
         panelCaption: "容量を使うものを探す",
         settingsIntro: "サイズの地図でディスクの使用状況を確認し、大きなフォルダを掘り下げて不要なものをゴミ箱へ移せます。",
@@ -554,7 +554,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let ko = DiskAnalyzerFeatureStrings(
-        pageTitle: "디스크 분석기",
+        pageTitle: "디스크 저장 공간 맵",
         hubDescription: "색상 트리맵으로 디스크를 채우는 항목을 보고 큰 폴더를 열거나 휴지통으로 이동",
         panelCaption: "공간을 쓰는 항목 찾기",
         settingsIntro: "크기 지도로 디스크를 채우는 항목을 보고, 큰 폴더로 들어간 뒤 필요 없는 항목을 휴지통으로 옮깁니다.",
@@ -602,7 +602,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let zhHans = DiskAnalyzerFeatureStrings(
-        pageTitle: "磁盘分析",
+        pageTitle: "磁盘存储地图",
         hubDescription: "用彩色树状图查看磁盘占用，并可显示或将大文件夹移到废纸篓",
         panelCaption: "找出占用空间的内容",
         settingsIntro: "用按大小划分的地图查看磁盘占用，深入大文件夹，并将不需要的内容移到废纸篓。",
@@ -650,7 +650,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let zhTW = DiskAnalyzerFeatureStrings(
-        pageTitle: "磁碟分析",
+        pageTitle: "磁碟儲存地圖",
         hubDescription: "用彩色樹狀圖查看磁碟占用，並可顯示或將大型檔案夾移到垃圾桶",
         panelCaption: "找出占用空間的內容",
         settingsIntro: "用依大小劃分的地圖查看磁碟占用，深入大型檔案夾，並將不需要的內容移到垃圾桶。",
@@ -698,7 +698,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let zhHK = DiskAnalyzerFeatureStrings(
-        pageTitle: "磁碟分析",
+        pageTitle: "磁碟儲存地圖",
         hubDescription: "用彩色樹狀圖查看磁碟佔用，並可顯示或將大型資料夾移到廢紙簍",
         panelCaption: "找出佔用空間的內容",
         settingsIntro: "用按大小劃分嘅地圖查看磁碟佔用，深入大型資料夾，並將唔需要嘅內容移到廢紙簍。",
@@ -746,7 +746,7 @@ extension DiskAnalyzerFeatureStrings {
     )
 
     static let uk = DiskAnalyzerFeatureStrings(
-        pageTitle: "Аналіз диска",
+        pageTitle: "Карта дискового сховища",
         hubDescription: "Кольорова карта покаже, що займає місце; можна відкрити або перемістити великі папки в Смітник",
         panelCaption: "Знайти, що займає місце",
         settingsIntro: "Карта за розміром покаже, що займає місце; можна заглибитись у великі папки й перемістити зайве в Смітник.",
