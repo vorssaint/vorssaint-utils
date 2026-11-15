@@ -224,7 +224,8 @@ enum AgentPricing {
         let rest = id.dropFirst(match.id.count)
         // A free variant bills nothing of its own and must never inherit the
         // paid rate of the family it extends.
-        let free = rest.hasSuffix("-free") || rest.hasSuffix("_free")|| rest.hasPrefix("-free-") || rest.hasPrefix("_free-")
+        let free = rest.hasSuffix("-free") || rest.hasSuffix("_free")
+            || rest.hasPrefix("-free-") || rest.hasPrefix("_free-")
         if free { return nil }
         if siblings.contains(where: { rest.contains($0) }) { return nil }
         return match.price
