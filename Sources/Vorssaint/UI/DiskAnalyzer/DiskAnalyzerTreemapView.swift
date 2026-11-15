@@ -225,11 +225,11 @@ final class DiskAnalyzerTreemapNSView: NSView {
             let parentSize = max(cell.parentSize, 1)
             let fraction = Double(cell.size) / Double(parentSize)
             let strings = FeatureStrings.diskAnalyzer(L10n.shared.language)
-            let percent = String(format: "%.1f%%", fraction * 100)
+            let percent = String(format: "%.1f%%", locale: MetricFormat.locale, fraction * 100)
             hoverTip.configure(
                 title: cell.name,
                 sizeLine: "\(strings.sizeLabel): \(DiskAnalyzerSupport.formatBytes(cell.size))",
-                percentLine: String(format: strings.percentOfParentFormat, percent),
+                percentLine: String(format: strings.percentOfParentFormat, locale: MetricFormat.locale, percent),
                 pathLine: ""
             )
             hoverTip.isHidden = false
