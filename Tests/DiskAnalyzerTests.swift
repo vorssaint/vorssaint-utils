@@ -233,6 +233,7 @@ enum DiskAnalyzerTests {
     }
 
     private static func stringsHaveFormats(_ suite: TestSuite) {
+        let english = FeatureStrings.diskAnalyzer(.enUS)
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.diskAnalyzer(language)
             suite.expect(strings.scanningFormat.contains("%@") && strings.scanningFormat.contains("%d"),
@@ -245,6 +246,20 @@ enum DiskAnalyzerTests {
                          "files format keeps count (\(language))")
             suite.expect(!strings.pageTitle.isEmpty && !strings.hubDescription.isEmpty,
                          "disk analyzer strings are filled (\(language))")
+            suite.expect(!strings.settingsIntro.isEmpty && !strings.openInUtilities.isEmpty,
+                         "settings intro and open action are filled (\(language))")
+            if language != .enUS {
+                suite.expect(strings.openInUtilities != english.openInUtilities,
+                             "openInUtilities is translated (\(language))")
+                suite.expect(strings.scanOptionsSection != english.scanOptionsSection,
+                             "scanOptionsSection is translated (\(language))")
+                suite.expect(strings.confirmTrash != english.confirmTrash,
+                             "confirmTrash is translated (\(language))")
+                suite.expect(strings.nestingDepth != english.nestingDepth,
+                             "nestingDepth is translated (\(language))")
+            }
         }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityDiskAnalyzer] as? Bool == true,
+                     "disk analyzer panel row ships visible like its siblings")
     }
 }
