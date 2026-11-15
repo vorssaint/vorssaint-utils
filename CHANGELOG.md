@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dynamic Island Calendar can join Zoom, Teams or Google Meet from an event’s context menu, with an optional Join button on the closed-island countdown when a meeting link is present.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

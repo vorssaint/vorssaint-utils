@@ -3632,11 +3632,46 @@ enum NotchTests {
                                                                  DefaultsKey.notchCalendarCountdown,
                                                                  DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
+                                                                 DefaultsKey.notchCalendarJoinButton,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
                      "hidden calendars travel in backup")
+        let zoom = URL(string: "https://us02web.zoom.us/j/123456789")!
+        let teams = URL(string: "https://teams.microsoft.com/l/meetup-join/19%3ameeting")!
+        let meet = URL(string: "https://meet.google.com/abc-defg-hij")!
+        let maps = URL(string: "https://maps.google.com/?q=office")!
+        suite.expect(NotchCalendarSupport.isMeetingURL(zoom)
+                     && NotchCalendarSupport.isMeetingURL(teams)
+                     && NotchCalendarSupport.isMeetingURL(meet)
+                     && !NotchCalendarSupport.isMeetingURL(maps)
+                     && NotchCalendarSupport.isMeetingURL(URL(string: "zoommtg://zoom.us/join?confno=1")!),
+                     "Join recognizes Teams, Zoom and Google Meet links, not ordinary web pages")
+        suite.expect(NotchCalendarSupport.meetingURL(url: maps, location: "Zoom", notes: "Join \(zoom.absoluteString)") == zoom
+                     && NotchCalendarSupport.meetingURL(url: nil, location: teams.absoluteString, notes: nil) == teams
+                     && NotchCalendarSupport.meetingURL(url: meet, location: "", notes: nil) == meet
+                     && NotchCalendarSupport.meetingURL(url: maps, location: "Conference Room", notes: "Agenda") == nil,
+                     "a meeting link is taken from the event URL, location or notes, in that order")
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        suite.expect(!NotchCalendarSupport.showsJoinButton(in: defaults),
+                     "the closed-island Join control starts off")
+        defaults.set(true, forKey: DefaultsKey.notchCalendarJoinButton)
+        suite.expect(NotchCalendarSupport.showsJoinButton(in: defaults),
+                     "Join follows its own opt-in while Calendar is enabled")
+        let joinEvent = NotchCalendarEvent(id: "join", title: "Standup", calendar: "Work",
+                                           start: Date(), end: Date().addingTimeInterval(1800),
+                                           allDay: false, location: "", meetingURL: zoom)
+        suite.expect(NotchCalendarSupport.showsJoinButton(for: NotchCalendarCountdown(event: joinEvent, ongoing: false),
+                                                          in: defaults)
+                     && !NotchCalendarSupport.showsJoinButton(
+                        for: NotchCalendarCountdown(event: NotchCalendarEvent(
+                            id: "plain", title: "Focus", calendar: "Work", start: Date(),
+                            end: Date().addingTimeInterval(1800), allDay: false, location: ""),
+                                                    ongoing: false), in: defaults),
+                     "Join appears on the closed island only when the countdown event has a meeting link")
+        defaults.set(false, forKey: DefaultsKey.notchCalendarJoinButton)
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
         suite.expect(NotchCalendarSupport.excludedCalendars(in: defaults).isEmpty,
                      "every calendar starts shown")
         let calendars = ["work", "home", "birthdays"]

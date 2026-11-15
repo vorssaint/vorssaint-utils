@@ -1143,13 +1143,15 @@ enum NotchCapsuleLayout {
 
     /// An event beside what shares the capsule with it: that activity's
     /// mark, then the event's dot and countdown. Its title moves to the
-    /// tooltip and VoiceOver.
+    /// tooltip and VoiceOver. An optional Join control sits with the clock.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
                                     geometry: NotchGeometry, language: AppLanguage,
-                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
+                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime,
+                                    joinTitle: String? = nil) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
+        let join = joinTitle.map { markSpacing + NotchCalendarSupport.stripJoinWidth($0) } ?? 0
+        return surface(content: mark + markGap(.calendar) + join + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -1181,10 +1183,13 @@ enum NotchCapsuleLayout {
     }
 
     /// An event's color and title, then its countdown at its widest and the
-    /// time it starts or ends.
+    /// time it starts or ends. An optional Join control sits with the clock.
     static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
-                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
+                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime,
+                                joinTitle: String? = nil) -> CGSize {
+        let join = joinTitle.map { groupSpacing + NotchCalendarSupport.stripJoinWidth($0) } ?? 0
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
+            + join
             + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
             + markSpacing + width(time, font: smallFont)
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)

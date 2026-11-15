@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 import EventKit
 
@@ -20,6 +21,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     let end: Date
     let allDay: Bool
     let location: String
+    /// Teams, Zoom or Google Meet join link from the event URL, location or notes.
+    var meetingURL: URL? = nil
     var color: NotchCalendarColor = .fallback
     var calendarItemIdentifier = ""
     var recurring = false
@@ -141,6 +144,17 @@ enum NotchCalendarSupport {
 
     static func showsTimeLeft(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarTimeLeft)
+    }
+
+    /// A Join control on the closed island when the countdown event has a meeting link.
+    static func showsJoinButton(in defaults: UserDefaults = .standard) -> Bool {
+        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchCalendarJoinButton)
+    }
+
+    /// Whether the closed island should offer Join for this countdown.
+    static func showsJoinButton(for countdown: NotchCalendarCountdown?,
+                                in defaults: UserDefaults = .standard) -> Bool {
+        showsJoinButton(in: defaults) && countdown?.event.meetingURL != nil
     }
 
     /// The number beside a row of the month grid. Rows start on the calendar's
@@ -315,6 +329,60 @@ enum NotchCalendarSupport {
     static let stripDotWidth: CGFloat = 6
     static let stripTitleSpacing: CGFloat = 5
     static let stripClockSpacing: CGFloat = 4
+    static let stripJoinSpacing: CGFloat = 6
+
+    /// Hosts and schemes that open a Teams, Zoom or Google Meet call.
+    private static let meetingHostSuffixes = [
+        "zoom.us", "zoom.com", "zoomgov.com",
+        "teams.microsoft.com", "teams.live.com",
+        "meet.google.com",
+    ]
+    private static let meetingSchemes: Set<String> = [
+        "zoommtg", "zoomus", "msteams", "ms-teams", "googlemeet",
+    ]
+    private static let linkDetector = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.link.rawValue)
+
+    /// The first Teams, Zoom or Google Meet link on the event: its URL field,
+    /// then its location, then its notes. Other http links stay out so a map
+    /// or agenda page never becomes Join.
+    static func meetingURL(url: URL?, location: String, notes: String?) -> URL? {
+        if let url, isMeetingURL(url) { return url }
+        for text in [location, notes ?? ""] {
+            if let found = firstMeetingURL(in: text) { return found }
+        }
+        return nil
+    }
+
+    static func isMeetingURL(_ url: URL) -> Bool {
+        if let scheme = url.scheme?.lowercased(), meetingSchemes.contains(scheme) { return true }
+        guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
+        return meetingHostSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
+    }
+
+    static func firstMeetingURL(in text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if let direct = URL(string: trimmed), isMeetingURL(direct) { return direct }
+        if !trimmed.contains("://"),
+           let https = URL(string: "https://" + trimmed), isMeetingURL(https) {
+            return https
+        }
+        guard let detector = linkDetector else { return nil }
+        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
+        return detector.matches(in: trimmed, options: [], range: range).lazy
+            .compactMap { $0.url }
+            .first(where: isMeetingURL)
+    }
+
+    /// Width reserved for the Join control beside the countdown clock.
+    static func stripJoinWidth(_ title: String) -> CGFloat {
+        let label = (title as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold)
+        ]).width.rounded(.up)
+        // Leading video mark, label, and the pill's horizontal padding.
+        return 11 + 4 + label + 16
+    }
 
     /// Reserve one clock shape for the selected lead, including restored
     /// values, so counting through 100 minutes does not resize the island.

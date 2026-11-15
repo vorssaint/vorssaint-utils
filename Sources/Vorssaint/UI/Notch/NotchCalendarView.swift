@@ -264,7 +264,8 @@ struct NotchCalendarView: View {
                             NotchCalendarEventRow(event: event, day: group.day, now: now,
                                                   isNext: event.id == next?.id, text: text,
                                                   countdown: countdownChoice(event, now: now),
-                                                  choose: { calendar.setCountdown($0, for: event) }) {
+                                                  choose: { calendar.setCountdown($0, for: event) },
+                                                  join: event.meetingURL == nil ? nil : { joinMeeting(event) }) {
                                 openCalendar(showing: event)
                             }
                             .id(event.id)
@@ -345,6 +346,11 @@ struct NotchCalendarView: View {
             NSWorkspace.shared.openApplication(at: application, configuration: configuration)
         }
     }
+
+    private func joinMeeting(_ event: NotchCalendarEvent) {
+        guard let url = event.meetingURL else { return }
+        NSWorkspace.shared.open(url)
+    }
 }
 
 private struct NotchCalendarDayLabel: View {
@@ -376,6 +382,8 @@ private struct NotchCalendarEventRow: View {
     /// Whether the event counts down on its own; nil when it cannot.
     let countdown: Bool?
     let choose: (Bool) -> Void
+    /// Opens a Teams, Zoom or Google Meet link from the event's menu.
+    var join: (() -> Void)? = nil
     let open: () -> Void
     @Environment(\.colorSchemeContrast) private var contrast
 
@@ -387,7 +395,7 @@ private struct NotchCalendarEventRow: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 11, lifts: false))
             .help(text.openCalendar)
             .accessibilityHint(text.openCalendar)
-            .modifier(NotchCountdownChoice(chosen: countdown, text: text, choose: choose))
+            .modifier(NotchCalendarEventMenu(chosen: countdown, text: text, choose: choose, join: join))
     }
 
     private var card: some View {
@@ -421,6 +429,10 @@ private struct NotchCalendarEventRow: View {
                     Image(systemName: "timer")
                         .accessibilityLabel(text.countdown)
                 }
+                if join != nil {
+                    Image(systemName: "video")
+                        .accessibilityLabel(text.joinMeeting)
+                }
             }
             .font(.system(size: 11)).monospacedDigit()
             .foregroundStyle(.white.opacity(0.75))
@@ -450,19 +462,56 @@ private struct NotchCalendarEventRow: View {
     }
 }
 
-/// A timed event yet to start offers its own countdown from its menu, and
-/// to VoiceOver as an action, while the countdown for every event is off.
-private struct NotchCountdownChoice: ViewModifier {
+/// A meeting link and, for a timed start, its own countdown: both from the
+/// event's menu and as VoiceOver actions.
+private struct NotchCalendarEventMenu: ViewModifier {
+    let chosen: Bool?
+    let text: NotchCalendarStrings
+    let choose: (Bool) -> Void
+    let join: (() -> Void)?
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if join == nil, chosen == nil {
+            content
+        } else {
+            content
+                .contextMenu {
+                    if let join {
+                        Button(text.joinMeeting, action: join)
+                    }
+                    if let chosen {
+                        Button(chosen ? text.removeCountdown : text.addCountdown) { choose(!chosen) }
+                    }
+                }
+                .modifier(NotchJoinAccessibilityAction(join: join, title: text.joinMeeting))
+                .modifier(NotchCountdownAccessibilityAction(chosen: chosen, text: text, choose: choose))
+        }
+    }
+}
+
+private struct NotchJoinAccessibilityAction: ViewModifier {
+    let join: (() -> Void)?
+    let title: String
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if let join {
+            content.accessibilityAction(named: Text(title), join)
+        } else {
+            content
+        }
+    }
+}
+
+private struct NotchCountdownAccessibilityAction: ViewModifier {
     let chosen: Bool?
     let text: NotchCalendarStrings
     let choose: (Bool) -> Void
 
     @ViewBuilder func body(content: Content) -> some View {
         if let chosen {
-            let title = chosen ? text.removeCountdown : text.addCountdown
-            content
-                .contextMenu { Button(title) { choose(!chosen) } }
-                .accessibilityAction(named: Text(title)) { choose(!chosen) }
+            content.accessibilityAction(named: Text(chosen ? text.removeCountdown : text.addCountdown)) {
+                choose(!chosen)
+            }
         } else {
             content
         }

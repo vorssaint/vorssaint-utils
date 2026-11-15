@@ -726,7 +726,11 @@ final class NotchService: ObservableObject {
         let provisional = geometry.compactCalendarGeometry(wing: 0, paired: companion != nil)
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         if let companion {
-            let sides = max(inset + calendarClockWidth, companionMarkWidth(companion, in: provisional))
+            let join = NotchCalendarSupport.showsJoinButton(for: countdown)
+                ? NotchCalendarSupport.stripJoinSpacing
+                    + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(L10n.shared.language).join)
+                : 0
+            let sides = max(inset + calendarClockWidth + join, companionMarkWidth(companion, in: provisional))
                 + NotchTimerSupport.stripCameraGap
             // A download keeps room for its percentage, as beside a timer.
             return companion == .downloads ? max(80, sides) : sides
@@ -745,7 +749,11 @@ final class NotchService: ObservableObject {
             + NotchCalendarSupport.stripClockSpacing
             + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
-        return inset + max(titleSide, clockSide)
+        let joinSide = NotchCalendarSupport.showsJoinButton(for: countdown)
+            ? NotchCalendarSupport.stripJoinSpacing
+                + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(language).join)
+            : 0
+        return inset + max(titleSide, clockSide + joinSide)
     }
 
     /// The wider of the two sides, the timer's reading or what shares the
@@ -1095,14 +1103,18 @@ final class NotchService: ObservableObject {
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
+            let joinTitle = NotchCalendarSupport.showsJoinButton(for: countdown)
+                ? FeatureStrings.notchCalendar(language).join : nil
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
-                                                  language: language, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
+                                                  language: language, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime,
+                                                  joinTitle: joinTitle)
             }
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
                                           time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
-                                          geometry: geometry, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime)
+                                          geometry: geometry, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime,
+                                          joinTitle: joinTitle)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
@@ -1432,6 +1444,12 @@ final class NotchService: ObservableObject {
         // Explore or an app panel opened in the page's place keeps no event
         // for a later visit to Calendar.
         if !expanded || selected != .calendar || showingSections || showingAppPanel { calendar.revealing = nil }
+    }
+
+    /// Opens a Teams, Zoom or Google Meet link from the countdown event.
+    func joinCountdownMeeting() {
+        guard let url = NotchCalendarService.shared.countdown?.event.meetingURL else { return }
+        NSWorkspace.shared.open(url)
     }
 
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,

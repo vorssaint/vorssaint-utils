@@ -26,7 +26,10 @@ private actor NotchCalendarReader {
             return NotchCalendarEvent(id: identifier + ":" + String(start.timeIntervalSinceReferenceDate),
                                       title: event.title ?? "", calendar: event.calendar.title,
                                       start: start, end: end, allDay: event.isAllDay,
-                                      location: event.location ?? "", color: Self.tint(event.calendar),
+                                      location: event.location ?? "",
+                                      meetingURL: NotchCalendarSupport.meetingURL(
+                                        url: event.url, location: event.location ?? "", notes: event.notes),
+                                      color: Self.tint(event.calendar),
                                       calendarItemIdentifier: event.calendarItemIdentifier,
                                       recurring: recurring, countdownKey: countdownKey)
         }

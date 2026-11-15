@@ -911,6 +911,7 @@ enum DefaultsKey {
     static let notchCalendarCountdown = "notchCalendarCountdown"
     static let notchCalendarCountdownLead = "notchCalendarCountdownLead" // minutes before a start, chosen events included
     static let notchCalendarTimeLeft = "notchCalendarTimeLeft" // the event under way counts down to its end
+    static let notchCalendarJoinButton = "notchCalendarJoinButton" // Join on the closed island for a meeting link
     static let notchCalendarWeekNumbers = "notchCalendarWeekNumbers" // the month grid numbers its weeks
     static let notchCalendarExcluded = "notchCalendarExcluded" // [EKCalendar.calendarIdentifier] left out of the island
     // [countdown key: event end] chosen from an event's menu; unregistered, so it stays out of backups
@@ -1523,6 +1524,7 @@ enum Defaults {
         DefaultsKey.notchCalendarCountdown: false,
         DefaultsKey.notchCalendarCountdownLead: NotchCalendarSupport.defaultCountdownLeadMinutes,
         DefaultsKey.notchCalendarTimeLeft: false,
+        DefaultsKey.notchCalendarJoinButton: false,
         DefaultsKey.notchCalendarWeekNumbers: false,
         DefaultsKey.notchCalendarExcluded: [String](),
         DefaultsKey.notchAgentsEnabled: false,
