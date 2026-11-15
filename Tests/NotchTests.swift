@@ -2523,6 +2523,28 @@ enum NotchTests {
         defaults.set(false, forKey: DefaultsKey.notchClipboardWindow)
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "clipboard can still use its separate window")
         defaults.set(true, forKey: DefaultsKey.notchClipboardWindow)
+        for module in [NotchModule.tools, .clipboard, .files, .scratchpad] {
+            guard let keys = NotchSupport.separateWindowKeys(for: module) else {
+                suite.expect(false, "\(module.rawValue) has a Where things open row"); continue
+            }
+            suite.expect(Defaults.registeredDefaults[keys.always] as? Bool == false,
+                   "Always starts off, so picking \(module.rawValue) in the island opens its page as before")
+            suite.expect(!NotchSupport.opensSeparately(module, in: defaults),
+                   "picking \(module.rawValue) in the island opens its island page by default")
+            defaults.set(true, forKey: keys.always)
+            suite.expect(!NotchSupport.opensSeparately(module, in: defaults),
+                   "Always means nothing while \(module.rawValue) still opens in the island")
+            defaults.set(false, forKey: keys.island)
+            suite.expect(NotchSupport.opensSeparately(module, in: defaults),
+                   "Always with a separate window opens \(module.rawValue) there from the island too")
+            defaults.set(false, forKey: keys.always)
+            suite.expect(!NotchSupport.opensSeparately(module, in: defaults),
+                   "without Always a separate \(module.rawValue) window is still only for its shortcut")
+            defaults.set(true, forKey: keys.island)
+        }
+        suite.expect([NotchModule.captures, .controls, .music, .downloads].allSatisfy {
+            NotchSupport.separateWindowKeys(for: $0) == nil && !NotchSupport.opensSeparately($0, in: defaults)
+        }, "sections without a window of their own always open in the island")
         defaults.set("clipboard,unknown", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
         suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
@@ -2558,6 +2580,8 @@ enum NotchTests {
                                 DefaultsKey.notchCustomWidth, DefaultsKey.notchCustomHeight, DefaultsKey.notchHapticFeedback,
                                 DefaultsKey.notchCaptureControls, DefaultsKey.notchQuickPanel, DefaultsKey.notchAppPanel,
                                 DefaultsKey.notchHidesMenuBarIcon, DefaultsKey.notchScratchpad,
+                                DefaultsKey.notchQuickPanelAlways, DefaultsKey.notchClipboardWindowAlways,
+                                DefaultsKey.notchShelfAlways, DefaultsKey.notchScratchpadAlways,
                                 DefaultsKey.notchHoverExpands, DefaultsKey.notchEnabled, DefaultsKey.notchDisplay,
                                 DefaultsKey.notchOpenOnHover, DefaultsKey.notchHoverDelay, DefaultsKey.notchCloseDelay, DefaultsKey.notchHideUntilHover, DefaultsKey.notchHiddenModules,
                                 DefaultsKey.notchModuleOrder, DefaultsKey.notchQuickAccessLayout, DefaultsKey.notchQuickAccessSide, DefaultsKey.notchQuickAccessSecond, DefaultsKey.notchQuickAccessThird, DefaultsKey.notchVolume,
