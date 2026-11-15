@@ -42,9 +42,6 @@ final class DiskAnalyzerService: ObservableObject {
     @Published var showItemList: Bool {
         didSet { UserDefaults.standard.set(showItemList, forKey: DefaultsKey.diskAnalyzerShowItemList) }
     }
-    @Published var showScanHome: Bool {
-        didSet { UserDefaults.standard.set(showScanHome, forKey: DefaultsKey.diskAnalyzerShowScanHome) }
-    }
     /// How many nested box levels the treemap draws under the current folder.
     @Published var nestingDepth: Int {
         didSet {
@@ -63,7 +60,6 @@ final class DiskAnalyzerService: ObservableObject {
         includeHidden = defaults.object(forKey: DefaultsKey.diskAnalyzerIncludeHidden) as? Bool ?? false
         confirmTrash = defaults.object(forKey: DefaultsKey.diskAnalyzerConfirmTrash) as? Bool ?? true
         showItemList = defaults.object(forKey: DefaultsKey.diskAnalyzerShowItemList) as? Bool ?? true
-        showScanHome = defaults.object(forKey: DefaultsKey.diskAnalyzerShowScanHome) as? Bool ?? true
         let depth = defaults.object(forKey: DefaultsKey.diskAnalyzerNestingDepth) as? Int ?? 3
         nestingDepth = min(4, max(1, depth))
     }

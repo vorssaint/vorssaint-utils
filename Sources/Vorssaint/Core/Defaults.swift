@@ -344,7 +344,6 @@ enum DefaultsKey {
     static let diskAnalyzerIncludeHidden = "diskAnalyzerIncludeHidden"
     static let diskAnalyzerConfirmTrash = "diskAnalyzerConfirmTrash"
     static let diskAnalyzerShowItemList = "diskAnalyzerShowItemList"
-    static let diskAnalyzerShowScanHome = "diskAnalyzerShowScanHome"
     static let diskAnalyzerNestingDepth = "diskAnalyzerNestingDepth"
     static let diskAnalyzerLastRootPath = "diskAnalyzerLastRootPath"
     static let panelUtilityDiskAnalyzer = "panelUtilityDiskAnalyzer"
@@ -1638,7 +1637,6 @@ enum Defaults {
         DefaultsKey.diskAnalyzerIncludeHidden: false,
         DefaultsKey.diskAnalyzerConfirmTrash: true,
         DefaultsKey.diskAnalyzerShowItemList: true,
-        DefaultsKey.diskAnalyzerShowScanHome: true,
         DefaultsKey.diskAnalyzerNestingDepth: 3,
         DefaultsKey.panelUtilityDiskAnalyzer: true,
         DefaultsKey.panelUtilityCleaner: true,

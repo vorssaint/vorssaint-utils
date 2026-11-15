@@ -32,10 +32,6 @@ struct DiskAnalyzerView: View {
                 Text(strings.includeHiddenCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Toggle(strings.showScanHome, isOn: $service.showScanHome)
-                Text(strings.showScanHomeCaption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
                 Toggle(strings.confirmTrash, isOn: $service.confirmTrash)
                 Text(strings.confirmTrashCaption)
                     .font(.caption)
@@ -202,14 +198,12 @@ struct DiskAnalyzerWorkspaceView: View {
                 accessibility: strings.scanStartupDisk,
                 action: { service.scanStartupDisk() }
             )
-            if service.showScanHome {
-                startButton(
-                    title: strings.scanHome,
-                    systemImage: "house",
-                    accessibility: strings.scanHome,
-                    action: { service.scanHome() }
-                )
-            }
+            startButton(
+                title: strings.scanHome,
+                systemImage: "house",
+                accessibility: strings.scanHome,
+                action: { service.scanHome() }
+            )
         }
     }
 
