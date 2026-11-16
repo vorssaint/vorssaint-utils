@@ -47,6 +47,7 @@ struct MediaDownloaderView: View {
     }
 
     private var selectedQuality: Int? { selectedHeight == 0 ? nil : selectedHeight }
+    private var copy: MediaDownloaderStrings { FeatureStrings.mediaDownloader(l10n.language) }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -122,7 +123,7 @@ struct MediaDownloaderView: View {
     }
 
     private var dependencyCard: some View {
-        SettingsCard(title: "Download tools") {
+        SettingsCard(title: copy.toolsTitle) {
             Label("yt-dlp and FFmpeg are needed for media downloads and format merging.",
                   systemImage: "shippingbox")
                 .font(.callout)
@@ -162,7 +163,7 @@ struct MediaDownloaderView: View {
     }
 
     private var linkCard: some View {
-        SettingsCard(title: "Media link") {
+        SettingsCard(title: copy.linkTitle) {
             HStack(spacing: 8) {
                 TextField("Paste a video or post URL", text: $service.inputURLText)
                     .textFieldStyle(.roundedBorder)
@@ -206,7 +207,7 @@ struct MediaDownloaderView: View {
     }
 
     private var batchCard: some View {
-        SettingsCard(title: "Batch download") {
+        SettingsCard(title: copy.batchTitle) {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Import CSV, TSV, text, or JSON. Add a format tag after each link (for example #MKV, #M4A, or #HEIC). Untagged links default to MP4. Each run creates one new folder at the selected location.")
                     .font(.caption)
@@ -406,7 +407,7 @@ struct MediaDownloaderView: View {
     }
 
     private var progressCard: some View {
-        SettingsCard(title: "Downloading") {
+        SettingsCard(title: copy.progressTitle) {
             HStack(spacing: 8) {
                 if let fraction = service.progress?.fraction {
                     ProgressView(value: fraction)
