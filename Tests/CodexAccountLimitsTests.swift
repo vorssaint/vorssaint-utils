@@ -776,6 +776,32 @@ enum CodexAccountLimitsTests {
                      && manual.states.first?.profile == renamed
                      && manual.states.first?.failure == nil && manual.states.first?.limits != nil,
                      "a manually requested saved-home check follows retarget even after the page closes")
+        manual.pause()
+
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[0])
+        var oldTick = limits
+        oldTick.accountScope = "old-tick"
+        var newTick = limits
+        newTick.accountScope = "new-tick"
+        let oldTickProbe = Probe(reading: CodexAccountReading(limits: oldTick, plan: "Plus"))
+        let newTickProbe = Probe(reading: CodexAccountReading(limits: newTick, plan: "Plus"))
+        let ticking = CodexProfileLimitsService(defaults: defaults, reader: { profile, path, cancellation in
+            profile.directory == homes[0].resolvingSymlinksInPath().path
+                ? oldTickProbe.read(profile, path, cancellation) : newTickProbe.read(profile, path, cancellation)
+        }, defaultDirectory: alias.path, loginShellPath: { nil })
+        defer { ticking.pause() }
+        ticking.pageDidAppear()
+        wait { ticking.states.allSatisfy { !$0.checking } }
+        suite.expect(oldTickProbe.calls == [saved.id] && ticking.states.first?.limits?.accountScope == "old-tick",
+                     "the linked home is read once through its first target")
+        try FileManager.default.removeItem(at: alias)
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: homes[1])
+        ticking.timer?.fire()
+        wait { newTickProbe.calls.count == 1 && ticking.states.allSatisfy { !$0.checking } }
+        suite.expect(oldTickProbe.calls.count == 1 && newTickProbe.calls == [saved.id]
+                     && ticking.states.first?.limits?.accountScope == "new-tick",
+                     "a page tick drops a reading whose home was retargeted between checks and asks the new account")
     }
 
     private static func weeklySymlink(_ suite: TestSuite, root: URL) throws {

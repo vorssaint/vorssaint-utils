@@ -14,6 +14,8 @@ struct CodexProfileLimitsState: Equatable, Identifiable {
     var failure: CodexAccountUsageError?
     /// When the last check began; nil until one has.
     var attempted: Date?
+    /// The resolved home the reading and backoff belong to; nil until a check ends.
+    var checkedDirectory: String?
     var id: String { profile.id }
 
     /// An expired window is unknown, not a freshly replenished allowance.
@@ -110,15 +112,7 @@ final class CodexProfileLimitsService: ObservableObject {
             states = wanted.map { profile in
                 // A renamed home keeps its reading and its check.
                 guard var state = previous.first(where: { $0.id == profile.id && $0.profile.directory == profile.directory })
-                else {
-                    var state = CodexProfileLimitsState(profile: profile)
-                    if let check = weeklyCheck,
-                       check.directory == URL(fileURLWithPath: profile.directory).resolvingSymlinksInPath().path {
-                        state = check.state
-                        state.profile = profile
-                    }
-                    return state
-                }
+                else { return freshState(for: profile) }
                 state.profile = profile
                 return state
             }
@@ -130,8 +124,30 @@ final class CodexProfileLimitsService: ObservableObject {
                 startNext()
             }
         }
+        // A symlink retargeted between checks names another account: its old
+        // reading and backoff go, and an open page asks the new one at once.
+        for index in states.indices {
+            guard let checked = states[index].checkedDirectory,
+                  checked != Self.resolved(states[index].profile.directory) else { continue }
+            let checking = states[index].checking
+            states[index] = freshState(for: states[index].profile)
+            states[index].checking = checking
+        }
         syncTimer()
         if visible { refresh() }
+    }
+
+    private static func resolved(_ directory: String) -> String {
+        URL(fileURLWithPath: directory).resolvingSymlinksInPath().path
+    }
+
+    /// A home with no reading of its own, unless Weekly already checked it.
+    private func freshState(for profile: CodexAccountProfile) -> CodexProfileLimitsState {
+        guard let check = weeklyCheck, check.directory == Self.resolved(profile.directory)
+        else { return CodexProfileLimitsState(profile: profile) }
+        var state = check.state
+        state.profile = profile
+        return state
     }
 
     /// A Settings preview shows what is known without asking.
@@ -219,6 +235,7 @@ final class CodexProfileLimitsService: ObservableObject {
         }
         var state = states[index]
         state.checking = false
+        if result != .failure(.cancelled) { state.checkedDirectory = checkedDirectory }
         switch result {
         case .success(let reading):
             state.limits = reading.limits
