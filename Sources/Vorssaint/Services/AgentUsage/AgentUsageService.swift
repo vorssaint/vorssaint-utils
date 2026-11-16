@@ -211,6 +211,8 @@ final class AgentUsageService: ObservableObject {
         pricesInFlight = false
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
+        weeklyUsage = AgentWeeklyUsage()
+        weeklyHistoryFailed = false
         claudeAppChecked = nil
         claudeAccountIdentity = nil
         queue.async { [self] in
