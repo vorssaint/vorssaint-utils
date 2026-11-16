@@ -54,7 +54,9 @@ struct ClaudeAccountSettings: View {
             HStack {
                 Button(common.find) {
                     let home = FileManager.default.homeDirectoryForCurrentUser
-                    add([ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: home))
+                    var known = Set(accounts.map { $0.profile.configurationURL(home: home).resolvingSymlinksInPath().path })
+                    let profiles = [ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: home)
+                    add(profiles.filter { known.insert($0.configurationURL(home: home).resolvingSymlinksInPath().path).inserted })
                 }
                 .disabled(accounts.count >= ClaudeMonitoredAccount.maximum)
                 Button(common.add) { chooseFolder() }
@@ -84,7 +86,10 @@ struct ClaudeAccountSettings: View {
 
     private func add(_ profiles: [ClaudeAccountProfile]) {
         let additions = profiles.map { ClaudeMonitoredAccount(directory: $0.directory) }
-        save(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(accounts + additions)))
+        let proposed = accounts + additions
+        let accepted = ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(proposed))
+        if accepted.count < proposed.count { invalidFolder = true }
+        save(accepted)
     }
 
     private func chooseFolder() {

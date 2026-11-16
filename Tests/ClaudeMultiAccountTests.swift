@@ -85,11 +85,60 @@ enum ClaudeMultiAccountTests {
                 .write(to: alias.profile.profileURL(home: home))
             try manager.createSymbolicLink(at: alias.profile.configurationURL(home: home).appending(path: "projects"),
                                            withDestinationURL: legacyProjects.deletingLastPathComponent())
-            suite.expect(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode([accounts[0], alias]), home: home).count == 1,
-                         "a profile sharing the default legacy log tree is rejected even with separate account metadata")
+            let sharedLegacy = [accounts[0], alias]
+            let legacyScopes = ClaudeMonitoredAccount.logScopes(sharedLegacy, home: home)
+            suite.expect(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(sharedLegacy), home: home) == sharedLegacy
+                            && alias.logURLs(home: home, scopes: legacyScopes).isEmpty,
+                         "a profile sharing the default legacy log tree keeps its login without claiming that history")
             preferences(suite, home: home, accounts: accounts)
+            try sharedHistory(suite, home: home, accounts: accounts)
             lifecycle(suite, accounts: accounts)
         } catch { suite.expect(false, "multiple Claude fixtures run: \(error)") }
+    }
+
+    private static func sharedHistory(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
+        let manager = FileManager.default
+        let personal = accounts[0], work = accounts[1]
+        let personalRoot = personal.profile.configurationURL(home: home).appending(path: "projects")
+        let workRoot = work.profile.configurationURL(home: home).appending(path: "projects")
+        try manager.removeItem(at: workRoot)
+        try manager.createSymbolicLink(at: workRoot, withDestinationURL: personalRoot)
+        let duplicate = ClaudeMonitoredAccount(directory: home.appending(path: ".claude-work-alias").path)
+        try manager.createSymbolicLink(at: duplicate.profile.configurationURL(home: home),
+                                       withDestinationURL: work.profile.configurationURL(home: home))
+        let decoded = ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(accounts + [work, duplicate]), home: home)
+        suite.expect(decoded == accounts,
+                     "separate Claude logins sharing a symlinked projects folder survive decoding, but duplicate config directories do not")
+        suite.expect(personal.profile.read(home: home).identity?.account == "Personal"
+                        && work.profile.read(home: home).identity?.account == "Work",
+                     "shared session history preserves each login's own account metadata")
+        let scopes = ClaudeMonitoredAccount.logScopes(decoded, home: home)
+        suite.expect(scopes[AgentLogRoot.canonical(personalRoot).path + "/"]
+                        == AgentLogRoot.canonical(personal.profile.configurationURL(home: home)).path
+                        && work.logURLs(home: home, scopes: scopes).isEmpty,
+                     "the first Claude account alone owns the shared log root")
+        let host = AgentUsageReadTests.Host()
+        host.home = home
+        host.start(session: 4, providers: [.claude], cancellation: AgentUsageReadTests.Cancellation(),
+                   claudeProfile: personal.profile, claudeAccounts: decoded)
+        let now = Date()
+        let totals = accounts.map {
+            host.store.claudeSnapshot(roots: $0.logURLs(home: home, scopes: scopes), now: now).usage(.today).total
+        }
+        suite.expect(host.snapshot.usage(.today).total.tokens.total == 11
+                        && totals.map { $0.tokens.total } == [11, 0]
+                        && totals[0].cost == host.snapshot.usage(.today).total.cost && totals[1].cost == 0,
+                     "shared logs contribute tokens and API value to the first account and combined usage only once")
+        let reordered = [work, personal]
+        let reorderedScopes = ClaudeMonitoredAccount.logScopes(reordered, home: home)
+        let legacyRoot = AgentLogRoot.canonical(home.appending(path: ".config/claude/projects"))
+        suite.expect(reorderedScopes[AgentLogRoot.canonical(personalRoot).path + "/"]
+                        == AgentLogRoot.canonical(work.profile.configurationURL(home: home)).path
+                        && personal.logURLs(home: home, scopes: reorderedScopes).map { AgentLogRoot.canonical($0) } == [legacyRoot],
+                     "reordering transfers shared history to the earlier login while the later login keeps its separate legacy root")
+        let roots = AgentLogRoot.all(home: home, claudeProfile: work.profile, additionalClaudeProfiles: [personal.profile])
+        suite.expect(roots.filter { $0.provider == .claude }.map(\.url) == [AgentLogRoot.canonical(personalRoot), legacyRoot],
+                     "log discovery monitors each owned Claude history root once")
     }
 
     private static func preferences(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
@@ -105,7 +154,7 @@ enum ClaudeMultiAccountTests {
                      "account names and exact config-directory spelling survive persistence")
         let duplicate = ClaudeMonitoredAccount(directory: home.appending(path: ".claude").path)
         suite.expect(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(accounts + [duplicate]), home: home) == accounts,
-                     "two profiles sharing a projects directory cannot be added twice")
+                     "two profiles resolving to the same configuration directory cannot be added twice")
         suite.expect(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode([
             .init(directory: "relative"), .init(directory: "/valid", name: String(repeating: "x", count: 41))])).isEmpty,
                      "invalid profile paths and oversized labels are rejected")

@@ -507,7 +507,9 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile(),
                     additionalClaudeProfiles: [ClaudeAccountProfile] = []) -> [AgentLogRoot] {
         var seen = Set<String>()
-        let claude = ([claudeProfile] + additionalClaudeProfiles).flatMap { ClaudeMonitoredAccount(directory: $0.directory).logURLs(home: home) }
+        let accounts = ([claudeProfile] + additionalClaudeProfiles).map { ClaudeMonitoredAccount(directory: $0.directory) }
+        let scopes = ClaudeMonitoredAccount.logScopes(accounts, home: home)
+        let claude = accounts.flatMap { $0.logURLs(home: home, scopes: scopes) }
             .filter { seen.insert(canonical($0).path).inserted }.map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in

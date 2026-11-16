@@ -27,11 +27,22 @@ struct ClaudeMonitoredAccount: Codable, Equatable, Identifiable {
         }
     }
 
+    /// Only history owned by this account, after earlier accounts claim theirs.
+    func logURLs(home: URL, scopes: [String: String]) -> [URL] {
+        let scope = AgentLogRoot.canonical(profile.configurationURL(home: home)).path
+        return logURLs(home: home).filter { scopes[AgentLogRoot.canonical($0).path + "/"] == scope }
+    }
+
     static func logScopes(_ accounts: [Self], home: URL) -> [String: String] {
         var scopes: [String: String] = [:]
         for account in accounts {
             let scope = AgentLogRoot.canonical(account.profile.configurationURL(home: home)).path
-            for url in account.logURLs(home: home) { scopes[AgentLogRoot.canonical(url).path + "/"] = scope }
+            for url in account.logURLs(home: home) {
+                let root = AgentLogRoot.canonical(url).path + "/"
+                // Shared or nested log trees belong to the first account only.
+                guard !scopes.keys.contains(where: { root.hasPrefix($0) || $0.hasPrefix(root) }) else { continue }
+                scopes[root] = scope
+            }
         }
         return scopes
     }
@@ -40,17 +51,10 @@ struct ClaudeMonitoredAccount: Codable, Equatable, Identifiable {
         guard value.utf8.count <= 64 * 1024,
               let decoded = try? JSONDecoder().decode([Self].self, from: Data(value.utf8)) else { return [] }
         var paths = Set<String>()
-        var roots: [String] = []
         return Array(decoded.filter { account in
             guard (account.directory.isEmpty || account.directory.hasPrefix("/")), account.directory.utf8.count <= 4_096,
                   account.name.count <= 40, !account.directory.contains("\0") else { return false }
-            let primary = account.profile.configurationURL(home: home).appending(path: "projects")
-            let claimed = Set(([primary] + account.logURLs(home: home)).map { $0.resolvingSymlinksInPath().path })
-            guard !claimed.contains(where: { path in
-                roots.contains { path == $0 || path.hasPrefix($0 + "/") || $0.hasPrefix(path + "/") }
-            }), paths.insert(account.profile.configurationURL(home: home).resolvingSymlinksInPath().path).inserted else { return false }
-            roots.append(contentsOf: claimed)
-            return true
+            return paths.insert(account.profile.configurationURL(home: home).resolvingSymlinksInPath().path).inserted
         }.prefix(maximum))
     }
 

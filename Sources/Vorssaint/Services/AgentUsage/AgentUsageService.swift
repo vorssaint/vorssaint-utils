@@ -678,7 +678,7 @@ final class AgentUsageService: ObservableObject {
         published = next
         var accountSnapshots: [String: AgentUsageSnapshot] = [:]
         if enabled.contains(.claude), let account = readerClaudeAccounts.first(where: { $0.id == readerClaudeFilter }) {
-            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home), now: next.now)
+            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home, scopes: readerClaudeScopes), now: next.now)
         }
         let snapshots = accountSnapshots
         checkBudget(next)
