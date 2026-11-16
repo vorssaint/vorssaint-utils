@@ -20,16 +20,10 @@ struct AgentWeeklyStrings {
     let desktop: String
     let defaultAccount: String
     let points: String
-    let speculative: String
-    let speculation: String
-    let estimateExpires: String
-    let estimateChecked: String
-    let estimateUnavailable: String
     let targetDay: String
     let targetLimit: String
     let targetAllowance: String
     let targetReset: String
-    let targetActual: String
 
     static func localized(_ language: AppLanguage) -> Self {
         switch language {
@@ -51,16 +45,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude app",
                 defaultAccount: "Default CLI account",
                 points: "pp",
-                speculative: "Speculative reset",
-                speculation: "Historical median · not guaranteed",
-                estimateExpires: "Expires",
-                estimateChecked: "Checked",
-                estimateUnavailable: "No valid early-reset estimate",
                 targetDay: "Day",
                 targetLimit: "Total usage limit",
                 targetAllowance: "Extra until then",
-                targetReset: "Reset",
-                targetActual: "Account reset")
+                targetReset: "Reset")
         case .ptBR:
             return Self(
                 title: "Consumo semanal",
@@ -79,16 +67,10 @@ struct AgentWeeklyStrings {
                 desktop: "App Claude",
                 defaultAccount: "Conta padrão da CLI",
                 points: "p.p.",
-                speculative: "Reset especulativo",
-                speculation: "Mediana histórica · sem garantia",
-                estimateExpires: "Expira",
-                estimateChecked: "Consultado",
-                estimateUnavailable: "Sem estimativa válida de reset antecipado",
                 targetDay: "Dia",
                 targetLimit: "Limite acumulado",
                 targetAllowance: "Adicional até lá",
-                targetReset: "Reset",
-                targetActual: "Reset real")
+                targetReset: "Reset")
         case .es:
             return Self(
                 title: "Consumo semanal",
@@ -107,16 +89,10 @@ struct AgentWeeklyStrings {
                 desktop: "App Claude",
                 defaultAccount: "Cuenta predeterminada de la CLI",
                 points: "p.p.",
-                speculative: "Reinicio especulativo",
-                speculation: "Mediana histórica · sin garantía",
-                estimateExpires: "Caduca",
-                estimateChecked: "Consultado",
-                estimateUnavailable: "Sin estimación válida de reinicio anticipado",
                 targetDay: "Día",
                 targetLimit: "Límite acumulado",
                 targetAllowance: "Adicional hasta entonces",
-                targetReset: "Reinicio",
-                targetActual: "Reinicio real")
+                targetReset: "Reinicio")
         case .sk:
             return Self(
                 title: "Týždenná spotreba",
@@ -135,16 +111,10 @@ struct AgentWeeklyStrings {
                 desktop: "Aplikácia Claude",
                 defaultAccount: "Predvolený účet CLI",
                 points: "p. b.",
-                speculative: "Špekulatívne obnovenie",
-                speculation: "Historický medián · bez záruky",
-                estimateExpires: "Platí do",
-                estimateChecked: "Overené",
-                estimateUnavailable: "Bez platného odhadu skoršieho obnovenia",
                 targetDay: "Deň",
                 targetLimit: "Celkový limit",
                 targetAllowance: "Navyše dovtedy",
-                targetReset: "Obnovenie",
-                targetActual: "Skutočné obnovenie")
+                targetReset: "Obnovenie")
         case .de:
             return Self(
                 title: "Wöchentlicher Verbrauch",
@@ -163,16 +133,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude-App",
                 defaultAccount: "Standardkonto der CLI",
                 points: "Prozentpunkte",
-                speculative: "Spekulatives Zurücksetzen",
-                speculation: "Historischer Median · ohne Gewähr",
-                estimateExpires: "Läuft ab",
-                estimateChecked: "Geprüft",
-                estimateUnavailable: "Keine gültige Schätzung für vorzeitiges Zurücksetzen",
                 targetDay: "Tag",
                 targetLimit: "Gesamtverbrauch bis",
                 targetAllowance: "Zusätzlich bis dahin",
-                targetReset: "Zurücksetzen",
-                targetActual: "Kontozurücksetzung")
+                targetReset: "Zurücksetzen")
         case .fr:
             return Self(
                 title: "Consommation hebdomadaire",
@@ -191,16 +155,10 @@ struct AgentWeeklyStrings {
                 desktop: "App Claude",
                 defaultAccount: "Compte CLI par défaut",
                 points: "points",
-                speculative: "Réinitialisation spéculative",
-                speculation: "Médiane historique · sans garantie",
-                estimateExpires: "Expire",
-                estimateChecked: "Consulté",
-                estimateUnavailable: "Aucune estimation valide de réinitialisation anticipée",
                 targetDay: "Jour",
                 targetLimit: "Limite cumulée",
                 targetAllowance: "Supplément d’ici là",
-                targetReset: "Réinitialisation",
-                targetActual: "Réinitialisation réelle")
+                targetReset: "Réinitialisation")
         case .it:
             return Self(
                 title: "Consumo settimanale",
@@ -219,16 +177,10 @@ struct AgentWeeklyStrings {
                 desktop: "App Claude",
                 defaultAccount: "Account CLI predefinito",
                 points: "p.p.",
-                speculative: "Ripristino speculativo",
-                speculation: "Mediana storica · nessuna garanzia",
-                estimateExpires: "Scade",
-                estimateChecked: "Verificato",
-                estimateUnavailable: "Nessuna stima valida di ripristino anticipato",
                 targetDay: "Giorno",
                 targetLimit: "Limite cumulativo",
                 targetAllowance: "Disponibile fino ad allora",
-                targetReset: "Ripristino",
-                targetActual: "Ripristino effettivo")
+                targetReset: "Ripristino")
         case .ru:
             return Self(
                 title: "Недельный расход",
@@ -247,16 +199,10 @@ struct AgentWeeklyStrings {
                 desktop: "Приложение Claude",
                 defaultAccount: "Аккаунт CLI по умолчанию",
                 points: "п.п.",
-                speculative: "Предполагаемый сброс",
-                speculation: "Историческая медиана · без гарантии",
-                estimateExpires: "Истекает",
-                estimateChecked: "Проверено",
-                estimateUnavailable: "Нет действительной оценки досрочного сброса",
                 targetDay: "День",
                 targetLimit: "Общий лимит",
                 targetAllowance: "Дополнительно к сроку",
-                targetReset: "Сброс",
-                targetActual: "Сброс счёта")
+                targetReset: "Сброс")
         case .tr:
             return Self(
                 title: "Haftalık kullanım",
@@ -275,16 +221,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude uygulaması",
                 defaultAccount: "Varsayılan CLI hesabı",
                 points: "puan",
-                speculative: "Varsayımsal sıfırlama",
-                speculation: "Geçmiş medyanı · garanti yok",
-                estimateExpires: "Son geçerlilik",
-                estimateChecked: "Kontrol edildi",
-                estimateUnavailable: "Geçerli erken sıfırlama tahmini yok",
                 targetDay: "Gün",
                 targetLimit: "Toplam kullanım sınırı",
                 targetAllowance: "O zamana kadar ek",
-                targetReset: "Sıfırlama",
-                targetActual: "Hesap sıfırlaması")
+                targetReset: "Sıfırlama")
         case .ja:
             return Self(
                 title: "週間使用量",
@@ -303,16 +243,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claudeアプリ",
                 defaultAccount: "CLIの既定アカウント",
                 points: "ポイント",
-                speculative: "推測リセット",
-                speculation: "過去の中央値 · 保証なし",
-                estimateExpires: "有効期限",
-                estimateChecked: "確認日時",
-                estimateUnavailable: "有効な早期リセット推定なし",
                 targetDay: "日付",
                 targetLimit: "累計使用上限",
                 targetAllowance: "その時点までの追加分",
-                targetReset: "リセット",
-                targetActual: "アカウントのリセット")
+                targetReset: "リセット")
         case .ko:
             return Self(
                 title: "주간 사용량",
@@ -331,16 +265,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude 앱",
                 defaultAccount: "기본 CLI 계정",
                 points: "%p",
-                speculative: "추정 초기화",
-                speculation: "과거 중앙값 · 보장 없음",
-                estimateExpires: "만료",
-                estimateChecked: "확인",
-                estimateUnavailable: "유효한 조기 초기화 추정 없음",
                 targetDay: "날짜",
                 targetLimit: "누적 사용 한도",
                 targetAllowance: "그때까지 추가 사용량",
-                targetReset: "초기화",
-                targetActual: "계정 초기화")
+                targetReset: "초기화")
         case .uk:
             return Self(
                 title: "Тижневе споживання",
@@ -359,16 +287,10 @@ struct AgentWeeklyStrings {
                 desktop: "Застосунок Claude",
                 defaultAccount: "Типовий обліковий запис CLI",
                 points: "в.п.",
-                speculative: "Припустиме скидання",
-                speculation: "Історична медіана · без гарантії",
-                estimateExpires: "Діє до",
-                estimateChecked: "Перевірено",
-                estimateUnavailable: "Немає чинної оцінки дострокового скидання",
                 targetDay: "День",
                 targetLimit: "Загальний ліміт",
                 targetAllowance: "Додатково до строку",
-                targetReset: "Скидання",
-                targetActual: "Скидання рахунку")
+                targetReset: "Скидання")
         case .zhHans:
             return Self(
                 title: "每周用量",
@@ -387,16 +309,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude 应用",
                 defaultAccount: "CLI 默认账户",
                 points: "百分点",
-                speculative: "推测重置",
-                speculation: "历史中位数 · 不保证",
-                estimateExpires: "到期",
-                estimateChecked: "查询时间",
-                estimateUnavailable: "暂无有效的提前重置估计",
                 targetDay: "日期",
                 targetLimit: "累计使用上限",
                 targetAllowance: "届时可额外使用",
-                targetReset: "重置",
-                targetActual: "账户重置")
+                targetReset: "重置")
         case .zhTW:
             return Self(
                 title: "每週用量",
@@ -415,16 +331,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude 應用程式",
                 defaultAccount: "CLI 預設帳號",
                 points: "百分點",
-                speculative: "推測重設",
-                speculation: "歷史中位數 · 不保證",
-                estimateExpires: "到期",
-                estimateChecked: "查詢時間",
-                estimateUnavailable: "暫無有效的提前重設估計",
                 targetDay: "日期",
                 targetLimit: "累計使用上限",
                 targetAllowance: "屆時可額外使用",
-                targetReset: "重設",
-                targetActual: "帳號重設")
+                targetReset: "重設")
         case .zhHK:
             return Self(
                 title: "每週用量",
@@ -443,16 +353,10 @@ struct AgentWeeklyStrings {
                 desktop: "Claude 應用程式",
                 defaultAccount: "CLI 預設帳戶",
                 points: "百分點",
-                speculative: "推測重設",
-                speculation: "歷史中位數 · 不保證",
-                estimateExpires: "到期",
-                estimateChecked: "查詢時間",
-                estimateUnavailable: "暫無有效的提前重設估計",
                 targetDay: "日期",
                 targetLimit: "累計使用上限",
                 targetAllowance: "屆時可額外使用",
-                targetReset: "重設",
-                targetActual: "帳戶重設")
+                targetReset: "重設")
         }
     }
 }

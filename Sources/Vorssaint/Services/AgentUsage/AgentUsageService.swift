@@ -159,7 +159,6 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
-        AgentCodexResetForecastSource.shared.cancel()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -191,7 +190,6 @@ final class AgentUsageService: ObservableObject {
     }
 
     func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
-        AgentCodexResetForecastSource.shared.cancel()
         if pausingAccounts { CodexProfileLimitsService.shared.pause() }
         pageVisible = false
         // A first read still going stops at its next chunk, so the wait

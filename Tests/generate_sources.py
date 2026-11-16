@@ -2809,6 +2809,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    private func agentsContentHeight(")
             .replace("private func", "func", 1)
             .replace("AgentUsageService.shared.snapshot", "snapshot")
+            .replace("AgentUsageService.shared.claudeProfile", "claudeProfile")
             .replace("CodexProfileLimitsService.shared.states", "states")
             .replace("NotchAgentSupport.providers()", "NotchAgentSupport.providers(in: defaults)")
             .replace("NotchAgentSupport.showsCodexAccounts()", "NotchAgentSupport.showsCodexAccounts(in: defaults)")

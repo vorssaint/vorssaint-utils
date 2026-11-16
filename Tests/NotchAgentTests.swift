@@ -47,7 +47,6 @@ enum NotchAgentTests {
         AgentUsageEventDeliveryTests.run(suite)
         NotchAgentAnimationTests.run { suite.expect($0, $1) }
         AgentWeeklyUsageTests.run(suite)
-        AgentCodexResetForecastTests.run(suite)
         suite.expect(NotchAgentCard(rawValue: "weekly") != nil,
                      "weekly usage is a selectable AI agents card")
     }
@@ -55,6 +54,7 @@ enum NotchAgentTests {
     class GeometryFixture {
         var snapshot = AgentUsageSnapshot(loaded: true)
         var states: [CodexProfileLimitsState] = []
+        var claudeProfile = ClaudeAccountProfile()
         let defaults: UserDefaults
         init(defaults: UserDefaults) { self.defaults = defaults }
     }
@@ -74,10 +74,10 @@ enum NotchAgentTests {
         defaults.set(true, forKey: DefaultsKey.notchAgentsCodex)
         host.states = [CodexProfileLimitsState(profile: CodexAccountProfile(
             id: CodexProfileLimitsService.weeklyProfileID, name: "Codex", directory: CodexProfileLimitsService.defaultDirectory))]
-        suite.expect(host.agentsContentHeight(width: 424) == 640,
+        suite.expect(host.agentsContentHeight(width: 424) == 500,
                      "a Codex Weekly-only transient home without logs receives its full page height")
         defaults.set(true, forKey: DefaultsKey.notchAgentsClaude)
-        suite.expect(host.agentsContentHeight(width: 424) == 1140 + NotchAgentSupport.spacing,
+        suite.expect(host.agentsContentHeight(width: 424) == 1000 + NotchAgentSupport.spacing,
                      "both Weekly providers without logs receive two full-height rows")
         defaults.set(NotchAgentCard.allCases.map(\.rawValue).joined(separator: ","), forKey: DefaultsKey.notchAgentsHiddenCards)
         suite.expect(host.agentsContentHeight(width: 424) == 0,

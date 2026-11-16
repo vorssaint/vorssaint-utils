@@ -313,8 +313,6 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
         Sources/Vorssaint/Services/AgentUsage/AgentWeeklyUsage.swift
-        Sources/Vorssaint/Services/AgentUsage/AgentCodexResetForecast.swift
-        Sources/Vorssaint/Services/AgentUsage/AgentCodexResetForecastSource.swift
         Sources/Vorssaint/Services/AgentUsage/AgentPriceSource.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
         Sources/Vorssaint/Services/AgentUsage/AgentCLIConversation.swift

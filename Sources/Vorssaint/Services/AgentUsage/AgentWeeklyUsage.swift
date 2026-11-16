@@ -221,9 +221,7 @@ struct AgentWeeklyPlan {
     struct Target: Identifiable {
         let date: Date
         let actualPercent: Double
-        let speculativePercent: Double?
         let isActualReset: Bool
-        let isSpeculativeReset: Bool
         var id: Date { date }
     }
     let start: Date
@@ -231,9 +229,9 @@ struct AgentWeeklyPlan {
     let initialPercent: Double
     var remainingPercent: Double { 100 - initialPercent }
 
-    init?(sample: AgentWeeklyUsage.Sample, now: Date, speculativeReset: Date? = nil) {
+    init?(sample: AgentWeeklyUsage.Sample, now: Date) {
         guard sample.valid, !sample.isStale(at: now),
-              let reset = speculativeReset ?? sample.resetsAt, reset > now else { return nil }
+              let reset = sample.resetsAt, reset > now else { return nil }
         start = sample.observedAt
         self.reset = reset
         initialPercent = sample.usedPercent
@@ -244,24 +242,16 @@ struct AgentWeeklyPlan {
         return initialPercent + remainingPercent * elapsed
     }
 
-    /// Compare both budgets at the same local checkpoints, including each
-    /// exact deadline. Nothing is assumed after the speculative reset.
-    func targets(comparing speculative: Self?, calendar: Calendar = .autoupdatingCurrent) -> [Target] {
-        let actualDates = checkpoints(calendar: calendar).map(\.date)
-        let speculativeDates = speculative?.checkpoints(calendar: calendar).map(\.date) ?? []
-        let deadlines = [reset, speculative?.reset].compactMap { $0 }
-        let dates = Set(actualDates + speculativeDates).sorted().filter { date in
+    /// The budget's local checkpoints, ending at its exact reset. An ordinary
+    /// weekday row that would repeat the reset's displayed local minute is
+    /// suppressed; the reset row itself is always kept.
+    func targets(calendar: Calendar = .autoupdatingCurrent) -> [Target] {
+        let dates = Set(checkpoints(calendar: calendar).map(\.date)).sorted().filter { date in
             guard date <= reset else { return false }
-            // Keep both exact deadlines; suppress only ordinary weekday rows
-            // that would repeat a deadline's displayed local minute.
-            return deadlines.contains(date) || !deadlines.contains {
-                calendar.isDate(date, equalTo: $0, toGranularity: .minute)
-            }
+            return date == reset || !calendar.isDate(date, equalTo: reset, toGranularity: .minute)
         }
         return dates.map { date in
-            let estimate = speculative.flatMap { date <= $0.reset ? $0.used(at: date) : nil }
-            return Target(date: date, actualPercent: used(at: date), speculativePercent: estimate,
-                          isActualReset: date == reset, isSpeculativeReset: date == speculative?.reset)
+            Target(date: date, actualPercent: used(at: date), isActualReset: date == reset)
         }
     }
 

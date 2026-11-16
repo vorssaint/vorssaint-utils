@@ -349,7 +349,7 @@ enum NotchAgentSupport {
     }
 
     static func height(of row: [NotchAgentTile]) -> CGFloat {
-        if let weekly = row.first(where: { $0.card == .weekly }) { return weekly.provider == .codex ? 640 : 500 }
+        if row.contains(where: { $0.card == .weekly }) { return 500 }
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight
     }
