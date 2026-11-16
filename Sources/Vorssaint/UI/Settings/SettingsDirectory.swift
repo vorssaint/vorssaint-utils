@@ -290,7 +290,7 @@ enum SettingsDirectory {
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
-            .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,
+            .init([FeatureStrings.claudeAccount(language).accountsTitle], feature: .notchAgents,
                   notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
             .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
                    notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
