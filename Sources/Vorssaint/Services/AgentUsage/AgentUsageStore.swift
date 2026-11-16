@@ -15,6 +15,7 @@ final class AgentUsageStore {
     private var sources: [[String]] = []
     private var index: [String: Int] = [:]
     private let summary = AgentUsageSummaryCache()
+    private var accountSummaries: [String: (records: [AgentUsageRecord], cache: AgentUsageSummaryCache)] = [:]
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
     private var codexPlanObserved = Date.distantPast
@@ -53,11 +54,32 @@ final class AgentUsageStore {
                          providers: providers, now: now, calendar: calendar)
     }
 
+    /// Projection by source path keeps identical session/message ids in different
+    /// profiles apart. Each cached history changes only when its source records do.
+    func claudeRecords(roots: [URL]) -> [AgentUsageRecord] {
+        let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
+        return records.indices.filter { index in
+            records[index].provider == .claude && sources[index].contains { path in prefixes.contains { path.hasPrefix($0) } }
+        }.map { records[$0] }
+    }
+
+    func claudeSnapshot(roots: [URL], now: Date, calendar: Calendar = .current) -> AgentUsageSnapshot {
+        let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
+        let key = prefixes.joined(separator: "\0")
+        func contains(_ path: String) -> Bool { prefixes.contains { path.hasPrefix($0) } }
+        if accountSummaries[key] == nil {
+            accountSummaries[key] = (claudeRecords(roots: roots), AgentUsageSummaryCache())
+        }
+        let stored = accountSummaries[key]!
+        return stored.cache.snapshot(records: stored.records, limits: [:], live: live.filter { contains($0.id) },
+                                     plans: [:], providers: [.claude], now: now, calendar: calendar)
+    }
+
     /// Applies one file's entries and returns the turns they finished.
     /// `parent` is the log whose turn a subagent's responses count toward.
     @discardableResult
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
-               tracksTurns: Bool, parent: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
+               tracksTurns: Bool, parent: String? = nil, accountScope: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
         for entry in entries {
             switch entry {
@@ -65,9 +87,9 @@ final class AgentUsageStore {
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
                 let turn = provider == .copilot ? nil : tracksTurns ? file : parent
-                add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
+                add(record, billable: billable, key: accountScope.map { $0 + "|" + key } ?? key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
-                guard let position = index[key], records[position].model.isEmpty else { continue }
+                guard let position = index[accountScope.map { $0 + "|" + key } ?? key], records[position].model.isEmpty else { continue }
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
@@ -75,6 +97,7 @@ final class AgentUsageStore {
                 // Incremental token updates keep the same model; attribution
                 // changes instead rebuild model buckets from the records.
                 summary.invalidate()
+                accountSummaries.removeAll()
             case .limits(let reading):
                 updateLimits(reading)
             case .plan(let plan, let date):
@@ -165,7 +188,10 @@ final class AgentUsageStore {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
-            if !sources[position].contains(source) { sources[position].append(source) }
+            if !sources[position].contains(source) {
+                sources[position].append(source)
+                accountSummaries.removeAll()
+            }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
@@ -183,6 +209,7 @@ final class AgentUsageStore {
                         isReported = false
                     }
                     if newCost != old.cost || isReported != old.reportedCost {
+                        accountSummaries.removeAll()
                         summary.recordChanged(at: position, previous: old)
                         let extra = (newCost ?? 0) - (old.cost ?? 0)
                         records[position].cost = newCost
@@ -197,6 +224,7 @@ final class AgentUsageStore {
                 }
                 return
             }
+            accountSummaries.removeAll()
             summary.recordChanged(at: position, previous: old)
             var combined = billables[position]
             combined.tokens = merged
@@ -235,6 +263,7 @@ final class AgentUsageStore {
             records[position].savings = priced.savings
             records[position].reportedCost = isReported
         } else {
+            accountSummaries.removeAll()
             summary.recordChanged(at: records.count, previous: nil)
             index[key] = records.count
             records.append(record)
@@ -262,6 +291,7 @@ final class AgentUsageStore {
     /// rows recalculate against the new prices, while reported provider charges stay intact.
     func reprice() {
         summary.invalidate()
+        accountSummaries.removeAll()
         for position in records.indices {
             guard !records[position].reportedCost else { continue }
             let priced = AgentPricing.cost(billables[position], model: records[position].model)
@@ -325,10 +355,10 @@ final class AgentUsageStore {
     /// without a record is over too, once the records could be read. True
     /// when a turn was showing.
     @discardableResult
-    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false) -> Bool {
+    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false, root: URL? = nil) -> Bool {
         registered.formIntersection(turns.keys)
         var closed = false
-        for (file, turn) in turns where turn.provider == .claude {
+        for (file, turn) in turns where turn.provider == .claude && (root.map { file.hasPrefix($0.path + "/") } ?? true) {
             let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
             if processes.running.contains(session) {
                 registered.insert(file)
@@ -448,6 +478,7 @@ final class AgentUsageStore {
 
     private func keepRecords(where keep: (Int) -> Bool) {
         summary.invalidate()
+        accountSummaries.removeAll()
         var kept: [AgentUsageRecord] = []
         var keptBillables: [AgentBillable] = []
         var keptSources: [[String]] = []
@@ -473,8 +504,11 @@ struct AgentLogRoot: Equatable {
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser,
-                    claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
-        let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
+                    claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile(),
+                    additionalClaudeProfiles: [ClaudeAccountProfile] = []) -> [AgentLogRoot] {
+        var seen = Set<String>()
+        let claude = ([claudeProfile] + additionalClaudeProfiles).flatMap { ClaudeMonitoredAccount(directory: $0.directory).logURLs(home: home) }
+            .filter { seen.insert(canonical($0).path).inserted }.map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))

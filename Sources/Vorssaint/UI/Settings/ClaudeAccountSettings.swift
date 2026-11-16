@@ -4,108 +4,108 @@
 import AppKit
 import SwiftUI
 
-/// Chooses an existing login. Claude Code remains responsible for signing in.
 struct ClaudeAccountSettings: View {
-    @AppStorage(DefaultsKey.notchAgentsClaudeProfile) private var selected = ""
+    @AppStorage(DefaultsKey.notchAgentsClaudeAccounts) private var saved = ""
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
-    @State private var entries: [Entry] = []
-    @State private var readID = UUID()
     @State private var invalidFolder = false
     private var text: ClaudeAccountStrings { FeatureStrings.claudeAccount(l10n.language) }
-
-    private struct Entry: Identifiable {
-        let profile: ClaudeAccountProfile
-        var identity: ClaudeAccountProfile.Identity?
-        var available = true
-        var id: String { profile.id }
-
-        func label(defaultName: String) -> String {
-            let name = profile.name(defaultName: defaultName)
-            return identity?.email.map { name + " · " + $0 } ?? name
-        }
-    }
-
-    /// Keep the current option in the menu while the disk read is pending.
-    private var options: [Entry] {
-        var options = entries
-        if !options.contains(where: { $0.id.isEmpty }) { options.insert(Entry(profile: ClaudeAccountProfile()), at: 0) }
-        if !options.contains(where: { $0.id == selected }) { options.append(Entry(profile: ClaudeAccountProfile(directory: selected))) }
-        return options
+    private var common: CodexAccountStrings { FeatureStrings.codexAccounts(l10n.language) }
+    private var accounts: [ClaudeMonitoredAccount] {
+        _ = saved
+        return ClaudeMonitoredAccount.configured()
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SettingsMenuRow(symbol: "person.crop.circle", title: text.title, selection: $selected) {
-                ForEach(options) { entry in
-                    Text(entry.label(defaultName: text.defaultAccount)).tag(entry.id)
+            Text(text.accountsTitle).font(.subheadline.weight(.medium))
+            ForEach(accounts) { account in
+                HStack(alignment: .top, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        TextField(account.label(defaultName: text.defaultAccount), text: Binding(
+                            get: { accounts.first { $0.id == account.id }?.name ?? account.name },
+                            set: { value in
+                                var updated = accounts
+                                if let index = updated.firstIndex(where: { $0.id == account.id }) {
+                                    updated[index].name = String(value.prefix(40))
+                                    save(updated)
+                                }
+                            }))
+                            .textFieldStyle(.roundedBorder)
+                            .accessibilityLabel("Claude · " + common.accountName)
+                        Text(account.profile.isDefault ? text.defaultAccount : account.directory)
+                            .font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                            .help(account.profile.isDefault ? text.defaultAccount : account.directory)
+                    }
+                    if let index = accounts.firstIndex(where: { $0.id == account.id }), index > 0 {
+                        Button {
+                            var updated = accounts
+                            updated.swapAt(index, index - 1)
+                            save(updated)
+                        } label: { Image(systemName: "arrow.up") }
+                        .buttonStyle(.plain).help(FeatureStrings.clipboard(l10n.language).moveUp)
+                        .accessibilityLabel(FeatureStrings.clipboard(l10n.language).moveUp)
+                    }
+                    Button { save(accounts.filter { $0.id != account.id }) } label: { Image(systemName: "minus.circle") }
+                        .buttonStyle(.plain).help(common.remove).accessibilityLabel(common.remove)
+                        .disabled(accounts.count == 1 && account.profile.isDefault)
                 }
             }
-            if let entry = entries.first(where: { $0.id == selected }) {
-                if !entry.available {
-                    Text(text.invalidFolder).font(.caption).foregroundStyle(.orange)
-                } else if entry.identity == nil {
-                    Text(text.unknownAccount).font(.caption).foregroundStyle(.secondary)
+            HStack {
+                Button(common.find) {
+                    let home = FileManager.default.homeDirectoryForCurrentUser
+                    add([ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: home))
                 }
-                if !selected.isEmpty {
-                    Text(selected).font(.caption2).foregroundStyle(.secondary)
-                        .lineLimit(1).truncationMode(.middle).help(selected)
+                .disabled(accounts.count >= ClaudeMonitoredAccount.maximum)
+                Button(common.add) { chooseFolder() }
+                    .disabled(accounts.count >= ClaudeMonitoredAccount.maximum)
+                Button(common.check) {
+                    usage.checkClaudeAccount()
+                    ClaudeProfileLimitsService.shared.refresh(force: true)
                 }
+                .disabled(!NotchAgentSupport.isEnabled())
             }
-            Button(text.chooseFolder) { chooseFolder() }
-            Text(text.explanation).font(.caption).foregroundStyle(.secondary)
+            Text(text.multipleExplanation).font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Link(text.signInHelp, destination: URL(string: "https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts")!)
                 .font(.caption)
         }
-        .onAppear { refresh() }
-        .onChange(of: selected) { _, _ in refresh() }
-        .onChange(of: usage.claudeAccountIdentity) { _, _ in refresh() }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
-        .onDisappear { readID = UUID() }
-        .alert(text.title, isPresented: $invalidFolder) {
+        .alert(text.accountsTitle, isPresented: $invalidFolder) {
             Button("OK", role: .cancel) {}
         } message: { Text(text.invalidFolder) }
     }
 
-    private func refresh() {
-        let id = UUID()
-        readID = id
-        let selected = selected
-        DispatchQueue.global(qos: .utility).async {
-            let home = FileManager.default.homeDirectoryForCurrentUser
-            let profiles = [ClaudeAccountProfile(), ClaudeAccountProfile(directory: selected)]
-                + ClaudeAccountProfile.discover(home: home)
-            var seen = Set<String>()
-            let found = profiles.filter { seen.insert($0.id).inserted }.map { profile in
-                Entry(profile: profile, identity: profile.read(home: home).identity, available: profile.isAvailable(home: home))
-            }
-            DispatchQueue.main.async {
-                guard readID == id else { return }
-                entries = found
-            }
-        }
+    private func save(_ accounts: [ClaudeMonitoredAccount]) {
+        let value = accounts.isEmpty ? [ClaudeMonitoredAccount(directory: "")] : accounts
+        saved = ClaudeMonitoredAccount.encode(value)
+        UserDefaults.standard.set(value[0].directory, forKey: DefaultsKey.notchAgentsClaudeProfile)
+        NotchService.shared.syncWithPreferences()
+    }
+
+    private func add(_ profiles: [ClaudeAccountProfile]) {
+        let additions = profiles.map { ClaudeMonitoredAccount(directory: $0.directory) }
+        save(ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(accounts + additions)))
     }
 
     private func chooseFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
+        panel.allowsMultipleSelection = true
         panel.showsHiddenFiles = true
         let home = FileManager.default.homeDirectoryForCurrentUser
         panel.directoryURL = home
-        guard panel.runModal() == .OK, let folder = panel.url else { return }
-        let profile = ClaudeAccountProfile(directory: folder.path)
-        // The ordinary ~/.claude folder uses ~/.claude.json. An explicit
-        // profile in that folder instead has its own nested .claude.json.
-        if folder.standardizedFileURL == home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL,
-           !FileManager.default.fileExists(atPath: profile.profileURL(home: home).path) {
-            selected = ""
-        } else if profile.isAvailable(home: home) {
-            selected = profile.directory
-        } else {
-            invalidFolder = true
+        guard panel.runModal() == .OK else { return }
+        var profiles: [ClaudeAccountProfile] = []
+        for folder in panel.urls {
+            let profile = ClaudeAccountProfile(directory: folder.path)
+            if folder.standardizedFileURL == home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL,
+               !FileManager.default.fileExists(atPath: profile.profileURL(home: home).path) {
+                profiles.append(ClaudeAccountProfile())
+            } else if profile.isAvailable(home: home) {
+                profiles.append(profile)
+            } else { invalidFolder = true }
         }
+        add(profiles)
     }
 }

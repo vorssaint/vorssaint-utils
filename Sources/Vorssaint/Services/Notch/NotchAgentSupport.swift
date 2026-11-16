@@ -291,15 +291,31 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
+    /// The view and its measured height use the same account selection.
+    static func pageProviders(enabled: [AgentProvider], seen: Set<AgentProvider>, codexAccounts: [String],
+                              claudeAccounts: [ClaudeMonitoredAccount], filter: String?) -> [AgentProvider] {
+        if enabled.contains(.claude), filter != nil { return [.claude] }
+        return enabled.filter {
+            seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
+                || ($0 == .claude && (claudeAccounts.count > 1 || claudeAccounts.first?.profile.isDefault == false))
+        }
+    }
+
+    static func claudeAccountIDs(_ accounts: [ClaudeMonitoredAccount], filter: String?) -> [String] {
+        guard accounts.count > 1 || accounts.first?.profile.isDefault == false else { return [] }
+        return accounts.filter { filter == nil || $0.id == filter }.map(\.id)
+    }
+
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
+                      codexAccounts: [String] = [], claudeAccount: String? = nil, claudeAccounts: [String] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                if provider == .claude, let claudeAccount {
-                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                if provider == .claude {
+                    let accounts = claudeAccounts.isEmpty ? claudeAccount.map { [$0] } ?? [] : claudeAccounts
+                    if !accounts.isEmpty { return accounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) } }
                 }
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }
