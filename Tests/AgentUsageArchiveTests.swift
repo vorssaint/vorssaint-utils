@@ -299,7 +299,8 @@ enum AgentUsageArchiveTests {
             ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
-             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
+             // Account ownership is derived from current roots after a launch.
+             ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost", "claudeProfile"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
@@ -399,6 +400,7 @@ enum AgentUsageArchiveSettleTests {
     class Fixture {
         let queue = DispatchQueue(label: "com.vorssaint.agent-usage.settle-test")
         var saved = 0
+        var removedAtStart = 0
         func saveProgress() { saved += 1 }
     }
 
@@ -418,6 +420,21 @@ enum AgentUsageArchiveSettleTests {
         host.settleArchive(keeping: true)
         suite.expect(AgentUsageArchive.removed == 1 && host.saved == 1,
                      "quitting with the section on saves progress before stopping returns")
+
+        let release = DispatchSemaphore(value: 0)
+        host.queue.async {
+            reading.signal()
+            release.wait()
+        }
+        reading.wait()
+        host.settleArchive(keeping: false, waitingForReader: false)
+        suite.expect(AgentUsageArchive.removed == 1,
+                     "changing accounts returns while the old reader is still busy")
+        host.queue.async { host.removedAtStart = AgentUsageArchive.removed }
+        release.signal()
+        host.queue.sync {}
+        suite.expect(host.removedAtStart == 2 && host.saved == 1,
+                     "the queued account restart removes old progress before the next read")
     }
 }
 

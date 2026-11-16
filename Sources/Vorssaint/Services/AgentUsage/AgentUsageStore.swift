@@ -63,16 +63,32 @@ final class AgentUsageStore {
     /// Projection by source path keeps identical session/message ids in different
     /// profiles apart. Each cached history changes only when its source records do.
     func claudeRecords(roots: [URL]) -> [AgentUsageRecord] {
-        let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
+        let contains = claudeSourceMatcher(roots: roots)
         return records.indices.filter { index in
-            records[index].provider == .claude && sources[index].contains { path in prefixes.contains { path.hasPrefix($0) } }
+            records[index].provider == .claude && sources[index].contains(where: contains)
         }.map { records[$0] }
+    }
+
+    /// Sources restored from an archive can still name a symlink. Resolve each
+    /// parent once, including when the log itself no longer exists.
+    private func claudeSourceMatcher(roots: [URL]) -> (String) -> Bool {
+        let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
+        var directories: [String: Bool] = [:]
+        return { path in
+            if prefixes.contains(where: { path.hasPrefix($0) }) { return true }
+            let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
+            if let matches = directories[directory.path] { return matches }
+            let canonical = AgentLogRoot.canonical(directory).path + "/"
+            let matches = prefixes.contains { canonical.hasPrefix($0) }
+            directories[directory.path] = matches
+            return matches
+        }
     }
 
     func claudeSnapshot(roots: [URL], now: Date, plan: AgentPlan? = nil, calendar: Calendar = .current) -> AgentUsageSnapshot {
         let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
         let key = prefixes.joined(separator: "\0")
-        func contains(_ path: String) -> Bool { prefixes.contains { path.hasPrefix($0) } }
+        let contains = claudeSourceMatcher(roots: roots)
         if accountSummaries[key] == nil {
             accountSummaries[key] = (claudeRecords(roots: roots), AgentUsageSummaryCache())
         }

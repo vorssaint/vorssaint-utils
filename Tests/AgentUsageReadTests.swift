@@ -440,6 +440,8 @@ enum AgentUsageReadTests {
         stopped.start(session: 2, providers: [.copilot], cancellation: cancellation)
         suite.expect(!stopped.snapshot.loaded && stopped.publications.isEmpty && stopped.store.records.isEmpty,
                      "an already cancelled startup cannot publish an empty loaded snapshot")
+        suite.expect(stopped.readerSession == 1 && stopped.watchedRoots.isEmpty,
+                     "a superseded queued startup leaves the reader session and watchers alone")
 
         let empty = Host()
         empty.home = folder.appending(path: "empty-home")

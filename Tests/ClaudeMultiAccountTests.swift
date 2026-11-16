@@ -94,6 +94,7 @@ enum ClaudeMultiAccountTests {
             try folderFeedback(suite, home: home, accounts: accounts)
             liveLimits(suite, home: home, accounts: accounts)
             spendPlans(suite, home: home, accounts: accounts)
+            try sourceAliases(suite, home: home, accounts: accounts)
             try sharedHistory(suite, home: home, accounts: accounts)
             lifecycle(suite, accounts: accounts)
         } catch { suite.expect(false, "multiple Claude fixtures run: \(error)") }
@@ -167,7 +168,17 @@ enum ClaudeMultiAccountTests {
         suite.expect(resumed.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
                         .live.first?.claudeProfile == scopes[1],
                      "sessions first seen through activity retain their Claude account too")
-        let restored = AgentUsageStore(saved: store.saved)
+        var saved = store.saved
+        let privateIdentity = "account-ownership-is-not-archived"
+        saved.turns[0].claudeProfile = privateIdentity
+        let data = AgentUsageArchive.encode(.init(providers: [.claude], store: saved, cursors: []), build: "ownership")
+        guard let archive = AgentUsageArchive.decode(data, build: "ownership") else {
+            suite.expect(false, "Claude ownership fixture round-trips through the binary archive")
+            return
+        }
+        suite.expect(data.range(of: Data(privateIdentity.utf8)) == nil && archive.store.turns.first?.claudeProfile == nil,
+                     "Claude account identity is not persisted in the binary archive")
+        let restored = AgentUsageStore(saved: archive.store)
         suite.expect(restored.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
                         .live.first?.claudeProfile == scopes[1],
                      "live sessions restored from the usage archive regain their account from the log roots")
@@ -210,6 +221,30 @@ enum ClaudeMultiAccountTests {
                      "a selected account without a known plan does not reuse a cached account's price")
     }
 
+    private static func sourceAliases(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
+        let root = accounts[0].profile.configurationURL(home: home).appending(path: "projects")
+        let alias = home.appending(path: "personal-history")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: root)
+        let now = Date()
+        let record = AgentUsageRecord(provider: .claude, date: now, model: "claude-opus-5-5", project: "app",
+            session: "aliased", tokens: AgentTokens(output: 7), cost: 2, savings: 0)
+        let store = AgentUsageStore()
+        // The file may have gone since it was read; its parent still resolves.
+        store.apply([.turnBegan(now), .usage(key: "aliased", record: record, billable: .init(tokens: record.tokens))],
+            file: alias.appending(path: "missing.jsonl").path, provider: .claude, tracksTurns: true,
+            modified: now, now: now)
+        let restored = AgentUsageStore(saved: store.saved)
+        let personal = restored.claudeSnapshot(roots: [root], now: now)
+        let viaAlias = restored.claudeSnapshot(roots: [alias], now: now)
+        let work = restored.claudeSnapshot(roots: accounts[1].profile.logURLs(home: home), now: now)
+        let combined = restored.snapshot(plans: [:], providers: [.claude], now: now)
+        suite.expect(personal.usage(.month).total.tokens.total == 7 && personal.usage(.month).total.cost == 2
+                        && personal.live.count == 1 && personal == viaAlias
+                        && combined.usage(.month).total == personal.usage(.month).total
+                        && work.usage(.month).total.tokens.total == 0 && work.live.isEmpty,
+                     "source aliases preserve Personal's tokens, spend and live turns after restoring cached usage")
+    }
+
     private static func sharedHistory(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
         let manager = FileManager.default
         let personal = accounts[0], work = accounts[1]
@@ -243,6 +278,14 @@ enum ClaudeMultiAccountTests {
                         && totals.map { $0.tokens.total } == [11, 0]
                         && totals[0].cost == host.snapshot.usage(.today).total.cost && totals[1].cost == 0,
                      "shared logs contribute tokens and API value to the first account and combined usage only once")
+        let cached = AgentUsageArchive.Contents(providers: [.claude], store: host.store.saved,
+            cursors: host.cursors.values.map(\.saved))
+        let resumed = AgentUsageArchive.resume(cached, logs: Set(host.cursors.keys), since: now.addingTimeInterval(-86_400))
+        let personalUsage = resumed.store.claudeSnapshot(roots: personal.logURLs(home: home, scopes: scopes), now: now)
+        suite.expect(personal.id.isEmpty && personalUsage.usage(.month).total.tokens.total == 11
+                        && resumed.store.snapshot(plans: [:], providers: [.claude], now: now).usage(.month).total
+                            == personalUsage.usage(.month).total,
+                     "a relaunch keeps shared cached history in All accounts and Personal despite Personal's empty account id")
         let reordered = [work, personal]
         let reorderedScopes = ClaudeMonitoredAccount.logScopes(reordered, home: home)
         let legacyRoot = AgentLogRoot.canonical(home.appending(path: ".config/claude/projects"))

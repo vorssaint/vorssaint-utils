@@ -16,7 +16,7 @@ import Network
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
-/// work to each other asynchronously, except that a stop waits for progress
+/// work to each other asynchronously, except that a final stop waits for progress
 /// to be saved. The queue never waits for the main thread.
 final class AgentUsageService: ObservableObject {
     static let shared = AgentUsageService()
@@ -156,7 +156,7 @@ final class AgentUsageService: ObservableObject {
         // resume progress saved for the old set, so it goes at once. Codex
         // accounts keep their checks: they read no log.
         if running, wanted != providers || accounts.map(\.directory) != claudeAccounts.map(\.directory) {
-            stop(keepingProgress: false, pausingAccounts: false)
+            stop(keepingProgress: false, pausingAccounts: false, waitingForReader: false)
         }
         if claudeProfile != profile { claudeProfile = profile }
         if claudeAccounts != accounts { claudeAccounts = accounts }
@@ -212,16 +212,16 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
+    func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true, waitingForReader waits: Bool = true) {
         if pausingAccounts {
             CodexProfileLimitsService.shared.pause()
             ClaudeProfileLimitsService.shared.pause()
         }
         pageVisible = false
-        // A first read still going stops at its next chunk, so the wait
-        // below is short.
+        // A first read still going stops at its next chunk. A settings restart
+        // leaves its cleanup queued before the new read.
         if running { cancellation.cancel() }
-        settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
+        settleArchive(keeping: keeps && NotchAgentSupport.isEnabled(), waitingForReader: waits)
         guard running else { return }
         running = false
         cancelClaudeLimits()
@@ -321,6 +321,7 @@ final class AgentUsageService: ObservableObject {
                        claudeAccounts: [ClaudeMonitoredAccount] = []) {
         startTimer()
         queue.async { [self] in
+            guard !cancellation.isCancelled else { return }
             readerSession = session
             readerCancellation = cancellation
             enabled = providers
@@ -373,13 +374,14 @@ final class AgentUsageService: ObservableObject {
     }
 
     /// Saves progress, or removes it once the section is off, even what an
-    /// earlier launch saved. Quitting stops the service too and ends the
-    /// process right after, so this returns only once the file is settled.
+    /// earlier launch saved. Quitting waits for the file to settle; a settings
+    /// restart queues it before the new read without holding up the main thread.
     /// Main thread.
-    private func settleArchive(keeping keeps: Bool) {
-        queue.sync {
+    private func settleArchive(keeping keeps: Bool, waitingForReader waits: Bool = true) {
+        let settle = { [self] in
             if keeps { saveProgress() } else { AgentUsageArchive.remove() }
         }
+        if waits { queue.sync { settle() } } else { queue.async { settle() } }
     }
 
     /// Saves what was read, when reading moved on since the last save. Runs
