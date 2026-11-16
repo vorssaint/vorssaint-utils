@@ -464,7 +464,8 @@ private struct NotchCalendarEventRow: View {
 }
 
 /// Join first when a meeting link exists, then Open Calendar, then Add/Remove
-/// Countdown when that choice is available. Join is additive, never a replacement.
+/// Countdown when that choice is available, then the island's own Explore /
+/// Keep Open / Settings. Join is additive, never a replacement for those.
 private struct NotchCalendarEventMenu: ViewModifier {
     let chosen: Bool?
     let text: NotchCalendarStrings
@@ -485,6 +486,8 @@ private struct NotchCalendarEventMenu: ViewModifier {
                     if let chosen {
                         Button(chosen ? text.removeCountdown : text.addCountdown) { choose(!chosen) }
                     }
+                    Divider()
+                    NotchIslandContextMenu()
                 }
                 .modifier(NotchJoinAccessibilityAction(join: join, title: text.joinMeeting))
                 .modifier(NotchCountdownAccessibilityAction(chosen: chosen, text: text, choose: choose))
