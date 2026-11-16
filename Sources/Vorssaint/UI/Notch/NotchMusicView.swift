@@ -13,6 +13,7 @@ struct NotchMusicView: View {
     @ObservedObject private var shuffle = NotchShuffleService.shared
     @AppStorage(DefaultsKey.notchLyricsEnabled) private var lyricsEnabled = true
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
+    @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
     @State private var extra: MusicExtra?
     private enum MusicExtra { case lyrics, queue }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -24,6 +25,7 @@ struct NotchMusicView: View {
     private var accent: Color { service.artworkTint?.color ?? .white }
     private var showsLyrics: Bool { lyricsEnabled && AppFeature.notchLyrics.isAvailable }
     private var showsQueue: Bool { queueEnabled && AppFeature.notchQueue.isAvailable }
+    private var showsVolume: Bool { showVolume && AppFeature.mixer.isAvailable }
     private var openExtra: MusicExtra? {
         guard service.playback != nil else { return nil }
         switch extra {
@@ -44,7 +46,7 @@ struct NotchMusicView: View {
         let geometry = NotchService.shared.geometry
         let split = NotchLayout.musicSplit(
             height: size.height, extras: extrasHeight,
-            resting: NotchLayout.musicPlayerHeight(band: bandHeight, playing: service.playback != nil),
+            resting: NotchLayout.musicPlayerHeight(band: bandHeight, playing: service.playback != nil, showVolume: showsVolume),
             keepsPlayer: !preview && geometry.layout != .custom, extraOpen: openExtra != nil)
         // With the player gone the list starts below the camera's row, which
         // keeps its toggles; without that row they come back in one of their
@@ -156,7 +158,7 @@ struct NotchMusicView: View {
         let player = preview ? nil : NotchPreferredPlayer.current()
         let opens = player != nil
         let openTitle = player.map { NotchPreferredPlayer.openTitle(for: $0) } ?? ""
-        return VStack(spacing: NotchLayout.musicHeadSpacing) {
+        return VStack(spacing: 0) {
             head(corner: !band.besideCamera && band.pageSectionsButton) {
                 // With a music app to open, the cover and the buttons below open it.
                 Button { NotchPreferredPlayer.open() } label: {
@@ -197,9 +199,18 @@ struct NotchMusicView: View {
                 }
             }
             .frame(height: NotchLayout.musicTransportHeight)
-            .padding(.bottom, NotchLayout.musicBottomRoom)
+            .padding(.top, NotchLayout.musicHeadSpacing)
+            volumeRow
+            Color.clear.frame(height: NotchLayout.musicBottomRoom)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    @ViewBuilder private var volumeRow: some View {
+        if showsVolume {
+            NotchAudioControls()
+                .padding(.top, NotchLayout.rowSpacing)
+        }
     }
 
     /// Lyrics and the queue are toggles, named by their glyphs as a player's own are.
@@ -298,6 +309,7 @@ struct NotchMusicView: View {
                 NotchMusicTransport(playback: playback, slot: slot)
             }
             .padding(.top, NotchLayout.rowSpacing)
+            volumeRow
             Color.clear.frame(height: NotchLayout.musicBottomRoom)
         }
         .modifier(NotchMusicSwipeFeedback())
@@ -338,7 +350,7 @@ struct NotchMusicView: View {
         let extras = FeatureStrings.notchMusicExtras(l10n.language)
         let pid = playback?.track.appPID
         let name = service.sources.first(where: { $0.pid == pid })?.displayName
-            ?? pid.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+            ?? pid.flatMap { RadialNowPlayingApplication.playerApplication(bundleIdentifier: nil, pid: $0)?.localizedName }
             ?? playback?.track.appBundleIdentifier ?? extras.playbackSource
         return Menu {
             Button { service.selectSource(nil) } label: {
@@ -415,9 +427,11 @@ private enum NotchPlayerApps {
 
     static func app(pid: Int32, bundle: String?) -> (name: String?, icon: NSImage?) {
         if let entry = known[pid], bundle == nil || entry.bundle == bundle { return (entry.name, entry.icon) }
-        let running = NSRunningApplication(processIdentifier: pid)
+        let running = RadialNowPlayingApplication.playerApplication(bundleIdentifier: bundle, pid: pid)
         if known.count >= 16 { known.removeAll() }
-        known[pid] = (running?.bundleIdentifier ?? bundle, running?.localizedName, running?.icon)
+        // Keyed by what the reading names, which for a WebKit helper is not
+        // the app it resolves to.
+        known[pid] = (bundle ?? running?.bundleIdentifier, running?.localizedName, running?.icon)
         return (running?.localizedName, running?.icon)
     }
 }
@@ -687,6 +701,7 @@ struct NotchMusicTimeline: View {
                 range: 0...playback.duration,
                 tint: tint,
                 valueLabel: timestamp(position),
+                scrollable: false,
                 onEditingChanged: { editing in
                     if editing {
                         pendingSeek = nil

@@ -109,8 +109,10 @@ enum CleanerSupport {
         // An entry has one extension. Removing every match in turn also took
         // an identifier's last component when it is spelled like one, so
         // com.vendor.Service.plist was credited to com.vendor.
+        // A log file is a payload too: kept, its extension made a plain name
+        // such as MCXTools.log pass for a two component identifier.
         let lowered = name.lowercased()
-        if let suffix = [".plist", ".savedState", ".binarycookies", ".prefPane",
+        if let suffix = [".plist", ".log", ".savedState", ".binarycookies", ".prefPane",
                          ".qlgenerator", ".mdimporter", ".service", ".appex",
                          ".plugin", ".webplugin", ".saver", ".colorPicker",
                          ".wdgt", ".app", ".framework", ".component", ".vst",
@@ -233,6 +235,17 @@ enum CleanerSupport {
             if lowered.hasPrefix(id + ".") || id.hasPrefix(lowered + ".") { return true }
         }
         return false
+    }
+
+    /// Vendors sometimes use their domain as the support directory name.
+    /// An installed net.battle.app keeps Battle.net on a dot boundary.
+    static func isOwnedSupportDomain(_ name: String, byInstalled installed: Set<String>) -> Bool {
+        let parts = name.lowercased().split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty,
+              !hostingNamespaces.contains(String(parts[0])) else { return false }
+        let namespace = "\(parts[1]).\(parts[0])"
+        let prefix = namespace + "."
+        return installed.contains(namespace) || installed.contains { $0.hasPrefix(prefix) }
     }
 
     /// The executables a launchd property list points at, in the order they

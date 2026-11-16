@@ -466,6 +466,30 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingSamplesAreStable(nextScrollSample,
                                                            nextScrollSample),
                "settling recognizes two unchanged scrolling frames")
+        func lowContrastSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            let sample = scrollingSample(offset: offset)
+            var pixels = sample.pixels.map { $0 / 16 }
+            if noisy {
+                for index in stride(from: 0, to: pixels.count, by: 17) { pixels[index] += 1 }
+            }
+            return .init(width: sample.width, height: sample.height, pixels: pixels)
+        }
+        suite.expect(ScreenshotSupport.scrollingTransition(previous: lowContrastSample(offset: 0),
+                                                           current: lowContrastSample(offset: 42))
+                == .advanced(overlap: 78, direction: .forward, contentColumns: 0..<16),
+               "a precise low-contrast overlap beats longer but only similar rows")
+        for offset in [2, 42] {
+            for noisy in [false, true] {
+                let start = lowContrastSample(offset: 0)
+                let next = lowContrastSample(offset: offset, noisy: noisy)
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: start, current: next)
+                        == .advanced(overlap: 120 - offset, direction: .forward, contentColumns: 0..<16),
+                             "a precise low-contrast overlap survives similar rows, offset: \(offset), noisy: \(noisy)")
+                suite.expect(ScreenshotSupport.scrollingTransition(previous: next, current: start)
+                        == .advanced(overlap: 120 - offset, direction: .backward, contentColumns: 0..<16),
+                             "low-contrast backtracking keeps the correct overlap, offset: \(offset), noisy: \(noisy)")
+            }
+        }
         let shortFinalScrollSample = scrollingSample(offset: 8)
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: shortFinalScrollSample)
@@ -540,7 +564,7 @@ enum ScreenshotFeatureTests {
             fixedBottomRows: 0) == 78..<120,
                "captures without a fixed footer keep the original crop geometry")
         // Each input is independent: repeating the same pure call adds no case.
-        for offset in [8, 76] {
+        for offset in [8, 76, 96, 104] {
             let transition = ScreenshotSupport.scrollingTransition(
                 previous: firstScrollSample,
                 current: scrollingSample(offset: offset))
@@ -548,6 +572,12 @@ enum ScreenshotFeatureTests {
                                             direction: .forward,
                                             contentColumns: 0..<16),
                    "scroll matching handles an advance of \(offset) rows: \(transition)")
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: scrollingSample(offset: offset),
+                current: firstScrollSample) == .advanced(overlap: 120 - offset,
+                                                       direction: .backward,
+                                                       contentColumns: 0..<16),
+                "small overlaps also identify backward scrolling by \(offset) rows")
         }
         let retinaScrollStart = scrollingSample(width: 32, height: 900, offset: 0)
         let retinaScrollNext = scrollingSample(width: 32, height: 900, offset: 558)
@@ -614,6 +644,21 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.scrollingTransition(previous: firstScrollSample,
                                                      current: unmatchedScrollSample) == .unmatched,
                "ambiguous content fails instead of inventing a seam")
+        func repeatedScrollSample(offset: Int, noisy: Bool = false) -> ScreenshotSupport.ScrollingSample {
+            var pixels = [UInt8](repeating: 0, count: 16 * 120)
+            for index in pixels.indices {
+                let row = (index / 16 + offset) % 24
+                let noise = noisy && index % 17 == 0 ? 1 : 0
+                pixels[index] = UInt8(row * 9 + noise)
+            }
+            return .init(width: 16, height: 120, pixels: pixels)
+        }
+        for noisy in [false, true] {
+            suite.expect(ScreenshotSupport.scrollingTransition(
+                previous: repeatedScrollSample(offset: 0),
+                current: repeatedScrollSample(offset: 8, noisy: noisy)) == .unmatched,
+                "equally precise repeated rows cannot select an arbitrary scroll offset, noisy: \(noisy)")
+        }
         suite.expectClose(Double(ScreenshotSupport.captureScale(fromDPI: 144) ?? 0), 2,
                     "the cached screenshot restores its Retina scale from PNG metadata")
         suite.expect(ScreenshotSupport.captureScale(fromDPI: nil) == nil
@@ -1050,7 +1095,7 @@ enum ScreenshotFeatureTests {
         let captureFeatures: Set<AppFeature> = [.screenshot, .screenRecorder,
                                                 .screenOCR, .colorPicker]
         suite.expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
-                == [.screenshot, .recording, .text, .color],
+                == [.screenshot, .recording, .text, .color, .scrolling],
                "the capture chooser keeps a stable order for every installed mode")
         let captureSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
@@ -1097,13 +1142,33 @@ enum ScreenshotFeatureTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
                 && ScreenCaptureTool.matchingShortcut("1") == .screenshot
                 && ScreenCaptureTool.matchingShortcut("2") == .recording
                 && ScreenCaptureTool.matchingShortcut("3") == .text
                 && ScreenCaptureTool.matchingShortcut("4") == .color
-                && ScreenCaptureTool.matchingShortcut("5") == nil,
+                && ScreenCaptureTool.matchingShortcut("5") == .scrolling
+                && ScreenCaptureTool.matchingShortcut("6") == nil,
                "number keys select the same capture mode shown in the chooser")
+        suite.expect(ScreenCaptureTool.available(isAvailable: { $0 == .screenshot })
+                == [.screenshot, .scrolling]
+                && ScreenCaptureTool.scrolling.feature == .screenshot,
+               "scrolling capture is installed and removed with the screenshot feature")
+        let scrollingPolicy = ScreenshotSupport.unifiedCapturePolicy(
+            for: .scrolling,
+            screenshotFreeze: true,
+            screenshotIncludePointer: true,
+            screenshotHideVorssaintWindows: false)
+        suite.expect(scrollingPolicy == .init(freeze: false, includePointer: false,
+                                              hideVorssaintWindows: false,
+                                              keepsContentWindowsOut: false,
+                                              usesGeometry: true),
+               "scrolling capture selects a live region without repeated pointer marks")
+        suite.expect(GlobalShortcutRole.screenshotScrolling.requiredEnableKeys
+                == [DefaultsKey.screenshotScrollingShortcutEnabled]
+                && GlobalShortcutRole.screenshotScrolling.storageKey
+                    == DefaultsKey.screenshotScrollingShortcut,
+               "scrolling capture has its own optional shortcut and preferences")
         let liveScreenshotPolicy = ScreenshotSupport.unifiedCapturePolicy(
             for: .screenshot,
             screenshotFreeze: false,
@@ -1460,11 +1525,11 @@ enum ScreenshotFeatureTests {
         // Both editors state a size the same way. The recorder wrote
         // "1960x1274" beside a screenshot editor that already read
         // "2940 \u{00D7} 1912 px", and the letter x is the tell.
-        let recorderEditorSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift",
+        let recorderExportControlSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Recorder/RecorderExportFormatControl.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(!recorderEditorSource.isEmpty, "the recorder editor source reads back for its shape check")
-        suite.expect(recorderEditorSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
+        suite.expect(!recorderExportControlSource.isEmpty, "the recorder export control source reads back for its shape check")
+        suite.expect(recorderExportControlSource.contains("\\(Int(size.width)) \u{00D7} \\(Int(size.height))"),
                "the recorder states its output size with the multiplication sign")
         // A card that names itself twice reads like filler. The look cards had
         // borrowed the shape, pointer and background labels as subtitles, so
@@ -2918,6 +2983,52 @@ enum ScreenshotFeatureTests {
                                                colors: [[0, 2, -1], [0.5, 0.5, 0.5]])
                 .sanitized().colors?.first == [0, 1, 0],
                "gradient colors clamp component by component")
+        // A window capture keeps its rounded corners in its alpha. The card's
+        // shadow has to follow them, or a square of shadow shows past them.
+        func card(cornerRadius: CGFloat) -> CGImage? {
+            guard let context = CGContext(data: nil, width: 400, height: 300, bitsPerComponent: 8,
+                                          bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            context.setFillColor(CGColor(gray: 0.5, alpha: 1))
+            context.addPath(CGPath(roundedRect: CGRect(x: 0, y: 0, width: 400, height: 300),
+                                   cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil))
+            context.fillPath()
+            return context.makeImage()
+        }
+        if let square = card(cornerRadius: 0), let window = card(cornerRadius: 40) {
+            suite.expect(ScreenshotSupport.transparentCornerRadius(of: square) == 0,
+                   "an opaque capture has no rounding of its own")
+            suite.expect(abs(ScreenshotSupport.transparentCornerRadius(of: window) - 40) <= 3,
+                   "a window's own corner radius is read from its alpha")
+            func shadowBrightness(_ image: CGImage) -> UInt8? {
+                let margin = Int(ScreenshotSupport.backdropPadding(for: CGSize(width: 400, height: 300),
+                                                                   factor: 1))
+                guard let export = ScreenshotRenderer.renderExport(
+                        baseImage: image, annotations: [], blurSources: .none, scale: 1,
+                        annotationShadowsEnabled: false, watermark: ScreenshotSupport.WatermarkStyle(),
+                        watermarkImage: nil,
+                        style: ScreenshotSupport.BackdropStyle(kind: .solid, colors: [[1, 1, 1]],
+                                                               padding: 1, cornerRadius: 0),
+                        fill: .colors([(red: 1, green: 1, blue: 1)]), downscaleTo1x: false)?.image,
+                      let context = CGContext(data: nil, width: export.width, height: export.height,
+                                              bitsPerComponent: 8, bytesPerRow: export.width * 4,
+                                              space: CGColorSpaceCreateDeviceRGB(),
+                                              bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+                      let pixels = context.data
+                else { return nil }
+                context.draw(export, in: CGRect(x: 0, y: 0, width: export.width, height: export.height))
+                // Just outside the card's lower left corner, where the shadow falls.
+                let x = margin - 2, y = export.height - margin + 1
+                return pixels.load(fromByteOffset: (y * export.width + x) * 4, as: UInt8.self)
+            }
+            if let squareCorner = shadowBrightness(square), let windowCorner = shadowBrightness(window) {
+                suite.expect(Int(windowCorner) - Int(squareCorner) >= 20,
+                       "the shadow follows a window's own rounded corner instead of a square card")
+            } else {
+                suite.expect(false, "the corner shadow test exports render")
+            }
+        }
 
         let presetList = [solidStyle,
                           ScreenshotSupport.BackdropStyle(kind: .gradient,
@@ -4045,6 +4156,41 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.absentClaims(recorded: nil, present: ["mic-a"]).isEmpty
                 && MicMuteSupport.absentClaims(recorded: ["headset"], present: []) == ["headset"],
                "a sweep keeps the claim on a microphone this app muted that is unplugged right now, so it is released when it returns")
+        suite.expect(!MicMuteSupport.shouldReplaceSavedVolume(existing: 0.4, current: 1.0)
+                && MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0.4)
+                && MicMuteSupport.shouldReplaceSavedVolume(existing: 0, current: 0.4)
+                && !MicMuteSupport.shouldReplaceSavedVolume(existing: nil, current: 0),
+               "a later re-apply keeps the first real level and never saves silence")
+        suite.expect(!MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.75)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: 0.005)
+                && MicMuteSupport.isCaptureSilenced(muteSwitch: 1, volume: nil)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: 0.4)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: nil, volume: 0.4)
+                && !MicMuteSupport.isCaptureSilenced(muteSwitch: 0, volume: nil),
+               "a live volume is not silence even when the mute switch is on, and a mute-only device still counts the switch")
+        suite.expect(MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: true)
+                && !MicMuteSupport.shouldLeaveUntouched(owned: true, captureSilenced: true)
+                && !MicMuteSupport.shouldLeaveUntouched(owned: false, captureSilenced: false),
+               "a user-quiet microphone is left alone and one this app muted is still ours")
+        suite.expect(MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0)
+                == .restore(clearMute: true, restoreVolume: true)
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: 0.75)
+                == .restore(clearMute: true, restoreVolume: false)
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0)
+                == .restore(clearMute: false, restoreVolume: true)
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: 0.75) == .alreadyAudible
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil)
+                == .restore(clearMute: true, restoreVolume: false)
+                && MicMuteSupport.restoreNeed(muteSwitch: 1, volume: nil, hasSavedVolume: true)
+                == .unreadable
+                && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
+               "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
+        suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
+                && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
+               "every input channel is muted, never fewer than the stereo pair")
         let micMuteServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
             encoding: .utf8)) ?? ""
@@ -4124,7 +4270,7 @@ enum ScreenshotFeatureTests {
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
         suite.expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling],
                "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded

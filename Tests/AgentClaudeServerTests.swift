@@ -32,8 +32,6 @@ enum AgentClaudeServerTests {
         var claudeWeeklyScope: String?
         var weeklyHistory = AgentWeeklyUsage()
         var weeklySaveFailed = false
-        var claudeProfileModified: Date?
-        var claudePlan: AgentPlan?
         var weeklyPublications: [AgentWeeklyUsage] = []
         func schedulePublish() { weeklyPublications.append(weeklyHistory) }
         var refreshRequests: [Bool] = []
@@ -51,6 +49,10 @@ enum AgentClaudeServerTests {
         var home = FileManager.default.temporaryDirectory
         var enabled: Set<AgentProvider> = [.claude]
         var claudeOrganization: String? = "account"
+        var claudeIdentity: ClaudeAccountProfile.Identity?
+        var claudePlan: AgentPlan?
+        var claudeProfileModified: Date?
+        var readerClaudeProfile = ClaudeAccountProfile()
         var claudeAppModified: Date?
         var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
         var claudeAccountLimits: AgentLimits?
@@ -327,20 +329,20 @@ enum AgentClaudeServerTests {
         let renewed = AgentLimits(provider: .claude, windows: reading.windows, observedAt: later,
                                   source: .account, accountScope: scope)
         host.queue.sync {
-            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, organization: "account", accountScope: scope),
-                                     session: host.session - 1)
+            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, identity: host.claudeIdentity),
+                                     session: host.session - 1, profile: host.readerClaudeProfile)
         }
         suite.expect(host.weeklyHistory.current(.claude) == nil && host.claudeAccountLimits == nil,
                      "a response from an old reader session cannot restore signed-out Claude observations")
         host.queue.sync {
-            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, organization: "account", accountScope: "different"),
-                                     session: host.session)
+            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, identity: ClaudeAccountProfile.Identity(account: "different", email: nil, organization: "account")),
+                                     session: host.session, profile: host.readerClaudeProfile)
         }
         suite.expect(host.weeklyHistory.current(.claude) == nil && host.claudeAccountLimits == nil,
                      "a response for another Claude identity cannot restore signed-out observations")
         host.queue.sync {
-            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, organization: "account", accountScope: scope),
-                                     session: host.session)
+            host.acceptClaudeAccount(AgentClaudeServer.Summary(limits: renewed, identity: host.claudeIdentity),
+                                     session: host.session, profile: host.readerClaudeProfile)
         }
         for limits in host.store.limits.values { host.weeklyHistory.record(limits, now: later) }
         suite.expect(host.weeklyHistory.current(.claude)?.latest?.usedPercent == 35
@@ -378,8 +380,8 @@ enum AgentClaudeServerTests {
         unidentified.home = folder.appendingPathComponent("without-identity")
         unidentified.weeklyHistory = loaded.history
         unidentified.queue.sync {
-            unidentified.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, organization: nil, accountScope: nil),
-                                              session: unidentified.session)
+            unidentified.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, identity: nil),
+                                              session: unidentified.session, profile: unidentified.readerClaudeProfile)
         }
         unidentified.weeklyHistory.selectAccount(reading.accountScope, provider: .claude)
         suite.expect(unidentified.weeklyHistory.current(.claude) == nil
@@ -389,17 +391,21 @@ enum AgentClaudeServerTests {
         recovered.home = folder
         recovered.weeklyHistory = loaded.history
         recovered.readClaudePlan()
-        for (session, scope) in [(recovered.session - 1, reading.accountScope), (recovered.session, "different")] {
+        let recoveredIdentities: [(Int, ClaudeAccountProfile.Identity?)] = [
+            (recovered.session - 1, recovered.claudeIdentity),
+            (recovered.session, ClaudeAccountProfile.Identity(account: "different", email: nil, organization: "account"))
+        ]
+        for (session, identity) in recoveredIdentities {
             recovered.queue.sync {
-                recovered.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, organization: "account", accountScope: scope),
-                                              session: session)
+                recovered.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, identity: identity),
+                                              session: session, profile: recovered.readerClaudeProfile)
             }
         }
         suite.expect(AgentWeeklyUsageFile.load(from: AgentWeeklyUsageFile.url).history.current(.claude) == nil,
                      "old-session and different-identity successes cannot lift persisted Claude invalidation")
         recovered.queue.sync {
-            recovered.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, organization: "account",
-                                                                    accountScope: reading.accountScope), session: recovered.session)
+            recovered.acceptClaudeAccount(AgentClaudeServer.Summary(limits: reading, identity: recovered.claudeIdentity),
+                                          session: recovered.session, profile: recovered.readerClaudeProfile)
         }
         let restored = AgentWeeklyUsageFile.load(from: AgentWeeklyUsageFile.url)
         suite.expect(!restored.failed && restored.history.current(.claude)?.samples.count == 1,

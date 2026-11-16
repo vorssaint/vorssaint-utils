@@ -144,6 +144,9 @@ struct BrightnessSection: View {
                     .accessibilityLabel(display.name)
             }
             SoftwareDimmingButton(display: display, compact: true)
+            if display.isActive, let audio = display.audio {
+                MonitorSpeakerVolumeRow(displayName: display.name, audio: audio, strings: strings, compact: true)
+            }
         }
     }
 
@@ -184,6 +187,46 @@ struct BrightnessSection: View {
     }
 }
 
+struct MonitorSpeakerVolumeRow: View {
+    let displayName: String
+    let audio: BrightnessDisplay.Audio
+    let strings: BrightnessFeatureStrings
+    let compact: Bool
+
+    var body: some View {
+        HStack(spacing: compact ? 6 : 12) {
+            if let muted = audio.muted {
+                Button {
+                    BrightnessService.shared.requestSpeakers(.set(volume: nil, muted: !muted), target: audio.target)
+                } label: {
+                    Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        .font(.system(size: compact ? 10 : 12, weight: .semibold))
+                        .foregroundStyle(muted ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
+                        .frame(width: 16)
+                }
+                .buttonStyle(.plain)
+                .help(muted ? strings.unmute : strings.mute)
+                .accessibilityLabel("\(displayName): \(muted ? strings.unmute : strings.mute)")
+            } else {
+                Image(systemName: "speaker.wave.2.fill")
+                    .font(.system(size: compact ? 10 : 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+            }
+            Slider(value: Binding(get: { audio.volume }, set: {
+                BrightnessService.shared.requestSpeakers(.set(volume: $0, muted: nil), target: audio.target)
+            }),
+                   in: 0...1)
+                .controlSize(compact ? .small : .regular)
+                .accessibilityLabel("\(displayName) \(strings.volumeLabel)")
+            Text("\(Int((audio.volume * 100).rounded()))%")
+                .font(compact ? .system(size: 10, weight: .semibold).monospacedDigit() : .body.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: compact ? 30 : 52, alignment: .trailing)
+        }
+    }
+}
+
 private struct ExtraBrightnessPanelToggle: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = ExtraBrightnessService.shared
@@ -209,6 +252,10 @@ private struct ExtraBrightnessPanelToggle: View {
 /// hardware minimum and is offered in Settings. On write-only DDC paths, it
 /// keeps the existing fallback to software control on both surfaces (issue
 /// #1589). Either choice stays visible until cleared.
+///
+/// A readable DDC display can also be moved to software control by hand in
+/// Settings. Some monitors answer reads but black out on brightness writes,
+/// and the only way to stop sending them is to leave DDC (issue #3621).
 struct SoftwareDimmingButton: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = BrightnessService.shared
@@ -232,28 +279,46 @@ struct SoftwareDimmingButton: View {
         return !(compact && display.readable)
     }
 
+    /// The opt-out from DDC for a readable monitor. Settings only, and only
+    /// while no other choice is on: once chosen, the main button carries it.
+    private var pictureDimmingOffered: Bool {
+        guard !compact, !chosen, display.isActive, !display.isBuiltIn,
+              display.canChooseDimming else { return false }
+        return display.method == .ddc && display.readable
+    }
+
     var body: some View {
         if offered {
-            Button {
+            choice(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming,
+                   chosen: chosen) {
                 if usesExtendedDimming {
                     service.setExtendedDimmingPreferred(!extendedChosen, for: display.id)
                 } else {
                     service.setSoftwareDimmingPreferred(!softwareChosen, for: display.id)
                 }
-            } label: {
-                HStack(spacing: compact ? 4 : 5) {
-                    Image(systemName: chosen ? "checkmark.circle.fill" : "circle.lefthalf.filled")
-                        .font(.system(size: compact ? 9.5 : 11, weight: .semibold))
-                    Text(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)
-                        .font(.system(size: compact ? 10 : 12, weight: .medium))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(chosen ? Color.accentColor : Color.secondary)
             }
-            .buttonStyle(.plain)
-            .disabled(service.isDisplayPending(display.id))
-            .accessibilityLabel("\(display.name): \(usesExtendedDimming ? strings.extendedDimming : strings.softwareDimming)")
         }
+        if pictureDimmingOffered {
+            choice(strings.softwareDimming, chosen: false) {
+                service.setSoftwareDimmingPreferred(true, for: display.id)
+            }
+        }
+    }
+
+    private func choice(_ title: String, chosen: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: compact ? 4 : 5) {
+                Image(systemName: chosen ? "checkmark.circle.fill" : "circle.lefthalf.filled")
+                    .font(.system(size: compact ? 9.5 : 11, weight: .semibold))
+                Text(title)
+                    .font(.system(size: compact ? 10 : 12, weight: .medium))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(chosen ? Color.accentColor : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .disabled(service.isDisplayPending(display.id))
+        .accessibilityLabel("\(display.name): \(title)")
     }
 }
 

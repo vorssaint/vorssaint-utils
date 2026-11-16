@@ -99,6 +99,10 @@ struct FanControlCardContent: View {
                 fanRows
             }
 
+            if error != .helperUnavailable, error != .controlFailed {
+                temperatureSummary
+            }
+
             if let message = stateMessage {
                 Text(message)
                     .font(.system(size: 10))
@@ -143,6 +147,38 @@ struct FanControlCardContent: View {
                     .foregroundStyle(Color.secondary.opacity(0.84))
                     .fixedSize(horizontal: false, vertical: true)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var temperatureSummary: some View {
+        let readings = snapshot.temperatures ?? []
+        let targets: [(FanControlTemperatureSource, String)] = [
+            (.hottestSoC, strings.hottestSoC),
+            (.hottestCPU, strings.hottestCPU),
+            (.hottestGPU, strings.hottestGPU)
+        ]
+
+        let formatted: [String] = targets.compactMap { target -> String? in
+            let (source, name) = target
+            guard let reading = readings.first(where: { $0.source == source }) else {
+                return nil
+            }
+            return "\(name) \(MetricFormat.temperature(reading.celsius, unit: temperatureUnit))"
+        }
+
+        if !formatted.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(strings.temperature)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+
+                Text(formatted.joined(separator: " · "))
+                    .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 2)
         }
     }
 

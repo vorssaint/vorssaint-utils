@@ -311,7 +311,7 @@ struct MouseButtonShortcutsSection: View {
         stopCapture()
         spacesFeedback = nil
         spacesCapturing = true
-        MouseButtonShortcutService.shared.setCapturing(true)
+        MouseButtonShortcutService.shared.setCapturing(true, forSpacesGesture: true)
         if !permissions.accessibility {
             permissions.requestAccessibility()
         }

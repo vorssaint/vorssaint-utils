@@ -125,9 +125,7 @@ struct NotchClipboardView: View {
         }
         .background {
             if !preview {
-                ClipboardKeyMonitor(handleKey: {
-                    handleKey(keyCode: $0, characters: $1, modifiers: $2, composing: $3, editing: $4)
-                }, composed: { searchOpen = true })
+                ClipboardKeyMonitor(handleKey: handleKey, composed: { searchOpen = true })
                     .frame(width: 0, height: 0)
             }
         }
@@ -535,12 +533,14 @@ struct NotchClipboardView: View {
         searching = true
     }
 
-    /// Up and Down move the highlight and Return pastes or copies it like a
-    /// click. A typed letter shows the search field and goes on to it.
-    private func handleKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
-                           composing: Bool, editing: Bool) -> Bool {
-        guard let key = NotchSupport.clipboardKey(keyCode: keyCode, characters: characters,
-                                                  modifiers: modifiers, composing: composing) else { return false }
+    /// Up/Control-P and Down/Control-N move the highlight. Return pastes or
+    /// copies it like a click. A typed letter shows the search field and goes on to it.
+    private func handleKey(_ event: NSEvent, composing: Bool, editing: Bool) -> Bool {
+        // Control produces control characters; match its shortcuts by the
+        // layout's letter, while ordinary typing keeps the original text.
+        let characters = event.modifierFlags.contains(.control) ? event.charactersIgnoringModifiers : event.characters
+        guard let key = NotchSupport.clipboardKey(keyCode: event.keyCode, characters: characters ?? "",
+                                                  modifiers: event.modifierFlags, composing: composing) else { return false }
         let ids = entries.map(\.id)
         switch key {
         case .move(let backwards):
@@ -663,11 +663,11 @@ struct NotchClipboardView: View {
     }
 }
 
-/// Reads the arrow keys and Return before the search field's editor does,
+/// Reads the arrows, Control-P/N and Return before the search field's editor,
 /// which would otherwise spend them moving the caret, and shows the hidden
 /// field as typing reaches it. It lives as long as the page does.
 private struct ClipboardKeyMonitor: NSViewRepresentable {
-    var handleKey: (UInt16, String, NSEvent.ModifierFlags, Bool, Bool) -> Bool
+    var handleKey: (NSEvent, Bool, Bool) -> Bool
     /// A dead key or an input method's first key marks text in the field.
     var composed: () -> Void
 
@@ -691,11 +691,11 @@ private struct ClipboardKeyMonitor: NSViewRepresentable {
     }
 
     final class Coordinator {
-        var handleKey: (UInt16, String, NSEvent.ModifierFlags, Bool, Bool) -> Bool
+        var handleKey: (NSEvent, Bool, Bool) -> Bool
         var composed: () -> Void
         private var monitor: Any?
 
-        init(handleKey: @escaping (UInt16, String, NSEvent.ModifierFlags, Bool, Bool) -> Bool,
+        init(handleKey: @escaping (NSEvent, Bool, Bool) -> Bool,
              composed: @escaping () -> Void) {
             self.handleKey = handleKey
             self.composed = composed
@@ -708,7 +708,7 @@ private struct ClipboardKeyMonitor: NSViewRepresentable {
                 // Another text view, such as a dialog's, keeps its keys.
                 if editor == nil, window.firstResponder is NSTextView { return event }
                 let composing = editor?.hasMarkedText() == true
-                if self.handleKey(event.keyCode, event.characters ?? "", event.modifierFlags, composing, editor != nil) {
+                if self.handleKey(event, composing, editor != nil) {
                     return nil
                 }
                 // A dead key reports no character and marks its accent only

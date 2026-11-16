@@ -92,11 +92,11 @@ enum PanelSectionID: String, CaseIterable, Identifiable, Hashable {
                                  .windowLayout, .uninstaller, .urlCleaner, .cleaningMode, .screenOCR,
                                  .colorPicker, .screenshot, .screenRecorder,
                                  .cameraPreview, .scratchpad, .commandBar, .portManager]
-        case .controls: return [.scrollInverter, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
+        case .controls: return [.scrollInverter, .smoothScroll, .linearScroll, .focusFollowsMouse, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .switcher,
                                 .finderCutPaste, .autoQuit,
                                 .shelf, .windowMaximizer, .dockPreview, .keyboardDebounce, .dockClick, .spacesOrder,
                                 .middleClick, .textSnippets, .superKey, .radialMenu, .mouseClickDebounce, .notch]
-        case .toggles: return [.quickToggles, .micMute]
+        case .toggles: return [.quickToggles, .micMute, .quitApps]
         case .wallpaper: return [.wallpaper]
         }
     }

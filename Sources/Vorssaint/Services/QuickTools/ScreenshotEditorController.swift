@@ -286,6 +286,22 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
                                            factor: CGFloat(backdropStyle.cornerRadius))
     }
 
+    /// The card's outline, which its shadow follows: a window's own rounded
+    /// corners when they are rounder than the user's, as the exporter draws.
+    var cardOutlineCornerPixels: CGFloat {
+        max(cardCornerPixels, baseImageCornerPixels)
+    }
+
+    /// Read once per picture: a crop or a canvas change makes a new one.
+    private var measuredBaseImageCorner: (image: CGImage, radius: CGFloat)?
+
+    private var baseImageCornerPixels: CGFloat {
+        if let measured = measuredBaseImageCorner, measured.image === baseImage { return measured.radius }
+        let radius = ScreenshotSupport.transparentCornerRadius(of: baseImage)
+        measuredBaseImageCorner = (baseImage, radius)
+        return radius
+    }
+
     /// True when something actually paints behind the capture (an image
     /// backdrop whose file vanished counts as nothing).
     var showsBackdrop: Bool {
@@ -1358,6 +1374,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 /// effect: clipboard, files, pins, text recognition and the close-confirm.
 final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     let model: ScreenshotEditorModel
+    let sourceFormat: MediaImageFormat
     private var window: NSWindow?
     private var keyMonitor: Any?
     private var scrollMonitor: Any?
@@ -1373,6 +1390,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     init(capture: ScreenshotSelectionController.Capture) {
         model = ScreenshotEditorModel(image: capture.image, scale: capture.scale)
+        sourceFormat = capture.sourceFormat
         super.init()
     }
 
@@ -1638,7 +1656,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     func shareFile() -> URL? {
         guard let export = model.exportImage() else { return nil }
         return ScreenshotService.temporaryExportFile(image: export.image, scale: export.scale,
-                                                     strings: strings)
+                                                     strings: strings, preferredFormat: sourceFormat)
     }
 
     /// Every final output closes the editor: the capture leaves the app
@@ -1656,19 +1674,19 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     @discardableResult
     static func copyImage(_ export: ScreenshotRenderer.Export, fileNamePrefix: String) -> Bool {
-        guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale),
-              let base = FileManager.default.urls(for: .cachesDirectory,
-                                                  in: .userDomainMask).first,
-              let bundleID = Bundle.main.bundleIdentifier
+        guard let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
         else { return false }
-        let folder = base.appendingPathComponent(bundleID, isDirectory: true)
-            .appendingPathComponent("Copied Screenshots", isDirectory: true)
+        let payload = clipboardPayload(from: export, png: data)
+        if UserDefaults.standard.bool(forKey: DefaultsKey.screenshotCopyImageOnly) {
+            return copyClipboardPayload(payload)
+        }
+        guard let folder = ScreenshotSupport.copiedFilesDirectory() else { return false }
         let name = ScreenshotSupport.fileName(prefix: fileNamePrefix, date: Date())
         guard let url = try? ScreenshotSupport.copiedFile(data: data, name: name,
                                                          directory: folder) else {
             return false
         }
-        guard copyFile(url, payload: clipboardPayload(from: export, png: data)) else {
+        guard copyFile(url, payload: payload, imageOnly: false) else {
             try? FileManager.default.removeItem(at: url)
             return false
         }
@@ -1677,15 +1695,22 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     @discardableResult
-    static func copyFile(_ url: URL, payload: ClipboardPayload? = nil) -> Bool {
+    static func copyFile(_ url: URL?, payload: ClipboardPayload,
+                         imageOnly: Bool = UserDefaults.standard.bool(
+                            forKey: DefaultsKey.screenshotCopyImageOnly)) -> Bool {
+        // Chromium treats a file URL as a file even when the same item has
+        // PNG/TIFF data. Keep the file representation for apps that need it,
+        // and let image-only copies reach image paste targets instead.
+        if imageOnly { return copyClipboardPayload(payload) }
+        guard let url else { return false }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         guard item.setString(url.absoluteString, forType: .fileURL) else { return false }
-        if let png = payload?.png {
+        if let png = payload.png {
             item.setData(png, forType: .png)
         }
-        if let tiff = payload?.tiff {
+        if let tiff = payload.tiff {
             item.setData(tiff, forType: .tiff)
         }
         guard pasteboard.writeObjects([item]) else { return false }
@@ -1711,6 +1736,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     @discardableResult
     static func copyClipboardPayload(_ payload: ClipboardPayload) -> Bool {
+        guard payload.png != nil || payload.tiff != nil else { return false }
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         let item = NSPasteboardItem()
@@ -1727,11 +1753,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     func save() {
         guard let export = model.exportImage(),
-              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+              let file = ScreenshotImageFile.encode(export, preferredFormat: sourceFormat)
         else { return }
-        let (url, consumedNumber) = ScreenshotService.saveDestination(strings: strings)
+        let (url, consumedNumber) = ScreenshotService.saveDestination(
+            strings: strings, fileExtension: file.format.fileExtension)
         do {
-            try data.write(to: url, options: .atomic)
+            try file.data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
             model.markExported()
             QuickToolHUD.show(icon: "camera.viewfinder",
@@ -1747,18 +1774,16 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func saveAs() {
-        guard let window else { return }
+        guard let window, let export = model.exportImage(),
+              let file = ScreenshotImageFile.encode(export, preferredFormat: sourceFormat) else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.png]
+        panel.allowedContentTypes = [file.format.contentType]
         panel.nameFieldStringValue = ScreenshotSupport.fileName(
-            prefix: strings.fileNamePrefix, date: Date())
+            prefix: strings.fileNamePrefix, date: Date(), fileExtension: file.format.fileExtension)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
-            guard let export = self.model.exportImage(),
-                  let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
-            else { return }
             do {
-                try data.write(to: url, options: .atomic)
+                try file.data.write(to: url, options: .atomic)
                 self.model.markExported()
                 self.window?.close()
             } catch {
@@ -1771,10 +1796,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     /// capture, and the editor closes as it does after Save.
     func addToShelf() {
         guard let export = model.exportImage(),
-              let data = ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+              let file = ScreenshotImageFile.encode(export, preferredFormat: sourceFormat)
         else { return }
-        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date())
-        guard ShelfService.shared.shelveGeneratedFile(data, named: name) != nil else {
+        let name = ScreenshotSupport.fileName(prefix: strings.fileNamePrefix, date: Date(),
+                                             fileExtension: file.format.fileExtension)
+        guard ShelfService.shared.shelveGeneratedFile(file.data, named: name) != nil else {
             NSSound.beep()
             return
         }

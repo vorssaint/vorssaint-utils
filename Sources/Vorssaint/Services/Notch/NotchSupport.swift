@@ -659,10 +659,11 @@ enum NotchLayout {
         max(musicArtworkSize, band > 0 ? band + musicCameraClearance + musicTitleHeight : 0)
     }
     /// The whole player, the same in every preset; with nothing playing it
-    /// has no timeline.
-    static func musicPlayerHeight(band: CGFloat, playing: Bool = true) -> CGFloat {
+    /// has no timeline. The optional volume row keeps its full control height.
+    static func musicPlayerHeight(band: CGFloat, playing: Bool = true, showVolume: Bool = false) -> CGFloat {
         musicHeadHeight(band: band) + musicHeadSpacing
             + (playing ? musicTimelineHeight + rowSpacing : 0) + musicTransportHeight + musicBottomRoom
+            + (showVolume ? rowSpacing + levelRowHeight : 0)
     }
 
     /// How the music page divides its height between the player and an open
@@ -1107,19 +1108,22 @@ enum NotchCapsuleLayout {
     /// or an event: a download's arrow and percentage, the working agents,
     /// the cover or the event's dot and countdown.
     static func timerMarkWidth(companion: NotchCompactActivity?, workingAgents: Int, downloadPercent: Bool,
-                               geometry: NotchGeometry, language: AppLanguage) -> CGFloat {
+                               geometry: NotchGeometry, language: AppLanguage,
+                               calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
         switch companion {
         case .downloads:
             return symbolWidth + (downloadPercent ? markSpacing + downloadPercentWidth(language) : 0)
         case .agents: return agentMarksWidth(working: workingAgents)
         case .music: return artworkSide(geometry)
-        case .calendar: return calendarClockWidth
+        case .calendar: return calendarClockWidth(leadTime: calendarLeadTime)
         default: return symbolWidth
         }
     }
 
     /// An event's dot and its countdown at its widest, as a pair shows it.
-    static var calendarClockWidth: CGFloat { calendarDotSide + markSpacing + width("00:00", font: readingFont) }
+    static func calendarClockWidth(leadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGFloat {
+        calendarDotSide + markSpacing + width(NotchCalendarSupport.countdownShape(leadTime: leadTime), font: readingFont)
+    }
 
     /// Between a mark and the reading beside it; an event's countdown is a
     /// group of its own, so a pair with one keeps two clocks apart.
@@ -1128,9 +1132,10 @@ enum NotchCapsuleLayout {
     /// A timer's reading beside its mark, measured by its shape, so the
     /// capsule only moves when a character comes or goes.
     static func timerSurface(reading: String, companion: NotchCompactActivity?, workingAgents: Int,
-                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                             downloadPercent: Bool, geometry: NotchGeometry, language: AppLanguage,
+                             calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
-                                  geometry: geometry, language: language)
+                                  geometry: geometry, language: language, calendarLeadTime: calendarLeadTime)
         let content = mark + markGap(companion) + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -1140,10 +1145,11 @@ enum NotchCapsuleLayout {
     /// mark, then the event's dot and countdown. Its title moves to the
     /// tooltip and VoiceOver.
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
-                                    geometry: NotchGeometry, language: AppLanguage) -> CGSize {
+                                    geometry: NotchGeometry, language: AppLanguage,
+                                    calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        return surface(content: mark + markGap(.calendar) + calendarClockWidth,
+        return surface(content: mark + markGap(.calendar) + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
     }
@@ -1176,9 +1182,11 @@ enum NotchCapsuleLayout {
 
     /// An event's color and title, then its countdown at its widest and the
     /// time it starts or ends.
-    static func calendarSurface(title: String, time: String, geometry: NotchGeometry) -> CGSize {
+    static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
+                                calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime) -> CGSize {
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
-            + width("00:00", font: readingFont) + markSpacing + width(time, font: smallFont)
+            + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
+            + markSpacing + width(time, font: smallFont)
         return surface(content: content, maximum: Maximum.calendar, geometry: geometry)
     }
 
@@ -1730,13 +1738,21 @@ enum NotchSupport {
     }
 
     /// What a key does on the clipboard page, whose search field keeps the
-    /// focus while hidden. Up, Down and Return drive the list. A typed letter
-    /// shows the field and goes on to it, so its editor and any input method
+    /// focus while hidden. Up/Down, Control-P/N and Return drive the list.
+    /// A typed letter shows the field and goes on to it, so its editor and any input method
     /// get every key, and so does every key while an input method composes.
-    /// Keys held with Command, Control or Option belong to their own shortcuts,
-    /// and Shift with the arrows or Return to the field, which selects with them.
+    /// Other Command, Control or Option keys belong to their own shortcuts;
+    /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
                              composing: Bool) -> NotchClipboardKey? {
+        let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if !composing, shortcutModifiers == .control {
+            switch characters.lowercased() {
+            case "n": return .move(backwards: false)
+            case "p": return .move(backwards: true)
+            default: break
+            }
+        }
         guard modifiers.isDisjoint(with: [.command, .control, .option]) else { return nil }
         guard !composing else { return .reveal }
         switch keyCode {
@@ -1866,6 +1882,10 @@ enum NotchSupport {
 
     static func showsMusicActivity(isPlaying: Bool, in defaults: UserDefaults = .standard) -> Bool {
         isPlaying && watchesMusicActivity(in: defaults)
+    }
+
+    static func showsMusicVolume(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchMusicShowVolume) && AppFeature.mixer.isAvailable(in: defaults)
     }
 
     static func showsInCaptures(in defaults: UserDefaults = .standard) -> Bool {
@@ -2713,6 +2733,7 @@ struct NotchGeometry: Equatable {
     func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
                       detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = true, musicHasContent: Bool = true,
+                      musicShowsVolume: Bool = false,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
                       capturePreviewHeight: CGFloat? = nil,
@@ -2750,7 +2771,11 @@ struct NotchGeometry: Equatable {
                 contentHeight = min(room, empty ? NotchLayout.emptyHeight : home.height)
             case .music:
                 let player = NotchLayout.musicPlayerHeight(band: musicBandHeight, playing: musicHasContent)
-                contentHeight = min(budget, player) + max(0, musicExtraHeight)
+                // Presets grow for the optional row; a custom height keeps
+                // its limit and the page can scroll to the controls.
+                let volume = musicShowsVolume ? NotchLayout.rowSpacing + NotchLayout.levelRowHeight : 0
+                let room = budget + (layout == .custom ? 0 : volume)
+                contentHeight = min(room, player + volume) + max(0, musicExtraHeight)
             case .system:
                 let cards = max(0, systemCards)
                 contentHeight = min(budget, cards == 0 ? NotchLayout.emptyHeight
@@ -2983,6 +3008,115 @@ enum NotchMotion {
             return (end + (end - start) * CGFloat(swing)).rounded(.up)
         }
         return CGSize(width: side(from.width, to.width, width: true), height: side(from.height, to.height, width: false))
+    }
+}
+
+/// A resize in flight, each side a sum of the island's springs from rest: the
+/// move it began with, and one more from each moment that side's target moved
+/// on the way it was already going. The island then carries on at its speed;
+/// started again from rest it stalled halfway, as the Command Bar's island did
+/// when its rows arrived while it opened. A motion turning back on either side
+/// starts again from where it is drawn, as an interrupted island always has.
+struct NotchMotionTimeline: Equatable {
+    struct Leg: Equatable {
+        var begin: CFTimeInterval
+        var from: CGFloat
+        var to: CGFloat
+    }
+
+    private(set) var width: [Leg]
+    private(set) var height: [Leg]
+    /// When its latest move began, and the size there.
+    private(set) var begin: CFTimeInterval
+    private(set) var start: CGSize
+    /// A width easing without a swing, and how far the centre still sat from
+    /// its new one. A motion with either is never carried on.
+    let steady: Bool
+    let offset: CGFloat
+
+    init(from: CGSize, to: CGSize, begin: CFTimeInterval, steady: Bool = false, offset: CGFloat = 0) {
+        width = [Leg(begin: begin, from: from.width, to: to.width)]
+        height = [Leg(begin: begin, from: from.height, to: to.height)]
+        self.begin = begin
+        start = from
+        self.steady = steady
+        self.offset = offset
+    }
+
+    var target: CGSize { CGSize(width: width.last?.to ?? start.width, height: height.last?.to ?? start.height) }
+
+    func size(at time: CFTimeInterval) -> CGSize {
+        CGSize(width: value(of: width, at: time, width: true), height: value(of: height, at: time, width: false))
+    }
+
+    func offset(at time: CFTimeInterval) -> CGFloat {
+        NotchMotion.offset(at: time - begin, from: start, to: target, start: offset, steady: steady)
+    }
+
+    /// The same motion with its latest move beginning at `time`: Core
+    /// Animation starts a motion when it reaches the screen, not when it is made.
+    func rebased(to time: CFTimeInterval) -> NotchMotionTimeline {
+        func moved(_ legs: [Leg]) -> [Leg] {
+            legs.map { $0.begin == begin ? Leg(begin: time, from: $0.from, to: $0.to) : $0 }
+        }
+        var rebased = self
+        rebased.width = moved(width)
+        rebased.height = moved(height)
+        rebased.begin = time
+        return rebased
+    }
+
+    /// This motion headed for `size` from `time` on, or nil when a side turns
+    /// back, or the motion eases without a swing or moves its centre.
+    func continued(to size: CGSize, at time: CFTimeInterval) -> NotchMotionTimeline? {
+        guard !steady, offset == 0, let width = continued(width, to: size.width, at: time),
+              let height = continued(height, to: size.height, at: time) else { return nil }
+        var next = self
+        next.width = width
+        next.height = height
+        next.begin = time
+        next.start = self.size(at: time)
+        return next
+    }
+
+    /// Sizes at a steady rate from its latest move until every side stays
+    /// within `settledDistance` of its target, ending exactly there.
+    func frames() -> (sizes: [CGSize], keyTimes: [Double], duration: TimeInterval) {
+        let target = target
+        let step = 1.0 / 240
+        var duration = step
+        var time = step
+        while time < 2 {
+            let size = size(at: begin + time)
+            if abs(size.width - target.width) > NotchMotion.settledDistance
+                || abs(size.height - target.height) > NotchMotion.settledDistance {
+                duration = time + step
+            }
+            time += step
+        }
+        let count = max(1, Int((duration * 120).rounded(.up)))
+        let keyTimes = (0...count).map { Double($0) / Double(count) }
+        let sizes = keyTimes.map { $0 == 1 ? target : size(at: begin + duration * $0) }
+        return (sizes, keyTimes, duration)
+    }
+
+    private func value(of legs: [Leg], at time: CFTimeInterval, width: Bool) -> CGFloat {
+        guard let first = legs.first, let last = legs.last else { return 0 }
+        let value = legs.reduce(first.from) { value, leg in
+            guard leg.from != leg.to else { return value }
+            let spring = NotchMotion.spring(from: leg.from, to: leg.to, width: width, steady: steady)
+            return value + (leg.to - leg.from) * CGFloat(spring.progress(at: time - leg.begin))
+        }
+        // Swings that happen to coincide still pass the target no further
+        // than one does, so the display keeps its free margin.
+        return max(0, min(value, max(first.from, last.to) + NotchMotion.overshootLimit))
+    }
+
+    private func continued(_ legs: [Leg], to end: CGFloat, at time: CFTimeInterval) -> [Leg]? {
+        guard let last = legs.last, end != last.to else { return legs }
+        let heading = legs.first { $0.from != $0.to }.map { $0.to - $0.from } ?? 0
+        guard heading == 0 || (end > last.to) == (heading > 0) else { return nil }
+        return legs + [Leg(begin: time, from: last.to, to: end)]
     }
 }
 
