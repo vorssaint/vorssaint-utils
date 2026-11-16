@@ -1147,10 +1147,10 @@ enum NotchCapsuleLayout {
     static func calendarPairSurface(companion: NotchCompactActivity, workingAgents: Int, downloadPercent: Bool,
                                     geometry: NotchGeometry, language: AppLanguage,
                                     calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime,
-                                    joinTitle: String? = nil) -> CGSize {
+                                    showsJoin: Bool = false) -> CGSize {
         let mark = timerMarkWidth(companion: companion, workingAgents: workingAgents, downloadPercent: downloadPercent,
                                   geometry: geometry, language: language)
-        let join = joinTitle.map { markSpacing + NotchCalendarSupport.stripJoinWidth($0) } ?? 0
+        let join = showsJoin ? markSpacing + NotchCalendarSupport.stripJoinWidth : 0
         return surface(content: mark + markGap(.calendar) + join + calendarClockWidth(leadTime: calendarLeadTime),
                        leading: companion == .music ? artworkInset(geometry) : endPadding,
                        maximum: Maximum.activity, geometry: geometry)
@@ -1186,8 +1186,8 @@ enum NotchCapsuleLayout {
     /// time it starts or ends. An optional Join control sits with the clock.
     static func calendarSurface(title: String, time: String, geometry: NotchGeometry,
                                 calendarLeadTime: TimeInterval = NotchCalendarSupport.timeLeftLeadTime,
-                                joinTitle: String? = nil) -> CGSize {
-        let join = joinTitle.map { groupSpacing + NotchCalendarSupport.stripJoinWidth($0) } ?? 0
+                                showsJoin: Bool = false) -> CGSize {
+        let join = showsJoin ? groupSpacing + NotchCalendarSupport.stripJoinWidth : 0
         let content = calendarDotSide + spacing + width(title, font: titleFont) + groupSpacing
             + join
             + width(NotchCalendarSupport.countdownShape(leadTime: calendarLeadTime), font: readingFont)
@@ -2537,7 +2537,7 @@ struct NotchGeometry: Equatable {
     static let calendarWingRange: ClosedRange<CGFloat> = 72...120
     /// Room for a Join pill beside the countdown clock without clipping under
     /// the camera.
-    static let calendarWingRangeWithJoin: ClosedRange<CGFloat> = 72...168
+    static let calendarWingRangeWithJoin: ClosedRange<CGFloat> = 72...140
     /// Give the title useful space beside the camera, as wide as the title or
     /// the clock needs, so neither wing ends in a band of empty black. When
     /// menus leave less than a readable wing, a physical notch uses one row

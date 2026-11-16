@@ -414,14 +414,8 @@ enum NotchCalendarSupport {
             .replacingOccurrences(of: "&#39;", with: "'")
     }
 
-    /// Width reserved for the Join control beside the countdown clock.
-    static func stripJoinWidth(_ title: String) -> CGFloat {
-        let label = (title as NSString).size(withAttributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .semibold)
-        ]).width.rounded(.up)
-        // Leading video mark, label, and the pill's horizontal padding.
-        return 11 + 4 + label + 16
-    }
+    /// Width reserved for the icon-only Join control beside the countdown clock.
+    static let stripJoinWidth: CGFloat = 22
 
     /// Reserve one clock shape for the selected lead, including restored
     /// values, so counting through 100 minutes does not resize the island.

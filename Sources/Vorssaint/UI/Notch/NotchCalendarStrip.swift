@@ -198,7 +198,7 @@ struct NotchCalendarStrip: View {
 
     /// Opens the meeting without expanding the island.
     private var joinControl: some View {
-        NotchCalendarJoinControl(title: text.join, accessibilityTitle: text.joinMeeting) {
+        NotchCalendarJoinControl(accessibilityTitle: text.joinMeeting) {
             service.joinCountdownMeeting()
         }
     }
@@ -234,30 +234,25 @@ struct NotchCalendarStrip: View {
     }
 }
 
-/// Join pill shared by the notched strip and the floating capsule.
+/// Video icon that joins the meeting without opening the island.
 struct NotchCalendarJoinControl: View {
-    let title: String
     let accessibilityTitle: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                Text(title)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .frame(height: 20)
-            .background(.white.opacity(0.16), in: Capsule())
-            .contentShape(Capsule())
+            Image(systemName: "video.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: NotchCalendarSupport.stripJoinWidth,
+                       height: NotchCalendarSupport.stripJoinWidth)
+                .background(.white.opacity(0.16), in: Circle())
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .fixedSize()
         .layoutPriority(2)
+        .help(accessibilityTitle)
         .accessibilityLabel(accessibilityTitle)
         .accessibilityIdentifier("notch.calendarJoin")
     }

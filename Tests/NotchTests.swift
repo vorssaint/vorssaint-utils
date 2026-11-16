@@ -3834,7 +3834,7 @@ enum NotchTests {
                      && physical.compactCalendarGeometry(wing: 30).compactActivityWingWidth == 72
                      && physical.compactCalendarGeometry(wing: 500).compactActivityWingWidth == 120
                      && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 180)
-                        .compactCalendarGeometry(wing: 500, showsJoin: true).compactActivityWingWidth == 168
+                        .compactCalendarGeometry(wing: 500, showsJoin: true).compactActivityWingWidth == 140
                      && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
                         .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
                      "the countdown wings fit the wider of the title and the clock, within the menus' room")

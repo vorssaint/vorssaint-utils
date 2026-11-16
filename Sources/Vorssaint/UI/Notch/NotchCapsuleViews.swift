@@ -638,7 +638,7 @@ struct NotchCapsuleCalendarStrip: View {
     }
 
     private var joinControl: some View {
-        NotchCalendarJoinControl(title: text.join, accessibilityTitle: text.joinMeeting) {
+        NotchCalendarJoinControl(accessibilityTitle: text.joinMeeting) {
             service.joinCountdownMeeting()
         }
     }

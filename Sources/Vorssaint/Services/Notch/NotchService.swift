@@ -733,8 +733,7 @@ final class NotchService: ObservableObject {
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         if let companion {
             let join = showsJoin
-                ? NotchCalendarSupport.stripJoinSpacing
-                    + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(L10n.shared.language).join)
+                ? NotchCalendarSupport.stripJoinSpacing + NotchCalendarSupport.stripJoinWidth
                 : 0
             let sides = max(inset + calendarClockWidth + join, companionMarkWidth(companion, in: provisional))
                 + NotchTimerSupport.stripCameraGap
@@ -756,8 +755,7 @@ final class NotchService: ObservableObject {
             + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
         let joinSide = showsJoin
-            ? NotchCalendarSupport.stripJoinSpacing
-                + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(language).join)
+            ? NotchCalendarSupport.stripJoinSpacing + NotchCalendarSupport.stripJoinWidth
             : 0
         return inset + max(titleSide, clockSide + joinSide)
     }
@@ -1109,18 +1107,17 @@ final class NotchService: ObservableObject {
             return layout.agentSurface(reading: reading, working: working, geometry: geometry)
         case .calendar:
             guard let countdown = NotchCalendarService.shared.countdown else { return geometry.restingSize(showsContent: false) }
-            let joinTitle = NotchCalendarSupport.showsJoinButton(for: countdown)
-                ? FeatureStrings.notchCalendar(language).join : nil
+            let showsJoin = NotchCalendarSupport.showsJoinButton(for: countdown)
             if let companion {
                 return layout.calendarPairSurface(companion: companion, workingAgents: working,
                                                   downloadPercent: download?.fraction != nil, geometry: geometry,
                                                   language: language, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime,
-                                                  joinTitle: joinTitle)
+                                                  showsJoin: showsJoin)
             }
             return layout.calendarSurface(title: layout.calendarTitle(countdown, language: language),
                                           time: NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                                           geometry: geometry, calendarLeadTime: NotchCalendarService.shared.countdownLeadTime,
-                                          joinTitle: joinTitle)
+                                          showsJoin: showsJoin)
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
