@@ -237,11 +237,13 @@ final class NotchService: ObservableObject {
     /// the preferences: the open page's geometry is read on every layout pass.
     private var homeControls: [NotchControlItem] = []
     private var fileInteractionActive = false
+    /// A clipboard drag keeps its native source alive until AppKit finishes.
+    private var clipboardDragging = false
     /// A screenshot preview stays when the pointer leaves or another app
     /// activates. It leaves on its own timer or on a click elsewhere.
     private var keepsWorkingSurface: Bool { keepsSurfaceOnClick || showsCapturePreview }
     private var keepsSurfaceOnClick: Bool {
-        pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
+        pinned || trackingMenu || clipboardDragging || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
@@ -1351,6 +1353,7 @@ final class NotchService: ObservableObject {
         dragPlaceholder = false
         endFileDrop()
         fileInteractionActive = false
+        clipboardDragging = false
         heldDrag = false
         shelfDragExitWork?.cancel(); shelfDragExitWork = nil
         selectedMetric = nil
@@ -1549,6 +1552,18 @@ final class NotchService: ObservableObject {
               })
         else { return }
         next.makeKey()
+    }
+
+    func setClipboardDragging(_ active: Bool) {
+        guard clipboardDragging != active else { return }
+        clipboardDragging = active
+        hoverWork?.cancel()
+        hoverWork = nil
+        // An external destination may own the keyboard now. Recheck dismissal
+        // only outside the island; ending a drag must never reclaim focus.
+        if !active, windowHost?.containsHover(NSEvent.mouseLocation) != true {
+            hover(false)
+        }
     }
 
     func setMusicDetailsVisible(_ visible: Bool) {

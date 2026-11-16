@@ -458,6 +458,9 @@ private struct QuickEntryView: View, Equatable {
                     .accessibilityLabel(app.name)
             }
             entryContent(entry)
+                // The row's tap gesture already handles this click.
+                .clipboardHistoryDragSource(entry, activate: {},
+                                            draggingChanged: history.setQuickDragging)
             Spacer(minLength: 8)
             entryTrailing(entry, isHovered: isHovered)
         }
@@ -486,6 +489,8 @@ private struct QuickEntryView: View, Equatable {
                 .padding(10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .clipped()
+                .clipboardHistoryDragSource(entry, activate: {},
+                                            draggingChanged: history.setQuickDragging)
             Divider()
             cardFooter
         }

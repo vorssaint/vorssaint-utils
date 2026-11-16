@@ -1890,7 +1890,8 @@ def main():
           + "@MainActor final class Page {\nstruct ClipboardHistoryEntry {\nlet id: UUID\nvar text = \"\"\nvar isPinned = false\n"
           + "var cardPreview: String { HistoryEntry(text: text).cardPreview }\n}\n"
           + "var preview = false\nvar reduceMotion = true\nvar cardSize = NotchClipboardCardSize.compact.rawValue\n"
-          + "var hoveredID: UUID?\nvar expandedID: UUID?\n"
+          + "var hoveredID: UUID?\nvar expandedID: UUID?\nvar clipboardDragging = false\n"
+          + "final class Service { var drags: [Bool] = []; func setClipboardDragging(_ active: Bool) { drags.append(active) } }\nlet service = Service()\n"
           + "var dwell: (id: UUID, task: Task<Void, Never>)?\nvar closing: (id: UUID, task: Task<Void, Never>)?\n"
           + "var entries: [ClipboardHistoryEntry] = []\nvar highlightedID: UUID?\nvar keysMoved = false\n"
           + "var query = \"\"\nvar searchOpen = false\nvar searching = false\nvar activated: [UUID] = []\n"
@@ -1902,9 +1903,16 @@ def main():
           + "".join(declaration(clipboard_view, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func appeared()", "    private func queryChanged(",
               "    private var comfortable: Bool {", "    private var rowHeight: CGFloat {", "    private func hover(",
-              "    private func openSearch()", "    private func closeSearch()", "    private func handleKey(",
+              "    private func setDragging(", "    private func openSearch()", "    private func closeSearch()", "    private func handleKey(",
               "    private func openText(", "    private func searchHighlight(", "    private func follow(",
               "    private func thumbnail<"])
+          + "}\n}\n")
+    # Keep the production clipboard drag lifecycle, with only its host and dismissal scheduling replaced.
+    write("ClipboardDragLifecycle.swift", "import AppKit\nextension NotchClipboardPageTests {\n"
+          + "@MainActor final class DragState {\nvar clipboardDragging = false\nvar hoverWork: DispatchWorkItem?\n"
+          + "final class Host { var pointerInside = false; func containsHover(_ point: CGPoint) -> Bool { pointerInside } }\n"
+          + "var windowHost: Host? = Host()\nvar hoverExits = 0\nfunc hover(_ entered: Bool) { if !entered { hoverExits += 1 } }\n"
+          + declaration("Sources/Vorssaint/Services/Notch/NotchService.swift", "    func setClipboardDragging(")
           + "}\n}\n")
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"

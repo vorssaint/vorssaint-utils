@@ -1729,6 +1729,7 @@ enum ClipboardFeatureTests {
         }
 
         ClipboardHistoryWriteTests.run(suite)
+        ClipboardHistoryDragTests.run(suite)
         ClipboardHistoryImageEditorTests.run(suite)
         ClipboardHistoryAccessTests.run(suite)
 

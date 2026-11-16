@@ -101,6 +101,8 @@ final class ClipboardHistoryService: ObservableObject {
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
+    /// App activation during drag-out must not hide the native drag source.
+    private var quickDragging = false
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyHandler: EventHandlerRef?
     private var registeredShortcut: GlobalShortcut?
@@ -1296,7 +1298,12 @@ final class ClipboardHistoryService: ObservableObject {
         // back with its old count the next time the window opens.
         if let panel, let sheet = panel.attachedSheet { panel.endSheet(sheet) }
         panel?.orderOut(nil)
+        quickDragging = false
         clearQuickBatchSelection()
+    }
+
+    func setQuickDragging(_ active: Bool) {
+        quickDragging = active
     }
 
     func rememberPasteTarget() {
@@ -1592,14 +1599,14 @@ final class ClipboardHistoryService: ObservableObject {
         removeDismissMonitors()
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
-            guard let self, let panel, panel.isVisible else { return event }
+            guard let self, let panel, panel.isVisible, !self.quickDragging else { return event }
             if event.window !== panel, !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
             }
             return event
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
-            guard let self, let panel, panel.isVisible else { return }
+            guard let self, let panel, panel.isVisible, !self.quickDragging else { return }
             if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
                // Every key on the Accessibility Keyboard is a click outside this
                // panel. Dismissing on those makes the panel impossible to type into.
@@ -1612,7 +1619,7 @@ final class ClipboardHistoryService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            guard let self,
+            guard let self, !self.quickDragging,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   app.bundleIdentifier != Bundle.main.bundleIdentifier,
                   app.bundleIdentifier != AssistiveKeyboard.bundleID

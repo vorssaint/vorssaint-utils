@@ -34,6 +34,7 @@ struct NotchClipboardView: View {
     /// pointer left until it closes.
     @State private var dwell: (id: UUID, task: Task<Void, Never>)?
     @State private var closing: (id: UUID, task: Task<Void, Never>)?
+    @State private var clipboardDragging = false
     /// The entry the arrow keys have rested on long enough to open, once they have moved.
     @State private var keyExpandedID: UUID?
     @State private var keysMoved = false
@@ -298,6 +299,7 @@ struct NotchClipboardView: View {
     /// moment after the pointer leaves it. Only coming back to that entry
     /// keeps it open; resting on another one or leaving the list closes it.
     private func hover(_ entry: ClipboardHistoryEntry, _ inside: Bool) {
+        guard !clipboardDragging else { return }
         guard !preview, !comfortable else { return }
         if inside {
             if closing?.id == entry.id {
@@ -327,6 +329,20 @@ struct NotchClipboardView: View {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { expandedID = nil }
             })
         }
+    }
+
+    /// Keep an expanded compact card alive until AppKit finishes its drag.
+    private func setDragging(_ active: Bool) {
+        clipboardDragging = active
+        dwell?.task.cancel()
+        dwell = nil
+        closing?.task.cancel()
+        closing = nil
+        if !active {
+            hoveredID = nil
+            expandedID = nil
+        }
+        service.setClipboardDragging(active)
     }
 
     /// The icon of the app the entry was copied from, or the kind of entry when that is unknown.
@@ -389,6 +405,8 @@ struct NotchClipboardView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(lifts: false))
+            .clipboardHistoryDragSource(entry, activate: { activate(entry) },
+                                        draggingChanged: setDragging)
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             if active {
                 HStack(spacing: 2) {
@@ -441,6 +459,8 @@ struct NotchClipboardView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(lifts: false))
+            .clipboardHistoryDragSource(entry, activate: { activate(entry) },
+                                        draggingChanged: setDragging)
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             HStack(spacing: 5) {
                 sourceBadge(entry)

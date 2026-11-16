@@ -17,6 +17,7 @@ enum NotchClipboardPageTests {
     }
 
     @MainActor private static func checks(_ suite: TestSuite) {
+        dragLifecycle(suite)
         let first = Page.ClipboardHistoryEntry(id: UUID()), second = Page.ClipboardHistoryEntry(id: UUID())
 
         let page = Page()
@@ -37,6 +38,16 @@ enum NotchClipboardPageTests {
         page.hover(first, true)
         suite.expect(page.closing == nil && closing?.isCancelled == true && page.dwell == nil,
                      "coming back to the open clipboard entry keeps it open")
+        page.clipboardDragging = true
+        page.hover(first, false)
+        page.hover(second, true)
+        suite.expect(page.expandedID == first.id && page.closing == nil && page.dwell == nil
+                     && page.hoveredID == first.id,
+                     "dragging an expanded clipboard card preserves its native source when the pointer leaves or crosses another row")
+        page.clipboardDragging = false
+        page.hover(first, false)
+        suite.expect(page.closing?.id == first.id,
+                     "clipboard card hover dismissal resumes after the drag completes")
         finish(page)
 
         // The pointer may reach the next entry before it is reported leaving the open one.
@@ -257,6 +268,42 @@ enum NotchClipboardPageTests {
             context.draw(image, in: CGRect(x: -x, y: y - image.height + 1, width: image.width, height: image.height))
         }
         return pixel[3]
+    }
+
+    @MainActor private static func dragLifecycle(_ suite: TestSuite) {
+        let state = DragState()
+        let pending = DispatchWorkItem {}
+        state.hoverWork = pending
+        state.setClipboardDragging(true)
+        suite.expect(state.clipboardDragging && pending.isCancelled && state.hoverWork == nil
+                     && state.hoverExits == 0,
+                     "starting a clipboard drag cancels pending island dismissal")
+        state.setClipboardDragging(false)
+        state.setClipboardDragging(false)
+        suite.expect(!state.clipboardDragging && state.hoverExits == 1,
+                     "ending a drag outside the island resumes hover dismissal only once")
+        state.windowHost?.pointerInside = true
+        state.setClipboardDragging(true)
+        state.setClipboardDragging(false)
+        suite.expect(!state.clipboardDragging && state.hoverExits == 1,
+                     "cancelling a clipboard drag inside the island keeps its content open")
+
+        let page = Page()
+        let entry = Page.ClipboardHistoryEntry(id: UUID())
+        page.hover(entry, true)
+        let dwell = page.dwell?.task
+        let closing = Task<Void, Never> {}
+        page.closing = (entry.id, closing)
+        page.expandedID = entry.id
+        page.setDragging(true)
+        suite.expect(page.clipboardDragging && dwell?.isCancelled == true && closing.isCancelled
+                     && page.dwell == nil && page.closing == nil && page.expandedID == entry.id
+                     && page.service.drags == [true],
+                     "starting a compact card drag cancels its hover timers and preserves the open native source")
+        page.setDragging(false)
+        suite.expect(!page.clipboardDragging && page.hoveredID == nil && page.expandedID == nil
+                     && page.service.drags == [true, false],
+                     "ending a compact card drag releases the island and resets hover expansion")
     }
 
     @MainActor private static func finish(_ page: Page) {
