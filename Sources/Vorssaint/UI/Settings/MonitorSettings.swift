@@ -64,7 +64,7 @@ struct MonitorSettings: View {
                     }
                     groupHeading(FeatureStrings.monitorLayout(l10n.language).shared, symbol: "slider.horizontal.3")
                     readingsCard
-                    alertsCard
+                    alertsCard.settingsSectionAnchor(.monitorAlerts, cornerRadius: 16)
                 }
                 .frame(maxWidth: 760)
                 .frame(maxWidth: .infinity)

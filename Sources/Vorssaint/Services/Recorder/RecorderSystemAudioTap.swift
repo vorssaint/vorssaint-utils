@@ -4,6 +4,7 @@
 import Accelerate
 import AVFoundation
 import CoreAudio
+import CoreAudioTapCompat
 import Darwin
 
 /// A flag the audio thread raises and another thread reads later.
@@ -184,23 +185,21 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// the caller just listed them, or every process but this one.
     @available(macOS 14.4, *)
     private func buildTap(around gathered: [AudioObjectID]? = nil) -> Bool {
-        let description: CATapDescription
+        let objects: [AudioObjectID]
         if let pid {
-            let objects = gathered ?? Self.processObjects(for: pid, excluding: ownProcess)
+            objects = gathered ?? Self.processObjects(for: pid, excluding: ownProcess)
             guard !objects.isEmpty else { return false }
             tapped = objects
-            description = CATapDescription(stereoMixdownOfProcesses: objects)
         } else {
-            description = CATapDescription(stereoGlobalTapButExcludeProcesses: [ownProcess])
+            objects = [ownProcess]
         }
-        description.name = "Vorssaint Recorder"
-        description.isPrivate = true
         var tapID = AudioObjectID(0)
-        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
-            return false
-        }
+        guard let uuid = createPrivateAudioTap(pid == nil ? .stereoGlobalExcluding : .stereoMixdown,
+                                               processes: objects as [NSNumber], deviceUID: nil,
+                                               name: "Vorssaint Recorder", muteBehavior: .unmuted, id: &tapID)
+        else { return false }
         self.tapID = tapID
-        tapUID = description.uuid.uuidString
+        tapUID = uuid.uuidString
         var format = AudioStreamBasicDescription()
         tapChannels = Self.read(tapID, kAudioTapPropertyFormat, &format) && format.mChannelsPerFrame > 0
             ? Int(format.mChannelsPerFrame)
