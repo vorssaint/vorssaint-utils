@@ -198,25 +198,9 @@ struct NotchCalendarStrip: View {
 
     /// Opens the meeting without expanding the island.
     private var joinControl: some View {
-        Button {
+        NotchCalendarJoinControl(title: text.join, accessibilityTitle: text.joinMeeting) {
             service.joinCountdownMeeting()
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "video.fill")
-                    .font(.system(size: 9, weight: .semibold))
-                Text(text.join)
-                    .font(.system(size: 11, weight: .semibold))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .frame(height: 20)
-            .background(.white.opacity(0.16), in: Capsule())
-            .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(text.joinMeeting)
-        .accessibilityIdentifier("notch.calendarJoin")
     }
 
     static func displayTitle(_ event: NotchCalendarEvent, untitled: String) -> String {
@@ -247,6 +231,35 @@ struct NotchCalendarStrip: View {
             .lineLimit(1).minimumScaleFactor(0.8)
             .foregroundStyle(ongoing ? Color.mint : Color.white)
             .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
+    }
+}
+
+/// Join pill shared by the notched strip and the floating capsule.
+struct NotchCalendarJoinControl: View {
+    let title: String
+    let accessibilityTitle: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: "video.fill")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .frame(height: 20)
+            .background(.white.opacity(0.16), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .layoutPriority(2)
+        .accessibilityLabel(accessibilityTitle)
+        .accessibilityIdentifier("notch.calendarJoin")
     }
 }
 

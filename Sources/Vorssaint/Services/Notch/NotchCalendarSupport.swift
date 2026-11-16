@@ -334,18 +334,25 @@ enum NotchCalendarSupport {
     /// Hosts and schemes that open a Teams, Zoom or Google Meet call.
     private static let meetingHostSuffixes = [
         "zoom.us", "zoom.com", "zoomgov.com",
-        "teams.microsoft.com", "teams.live.com",
+        "teams.microsoft.com", "teams.live.com", "teams.office.com",
         "meet.google.com",
     ]
     private static let meetingSchemes: Set<String> = [
         "zoommtg", "zoomus", "msteams", "ms-teams", "googlemeet",
     ]
+    /// Outlook often wraps Teams in aka.ms short links with these paths.
+    private static let meetingPathHosts: [(host: String, pathPrefix: String)] = [
+        ("aka.ms", "/jointeamsmeeting"),
+        ("aka.ms", "/teams"),
+    ]
     private static let linkDetector = try? NSDataDetector(
         types: NSTextCheckingResult.CheckingType.link.rawValue)
+    private static let hrefDetector = try? NSRegularExpression(
+        pattern: #"href\s*=\s*["']([^"']+)["']"#, options: [.caseInsensitive])
 
     /// The first Teams, Zoom or Google Meet link on the event: its URL field,
     /// then its location, then its notes. Other http links stay out so a map
-    /// or agenda page never becomes Join.
+    /// or agenda page never becomes Join. Notes are only scanned in memory.
     static func meetingURL(url: URL?, location: String, notes: String?) -> URL? {
         if let url, isMeetingURL(url) { return url }
         for text in [location, notes ?? ""] {
@@ -357,22 +364,54 @@ enum NotchCalendarSupport {
     static func isMeetingURL(_ url: URL) -> Bool {
         if let scheme = url.scheme?.lowercased(), meetingSchemes.contains(scheme) { return true }
         guard let host = url.host?.lowercased(), !host.isEmpty else { return false }
-        return meetingHostSuffixes.contains { host == $0 || host.hasSuffix("." + $0) }
+        if meetingHostSuffixes.contains(where: { host == $0 || host.hasSuffix("." + $0) }) { return true }
+        let path = url.path.lowercased()
+        return meetingPathHosts.contains { host == $0.host && path.hasPrefix($0.pathPrefix) }
     }
 
     static func firstMeetingURL(in text: String) -> URL? {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = decodeHTMLEntities(text.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !trimmed.isEmpty else { return nil }
         if let direct = URL(string: trimmed), isMeetingURL(direct) { return direct }
         if !trimmed.contains("://"),
            let https = URL(string: "https://" + trimmed), isMeetingURL(https) {
             return https
         }
-        guard let detector = linkDetector else { return nil }
-        let range = NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)
-        return detector.matches(in: trimmed, options: [], range: range).lazy
-            .compactMap { $0.url }
-            .first(where: isMeetingURL)
+        for candidate in urls(in: trimmed) where isMeetingURL(candidate) { return candidate }
+        return nil
+    }
+
+    /// Links found by the system detector, plus `href="…"` values Outlook
+    /// HTML notes leave when the detector skips the markup.
+    static func urls(in text: String) -> [URL] {
+        var found: [URL] = []
+        var seen = Set<String>()
+        func append(_ url: URL) {
+            let key = url.absoluteString.lowercased()
+            if seen.insert(key).inserted { found.append(url) }
+        }
+        if let detector = linkDetector {
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            for match in detector.matches(in: text, options: [], range: range) {
+                if let url = match.url { append(url) }
+            }
+        }
+        if let hrefDetector {
+            let range = NSRange(text.startIndex..<text.endIndex, in: text)
+            hrefDetector.enumerateMatches(in: text, options: [], range: range) { match, _, _ in
+                guard let match, match.numberOfRanges > 1,
+                      let hrefRange = Range(match.range(at: 1), in: text),
+                      let url = URL(string: String(text[hrefRange])) else { return }
+                append(url)
+            }
+        }
+        return found
+    }
+
+    private static func decodeHTMLEntities(_ text: String) -> String {
+        text.replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
     }
 
     /// Width reserved for the Join control beside the countdown clock.

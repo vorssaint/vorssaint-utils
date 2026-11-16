@@ -565,7 +565,8 @@ struct NotchCapsuleWatchStrip: View {
 }
 
 /// The next timed event, or the one under way: its color and title, and
-/// the countdown with the time it starts or ends.
+/// the countdown with the time it starts or ends. An optional Join control
+/// opens the meeting without expanding the island.
 struct NotchCapsuleCalendarStrip: View {
     @ObservedObject var service: NotchService
     let size: CGSize
@@ -573,6 +574,7 @@ struct NotchCapsuleCalendarStrip: View {
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var calendar = NotchCalendarService.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchCalendarJoinButton) private var joinButton = false
 
     private var text: NotchCalendarStrings { FeatureStrings.notchCalendar(l10n.language) }
     private var geometry: NotchGeometry { displayGeometry ?? service.geometry }
@@ -589,6 +591,7 @@ struct NotchCapsuleCalendarStrip: View {
             TimelineView(.periodic(from: .now, by: 1)) { context in
                 let title = CapsuleLayout.calendarTitle(countdown, language: l10n.language)
                 let remaining = NotchCalendarSupport.countdownText(until: countdown.target, now: context.date)
+                let showsJoin = joinButton && countdown.event.meetingURL != nil
                 NotchCapsuleRow(size: size, geometry: geometry,
                                 leading: companion == .music ? CapsuleLayout.artworkInset(geometry) : CapsuleLayout.endPadding) {
                     if let companion {
@@ -596,12 +599,14 @@ struct NotchCapsuleCalendarStrip: View {
                         // and the title moves to the tooltip and VoiceOver.
                         HStack(spacing: CapsuleLayout.markGap(.calendar)) {
                             NotchCapsuleCompanionMark(companion: companion, geometry: geometry)
+                            if showsJoin { joinControl }
                             Self.clockMark(countdown, now: context.date)
                         }
                     } else {
                         HStack(spacing: CapsuleLayout.spacing) {
                             Self.dot(countdown.event)
                             Text(title).capsuleTitle().truncationMode(.tail)
+                            if showsJoin { joinControl }
                             // The time left keeps its place; the start or end time
                             // beside it gives way first when the bar is short.
                             ViewThatFits(in: .horizontal) {
@@ -619,14 +624,22 @@ struct NotchCapsuleCalendarStrip: View {
                         }
                     }
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(countdown.ongoing ? text.ongoing : text.next): \(title)")
-                .accessibilityValue(NotchCalendarSupport.countdownAccessibilityText(
-                    until: countdown.target, now: context.date, locale: l10n.language.formattingLocale()))
-                .accessibilityHint(FeatureStrings.notch(l10n.language).open)
-                .help(title)
+                .modifier(NotchCapsuleCalendarAccessibility(
+                    label: "\(countdown.ongoing ? text.ongoing : text.next): \(title)",
+                    value: NotchCalendarSupport.countdownAccessibilityText(
+                        until: countdown.target, now: context.date, locale: l10n.language.formattingLocale()),
+                    hint: FeatureStrings.notch(l10n.language).open,
+                    help: title,
+                    join: showsJoin ? text.joinMeeting : nil,
+                    onJoin: showsJoin ? { service.joinCountdownMeeting() } : nil))
             }
             .accessibilityIdentifier("notch.calendarCountdown")
+        }
+    }
+
+    private var joinControl: some View {
+        NotchCalendarJoinControl(title: text.join, accessibilityTitle: text.joinMeeting) {
+            service.joinCountdownMeeting()
         }
     }
 
@@ -652,6 +665,36 @@ struct NotchCapsuleCalendarStrip: View {
             .lineLimit(1).fixedSize()
             .foregroundStyle(ongoing ? Color.mint : Color.white)
             .modifier(NotchRollingDigits(value: remaining, countsDown: true, everySecond: false))
+    }
+}
+
+private struct NotchCapsuleCalendarAccessibility: ViewModifier {
+    let label: String
+    let value: String
+    let hint: String
+    let help: String
+    var join: String? = nil
+    var onJoin: (() -> Void)? = nil
+
+    func body(content: Content) -> some View {
+        Group {
+            if let join, let onJoin {
+                content
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(label)
+                    .accessibilityValue(value)
+                    .accessibilityHint(hint)
+                    .help(help)
+                    .accessibilityAction(named: Text(join), onJoin)
+            } else {
+                content
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(label)
+                    .accessibilityValue(value)
+                    .accessibilityHint(hint)
+                    .help(help)
+            }
+        }
     }
 }
 

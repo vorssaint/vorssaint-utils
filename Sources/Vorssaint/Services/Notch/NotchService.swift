@@ -687,8 +687,13 @@ final class NotchService: ObservableObject {
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
-            return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
-                                                    paired: companion != nil)
+            // A Join pill needs a wider wing than the usual 120pt ceiling; the
+            // measured wing already includes it, so exceeding the default max
+            // opens that ceiling. Long titles may also pass that mark, which
+            // only leaves a little more room.
+            let wing = calendarStripWing(for: companion, in: geometry)
+            return geometry.compactCalendarGeometry(wing: wing, paired: companion != nil,
+                                                    showsJoin: wing > NotchGeometry.calendarWingRange.upperBound)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
         default: return geometry
@@ -722,11 +727,12 @@ final class NotchService: ObservableObject {
         guard let countdown = NotchCalendarService.shared.countdown else {
             return NotchGeometry.calendarWingRange.upperBound
         }
+        let showsJoin = NotchCalendarSupport.showsJoinButton(for: countdown)
         // Measured at the narrowest wing the strip may take.
-        let provisional = geometry.compactCalendarGeometry(wing: 0, paired: companion != nil)
+        let provisional = geometry.compactCalendarGeometry(wing: 0, paired: companion != nil, showsJoin: showsJoin)
         let inset = provisional.compactActivityEdgeInset(boxHeight: 9, radius: 0)
         if let companion {
-            let join = NotchCalendarSupport.showsJoinButton(for: countdown)
+            let join = showsJoin
                 ? NotchCalendarSupport.stripJoinSpacing
                     + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(L10n.shared.language).join)
                 : 0
@@ -749,7 +755,7 @@ final class NotchService: ObservableObject {
             + NotchCalendarSupport.stripClockSpacing
             + width(NotchCalendarSupport.timeText(countdown, locale: language.formattingLocale()),
                     .monospacedDigitSystemFont(ofSize: 11, weight: .medium))
-        let joinSide = NotchCalendarSupport.showsJoinButton(for: countdown)
+        let joinSide = showsJoin
             ? NotchCalendarSupport.stripJoinSpacing
                 + NotchCalendarSupport.stripJoinWidth(FeatureStrings.notchCalendar(language).join)
             : 0

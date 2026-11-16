@@ -2535,6 +2535,9 @@ struct NotchGeometry: Equatable {
         return compact
     }
     static let calendarWingRange: ClosedRange<CGFloat> = 72...120
+    /// Room for a Join pill beside the countdown clock without clipping under
+    /// the camera.
+    static let calendarWingRangeWithJoin: ClosedRange<CGFloat> = 72...168
     /// Give the title useful space beside the camera, as wide as the title or
     /// the clock needs, so neither wing ends in a band of empty black. When
     /// menus leave less than a readable wing, a physical notch uses one row
@@ -2542,10 +2545,10 @@ struct NotchGeometry: Equatable {
     /// title, only the event's clock and the other's mark, so they fit those
     /// as a timer's pair does instead of keeping a title's minimum.
     var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
-    func compactCalendarGeometry(wing: CGFloat, paired: Bool = false) -> NotchGeometry {
+    func compactCalendarGeometry(wing: CGFloat, paired: Bool = false, showsJoin: Bool = false) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let range = Self.calendarWingRange
+        let range = showsJoin ? Self.calendarWingRangeWithJoin : Self.calendarWingRange
         let lowest = paired ? NotchTimerSupport.stripWingRange.lowerBound : range.lowerBound
         let fitted = min(range.upperBound, max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
         // The narrowest wing still drawn: a readable title, or a whole pair.

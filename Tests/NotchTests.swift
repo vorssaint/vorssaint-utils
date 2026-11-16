@@ -3642,17 +3642,28 @@ enum NotchTests {
         let teams = URL(string: "https://teams.microsoft.com/l/meetup-join/19%3ameeting")!
         let meet = URL(string: "https://meet.google.com/abc-defg-hij")!
         let maps = URL(string: "https://maps.google.com/?q=office")!
+        let officeTeams = URL(string: "https://teams.office.com/l/meetup-join/19%3ameeting")!
+        let akaTeams = URL(string: "https://aka.ms/JoinTeamsMeeting")!
         suite.expect(NotchCalendarSupport.isMeetingURL(zoom)
                      && NotchCalendarSupport.isMeetingURL(teams)
                      && NotchCalendarSupport.isMeetingURL(meet)
+                     && NotchCalendarSupport.isMeetingURL(officeTeams)
+                     && NotchCalendarSupport.isMeetingURL(akaTeams)
                      && !NotchCalendarSupport.isMeetingURL(maps)
+                     && !NotchCalendarSupport.isMeetingURL(URL(string: "https://aka.ms/something-else")!)
                      && NotchCalendarSupport.isMeetingURL(URL(string: "zoommtg://zoom.us/join?confno=1")!),
                      "Join recognizes Teams, Zoom and Google Meet links, not ordinary web pages")
         suite.expect(NotchCalendarSupport.meetingURL(url: maps, location: "Zoom", notes: "Join \(zoom.absoluteString)") == zoom
                      && NotchCalendarSupport.meetingURL(url: nil, location: teams.absoluteString, notes: nil) == teams
                      && NotchCalendarSupport.meetingURL(url: meet, location: "", notes: nil) == meet
-                     && NotchCalendarSupport.meetingURL(url: maps, location: "Conference Room", notes: "Agenda") == nil,
-                     "a meeting link is taken from the event URL, location or notes, in that order")
+                     && NotchCalendarSupport.meetingURL(url: maps, location: "Conference Room", notes: "Agenda") == nil
+                     && NotchCalendarSupport.meetingURL(
+                        url: nil, location: "Microsoft Teams Meeting",
+                        notes: #"<a href="\#(teams.absoluteString)">Click here to join the meeting</a>"#) == teams
+                     && NotchCalendarSupport.meetingURL(
+                        url: nil, location: "",
+                        notes: "Join: https://example.com/x?a=1&amp;b=2 https://meet.google.com/abc-defg-hij") == meet,
+                     "a meeting link is taken from the event URL, location or notes, including Outlook HTML")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         suite.expect(!NotchCalendarSupport.showsJoinButton(in: defaults),
                      "the closed-island Join control starts off")
@@ -3822,6 +3833,8 @@ enum NotchTests {
         suite.expect(physical.compactCalendarGeometry(wing: 90).compactActivityWingWidth == 90
                      && physical.compactCalendarGeometry(wing: 30).compactActivityWingWidth == 72
                      && physical.compactCalendarGeometry(wing: 500).compactActivityWingWidth == 120
+                     && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 180)
+                        .compactCalendarGeometry(wing: 500, showsJoin: true).compactActivityWingWidth == 168
                      && NotchGeometry(screen: physical.screen, safeAreaTop: 32, cameraWidth: 180, compactSideRoom: 80)
                         .compactCalendarGeometry(wing: 100).compactActivityWingWidth == 80,
                      "the countdown wings fit the wider of the title and the clock, within the menus' room")
