@@ -76,6 +76,7 @@ enum AgentClaudeServerTests {
     static func run(_ suite: TestSuite) {
         accountSelection(suite)
         signedOutSelection(suite)
+        chosenProfileWeekly(suite)
         alerts(suite)
         checks(suite)
         preview(suite)
@@ -277,6 +278,21 @@ enum AgentClaudeServerTests {
             suite.expect(host.weeklyPublications.count == 2 && host.claudeWeeklyScope == nil,
                          "losing the Claude account file also publishes removal of its selected history")
         } catch { suite.expect(false, "Claude account-selection fixture: \(error)") }
+    }
+
+    private static func chosenProfileWeekly(_ suite: TestSuite) {
+        let host = Host(), now = Date()
+        host.readerClaudeProfile = ClaudeAccountProfile(directory: "/tmp/chosen-claude-profile")
+        host.claudeWeeklyScope = AgentWeeklyAccount.scope(identifier: "chosen", organization: "account")
+        host.claudeAccountLimits = AgentLimits(provider: .claude, windows: [
+            AgentLimitWindow(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                             usedPercent: 12, resetsAt: now.addingTimeInterval(604_800))
+        ], observedAt: now, source: .account)
+        host.readClaudeApp(now: now)
+        let reading = host.store.limits[.claude]
+        suite.expect(reading?.accountScope == host.claudeWeeklyScope
+                     && reading.map { host.weeklyHistory.record($0, now: now) } == true,
+                     "a chosen Claude profile's verified reading carries its account into Weekly")
     }
 
     private static func signedOutSelection(_ suite: TestSuite) {

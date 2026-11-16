@@ -13,6 +13,8 @@ struct NotchAgentWeeklyCard: View {
     let strings: AgentWeeklyStrings
     let text: NotchAgentStrings
     var status: String? = nil
+    /// False while a chosen Claude profile, not the CLI's default login, is read.
+    var namesDefaultAccount = true
     @Environment(\.locale) private var locale
 
     var body: some View {
@@ -20,7 +22,9 @@ struct NotchAgentWeeklyCard: View {
             VStack(alignment: .leading, spacing: 7) {
                 NotchAgentCardHeader(title: provider.displayName + " · " + strings.title,
                                      symbol: NotchAgentCard.weekly.symbol, tint: provider.tint, provider: provider) { EmptyView() }
-                Text(strings.defaultAccount).font(.system(size: 9)).foregroundStyle(.secondary)
+                if namesDefaultAccount {
+                    Text(strings.defaultAccount).font(.system(size: 9)).foregroundStyle(.secondary)
+                }
                 if let cycle, let sample = cycle.latest {
                     reading(sample, cycle: cycle)
                 } else {

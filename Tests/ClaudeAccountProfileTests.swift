@@ -142,7 +142,10 @@ enum ClaudeAccountProfileTests {
             minutes: 300, scope: nil, usedPercent: 12, resetsAt: now.addingTimeInterval(3_600))], observedAt: now, source: .account)
         host.claudeAccountLimits = reading
         host.readClaudeApp(now: now)
-        suite.expect(host.store.limits[.claude] == reading, "a selected profile displays its own account reading")
+        var expected = reading
+        expected.accountScope = host.claudeWeeklyScope
+        suite.expect(host.claudeWeeklyScope != nil && host.store.limits[.claude] == expected,
+                     "a selected profile displays its own account reading")
         let desktop = AgentClaudeAppUsage.historyURL(home: home)
         try FileManager.default.createDirectory(at: desktop.deletingLastPathComponent(), withIntermediateDirectories: true)
         try JSONSerialization.data(withJSONObject: ["version": 2, "samples": [["t": now.timeIntervalSince1970 * 1_000,

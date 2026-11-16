@@ -154,7 +154,8 @@ struct NotchAgentsView: View {
                 NotchAgentWeeklyCard(provider: provider, cycle: usage.weeklyUsage.current(provider), now: now,
                                      historyFailed: usage.weeklyHistoryFailed,
                                      strings: AgentWeeklyStrings.localized(l10n.language), text: text,
-                                     status: weeklyStatus(provider))
+                                     status: weeklyStatus(provider),
+                                     namesDefaultAccount: provider != .claude || usage.claudeProfile.isDefault)
             }
         }
     }

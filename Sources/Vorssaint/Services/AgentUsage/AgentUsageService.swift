@@ -816,7 +816,9 @@ final class AgentUsageService: ObservableObject {
         if !readerClaudeProfile.isDefault {
             claudeAppModified = nil
             claudeAppSamples = []
-            if let reading = AgentClaudeServer.current(claudeAccountLimits, now: now) {
+            if var reading = AgentClaudeServer.current(claudeAccountLimits, now: now) {
+                // The chosen profile's verified account feeds Weekly as the default one does.
+                reading.accountScope = claudeWeeklyScope
                 store.setLimits(reading)
             } else {
                 store.clearLimits(.claude)
