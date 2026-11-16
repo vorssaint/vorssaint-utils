@@ -39,11 +39,18 @@ struct NotchCalendarCountdown: Equatable, Sendable {
 
     var target: Date { ongoing ? event.end : event.start }
 
-    /// A start shows within `leadTime` before it; an end, during the hour
-    /// before it and only once its event has begun.
-    func isShown(at now: Date, leadTime: TimeInterval) -> Bool {
-        target > now && target.timeIntervalSince(now) <= (ongoing ? NotchCalendarSupport.timeLeftLeadTime : leadTime)
-            && (!ongoing || event.start <= now)
+    /// A start shows within `leadTime` before it. An end shows during the hour
+    /// before it once the event has begun, or for a joinable meeting's whole
+    /// duration when Join is on, so the island keeps Join while you are late
+    /// or need to rejoin.
+    func isShown(at now: Date, leadTime: TimeInterval, joinsThroughEnd: Bool = false) -> Bool {
+        guard target > now else { return false }
+        if ongoing {
+            guard event.start <= now else { return false }
+            if joinsThroughEnd, event.meetingURL != nil { return true }
+            return target.timeIntervalSince(now) <= NotchCalendarSupport.timeLeftLeadTime
+        }
+        return target.timeIntervalSince(now) <= leadTime
     }
 }
 
@@ -155,6 +162,15 @@ enum NotchCalendarSupport {
     static func showsJoinButton(for countdown: NotchCalendarCountdown?,
                                 in defaults: UserDefaults = .standard) -> Bool {
         showsJoinButton(in: defaults) && countdown?.event.meetingURL != nil
+    }
+
+    /// Whether the closed island still follows this countdown under current options.
+    static func follows(_ countdown: NotchCalendarCountdown, chosen: Bool,
+                        in defaults: UserDefaults = .standard) -> Bool {
+        if countdown.ongoing {
+            return showsTimeLeft(in: defaults) || showsJoinButton(for: countdown, in: defaults)
+        }
+        return showsCountdown(chosen: chosen, in: defaults)
     }
 
     /// The number beside a row of the month grid. Rows start on the calendar's
@@ -269,24 +285,33 @@ enum NotchCalendarSupport {
 
     /// The compact island counts down to the nearer of the moments it follows:
     /// a timed event's start, with the countdown on or for an event chosen
-    /// from its menu, and, with time left on, the end of one in progress. A
-    /// start that coincides with an end leaves the event under way. Starts
-    /// show within `leadTime`; see `NotchCalendarCountdown.isShown`.
+    /// from its menu; with time left on, the end of one in progress; and with
+    /// Join on, a meeting under way that still has a call link, for its whole
+    /// duration ahead of a later start. A start that coincides with an end
+    /// leaves the event under way. Starts show within `leadTime`; see
+    /// `NotchCalendarCountdown.isShown`.
     static func countdown(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                          chosen: Set<String> = [], leadTime: TimeInterval) -> NotchCalendarCountdown? {
+                          joins: Bool = false, chosen: Set<String> = [],
+                          leadTime: TimeInterval) -> NotchCalendarCountdown? {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
-                followedMoments(event, starts: starts, ends: ends, chosen: chosen)
+                followedMoments(event, starts: starts, ends: ends, joins: joins, chosen: chosen)
                     .map { NotchCalendarCountdown(event: event, ongoing: $0) }
             }
-            .filter { $0.isShown(at: now, leadTime: leadTime) }
-            .min { $0.target != $1.target ? $0.target < $1.target : $0.ongoing && !$1.ongoing }
+            .filter { $0.isShown(at: now, leadTime: leadTime, joinsThroughEnd: joins) }
+            .min { a, b in
+                let aJoin = joins && a.ongoing && a.event.meetingURL != nil
+                let bJoin = joins && b.ongoing && b.event.meetingURL != nil
+                if aJoin != bJoin { return aJoin }
+                return a.target != b.target ? a.target < b.target : a.ongoing && !b.ongoing
+            }
     }
 
     /// Whether the island follows the event's start (false) and its end (true).
     private static func followedMoments(_ event: NotchCalendarEvent, starts: Bool, ends: Bool,
-                                        chosen: Set<String>) -> [Bool] {
-        (starts || isChosen(event, in: chosen) ? [false] : []) + (ends ? [true] : [])
+                                        joins: Bool, chosen: Set<String>) -> [Bool] {
+        let followEnd = ends || (joins && event.meetingURL != nil)
+        return (starts || isChosen(event, in: chosen) ? [false] : []) + (followEnd ? [true] : [])
     }
 
     /// The Controls tile names the next start at any distance within the
@@ -312,15 +337,19 @@ enum NotchCalendarSupport {
     }
 
     /// When the window before each moment followed opens and closes: the lead
-    /// time before a start, the hour before an end, which opens no earlier
-    /// than its event's start.
+    /// time before a start, the hour before an end (or the whole meeting when
+    /// Join keeps it), which opens no earlier than its event's start.
     static func countdownTransition(_ events: [NotchCalendarEvent], now: Date, starts: Bool, ends: Bool,
-                                    chosen: Set<String> = [], leadTime: TimeInterval) -> Date? {
+                                    joins: Bool = false, chosen: Set<String> = [],
+                                    leadTime: TimeInterval) -> Date? {
         ordered(events).filter { !$0.allDay }
             .flatMap { event in
-                followedMoments(event, starts: starts, ends: ends, chosen: chosen).flatMap { ongoing in
-                    ongoing ? [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
-                        : [event.start.addingTimeInterval(-leadTime), event.start]
+                followedMoments(event, starts: starts, ends: ends, joins: joins, chosen: chosen).flatMap { ongoing in
+                    guard ongoing else {
+                        return [event.start.addingTimeInterval(-leadTime), event.start]
+                    }
+                    if joins, event.meetingURL != nil { return [event.start, event.end] }
+                    return [max(event.start, event.end.addingTimeInterval(-timeLeftLeadTime)), event.end]
                 }
             }
             .filter { $0 > now }.min()

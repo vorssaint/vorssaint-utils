@@ -260,6 +260,8 @@ enum NotchPresentationRefreshContract {
         var surfaceShift: CGFloat = 0
         var musicStripFitsInPlace = false
         var musicStripShowsControl = false
+        var calendarJoinHovered = false
+        var calendarStripJoinsOnActivate = false
         var namedMusicWings: NotchNoticeWings?
         var musicStripNamesSong = false
         var musicStripStandIn: NotchCompactMusicSnapshot?
@@ -293,6 +295,8 @@ enum NotchPresentationRefreshContract {
         func toggle() { expanded.toggle() }
         var countdownOpenings = 0
         func openCountdownEvent() { countdownOpenings += 1; expanded = true }
+        var meetingJoins = 0
+        func joinCountdownMeeting() { meetingJoins += 1 }
         func collapse() { expanded = false }
         var edgeClicksEnabled = false
         func syncScreenEdgeClicks() { edgeClicksEnabled = true }
@@ -363,6 +367,28 @@ enum NotchPresentationRefreshContract {
         pressing.musicStripShowsControl = false
         pressing.windowHost?.willPress?()
         suite.expect(pressing.hoverState.suppressed, "a press that opens the island still holds hover back")
+
+        // A capsule's Join icon sits under the same activation overlay: a rest
+        // on it joins the meeting instead of opening Calendar.
+        let joining = Service()
+        joining.expanded = false
+        joining.geometry = capsule.geometry
+        joining.compactActivityIsVisible = true
+        joining.compactActivity = .calendar
+        joining.calendarStripJoinsOnActivate = true
+        joining.refreshPresentation(animated: false)
+        joining.windowHost?.activate?()
+        suite.expect(joining.meetingJoins == 1 && joining.countdownOpenings == 0 && !joining.expanded,
+                     "a click on a capsule's Join icon opens the meeting in place")
+        joining.calendarStripJoinsOnActivate = false
+        joining.windowHost?.activate?()
+        suite.expect(joining.meetingJoins == 1 && joining.countdownOpenings == 1 && joining.expanded,
+                     "anywhere else the calendar capsule opens the event as before")
+        joining.expanded = false
+        joining.calendarStripJoinsOnActivate = true
+        joining.refreshPresentation(animated: false)
+        joining.windowHost?.willPress?()
+        suite.expect(!joining.hoverState.suppressed, "pressing Join leaves hover as it was")
 
         // Whatever takes the strip's place ends the part under the pointer, and
         // with the pointer off the island, the strip's name and held song.

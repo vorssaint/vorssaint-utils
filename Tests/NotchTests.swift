@@ -3811,6 +3811,44 @@ enum NotchTests {
         suite.expect(transition([meeting], starts: false, ends: true) == meeting.end
                      && transition([meeting], starts: false) == nil,
                      "a refresh is scheduled when the current event ends, and none when nothing is followed")
+        // Join keeps a call under way for its whole duration, even early in a
+        // long meeting where time left would still be silent, and ahead of a
+        // later start so you can join late or rejoin without opening Calendar.
+        // Still early in a two-hour call: time left would stay silent, Join keeps it.
+        let liveCall = NotchCalendarEvent(id: "live call", title: "Live", calendar: "Work",
+                                          start: now.addingTimeInterval(-600), end: now.addingTimeInterval(hour + 600),
+                                          allDay: false, location: "", meetingURL: zoom)
+        let plainLive = event("plain live", -600, hour + 600)
+        suite.expect(NotchCalendarSupport.countdown([liveCall, afterGap], now: now, starts: true, ends: false,
+                                                    joins: true, leadTime: hour)
+                        == NotchCalendarCountdown(event: liveCall, ongoing: true),
+                     "Join keeps a call under way ahead of a later start")
+        suite.expect(NotchCalendarSupport.countdown([plainLive, afterGap], now: now, starts: true, ends: false,
+                                                    joins: true, leadTime: hour)
+                        == NotchCalendarCountdown(event: afterGap, ongoing: false),
+                     "Join does not hold a meeting under way that has no call link")
+        suite.expect(NotchCalendarSupport.countdown([liveCall], now: now, starts: false, ends: false,
+                                                    joins: true, leadTime: hour)
+                        == NotchCalendarCountdown(event: liveCall, ongoing: true),
+                     "Join alone follows a call under way without countdown or time left")
+        suite.expect(NotchCalendarCountdown(event: liveCall, ongoing: true)
+                        .isShown(at: now, leadTime: hour, joinsThroughEnd: true)
+                     && !NotchCalendarCountdown(event: liveCall, ongoing: true).isShown(at: now, leadTime: hour),
+                     "Join shows a call for its whole duration; time left still waits for its hour")
+        suite.expect(NotchCalendarSupport.countdownTransition([liveCall], now: now, starts: false, ends: false,
+                                                              joins: true, leadTime: hour) == liveCall.end,
+                     "Join schedules a refresh when the call under way ends")
+        defaults.set(true, forKey: DefaultsKey.notchEnabled)
+        defaults.set(false, forKey: DefaultsKey.notchCalendarTimeLeft)
+        defaults.set(true, forKey: DefaultsKey.notchCalendarJoinButton)
+        suite.expect(NotchCalendarSupport.follows(NotchCalendarCountdown(event: liveCall, ongoing: true),
+                                                  chosen: false, in: defaults),
+                     "Join alone follows a call under way")
+        suite.expect(!NotchCalendarSupport.follows(NotchCalendarCountdown(event: plainLive, ongoing: true),
+                                                   chosen: false, in: defaults),
+                     "without a call link, Join does not replace time left for an event under way")
+        defaults.set(false, forKey: DefaultsKey.notchCalendarJoinButton)
+        defaults.set(false, forKey: DefaultsKey.notchEnabled)
         chosenCountdownContracts(suite, defaults: defaults, now: now)
         let posix = Locale(identifier: "en_US_POSIX")
         let endText = NotchCalendarSupport.timeText(NotchCalendarCountdown(event: meeting, ongoing: true), locale: posix)

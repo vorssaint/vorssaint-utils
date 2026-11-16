@@ -316,6 +316,10 @@ final class NotchService: ObservableObject {
     @Published private(set) var capsuleMusicTitleShown = false
     /// The part of the closed music strip under the pointer, as the strip reports it.
     @Published private(set) var musicStripPointer: NotchMusicStripPart?
+    /// The calendar Join icon under the pointer on a floating capsule, where
+    /// the activation button covers the whole strip and must join instead of
+    /// opening Calendar.
+    @Published private(set) var calendarJoinHovered = false
     /// The pointer rested on the strip's cover, so the strip names the song
     /// until the pointer leaves the island.
     @Published private(set) var musicStripNamed = false
@@ -547,10 +551,10 @@ final class NotchService: ObservableObject {
     var hasCalendarActivity: Bool {
         let calendar = NotchCalendarService.shared
         guard let countdown = calendar.countdown,
-              countdown.ongoing ? NotchCalendarSupport.showsTimeLeft()
-                : NotchCalendarSupport.showsCountdown(chosen: calendar.isChosen(countdown.event))
+              NotchCalendarSupport.follows(countdown, chosen: calendar.isChosen(countdown.event))
         else { return false }
-        return countdown.isShown(at: Date(), leadTime: calendar.countdownLeadTime)
+        return countdown.isShown(at: Date(), leadTime: calendar.countdownLeadTime,
+                                 joinsThroughEnd: NotchCalendarSupport.showsJoinButton())
     }
 
     var hasKeepAwakeActivity: Bool {
@@ -1380,6 +1384,7 @@ final class NotchService: ObservableObject {
         inside = false
         _ = endMusicStripHover(leaving: true)
         endMusicStripRequest()
+        calendarJoinHovered = false
         hoverEmphasized = false
         activitySelection = NotchActivitySelection()
         activityPickerMenuOpen = false
@@ -1453,6 +1458,17 @@ final class NotchService: ObservableObject {
     func joinCountdownMeeting() {
         guard let url = NotchCalendarService.shared.countdown?.event.meetingURL else { return }
         NSWorkspace.shared.open(url)
+    }
+
+    /// A floating capsule's Join icon is under the pointer, and the countdown
+    /// still has a meeting link to open.
+    var calendarStripJoinsOnActivate: Bool {
+        calendarJoinHovered && NotchCalendarSupport.showsJoinButton(for: NotchCalendarService.shared.countdown)
+    }
+
+    /// The capsule strip reports the pointer resting on its Join icon, or leaving it.
+    func hoverCalendarJoin(entered: Bool) {
+        if calendarJoinHovered != entered { calendarJoinHovered = entered }
     }
 
     func open(_ module: NotchModule? = nil, pinned: Bool = false, takeFocus: Bool = true,
@@ -1607,6 +1623,7 @@ final class NotchService: ObservableObject {
         // The music strip names its song only while the pointer stays on the
         // island: leaving ends it, and a name left from before goes on return.
         let unnamesMusic = inside != wasInside && endMusicStripHover(leaving: !inside)
+        if inside != wasInside, !inside { calendarJoinHovered = false }
         // A full hover opening goes straight from its resting size to the page.
         // The activity picker replaces that opening and keeps its hover response.
         let opensOnHover = hoverOpeningEnabled
@@ -2692,6 +2709,8 @@ final class NotchService: ObservableObject {
                 releasedMusicStrip = endMusicStripHover(leaving: true)
             }
         }
+        // SwiftUI reports no exit from a Join icon it removes.
+        if calendarJoinHovered, compactActivity != .calendar { calendarJoinHovered = false }
         // The menus' room follows the strip once this refresh is done, as
         // measuring it can refresh again.
         defer { if releasedMusicStrip { syncMenuSpaceMonitoring() } }
@@ -2799,13 +2818,18 @@ final class NotchService: ObservableObject {
             willPress: { [weak self] in
                 guard let self else { return }
                 self.hoverWork?.cancel()
-                // Playing or pausing from a capsule's bars opens nothing, so hover carries on.
-                if !(self.geometry.floats && self.musicStripShowsControl) { self.hoverState.close(pointerInside: true) }
+                // Playing, pausing, or joining from a capsule control opens
+                // nothing, so hover carries on under the activation button.
+                if !(self.geometry.floats && (self.musicStripShowsControl || self.calendarStripJoinsOnActivate)) {
+                    self.hoverState.close(pointerInside: true)
+                }
             }, activate: { [weak self] in
                 guard let self else { return }
                 if self.captureControls != nil { self.expandCaptureControls() }
                 // The capsule's button covers its music bars too, which play or pause there.
                 else if self.geometry.floats, self.musicStripShowsControl { self.toggleMusicStripSong() }
+                // Same overlay covers Join: a rest on the icon joins in place.
+                else if self.geometry.floats, self.calendarStripJoinsOnActivate { self.joinCountdownMeeting() }
                 else if !self.expanded, self.compactActivity == .calendar {
                     self.openCountdownEvent()
                 } else { self.toggle() }

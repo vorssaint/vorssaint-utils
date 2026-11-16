@@ -234,9 +234,12 @@ struct NotchCalendarStrip: View {
     }
 }
 
-/// Video icon that joins the meeting without opening the island.
+/// Video icon that joins the meeting without opening the island. On a floating
+/// capsule the activation overlay covers the strip, so hover tells the service
+/// a click should join instead of opening Calendar.
 struct NotchCalendarJoinControl: View {
     let accessibilityTitle: String
+    var reportsCapsuleHover = false
     let action: () -> Void
 
     var body: some View {
@@ -255,6 +258,13 @@ struct NotchCalendarJoinControl: View {
         .help(accessibilityTitle)
         .accessibilityLabel(accessibilityTitle)
         .accessibilityIdentifier("notch.calendarJoin")
+        .onHover { entered in
+            guard reportsCapsuleHover else { return }
+            NotchService.shared.hoverCalendarJoin(entered: entered)
+        }
+        .onDisappear {
+            if reportsCapsuleHover { NotchService.shared.hoverCalendarJoin(entered: false) }
+        }
     }
 }
 

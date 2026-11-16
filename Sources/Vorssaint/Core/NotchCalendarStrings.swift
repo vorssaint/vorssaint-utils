@@ -88,7 +88,7 @@ extension FeatureStrings {
             timeLeft: "Time left in current event",
             timeLeftHint: "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
             joinButton: "Join button",
-            joinButtonHint: "Show a Join button in the closed island when a countdown event has a Teams, Zoom, or Google Meet link.",
+            joinButtonHint: "Show a Join button when a countdown event has a Teams, Zoom, or Google Meet link. A meeting under way stays on the island until it ends so you can join late or rejoin.",
             weekNumbers: "Week numbers",
             weekNumber: "Week %d",
             calendars: "Calendars shown")
@@ -125,7 +125,7 @@ extension FeatureStrings {
             timeLeft: "Tempo restante do evento atual",
             timeLeftHint: "Mostra o evento com horário em andamento no notch durante a última hora antes de terminar. O título pode aparecer em capturas de tela.",
             joinButton: "Botão Entrar",
-            joinButtonHint: "Mostra um botão Entrar no notch quando o evento da contagem tiver um link do Teams, Zoom ou Google Meet.",
+            joinButtonHint: "Mostra um botão Entrar quando o evento da contagem tiver um link do Teams, Zoom ou Google Meet. Uma reunião em andamento permanece no notch até terminar para você entrar atrasado ou de novo.",
             weekNumbers: "Números das semanas",
             weekNumber: "Semana %d",
             calendars: "Calendários exibidos")
@@ -162,7 +162,7 @@ extension FeatureStrings {
             timeLeft: "Tiempo restante del evento actual",
             timeLeftHint: "Muestra el evento con hora en curso en el notch durante la última hora antes de que termine. El título puede aparecer en capturas de pantalla.",
             joinButton: "Botón Unirse",
-            joinButtonHint: "Muestra un botón Unirse en el notch cuando el evento de la cuenta atrás tiene un enlace de Teams, Zoom o Google Meet.",
+            joinButtonHint: "Muestra un botón Unirse cuando el evento de la cuenta atrás tiene un enlace de Teams, Zoom o Google Meet. Una reunión en curso permanece en el notch hasta que termine para unirte tarde o volver a entrar.",
             weekNumbers: "Números de semana",
             weekNumber: "Semana %d",
             calendars: "Calendarios mostrados")
@@ -199,7 +199,7 @@ extension FeatureStrings {
             timeLeft: "Zostávajúci čas aktuálnej udalosti",
             timeLeftHint: "Zobrazí prebiehajúcu udalosť s časom v zatvorenom výreze počas hodiny pred jej koncom. Názov sa môže zobraziť na snímkach obrazovky.",
             joinButton: "Tlačidlo Pripojiť sa",
-            joinButtonHint: "Zobrazí tlačidlo Pripojiť sa v zatvorenom výreze, keď má odpočítavaná udalosť odkaz na Teams, Zoom alebo Google Meet.",
+            joinButtonHint: "Zobrazí tlačidlo Pripojiť sa, keď má odpočítavaná udalosť odkaz na Teams, Zoom alebo Google Meet. Prebiehajúca schôdza ostane vo výreze až do konca, aby ste sa mohli pripojiť neskoro alebo znova.",
             weekNumbers: "Čísla týždňov",
             weekNumber: "%d. týždeň",
             calendars: "Zobrazené kalendáre")
@@ -236,7 +236,7 @@ extension FeatureStrings {
             timeLeft: "Restzeit des aktuellen Termins",
             timeLeftHint: "Zeigt einen laufenden Termin mit Uhrzeit in der geschlossenen Insel in der Stunde vor seinem Ende. Der Titel kann in Bildschirmaufnahmen erscheinen.",
             joinButton: "Teilnehmen-Taste",
-            joinButtonHint: "Zeigt in der geschlossenen Insel eine Teilnehmen-Taste, wenn der Countdown-Termin einen Teams-, Zoom- oder Google-Meet-Link hat.",
+            joinButtonHint: "Zeigt eine Teilnehmen-Taste, wenn der Countdown-Termin einen Teams-, Zoom- oder Google-Meet-Link hat. Ein laufendes Meeting bleibt bis zum Ende auf der Insel, damit du dich verspätet oder erneut verbinden kannst.",
             weekNumbers: "Kalenderwochen",
             weekNumber: "Kalenderwoche %d",
             calendars: "Angezeigte Kalender")
@@ -273,7 +273,7 @@ extension FeatureStrings {
             timeLeft: "Temps restant de l’événement en cours",
             timeLeftHint: "Affiche l’événement en cours avec une heure dans l’encoche pendant l’heure qui précède sa fin. Son titre peut apparaître dans les captures d’écran.",
             joinButton: "Bouton Rejoindre",
-            joinButtonHint: "Affiche un bouton Rejoindre dans l’encoche lorsque l’événement du compte à rebours a un lien Teams, Zoom ou Google Meet.",
+            joinButtonHint: "Affiche un bouton Rejoindre lorsque l’événement du compte à rebours a un lien Teams, Zoom ou Google Meet. Une réunion en cours reste dans l’encoche jusqu’à sa fin pour rejoindre en retard ou de nouveau.",
             weekNumbers: "Numéros de semaine",
             weekNumber: "Semaine %d",
             calendars: "Calendriers affichés")
@@ -310,7 +310,7 @@ extension FeatureStrings {
             timeLeft: "Tempo rimanente dell’evento in corso",
             timeLeftHint: "Mostra l’evento in corso con un orario nell’isola chiusa durante l’ultima ora prima della fine. Il titolo può apparire nelle acquisizioni dello schermo.",
             joinButton: "Pulsante Partecipa",
-            joinButtonHint: "Mostra un pulsante Partecipa nell’isola chiusa quando l’evento del conto alla rovescia ha un link Teams, Zoom o Google Meet.",
+            joinButtonHint: "Mostra un pulsante Partecipa quando l’evento del conto alla rovescia ha un link Teams, Zoom o Google Meet. Una riunione in corso resta sull’isola fino alla fine per entrare in ritardo o di nuovo.",
             weekNumbers: "Numeri delle settimane",
             weekNumber: "Settimana %d",
             calendars: "Calendari mostrati")
@@ -347,7 +347,7 @@ extension FeatureStrings {
             timeLeft: "Оставшееся время текущего события",
             timeLeftHint: "Показывает текущее событие со временем за час до его окончания. Название может попасть на снимки экрана.",
             joinButton: "Кнопка «Войти»",
-            joinButtonHint: "Показывает кнопку «Войти» в вырезе экрана, когда у события отсчёта есть ссылка Teams, Zoom или Google Meet.",
+            joinButtonHint: "Показывает кнопку «Войти», когда у события отсчёта есть ссылка Teams, Zoom или Google Meet. Текущая встреча остаётся в вырезе до конца, чтобы подключиться с опозданием или снова.",
             weekNumbers: "Номера недель",
             weekNumber: "Неделя %d",
             calendars: "Показываемые календари")
@@ -384,7 +384,7 @@ extension FeatureStrings {
             timeLeft: "Geçerli etkinlikte kalan süre",
             timeLeftHint: "Devam eden saatli etkinliği bitmeden önceki bir saat boyunca çentikte gösterir. Başlığı ekran görüntülerinde görünebilir.",
             joinButton: "Katıl düğmesi",
-            joinButtonHint: "Geri sayım etkinliğinde Teams, Zoom veya Google Meet bağlantısı varken çentikte bir Katıl düğmesi gösterir.",
+            joinButtonHint: "Geri sayım etkinliğinde Teams, Zoom veya Google Meet bağlantısı varken bir Katıl düğmesi gösterir. Devam eden toplantı bitene kadar adada kalır; geç katılabilir veya yeniden girebilirsiniz.",
             weekNumbers: "Hafta numaraları",
             weekNumber: "%d. hafta",
             calendars: "Gösterilen takvimler")
@@ -421,7 +421,7 @@ extension FeatureStrings {
             timeLeft: "進行中の予定の残り時間",
             timeLeftHint: "終了1時間前から、時刻がある進行中の予定を閉じたノッチに表示します。タイトルが画面収録やスクリーンショットに映る場合があります。",
             joinButton: "参加ボタン",
-            joinButtonHint: "カウントダウン中の予定にTeams、Zoom、またはGoogle Meetのリンクがあるとき、閉じたノッチに参加ボタンを表示します。",
+            joinButtonHint: "カウントダウン中の予定にTeams、Zoom、またはGoogle Meetのリンクがあるとき参加ボタンを表示します。進行中の会議は終了まで島に残り、遅刻や再参加に使えます。",
             weekNumbers: "週番号",
             weekNumber: "第%d週",
             calendars: "表示するカレンダー")
@@ -458,7 +458,7 @@ extension FeatureStrings {
             timeLeft: "진행 중인 일정의 남은 시간",
             timeLeftHint: "종료 1시간 전부터 시간이 지정된 진행 중인 일정을 닫힌 노치에 표시합니다. 제목이 화면 캡처에 나타날 수 있습니다.",
             joinButton: "참가 버튼",
-            joinButtonHint: "카운트다운 일정에 Teams, Zoom 또는 Google Meet 링크가 있을 때 닫힌 노치에 참가 버튼을 표시합니다.",
+            joinButtonHint: "카운트다운 일정에 Teams, Zoom 또는 Google Meet 링크가 있을 때 참가 버튼을 표시합니다. 진행 중인 회의는 끝날 때까지 섬에 남아 늦게 참가하거나 다시 들어갈 수 있습니다.",
             weekNumbers: "주 번호",
             weekNumber: "%d주차",
             calendars: "표시할 캘린더")
@@ -495,7 +495,7 @@ extension FeatureStrings {
             timeLeft: "当前日程剩余时间",
             timeLeftHint: "在结束前一小时，于收起的刘海区域显示正在进行的定时日程。标题可能出现在屏幕截图中。",
             joinButton: "加入按钮",
-            joinButtonHint: "当倒计时日程包含 Teams、Zoom 或 Google Meet 链接时，在收起的刘海区域显示加入按钮。",
+            joinButtonHint: "当倒计时日程包含 Teams、Zoom 或 Google Meet 链接时显示加入按钮。进行中的会议会留在灵动岛直到结束，方便迟到加入或重新进入。",
             weekNumbers: "周数",
             weekNumber: "第%d周",
             calendars: "显示的日历")
@@ -532,7 +532,7 @@ extension FeatureStrings {
             timeLeft: "目前行程剩餘時間",
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
             joinButton: "加入按鈕",
-            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時，在收合的動態島顯示加入按鈕。",
+            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時顯示加入按鈕。進行中的會議會留在動態島直到結束，方便遲到加入或重新進入。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
             calendars: "顯示的行事曆")
@@ -569,7 +569,7 @@ extension FeatureStrings {
             timeLeft: "目前行程剩餘時間",
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
             joinButton: "加入按鈕",
-            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時，在收合的動態島顯示加入按鈕。",
+            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時顯示加入按鈕。進行中的會議會留在動態島直到結束，方便遲到加入或重新進入。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
             calendars: "顯示的日曆")
@@ -606,7 +606,7 @@ extension FeatureStrings {
             timeLeft: "Залишок часу поточної події",
             timeLeftHint: "Показує поточну подію з визначеним часом за годину до її завершення. Назва може потрапити на знімки екрана.",
             joinButton: "Кнопка «Приєднатися»",
-            joinButtonHint: "Показує кнопку «Приєднатися» в Dynamic Island, коли подія відліку має посилання Teams, Zoom або Google Meet.",
+            joinButtonHint: "Показує кнопку «Приєднатися», коли подія відліку має посилання Teams, Zoom або Google Meet. Поточна зустріч лишається на Dynamic Island до кінця, щоб приєднатися із запізненням або знову.",
             weekNumbers: "Номери тижнів",
             weekNumber: "Тиждень %d",
             calendars: "Календарі для показу")
