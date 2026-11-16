@@ -91,9 +91,123 @@ enum ClaudeMultiAccountTests {
                             && alias.logURLs(home: home, scopes: legacyScopes).isEmpty,
                          "a profile sharing the default legacy log tree keeps its login without claiming that history")
             preferences(suite, home: home, accounts: accounts)
+            try folderFeedback(suite, home: home, accounts: accounts)
+            liveLimits(suite, home: home, accounts: accounts)
+            spendPlans(suite, home: home, accounts: accounts)
             try sharedHistory(suite, home: home, accounts: accounts)
             lifecycle(suite, accounts: accounts)
         } catch { suite.expect(false, "multiple Claude fixtures run: \(error)") }
+    }
+
+    private static func folderFeedback(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
+        let defaultFolder = ClaudeAccountProfile(directory: home.appending(path: ".claude").path)
+        let duplicate = ClaudeMonitoredAccount.adding([defaultFolder], to: accounts, home: home)
+        suite.expect(duplicate.accounts == accounts && duplicate.issue == .duplicate,
+                     "choosing the listed default folder reports a duplicate instead of an invalid profile")
+        let alias = home.appending(path: ".claude-folder-alias")
+        try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: accounts[1].profile.configurationURL(home: home))
+        let linked = ClaudeMonitoredAccount.adding([ClaudeAccountProfile(directory: alias.path)], to: accounts, home: home)
+        suite.expect(linked.accounts == accounts && linked.issue == .duplicate,
+                     "a second path to a listed configuration reports the same duplicate message")
+        let invalid = ClaudeAccountProfile(directory: home.appending(path: "missing-profile").path)
+        let rejected = ClaudeMonitoredAccount.adding([invalid], to: accounts, home: home)
+        suite.expect(rejected.accounts == accounts && rejected.issue == .invalid,
+                     "an unusable folder still reports the invalid-folder message")
+        let added = ClaudeMonitoredAccount.adding([accounts[1].profile], to: [accounts[0]], home: home)
+        suite.expect(added.accounts.map(\.directory) == accounts.map(\.directory) && added.issue == nil,
+                     "a valid additional account is accepted without an alert")
+        let mixed = ClaudeMonitoredAccount.adding([defaultFolder, accounts[1].profile, invalid], to: [accounts[0]], home: home)
+        suite.expect(mixed.accounts.map(\.directory) == accounts.map(\.directory) && mixed.issue == .invalid,
+                     "mixed folder selections add valid accounts and retain feedback about unusable folders")
+    }
+
+    private static func liveLimits(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
+        let now = Date()
+        let scopes = accounts.map { AgentLogRoot.canonical($0.profile.configurationURL(home: home)).path }
+        let logScopes = ClaudeMonitoredAccount.logScopes(accounts, home: home)
+        func limits(_ used: Double) -> AgentLimits {
+            AgentLimits(provider: .claude, windows: [.init(id: "session", kind: .session, minutes: 300, scope: nil,
+                usedPercent: used, resetsAt: now.addingTimeInterval(300))], observedAt: now, source: .account)
+        }
+        let personal = limits(10), work = limits(75)
+        let state = ClaudeProfileLimitsState(account: accounts[1], limits: work)
+        let store = AgentUsageStore()
+        store.apply([.turnBegan(now.addingTimeInterval(-120))], file: scopes[1] + "/projects/work.jsonl",
+            provider: .claude, tracksTurns: true, accountScope: scopes[1], modified: now, now: now)
+        store.updateLimits(personal)
+        var snapshot = store.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+        snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personal,
+            additional: [state], home: home)
+        suite.expect(snapshot.live.first?.claudeProfile == scopes[1]
+                        && NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                            == AgentFormat.percent(0.25)
+                        && NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .used, now: now)
+                            == AgentFormat.percent(0.75),
+                     "a Work-only live session uses Work's limits even with Personal listed first")
+        suite.expect(NotchAgentSupport.restingLimit(snapshot, focus: .mostUsed, now: now)?.window.usedPercent == 10,
+                     "the resting island keeps using the first Claude account's limits")
+        snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personal,
+            additional: [.init(account: accounts[1])], home: home)
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                        == AgentFormat.clock(120),
+                     "a Work session without its own limits shows elapsed time instead of Personal's allowance")
+        snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personal,
+            additional: [state], home: home)
+        snapshot.live[0].claudeProfile = nil
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                        == AgentFormat.clock(120),
+                     "a session with unknown account ownership shows elapsed time despite available Claude limits")
+        snapshot.live[0].claudeProfile = scopes[0]
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                        == AgentFormat.percent(0.9),
+                     "a Personal session still uses Personal's own limits")
+        let resumed = AgentUsageStore()
+        resumed.apply([.turnActive(now)], file: scopes[1] + "/projects/resumed.jsonl", provider: .claude,
+            tracksTurns: true, accountScope: scopes[1], modified: now, now: now)
+        suite.expect(resumed.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+                        .live.first?.claudeProfile == scopes[1],
+                     "sessions first seen through activity retain their Claude account too")
+        let restored = AgentUsageStore(saved: store.saved)
+        suite.expect(restored.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+                        .live.first?.claudeProfile == scopes[1],
+                     "live sessions restored from the usage archive regain their account from the log roots")
+    }
+
+    private static func spendPlans(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
+        let now = Date()
+        let pro = AgentPlan(name: "Pro", monthlyPrice: 20)
+        let store = AgentUsageStore()
+        for account in accounts {
+            let root = account.profile.configurationURL(home: home).appending(path: "projects")
+            let record = AgentUsageRecord(provider: .claude, date: now, model: "claude-opus-5-5", project: "app",
+                session: "session", tokens: AgentTokens(output: 1), cost: 100, savings: 0)
+            store.apply([.usage(key: "response", record: record, billable: AgentBillable(tokens: record.tokens))],
+                file: root.appending(path: "session.jsonl").path, provider: .claude, tracksTurns: false,
+                accountScope: account.id, modified: now, now: now)
+        }
+        let combined = store.snapshot(plans: [.claude: AgentPlans.combined([pro, pro])!], providers: [.claude], now: now)
+        suite.expect(combined.usage(.month).total.cost == 200 && combined.planMultiple(for: .claude) == 5,
+                     "two accounts with $100 each and $20 plans show a combined 5x multiple")
+        for account in accounts {
+            let selected = store.claudeSnapshot(roots: account.profile.logURLs(home: home), now: now, plan: pro)
+            suite.expect(selected.plans[.claude] == pro && selected.planMultiple(for: .claude) == 5,
+                         "selecting \(account.name) keeps its own plan and $100 / $20 multiple")
+        }
+        let maxPlan = AgentPlan(name: "Max", monthlyPrice: 100)
+        let selected = store.claudeSnapshot(roots: accounts[1].profile.logURLs(home: home), now: now, plan: maxPlan)
+        suite.expect(selected.planMultiple(for: .claude) == 1
+                        && AgentPlans.combined([pro, maxPlan])?.monthlyPrice == 120,
+                     "different account plans and changed plans use their own prices even with cached usage")
+        for unknown in [nil, AgentPlan(name: "New plan", monthlyPrice: nil)] as [AgentPlan?] {
+            var plans: [AgentProvider: AgentPlan] = [:]
+            plans[.claude] = AgentPlans.combined([pro, unknown])
+            let incomplete = store.snapshot(plans: plans, providers: [.claude], now: now)
+            suite.expect(incomplete.planMultiple(for: .claude) == nil,
+                         "the combined Claude multiple is hidden if any account's plan or price is unknown")
+        }
+        let unpriced = store.claudeSnapshot(roots: accounts[1].profile.logURLs(home: home), now: now)
+        suite.expect(unpriced.planMultiple(for: .claude) == nil,
+                     "a selected account without a known plan does not reuse a cached account's price")
     }
 
     private static func sharedHistory(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
@@ -173,7 +287,8 @@ enum ClaudeMultiAccountTests {
                      "card rendering and height use the same filter and ignore Claude selection when Claude is off")
         for language in AppLanguage.allCases {
             let text = FeatureStrings.claudeAccount(language)
-            suite.expect(!text.accountsTitle.isEmpty && !text.allAccounts.isEmpty && !text.multipleExplanation.isEmpty,
+            suite.expect(!text.accountsTitle.isEmpty && !text.allAccounts.isEmpty && !text.multipleExplanation.isEmpty
+                            && !text.duplicateFolder.isEmpty && text.duplicateFolder != text.invalidFolder,
                          "multiple Claude accounts have labels and help in \(language)")
         }
     }

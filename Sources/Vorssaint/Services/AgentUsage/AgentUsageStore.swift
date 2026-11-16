@@ -49,9 +49,15 @@ final class AgentUsageStore {
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
-                  calendar: Calendar = .current) -> AgentUsageSnapshot {
-        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+                  calendar: Calendar = .current, claudeScopes: [String: String] = [:]) -> AgentUsageSnapshot {
+        var snapshot = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                                        providers: providers, now: now, calendar: calendar)
+        // Derive ownership again for turns restored from the usage archive too.
+        for index in snapshot.live.indices where snapshot.live[index].provider == .claude {
+            let path = AgentLogRoot.canonical(URL(fileURLWithPath: snapshot.live[index].id)).path
+            snapshot.live[index].claudeProfile = claudeScopes.first { path.hasPrefix($0.key) }?.value
+        }
+        return snapshot
     }
 
     /// Projection by source path keeps identical session/message ids in different
@@ -63,7 +69,7 @@ final class AgentUsageStore {
         }.map { records[$0] }
     }
 
-    func claudeSnapshot(roots: [URL], now: Date, calendar: Calendar = .current) -> AgentUsageSnapshot {
+    func claudeSnapshot(roots: [URL], now: Date, plan: AgentPlan? = nil, calendar: Calendar = .current) -> AgentUsageSnapshot {
         let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
         let key = prefixes.joined(separator: "\0")
         func contains(_ path: String) -> Bool { prefixes.contains { path.hasPrefix($0) } }
@@ -71,8 +77,10 @@ final class AgentUsageStore {
             accountSummaries[key] = (claudeRecords(roots: roots), AgentUsageSummaryCache())
         }
         let stored = accountSummaries[key]!
+        var plans: [AgentProvider: AgentPlan] = [:]
+        plans[.claude] = plan
         return stored.cache.snapshot(records: stored.records, limits: [:], live: live.filter { contains($0.id) },
-                                     plans: [:], providers: [.claude], now: now, calendar: calendar)
+                                     plans: plans, providers: [.claude], now: now, calendar: calendar)
     }
 
     /// Applies one file's entries and returns the turns they finished.

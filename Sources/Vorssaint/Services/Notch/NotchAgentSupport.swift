@@ -237,7 +237,10 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
+                  let session = live.first(where: { $0.provider == provider }) else { return elapsed() }
+            let limits = provider == .claude ? session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }
+                : snapshot.limits[provider]
+            guard let window = focusedLimit(limits, focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
     }
@@ -253,13 +256,19 @@ enum NotchAgentSupport {
                                             tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
         }
         let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
-        if focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
-            sample.limits[working] = AgentLimits(provider: working, windows: [
+        guard let index = sample.live.firstIndex(where: { $0.provider == working }) else { return sample }
+        if working == .claude, sample.live[index].claudeProfile == nil { sample.live[index].claudeProfile = "example" }
+        let profile = sample.live[index].claudeProfile
+        let limits = working == .claude ? profile.flatMap { sample.claudeLimits[$0] } : sample.limits[working]
+        if focusedLimit(limits, focus: focus, now: now) == nil {
+            let example = AgentLimits(provider: working, windows: [
                 AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
                                  usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
                 AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
                                  usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
             ], observedAt: now, source: .sessionLog)
+            if working == .claude, let profile { sample.claudeLimits[profile] = example }
+            else { sample.limits[working] = example }
         }
         return sample
     }

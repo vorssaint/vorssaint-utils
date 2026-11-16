@@ -171,7 +171,7 @@ struct NotchAgentsView: View {
             let name = account.label(defaultName: FeatureStrings.claudeAccount(l10n.language).defaultAccount)
             if id == usage.claudeProfile.id {
                 return NotchAgentAccount(name: name, limits: usage.snapshot.limits[.claude],
-                    plan: usage.snapshot.plans[.claude]?.name, checking: usage.claudeAccountChecking,
+                    plan: usage.snapshot.claudePlans[id]?.name, checking: usage.claudeAccountChecking,
                     failure: usage.claudeAccountFailure.map(text.claudeCode), refreshHint: strings.refreshHint,
                     checkLabel: strings.check, refresh: usage.checkClaudeAccount)
             }
@@ -559,7 +559,7 @@ private struct NotchAgentSpendCard: View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
-                    if period == .month { multiples(usage) }
+                    if period == .month { multiples }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
@@ -587,12 +587,11 @@ private struct NotchAgentSpendCard: View {
     }
 
     /// Thirty days of API value against a plan's monthly price.
-    @ViewBuilder private func multiples(_ usage: AgentPeriodUsage) -> some View {
+    @ViewBuilder private var multiples: some View {
         HStack(spacing: 3) {
             ForEach(providers) { provider in
-                if let plan = snapshot.plans[provider], let price = plan.monthlyPrice, price > 0,
-                   let spent = usage.byProvider[provider]?.cost, spent > 0 {
-                    let multiple = (spent / price).formatted(.number.precision(.fractionLength(spent / price < 10 ? 1 : 0))) + "×"
+                if let plan = snapshot.plans[provider], let value = snapshot.planMultiple(for: provider) {
+                    let multiple = value.formatted(.number.precision(.fractionLength(value < 10 ? 1 : 0))) + "×"
                     NotchAgentChip(text: multiple, tint: provider.tint)
                         .help(text.planMultiple(multiple, plan: "\(provider.displayName) \(plan.name)"))
                 }

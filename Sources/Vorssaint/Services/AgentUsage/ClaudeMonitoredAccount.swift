@@ -17,6 +17,31 @@ struct ClaudeMonitoredAccount: Codable, Equatable, Identifiable {
         return label.isEmpty ? profile.name(defaultName: defaultName) : label
     }
 
+    enum FolderIssue: Equatable { case duplicate, invalid }
+
+    static func adding(_ profiles: [ClaudeAccountProfile], to accounts: [Self], home: URL)
+        -> (accounts: [Self], issue: FolderIssue?) {
+        var updated = accounts
+        var paths = Set(accounts.map { $0.profile.configurationURL(home: home).resolvingSymlinksInPath().path })
+        var issue: FolderIssue?
+        for var profile in profiles {
+            let folder = profile.configurationURL(home: home)
+            let path = folder.resolvingSymlinksInPath().path
+            if paths.contains(path) {
+                if issue == nil { issue = .duplicate }
+                continue
+            }
+            if folder.standardizedFileURL == home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL,
+               !FileManager.default.fileExists(atPath: profile.profileURL(home: home).path) {
+                profile = ClaudeAccountProfile()
+            }
+            guard profile.isAvailable(home: home), updated.count < maximum else { issue = .invalid; continue }
+            paths.insert(path)
+            updated.append(Self(directory: profile.directory))
+        }
+        return (updated, issue)
+    }
+
     /// The legacy config location belongs to the default login only when
     /// it has no profile of its own. Removing an explicit account must not
     /// quietly move that account's history back into the default card.

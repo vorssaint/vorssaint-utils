@@ -15,6 +15,18 @@ struct ClaudeProfileLimitsState: Equatable, Identifiable {
     var failures = 0
     var id: String { account.id }
 
+    static func readings(primary: ClaudeMonitoredAccount?, limits: AgentLimits?, additional: [Self],
+                         home: URL) -> [String: AgentLimits] {
+        var readings: [String: AgentLimits] = [:]
+        if let primary {
+            readings[AgentLogRoot.canonical(primary.profile.configurationURL(home: home)).path] = limits
+        }
+        for state in additional {
+            readings[AgentLogRoot.canonical(state.account.profile.configurationURL(home: home)).path] = state.limits
+        }
+        return readings
+    }
+
     func isDue(at now: Date) -> Bool {
         attempted.map { now.timeIntervalSince($0) >= AgentClaudeServer.interval(after: failure,
             repeated: failures, pageVisible: true) } ?? true

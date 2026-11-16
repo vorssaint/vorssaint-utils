@@ -2478,11 +2478,14 @@ enum NotchAgentTests {
         func session(_ provider: AgentProvider, startedAgo: TimeInterval) -> AgentLiveSession {
             AgentLiveSession(id: provider.rawValue, provider: provider, started: now.addingTimeInterval(-startedAgo),
                              lastActivity: now, model: "claude-opus-5-5", project: "app",
-                             tokens: AgentTokens(input: 1200, cacheWrite: 0, cacheRead: 0, output: 300), cost: 4.56)
+                             tokens: AgentTokens(input: 1200, cacheWrite: 0, cacheRead: 0, output: 300), cost: 4.56,
+                             claudeProfile: provider == .claude ? "personal" : nil)
         }
         func snapshot(_ live: [AgentLiveSession], limits: [AgentProvider: AgentLimits] = [:]) -> AgentUsageSnapshot {
-            AgentUsageSummary.snapshot(records: [], limits: limits, live: live, plans: [:],
-                                       providers: [.claude, .codex], now: now)
+            var snapshot = AgentUsageSummary.snapshot(records: [], limits: limits, live: live, plans: [:],
+                                                      providers: [.claude, .codex], now: now)
+            snapshot.claudeLimits["personal"] = limits[.claude]
+            return snapshot
         }
         suite.expect(NotchAgentReadout.elapsed.advancesWithClock && NotchAgentReadout.limit.advancesWithClock
                         && !NotchAgentReadout.tokens.advancesWithClock && !NotchAgentReadout.cost.advancesWithClock,

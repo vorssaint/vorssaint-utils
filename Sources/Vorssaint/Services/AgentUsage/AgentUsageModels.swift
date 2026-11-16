@@ -150,6 +150,8 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+    /// Canonical configuration directory owning this Claude session's log.
+    var claudeProfile: String? = nil
 }
 
 /// Something worth a moment in the closed island.

@@ -301,6 +301,16 @@ enum AgentPricing {
 
 /// Subscriptions, recognized from what the agents keep on disk.
 enum AgentPlans {
+    /// Combined API value needs the price of every subscription contributing usage.
+    static func combined(_ plans: [AgentPlan?]) -> AgentPlan? {
+        if plans.count == 1 { return plans[0] }
+        let known = plans.compactMap { $0 }
+        let prices = known.compactMap(\.monthlyPrice)
+        guard !plans.isEmpty, known.count == plans.count, prices.count == plans.count,
+              prices.allSatisfy({ $0.isFinite && $0 >= 0 }) else { return nil }
+        return AgentPlan(name: known.map(\.name).joined(separator: " + "), monthlyPrice: prices.reduce(0, +))
+    }
+
     static func claude(organizationType: String?, rateLimitTier: String?,
                        list: AgentPriceList = AgentPricing.list) -> AgentPlan? {
         let type = (organizationType ?? "").lowercased()

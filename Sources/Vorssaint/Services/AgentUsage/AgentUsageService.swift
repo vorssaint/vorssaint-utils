@@ -91,6 +91,7 @@ final class AgentUsageService: ObservableObject {
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
+    private var claudeLimitsSubscription: AnyCancellable?
 
     // Confined to `queue`.
     private var readerSession = -1
@@ -133,7 +134,14 @@ final class AgentUsageService: ObservableObject {
     private var savedMark: Int?
     private var lastSave = Date.distantPast
 
-    private init() {}
+    private init() {
+        claudeLimitsSubscription = ClaudeProfileLimitsService.shared.$states.dropFirst().sink { [weak self] states in
+            guard let self else { return }
+            let readings = ClaudeProfileLimitsState.readings(primary: self.claudeAccounts.first,
+                limits: self.snapshot.limits[.claude], additional: states, home: self.home)
+            if self.snapshot.claudeLimits != readings { self.snapshot.claudeLimits = readings }
+        }
+    }
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
@@ -671,14 +679,23 @@ final class AgentUsageService: ObservableObject {
         let session = readerSession
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
-        if let claudePlan { plans[.claude] = claudePlan }
+        var claudePlans: [String: AgentPlan] = [:]
+        if enabled.contains(.claude) {
+            for account in readerClaudeAccounts {
+                claudePlans[account.id] = account.id == readerClaudeAccounts.first?.id
+                    ? claudePlan : account.profile.read(home: home).plan
+            }
+            plans[.claude] = AgentPlans.combined(readerClaudeAccounts.map { claudePlans[$0.id] })
+        }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date(), claudeScopes: readerClaudeScopes)
+        next.claudePlans = claudePlans
         if readerClaudeAccounts.count > 1 { next.claudeBlock = nil }
         published = next
         var accountSnapshots: [String: AgentUsageSnapshot] = [:]
         if enabled.contains(.claude), let account = readerClaudeAccounts.first(where: { $0.id == readerClaudeFilter }) {
-            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home, scopes: readerClaudeScopes), now: next.now)
+            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home, scopes: readerClaudeScopes),
+                now: next.now, plan: claudePlans[account.id])
         }
         let snapshots = accountSnapshots
         checkBudget(next)
@@ -693,7 +710,10 @@ final class AgentUsageService: ObservableObject {
             if self.claudeAppChecked != checked { self.claudeAppChecked = checked }
             if self.claudeAccountIdentity != identity { self.claudeAccountIdentity = identity }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
-            if self.snapshot != next { self.snapshot = next }
+            var current = next
+            current.claudeLimits = ClaudeProfileLimitsState.readings(primary: self.claudeAccounts.first,
+                limits: current.limits[.claude], additional: ClaudeProfileLimitsService.shared.states, home: self.home)
+            if self.snapshot != current { self.snapshot = current }
             if self.claudeSnapshots != snapshots { self.claudeSnapshots = snapshots }
         }
     }

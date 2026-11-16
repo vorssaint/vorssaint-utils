@@ -8,7 +8,7 @@ struct ClaudeAccountSettings: View {
     @AppStorage(DefaultsKey.notchAgentsClaudeAccounts) private var saved = ""
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
-    @State private var invalidFolder = false
+    @State private var folderIssue: ClaudeMonitoredAccount.FolderIssue?
     private var text: ClaudeAccountStrings { FeatureStrings.claudeAccount(l10n.language) }
     private var common: CodexAccountStrings { FeatureStrings.codexAccounts(l10n.language) }
     private var accounts: [ClaudeMonitoredAccount] {
@@ -72,9 +72,10 @@ struct ClaudeAccountSettings: View {
             Link(text.signInHelp, destination: URL(string: "https://code.claude.com/docs/en/authentication#log-in-with-multiple-accounts")!)
                 .font(.caption)
         }
-        .alert(text.accountsTitle, isPresented: $invalidFolder) {
+        .alert(text.accountsTitle, isPresented: Binding(
+            get: { folderIssue != nil }, set: { if !$0 { folderIssue = nil } })) {
             Button("OK", role: .cancel) {}
-        } message: { Text(text.invalidFolder) }
+        } message: { Text(folderIssue == .duplicate ? text.duplicateFolder : text.invalidFolder) }
     }
 
     private func save(_ accounts: [ClaudeMonitoredAccount]) {
@@ -85,11 +86,9 @@ struct ClaudeAccountSettings: View {
     }
 
     private func add(_ profiles: [ClaudeAccountProfile]) {
-        let additions = profiles.map { ClaudeMonitoredAccount(directory: $0.directory) }
-        let proposed = accounts + additions
-        let accepted = ClaudeMonitoredAccount.decode(ClaudeMonitoredAccount.encode(proposed))
-        if accepted.count < proposed.count { invalidFolder = true }
-        save(accepted)
+        let result = ClaudeMonitoredAccount.adding(profiles, to: accounts, home: FileManager.default.homeDirectoryForCurrentUser)
+        folderIssue = result.issue
+        if result.accounts != accounts { save(result.accounts) }
     }
 
     private func chooseFolder() {
@@ -101,16 +100,6 @@ struct ClaudeAccountSettings: View {
         let home = FileManager.default.homeDirectoryForCurrentUser
         panel.directoryURL = home
         guard panel.runModal() == .OK else { return }
-        var profiles: [ClaudeAccountProfile] = []
-        for folder in panel.urls {
-            let profile = ClaudeAccountProfile(directory: folder.path)
-            if folder.standardizedFileURL == home.appending(path: ".claude", directoryHint: .isDirectory).standardizedFileURL,
-               !FileManager.default.fileExists(atPath: profile.profileURL(home: home).path) {
-                profiles.append(ClaudeAccountProfile())
-            } else if profile.isAvailable(home: home) {
-                profiles.append(profile)
-            } else { invalidFolder = true }
-        }
-        add(profiles)
+        add(panel.urls.map { ClaudeAccountProfile(directory: $0.path) })
     }
 }
