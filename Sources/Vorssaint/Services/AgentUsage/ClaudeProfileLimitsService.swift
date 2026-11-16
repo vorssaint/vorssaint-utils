@@ -63,6 +63,7 @@ final class ClaudeProfileLimitsService: ObservableObject {
             if let running, !states.contains(where: { $0.id == running.id }) {
                 running.request.cancel()
                 self.running = nil
+                startNext()
             }
         }
         syncTimer()

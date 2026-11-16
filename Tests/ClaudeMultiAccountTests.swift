@@ -198,6 +198,36 @@ enum ClaudeMultiAccountTests {
         suite.expect(late.states.isEmpty && late.timer == nil,
                      "removing a checking profile rejects its late result and stops the last additional-account timer")
         late.pause()
+
+        let third = ClaudeMonitoredAccount(directory: accounts[1].directory + "-queued", name: "Queued")
+        defaults.set(ClaudeMonitoredAccount.encode(accounts + [third]), forKey: DefaultsKey.notchAgentsClaudeAccounts)
+        let queuedEntered = DispatchSemaphore(value: 0), queuedRelease = DispatchSemaphore(value: 0)
+        let queued = ClaudeProfileLimitsService(defaults: defaults) { profile, _ in
+            if profile.id == accounts[1].id {
+                queuedEntered.signal()
+                _ = queuedRelease.wait(timeout: .now() + 3)
+                return .init(metadata: .init(), result: .failure(.outdated))
+            }
+            let limits = AgentLimits(provider: .claude, windows: [.init(id: "claude.fh", kind: .session,
+                minutes: 300, scope: nil, usedPercent: 42, resetsAt: Date().addingTimeInterval(300))], observedAt: Date(), source: .account)
+            return .init(metadata: .init(), result: .success(.init(limits: limits, identity: nil)))
+        }
+        defer { queuedRelease.signal(); queued.pause() }
+        queued.synchronize()
+        queued.refresh(force: true)
+        suite.expect(queuedEntered.wait(timeout: .now() + 2) == .success
+                        && queued.states.map(\.id) == [accounts[1].id, third.id]
+                        && queued.states.allSatisfy(\.checking) && queued.timer == nil,
+                     "a manual limits check starts the second Claude account and queues the third while the AI page is closed")
+        defaults.set(ClaudeMonitoredAccount.encode([accounts[0], third]), forKey: DefaultsKey.notchAgentsClaudeAccounts)
+        queued.synchronize()
+        queuedRelease.signal()
+        wait { queued.states.first?.limits != nil }
+        suite.expect(queued.states.count == 1 && queued.states.first?.id == third.id
+                        && queued.states.first?.limits?.windows.first?.usedPercent == 42
+                        && queued.states.first?.checking == false && queued.timer == nil,
+                     "removing a running Claude account advances the queued manual check while the AI page stays closed")
+
         defaults.set(false, forKey: DefaultsKey.notchAgentsClaude)
         service.synchronize()
         service.refresh(force: true)
