@@ -38,6 +38,9 @@ final class MicMuteService: ObservableObject {
     /// A sweep that finished after a newer one started must not publish what
     /// it saw.
     private var applyGeneration = 0
+    /// `halQueue` only. Sweeps in a row each device has refused the mute,
+    /// by UID. See `MicMuteSupport.shouldWatch`.
+    private var refusals: [String: Int] = [:]
     /// What the last request asked for, kept from the moment it is queued.
     /// `isMuted` and the persisted flag only follow once the sweep has
     /// published, so a device change or a preference sync that lands while a
@@ -202,6 +205,9 @@ final class MicMuteService: ObservableObject {
         let generation = applyGeneration
         halQueue.async { [weak self] in
             let outcome = Self.sweep(muted: muted)
+            self?.refusals = muted
+                ? MicMuteSupport.refusalCounts(previous: self?.refusals ?? [:], refused: outcome.refused)
+                : [:]
             if muted {
                 if outcome.applied { self?.syncDeviceListeners(muted: true) }
             } else if outcome.applied {
@@ -296,6 +302,8 @@ final class MicMuteService: ObservableObject {
         var mutedDevices: [String]
         /// A device this sweep had to reach and could not, next to ones it did.
         var failed = false
+        /// Devices this sweep wrote to that still read live afterwards.
+        var refused: [String] = []
     }
 
     private struct DeviceListener {
@@ -401,7 +409,10 @@ final class MicMuteService: ObservableObject {
                 outcome.applied = true
                 outcome.mutedDevices.append(device.uid)
                 if !snapshot.isEmpty { outcome.savedControls[device.uid] = snapshot }
-                if !quiet { outcome.failed = true }
+                if !quiet {
+                    outcome.failed = true
+                    if changed { outcome.refused.append(device.uid) }
+                }
             } else {
                 if quiet { outcome.applied = true }
                 outcome.savedVolumes.removeValue(forKey: device.uid)
@@ -879,16 +890,11 @@ final class MicMuteService: ObservableObject {
     ]
 
     /// Runs on `halQueue`. Drops stale device listeners and, while muted,
-    /// watches the mute and volume of every input that is actually quiet.
-    /// A driver that accepts a write, announces the change and keeps its old
-    /// value (the Microsoft Teams virtual microphone does this) would answer
-    /// every re-assert with another notification, and the sweeps would never
-    /// stop. Re-asserting cannot silence such a device anyway; it is retried
-    /// when the device list or the default input changes.
+    /// watches the mute and volume of every input that has not kept refusing it.
     private func syncDeviceListeners(muted: Bool) {
         removeDeviceListeners()
         guard muted else { return }
-        for device in Self.inputDevices() where Self.isSilenced(device.id) {
+        for device in Self.inputDevices() where MicMuteSupport.shouldWatch(refusals: refusals[device.uid]) {
             let elements = Self.inputElements(of: device.id)
             for selector in Self.watchedDeviceSelectors {
                 let watchElements: [AudioObjectPropertyElement]

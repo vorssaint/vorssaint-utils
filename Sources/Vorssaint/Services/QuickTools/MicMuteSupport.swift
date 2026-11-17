@@ -120,4 +120,27 @@ enum MicMuteSupport {
         let here = Set(present)
         return (recorded ?? []).filter { !here.contains($0) }
     }
+
+    /// Sweeps in a row a device may refuse the mute before it stops being
+    /// watched. One refusal is not enough: an app raising the gain between a
+    /// write and its read-back looks the same for that one sweep.
+    static let refusedSweepLimit = 3
+
+    /// A refusal is a sweep that wrote a device's controls and still read it
+    /// live afterwards. Any sweep that does not refuse starts the count over.
+    static func refusalCounts(previous: [String: Int], refused: [String]) -> [String: Int] {
+        var counts: [String: Int] = [:]
+        for uid in refused { counts[uid] = (previous[uid] ?? 0) + 1 }
+        return counts
+    }
+
+    /// Whether a muted device's controls stay watched. A driver that accepts
+    /// a write, announces the change and keeps its old value (the Microsoft
+    /// Teams virtual microphone does this) answers every re-assert with
+    /// another change, so watching it sweeps forever without silencing it.
+    /// Such a device is still swept when the device list or default input
+    /// changes, and is watched again once a sweep leaves it quiet.
+    static func shouldWatch(refusals: Int?) -> Bool {
+        (refusals ?? 0) < refusedSweepLimit
+    }
 }
