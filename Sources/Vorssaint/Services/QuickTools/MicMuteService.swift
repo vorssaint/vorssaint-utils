@@ -45,6 +45,9 @@ final class MicMuteService: ObservableObject {
     /// state it is replacing: read from the flag, a mute still being applied
     /// looked like "unmuted, with claims to release" and was silently undone.
     private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+    /// Main thread. A re-assert is already on its way, so further changes
+    /// until it runs are covered by it.
+    private var reapplyScheduled = false
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -61,8 +64,21 @@ final class MicMuteService: ObservableObject {
     private static let listenerCallback: AudioObjectPropertyListenerProc = { _, _, _, client in
         guard let client else { return noErr }
         let service = Unmanaged<MicMuteService>.fromOpaque(client).takeUnretainedValue()
-        DispatchQueue.main.async { service.reapplyIfNeeded() }
+        DispatchQueue.main.async { service.scheduleReapply() }
         return noErr
+    }
+
+    /// One sweep covers every device, so a burst of changes needs only one.
+    /// A sweep writes several controls and each posts its own change, and an
+    /// app that keeps moving a microphone's gain posts at whatever rate it
+    /// writes; both now cost at most one sweep per interval.
+    private func scheduleReapply() {
+        guard !reapplyScheduled else { return }
+        reapplyScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + MicMuteSupport.reapplyCoalescingInterval) { [weak self] in
+            self?.reapplyScheduled = false
+            self?.reapplyIfNeeded()
+        }
     }
 
     /// Unretained is safe here and only here: this is a single instance that
@@ -223,24 +239,38 @@ final class MicMuteService: ObservableObject {
     /// leave them to "the user", and the unmute would never release them.
     private static func sweep(muted: Bool) -> MuteOutcome {
         let defaults = UserDefaults.standard
+        let savedVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double]
+        let savedChannelVolumes = defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)
+            as? [String: [String: Double]]
+        let savedControls = defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls)
+            as? [String: [String: Double]]
+        // Missing means never tracked; an empty list means tracked and
+        // owning nothing, and the sweep must keep those two apart.
+        let mutedDevices = defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices)
         let outcome = applyToDevices(
             muted: muted,
-            savedVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedVolumes) as? [String: Double] ?? [:],
-            savedChannelVolumes: defaults.dictionary(forKey: DefaultsKey.micMuteSavedChannelVolumes)
-                as? [String: [String: Double]] ?? [:],
-            savedControls: defaults.dictionary(forKey: DefaultsKey.micMuteSavedControls)
-                as? [String: [String: Double]] ?? [:],
-            // Missing means never tracked; an empty list means tracked and
-            // owning nothing, and the sweep must keep those two apart.
-            mutedDevices: defaults.stringArray(forKey: DefaultsKey.micMuteMutedDevices),
+            savedVolumes: savedVolumes ?? [:],
+            savedChannelVolumes: savedChannelVolumes ?? [:],
+            savedControls: savedControls ?? [:],
+            mutedDevices: mutedDevices,
             legacyVolume: defaults.double(forKey: DefaultsKey.micMuteSavedVolume))
         // A sweep that reached nothing leaves the record alone: it is what a
-        // later unmute needs to put every level back.
+        // later unmute needs to put every level back. A record that did not
+        // change is not written again: every write tells the whole app that
+        // preferences changed, and a re-assert usually changes nothing.
         if outcome.applied {
-            defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
-            defaults.set(outcome.savedChannelVolumes, forKey: DefaultsKey.micMuteSavedChannelVolumes)
-            defaults.set(outcome.savedControls, forKey: DefaultsKey.micMuteSavedControls)
-            defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
+            if savedVolumes != outcome.savedVolumes {
+                defaults.set(outcome.savedVolumes, forKey: DefaultsKey.micMuteSavedVolumes)
+            }
+            if savedChannelVolumes != outcome.savedChannelVolumes {
+                defaults.set(outcome.savedChannelVolumes, forKey: DefaultsKey.micMuteSavedChannelVolumes)
+            }
+            if savedControls != outcome.savedControls {
+                defaults.set(outcome.savedControls, forKey: DefaultsKey.micMuteSavedControls)
+            }
+            if mutedDevices != outcome.mutedDevices {
+                defaults.set(outcome.mutedDevices, forKey: DefaultsKey.micMuteMutedDevices)
+            }
         }
         return outcome
     }
@@ -250,7 +280,9 @@ final class MicMuteService: ObservableObject {
         guard generation == applyGeneration else { return }
         if outcome.applied {
             if isMuted != muted { isMuted = muted }
-            UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
+            if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) != muted {
+                UserDefaults.standard.set(muted, forKey: DefaultsKey.micMuteActive)
+            }
             syncListeners()
         } else {
             // Nothing was reached, so the request is dropped as it always was:

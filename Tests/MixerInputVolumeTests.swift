@@ -56,12 +56,16 @@ enum MixerInputVolumeContract {
         static let standard = Store()
         final class Store {
             var values: [String: Any] = [:]
+            var writtenKeys: [String] = []
             func string(forKey k: String) -> String? { values[k] as? String }
             func bool(forKey k: String) -> Bool { values[k] as? Bool ?? false }
             func double(forKey k: String) -> Double { values[k] as? Double ?? 0 }
             func dictionary(forKey k: String) -> [String: Any]? { values[k] as? [String: Any] }
             func stringArray(forKey k: String) -> [String]? { values[k] as? [String] }
-            func set(_ v: Any, forKey k: String) { values[k] = v }
+            func set(_ v: Any, forKey k: String) {
+                values[k] = v
+                writtenKeys.append(k)
+            }
             func removeObject(forKey k: String) { values[k] = nil }
         }
     }
@@ -1209,5 +1213,27 @@ enum MixerInputVolumeContract {
         check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0 && HAL.muteElements[firstMute] == 1
                 && !MicMuteService.shared.hasOutstandingClaims,
               "a pending legacy unmute restores only the claimed main switch when the microphone returns")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        var changedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                      mScope: kAudioDevicePropertyScopeInput,
+                                                      mElement: kAudioObjectPropertyElementMain)
+        let sweepsBefore = MicMuteService.shared.applyGeneration
+        UserDefaults.standard.writtenKeys = []
+        for _ in 0..<5 {
+            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, MicMuteService.shared.listenerClient)
+        }
+        DispatchQueue.drain()
+        check(MicMuteService.shared.applyGeneration == sweepsBefore + 1,
+              "a burst of device changes is answered by one sweep")
+        check(UserDefaults.standard.writtenKeys.isEmpty,
+              "a re-assert that finds everything muted writes no preferences")
+        HAL.levels[HAL.key(10)] = 0.5
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, MicMuteService.shared.listenerClient)
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0, "a coalesced re-assert still silences a raised gain")
     }
 }
