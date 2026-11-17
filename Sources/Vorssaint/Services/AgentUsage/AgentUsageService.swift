@@ -123,7 +123,7 @@ final class AgentUsageService: ObservableObject {
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
-        guard NotchAgentSupport.isEnabled() else { stop(); return }
+        guard NotchAgentSupport.isEnabled() else { AgentAccountLimitsService.shared.pause(); stop(); return }
         let wanted = NotchAgentSupport.providers()
         let profile = ClaudeAccountProfile.selected()
         let showingPage = pageVisible
@@ -147,6 +147,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        AgentAccountLimitsService.shared.synchronize()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -154,6 +155,7 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
+        AgentAccountLimitsService.shared.pause()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -254,6 +256,7 @@ final class AgentUsageService: ObservableObject {
     func pageDidAppear(preview: Bool = false) {
         if !preview { pageVisible = true }
         guard running else { return }
+        AgentAccountLimitsService.shared.pageDidAppear(preview: preview)
         refreshClaudeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
@@ -266,6 +269,7 @@ final class AgentUsageService: ObservableObject {
 
     func pageDidDisappear() {
         pageVisible = false
+        AgentAccountLimitsService.shared.pageDidDisappear()
     }
 
     /// A deliberate retry after choosing or signing in to an account.
