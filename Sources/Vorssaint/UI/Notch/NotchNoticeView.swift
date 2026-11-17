@@ -46,6 +46,8 @@ struct NotchNoticeView: View {
         }
         .foregroundStyle(.white)
         .frame(height: geometry.stripHeight)
+        // A new song's notice answers a swipe that skips it, as the strip it covers does.
+        .modifier(NotchMusicSwipeFeedback(enabled: notice.event == .track))
         // Each side is as wide as what it shows, so the island reaches
         // further toward the wider one and the camera's gap stays over it.
         .offset(x: (wings.trailing - wings.leading) / 2)
