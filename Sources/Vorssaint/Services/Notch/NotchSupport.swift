@@ -23,7 +23,9 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .notifications: return "bell"
         case .calendar: return "calendar"
         case .clipboard: return "doc.on.clipboard"
-        case .captures: return "camera.viewfinder"
+        // History, not a new capture: a stack of pictures, so it reads apart
+        // from the Screenshot action in the island.
+        case .captures: return "photo.stack"
         case .files: return "tray.full"
         case .system: return "gauge.with.dots.needle.50percent"
         // The quick panel's own mark; the grid belongs to the sections button.
