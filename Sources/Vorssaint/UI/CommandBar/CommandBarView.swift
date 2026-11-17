@@ -119,6 +119,13 @@ struct CommandBarView: View {
 
     private var shownAs: CommandBarPresentation { presentation ?? service.presentation }
 
+    /// The selected row's fill. The window's soft tint is all but lost on the
+    /// island's solid black, where it reads as a darker row rather than a
+    /// selected one, so the island gets enough accent to be seen at a glance.
+    private var selectionFill: Color {
+        Color.accentColor.opacity(shownAs == .island ? 0.30 : 0.14)
+    }
+
     /// Out of the island the bar is the island's: black, or the open island's
     /// own surface, and dark like it.
     @ViewBuilder private var backdrop: some View {
@@ -337,7 +344,7 @@ struct CommandBarView: View {
                                 .fill(index == service.actionIndex
                                       ? (action.isDestructive
                                          ? Color.red.opacity(0.12)
-                                         : Color.accentColor.opacity(0.14))
+                                         : selectionFill)
                                       : .clear)
                         )
                         // The results list's selected-row outline, in the
@@ -619,7 +626,7 @@ struct CommandBarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.14) : .clear)
+                    .fill(isSelected ? selectionFill : .clear)
             )
             // The fill alone drowns on the island's solid black, so the
             // selected row also carries the outline the active category
