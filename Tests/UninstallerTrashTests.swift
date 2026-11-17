@@ -112,6 +112,22 @@ enum UninstallerTrashTests {
         let home = fm.temporaryDirectory.resolvingSymlinksInPath()
             .appendingPathComponent("uninstaller-trash-\(UUID())", isDirectory: true)
         let model = AppUninstaller.shared
+
+        // A framework's Versions/Current link must not cut the walk of its
+        // parent short: the versions beside it still count, wherever the
+        // link falls in the listing.
+        let sized = home.appendingPathComponent("sized/Versions", isDirectory: true)
+        for index in 0..<20 {
+            let version = sized.appendingPathComponent("v\(index)", isDirectory: true)
+            try? fm.createDirectory(at: version, withIntermediateDirectories: true)
+            try? Data(count: 8192).write(to: version.appendingPathComponent("payload"))
+        }
+        try? fm.createSymbolicLink(atPath: sized.appendingPathComponent("Current").path, withDestinationPath: "v0")
+        let withLink = AppUninstaller.directorySize(of: sized.deletingLastPathComponent(), fm: fm)
+        try? fm.removeItem(at: sized.appendingPathComponent("Current"))
+        suite.expect(withLink > 0
+                        && withLink == AppUninstaller.directorySize(of: sized.deletingLastPathComponent(), fm: fm),
+                     "a symbolic link does not hide the folders beside it from the size")
         let brew = HomebrewManager.shared
         let workspace = NSWorkspace.shared
         fixtureHome = home
