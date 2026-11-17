@@ -341,6 +341,14 @@ enum MonitorInputTests {
         }
         suite.expect(method("private func confirmMonitorInput(").contains("generation == self.monitorInputGeneration"),
                "a confirmation that a newer press overtook ends without a word")
+        let confirmStep = method("private func confirmMonitorInput(")
+        if let online = confirmStep.range(of: "guard CGDisplayIsOnline(target.id) != 0 else { return }"),
+           let read = confirmStep.range(of: "self.ddcProbe(") {
+            suite.expect(online.lowerBound < read.lowerBound,
+                   "a monitor that has left is not asked again: the confirmation ends before it reads")
+        } else {
+            suite.expect(false, "the confirmation checks that the monitor is still there before it reads")
+        }
 
         suite.expect(method("private func monitorInputState(").contains("MonitorInputSupport.inputValue(fromReply: reported)")
                 && method("private func confirmMonitorInput(").contains("MonitorInputSupport.inputValue(fromReply: reported)"),
