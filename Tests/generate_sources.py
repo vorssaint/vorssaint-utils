@@ -2204,6 +2204,7 @@ def main():
         "    private func repeatLastRegion()",
         "    fileprivate func confirmWindow(",
         "    fileprivate func confirmRegion(",
+        "    private func finishFrozenCrop(",
         "    fileprivate func confirmColor(",
     ]
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"

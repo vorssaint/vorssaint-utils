@@ -678,29 +678,41 @@ final class ScreenshotSelectionController {
             finish(.region(region(fromView: viewRect, on: panel, windowID: nil)))
             return
         }
-        let pixelRect = ScreenshotSupport.imagePixelRect(
-            fromView: viewRect,
-            viewSize: panel.screenFrame.size,
-            imageSize: panel.frozenImageSize ?? panel.pixelSize)
-        if let frozen = panel.frozenImage {
-            guard let cropped = frozen.cropping(to: pixelRect) else {
-                finish(.failed)
-                return
-            }
-            finish(.captured(Capture(
-                image: cropped,
-                scale: panel.pixelScale,
-                anchorRect: ScreenshotSupport.cocoaRect(
-                    fromFlippedView: viewRect,
-                    screenFrame: panel.screenFrame))))
+        if panel.frozenImage != nil {
+            finishFrozenCrop(at: viewRect, on: panel)
         } else {
             captureLive(displayID: panel.displayID,
-                        pixelRect: pixelRect,
+                        pixelRect: ScreenshotSupport.imagePixelRect(
+                            fromView: viewRect,
+                            viewSize: panel.screenFrame.size,
+                            imageSize: panel.pixelSize),
                         scale: panel.pixelScale,
                         anchorRect: ScreenshotSupport.cocoaRect(
                             fromFlippedView: viewRect,
                             screenFrame: panel.screenFrame))
         }
+    }
+
+    /// The still cropped to one rectangle of the panel's view. With freeze on
+    /// the still is the picture the person was shown, composited video
+    /// included, so a confirmation takes its pixels from there instead of
+    /// capturing again. A window that runs past this display is clipped to
+    /// the still, which holds only the part drawn here.
+    private func finishFrozenCrop(at viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
+        guard let frozen = panel.frozenImage,
+              let cropped = frozen.cropping(to: ScreenshotSupport.imagePixelRect(
+                  fromView: viewRect,
+                  viewSize: panel.screenFrame.size,
+                  imageSize: panel.frozenImageSize ?? panel.pixelSize)) else {
+            finish(.failed)
+            return
+        }
+        finish(.captured(Capture(
+            image: cropped,
+            scale: panel.pixelScale,
+            anchorRect: ScreenshotSupport.cocoaRect(
+                fromFlippedView: viewRect,
+                screenFrame: panel.screenFrame))))
     }
 
     fileprivate func confirmWindow(_ windowID: CGWindowID,
@@ -714,6 +726,13 @@ final class ScreenshotSelectionController {
         }
         if activeMode == .geometry {
             finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
+            return
+        }
+        // With freeze on, a window click takes the same still a drag over the
+        // window's frame takes, so composited video and shared content stay in
+        // it (#4187). A fresh window-only capture would leave them out.
+        if panel.frozenImage != nil {
+            finishFrozenCrop(at: frame, on: panel)
             return
         }
         Task { @MainActor [weak self] in

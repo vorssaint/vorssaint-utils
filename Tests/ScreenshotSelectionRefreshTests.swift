@@ -532,6 +532,8 @@ enum ScreenshotSelectionRefreshContract {
         for reported: CGFloat? in [nil, 2] {
             ScreenshotCaptureEngine.windowCaptureScale = reported
             let window = Chooser(.screenshot)
+            // Without freeze there is no still, so the window is captured live.
+            window.panels[0].frozenImage = nil
             window.confirmWindow(11, frame: CGRect(x: 0, y: 0, width: 50, height: 50), on: window.panels[0])
             await drain()
             if case .captured(let capture)? = window.outcome {
@@ -542,6 +544,25 @@ enum ScreenshotSelectionRefreshContract {
             }
         }
         ScreenshotCaptureEngine.windowCaptureScale = nil
+        // Issue #4187: with freeze on, a window click takes the pixels of the
+        // still the same drag over its frame would, so composited video in
+        // that still is kept instead of being captured again without it.
+        for tool in [ScreenCaptureTool.screenshot, .text] {
+            let frozenWindow = Chooser(tool)
+            let still = frozenWindow.panels[0].frozenImage!
+            let windowFrame = frozenWindow.panels[0].windows[0].frame
+            frozenWindow.confirmWindow(11, frame: windowFrame, on: frozenWindow.panels[0])
+            if case .captured(let capture)? = frozenWindow.outcome {
+                expect(capture.image.excluded == still.excluded
+                       && capture.scale == frozenWindow.panels[0].pixelScale
+                       && capture.anchorRect
+                        == ScreenshotSupport.cocoaRect(fromFlippedView: windowFrame,
+                                                       screenFrame: frozenWindow.panels[0].screenFrame),
+                       "a frozen window click crops the still and keeps the window's anchor")
+            } else {
+                expect(false, "a frozen window click crops the still and keeps the window's anchor")
+            }
+        }
         let rapid = Chooser(.recording)
         let r3 = ScreenshotCaptureEngine.requests.count
         rapid.select(.screenshot)
