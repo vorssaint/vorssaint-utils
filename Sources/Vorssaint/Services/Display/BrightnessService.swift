@@ -807,6 +807,9 @@ final class BrightnessService: ObservableObject {
         }
         workQueue.asyncAfter(deadline: .now() + MonitorInputSupport.confirmationInterval) { [weak self] in
             guard let self else { return }
+            // A monitor that was unplugged or turned off has nothing left to
+            // say, and asking its old service would only hold the bus.
+            guard CGDisplayIsOnline(target.id) != 0 else { return }
             var reading: UInt16?
             if case .replied(let reported, _) = self.ddcProbe(MonitorInputSupport.inputCode,
                                                               for: target.id, service: target.service) {
