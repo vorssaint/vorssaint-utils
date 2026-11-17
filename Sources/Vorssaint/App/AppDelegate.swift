@@ -1127,6 +1127,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             guard !PanelInteractionState.shared.preventsPopoverDismissal else { return }
             let point = NSEvent.mouseLocation
             guard self.statusController.containsStatusItem(at: point) == false else { return }
+            // macOS 27 sometimes hands the global monitor a copy of a mouse-down
+            // that the panel itself also receives, and the panel closed under its
+            // first click (issue #4088). That copy reports the panel's own window
+            // as eventWindow, and the panel closes anyway. Only the hosted content
+            // view counts as the panel here: a click in the window's transparent
+            // shadow or arrow stays outside it and still dismisses.
+            if self.panelContentContains(point) {
+                self.logPanelDismissal(source: "outside-ignored", event: event, location: point)
+                return
+            }
             self.logPanelDismissal(source: "outside", event: event, location: point)
             self.closePopover(reason: .outsideClick)
         }
@@ -1233,6 +1243,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             NSEvent.removeMonitor(monitor)
             popoverKeyboardMonitor = nil
         }
+    }
+
+    /// Whether a screen point lands on the panel's hosted content, the part of
+    /// the popover window that carries the panel's own controls.
+    private func panelContentContains(_ point: NSPoint) -> Bool {
+        guard let content = popover.contentViewController?.view,
+              let window = content.window else { return false }
+        return window.convertToScreen(content.convert(content.bounds, to: nil)).contains(point)
     }
 
     /// An outside dismissal inside the panel's frame helps diagnose click-through.
