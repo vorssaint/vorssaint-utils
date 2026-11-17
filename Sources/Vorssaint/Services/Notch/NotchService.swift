@@ -901,15 +901,17 @@ final class NotchService: ObservableObject {
         let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
+        let hubProviders = NotchAgentSupport.shownHubProviders()
+        let hubAccounts = AgentHubLimitsService.shared.accounts.filter { hubProviders.contains($0.provider) }
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
-        guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        guard usage.loaded || !accounts.isEmpty || !hubAccounts.isEmpty else { return nil }
+        let providers = enabled.filter { provider in usage.seen.contains(provider) || (provider == .codex && !accounts.isEmpty)
+            || (provider == .claude && claudeAccount != nil) || hubAccounts.contains { $0.provider == provider } }
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount),
+                                    claudeAccount: claudeAccount, hubAccounts: hubAccounts),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
@@ -4250,6 +4252,17 @@ final class NotchService: ObservableObject {
             // An added or removed Codex account adds or removes a card.
             CodexProfileLimitsService.shared.$states
                 .map { $0.map(\.id) }
+                .removeDuplicates()
+                .dropFirst()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self, self.selected == .agents else { return }
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
+                }.store(in: &subscriptions)
+            // So does an account a hub starts or stops pooling.
+            AgentHubLimitsService.shared.$hubs
+                .map { $0.flatMap { $0.accounts.map(\.id) } }
                 .removeDuplicates()
                 .dropFirst()
                 .receive(on: DispatchQueue.main)
