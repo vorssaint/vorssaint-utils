@@ -532,7 +532,7 @@ enum ClaudeMultiAccountTests {
     }
 
     private static func preferences(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
-        let domain = "claude-multiple-\(UUID())"
+        let domain = "com.vorssaint.tests.multiple-claude.\(UUID())"
         let defaults = UserDefaults(suiteName: domain)!
         defer { defaults.removePersistentDomain(forName: domain) }
         defaults.set(accounts[1].directory, forKey: DefaultsKey.notchAgentsClaudeProfile)
