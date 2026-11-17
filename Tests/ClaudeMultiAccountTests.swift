@@ -135,7 +135,9 @@ enum ClaudeMultiAccountTests {
             _ = release.wait(timeout: .now() + 3)
             return [accounts[1].profile]
         }, to: [accounts[0]], home: home) { result in
-            suite.expect(offMain && Thread.isMainThread && result.accounts == accounts && result.issue == nil,
+            suite.expect(offMain && Thread.isMainThread
+                            && result.accounts == [accounts[0], ClaudeMonitoredAccount(directory: accounts[1].directory)]
+                            && result.issue == nil,
                          "selected-folder validation returns valid accounts on the main thread")
             completed = true
         }
@@ -420,7 +422,7 @@ enum ClaudeMultiAccountTests {
 
     private static func nestedHistory(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
         let manager = FileManager.default
-        let personalRoot = accounts[0].profile.configurationURL(home: home).appending(path: "projects")
+        let personalRoot = AgentLogRoot.canonical(accounts[0].profile.configurationURL(home: home).appending(path: "projects"))
         let team = personalRoot.appending(path: "team")
         try manager.createDirectory(at: team, withIntermediateDirectories: true)
         let workRoot = accounts[1].profile.configurationURL(home: home).appending(path: "projects")
@@ -492,6 +494,13 @@ enum ClaudeMultiAccountTests {
         host.read(file.path, provider: .claude)
         suite.expect(host.store.records.count == 1 && host.store.records.first?.tokens.total == 8,
                      "private response keys still deduplicate a full log reread after restoring the archive")
+        host.cursors.removeAll()
+        let alias = home.appending(path: "history-reread")
+        try manager.createSymbolicLink(at: alias, withDestinationURL: history.deletingLastPathComponent())
+        let linkedFile = alias.appending(path: "project/private-session.jsonl")
+        host.read(linkedFile.path, provider: .claude)
+        suite.expect(host.store.records.count == 1 && host.store.records.first?.tokens.total == 8,
+                     "a full reread through a history symlink keeps the same private response key")
     }
 
     private static func preferences(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {

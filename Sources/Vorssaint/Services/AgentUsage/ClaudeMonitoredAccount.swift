@@ -82,6 +82,8 @@ struct ClaudeMonitoredAccount: Codable, Equatable, Identifiable {
     }
 
     static func logRoot(for path: String, scopes: [String: String]) -> String? {
+        // Rereads through a symlink must use discovery's canonical namespace.
+        let path = AgentLogRoot.canonical(URL(fileURLWithPath: path)).path
         guard let root = scopes.keys.filter({ path.hasPrefix($0) }).max(by: { $0.count < $1.count }) else { return nil }
         return scopes[root]
     }

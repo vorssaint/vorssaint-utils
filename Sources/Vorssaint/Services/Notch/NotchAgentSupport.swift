@@ -238,8 +238,12 @@ enum NotchAgentSupport {
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
                   let session = live.first(where: { $0.provider == provider }) else { return elapsed() }
-            let limits = provider == .claude ? AgentClaudeServer.current(session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }, now: now)
+            let reading = provider == .claude ? session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }
                 : snapshot.limits[provider]
+            // Desktop history renews with the clock. Direct account readings
+            // expire instead: another device may already have spent the new window.
+            let limits = provider == .claude && reading?.source == .account
+                ? AgentClaudeServer.current(reading, now: now) : reading
             guard let window = focusedLimit(limits, focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
