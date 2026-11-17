@@ -9,6 +9,7 @@ struct ClaudeAccountSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @State private var folderIssue: ClaudeMonitoredAccount.FolderIssue?
+    @State private var adding = false
     private var text: ClaudeAccountStrings { FeatureStrings.claudeAccount(l10n.language) }
     private var common: CodexAccountStrings { FeatureStrings.codexAccounts(l10n.language) }
     private var accounts: [ClaudeMonitoredAccount] {
@@ -53,14 +54,12 @@ struct ClaudeAccountSettings: View {
             }
             HStack {
                 Button(common.find) {
-                    let home = FileManager.default.homeDirectoryForCurrentUser
-                    var known = Set(accounts.map { $0.profile.configurationURL(home: home).resolvingSymlinksInPath().path })
-                    let profiles = [ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: home)
-                    add(profiles.filter { known.insert($0.configurationURL(home: home).resolvingSymlinksInPath().path).inserted })
+                    add({ [ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: FileManager.default.homeDirectoryForCurrentUser) },
+                        ignoringKnown: true)
                 }
-                .disabled(accounts.count >= ClaudeMonitoredAccount.maximum)
+                .disabled(adding || accounts.count >= ClaudeMonitoredAccount.maximum)
                 Button(common.add) { chooseFolder() }
-                    .disabled(accounts.count >= ClaudeMonitoredAccount.maximum)
+                    .disabled(adding || accounts.count >= ClaudeMonitoredAccount.maximum)
                 Button(common.check) {
                     usage.checkClaudeAccount()
                     ClaudeProfileLimitsService.shared.refresh(force: true)
@@ -85,10 +84,16 @@ struct ClaudeAccountSettings: View {
         NotchService.shared.syncWithPreferences()
     }
 
-    private func add(_ profiles: [ClaudeAccountProfile]) {
-        let result = ClaudeMonitoredAccount.adding(profiles, to: accounts, home: FileManager.default.homeDirectoryForCurrentUser)
-        folderIssue = result.issue
-        if result.accounts != accounts { save(result.accounts) }
+    private func add(_ profiles: @escaping () -> [ClaudeAccountProfile], ignoringKnown: Bool = false) {
+        let previous = accounts
+        adding = true
+        ClaudeMonitoredAccount.adding(profiles, to: previous, home: FileManager.default.homeDirectoryForCurrentUser,
+                                     ignoringKnown: ignoringKnown) { result in
+            guard accounts == previous else { add(profiles, ignoringKnown: ignoringKnown); return }
+            adding = false
+            folderIssue = result.issue
+            if result.accounts != previous { save(result.accounts) }
+        }
     }
 
     private func chooseFolder() {
@@ -100,6 +105,7 @@ struct ClaudeAccountSettings: View {
         let home = FileManager.default.homeDirectoryForCurrentUser
         panel.directoryURL = home
         guard panel.runModal() == .OK else { return }
-        add(panel.urls.map { ClaudeAccountProfile(directory: $0.path) })
+        let profiles = panel.urls.map { ClaudeAccountProfile(directory: $0.path) }
+        add { profiles }
     }
 }

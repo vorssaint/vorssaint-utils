@@ -238,7 +238,7 @@ enum NotchAgentSupport {
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
                   let session = live.first(where: { $0.provider == provider }) else { return elapsed() }
-            let limits = provider == .claude ? session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }
+            let limits = provider == .claude ? AgentClaudeServer.current(session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }, now: now)
                 : snapshot.limits[provider]
             guard let window = focusedLimit(limits, focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)

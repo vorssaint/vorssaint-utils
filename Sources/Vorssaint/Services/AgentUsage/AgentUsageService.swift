@@ -117,6 +117,7 @@ final class AgentUsageService: ObservableObject {
     private var readerClaudeProfile = ClaudeAccountProfile()
     private var readerClaudeAccounts: [ClaudeMonitoredAccount] = []
     private var readerClaudeScopes: [String: String] = [:]
+    private var readerClaudeRecordScopes: [String: String] = [:]
     private var readerClaudeFilter: String?
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
@@ -328,6 +329,7 @@ final class AgentUsageService: ObservableObject {
             readerClaudeProfile = claudeProfile
             readerClaudeAccounts = claudeAccounts
             readerClaudeScopes = ClaudeMonitoredAccount.logScopes(claudeAccounts, home: home)
+            readerClaudeRecordScopes = ClaudeMonitoredAccount.recordScopes(claudeAccounts, home: home)
             store = AgentUsageStore()
             cursors.removeAll()
             // Prices first, so the first read is already priced.
@@ -353,7 +355,7 @@ final class AgentUsageService: ObservableObject {
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
-            closeEndedTurns(roots, atLaunch: true)
+            closeEndedTurns(atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
@@ -433,7 +435,7 @@ final class AgentUsageService: ObservableObject {
                 stopped = true
             }
             // After the logs, so a turn its last lines ended ends as usual.
-            guard self.closeEndedTurns(self.watchedRoots) || read || stopped else { return }
+            guard self.closeEndedTurns() || read || stopped else { return }
             self.checkLimits()
             self.schedulePublish()
         }
@@ -525,14 +527,11 @@ final class AgentUsageService: ObservableObject {
 
     /// Ends the Claude turns whose process is gone. True when one was showing.
     @discardableResult
-    private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
+    private func closeEndedTurns(atLaunch: Bool = false) -> Bool {
         guard store.showsClaudeTurn else { return false }
-        var closed = false
-        for root in roots where root.provider == .claude {
-            let folder = root.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory)
-            closed = store.closeEndedTurns(AgentSessionRegistry.read([folder]), atLaunch: atLaunch, root: root.url) || closed
-        }
-        return closed
+        let accounts = readerClaudeAccounts.isEmpty ? [ClaudeMonitoredAccount(directory: readerClaudeProfile.directory)]
+            : readerClaudeAccounts
+        return store.closeEndedTurns(atLaunch: atLaunch, accounts: AgentSessionRegistry.read(accounts: accounts, home: home))
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -548,7 +547,7 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var changed = false
         let now = Date()
-        let accountScope = provider == .claude ? readerClaudeScopes.first { path.hasPrefix($0.key) }?.value : nil
+        let accountScope = provider == .claude ? ClaudeMonitoredAccount.logRoot(for: path, scopes: readerClaudeRecordScopes) : nil
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
@@ -638,6 +637,7 @@ final class AgentUsageService: ObservableObject {
                 additionalClaudeProfiles: readerClaudeAccounts.dropFirst().map(\.profile)).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
                     readerClaudeScopes = ClaudeMonitoredAccount.logScopes(readerClaudeAccounts, home: home)
+                    readerClaudeRecordScopes = ClaudeMonitoredAccount.recordScopes(readerClaudeAccounts, home: home)
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider) { changed = true }
                     }
@@ -690,13 +690,14 @@ final class AgentUsageService: ObservableObject {
             plans[.claude] = AgentPlans.combined(readerClaudeAccounts.map { claudePlans[$0.id] })
         }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        var next = store.snapshot(plans: plans, providers: enabled, now: Date(), claudeScopes: readerClaudeScopes)
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
         next.claudePlans = claudePlans
         if readerClaudeAccounts.count > 1 { next.claudeBlock = nil }
         published = next
         var accountSnapshots: [String: AgentUsageSnapshot] = [:]
         if enabled.contains(.claude), let account = readerClaudeAccounts.first(where: { $0.id == readerClaudeFilter }) {
             accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home, scopes: readerClaudeScopes),
+                excluding: account.excludedLogURLs(home: home, scopes: readerClaudeScopes),
                 now: next.now, plan: claudePlans[account.id])
         }
         let snapshots = accountSnapshots

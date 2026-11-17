@@ -150,7 +150,8 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
-    /// Canonical configuration directory owning this Claude session's log.
+    /// Canonical login directory identified by a running session registry.
+    /// Only in memory; history ownership alone does not identify the login.
     var claudeProfile: String? = nil
 }
 

@@ -92,10 +92,13 @@ enum ClaudeMultiAccountTests {
                          "a profile sharing the default legacy log tree keeps its login without claiming that history")
             preferences(suite, home: home, accounts: accounts)
             try folderFeedback(suite, home: home, accounts: accounts)
-            liveLimits(suite, home: home, accounts: accounts)
+            backgroundFolders(suite, home: home, accounts: accounts)
+            try liveLimits(suite, home: home, accounts: accounts)
             spendPlans(suite, home: home, accounts: accounts)
             try sourceAliases(suite, home: home, accounts: accounts)
             try sharedHistory(suite, home: home, accounts: accounts)
+            try nestedHistory(suite, home: home, accounts: accounts)
+            try archiveKeys(suite, home: home)
             lifecycle(suite, accounts: accounts)
         } catch { suite.expect(false, "multiple Claude fixtures run: \(error)") }
     }
@@ -122,10 +125,47 @@ enum ClaudeMultiAccountTests {
                      "mixed folder selections add valid accounts and retain feedback about unusable folders")
     }
 
-    private static func liveLimits(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
+    private static func backgroundFolders(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
+        let entered = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        var completed = false
+        var offMain = false
+        ClaudeMonitoredAccount.adding({
+            offMain = !Thread.isMainThread
+            entered.signal()
+            _ = release.wait(timeout: .now() + 3)
+            return [accounts[1].profile]
+        }, to: [accounts[0]], home: home) { result in
+            suite.expect(offMain && Thread.isMainThread && result.accounts == accounts && result.issue == nil,
+                         "selected-folder validation returns valid accounts on the main thread")
+            completed = true
+        }
+        let started = entered.wait(timeout: .now() + 2) == .success
+        suite.expect(started && !completed, "slow folder discovery leaves the main thread free before validation completes")
+        release.signal()
+        wait { completed }
+        suite.expect(completed, "background selected-folder validation completes")
+        completed = false
+        offMain = false
+        let known = Set(accounts.map { $0.profile.configurationURL(home: home).resolvingSymlinksInPath().path })
+        ClaudeMonitoredAccount.adding({
+            offMain = !Thread.isMainThread
+            return [ClaudeAccountProfile()] + ClaudeAccountProfile.discover(home: home).filter {
+                known.contains($0.configurationURL(home: home).resolvingSymlinksInPath().path)
+            }
+        }, to: accounts, home: home, ignoringKnown: true) { result in
+            suite.expect(offMain && Thread.isMainThread && result.accounts == accounts && result.issue == nil,
+                         "background account discovery ignores already configured logins without a duplicate alert")
+            completed = true
+        }
+        wait { completed }
+        suite.expect(completed, "background account discovery completes")
+    }
+
+    private static func liveLimits(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
         let now = Date()
         let scopes = accounts.map { AgentLogRoot.canonical($0.profile.configurationURL(home: home)).path }
-        let logScopes = ClaudeMonitoredAccount.logScopes(accounts, home: home)
+        try session("work", account: accounts[1], home: home)
+        let registries = AgentSessionRegistry.read(accounts: accounts, home: home)
         func limits(_ used: Double) -> AgentLimits {
             AgentLimits(provider: .claude, windows: [.init(id: "session", kind: .session, minutes: 300, scope: nil,
                 usedPercent: used, resetsAt: now.addingTimeInterval(300))], observedAt: now, source: .account)
@@ -136,7 +176,8 @@ enum ClaudeMultiAccountTests {
         store.apply([.turnBegan(now.addingTimeInterval(-120))], file: scopes[1] + "/projects/work.jsonl",
             provider: .claude, tracksTurns: true, accountScope: scopes[1], modified: now, now: now)
         store.updateLimits(personal)
-        var snapshot = store.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+        store.closeEndedTurns(accounts: registries)
+        var snapshot = store.snapshot(plans: [:], providers: [.claude], now: now)
         snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personal,
             additional: [state], home: home)
         suite.expect(snapshot.live.first?.claudeProfile == scopes[1]
@@ -147,6 +188,20 @@ enum ClaudeMultiAccountTests {
                      "a Work-only live session uses Work's limits even with Personal listed first")
         suite.expect(NotchAgentSupport.restingLimit(snapshot, focus: .mostUsed, now: now)?.window.usedPercent == 10,
                      "the resting island keeps using the first Claude account's limits")
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining,
+                        now: now.addingTimeInterval(300)) == AgentFormat.clock(420),
+                     "a secondary live allowance expires at its reset and falls back to elapsed time")
+        var partial = work
+        partial.windows.append(.init(id: "weekly", kind: .weekly, minutes: 10_080, scope: nil,
+                                     usedPercent: 60, resetsAt: now.addingTimeInterval(600)))
+        snapshot.claudeLimits[scopes[1]] = partial
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, focus: .session,
+                        now: now.addingTimeInterval(300)) == AgentFormat.percent(0.4),
+                     "a still-current weekly allowance remains available after the session window expires")
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining,
+                        now: now.addingTimeInterval(600)) == AgentFormat.clock(720),
+                     "elapsed time replaces the allowance once every reported window has expired")
+        snapshot.claudeLimits[scopes[1]] = work
         snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personal,
             additional: [.init(account: accounts[1])], home: home)
         suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
@@ -165,7 +220,9 @@ enum ClaudeMultiAccountTests {
         let resumed = AgentUsageStore()
         resumed.apply([.turnActive(now)], file: scopes[1] + "/projects/resumed.jsonl", provider: .claude,
             tracksTurns: true, accountScope: scopes[1], modified: now, now: now)
-        suite.expect(resumed.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+        try session("resumed", account: accounts[1], home: home)
+        resumed.closeEndedTurns(accounts: AgentSessionRegistry.read(accounts: accounts, home: home))
+        suite.expect(resumed.snapshot(plans: [:], providers: [.claude], now: now)
                         .live.first?.claudeProfile == scopes[1],
                      "sessions first seen through activity retain their Claude account too")
         var saved = store.saved
@@ -179,9 +236,10 @@ enum ClaudeMultiAccountTests {
         suite.expect(data.range(of: Data(privateIdentity.utf8)) == nil && archive.store.turns.first?.claudeProfile == nil,
                      "Claude account identity is not persisted in the binary archive")
         let restored = AgentUsageStore(saved: archive.store)
-        suite.expect(restored.snapshot(plans: [:], providers: [.claude], now: now, claudeScopes: logScopes)
+        restored.closeEndedTurns(accounts: registries)
+        suite.expect(restored.snapshot(plans: [:], providers: [.claude], now: now)
                         .live.first?.claudeProfile == scopes[1],
-                     "live sessions restored from the usage archive regain their account from the log roots")
+                     "live sessions restored from the usage archive regain their account from a running login registry")
     }
 
     private static func spendPlans(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {
@@ -278,6 +336,7 @@ enum ClaudeMultiAccountTests {
                         && totals.map { $0.tokens.total } == [11, 0]
                         && totals[0].cost == host.snapshot.usage(.today).total.cost && totals[1].cost == 0,
                      "shared logs contribute tokens and API value to the first account and combined usage only once")
+        try sharedSessions(suite, home: home, accounts: accounts, host: host, now: now)
         let cached = AgentUsageArchive.Contents(providers: [.claude], store: host.store.saved,
             cursors: host.cursors.values.map(\.saved))
         let resumed = AgentUsageArchive.resume(cached, logs: Set(host.cursors.keys), since: now.addingTimeInterval(-86_400))
@@ -296,6 +355,143 @@ enum ClaudeMultiAccountTests {
         let roots = AgentLogRoot.all(home: home, claudeProfile: work.profile, additionalClaudeProfiles: [personal.profile])
         suite.expect(roots.filter { $0.provider == .claude }.map(\.url) == [AgentLogRoot.canonical(personalRoot), legacyRoot],
                      "log discovery monitors each owned Claude history root once")
+    }
+
+    private static func session(_ id: String, account: ClaudeMonitoredAccount, home: URL,
+                                pid: Int32 = ProcessInfo.processInfo.processIdentifier) throws {
+        let folder = account.profile.configurationURL(home: home).appending(path: "sessions")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["pid": Int(pid), "sessionId": id, "pidDomain": "darwin"])
+            .write(to: folder.appending(path: "\(pid).json"))
+    }
+
+    private static func sharedSessions(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount],
+                                       host: AgentUsageReadTests.Host, now: Date) throws {
+        let manager = FileManager.default
+        let personalSessions = accounts[0].profile.configurationURL(home: home).appending(path: "sessions")
+        try manager.createDirectory(at: personalSessions, withIntermediateDirectories: true)
+        try session("same-session", account: accounts[1], home: home)
+        let file = AgentLogRoot.canonical(accounts[0].profile.configurationURL(home: home).appending(path: "projects"))
+            .appending(path: "project/same-session.jsonl").path
+        host.store.apply([.turnBegan(now.addingTimeInterval(-120))], file: file, provider: .claude,
+                         tracksTurns: true, modified: now, now: now)
+        host.store = AgentUsageStore(saved: host.store.saved)
+        host.closeEndedTurns(atLaunch: true)
+        var snapshot = host.store.snapshot(plans: [:], providers: [.claude], now: now)
+        let work = AgentLogRoot.canonical(accounts[1].profile.configurationURL(home: home)).path
+        suite.expect(snapshot.live.count == 1 && snapshot.live.first?.claudeProfile == work,
+                     "startup retains a Work turn in shared history when Personal's readable sessions registry is empty")
+        let personalLimits = AgentLimits(provider: .claude, windows: [.init(id: "session", kind: .session,
+            minutes: 300, scope: nil, usedPercent: 10, resetsAt: now.addingTimeInterval(300))], observedAt: now, source: .account)
+        let workLimits = AgentLimits(provider: .claude, windows: [.init(id: "session", kind: .session,
+            minutes: 300, scope: nil, usedPercent: 75, resetsAt: now.addingTimeInterval(300))], observedAt: now, source: .account)
+        snapshot.claudeLimits = ClaudeProfileLimitsState.readings(primary: accounts[0], limits: personalLimits,
+            additional: [.init(account: accounts[1], limits: workLimits)], home: home)
+        suite.expect(NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                        == AgentFormat.percent(0.25),
+                     "a Work process in Personal's shared history displays Work's allowance")
+        try session("same-session", account: accounts[0], home: home)
+        suite.expect(host.closeEndedTurns(), "an ownership change requests a fresh live snapshot")
+        snapshot.live = host.store.live
+        suite.expect(snapshot.live.first?.claudeProfile == nil
+                        && NotchAgentSupport.stripReading(snapshot, readout: .limit, display: .remaining, now: now)
+                            == AgentFormat.clock(120),
+                     "two logins registering the same shared session make its allowance ambiguous and show elapsed time")
+        try manager.removeItem(at: personalSessions.appending(path: "\(ProcessInfo.processInfo.processIdentifier).json"))
+        let unrelated = ClaudeMonitoredAccount(directory: home.appending(path: ".claude-unrelated").path)
+        try manager.createDirectory(at: unrelated.profile.configurationURL(home: home).appending(path: "projects"),
+                                    withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: unrelated.profile.profileURL(home: home))
+        try session("unrelated-only", account: unrelated, home: home)
+        let missing = URL(fileURLWithPath: file).deletingLastPathComponent().appending(path: "unrelated-only.jsonl").path
+        host.store.apply([.turnBegan(now)], file: missing, provider: .claude, tracksTurns: true, modified: now, now: now)
+        host.readerClaudeAccounts = accounts + [unrelated]
+        host.closeEndedTurns(atLaunch: true)
+        suite.expect(host.store.live.map(\.id) == [file] && host.store.live.first?.claudeProfile == work,
+                     "a registry for an unrelated root cannot preserve or claim a missing shared-history session")
+        host.readerClaudeAccounts = accounts
+        let incomplete = personalSessions.appending(path: "1.json")
+        try Data("{".utf8).write(to: incomplete)
+        host.closeEndedTurns()
+        suite.expect(host.store.live.count == 1 && host.store.live.first?.claudeProfile == nil,
+                     "an incomplete account registry preserves a running shared session without guessing its allowance")
+        try manager.removeItem(at: incomplete)
+    }
+
+    private static func nestedHistory(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {
+        let manager = FileManager.default
+        let personalRoot = accounts[0].profile.configurationURL(home: home).appending(path: "projects")
+        let team = personalRoot.appending(path: "team")
+        try manager.createDirectory(at: team, withIntermediateDirectories: true)
+        let workRoot = accounts[1].profile.configurationURL(home: home).appending(path: "projects")
+        try manager.removeItem(at: workRoot)
+        try manager.createSymbolicLink(at: workRoot, withDestinationURL: team)
+        let now = Date()
+        let line = #"{"type":"assistant","timestamp":\#(now.timeIntervalSince1970),"sessionId":"team","requestId":"same-request","message":{"id":"same-message","model":"claude-opus-5-5","stop_reason":"end_turn","usage":{"input_tokens":20,"output_tokens":1}}}"#
+        let teamLog = team.appending(path: "team.jsonl")
+        try Data((line + "\n").utf8).write(to: teamLog)
+        let ordered = [accounts[1], accounts[0]]
+        let scopes = ClaudeMonitoredAccount.logScopes(ordered, home: home)
+        let host = AgentUsageReadTests.Host()
+        host.home = home
+        host.start(session: 5, providers: [.claude], cancellation: AgentUsageReadTests.Cancellation(),
+                   claudeProfile: ordered[0].profile, claudeAccounts: ordered)
+        let totals = ordered.map { account in
+            host.store.claudeSnapshot(roots: account.logURLs(home: home, scopes: scopes),
+                excluding: account.excludedLogURLs(home: home, scopes: scopes), now: now).usage(.today).total
+        }
+        suite.expect(host.cursors[teamLog.path] != nil
+                        && host.cursors[personalRoot.appending(path: "project/same-session.jsonl").path] != nil
+                        && host.snapshot.usage(.today).total.tokens.total == 32
+                        && totals.map { $0.tokens.total } == [21, 11],
+                     "a first account's shared subtree cannot hide the later account's other projects or count the overlap twice")
+        let restored = AgentUsageStore(saved: host.store.saved)
+        let selected = restored.claudeSnapshot(roots: accounts[0].logURLs(home: home, scopes: scopes),
+            excluding: accounts[0].excludedLogURLs(home: home, scopes: scopes), now: now)
+        suite.expect(selected.usage(.today).total == totals[1]
+                        && totals.reduce(0) { $0 + $1.cost } == host.snapshot.usage(.today).total.cost,
+                     "nested history keeps account costs and archived attribution consistent with the combined totals")
+        let reordered = ClaudeMonitoredAccount.recordScopes(accounts, home: home)
+        suite.expect(ClaudeMonitoredAccount.logRoot(for: teamLog.path, scopes: reordered)
+                        == ClaudeMonitoredAccount.logRoot(for: teamLog.path,
+                            scopes: ClaudeMonitoredAccount.recordScopes(ordered, home: home)),
+                     "reordering overlapping accounts preserves their response deduplication scope")
+    }
+
+    private static func archiveKeys(_ suite: TestSuite, home: URL) throws {
+        let manager = FileManager.default
+        let home = home.appending(path: "archive-privacy")
+        let account = ClaudeMonitoredAccount(directory: home.appending(path: "private-configuration").path)
+        let history = home.appending(path: "external-history/project")
+        try manager.createDirectory(at: account.profile.configurationURL(home: home), withIntermediateDirectories: true)
+        try manager.createDirectory(at: history, withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: account.profile.profileURL(home: home))
+        try manager.createSymbolicLink(at: account.profile.configurationURL(home: home).appending(path: "projects"),
+                                       withDestinationURL: history.deletingLastPathComponent())
+        let now = Date()
+        let line = #"{"type":"assistant","timestamp":\#(now.timeIntervalSince1970),"sessionId":"private-session","message":{"id":"private-message","model":"claude-opus-5-5","stop_reason":"end_turn","usage":{"input_tokens":7,"output_tokens":1}}}"#
+        let file = history.appending(path: "private-session.jsonl")
+        try Data((line + "\n").utf8).write(to: file)
+        let host = AgentUsageReadTests.Host()
+        host.home = home
+        host.start(session: 6, providers: [.claude], cancellation: AgentUsageReadTests.Cancellation(),
+                   claudeProfile: account.profile, claudeAccounts: [account])
+        let data = AgentUsageArchive.encode(.init(providers: [.claude], store: host.store.saved,
+            cursors: host.cursors.values.map(\.saved)), build: "private-keys")
+        guard let decoded = AgentUsageArchive.decode(data, build: "private-keys") else {
+            suite.expect(false, "private record-key fixture round-trips through the usage archive")
+            return
+        }
+        let configuration = account.profile.configurationURL(home: home).path
+        suite.expect(decoded.store.records.count == 1
+                        && decoded.store.records.allSatisfy { !$0.key.contains(configuration) && !$0.key.contains(home.path) }
+                        && data.range(of: Data(configuration.utf8)) == nil,
+                     "serialized response keys and the archive contain no configuration-directory path when history lives elsewhere")
+        host.store = AgentUsageStore(saved: decoded.store)
+        host.cursors.removeAll()
+        host.read(file.path, provider: .claude)
+        suite.expect(host.store.records.count == 1 && host.store.records.first?.tokens.total == 8,
+                     "private response keys still deduplicate a full log reread after restoring the archive")
     }
 
     private static func preferences(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) {

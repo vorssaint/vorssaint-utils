@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreServices
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -49,21 +50,15 @@ final class AgentUsageStore {
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
-                  calendar: Calendar = .current, claudeScopes: [String: String] = [:]) -> AgentUsageSnapshot {
-        var snapshot = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                                        providers: providers, now: now, calendar: calendar)
-        // Derive ownership again for turns restored from the usage archive too.
-        for index in snapshot.live.indices where snapshot.live[index].provider == .claude {
-            let path = AgentLogRoot.canonical(URL(fileURLWithPath: snapshot.live[index].id)).path
-            snapshot.live[index].claudeProfile = claudeScopes.first { path.hasPrefix($0.key) }?.value
-        }
-        return snapshot
+                  calendar: Calendar = .current) -> AgentUsageSnapshot {
+        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                         providers: providers, now: now, calendar: calendar)
     }
 
     /// Projection by source path keeps identical session/message ids in different
     /// profiles apart. Each cached history changes only when its source records do.
-    func claudeRecords(roots: [URL]) -> [AgentUsageRecord] {
-        let contains = claudeSourceMatcher(roots: roots)
+    func claudeRecords(roots: [URL], excluding: [URL] = []) -> [AgentUsageRecord] {
+        let contains = claudeSourceMatcher(roots: roots, excluding: excluding)
         return records.indices.filter { index in
             records[index].provider == .claude && sources[index].contains(where: contains)
         }.map { records[$0] }
@@ -71,26 +66,28 @@ final class AgentUsageStore {
 
     /// Sources restored from an archive can still name a symlink. Resolve each
     /// parent once, including when the log itself no longer exists.
-    private func claudeSourceMatcher(roots: [URL]) -> (String) -> Bool {
+    private func claudeSourceMatcher(roots: [URL], excluding: [URL]) -> (String) -> Bool {
         let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
+        let excluded = excluding.map { AgentLogRoot.canonical($0).path + "/" }
         var directories: [String: Bool] = [:]
         return { path in
-            if prefixes.contains(where: { path.hasPrefix($0) }) { return true }
+            if excluded.isEmpty && prefixes.contains(where: { path.hasPrefix($0) }) { return true }
             let directory = URL(fileURLWithPath: path).deletingLastPathComponent()
             if let matches = directories[directory.path] { return matches }
             let canonical = AgentLogRoot.canonical(directory).path + "/"
-            let matches = prefixes.contains { canonical.hasPrefix($0) }
+            let matches = prefixes.contains { canonical.hasPrefix($0) } && !excluded.contains { canonical.hasPrefix($0) }
             directories[directory.path] = matches
             return matches
         }
     }
 
-    func claudeSnapshot(roots: [URL], now: Date, plan: AgentPlan? = nil, calendar: Calendar = .current) -> AgentUsageSnapshot {
+    func claudeSnapshot(roots: [URL], excluding: [URL] = [], now: Date, plan: AgentPlan? = nil,
+                        calendar: Calendar = .current) -> AgentUsageSnapshot {
         let prefixes = roots.map { AgentLogRoot.canonical($0).path + "/" }
-        let key = prefixes.joined(separator: "\0")
-        let contains = claudeSourceMatcher(roots: roots)
+        let key = prefixes.joined(separator: "\0") + "\0!" + excluding.map(\.path).joined(separator: "\0")
+        let contains = claudeSourceMatcher(roots: roots, excluding: excluding)
         if accountSummaries[key] == nil {
-            accountSummaries[key] = (claudeRecords(roots: roots), AgentUsageSummaryCache())
+            accountSummaries[key] = (claudeRecords(roots: roots, excluding: excluding), AgentUsageSummaryCache())
         }
         let stored = accountSummaries[key]!
         var plans: [AgentProvider: AgentPlan] = [:]
@@ -105,15 +102,19 @@ final class AgentUsageStore {
     func apply(_ entries: [AgentLogEntry], file: String, provider: AgentProvider,
                tracksTurns: Bool, parent: String? = nil, accountScope: String? = nil, modified: Date, now: Date = Date()) -> [AgentUsageEvent] {
         var events: [AgentUsageEvent] = []
+        // Scope identical response ids by history, never by login or config path.
+        let prefix = accountScope.map { scope in
+            SHA256.hash(data: Data(scope.utf8)).map { String(format: "%02x", $0) }.joined() + "|"
+        } ?? ""
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
                 // Copilot exposes response activity and session-wide token
                 // totals, neither of which measures the current root task.
                 let turn = provider == .copilot ? nil : tracksTurns ? file : parent
-                add(record, billable: billable, key: accountScope.map { $0 + "|" + key } ?? key, source: file, turn: turn, subagent: !tracksTurns)
+                add(record, billable: billable, key: prefix + key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
-                guard let position = index[accountScope.map { $0 + "|" + key } ?? key], records[position].model.isEmpty else { continue }
+                guard let position = index[prefix + key], records[position].model.isEmpty else { continue }
                 let old = records[position]
                 records[position] = AgentUsageRecord(provider: old.provider, date: old.date, model: model,
                     project: old.project, session: old.session, requests: old.requests,
@@ -377,22 +378,33 @@ final class AgentUsageStore {
     /// that no longer runs, or a record seen running is gone. A session that
     /// keeps no record waits as before. At launch, a turn the logs left open
     /// without a record is over too, once the records could be read. True
-    /// when a turn was showing.
+    /// when a live turn or its login attribution changed.
     @discardableResult
-    func closeEndedTurns(_ processes: AgentSessionRegistry, atLaunch: Bool = false, root: URL? = nil) -> Bool {
+    func closeEndedTurns(_ processes: AgentSessionRegistry = AgentSessionRegistry(), atLaunch: Bool = false,
+                         root: URL? = nil, accounts: [AgentSessionRegistry.Account]? = nil) -> Bool {
         registered.formIntersection(turns.keys)
-        var closed = false
+        var changed = false
         for (file, turn) in turns where turn.provider == .claude && (root.map { file.hasPrefix($0.path + "/") } ?? true) {
             let session = ((file as NSString).lastPathComponent as NSString).deletingPathExtension
+            var processes = processes
+            if let accounts {
+                let path = AgentLogRoot.canonical(URL(fileURLWithPath: file)).path
+                let associated = accounts.filter { path.hasPrefix($0.root.path + "/") }
+                processes = AgentSessionRegistry.combined(associated.map(\.registry))
+                let owners = Set(associated.filter { $0.registry.running.contains(session) }.map(\.profile))
+                let profile = owners.count == 1 && processes.complete ? owners.first : nil
+                changed = changed || turn.claudeProfile != profile
+                turns[file]?.claudeProfile = profile
+            }
             if processes.running.contains(session) {
                 registered.insert(file)
             } else if processes.ended.contains(session)
                         || (processes.complete && (registered.contains(file) || (atLaunch && processes.listed))) {
                 registered.remove(file)
-                closed = forget(file: file) || closed
+                changed = forget(file: file) || changed
             }
         }
-        return closed
+        return changed
     }
 
     /// Claude Code retries for minutes without a word while the Mac is
@@ -535,7 +547,10 @@ struct AgentLogRoot: Equatable {
         let scopes = ClaudeMonitoredAccount.logScopes(accounts, home: home)
         let claude = accounts.flatMap { $0.logURLs(home: home, scopes: scopes) }
             .filter { seen.insert(canonical($0).path).inserted }.map { AgentLogRoot(provider: .claude, url: canonical($0)) }
-        return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
+        let discovery = claude.filter { root in
+            !claude.contains { other in root.url != other.url && root.url.path.hasPrefix(other.url.path + "/") }
+        }
+        return discovery + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
@@ -570,6 +585,37 @@ struct AgentLogRoot: Equatable {
 /// Claude Code keeps beside its logs while it runs. A process that exits
 /// removes its record; one that is killed leaves it behind.
 struct AgentSessionRegistry: Equatable {
+    struct Account {
+        let profile: String
+        let root: URL
+        let registry: AgentSessionRegistry
+    }
+
+    /// Read beside each configured login, before resolving its history links.
+    /// A shared history can have several independent process registries.
+    static func read(accounts: [ClaudeMonitoredAccount], home: URL,
+                     isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> [Account] {
+        accounts.flatMap { account in
+            account.logURLs(home: home).map { log in
+                let folder = log.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory)
+                return Account(profile: AgentLogRoot.canonical(account.profile.configurationURL(home: home)).path,
+                               root: AgentLogRoot.canonical(log), registry: read([folder], isRunning: isRunning))
+            }
+        }
+    }
+
+    static func combined(_ registries: [AgentSessionRegistry]) -> AgentSessionRegistry {
+        var result = AgentSessionRegistry()
+        for registry in registries {
+            result.running.formUnion(registry.running)
+            result.ended.formUnion(registry.ended)
+            result.complete = result.complete && registry.complete
+            result.listed = result.listed || registry.listed
+        }
+        result.ended.subtract(result.running)
+        return result
+    }
+
     /// Session ids, which name their log files, with a running process.
     var running: Set<String> = []
     /// Session ids whose recorded process no longer runs.
@@ -584,7 +630,10 @@ struct AgentSessionRegistry: Equatable {
     static func read(_ folders: [URL], isRunning: (Int32) -> Bool = AgentSessionRegistry.isRunning) -> AgentSessionRegistry {
         var registry = AgentSessionRegistry()
         for folder in folders {
-            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
+            guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else {
+                if FileManager.default.fileExists(atPath: folder.path) { registry.complete = false }
+                continue
+            }
             registry.listed = true
             for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
                 guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,

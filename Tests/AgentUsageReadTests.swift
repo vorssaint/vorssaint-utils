@@ -72,6 +72,7 @@ enum AgentUsageReadTests {
         var readerClaudeProfile = ClaudeAccountProfile()
         var readerClaudeAccounts: [ClaudeMonitoredAccount] = []
         var readerClaudeScopes: [String: String] = [:]
+        var readerClaudeRecordScopes: [String: String] = [:]
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var budgetDay: Date?
         var snapshot = AgentUsageSnapshot()
@@ -82,7 +83,6 @@ enum AgentUsageReadTests {
         func saveProgress() {}
         func startTimer() {}
         func loadPrices() {}
-        func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
