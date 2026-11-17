@@ -653,6 +653,13 @@ final class NotchService: ObservableObject {
 
     private var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
 
+    /// A new song's notice covers the music strip but still answers a
+    /// sideways swipe, so skipping through songs need not wait for it to go.
+    private var noticeIsTrackInfo: Bool {
+        guard let notice else { return false }
+        return notice.event == .track
+    }
+
     /// The song the closed island drew at its last refresh, for the frames
     /// between the music stopping and the refresh that lets it depart. The
     /// view reads playback live, so it kept drawing what rests under the
