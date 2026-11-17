@@ -4124,17 +4124,6 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.isOwnDevice(name: "Vorssaint Recorder")
                 && !MicMuteSupport.isOwnDevice(name: "MacBook Air Microphone"),
                "the mute skips the app's own aggregate devices and no other")
-        var refusals: [String: Int] = [:]
-        for _ in 0..<MicMuteSupport.refusedSweepLimit {
-            refusals = MicMuteSupport.refusalCounts(previous: refusals, refused: ["teams"])
-        }
-        let racedOnce = MicMuteSupport.refusalCounts(previous: [:], refused: ["built-in"])
-        let quietAgain = MicMuteSupport.refusalCounts(previous: refusals, refused: [])
-        suite.expect(!MicMuteSupport.shouldWatch(refusals: refusals["teams"])
-                && MicMuteSupport.shouldWatch(refusals: racedOnce["built-in"])
-                && MicMuteSupport.shouldWatch(refusals: quietAgain["teams"])
-                && MicMuteSupport.shouldWatch(refusals: nil),
-               "a microphone that keeps refusing the mute stops being watched, one raised gain does not")
         suite.expect(!MicMuteSupport.shouldSaveVolume(nil)
                 && !MicMuteSupport.shouldSaveVolume(0)
                 && !MicMuteSupport.shouldSaveVolume(0.005)

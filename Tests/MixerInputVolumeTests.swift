@@ -1209,5 +1209,31 @@ enum MixerInputVolumeContract {
         check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0 && HAL.muteElements[firstMute] == 1
                 && !MicMuteService.shared.hasOutstandingClaims,
               "a pending legacy unmute restores only the claimed main switch when the microphone returns")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.ignoreWrites = true
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        var refusedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                      mScope: kAudioDevicePropertyScopeInput,
+                                                      mElement: kAudioObjectPropertyElementMain)
+        for _ in 0..<MicMuteSupport.refusedSweepLimit where HAL.listeners.contains(HAL.key(10)) {
+            _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+            DispatchQueue.drain()
+        }
+        check(!HAL.listeners.contains(HAL.key(10)),
+              "a microphone that answers every mute with its old level stops being watched")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.afterWrite = { HAL.levels[HAL.key(10)] = 0.5 }
+        _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+        DispatchQueue.drain()
+        check(HAL.listeners.contains(HAL.key(10)),
+              "a gain raised again right after the re-mute keeps the microphone watched")
     }
 }
