@@ -304,6 +304,17 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
+    static func displayedSnapshot(_ snapshot: AgentUsageSnapshot, claudeSnapshots: [String: AgentUsageSnapshot],
+                                  filter: String?) -> AgentUsageSnapshot {
+        guard let filter else { return snapshot }
+        return claudeSnapshots[filter] ?? AgentUsageSnapshot()
+    }
+
+    /// Limits and resets load independently of usage history.
+    static func cardIsLoading(_ card: NotchAgentCard, snapshot: AgentUsageSnapshot) -> Bool {
+        !snapshot.loaded && card != .limits && card != .resets
+    }
+
     /// The view and its measured height use the same account selection.
     static func pageProviders(enabled: [AgentProvider], seen: Set<AgentProvider>, codexAccounts: [String],
                               claudeAccounts: [ClaudeMonitoredAccount], filter: String?) -> [AgentProvider] {

@@ -5,6 +5,7 @@ import Foundation
 
 enum ClaudeMultiAccountTests {
     static func run(_ suite: TestSuite) {
+        cardLoading(suite)
         let manager = FileManager.default
         let home = manager.temporaryDirectory.appending(path: "vorssaint-multiple-claude-\(UUID())")
         defer { try? manager.removeItem(at: home) }
@@ -101,6 +102,33 @@ enum ClaudeMultiAccountTests {
             try archiveKeys(suite, home: home)
             lifecycle(suite, accounts: accounts)
         } catch { suite.expect(false, "multiple Claude fixtures run: \(error)") }
+    }
+
+    private static func cardLoading(_ suite: TestSuite) {
+        let tiles = NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.claude, .codex],
+                                           codexAccounts: ["codex"], claudeAccounts: ["claude"])
+        let usageCards: [NotchAgentCard] = [.spend, .live, .trend, .models, .projects, .activity]
+        func loadingCards(_ snapshot: AgentUsageSnapshot) -> [NotchAgentCard] {
+            tiles.filter { NotchAgentSupport.cardIsLoading($0.card, snapshot: snapshot) }.map(\.card)
+        }
+        let pending = AgentUsageSnapshot()
+        var loaded = pending
+        loaded.loaded = true
+
+        let allPending = NotchAgentSupport.displayedSnapshot(pending, claudeSnapshots: [:], filter: nil)
+        suite.expect(loadingCards(allPending) == usageCards,
+                     "with Codex configured, cold All accounts usage cards load while Claude and Codex limits and resets stay visible")
+        let allLoaded = NotchAgentSupport.displayedSnapshot(loaded, claudeSnapshots: ["claude": pending], filter: nil)
+        suite.expect(loadingCards(allLoaded).isEmpty,
+                     "All accounts shows loaded usage even while an individual Claude snapshot is pending")
+
+        let missingAccount = NotchAgentSupport.displayedSnapshot(loaded, claudeSnapshots: [:], filter: "claude")
+        let pendingAccount = NotchAgentSupport.displayedSnapshot(loaded, claudeSnapshots: ["claude": pending], filter: "claude")
+        suite.expect(loadingCards(missingAccount) == usageCards && loadingCards(pendingAccount) == usageCards,
+                     "with Codex configured, missing or pending filtered Claude usage loads without hiding either provider's limits")
+        let loadedAccount = NotchAgentSupport.displayedSnapshot(pending, claudeSnapshots: ["claude": loaded], filter: "claude")
+        suite.expect(loadingCards(loadedAccount).isEmpty,
+                     "a loaded filtered Claude snapshot shows its usage even while the combined snapshot is pending")
     }
 
     private static func folderFeedback(_ suite: TestSuite, home: URL, accounts: [ClaudeMonitoredAccount]) throws {

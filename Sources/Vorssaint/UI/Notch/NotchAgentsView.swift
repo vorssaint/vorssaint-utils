@@ -31,8 +31,8 @@ struct NotchAgentsView: View {
     }
 
     private var displayedSnapshot: AgentUsageSnapshot {
-        guard claude, let id = usage.claudeAccountFilter else { return usage.snapshot }
-        return usage.claudeSnapshots[id] ?? AgentUsageSnapshot()
+        NotchAgentSupport.displayedSnapshot(usage.snapshot, claudeSnapshots: usage.claudeSnapshots,
+                                           filter: claude ? usage.claudeAccountFilter : nil)
     }
 
     /// Only agents with usage or configured accounts get cards.
@@ -136,6 +136,21 @@ struct NotchAgentsView: View {
 
     @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date) -> some View {
         let snapshot = displayedSnapshot
+        if NotchAgentSupport.cardIsLoading(tile.card, snapshot: snapshot) {
+            NotchAgentCardChrome {
+                VStack(alignment: .leading, spacing: 6) {
+                    NotchAgentCardHeader(title: text.card(tile.card), symbol: tile.card.symbol)
+                    Text(text.loading)
+                        .font(.system(size: 11)).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        } else {
+            cardContent(tile, snapshot: snapshot, now: now)
+        }
+    }
+
+    @ViewBuilder private func cardContent(_ tile: NotchAgentTile, snapshot: AgentUsageSnapshot, now: Date) -> some View {
         let shown = chosenPeriod
         switch tile.card {
         case .limits:
