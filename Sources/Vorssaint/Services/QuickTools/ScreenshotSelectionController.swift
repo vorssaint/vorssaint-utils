@@ -697,7 +697,9 @@ final class ScreenshotSelectionController {
     /// the still is the picture the person was shown, composited video
     /// included, so a confirmation takes its pixels from there instead of
     /// capturing again. A window that runs past this display is clipped to
-    /// the still, which holds only the part drawn here.
+    /// the still, which holds only the part drawn here, and whatever covered
+    /// the window at freeze time stays in the crop, exactly as it does for a
+    /// rectangle drawn over the same frame.
     private func finishFrozenCrop(at viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
         guard let frozen = panel.frozenImage,
               let cropped = frozen.cropping(to: ScreenshotSupport.imagePixelRect(
