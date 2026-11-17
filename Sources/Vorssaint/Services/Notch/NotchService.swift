@@ -4085,8 +4085,8 @@ final class NotchService: ObservableObject {
                                                            : NotchLayout.headerHeight)
         let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
         let musicSurface = modules.contains(.music)
-            && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
-                                          && !showingCommandBar))
+            && (compactMusicIsVisible || noticeIsTrackInfo
+                || (expanded && selected == .music && !showingAppPanel && !showingSections && !showingCommandBar))
         let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
                                                           musicSurface: musicSurface,
                                                           control: interaction.control, scroll: interaction.scroll)
