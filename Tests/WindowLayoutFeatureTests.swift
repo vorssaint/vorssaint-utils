@@ -717,6 +717,18 @@ enum WindowLayoutFeatureTests {
                    $0 == "EnableTilingByEdgeDrag" ? true : false
                },
                "one enabled system edge gesture is enough to prevent competing previews")
+        suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTilingOptionAccelerator" ? nil : false
+               },
+               "an option-key switch macOS never wrote stops being a conflict once both drags are off")
+        suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTilingOptionAccelerator"
+               },
+               "the option-key accelerator on its own, without a drag across an edge, is not a conflict")
+        suite.expect(WindowEdgeSnapSupport.systemTilingEnabled {
+                   $0 == "EnableTopTilingByEdgeDrag" ? true : nil
+               },
+               "an enabled top tiling drag is a conflict even with an unwritten accelerator")
         suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled(
                    valueFor: { _ in nil }, displaysSpan: true)
                 && !WindowEdgeSnapSupport.systemTilingEnabled(

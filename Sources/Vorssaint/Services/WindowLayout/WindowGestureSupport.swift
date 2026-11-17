@@ -623,11 +623,6 @@ enum WindowEdgeSnapSupport {
     static let desktopAndDockSettingsURL = URL(
         string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension"
     )!
-    private static let systemTilingKeys = [
-        "EnableTilingByEdgeDrag",
-        "EnableTilingOptionAccelerator",
-        "EnableTopTilingByEdgeDrag",
-    ]
     private static let movementThreshold: CGFloat = 2
     private static let sizeTolerance: CGFloat = 2
 
@@ -653,7 +648,18 @@ enum WindowEdgeSnapSupport {
     static func systemTilingEnabled(valueFor: (String) -> Bool?,
                                     displaysSpan: Bool = false) -> Bool {
         if displaysSpan { return false }
-        return systemTilingKeys.contains { valueFor($0) ?? true }
+        // Unwritten choices arrive enabled, which is how System Settings shows
+        // them.
+        let edgeDrag = valueFor("EnableTilingByEdgeDrag") ?? true
+        let topDrag = valueFor("EnableTopTilingByEdgeDrag") ?? true
+        // A drag across an edge or the top tiles on its own, so either switch
+        // is a conflict. EnableTilingOptionAccelerator deliberately plays no
+        // part: holding ⌥ only tiles while one of those drag switches is on,
+        // so the accelerator can never conflict by itself. Reading its key
+        // alone is the trap behind issue #4172 — macOS leaves it unwritten
+        // until the switch is toggled once in System Settings, and a missing
+        // key taken as enabled suppressed edge snapping for good.
+        return edgeDrag || topDrag
     }
 
     /// Separate Spaces off is the only configuration where displays span.
