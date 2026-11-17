@@ -11,6 +11,7 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
     @Environment(\.isEnabled) private var isEnabled
     let entry: ClipboardHistoryEntry
     let activate: () -> Void
+    let pressed: () -> Void
     let draggingChanged: (Bool) -> Void
 
     func makeNSView(context: Context) -> DragView { DragView() }
@@ -29,6 +30,7 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
         var pressedSource: ClipboardHistoryDragSource?
         private var start: NSPoint?
         private var activeChanged: ((Bool) -> Void)?
+        private var activePayload: ClipboardHistoryDrag.Payload?
         // AppKit does not keep the source view alive when its SwiftUI row goes
         // away. Keep it and the original completion until the session ends.
         private var activeSource: DragView?
@@ -46,8 +48,12 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
         }
 
         override func mouseDown(with event: NSEvent) {
+            guard let source, source.isEnabled else { return }
             start = event.locationInWindow
             pressedSource = source
+            // A hover-expanded row must not replace this source while the
+            // pointer is held down but has not crossed the drag threshold yet.
+            pressedSource?.pressed()
         }
 
         override func mouseUp(with event: NSEvent) {
@@ -65,12 +71,12 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
                   hypot(event.locationInWindow.x - start.x, event.locationInWindow.y - start.y) > 4 else { return }
             self.start = nil
             self.pressedSource = nil
-            let writers = ClipboardHistoryDrag.writers(for: pressedSource.entry,
+            let payload = ClipboardHistoryDrag.prepare(for: pressedSource.entry,
                                                        imageDirectory: ClipboardImageStore.directory)
-            guard !writers.isEmpty else { return }
+            guard !payload.writers.isEmpty else { return }
 
             let point = convert(start, from: nil)
-            let items = writers.enumerated().map { index, writer in
+            let items = payload.writers.enumerated().map { index, writer in
                 let item = NSDraggingItem(pasteboardWriter: writer)
                 let image = Self.dragImage(for: pressedSource.entry, writer: writer)
                 let offset = CGFloat(min(index, 5)) * 5
@@ -82,6 +88,7 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
                 return item
             }
             activeChanged = pressedSource.draggingChanged
+            activePayload = payload
             activeSource = self
             activeChanged?(true)
             let session = beginDraggingSession(with: items, event: event, source: self)
@@ -98,6 +105,7 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
             let changed = activeChanged
             activeChanged = nil
             changed?(false)
+            activePayload = nil
             activeSource = nil
         }
 
@@ -139,9 +147,11 @@ private struct ClipboardHistoryDragSource: NSViewRepresentable {
 extension View {
     func clipboardHistoryDragSource(_ entry: ClipboardHistoryEntry,
                                     activate: @escaping () -> Void,
+                                    pressed: @escaping () -> Void = {},
                                     draggingChanged: @escaping (Bool) -> Void = { _ in }) -> some View {
         overlay {
-            ClipboardHistoryDragSource(entry: entry, activate: activate, draggingChanged: draggingChanged)
+            ClipboardHistoryDragSource(entry: entry, activate: activate, pressed: pressed,
+                                       draggingChanged: draggingChanged)
         }
     }
 }

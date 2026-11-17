@@ -1730,6 +1730,7 @@ enum ClipboardFeatureTests {
 
         ClipboardHistoryWriteTests.run(suite)
         ClipboardHistoryDragTests.run(suite)
+        ClipboardFileAccessTests.run(suite)
         ClipboardHistoryImageEditorTests.run(suite)
         ClipboardHistoryAccessTests.run(suite)
 
@@ -1876,10 +1877,12 @@ enum ClipboardPreviewContract {
         enum NSEvent { static let mouseLocation = NSPoint.zero }
         enum UserDefaults {
             struct Preferences {
+                var includeImagesFiles = false
                 var skipSensitive = Defaults.registeredDefaults[
                     DefaultsKey.clipboardHistoryFilterSensitiveText] as? Bool ?? true
                 func bool(forKey key: String) -> Bool {
-                    key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
+                    if key == DefaultsKey.clipboardHistoryIncludeImagesFiles { return includeImagesFiles }
+                    return key == DefaultsKey.clipboardHistoryFilterSensitiveText && skipSensitive
                 }
             }
             static var standard = Preferences()

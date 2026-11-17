@@ -622,6 +622,7 @@ def main():
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    private enum CapturedContent", "    private func captureIfChanged(",
               "    private static func readPasteboard(", "    private func matchingEntry(",
+              "    private func retainFileResources(",
               "    private func stop()", "    private func promote(", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
               "    private func insertPromoted("])

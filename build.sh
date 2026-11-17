@@ -436,6 +436,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/GeneralPasteboardAccess.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryWrite.swift
         Sources/Vorssaint/Services/Clipboard/ClipboardHistoryDrag.swift
+        Sources/Vorssaint/Services/Clipboard/ClipboardHistoryFileAccess.swift
         Sources/Vorssaint/Services/Audio/AirPlayRouteManager.swift
         Sources/Vorssaint/Services/Audio/MixerRoutingSupport.swift
         Sources/Vorssaint/Services/Audio/MusicLaunchSupport.swift

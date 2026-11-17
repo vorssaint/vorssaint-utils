@@ -6,11 +6,24 @@ import AppKit
 /// Payloads for a native drag session. Preparing a drag leaves both the
 /// general pasteboard and the saved history untouched.
 enum ClipboardHistoryDrag {
+    struct Payload {
+        let writers: [NSPasteboardWriting]
+        /// Bookmark access must stay open until the destination finishes
+        /// receiving the drag, rather than just while its URLs are prepared.
+        var fileLeases: [ClipboardHistoryFileLease] = []
+    }
+
     static func writers(for entry: ClipboardHistoryEntry,
                         imageDirectory: URL?) -> [NSPasteboardWriting] {
+        prepare(for: entry, imageDirectory: imageDirectory).writers
+    }
+
+    static func prepare(for entry: ClipboardHistoryEntry,
+                        imageDirectory: URL?,
+                        fileDirectory: URL? = ClipboardFileStore.directory) -> Payload {
         switch entry.kind {
         case .text:
-            guard !entry.text.isEmpty else { return [] }
+            guard !entry.text.isEmpty else { return Payload(writers: []) }
             let item = NSPasteboardItem()
             item.setString(entry.text, forType: .string)
             // Keep the exact saved text as the fallback, while browsers and
@@ -23,27 +36,35 @@ enum ClipboardHistoryDrag {
                let host = url.host, !host.isEmpty {
                 item.setString(url.absoluteString, forType: .URL)
             }
-            return [item]
+            return Payload(writers: [item])
         case .image:
-            return imageWriters(named: entry.imageFile, directory: imageDirectory)
+            return Payload(writers: imageWriters(named: entry.imageFile, directory: imageDirectory))
         case .files:
             // Each file needs its own dragging item for native multi-file drops.
-            let files = entry.filePaths.compactMap { path -> NSPasteboardWriting? in
-                var isDirectory: ObjCBool = false
-                guard (path as NSString).isAbsolutePath,
-                      FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
-                      isDirectory.boolValue || FileManager.default.isReadableFile(atPath: path) else { return nil }
-                return NSURL(fileURLWithPath: path)
+            let leases = ClipboardHistoryFileResolver.resolveAll(entry, storeDirectory: fileDirectory,
+                                                                  imageDirectory: imageDirectory)
+            if !leases.isEmpty {
+                // Legacy copied images retained only a PNG preview. Preserve
+                // its pixel representations as well as the copyable file URL;
+                // exact-byte ClipboardFiles snapshots keep their native URLs.
+                if leases.count == 1, entry.filePaths.count == 1,
+                   ClipboardHistoryImageSupport.isImageFileName(entry.filePaths[0]),
+                   let imageDirectory, let name = entry.imageFile,
+                   leases[0].url.standardizedFileURL == imageDirectory.appendingPathComponent(name).standardizedFileURL,
+                   leases[0].url.path != entry.filePaths[0] {
+                    let images = imageWriters(named: name, directory: imageDirectory)
+                    return Payload(writers: images, fileLeases: images.isEmpty ? [] : leases)
+                }
+                return Payload(writers: leases.map { $0.url as NSURL }, fileLeases: leases)
             }
-            if !files.isEmpty { return files }
             // A copied picture can retain a full PNG snapshot after its app's
             // temporary or scoped original expires. Prefer the original while
             // readable, preserving its format and metadata; only that single
             // image can fall back to its saved pixels.
             guard entry.filePaths.count == 1, let path = entry.filePaths.first,
                   (path as NSString).isAbsolutePath,
-                  ClipboardHistoryImageSupport.isImageFileName(path) else { return [] }
-            return imageWriters(named: entry.imageFile, directory: imageDirectory)
+                  ClipboardHistoryImageSupport.isImageFileName(path) else { return Payload(writers: []) }
+            return Payload(writers: imageWriters(named: entry.imageFile, directory: imageDirectory))
         }
     }
 

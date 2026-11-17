@@ -450,18 +450,24 @@ private struct QuickEntryView: View, Equatable {
     private var row: some View {
         HStack(alignment: .center, spacing: 9) {
             selectionButton
-            if showSourceAppIcons, let app = sourceApp {
-                Image(nsImage: app.icon)
-                    .resizable()
-                    .frame(width: 18, height: 18)
-                    .help(app.name)
-                    .accessibilityLabel(app.name)
+            HStack(spacing: 9) {
+                if showSourceAppIcons, let app = sourceApp {
+                    Image(nsImage: app.icon)
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                        .help(app.name)
+                        .accessibilityLabel(app.name)
+                }
+                entryContent(entry)
+                Spacer(minLength: 8)
             }
-            entryContent(entry)
-                // The row's tap gesture already handles this click.
-                .clipboardHistoryDragSource(entry, activate: {},
-                                            draggingChanged: history.setQuickDragging)
-            Spacer(minLength: 8)
+            // A short file name still gets the row's full content height and
+            // width as a drag target; selection and action buttons stay separate.
+            .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
+            .contentShape(Rectangle())
+            // The row's tap gesture already handles this click.
+            .clipboardHistoryDragSource(entry, activate: {},
+                                        draggingChanged: history.setQuickDragging)
             entryTrailing(entry, isHovered: isHovered)
         }
         .padding(.horizontal, 8)
@@ -489,6 +495,7 @@ private struct QuickEntryView: View, Equatable {
                 .padding(10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .clipped()
+                .contentShape(Rectangle())
                 .clipboardHistoryDragSource(entry, activate: {},
                                             draggingChanged: history.setQuickDragging)
             Divider()
@@ -556,10 +563,7 @@ private struct QuickEntryView: View, Equatable {
     /// always the file manager, and the card's one line of name tells files
     /// apart no better. A single picture shows itself in the card instead.
     private var showsFileIcon: Bool {
-        guard entry.kind == .files else { return false }
-        if entry.filePaths.count == 1, let path = entry.filePaths.first,
-           ClipboardImageStore.isImageFile(atPath: path) { return false }
-        return fileIcon(for: entry) != nil
+        entry.kind == .files && fileIcon(for: entry) != nil
     }
 
     private var cardFooter: some View {
@@ -619,47 +623,35 @@ private struct QuickEntryView: View, Equatable {
             .frame(maxWidth: .infinity, alignment: .leading)
             .help("\(text.imageEntryLabel) · \(entry.imageDimensionsLabel)")
         case .files:
-            if entry.filePaths.count == 1,
-               let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
+            if entry.filePaths.count == 1 {
                 pictureStack {
-                    ClipboardThumbnailImage(source: .file(path: path),
-                                            aspectRatio: ClipboardImageStore.imageAspectRatio(atPath: path))
+                    ClipboardFileThumbnail(entry: entry)
                         .frame(maxWidth: pictureMaxSize.width, maxHeight: pictureMaxSize.height)
                         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if let dim = ClipboardImageStore.imageDimensionsLabel(atPath: path) {
-                            Text("\(text.imageEntryLabel) · \(dim)")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
+                    HStack(spacing: 5) {
+                        if let icon = fileIcon(for: entry) {
+                            Image(nsImage: icon).resizable().frame(width: 16, height: 16)
                         }
+                        SearchHighlightText.text(entry.fileNames.first ?? entry.preview, tokens: tokens, fontSize: 12)
+                            .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .help(path)
+                .help(entry.preview)
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    // A count of several files is no text the search reads.
-                    SearchHighlightText.text(fileTitle(entry),
-                                             tokens: entry.filePaths.count == 1 ? tokens : [],
-                                             fontSize: 12)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    if entry.filePaths.count > 1 {
-                        SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(isRow ? 1 : 5)
-                            .truncationMode(.tail)
+                    HStack(spacing: 5) {
+                        if let icon = fileIcon(for: entry) {
+                            Image(nsImage: icon).resizable().frame(width: 18, height: 18)
+                        }
+                        Text(fileTitle(entry)).font(.system(size: 12))
                     }
+                    SearchHighlightText.text(entry.preview, tokens: tokens, fontSize: 10)
+                        .font(.system(size: 10)).foregroundStyle(.tertiary)
+                        .lineLimit(isRow ? 1 : 5).truncationMode(.tail)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .help(entry.filePaths.joined(separator: "\n"))
+                .help(entry.preview)
             }
         }
     }
@@ -787,14 +779,6 @@ private struct QuickEntryView: View, Equatable {
                 .resizable()
                 .frame(width: 18, height: 18)
                 .frame(width: 25, height: 25)
-        } else if entry.kind == .files,
-                  entry.filePaths.count == 1,
-                  let path = entry.filePaths.first,
-                  ClipboardImageStore.isImageFile(atPath: path) {
-            Image(systemName: entry.isPinned ? "pin.fill" : "photo")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
-                .frame(width: 25, height: 25)
         } else if let icon = fileIcon(for: entry) {
             Image(nsImage: icon)
                 .resizable()
@@ -809,10 +793,8 @@ private struct QuickEntryView: View, Equatable {
     }
 
     private func fileIcon(for entry: ClipboardHistoryEntry) -> NSImage? {
-        guard entry.kind == .files,
-              let path = entry.filePaths.first(where: { FileManager.default.fileExists(atPath: $0) })
-        else { return nil }
-        return ClipboardImageStore.fileIcon(atPath: path)
+        guard entry.kind == .files else { return nil }
+        return ClipboardFileIcons.icon(for: entry.filePaths)
     }
 
     private func kindSymbol(_ kind: ClipboardHistoryEntryKind) -> String {
