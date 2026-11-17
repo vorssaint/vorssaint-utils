@@ -12,6 +12,7 @@ enum ScrollZoomFocusTests {
     static var onRead: () -> Void = {}
     static var writes = 0
     static func AXIsProcessTrusted() -> Bool { true }
+    static func isCurrentActivation(_ generation: UInt64) -> Bool { current }
     static func AXUIElementCreateApplication(_ pid: pid_t) -> NSObject { NSObject() }
     static func AXUIElementSetMessagingTimeout(_ element: NSObject, _ timeout: Float) {}
     static func axElement(windowID: CGWindowID, in app: NSObject, pid: pid_t) -> NSObject? {
@@ -27,6 +28,18 @@ enum ScrollZoomFocusTests {
     }
     static func AXUIElementPerformAction(_ element: NSObject, _ action: CFString) -> AXError {
         writes += 1; return .success
+    }
+    // Zoom uses the synchronous restore path. The observer and generation
+    // paths are exercised separately by SwitcherActivationTests.
+    static func restoreWindowBeforeFocus(_ window: NSObject, pid: pid_t, generation: UInt64?,
+                                          writeGuard: SwitcherActivationWriteGuard? = nil,
+                                          isCurrent: () -> Bool = { true }) -> Bool {
+        guard isCurrent() else { return false }
+        AXUIElementSetAttributeValue(window, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+        return false
+    }
+    static func windowIsVisiblyFocused(windowID: CGWindowID, pid: pid_t, window: NSObject) -> Bool {
+        false
     }
 
     static func run(_ suite: TestSuite) {

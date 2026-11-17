@@ -127,13 +127,14 @@ struct NotchView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, service.geometry.safeContentTop)
-        } else if let notice = service.notice ?? (service.peeking ? nil : service.departingNotice) {
+        } else if let notice = service.stripNotice {
             if service.noticeExpanded, let content = notice.notification {
                 NotchNotificationPreviewView(notice: notice, content: content, service: service)
                     .padding(.horizontal, NotchLayout.horizontalInset)
                     .padding(.top, service.geometry.safeContentTop)
                     .padding(.bottom, NotchLayout.bottomInset)
                     .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
+                    .id(notice.clickTarget)
             } else {
                 Button {
                     service.activateNotice(notice)
@@ -162,6 +163,7 @@ struct NotchView: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { service.activateNotice(notice) }
                 .accessibilityHint(text.open)
+                .id(notice.clickTarget)
                 .transition(.opacity)
             }
         } else if service.peeking {

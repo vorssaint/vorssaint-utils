@@ -7,19 +7,83 @@ import ApplicationServices
 /// Production activation and bridge bodies run against transports that never
 /// activate an app or post input. Native window ordering is validated separately.
 enum SwitcherActivationTests {
+    /// An activation lane the test drains itself, so the remote Accessibility
+    /// steps stay inspectable instead of running on a real queue.
+    final class DeferredQueue {
+        var pending: [() -> Void] = []
+        func async(execute work: @escaping () -> Void) { pending.append(work) }
+        func drain() {
+            while !pending.isEmpty {
+                let work = pending.removeFirst()
+                work()
+            }
+        }
+        func reset() { pending.removeAll() }
+    }
+
+    /// The production cancellation guard installs monitors here. Emitting an
+    /// event invokes their actual handlers without posting input to the system.
+    final class InputEvent {
+        typealias EventTypeMask = NSEvent.EventTypeMask
+        let type: NSEvent.EventType
+        let timestamp: TimeInterval
+        let cgEvent: CGEvent?
+        static var global: [UUID: (EventTypeMask, (InputEvent) -> Void)] = [:]
+        static var local: [UUID: (EventTypeMask, (InputEvent) -> InputEvent?)] = [:]
+
+        init(_ type: NSEvent.EventType, timestamp: TimeInterval = .greatestFiniteMagnitude,
+             sourcePID: pid_t = 0) {
+            self.type = type
+            self.timestamp = timestamp
+            let event = CGEvent(source: nil)
+            event?.setIntegerValueField(.eventSourceUnixProcessID, value: Int64(sourcePID))
+            cgEvent = event
+        }
+        static func addGlobalMonitorForEvents(matching mask: EventTypeMask,
+                                              handler: @escaping (InputEvent) -> Void) -> Any? {
+            let token = UUID()
+            global[token] = (mask, handler)
+            return token
+        }
+        static func addLocalMonitorForEvents(matching mask: EventTypeMask,
+                                             handler: @escaping (InputEvent) -> InputEvent?) -> Any? {
+            let token = UUID()
+            local[token] = (mask, handler)
+            return token
+        }
+        static func removeMonitor(_ monitor: Any) {
+            guard let token = monitor as? UUID else { return }
+            global[token] = nil
+            local[token] = nil
+        }
+        @discardableResult
+        static func emit(_ event: InputEvent, locally: Bool = false) -> InputEvent? {
+            let mask = EventTypeMask(rawValue: 1 << event.type.rawValue)
+            if locally {
+                return local.values.filter { $0.0.contains(mask) }
+                    .reduce(Optional(event)) { current, monitor in current.flatMap(monitor.1) }
+            }
+            global.values.filter { $0.0.contains(mask) }.forEach { $0.1(event) }
+            return event
+        }
+    }
+
     static var events: [String] = []
     static var records: [[UInt8]] = []
     static var frontOptions: [UInt32] = []
     static var canRaise = true
+    static var generationAfterFocus: UInt64?
 
     final class App {
         static let current = App(processIdentifier: 1)!
         static var executablePaths: [pid_t: String] = [:]
         static var names: [pid_t: String] = [:]
+        static var bundleIdentifiers: [pid_t: String] = [:]
         static var hiddenPIDs: Set<pid_t> = []
         let processIdentifier: pid_t
         var executableURL: URL? { Self.executablePaths[processIdentifier].map { URL(fileURLWithPath: $0) } }
         var localizedName: String? { Self.names[processIdentifier] }
+        var bundleIdentifier: String? { Self.bundleIdentifiers[processIdentifier] }
         var isHidden: Bool { Self.hiddenPIDs.contains(processIdentifier) }
         var isTerminated = false
         init?(processIdentifier: pid_t) {
@@ -40,11 +104,60 @@ enum SwitcherActivationTests {
         typealias NSRunningApplication = App
         typealias ActivationHandoff = Handoff
         typealias SpaceWindowBridge = Bridge
+        /// The activation's write lane, drained by the test.
+        static let activationAXQueue = DeferredQueue()
+        /// The activation's main-thread hop, drained by the test.
+        static let activationMainQueue = DeferredQueue()
         static var focusedID: CGWindowID? = 66
+        static var currentGeneration: UInt64 = 1
+        static var frontmostPID: pid_t? = 20
+        /// Whether the app cannot describe the target window at all.
+        static var targetResolutionFails = false
+        enum Permissions {
+            static let shared = Session()
+            final class Session {
+                var accessibility = true
+            }
+        }
+        static func isCurrentActivation(_ generation: UInt64) -> Bool {
+            currentGeneration == generation
+        }
         static func focusedWindowID(for pid: pid_t) -> CGWindowID? { focusedID }
-        @discardableResult static func prepareWindowForActivation(windowID: CGWindowID, pid: pid_t) -> Bool { true }
-        @discardableResult static func focusWindow(windowID: CGWindowID, pid: pid_t, makeAppFrontmost: Bool = true) -> Bool {
+        /// The per-window attribute read the compiled activation ends up
+        /// calling. The test build compiles the real caller, so this stand-in
+        /// performs the same read the production wrapper does.
+        static func minimizedState(of axWindow: AXUIElement) -> Bool? {
+            SwitcherActivationTargetWindow.minimizedState(of: axWindow)
+        }
+        /// The target window of one activation, resolved once and shared.
+        static func makeTarget(windowID: CGWindowID) -> SwitcherActivationTargetWindow {
+            SwitcherActivationTargetWindow(windowID: windowID) {
+                guard !targetResolutionFails else { return nil }
+                let element = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
+                AXUIElementSetMessagingTimeout(element, Float(0.05))
+                return element
+            }
+        }
+        static func isActivationTargetFrontmost(_ app: App, windowOwnerPID: pid_t) -> Bool {
+            guard let frontmostPID else { return false }
+            if frontmostPID == app.processIdentifier || frontmostPID == windowOwnerPID { return true }
+            guard let bundleIdentifier = app.bundleIdentifier,
+                  let frontmostBundleIdentifier = App.bundleIdentifiers[frontmostPID] else { return false }
+            return frontmostBundleIdentifier == bundleIdentifier
+        }
+        @discardableResult static func prepareWindowForActivation(windowID: CGWindowID,
+                                                                   pid: pid_t,
+                                                                   generation: UInt64? = nil) -> Bool { true }
+        @discardableResult static func focusWindow(windowID: CGWindowID,
+                                                   pid: pid_t,
+                                                   makeAppFrontmost: Bool = true,
+                                                   generation: UInt64? = nil,
+                                                   writeGuard: SwitcherActivationWriteGuard? = nil) -> Bool {
             events.append("raise:\(windowID):\(pid):\(makeAppFrontmost)")
+            if let nextGeneration = SwitcherActivationTests.generationAfterFocus {
+                currentGeneration = nextGeneration
+                SwitcherActivationTests.generationAfterFocus = nil
+            }
             return canRaise
         }
     }
@@ -56,11 +169,20 @@ enum SwitcherActivationTests {
         static var processForPID: ((pid_t, UnsafeMutablePointer<ProcessSerialNumber>) -> OSStatus)?
         static var setFrontProcess: ((UnsafeMutablePointer<ProcessSerialNumber>, CGWindowID, UInt32) -> CGError)?
         static var postEventRecord: ((UnsafeMutablePointer<ProcessSerialNumber>, UnsafeMutablePointer<UInt8>) -> CGError)?
+        /// The window server's answer for a window, when it has one.
+        static var windowServerMinimizedState: ((CGWindowID) -> Bool?)?
+        /// The windows the window server was asked about.
+        static var windowServerMinimizedReads: [CGWindowID] = []
+        static func minimizedState(of windowID: CGWindowID) -> Bool? {
+            windowServerMinimizedReads.append(windowID)
+            return windowServerMinimizedState?(windowID)
+        }
     }
 
     /// The production hidden-Space raise and source staging methods run with
     /// inert elements. Only the orchestration is tested; macOS travel is not.
     enum HiddenSpaceActivator {
+        static let activationAXQueue = DeferredQueue()
         final class Element: NSObject {
             let pid: pid_t
             let windowID: CGWindowID?
@@ -69,6 +191,13 @@ enum SwitcherActivationTests {
                 self.windowID = windowID
             }
         }
+        typealias AXUIElement = Element
+        final class AXObserver {}
+        struct SwitcherActivationTargetWindow {
+            let window: Element
+            func element() -> Element? { window }
+        }
+        typealias NSWorkspace = SwitcherActivationTests.Workspace
         struct PermissionState { var accessibility = true }
         enum Permissions { static var shared = PermissionState() }
         enum SpaceWindowBridge {
@@ -81,15 +210,41 @@ enum SwitcherActivationTests {
         static var missingWindows: Set<CGWindowID> = []
         static var minimizedWindows: Set<CGWindowID> = []
         static var raiseResult: AXError = .success
+        static var currentGeneration: UInt64 = 1
+        static var afterRead: (() -> Void)?
+        static var afterWrite: (() -> Void)?
+        static var observerCreationResult: AXError = .success
+        static var observerRegistrationResult: AXError = .success
+        static var afterObserverCreation: (() -> Void)?
+        static var afterObserverRegistration: (() -> Void)?
+        static var observerCompletion: UnsafeMutablePointer<Bool>?
 
         static func reset() {
+            activationAXQueue.reset()
             Permissions.shared = PermissionState()
             SpaceWindowBridge.hiddenWindows = []
             transportEvents = []
             missingWindows = []
             minimizedWindows = []
             raiseResult = .success
+            currentGeneration = 1
+            afterRead = nil
+            afterWrite = nil
+            observerCreationResult = .success
+            observerRegistrationResult = .success
+            afterObserverCreation = nil
+            afterObserverRegistration = nil
+            observerCompletion = nil
+            // The staging path asks who is in front; no app of this fixture is.
+            Workspace.shared.frontmostApplication = App(processIdentifier: 99)
         }
+        static func isCurrentActivation(_ generation: UInt64) -> Bool { currentGeneration == generation }
+        static func AXIsProcessTrusted() -> Bool { Permissions.shared.accessibility }
+        /// Visibility is the window server's answer, which this fixture does
+        /// not model: staging treats the target as not visibly focused.
+        static func windowIsVisiblyFocused(windowID: CGWindowID,
+                                          pid: pid_t,
+                                          window: Element) -> Bool { false }
         static func AXUIElementCreateApplication(_ pid: pid_t) -> Element {
             transportEvents.append("app:\(pid)")
             return Element(pid: pid)
@@ -108,6 +263,7 @@ enum SwitcherActivationTests {
         static func AXUIElementCopyAttributeValue(_ element: Element, _ attribute: CFString,
                                                   _ value: UnsafeMutablePointer<CFTypeRef?>) -> AXError {
             transportEvents.append("read:\(element.windowID ?? 0):\(attribute)")
+            defer { afterRead?() }
             guard attribute as String == kAXMinimizedAttribute as String,
                   let windowID = element.windowID else { return .attributeUnsupported }
             value.pointee = NSNumber(value: minimizedWindows.contains(windowID))
@@ -117,12 +273,47 @@ enum SwitcherActivationTests {
         static func AXUIElementSetAttributeValue(_ element: Element, _ attribute: CFString,
                                                  _ value: CFTypeRef) -> AXError {
             transportEvents.append("set:\(element.windowID ?? 0):\(attribute)")
+            if attribute as String == kAXMinimizedAttribute as String {
+                observerCompletion?.pointee = true
+            }
+            afterWrite?()
             return .success
         }
         @discardableResult
         static func AXUIElementPerformAction(_ element: Element, _ action: CFString) -> AXError {
             transportEvents.append("action:\(element.windowID ?? 0):\(action)")
+            afterWrite?()
             return raiseResult
+        }
+        static func AXObserverCreate(_ pid: pid_t,
+                                     _ callback: (AXObserver, Element, CFString, UnsafeMutableRawPointer?) -> Void,
+                                     _ observer: UnsafeMutablePointer<AXObserver?>) -> AXError {
+            transportEvents.append("observer:create")
+            observer.pointee = observerCreationResult == .success ? AXObserver() : nil
+            afterObserverCreation?()
+            return observerCreationResult
+        }
+        static func AXObserverAddNotification(_ observer: AXObserver, _ window: Element,
+                                              _ notification: CFString,
+                                              _ completion: UnsafeMutableRawPointer?) -> AXError {
+            transportEvents.append("observer:register")
+            if observerRegistrationResult == .success {
+                observerCompletion = completion?.assumingMemoryBound(to: Bool.self)
+            }
+            afterObserverRegistration?()
+            return observerRegistrationResult
+        }
+        static func AXObserverGetRunLoopSource(_ observer: AXObserver) -> Int { 1 }
+        static func CFRunLoopAddSource(_ loop: CFRunLoop?, _ source: Int, _ mode: CFRunLoopMode) {
+            transportEvents.append("observer:attach")
+        }
+        static func CFRunLoopRemoveSource(_ loop: CFRunLoop?, _ source: Int, _ mode: CFRunLoopMode) {
+            transportEvents.append("observer:detach")
+        }
+        static func AXObserverRemoveNotification(_ observer: AXObserver, _ window: Element,
+                                                 _ notification: CFString) {
+            transportEvents.append("observer:remove")
+            observerCompletion = nil
         }
     }
     final class Workspace {
@@ -143,9 +334,18 @@ enum SwitcherActivationTests {
     }
     static func reset(raise: Bool = true, front: CGError = .success, down: CGError = .success, up: CGError = .success) {
         events = []; records = []; frontOptions = []; canRaise = raise
+        generationAfterFocus = nil
+        Activator.currentGeneration = 1
+        Activator.frontmostPID = 20
+        Activator.targetResolutionFails = false
+        Activator.Permissions.shared.accessibility = true
+        Activator.activationAXQueue.reset()
+        Activator.activationMainQueue.reset()
+        Bridge.windowServerMinimizedState = nil
+        Bridge.windowServerMinimizedReads = []
         Queue.main.pending = []; Activator.focusedID = 66
         Workspace.shared.frontmostApplication = App(processIdentifier: 20)
-        App.executablePaths = [:]; App.names = [:]; App.hiddenPIDs = []
+        App.executablePaths = [:]; App.names = [:]; App.bundleIdentifiers = [:]; App.hiddenPIDs = []
         Bridge.processForPID = { pid, _ in events.append("owner:\(pid)"); return noErr }
         Bridge.setFrontProcess = { _, id, options in
             events.append("front:\(id)"); frontOptions.append(options); return front
@@ -233,8 +433,414 @@ enum SwitcherActivationTests {
         select()
         suite.expect(events.contains("activate:20:false") && records.isEmpty,
                      "a failed Wine front request falls back to app activation without a mouse event")
+        runGenerationContracts(suite)
+        runInputCancellationContracts(suite)
+        runCancelledWriteContracts(suite)
+        runRestoreCancellationContracts(suite)
+        runActivationBaselineContracts(suite)
         runHiddenSpaceContracts(suite)
         runFocusWithoutRaise(suite)
+    }
+
+    /// The guarded path a real switch takes: remote Accessibility focus and the
+    /// cooperative fallback run on the activation's own lanes, and every step
+    /// rechecks the generation that asked for it.
+    private static func runGenerationContracts(_ suite: TestSuite) {
+        let app = App(processIdentifier: 20)!
+        let windowPlan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        func select(owner: pid_t = 20, generation: UInt64 = 1) {
+            Activator.activateApp(app,
+                                  plan: windowPlan,
+                                  windowID: 77,
+                                  windowOwnerPID: owner,
+                                  generation: generation)
+        }
+        func selectWithoutGeneration(owner: pid_t = 20) {
+            Activator.activateApp(app, plan: windowPlan, windowID: 77, windowOwnerPID: owner)
+        }
+        func drainAll() {
+            Activator.activationAXQueue.drain()
+            Activator.activationMainQueue.drain()
+        }
+
+        reset(); select()
+        suite.expect(events == ["owner:20", "front:77", "event:1"]
+                        && Activator.activationAXQueue.pending.count == 1,
+                     "exact-window routing returns before remote Accessibility focus")
+        Activator.activationAXQueue.drain()
+        suite.expect(events == ["owner:20", "front:77", "event:1", "raise:77:20:false"],
+                     "the activation lane raises the exact window once it runs")
+
+        reset(); selectWithoutGeneration()
+        suite.expect(events == ["owner:20", "front:77", "event:1", "raise:77:20:false"]
+                        && Activator.activationAXQueue.pending.isEmpty,
+                     "an unguarded legacy exact-window call preserves synchronous focus")
+        reset(raise: false); selectWithoutGeneration()
+        suite.expect(events.filter { $0 == "raise:77:20:false" }.count == 2
+                        && events.contains("activate:20:false")
+                        && Activator.activationAXQueue.pending.isEmpty,
+                     "an unguarded legacy focus failure preserves synchronous cooperative recovery")
+
+        reset(raise: false); select()
+        suite.expect(!events.contains("activate:20:false")
+                        && Activator.activationAXQueue.pending.count == 1,
+                     "a selected window defers Accessibility focus before considering recovery")
+        Activator.activationAXQueue.drain()
+        suite.expect(events.contains("raise:77:20:false")
+                        && Activator.activationMainQueue.pending.count == 1,
+                     "failed exact-window focus queues cooperative recovery")
+        Activator.activationMainQueue.drain()
+        suite.expect(events.contains("activate:20:false"),
+                     "a window lost by Accessibility retains cooperative recovery")
+
+        reset(raise: false); select()
+        generationAfterFocus = 2
+        Activator.activationAXQueue.drain()
+        suite.expect(Activator.activationMainQueue.pending.isEmpty
+                        && !events.contains("activate:20:false"),
+                     "a newer switch during remote focus cancels stale cooperative recovery")
+        reset(raise: false); select()
+        Activator.activationAXQueue.drain()
+        Activator.currentGeneration = 2
+        Activator.activationMainQueue.drain()
+        suite.expect(!events.contains("activate:20:false"),
+                     "a newer switch before main-thread recovery prevents stale activation")
+        reset(raise: false); select()
+        Activator.activationAXQueue.drain()
+        Activator.frontmostPID = 99
+        Activator.activationMainQueue.drain()
+        suite.expect(!events.contains("activate:20:false"),
+                     "a manual foreground change suppresses delayed cooperative activation")
+        reset(raise: false); App.bundleIdentifiers[20] = "com.example.host"
+        App.bundleIdentifiers[21] = "com.example.host"
+        select()
+        Activator.activationAXQueue.drain()
+        Activator.frontmostPID = 21
+        Activator.activationMainQueue.drain()
+        suite.expect(events.contains("activate:20:false"),
+                     "a same-bundle frontmost process remains a valid activation target")
+        reset(raise: false); select(owner: 30)
+        Activator.activationAXQueue.drain()
+        Activator.frontmostPID = 30
+        Activator.activationMainQueue.drain()
+        suite.expect(events.contains("activate:20:false"),
+                     "an accessory owner remains a valid frontmost target for host recovery")
+        reset(); select()
+        Activator.currentGeneration = 2
+        Activator.activationAXQueue.drain()
+        suite.expect(!events.contains("raise:77:20:false"),
+                     "deferred Accessibility focus checks the activation generation before starting")
+        drainAll()
+        reset()
+    }
+
+    private static func runInputCancellationContracts(_ suite: TestSuite) {
+        let app = App(processIdentifier: 20)!
+        let plan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        func select(_ writeGuard: SwitcherActivationWriteGuard) {
+            Activator.activateApp(app, plan: plan, windowID: 77, windowOwnerPID: 20,
+                                  generation: 1, writeGuard: writeGuard)
+        }
+
+        for locally in [false, true] {
+            for type: NSEvent.EventType in [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown] {
+                reset()
+                let writeGuard = SwitcherActivationWriteGuard()
+                select(writeGuard)
+                let beforeInput = events
+                let event = InputEvent(type)
+                let forwarded = InputEvent.emit(event, locally: locally)
+                Activator.activationAXQueue.drain()
+                Activator.activationMainQueue.drain()
+                suite.expect(!writeGuard.isActive && Activator.currentGeneration == 1
+                                && events == beforeInput && forwarded === event,
+                             "new user input cancels queued focus without swallowing the event or requiring a new switch")
+            }
+        }
+
+        for event in [InputEvent(.keyDown, timestamp: 0),
+                      InputEvent(.keyDown, sourcePID: ProcessInfo.processInfo.processIdentifier),
+                      InputEvent(.flagsChanged), InputEvent(.mouseMoved)] {
+            reset()
+            let writeGuard = SwitcherActivationWriteGuard()
+            select(writeGuard)
+            InputEvent.emit(event)
+            Activator.activationAXQueue.drain()
+            suite.expect(writeGuard.isActive && events.contains("raise:77:20:false"),
+                         "the selecting event, our synthetic travel and modifier releases preserve deferred focus")
+        }
+
+        reset(raise: false)
+        let writeGuard = SwitcherActivationWriteGuard()
+        select(writeGuard)
+        Activator.activationAXQueue.drain()
+        InputEvent.emit(InputEvent(.keyDown))
+        Activator.activationMainQueue.drain()
+        suite.expect(!events.contains("activate:20:false"),
+                     "typing before queued cooperative recovery keeps the user's new selection")
+        reset()
+
+        let monitorCount = InputEvent.global.count + InputEvent.local.count
+        var temporary: SwitcherActivationWriteGuard? = SwitcherActivationWriteGuard()
+        suite.expect(temporary?.isActive == true
+                        && InputEvent.global.count + InputEvent.local.count == monitorCount + 2,
+                     "one pending activation owns its two input monitors")
+        temporary = nil
+        suite.expect(InputEvent.global.count + InputEvent.local.count == monitorCount,
+                     "finishing the last activation pass removes both monitors")
+    }
+
+    private static func runCancelledWriteContracts(_ suite: TestSuite) {
+        typealias AX = HiddenSpaceActivator
+        let plan = SwitcherSupport.activationPlan(targetsSpecificWindow: true)
+        func writes() -> [String] {
+            AX.transportEvents.filter { $0.hasPrefix("set:") || $0.hasPrefix("action:") }
+        }
+        func perform(_ operation: Int, _ writeGuard: SwitcherActivationWriteGuard) {
+            switch operation {
+            case 0:
+                _ = AX.prepareWindowForActivation(windowID: 77, pid: 20, generation: 1,
+                                                  writeGuard: writeGuard)
+            case 1:
+                _ = AX.focusWindow(windowID: 77, pid: 20, generation: 1, writeGuard: writeGuard)
+            default:
+                _ = AX.stageSourceBehindTargetIfNeeded(targetWindowID: 77, targetPID: 20,
+                                                       targetWindowOwnerPID: 20, sourcePID: 10,
+                                                       sourceWindowID: 55, sourceWindowOwnerPID: 10,
+                                                       activationPlan: plan, generation: 1,
+                                                       writeGuard: writeGuard)
+            }
+        }
+
+        for operation in 0..<3 {
+            AX.reset()
+            let active = SwitcherActivationWriteGuard()
+            perform(operation, active)
+            suite.expect(!writes().isEmpty,
+                         "uninterrupted preparation, focus and staging retain their window writes")
+
+            AX.reset()
+            let cancelled = SwitcherActivationWriteGuard()
+            AX.afterRead = { InputEvent.emit(InputEvent(.leftMouseDown)) }
+            perform(operation, cancelled)
+            suite.expect(!cancelled.isActive && writes().isEmpty,
+                         "a click during an AX read cancels every subsequent preparation, focus or staging write")
+
+            AX.reset()
+            let interrupted = SwitcherActivationWriteGuard()
+            AX.afterWrite = { InputEvent.emit(InputEvent(.keyDown)) }
+            perform(operation, interrupted)
+            suite.expect(!interrupted.isActive && writes().count == 1,
+                         "new input during an AX write stops the remaining writes in the pass")
+        }
+
+        AX.reset()
+        let stagingGuard = SwitcherActivationWriteGuard()
+        AX.scheduleSourceStaging(targetWindowID: 77, targetPID: 20, targetWindowOwnerPID: 20,
+                                 sourcePID: 10, sourceWindowID: 55, sourceWindowOwnerPID: 10,
+                                 activationPlan: plan, generation: 1, writeGuard: stagingGuard,
+                                 stagingState: SwitcherSourceStagingState(generation: 1),
+                                 observedFrontmostPID: nil)
+        suite.expect(AX.activationAXQueue.pending.count == 1, "source staging waits on the write queue")
+        InputEvent.emit(InputEvent(.leftMouseDown))
+        AX.activationAXQueue.drain()
+        suite.expect(AX.transportEvents.isEmpty, "a newer selection cancels staging before even resolving its windows")
+        AX.reset()
+    }
+
+    private static func runRestoreCancellationContracts(_ suite: TestSuite) {
+        typealias AX = HiddenSpaceActivator
+        let window = AX.Element(pid: 20, windowID: 77)
+        func restore(_ writeGuard: SwitcherActivationWriteGuard) -> Bool {
+            AX.restoreWindowBeforeFocus(window, pid: 20, generation: 1, writeGuard: writeGuard)
+        }
+        func restored() -> Bool { AX.transportEvents.contains("set:77:AXMinimized") }
+
+        for registration in [AXError.success, .notificationUnsupported] {
+            for cancellation in 0..<2 {
+                AX.reset()
+                let writeGuard = SwitcherActivationWriteGuard()
+                AX.observerRegistrationResult = registration
+                AX.afterObserverRegistration = {
+                    if cancellation == 0 { AX.currentGeneration = 2 }
+                    else { InputEvent.emit(InputEvent(.keyDown)) }
+                }
+                suite.expect(!restore(writeGuard) && !restored(),
+                             "successful and failed observer registration cannot restore a superseded selection")
+                suite.expect(AX.transportEvents.contains("observer:remove") == (registration == .success)
+                                && AX.observerCompletion == nil,
+                             "cancelled restore removes only successfully registered observers")
+            }
+            AX.reset()
+            AX.minimizedWindows = [77]
+            var externalCurrent = true
+            AX.observerRegistrationResult = registration
+            AX.afterObserverRegistration = { externalCurrent = false }
+            let focused = AX.focusWindow(windowID: 77, pid: 20, generation: 1,
+                                         isCurrent: { externalCurrent })
+            suite.expect(!focused && !restored(),
+                         "external focus cancellation during observer registration prevents restoring the old window")
+            suite.expect(AX.transportEvents.contains("observer:remove") == (registration == .success)
+                            && AX.observerCompletion == nil,
+                         "external focus cancellation cleans up a registered observer without a stale restore")
+            AX.reset()
+            let active = SwitcherActivationWriteGuard()
+            AX.observerRegistrationResult = registration
+            let completed = restore(active)
+            suite.expect(restored() && completed == (registration == .success),
+                         "current activation restores through both observer success and the unsupported fallback")
+        }
+
+        for creation in [AXError.success, .cannotComplete] {
+            AX.reset()
+            let cancelled = SwitcherActivationWriteGuard()
+            AX.observerCreationResult = creation
+            AX.afterObserverCreation = { AX.currentGeneration = 2 }
+            suite.expect(!restore(cancelled) && !restored(),
+                         "observer creation cannot revive a cancelled activation")
+        }
+        AX.reset()
+    }
+
+    /// The fresh minimized state of an activation target, and the activation
+    /// baseline a walk can hand over instead of asking the app again.
+    private static func runActivationBaselineContracts(_ suite: TestSuite) {
+        func window(_ id: CGWindowID, owner: pid_t, layer: Int) -> [String: Any] {
+            [kCGWindowNumber as String: NSNumber(value: id),
+             kCGWindowOwnerPID as String: NSNumber(value: owner),
+             kCGWindowLayer as String: NSNumber(value: layer)]
+        }
+        let windowInfo = [window(77, owner: 20, layer: 0),
+                          window(101, owner: 20, layer: 3),
+                          window(201, owner: 30, layer: 0)]
+        let snapshot = SwitcherWindowServerSnapshot(windowInfo: windowInfo,
+                                                     capturesActivationBaseline: true)
+        let validated = snapshot.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                      currentWindowIDs: [77, 101, 201])
+        suite.expect(validated == [77, 101],
+                     "a validated owner baseline retains existing auxiliary windows outside the normal layer")
+        suite.expect(snapshot.normalLevelWindowIDs == [77, 201]
+                        && snapshot.normalLevelOwnerPIDs == [20, 30],
+                     "collecting a complete owner baseline does not change normal-window enumeration metadata")
+        suite.expect(snapshot.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                  currentWindowIDs: [77, 201]) == [77],
+                     "validation removes closed owner windows from the activation baseline")
+        suite.expect(snapshot.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                  currentWindowIDs: [77, 101, 201, 333]) == nil,
+                     "any new global window forces a fresh owner snapshot instead of hiding a new dialog")
+        suite.expect(snapshot.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                  currentWindowIDs: [101, 201]) == nil,
+                     "a missing target cannot validate a stale activation baseline")
+        suite.expect(snapshot.activationWindowIDs(ownerPID: 30, targetWindowID: 77,
+                                                  currentWindowIDs: [77, 101, 201]) == nil,
+                     "an app identity cannot substitute for the selected window's actual owner")
+        let uncaptured = SwitcherWindowServerSnapshot(windowInfo: windowInfo,
+                                                       capturesActivationBaseline: false)
+        suite.expect(uncaptured.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                    currentWindowIDs: [77, 101, 201]) == nil,
+                     "a walk without a complete owner map requires a fresh activation snapshot")
+        let incomplete = SwitcherWindowServerSnapshot(
+            windowInfo: windowInfo + [[kCGWindowNumber as String: NSNumber(value: 333)]],
+            capturesActivationBaseline: true)
+        suite.expect(incomplete.activationWindowIDs(ownerPID: 20, targetWindowID: 77,
+                                                     currentWindowIDs: [77, 101, 201, 333]) == nil,
+                     "missing ownership metadata cannot turn a partial owner map into a validated baseline")
+        let retryState = SwitcherWindowFocusRetryState(targetWindowID: 77,
+                                                        targetStartedMinimized: false,
+                                                        targetWasObservedRestored: true,
+                                                        knownWindowIDs: validated ?? [])
+        suite.expect(SwitcherSupport.shouldContinueFocusRetry(
+            targetPID: 20, sourcePID: 30, frontmostPID: 20,
+            targetIsMinimized: false, targetStartedMinimized: false,
+            knownWindowIDs: retryState.knownWindowIDs,
+            targetAppWindowIDs: [77, 101], targetAppFocusedWindowID: 101, ownPID: 99),
+            "a pre-existing auxiliary window is not mistaken for a new window during retry")
+        suite.expect(!SwitcherSupport.shouldContinueFocusRetry(
+            targetPID: 20, sourcePID: 30, frontmostPID: 20,
+            targetIsMinimized: false, targetStartedMinimized: false,
+            knownWindowIDs: retryState.knownWindowIDs,
+            targetAppWindowIDs: [77, 101, 333], targetAppFocusedWindowID: 333, ownPID: 99),
+            "a new dialog after validation ends retry instead of reclaiming its focus")
+
+        // A pass that stood down does not come back for the old target, not
+        // even when the late answer of its own observation finds the target
+        // app in front again.
+        let stoodDownState = SwitcherWindowFocusRetryState(targetWindowID: 77,
+                                                           targetStartedMinimized: false,
+                                                           targetWasObservedRestored: true,
+                                                           knownWindowIDs: [77, 101])
+        suite.expect(!stoodDownState.shouldContinue(targetPID: 10,
+                                                    sourcePID: 20,
+                                                    frontmostPID: 30,
+                                                    targetMinimizedState: false,
+                                                    targetAppWindowIDs: [77, 101],
+                                                    targetAppFocusedWindowID: 77,
+                                                    ownPID: 99),
+                     "a pass that saw another app in front stands the retry down")
+        suite.expect(!stoodDownState.isActive,
+                     "the retry state records that it stood down")
+        suite.expect(!stoodDownState.shouldContinue(targetPID: 10,
+                                                    sourcePID: 20,
+                                                    frontmostPID: 10,
+                                                    targetMinimizedState: false,
+                                                    targetAppWindowIDs: [77, 101],
+                                                    targetAppFocusedWindowID: 77,
+                                                    ownPID: 99),
+                     "a late answer cannot bring the old target back after the retry stood down")
+
+        // The fresh state of an activation target. The window server answers
+        // without the other app's help, so an ordinary target never waits on
+        // the Accessibility of an app that is busy answering something else.
+        reset()
+        Bridge.windowServerMinimizedState = { _ in true }
+        let minimizedTarget = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                                 pid: 20)
+        suite.expect(minimizedTarget.state == true
+                        && minimizedTarget.source == .windowServer,
+                     "a window the window server holds minimized is read from the window server")
+        reset()
+        Bridge.windowServerMinimizedState = { _ in false }
+        let restoredTarget = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                                 pid: 20)
+        suite.expect(restoredTarget.state == false
+                        && restoredTarget.source == .windowServer,
+                     "a window the window server holds restored is read from the window server")
+        reset()
+        Bridge.windowServerMinimizedState = { _ in nil }
+        let fallbackTarget = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                                 pid: 20)
+        suite.expect(fallbackTarget.source == .accessibility
+                        && fallbackTarget.state == nil,
+                     "a window the window server cannot answer falls back to the app's Accessibility")
+        // A window the app cannot describe stays unknown; the step that asked
+        // falls back to its own lookup.
+        reset()
+        Bridge.windowServerMinimizedState = { _ in nil }
+        Activator.targetResolutionFails = true
+        let unknownTarget = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                                pid: 20)
+        suite.expect(unknownTarget.state == nil
+                        && unknownTarget.source == .accessibility,
+                     "a state the app cannot resolve stays unknown")
+        // Without Accessibility permission the app is not asked at all.
+        reset()
+        Bridge.windowServerMinimizedState = { _ in nil }
+        Activator.Permissions.shared.accessibility = false
+        let untrusted = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                           pid: 20)
+        suite.expect(untrusted.state == nil
+                        && untrusted.source == .accessibility,
+                     "without Accessibility permission the state stays unknown")
+        // The state belongs to the target window: the source window's own
+        // state is never read on the way to the target.
+        reset()
+        Bridge.windowServerMinimizedState = { windowID in windowID == 88 ? true : false }
+        let targetOnly = Activator.activationMinimizedState(target: Activator.makeTarget(windowID: 77),
+                                                            pid: 20)
+        suite.expect(targetOnly.state == false
+                        && Bridge.windowServerMinimizedReads == [77],
+                     "the fresh state is read for the target window, never for the source window")
+        reset()
     }
 
     private static func runHiddenSpaceContracts(_ suite: TestSuite) {
@@ -270,7 +876,8 @@ enum SwitcherActivationTests {
         func stage(plan: SwitcherActivationPlan? = nil) -> Bool {
             AX.stageSourceBehindTargetIfNeeded(targetWindowID: 77, targetPID: 20, targetWindowOwnerPID: 40,
                                               sourcePID: 10, sourceWindowID: 55, sourceWindowOwnerPID: 30,
-                                              activationPlan: plan ?? windowPlan)
+                                              activationPlan: plan ?? windowPlan,
+                                              generation: 1) == .staged
         }
         let hiddenCases: [Set<CGWindowID>] = [[55], [77], [55, 77]]
         for hidden in hiddenCases {
@@ -335,6 +942,8 @@ enum SwitcherActivationTests {
                      "hover activates another app without ordering windows or posting a mouse press")
         suite.expect(Queue.main.pending.isEmpty,
                      "cross-app focus has no same-app handoff to delay")
+        suite.expect(!events.contains("event:1") && !events.contains { $0.hasPrefix("raise:") },
+                     "a successful no-raise activation does not fall back to a raise or a click")
 
         resetFocus(); focus(replacing: 66)
         suite.expect(results.isEmpty && frontOptions.isEmpty && hasFocusRecords([(66, 2)])
@@ -344,14 +953,15 @@ enum SwitcherActivationTests {
         suite.expect(results == [true] && frontOptions == [0x400]
                         && hasFocusRecords([(66, 2), (77, 1)]),
                      "same-app hover gives the target keyboard focus without ordering windows or clicking")
+        suite.expect(!events.contains("event:1") && !events.contains { $0.hasPrefix("raise:") },
+                     "a successful same-app no-raise handoff does not fall back to a raise or a click")
 
         for oldWindow: CGWindowID? in [nil, 66] {
             resetFocus(); current = false; focus(replacing: oldWindow)
             suite.expect(results == [false] && events.isEmpty && Queue.main.pending.isEmpty,
                          "an obsolete hover cannot activate or release any window")
-            for missing in 0..<3 {
+            for missing in 1..<3 {
                 resetFocus()
-                if missing == 0 { Bridge.setFrontProcess = nil }
                 if missing == 1 { Bridge.processForPID = nil }
                 if missing == 2 { Bridge.postEventRecord = nil }
                 focus(replacing: oldWindow)
@@ -383,19 +993,32 @@ enum SwitcherActivationTests {
             resetFocus()
             Bridge.setFrontProcess = { _, _, options in frontOptions.append(options); return .failure }
             focus(replacing: oldWindow); Queue.main.finish()
-            suite.expect(results == [false] && frontOptions == [0x400]
-                            && hasFocusRecords(oldWindow == nil ? [] : [(66, 2), (66, 1)]),
-                         "a refused no-raise activation reports failure and restores any released old focus")
+            suite.expect(results == [true] && frontOptions == [0x400]
+                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1)])
+                            && !events.contains("event:1"),
+                         "a refused no-raise activation falls back to the focus handoff and reports success")
 
-            resetFocus()
-            Bridge.postEventRecord = { _, bytes in
-                records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
-                return bytes[0x3c] == 77 ? .failure : .success
+            for activationResult: CGError? in [.success, .failure, nil] {
+                resetFocus()
+                if let activationResult {
+                    Bridge.setFrontProcess = { _, _, options in
+                        frontOptions.append(options)
+                        return activationResult
+                    }
+                } else {
+                    Bridge.setFrontProcess = nil
+                }
+                Bridge.postEventRecord = { _, bytes in
+                    records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+                    // A mouse press would succeed, but disabled raising must
+                    // never use it to recover from this refused focus record.
+                    return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+                }
+                focus(replacing: oldWindow); Queue.main.finish()
+                suite.expect(results == [false] && frontOptions == (activationResult == nil ? [] : [0x400])
+                                && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1), (66, 1)]),
+                             "an undelivered focus gain restores old focus without a raising request or mouse press")
             }
-            focus(replacing: oldWindow); Queue.main.finish()
-            suite.expect(results == [false] && frontOptions == [0x400]
-                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1), (66, 1)]),
-                         "an undelivered focus gain reports failure without falling back to a click or raise")
 
             resetFocus()
             var lookups = 0
@@ -406,14 +1029,40 @@ enum SwitcherActivationTests {
             focus(replacing: oldWindow); Queue.main.finish()
             suite.expect(results == [false] && frontOptions == [0x400]
                             && hasFocusRecords(oldWindow == nil ? [] : [(66, 2), (66, 1)]),
-                         "losing the process after activation cannot claim that keyboard focus was delivered")
+                         "losing the process after activation reports failure without a raising fallback")
+        }
+
+        for oldWindow: CGWindowID? in [nil, 66] {
+            resetFocus()
+            Bridge.setFrontProcess = nil
+            focus(replacing: oldWindow); Queue.main.finish()
+            suite.expect(results == [true] && frontOptions.isEmpty
+                            && hasFocusRecords(oldWindow == nil ? [(77, 1)] : [(66, 2), (77, 1)]),
+                         "a missing no-raise activation still moves focus through the previous handoff")
         }
 
         resetFocus(); focus(replacing: 66)
-        Bridge.setFrontProcess = { _, _, _ in Activator.focusedID = 88; return .failure }
+        current = false
+        Bridge.setFrontProcess = { _, _, options in frontOptions.append(options); return .failure }
         Queue.main.finish()
-        suite.expect(results == [false] && hasFocusRecords([(66, 2)]),
-                     "a failed handoff never restores old focus over a newer focused window")
+        suite.expect(results == [false] && frontOptions.isEmpty
+                        && hasFocusRecords([(66, 2), (66, 1)]),
+                     "a hover that ends first restores the old window and does not fall back")
+
+        resetFocus(); focus(replacing: 66)
+        Bridge.setFrontProcess = { _, _, options in
+            frontOptions.append(options)
+            Activator.focusedID = 88
+            return .failure
+        }
+        Bridge.postEventRecord = { _, bytes in
+            records.append(Array(UnsafeBufferPointer(start: bytes, count: 0x100)))
+            return bytes[0x08] == 0x0d && bytes[0x3c] == 77 ? .failure : .success
+        }
+        Queue.main.finish()
+        suite.expect(results == [false] && frontOptions == [0x400]
+                        && hasFocusRecords([(66, 2), (77, 1)]),
+                     "a failed focus gain neither raises the target nor restores old focus over a newer window")
         resetFocus()
     }
 }

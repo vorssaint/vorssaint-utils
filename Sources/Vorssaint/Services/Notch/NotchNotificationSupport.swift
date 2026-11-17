@@ -28,34 +28,78 @@ struct NotchSystemNotification: Equatable, Identifiable, Sendable {
 }
 
 struct NotchNotificationInbox {
+    struct ArrivalCheck: Equatable, Sendable {
+        let id: UUID
+        let openedAt: TimeInterval
+        var notBefore: TimeInterval { openedAt + NotchNotificationSupport.centerOpeningGrace }
+
+        func delay(at now: TimeInterval) -> TimeInterval { max(0, notBefore - now) }
+    }
+
     private(set) var items: [NotchSystemNotification] = []
+    /// Unconfirmed arrivals have their own limit, so opening the center
+    /// cannot evict saved messages or publish its list in the island.
+    private(set) var pendingItems: [NotchSystemNotification] = []
     private var seen = Set<UUID>()
     private var primed = false
+    private var opening: ArrivalCheck?
+
+    var arrivalCheck: ArrivalCheck? { pendingItems.isEmpty ? nil : opening }
+
+    mutating func windowCreated(at now: TimeInterval) {
+        opening = ArrivalCheck(id: UUID(), openedAt: now)
+    }
 
     mutating func update(_ live: [NotchSystemNotification]) -> [NotchSystemNotification] {
         let byID = Dictionary(live.map { ($0.id, $0) }, uniquingKeysWith: { _, latest in latest })
-        items = items.map { item in
+        func refreshed(_ item: NotchSystemNotification) -> NotchSystemNotification {
             if let current = byID[item.id] { return current }
             var expired = item; expired.canOpen = false
             return expired
         }
+        items = items.map(refreshed)
+        pendingItems = pendingItems.map(refreshed)
         var arrivals: [NotchSystemNotification] = []
         for item in live where seen.insert(item.id).inserted {
             guard primed else { continue }
-            items.insert(item, at: 0)
-            if items.count > NotchNotificationSupport.maximumItems { items.removeLast() }
-            arrivals.append(item)
+            if opening != nil {
+                pendingItems.append(item)
+                if pendingItems.count > NotchNotificationSupport.maximumItems { pendingItems.removeFirst() }
+            } else {
+                items.insert(item, at: 0)
+                if items.count > NotchNotificationSupport.maximumItems { items.removeLast() }
+                arrivals.append(item)
+            }
         }
         primed = true
-        if seen.count > 200 { seen = Set(items.map(\.id) + live.map(\.id)) }
+        if seen.count > 200 { seen = Set(items.map(\.id) + pendingItems.map(\.id) + live.map(\.id)) }
         return arrivals
     }
 
-    mutating func dismiss(_ id: UUID) { items.removeAll { $0.id == id } }
+    /// The opening stays unresolved across slow reads and failed focus
+    /// queries. Only a fresh check for this window may publish its arrivals.
+    mutating func settleArrivals(_ check: ArrivalCheck, centerFocused: Bool?, checkedAt: TimeInterval)
+        -> [NotchSystemNotification]? {
+        guard opening == check, checkedAt >= check.notBefore, let centerFocused else { return nil }
+        opening = nil
+        let arrivals = pendingItems
+        pendingItems.removeAll()
+        guard !centerFocused else { return [] }
+        for item in arrivals {
+            items.insert(item, at: 0)
+            if items.count > NotchNotificationSupport.maximumItems { items.removeLast() }
+        }
+        return arrivals
+    }
+
+    mutating func dismiss(_ id: UUID) {
+        items.removeAll { $0.id == id }
+        pendingItems.removeAll { $0.id == id }
+    }
 
     /// Banners still on screen stay seen, so the next layout pass cannot
     /// bring back what was just cleared; later arrivals are mirrored as usual.
-    mutating func clear() { items.removeAll() }
+    mutating func clear() { items.removeAll(); pendingItems.removeAll() }
 }
 
 /// Only labelled notification text belongs in the mirror. Controls, widgets
@@ -72,11 +116,18 @@ enum NotchNotificationSupport {
     /// A brief grace avoids cutting off short alert tones when closing the
     /// original banner. This does not observe playback; longer sounds may stop.
     static let nativeCloseGrace: TimeInterval = 1.2
+    /// Opening the center makes a window, and the center takes the keyboard
+    /// a moment later. A read in between finds its list without the focus that
+    /// marks it as the open center.
+    static let centerOpeningGrace: TimeInterval = 0.3
+
     /// Moving the window that holds a banner was measured on macOS 27, where
     /// the center keeps its banners in one window it places again each time
-    /// it shows one. Earlier versions close the original after the grace.
+    /// it shows one. A moved banner stays where it was put on macOS 26 as
+    /// well, so the same close works there. Versions before 26 close the
+    /// original after the grace.
     static var movesNativeWindow: Bool {
-        if #available(macOS 27, *) { return true }
+        if #available(macOS 26, *) { return true }
         return false
     }
 

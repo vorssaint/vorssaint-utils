@@ -16,6 +16,8 @@ enum SwitcherFullscreenScopeTests {
         typealias ProcessInfo = SwitcherFullscreenScopeTests.Clock
         static let minimumSize = CGSize(width: 80, height: 60)
         static let maximumCount = 48
+        static let messagingTimeout: Float = 0.1
+        static let accessibilityQueryQueue = OperationQueue()
         static var raw: [[String: Any]] = []
         static var answers: [pid_t: AccessibilityWindowSnapshotList] = [:]
 
@@ -24,16 +26,58 @@ enum SwitcherFullscreenScopeTests {
             raw as CFArray
         }
 
+        static func CGWindowListCreateDescriptionFromArray(_ ids: CFArray?) -> CFArray? {
+            guard let ids else { return nil }
+            let requested = Set((0..<CFArrayGetCount(ids)).map {
+                CGWindowID(truncatingIfNeeded: UInt(bitPattern: CFArrayGetValueAtIndex(ids, $0)))
+            })
+            return raw.filter {
+                ($0[kCGWindowNumber as String] as? NSNumber).map { requested.contains($0.uint32Value) } ?? false
+            } as CFArray
+        }
+
         static func accessibilityWindows(for pids: Set<pid_t>, bundleIdentifiers: [pid_t: String],
                                          undescribedSubrolePids: Set<pid_t>, accessibilityGranted: Bool,
                                          normalLevelWindowIDs: Set<CGWindowID>, screenFrames: [CGRect],
-                                         isCancelled: @escaping () -> Bool) -> [pid_t: AccessibilityWindowSnapshotList] {
-            answers
+                                         isCancelled: @escaping () -> Bool,
+                                         prefetch: WindowEnumeratorAccessibilityPrefetch<AXUIElement>? = nil) -> [pid_t: AccessibilityWindowSnapshotList] {
+            guard accessibilityGranted, !isCancelled() else { return [:] }
+            return answers.filter { pids.contains($0.key) }
         }
 
         static func orderByUse(_ windows: [SwitcherItem], frontToBack: [CGWindowID]) -> [SwitcherItem] {
             windows
         }
+
+        /// The apps the window server may name that the running-apps
+        /// snapshot does not know.
+        final class RunningApplication {
+            struct Info {
+                var bundleIdentifier: String? = "com.example.hosted"
+                var localizedName: String? = "Hosted"
+                var isRegular = true
+                var isHidden = false
+                var bundlePath: String? = "/Applications/Hosted.app"
+                var executablePath: String? = "/Applications/Hosted.app/Contents/MacOS/Hosted"
+                var isTerminated = false
+            }
+            static var apps: [pid_t: Info] = [:]
+            let processIdentifier: pid_t
+            private let info: Info
+            init?(processIdentifier: pid_t) {
+                guard let info = RunningApplication.apps[processIdentifier] else { return nil }
+                self.processIdentifier = processIdentifier
+                self.info = info
+            }
+            var bundleIdentifier: String? { info.bundleIdentifier }
+            var localizedName: String? { info.localizedName }
+            var activationPolicy: NSApplication.ActivationPolicy { info.isRegular ? .regular : .accessory }
+            var isHidden: Bool { info.isHidden }
+            var bundleURL: URL? { info.bundlePath.map { URL(fileURLWithPath: $0) } }
+            var executableURL: URL? { info.executablePath.map { URL(fileURLWithPath: $0) } }
+            var isTerminated: Bool { info.isTerminated }
+        }
+        typealias NSRunningApplication = RunningApplication
 
         /// Stand-in elements carry their window id as their pid.
         static func accessibilityTitle(for window: AXUIElement) -> String {
@@ -86,6 +130,17 @@ enum SwitcherFullscreenScopeTests {
     /// hidden-with-app reader stays a stand-in, because its macOS 26 gate
     /// would make the result depend on the Mac running the tests.
     enum Bridge {
+        static var idListAvailable = true
+        static func windowIDList() -> CFArray? {
+            guard idListAvailable else { return nil }
+            let ids = CFArrayCreateMutable(nil, 0, nil)!
+            for row in Enumerator.raw {
+                guard let id = (row[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
+                      id != kCGNullWindowID else { continue }
+                CFArrayAppendValue(ids, UnsafeRawPointer(bitPattern: UInt(id)))
+            }
+            return ids
+        }
         struct Topology {
             let visibleSpaces: Set<UInt64>
             let fullscreenSpaces: Set<UInt64>
@@ -146,10 +201,10 @@ enum SwitcherFullscreenScopeTests {
 
     final class Tracker {
         static let shared = Tracker()
-        let historyRevision: UInt64 = 0
+        let historyRevision = UUID()
         static func frontToBack() -> [CGWindowID] { [] }
         func reconcile(existingWindows: Set<CGWindowID>, frontToBack: [CGWindowID],
-                       running: Set<pid_t>, revision: UInt64) {}
+                       running: Set<pid_t>, revision: UUID) {}
         func rank(of pid: pid_t) -> Int { Int(pid) }
     }
 
@@ -157,6 +212,7 @@ enum SwitcherFullscreenScopeTests {
         defer {
             Enumerator.raw = []
             Enumerator.answers = [:]
+            Bridge.idListAvailable = true
             Bridge.memberships = [:]
             Bridge.windowServerTags = [:]
             Bridge.windowQuery = Bridge.windowServer

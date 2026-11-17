@@ -2411,10 +2411,7 @@ final class CommandBarService: ObservableObject {
     /// opens on that removal instead of the bar closing on nothing.
     private func openUninstaller(for url: URL) {
         hide()
-        let uninstaller = AppUninstaller.shared
-        guard uninstaller.select(appURL: url) || uninstaller.isRemoving else { return }
-        SettingsRouter.shared.page = .uninstaller
-        appDelegate()?.openSettingsWindow()
+        appDelegate()?.openUninstaller(for: url)
     }
 
     /// Return (or the Remove button) from the review checklist while it is
