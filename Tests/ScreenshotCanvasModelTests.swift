@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import Darwin
 
 enum ScreenshotCanvasModelTests {
     class Fixture {
@@ -9,6 +10,21 @@ enum ScreenshotCanvasModelTests {
         var imageSize: CGSize { CGSize(width: baseImage.width, height: baseImage.height) }
         var annotations: [ScreenshotSupport.Annotation] = []
         var selectedID: UUID?
+        var draftID: UUID?
+        var editingSelectedAnnotation = false
+        var color: ScreenshotSupport.ColorID = .red
+        var stroke: ScreenshotSupport.StrokeID = .medium
+        var arrowStyle: ScreenshotSupport.ArrowStyleID = .filled
+        var sticker: ScreenshotSupport.StickerID = .check
+        var textSize = 24
+        var blurLevel = ScreenshotSupport.BlurStrength.defaultLevel
+        var blurStyle: ScreenshotSupport.BlurStyleID = .pixelate
+        var blurTextOnly = false
+        var cropResizeOrigin: CGRect?
+        var cropMoveOrigin: CGRect?
+        var cropSelectionOrigin: CGRect?
+        var cropLoupePoint: CGPoint?
+        let currentDisplayZoom: CGFloat = 1
         var editingTextID: UUID?
         var newTextID: UUID?
         var cropDraft: CGRect?
@@ -44,6 +60,8 @@ enum ScreenshotCanvasModelTests {
         func recognizeText() {}
         func recognizeQRCodes() {}
         func ensureBlurSamplesForAnnotations() {}
+        @discardableResult
+        func ensureBlurSample(_ style: ScreenshotSupport.BlurStyleID, level: Int) -> Bool { true }
         func pruneCarriedRuns() {}
         func refreshDirtyState() {}
     }
@@ -194,15 +212,32 @@ enum ScreenshotCanvasModelTests {
         let click = Host(image: frames[1])
         click.undoStack = [(frames[0], [])]
         click.redoStack = [(frames[2], [])]
-        let draft = ScreenshotSupport.Annotation(tool: .rect, rect: .zero)
-        click.annotations.append(draft)
-        click.finishDrawing(draft.id, isTap: true)
-        suite.expect(click.annotations.isEmpty && click.undoStack.count == 1 && click.redoStack.count == 1,
-                     "a tap without a drawing preserves undo and redo")
-        click.annotations.append(draft)
-        click.finishDrawing(draft.id, isTap: false)
-        suite.expect(click.undoStack.last?.annotations.isEmpty == true && click.redoStack.isEmpty,
-                     "a completed drawing stores its pre-drag state and supersedes redo")
+        let existing = ScreenshotSupport.Annotation(tool: .rect, rect: CGRect(x: 5, y: 5, width: 24, height: 24))
+        let start = CGPoint(x: 60, y: 60)
+        let end = CGPoint(x: 95, y: 110)
+        click.tool = .rect
+        click.annotations = [existing]
+        click.selectedID = existing.id
+        click.beginDrag(at: start)
+        click.endDrag(at: start, isTap: true)
+        suite.expect(click.annotations.map(\.id) == [existing.id] && click.selectedID == nil
+                     && click.draftID == nil && click.undoStack.count == 1 && click.redoStack.count == 1,
+                     "a tap without a drawing drops the draft and preserves undo and redo")
+
+        click.selectedID = existing.id
+        click.beginDrag(at: start)
+        let drawing = click.draftID
+        suite.expect(drawing != nil && click.annotations.last?.id == drawing && click.selectedID == nil,
+                     "pressing to draw clears the previous selection and leaves the new shape unselected")
+        click.continueDrag(to: end)
+        suite.expect(click.selectedID == nil && click.annotations.last?.rect ==
+                     CGRect(x: 60, y: 60, width: 35, height: 50)
+                     && click.undoStack.count == 1 && click.redoStack.count == 1,
+                     "the shape takes its dragged bounds before selection or history changes")
+        click.endDrag(at: end, isTap: false)
+        suite.expect(click.selectedID == drawing && click.draftID == nil && click.annotations.count == 2
+                     && click.undoStack.last?.annotations.map(\.id) == [existing.id] && click.redoStack.isEmpty,
+                     "releasing selects the new shape and records only the pre-drag annotations")
         let full = CGRect(origin: .zero, size: click.imageSize)
         let beforeCrop = click.undoStack.count
         for draft in [full, full.insetBy(dx: -4, dy: -3), full.insetBy(dx: 0.2, dy: 0.4)] {
@@ -210,6 +245,57 @@ enum ScreenshotCanvasModelTests {
             click.applyCrop()
             suite.expect(click.baseImage === frames[1] && click.undoStack.count == beforeCrop,
                          "a crop that clamps or rounds to the full canvas keeps its buffer and history")
+        }
+    }
+
+    /// Exercises the full-size drawing contexts on demand. Each edit goes through
+    /// the same expansion and history methods as the editor, using generated pixels.
+    private static func largeCanvasHistory(_ suite: TestSuite) {
+        let width = 5120, height = 2880
+        let host = Host(image: frame(width: width, height: height))
+        func footprint() -> UInt64? {
+            var info = rusage_info_current()
+            let status = withUnsafeMutablePointer(to: &info) { pointer in
+                pointer.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
+                    proc_pid_rusage(getpid(), RUSAGE_INFO_CURRENT, $0)
+                }
+            }
+            return status == 0 ? info.ri_phys_footprint : nil
+        }
+        var samples: [UInt64] = []
+        for edit in 1...14 {
+            let rect = CGRect(x: 0, y: 0, width: width + 4 * edit, height: height)
+            let changed = autoreleasepool { host.commitCanvasExpansion(to: rect) }
+            let retained = host.undoStack.reduce(0) { $0 + $1.image.bytesPerRow * $1.image.height }
+            guard changed, retained <= Host.undoByteBudget else {
+                suite.expect(false, "5K expansion must succeed and evict old buffers before the next edit")
+                return
+            }
+            if [6, 10, 14].contains(edit) {
+                guard let used = footprint() else {
+                    suite.expect(false, "the test process exposes its physical footprint")
+                    return
+                }
+                samples.append(used)
+                print("5K edit \(edit): \(host.undoStack.count) undo states, " +
+                      "\(retained >> 20) MiB history, \(used >> 20) MiB process footprint")
+            }
+        }
+        let bytesPerFrame = UInt64(host.baseImage.bytesPerRow * host.baseImage.height)
+        suite.expect(samples.max()! - samples.min()! <= 2 * bytesPerFrame,
+                     "5K edits reach a steady physical footprint within two frame buffers")
+        let finalWidth = host.baseImage.width
+        let available = host.undoStack.count
+        suite.expect(available == 4, "four recent full 5K frames fit the history budget")
+        for step in 1...4 {
+            host.undo()
+            suite.expect(host.baseImage.width == finalWidth - 4 * step,
+                         "5K undo restores the recent canvas at step \(step)")
+        }
+        for step in 1...4 {
+            host.redo()
+            suite.expect(host.baseImage.width == finalWidth - 4 * (4 - step),
+                         "5K redo restores the edited canvas at step \(step)")
         }
     }
 
@@ -247,6 +333,9 @@ enum ScreenshotCanvasModelTests {
 
     static func run(_ suite: TestSuite) {
         historyStopsByBytes(suite)
+        if ProcessInfo.processInfo.environment["VORSSAINT_SCREENSHOT_MEMORY_SMOKE"] == "1" {
+            largeCanvasHistory(suite)
+        }
         cropOwnsItsPixels(suite)
         counterSizeAfterExpansion(suite)
         samplesAfterExpansion(suite)

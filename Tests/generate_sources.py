@@ -329,8 +329,12 @@ def main():
               "    private func registerUndo(", "    private func trimHistory(",
               "    func applyCrop()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
-              "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest("])
-          + declaration(editor, "    private func finishDrawing(").replace("private func", "func", 1)
+              "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest(",
+              "    func beginDrag(", "    func continueDrag(", "    func endDrag(",
+              "    private func finishDrawing(", "    private func updateDraft(",
+              "    func selectedAnnotationOwns(", "    private func selectExistingAnnotation(",
+              "    private func beginSelectDrag(", "    private func finishSelectDrag(",
+              "    private func syncControls(", "    func wordIndex("])
           + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
           + "}\n}\n")
     write("ScreenshotEditorPaste.swift",
