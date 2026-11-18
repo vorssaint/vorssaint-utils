@@ -750,7 +750,7 @@ struct ClipboardHistorySearchCache {
     }
 }
 
-enum ClipboardHistorySearchSurface { case quick, panel, island, commandBar }
+enum ClipboardHistorySearchSurface: Hashable { case quick, view(UUID), commandBar }
 typealias ClipboardHistorySearchResults = (query: String, stamp: Int, imageLabel: String, result: [ClipboardHistoryEntry])
 
 enum ClipboardHistorySearch {

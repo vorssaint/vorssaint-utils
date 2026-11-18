@@ -1952,6 +1952,21 @@ enum ClipboardFeatureTests {
 /// History mutations run their production observer without touching the system
 /// pasteboard. A saved-text edit must not claim that the clipboard changed.
 enum ClipboardPreviewContract {
+    class CommandSearchFixture {
+        typealias ClipboardHistoryService = Service
+        weak var searchedClipboardHistory: Service?
+        var clipboardHistoryChanges: AnyCancellable?
+        enum Mode { case search }
+        enum Source { case clipboard }
+        let mode = Mode.search
+        let activeCategory: Source? = nil
+        var isVisible = true
+        var enabled = true
+        func isEnabled(_ source: Source) -> Bool { enabled }
+        var render: () -> Void = {}
+        func refreshResults() { render() }
+    }
+
     class Fixture {
         func pruneQuickBatchSelection() {}
         var latestPasteboardEntry: ClipboardHistoryEntry?
@@ -2200,6 +2215,7 @@ enum ClipboardPreviewContract {
         let editedPass = service.filteredEntries(matching: "edited")
         suite.expect(editedPass.map(\.text) == ["Beta edited notes"], "search sees the edited text")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 4, "only the edited entry refolds")
+        overlappingSearches(suite)
         searchFolding(suite)
         if ProcessInfo.processInfo.environment["VORSSAINT_CLIPBOARD_SEARCH_SMOKE"] == "1" {
             measureSearch(suite)
@@ -2284,8 +2300,50 @@ enum ClipboardPreviewContract {
                      "deleting the highlighted entry highlights the one that took its place")
     }
 
+    private static func overlappingSearches(_ suite: TestSuite) {
+        let service = Service()
+        let command = CommandSearch()
+        let firstPanel = ClipboardHistorySearchSurface.view(UUID())
+        let secondPanel = ClipboardHistorySearchSurface.view(UUID())
+        let prefix = String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters) + " "
+        let old = ClipboardHistoryEntry(text: prefix + "find old")
+        let newest = ClipboardHistoryEntry(text: prefix + "find new")
+        service.setEntries([old])
+        var commandRows: [UUID] = []
+        command.observeClipboardSearch(service)
+        command.render = { [weak command] in
+            commandRows = service.filteredEntries(matching: "find", surface: .commandBar,
+                onDeferredResults: { [weak command] in command?.refreshClipboardSearch() }).map(\.id)
+        }
+        command.refreshClipboardSearch()
+        service.setEntries([newest]) // cancels the original tail scan before it can notify the bar
+        var abandoned = 0, surviving = 0
+        _ = service.filteredEntries(matching: "find", surface: firstPanel) { abandoned += 1 }
+        _ = service.filteredEntries(matching: "new", surface: secondPanel) { surviving += 1 }
+        service.cancelSearch(on: firstPanel)
+        let deadline = Date().addingTimeInterval(3)
+        while (commandRows != [newest.id] || surviving == 0) && Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        suite.expect(commandRows == [newest.id] && abandoned == 0 && surviving == 1,
+                     "a mutation restarts the visible command bar's cancelled search while closing one panel leaves the other alive")
+        service.setEntries([])
+        let clearedBy = Date().addingTimeInterval(1)
+        while !commandRows.isEmpty && Date() < clearedBy { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        suite.expect(commandRows.isEmpty, "clearing history removes previously searchable command rows without another keystroke")
+        command.stopClipboardSearch()
+        command.isVisible = false
+        var hiddenRefreshes = 0
+        command.render = { hiddenRefreshes += 1 }
+        service.setEntries([old])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        suite.expect(hiddenRefreshes == 0 && command.clipboardHistoryChanges == nil,
+                     "a closed command bar releases its search and ignores later copies")
+    }
+
     private static func measureSearch(_ suite: TestSuite) {
         let service = Service()
+        let panelSurface = ClipboardHistorySearchSurface.view(UUID()), islandSurface = ClipboardHistorySearchSurface.view(UUID())
         let prefix = String(repeating: "alpha ", count: 2048)
         var documents = (0..<256).map { ClipboardHistoryEntry(text: prefix + "deep target-\($0)!") }
         service.setEntries(documents)
@@ -2297,18 +2355,18 @@ enum ClipboardPreviewContract {
         let edited = ProcessInfo.processInfo.systemUptime
         var command = false, panel = false
         _ = service.filteredEntries(matching: "unique edit", surface: .commandBar, onDeferredResults: { command = true })
-        _ = service.filteredEntries(matching: "target-93!", surface: .panel, onDeferredResults: { panel = true })
-        for step in 0..<32 { _ = service.filteredEntries(matching: "superseded-\(step)", surface: .island) }
+        _ = service.filteredEntries(matching: "target-93!", surface: panelSurface, onDeferredResults: { panel = true })
+        for step in 0..<32 { _ = service.filteredEntries(matching: "superseded-\(step)", surface: islandSurface) }
         let deadline = Date().addingTimeInterval(6)
         while (!command || !panel) && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         let completed = ProcessInfo.processInfo.systemUptime
         suite.expect(first.count == documents.count && service.searchCache.foldCount == documents.count + 1,
                      "the 256-document history refolds exactly one edit")
         suite.expect(command && panel && service.filterCache[.commandBar]?.result.map(\.id) == [documents[17].id]
-                        && service.filterCache[.panel]?.result.map(\.id) == [documents[93].id],
+                        && service.filterCache[panelSurface]?.result.map(\.id) == [documents[93].id],
                      "parallel clipboard consumers find their own deep matches under rapid typing")
         var deliveredAfterClear = false
-        _ = service.filteredEntries(matching: "target-10!", surface: .island, onDeferredResults: { deliveredAfterClear = true })
+        _ = service.filteredEntries(matching: "target-10!", surface: islandSurface, onDeferredResults: { deliveredAfterClear = true })
         service.setEntries([])
         RunLoop.main.run(until: Date().addingTimeInterval(0.2))
         suite.expect(!deliveredAfterClear && service.filterCache.isEmpty && service.deferredSearchWork.isEmpty
@@ -2370,10 +2428,12 @@ enum ClipboardPreviewContract {
         deepService.setEntries([shortNote, documentEntry])
         suite.expect(deepService.filteredEntries(matching: deepMarker).isEmpty,
                      "the indexed pass alone cannot see a match deep inside a long entry")
+        let islandSurface = ClipboardHistorySearchSurface.view(UUID())
+        let panelSurface = ClipboardHistorySearchSurface.view(UUID())
         var refreshedCommandBar = false
         _ = deepService.filteredEntries(matching: " хвост", surface: .commandBar,
                                         onDeferredResults: { refreshedCommandBar = true })
-        _ = deepService.filteredEntries(matching: "", surface: .island)
+        _ = deepService.filteredEntries(matching: "", surface: islandSurface)
         var deepMatches = deepService.filteredEntries(matching: deepMarker)
         let deepDeadline = Date().addingTimeInterval(5)
         while deepMatches.isEmpty && Date() < deepDeadline {
@@ -2397,7 +2457,7 @@ enum ClipboardPreviewContract {
         let corpus = partials + [pinnedDeep, improved, tied]
         rankedService.setEntries(corpus)
         var completedSurfaces = Set<ClipboardHistorySearchSurface>()
-        for surface in [ClipboardHistorySearchSurface.panel, .commandBar] {
+        for surface in [panelSurface, .commandBar] {
             let instant = rankedService.filteredEntries(matching: "needle", surface: surface) {
                 completedSurfaces.insert(surface)
             }
@@ -2411,7 +2471,7 @@ enum ClipboardPreviewContract {
         let whole = corpus.enumerated().map { ClipboardHistorySearchCandidate(index: $0.offset, text: $0.element.text,
                                                                               isPinned: $0.element.isPinned, limit: .max) }
         let expected = ClipboardHistorySearch.rankedIndexes(candidates: whole, matching: "needle").map { corpus[$0].id }
-        for surface in [ClipboardHistorySearchSurface.panel, .commandBar] {
+        for surface in [panelSurface, .commandBar] {
             let final = rankedService.filteredEntries(matching: "needle", surface: surface).map(\.id)
             suite.expect(completedSurfaces.contains(surface) && final == expected
                             && Array(final.prefix(3)) == [pinnedDeep.id, improved.id, tied.id],

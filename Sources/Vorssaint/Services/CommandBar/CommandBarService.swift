@@ -68,7 +68,7 @@ final class CommandBarService: ObservableObject {
     @Published var query = "" {
         didSet {
             guard query != oldValue else { return }
-            searchedClipboardHistory?.cancelSearch(on: .commandBar)
+            stopClipboardSearch()
             uninstallWarning = nil
             uninstallFinderRequestID = nil
             if mode.isUninstallFlow {
@@ -564,8 +564,7 @@ final class CommandBarService: ObservableObject {
     }
 
     func hide() {
-        searchedClipboardHistory?.cancelSearch(on: .commandBar)
-        searchedClipboardHistory = nil
+        stopClipboardSearch()
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
         presentation = .window
@@ -1472,10 +1471,9 @@ final class CommandBarService: ObservableObject {
 
     private func refreshResults() {
         guard !isTearingDown else { return }
-        if let history = searchedClipboardHistory,
+        if searchedClipboardHistory != nil,
            !isEnabled(.clipboard) || mode != .search || (activeCategory != nil && activeCategory != .clipboard) {
-            history.cancelSearch(on: .commandBar)
-            searchedClipboardHistory = nil
+            stopClipboardSearch()
         }
         if presentationLifecycle.isLoadingHome {
             rows = []
@@ -1740,16 +1738,38 @@ final class CommandBarService: ObservableObject {
     }
 
     private weak var searchedClipboardHistory: ClipboardHistoryService?
+    private var clipboardHistoryChanges: AnyCancellable?
+
+    private func observeClipboardSearch(_ history: ClipboardHistoryService) {
+        guard clipboardHistoryChanges == nil else { return }
+        searchedClipboardHistory = history
+        // Published entries change before didSet invalidates the result caches.
+        // Deliver on the next turn and coalesce changes from the same copy or edit.
+        clipboardHistoryChanges = history.$entries.dropFirst().map { _ in () }
+            .debounce(for: .milliseconds(15), scheduler: DispatchQueue.main)
+            .sink { [weak self] in self?.refreshClipboardSearch() }
+    }
+
+    private func refreshClipboardSearch() {
+        guard searchedClipboardHistory != nil, isVisible, mode == .search, isEnabled(.clipboard),
+              activeCategory == nil || activeCategory == .clipboard else { return }
+        refreshResults()
+    }
+
+    private func stopClipboardSearch() {
+        clipboardHistoryChanges = nil
+        searchedClipboardHistory?.cancelSearch(on: .commandBar)
+        searchedClipboardHistory = nil
+    }
+
 
     private func clipboardRows(matching query: String, bar: CommandBarFeatureStrings,
                                limit: Int = 4) -> [CommandBarEntry] {
         guard isEnabled(.clipboard), AppFeature.clipboardHistory.isAvailable else { return [] }
-        searchedClipboardHistory = ClipboardHistoryService.shared
+        observeClipboardSearch(ClipboardHistoryService.shared)
         return CommandBarCatalog.clipboardEntries(matching: query, bar: bar, limit: limit,
-            onDeferredResults: { [weak self] in
-                guard let self, self.isVisible, self.mode == .search, self.isEnabled(.clipboard) else { return }
-                self.refreshResults()
-            }, paste: { [weak self] in self?.paste($0) })
+            onDeferredResults: { [weak self] in self?.refreshClipboardSearch() },
+            paste: { [weak self] in self?.paste($0) })
     }
 
     private func searchRows(for trimmed: String) -> [CommandBarEntry] {

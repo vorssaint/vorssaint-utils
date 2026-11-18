@@ -1833,6 +1833,7 @@ enum CommandBarCatalog {
         case .image: icon = entry.imageFile.map { .clipboardImage(name: $0) } ?? .symbol("photo")
         case .files: icon = entry.filePaths.first.map { .filePath($0) } ?? .symbol("folder")
         }
+        let id = entry.id
         return CommandBarEntry(
             id: "clipboard.\(entry.id.uuidString)",
             title: entry.kind == .image
@@ -1843,7 +1844,10 @@ enum CommandBarCatalog {
             icon: icon,
             trouble: Permissions.shared.accessibility ? nil : .needsPermission,
             countsUsage: false,
-            run: { _ in paste(entry) })
+            run: { _ in
+                guard let current = ClipboardHistoryService.shared.entries.first(where: { $0.id == id }) else { return }
+                paste(current)
+            })
     }
 
     /// The last few things copied, for the browse list at the bottom of the
