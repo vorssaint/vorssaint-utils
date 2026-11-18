@@ -15,6 +15,7 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let name: String
     let isDefault: Bool
     let isHeadphones: Bool
+    let isAirPlay: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
     let priorityTier: MixerRoutingSupport.PriorityTier
@@ -2567,6 +2568,7 @@ final class AppVolumeMixer: ObservableObject {
                                                 uid: uid,
                                                 dataSourceName: dataSourceName,
                                                 terminalTypes: terminalTypes),
+                                             isAirPlay: transportType == kAudioDeviceTransportTypeAirPlay,
                                              canBeDefaultOutput: canBeDefaultOutput,
                                              canBeDefaultSystemOutput: canBeDefaultSystemOutput,
                                              priorityTier: MixerRoutingSupport.PriorityTier(
@@ -2590,6 +2592,7 @@ final class AppVolumeMixer: ObservableObject {
                                              name: airPlayName,
                                              isDefault: false,
                                              isHeadphones: false,
+                                             isAirPlay: true,
                                              canBeDefaultOutput: false,
                                              canBeDefaultSystemOutput: false,
                                              priorityTier: .hardware,
