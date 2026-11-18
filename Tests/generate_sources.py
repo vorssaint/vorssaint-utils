@@ -326,9 +326,11 @@ def main():
           "import AppKit\nextension ScreenshotCanvasModelTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration(editor, prefix) for prefix in [
               "    func pasteImage(", "    func commitCanvasExpansion(",
-              "    private func registerUndo()", "    func undo()", "    func redo()",
+              "    private func registerUndo(", "    private func trimHistory(",
+              "    func applyCrop()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
               "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest("])
+          + declaration(editor, "    private func finishDrawing(").replace("private func", "func", 1)
           + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
           + "}\n}\n")
     write("ScreenshotEditorPaste.swift",

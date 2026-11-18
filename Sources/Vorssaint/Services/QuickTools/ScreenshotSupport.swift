@@ -1997,6 +1997,13 @@ enum ScreenshotSupport {
         var scribbleSeed: UInt64
         var number: Int
         var imageAsset: ImageAsset?
+        /// An image layer gets its own immutable ID at paste time. The clean
+        /// state compares that ID and its edits without retaining its pixels.
+        var withoutImagePixels: Self {
+            var copy = self
+            copy.imageAsset = nil
+            return copy
+        }
         var renderReferenceSize: CGSize?
 
         init(id: UUID = UUID(),

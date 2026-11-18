@@ -75,7 +75,8 @@ enum ScreenshotSpotlightEditingTests {
             cleanImage = image
         }
 
-        func registerUndo() {}
+        var registeredUndo = 0
+        func registerUndo() { registeredUndo += 1 }
         func wordIndex(at point: CGPoint) -> Int? { nil }
         func beginSelectDrag(at point: CGPoint) { selectDrags.append(point) }
         @discardableResult
@@ -113,6 +114,7 @@ enum ScreenshotSpotlightEditingTests {
         inside.beginDrag(at: CGPoint(x: rect.midX, y: rect.midY))
         suite.expect(!inside.editingSelectedAnnotation && inside.selectDrags.isEmpty
                 && inside.annotations.count == 2 && inside.selectedID == nil
+                && inside.registeredUndo == 0
                 && inside.annotations.last?.tool == .spotlight
                 && inside.draftID == inside.annotations.last?.id,
                "a drag inside a fresh spotlight region starts another region")

@@ -29,7 +29,7 @@ enum ScreenshotCanvasModelTests {
         static let undoLimit = 60
         /// Mirrors the editor's memory budget: full frames dominate it, and
         /// states sharing one capture are charged once.
-        static let undoByteBudget = 256 << 20
+        static var undoByteBudget = 256 << 20
         static let undoAnnotationBytes = 512
         var canUndo = false, canRedo = false, isDirty = false
         var textSelectionAnchor: CGPoint?
@@ -128,24 +128,85 @@ enum ScreenshotCanvasModelTests {
     /// a few full 5K frames cannot pile up, while an annotation-only session
     /// keeps the step limit because it holds a single capture.
     private static func historyStopsByBytes(_ suite: TestSuite) {
+        let originalBudget = Host.undoByteBudget
+        defer { Host.undoByteBudget = originalBudget }
         let host = Host(image: ScreenshotCanvasSupportTests.image(width: 40, height: 40))
         let pasted = ScreenshotCanvasSupportTests.image(width: 4, height: 4)
         for _ in 0..<(Host.undoLimit + 3) { _ = host.pasteImage(pasted) }
         suite.expect(host.undoStack.count == Host.undoLimit,
                      "states sharing one capture stay bounded by steps, not bytes")
 
-        let frameBytes = 5120 * 2880 * 4
-        let fits = max(1, Host.undoByteBudget / frameBytes)
-        let frames = (0..<(fits + 2)).map { _ in frame(width: 5120, height: 2880) }
+        let frames = (0..<6).map { _ in frame(width: 128, height: 128) }
+        let frameBytes = frames[0].bytesPerRow * frames[0].height
+        Host.undoByteBudget = frameBytes * 4 + 4096
         let big = Host(image: frames[0])
-        for frame in frames {
-            big.baseImage = frame
+        for image in frames {
+            big.baseImage = image
             _ = big.pasteImage(pasted)
+            big.annotations = []
         }
-        suite.expect(big.undoStack.count == fits,
-                     "history stops at the byte budget, not the step limit: \(big.undoStack.count) of \(fits) frames of \(frameBytes) bytes")
-        suite.expect(big.undoStack.first?.image === frames[frames.count - fits],
-                     "the oldest frames go first and the recent ones stay")
+        suite.expect(big.undoStack.count == 4 && big.undoStack.first?.image === frames[2],
+                     "only recent distinct frames fit the undo pixel budget")
+
+        let layers = Host(image: pasted)
+        for image in frames {
+            _ = layers.pasteImage(image)
+            _ = layers.pasteImage(pasted)
+            layers.annotations.removeAll()
+        }
+        let retained = Set(layers.undoStack.flatMap { state in
+            state.annotations.compactMap { $0.imageAsset.map { ObjectIdentifier($0.image) } }
+        })
+        suite.expect(retained.count == 4 && !retained.contains(ObjectIdentifier(frames[0])),
+                     "images retained only by pasted annotations share the history budget")
+
+        guard let padded = CGContext(data: nil, width: 32, height: 32, bitsPerComponent: 16,
+                                     bytesPerRow: 512, space: CGColorSpaceCreateDeviceRGB(),
+                                     bitmapInfo: CGBitmapInfo.byteOrder16Little.rawValue
+                                         | CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        else {
+            suite.expect(false, "the padded 16-bit image fixture exists")
+            return
+        }
+        Host.undoByteBudget = padded.bytesPerRow * padded.height + 1024
+        let depth = Host(image: pasted)
+        _ = depth.pasteImage(padded)
+        _ = depth.pasteImage(pasted)
+        depth.annotations.removeAll()
+        depth.baseImage = frame(width: 32, height: 32)
+        _ = depth.pasteImage(pasted)
+        suite.expect(depth.undoStack.allSatisfy { state in
+            !state.annotations.contains { $0.imageAsset?.image === padded }
+        }, "a high-depth image is charged its actual row stride")
+
+        Host.undoByteBudget = frameBytes * 2 + 512
+        let mixed = Host(image: frames[5])
+        mixed.undoStack = frames.prefix(2).map { ($0, []) }
+        mixed.redoStack = [(frames[3], [])]
+        mixed.undo()
+        suite.expect(mixed.undoStack.count + mixed.redoStack.count == 2
+                     && mixed.redoStack.last?.image === frames[5],
+                     "undo budgets both stacks and keeps the immediate redo")
+        mixed.redo()
+        suite.expect(mixed.baseImage === frames[5],
+                     "the retained redo returns to the previous frame")
+
+        let click = Host(image: frames[1])
+        click.undoStack = [(frames[0], [])]
+        click.redoStack = [(frames[2], [])]
+        let draft = ScreenshotSupport.Annotation(tool: .rect, rect: .zero)
+        click.annotations.append(draft)
+        click.finishDrawing(draft.id, isTap: true)
+        suite.expect(click.annotations.isEmpty && click.undoStack.count == 1 && click.redoStack.count == 1,
+                     "a tap without a drawing preserves undo and redo")
+        click.annotations.append(draft)
+        click.finishDrawing(draft.id, isTap: false)
+        suite.expect(click.undoStack.last?.annotations.isEmpty == true && click.redoStack.isEmpty,
+                     "a completed drawing stores its pre-drag state and supersedes redo")
+        click.cropDraft = CGRect(origin: .zero, size: click.imageSize)
+        click.applyCrop()
+        suite.expect(click.baseImage === frames[1],
+                     "confirming a full-canvas crop keeps the original buffer")
     }
 
     /// A crop owns its pixels instead of pointing into the frame it came from,
