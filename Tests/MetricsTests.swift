@@ -123,6 +123,7 @@ struct MetricsTests {
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)
+                CommandBarTests.run(suite)
             }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
