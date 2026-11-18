@@ -1452,9 +1452,23 @@ enum NotchTests {
                                  menuBarHeight: 33, compactSideRoom: 100)
         let outlined = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 179,
                                      menuBarHeight: 33, compactSideRoom: 100, outline: true)
-        suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room
-               && outlined.restingSize(showsContent: false) == CGSize(width: 179 + room * 2, height: 32 + room),
-               "an outlined island reaches past the camera by the line's width, so the line shows around the notch")
+        suite.expect(bare.outlineRoom == 0 && outlined.outlineRoom == room,
+               "only an outlined island over a physical camera keeps room for its line")
+        // The silhouette draws its straight sides inside its top flares, so
+        // what has to clear the housing is the body between them.
+        func body(_ size: CGSize) -> CGFloat { size.width - NotchLayout.shoulder(height: size.height) * 2 }
+        for camera in [179.0, 185.0] {
+            let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera,
+                                         menuBarHeight: 33, compactSideRoom: 100, outline: true)
+            let resting = geometry.restingSize(showsContent: false)
+            suite.expect(resting.height == 32 + room && body(resting) >= camera + room * 2
+                         && body(resting) < camera + room * 2 + 1 && resting.width == resting.width.rounded(),
+                   "an outlined island's sides reach past a \(Int(camera))-point camera by the line's width, so the line shows beside the notch")
+            let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: camera,
+                                        menuBarHeight: 33, compactSideRoom: 0, outline: true)
+            suite.expect(crowded.compactActivityUsesFooter && body(crowded.compactActivitySize) >= camera + room * 2,
+                   "a row below a \(Int(camera))-point camera keeps the outline's sides clear of the housing")
+        }
         suite.expect([outlined.restingSize(showsContent: true), outlined.notice,
                       outlined.compactMusicGeometry.compactActivitySize].allSatisfy { $0.height == 32 + room },
                "every strip beside the camera keeps its line clear of the housing")
