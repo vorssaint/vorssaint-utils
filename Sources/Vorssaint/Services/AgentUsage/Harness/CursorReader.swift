@@ -50,6 +50,8 @@ struct CursorReader: AgentHarnessReader {
         if !state.project.isEmpty || !state.model.isEmpty {
             entries.append(.turnContext(model: state.model, project: state.project))
         }
+        // A zero-token row marks Cursor as seen, like Copilot's activity rows.
+        entries.append(activity(at: date, state: state))
         return entries
     }
 
@@ -71,6 +73,13 @@ struct CursorReader: AgentHarnessReader {
         let status = envelope.string("status") ?? "success"
         let completed = status == "success"
         return [.turnEnded(now, completed: completed, duration: nil)]
+    }
+
+    private func activity(at date: Date, state: AgentLogState) -> AgentLogEntry {
+        let key = "cursor:\(state.session):\(date.timeIntervalSince1970):activity"
+        return .usage(key: key, record: AgentUsageRecord(
+            provider: .cursor, date: date, model: state.model, project: state.project, session: state.session,
+            tokens: AgentTokens(), cost: 0, savings: 0), billable: AgentBillable())
     }
 
     /// Only the short `<timestamp>…</timestamp>` tag is decoded, never the

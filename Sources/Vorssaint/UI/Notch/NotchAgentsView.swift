@@ -33,10 +33,14 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
-         copilot ? .copilot : nil, cursor ? .cursor : nil].compactMap { $0 }
+        // Cursor transcripts have no token totals; treat an existing projects
+        // folder like local history so the page still lists it.
+        let cursorInstalled = AgentLogRoot.all().contains { $0.provider == .cursor && $0.exists }
+        return [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+                copilot ? .copilot : nil, cursor ? .cursor : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault) }
+                || ($0 == .claude && !usage.claudeProfile.isDefault)
+                || ($0 == .cursor && cursorInstalled) }
     }
 
     private var rows: [[NotchAgentTile]] {

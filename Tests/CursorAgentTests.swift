@@ -51,7 +51,8 @@ enum CursorAgentTests {
                      "Cursor session and project come from the transcript path")
         let project = log.state.project
         log.user("<timestamp>Wednesday, Nov 18, 2026, 6:00 PM (UTC+0)</timestamp>\n<user_query>hi</user_query>")
-        suite.expect(log.state.turnOpen && log.store.live.count == 1 && log.store.live.first?.project == project,
+        suite.expect(log.state.turnOpen && log.store.live.count == 1 && log.store.live.first?.project == project
+                        && log.store.records.contains { $0.provider == .cursor },
                      "a Cursor user prompt opens a live turn with its project")
         log.assistant(tools: true)
         suite.expect(log.state.turnOpen && log.store.live.count == 1,
