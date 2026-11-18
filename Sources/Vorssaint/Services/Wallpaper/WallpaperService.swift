@@ -624,6 +624,7 @@ enum WallpaperThumbnailCache {
     private static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 400
+        cache.totalCostLimit = 64 * 1024 * 1024 // ~40 icons at 1.6MB each
         return cache
     }()
 
@@ -640,8 +641,8 @@ enum WallpaperThumbnailCache {
         cache.object(forKey: key(url, maxPixel))
     }
 
-    static func store(_ image: NSImage, for url: URL, maxPixel: Int = 160) {
-        cache.setObject(image, forKey: key(url, maxPixel))
+    static func store(_ image: NSImage, for url: URL, maxPixel: Int = 160, cost: Int = 0) {
+        cache.setObject(image, forKey: key(url, maxPixel), cost: cost)
     }
 
     static func clear() {
@@ -708,7 +709,7 @@ enum WallpaperThumbnailCache {
         if let generation, currentGeneration != generation { return nil }
         let image = NSImage(cgImage: cgImage,
                             size: NSSize(width: cgImage.width, height: cgImage.height))
-        store(image, for: url, maxPixel: maxPixel)
+        store(image, for: url, maxPixel: maxPixel, cost: cgImage.bytesPerRow * cgImage.height)
         return image
     }
 
