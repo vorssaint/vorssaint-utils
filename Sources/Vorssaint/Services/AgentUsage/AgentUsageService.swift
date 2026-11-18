@@ -5,15 +5,18 @@ import Combine
 import Foundation
 import Network
 
-/// Reads Claude Code, Codex and GitHub Copilot usage from local session logs, and
-/// OpenCode usage from its database, while the AI section is on, along with
-/// the plan limits the Claude app saves. The files are read where they are,
-/// incrementally, and nothing is copied or sent: only counters are kept, in
-/// memory and in the app's private folder so the next launch reads only what
-/// the agents wrote meanwhile. OpenCode's stay in memory only, and its
-/// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
-/// price list is fetched only when the person keeps prices up to date.
+/// Reads Claude Code, Codex, GitHub Copilot and Antigravity usage from their
+/// local session logs, and OpenCode usage from its database, while the AI
+/// section is on, along with the plan limits the Claude app saves.
+/// Antigravity transcripts record measured tokens where available, while
+/// older logs without token counts keep response counts only. The files are
+/// read where they are, incrementally, and nothing is copied or sent: only
+/// counters are kept, in memory and in the app's private folder so the next
+/// launch reads only what the agents wrote meanwhile. OpenCode's stay in memory
+/// only, and its database is read again at each launch. Claude Code and
+/// Antigravity check account-wide limits through their own CLIs, including use
+/// on other machines. The public price list is fetched only when the person
+/// keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously, except that a stop waits for progress
@@ -76,6 +79,11 @@ final class AgentUsageService: ObservableObject {
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
+    private let antigravityAccountQueue = DispatchQueue(label: "com.vorssaint.antigravity-limits", qos: .utility)
+    private var antigravityAccountRequest: AgentAntigravityServer.Request?
+    private var antigravityAccountAttempted = Date.distantPast
+    private var antigravityAccountFailure: AgentAntigravityServer.Failure?
+    private var antigravityAccountUnreachable = 0
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -107,6 +115,7 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    private var antigravityAccountLimits: AgentLimits?
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -147,6 +156,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +170,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelAntigravityLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -197,6 +208,10 @@ final class AgentUsageService: ObservableObject {
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
+        cancelAntigravityLimits()
+        antigravityAccountAttempted = .distantPast
+        antigravityAccountFailure = nil
+        antigravityAccountUnreachable = 0
         online = true
         paused = false
         session += 1
@@ -232,6 +247,7 @@ final class AgentUsageService: ObservableObject {
             claudeAppModified = nil
             claudeAppSamples = []
             claudeAccountLimits = nil
+            antigravityAccountLimits = nil
             savedMark = nil
             lastSave = .distantPast
         }
@@ -255,10 +271,12 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshAntigravityLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
             readClaudeApp(now: Date())
+            refreshStoredAntigravityLimits(now: Date())
             checkLimits()
             publish()
         }
@@ -299,6 +317,8 @@ final class AgentUsageService: ObservableObject {
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
             let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
+            // Cursors find an Antigravity conversation relative to its root.
+            watchedRoots = roots.filter(\.exists)
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -324,8 +344,7 @@ final class AgentUsageService: ObservableObject {
             previousLimits = store.limits
             // A budget already passed before launch is history, not news.
             let today = Calendar.autoupdatingCurrent.startOfDay(for: now)
-            if let budget = NotchAgentSupport.dailyBudget(),
-               store.records.lazy.filter({ $0.date >= today }).reduce(0.0, { $0 + ($1.cost ?? 0) }) >= budget {
+            if let budget = NotchAgentSupport.dailyBudget(), store.spent(since: today) >= budget {
                 budgetDay = today
             }
             watch(roots)
@@ -503,7 +522,7 @@ final class AgentUsageService: ObservableObject {
             cursors[path] = nil
             return store.forget(file: path)
         }
-        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
+        let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider, roots: watchedRoots)
         cursors[path] = cursor
         var changed = false
         let now = Date()
@@ -579,6 +598,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshAntigravityLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -603,6 +623,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudePlan()
             readClaudeApp(now: now)
+            refreshStoredAntigravityLimits(now: now)
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -713,7 +734,7 @@ final class AgentUsageService: ObservableObject {
     private func checkBudget(_ snapshot: AgentUsageSnapshot) {
         guard store.reportsTransitions, let budget = NotchAgentSupport.dailyBudget() else { return }
         let today = Calendar.autoupdatingCurrent.startOfDay(for: snapshot.now)
-        let spent = snapshot.usage(.today).total.cost
+        let spent = snapshot.usage(.today).byProvider.values.reduce(0.0) { $0 + $1.cost }
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
         report(.budgetReached(spent: spent, budget: budget))
@@ -864,12 +885,89 @@ final class AgentUsageService: ObservableObject {
         claudeAccountUnreachable = failure == .unreachable ? claudeAccountUnreachable + 1 : 0
     }
 
+    /// Runs on `queue`.
+    private func refreshStoredAntigravityLimits(now: Date) {
+        guard enabled.contains(.antigravity) else {
+            store.clearLimits(.antigravity)
+            antigravityAccountLimits = nil
+            return
+        }
+        if let reading = AgentAntigravityServer.current(antigravityAccountLimits, now: now) {
+            store.setLimits(reading)
+        } else {
+            store.clearLimits(.antigravity)
+        }
+    }
+
+    // Main thread. Every minute only while the page shows; failures back
+    // off, and looking at the page does not bypass that.
+    func refreshAntigravityLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard antigravityLimitsDue(at: now, pageShows: pageShows) else { return }
+        antigravityAccountAttempted = now
+        let request = AgentAntigravityServer.Request()
+        antigravityAccountRequest = request
+        let session = self.session
+        let home = self.home
+        antigravityAccountQueue.async { [weak self] in
+            let result: Result<AgentLimits, AgentAntigravityServer.Failure>
+            if let executable = AgentAntigravityServer.executable(
+                home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]
+            ) {
+                result = request.run(executable, home: home)
+            } else {
+                result = .failure(.missing)
+            }
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.antigravityAccountRequest === request else { return }
+                self.antigravityAccountRequest = nil
+                switch result {
+                case .failure(let failure): self.noteAntigravityCheck(failure)
+                case .success(let reading):
+                    self.noteAntigravityCheck(nil)
+                    self.queue.async {
+                        guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
+                        self.antigravityAccountLimits = reading
+                        self.refreshStoredAntigravityLimits(now: Date())
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelAntigravityLimits() {
+        guard let request = antigravityAccountRequest else { return }
+        request.cancel()
+        antigravityAccountRequest = nil
+        antigravityAccountAttempted = .distantPast
+    }
+
+    /// Never while the feature is off, asleep, offline or already checking,
+    /// nor while nothing shows or alerts on the limits. Main thread.
+    private func antigravityLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        let showingPage = pageVisible || pageShows
+        guard running, !paused, online, providers.contains(.antigravity), antigravityAccountRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: showingPage) else { return false }
+        return now.timeIntervalSince(antigravityAccountAttempted) >= AgentAntigravityServer.interval(
+            after: antigravityAccountFailure, repeated: antigravityAccountUnreachable, pageVisible: pageVisible)
+    }
+
+    /// Main thread.
+    private func noteAntigravityCheck(_ failure: AgentAntigravityServer.Failure?) {
+        antigravityAccountFailure = failure
+        antigravityAccountUnreachable = failure == .unreachable ? antigravityAccountUnreachable + 1 : 0
+    }
+
     /// Back online, the checks start over from the shortest wait: those the
-    /// network failed say nothing about how Claude Code is set up. Main thread.
+    /// network failed say nothing about how Claude Code or Antigravity is set up.
+    /// Main thread.
     private func networkChanged(online: Bool) {
         guard online != self.online else { return }
         self.online = online
         if online { claudeAccountUnreachable = 0 }
+        if online { antigravityAccountUnreachable = 0 }
     }
 
     // MARK: Prices

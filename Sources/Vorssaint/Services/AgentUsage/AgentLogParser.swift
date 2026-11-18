@@ -61,6 +61,9 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// Antigravity named the workspace in the person's message, which
+    /// outranks the folder a command runs in.
+    var namedWorkspace = false
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -174,6 +177,12 @@ enum AgentLogParser {
     /// decoded; prompts, replies, reasoning and tool arguments are ignored.
     static func parseCopilot(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         CopilotReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Antigravity
+
+    static func parseAntigravity(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        AntigravityReader().parse(line, state: &state, now: now)
     }
 
     static func copilotEvent(_ type: String) -> Bool {

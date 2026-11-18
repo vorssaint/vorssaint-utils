@@ -62,6 +62,11 @@ enum CodexAccountLimitsTests {
                         && !NotchAgentSupport.limitsAreStale(reading(.codex, age: 9 * 60, source: .account),
                                                              provider: .codex, account: true, now: now),
                      "an account card dims a reading that missed its checks")
+        suite.expect(NotchAgentSupport.limitsAreStale(reading(.antigravity, age: 11 * 60, source: .account),
+                                                      provider: .antigravity, account: false, now: now)
+                        && !NotchAgentSupport.limitsAreStale(reading(.antigravity, age: 9 * 60, source: .account),
+                                                             provider: .antigravity, account: false, now: now),
+                     "an Antigravity card dims a CLI reading that missed two checks")
 
         let ids = [UUID().uuidString, UUID().uuidString]
         let tiles = NotchAgentSupport.tiles(cards: [.limits, .resets], providers: [.claude, .codex, .opencode], codexAccounts: ids)

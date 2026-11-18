@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        antigravityGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -141,5 +142,23 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func antigravityGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        let reader = AgentProvider.antigravity.reader
+        let prompt = line(#"{"step_index":1,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:00.000Z","content":"Conversation ID: test-conv\nHello"}"#)
+        suite.expect(reader.parse(prompt, state: &state, now: now) == [.turnBegan(Date(timeIntervalSince1970: 1_790_553_600))],
+                     "an Antigravity prompt opens its turn")
+        let reply = line(#"{"step_index":2,"type":"PLANNER_RESPONSE","model":"gemini-2.5-pro","status":"DONE","created_at":"2026-09-28T00:00:05.000Z","content":"Hi"}"#)
+        let entries = reader.parse(reply, state: &state, now: now)
+        suite.expect(entries.contains(.turnEnded(Date(timeIntervalSince1970: 1_790_553_605), completed: true, duration: nil)),
+                     "a finished Antigravity reply ends its turn")
+        let nextPrompt = line(#"{"step_index":3,"type":"USER_INPUT","status":"DONE","created_at":"2026-09-28T00:00:10.000Z","content":"Conversation ID: test-conv\nNext task"}"#)
+        state.turnOpen = true
+        let interrupted = reader.parse(nextPrompt, state: &state, now: now)
+        suite.expect(interrupted.first == .turnEnded(Date(timeIntervalSince1970: 1_790_553_610), completed: false, duration: nil),
+                     "a new prompt while a turn is open ends it without completing it")
     }
 }

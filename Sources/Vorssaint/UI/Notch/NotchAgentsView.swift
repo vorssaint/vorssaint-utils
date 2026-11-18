@@ -18,6 +18,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -32,7 +33,8 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, antigravity ? .antigravity : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
                 || ($0 == .claude && !usage.claudeProfile.isDefault) }
     }
@@ -374,7 +376,7 @@ private struct NotchAgentLimitsCard: View {
     /// What the window covers: its length, or the model it is kept for.
     private func label(_ window: AgentLimitWindow) -> String {
         switch window.kind {
-        case .session: return text.session
+        case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
@@ -465,6 +467,48 @@ private struct NotchAgentLimitsCard: View {
                 }
             } else {
                 Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
+        } else if provider == .antigravity {
+            let todayUsage = snapshot.usage(.today).byProvider[.antigravity]
+            if let todayUsage, todayUsage.requests > 0 || todayUsage.tokens.total > 0 || todayUsage.cost > 0 {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Text(text.period(.today))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.85))
+                        Spacer(minLength: 2)
+                        if todayUsage.cost > 0 {
+                            let costText = todayUsage.unpriced > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : AgentFormat.cost(todayUsage.cost)
+                            Text(costText)
+                                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                .monospacedDigit()
+                                .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+                        } else {
+                            // One per planner response: a turn that calls tools counts more than once.
+                            Text(text.responses(todayUsage.requests))
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        if todayUsage.tokens.total > 0 {
+                            Text(AgentFormat.tokens(todayUsage.tokens.total))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                            if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
+                                Text("· " + text.cached(AgentFormat.percent(rate)))
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        Spacer()
+                        lastUsed
+                    }
+                }
+            } else {
+                // A turn can be live before its first response is recorded.
+                Text(text.noResponsesToday).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 lastUsed
             }
         } else {

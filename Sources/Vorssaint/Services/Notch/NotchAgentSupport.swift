@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .antigravity: return DefaultsKey.notchAgentsAntigravity
         }
     }
 
@@ -221,12 +222,20 @@ enum NotchAgentSupport {
 
     /// What the strip shows beside the camera while agents work: the reading
     /// the person chose, or the time elapsed while that one is unknown.
+    /// Tokens and cost would read zero while no live turn has tokens, as
+    /// for a turn from an older Antigravity transcript that records none:
+    /// the elapsed time stands in until one does.
+    static func shownReadout(_ readout: NotchAgentReadout, _ snapshot: AgentUsageSnapshot) -> NotchAgentReadout {
+        guard readout == .tokens || readout == .cost else { return readout }
+        return snapshot.live.contains { $0.tokens.total > 0 } ? readout : .elapsed
+    }
+
     static func stripReading(_ snapshot: AgentUsageSnapshot, readout: NotchAgentReadout,
                              display: NotchAgentLimitDisplay, focus: NotchAgentLimitFocus = .mostUsed,
                              now: Date) -> String {
         let live = snapshot.live
         func elapsed() -> String { AgentFormat.clock(now.timeIntervalSince(live.map(\.started).min() ?? now)) }
-        switch readout {
+        switch shownReadout(readout, snapshot) {
         case .elapsed:
             return elapsed()
         case .tokens:
@@ -354,7 +363,10 @@ enum NotchAgentSupport {
     static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
-        if account { return age >= accountStaleness }
+        // Antigravity's limits come from its CLI on the same five-minute
+        // schedule as an account card, so a reading that has missed two
+        // checks, as while agy is signed out, is shown quieter too.
+        if account || provider == .antigravity { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 

@@ -2854,6 +2854,15 @@ def main():
                     for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
           + "}\n}\n")
 
+    write("AgentAntigravityServerService.swift", "import Foundation\n"
+          + "extension AgentAntigravityServerTests {\nfinal class Host: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func refreshStoredAntigravityLimits(", "    private func checkLimits(",
+                                   "    private func reportRenewals(", "    private func antigravityLimitsDue(",
+                                   "    private func noteAntigravityCheck(", "    private func networkChanged("])
+          + "}\n}\n")
+
     write("AgentClaudeServerService.swift", "import Foundation\n"
           + "extension AgentClaudeServerTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
