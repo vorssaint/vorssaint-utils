@@ -656,6 +656,13 @@ def main():
               "    private func insertPromoted("])
           + "func setEntries(_ values: [ClipboardHistoryEntry]) { entries = values }\n"
           + "}\n}\n")
+    write("ClipboardCommandBarUpdates.swift", "import Combine\nimport Foundation\nextension ClipboardPreviewContract {\n"
+          + "final class CommandSearch: CommandSearchFixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in [
+                        "    private func observeClipboardSearch(", "    private func refreshClipboardSearch(",
+                        "    private func stopClipboardSearch("])
+          + "}\n}\n")
     write("ClipboardPreview.swift", "import Foundation\nimport Combine\n"
           + "extension ClipboardPreviewContract {\nfinal class Service: Fixture {\n"
           + declaration(clipboard, "    @Published private(set) var entries:")
@@ -664,7 +671,8 @@ def main():
               "    func togglePin(", "    func clearRecent(", "    var recentEntries:", "    var recentEntriesSnapshot:",
               "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
-              "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    private func scheduleDeferredSearch(",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",
               "    private func selectedQuickIndex(", "    private func promote(",
@@ -897,7 +905,7 @@ def main():
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
-              "    @Published var query", "    private func beginUninstallReview(",
+              "    @Published var query", "    private func stopClipboardSearch(", "    private func beginUninstallReview(",
               "    private func handleUninstallKey(", "    func stepBack()",
               "    private func confirmUninstallReview(",
               "    private func finishUninstallReview()"])
