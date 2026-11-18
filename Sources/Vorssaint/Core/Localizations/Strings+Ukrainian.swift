@@ -236,6 +236,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "Лише Finder",
         switcherWindowlessAppsAll: "Усі програми",
         switcherWindowlessAppsLockedFormat: "Поки параметр «%@» увімкнено, усі запущені програми лишаються доступними. Щоб вибрати, вимкніть параметр.",
+        switcherWindowlessAppsMixedOrder: "Змішувати з іншими програмами",
+        switcherWindowlessAppsMixedOrderCaption: "Програми без відкритих вікон перелічуються разом з іншими в порядку останнього використання, а не окремим розділом.",
         switcherNoOpenWindow: "Без відкритих вікон",
         switcherOtherDesktop: "Інший робочий стіл",
         dockPreviewName: "Dock Preview",

@@ -79,6 +79,7 @@ struct SwitcherView: View {
     @AppStorage(DefaultsKey.switcherInstantSelection) private var instantSelection = false
     @AppStorage(DefaultsKey.switcherMergeTabs) private var mergeWindowsByApp = false
     @AppStorage(DefaultsKey.switcherCurrentSpaceOnly) private var currentSpaceOnly = false
+    @AppStorage(DefaultsKey.switcherWindowlessAppsMixedOrder) private var windowlessAppsMixedOrder = false
     @AppStorage(DefaultsKey.switcherShowShortcutHints) private var showsShortcutHints = true
     @AppStorage(DefaultsKey.switcherShortcut) private var switcherShortcutStorage = GlobalShortcut.switcherDefault.storageValue
     @AppStorage(DefaultsKey.switcherWindowShortcut) private var switcherWindowShortcutStorage = GlobalShortcut.switcherWindowDefault.storageValue
@@ -505,7 +506,8 @@ struct SwitcherView: View {
 
     private var appIconRow: some View {
         let groups = appGroups
-        let dividerPIDs = SwitcherSupport.windowlessAppDividerPIDs(items: switcher.windows)
+        let dividerPIDs = SwitcherSupport.windowlessAppDividerPIDs(items: switcher.windows,
+                                                                   windowlessAppsMixedOrder: windowlessAppsMixedOrder)
         return overflowingIconRow(
             itemCount: groups.count,
             tileWidth: SwitcherIconRowLayout.appTileWidth

@@ -196,6 +196,11 @@ enum LocalizationFeatureContractTests {
             suite.expect(!strings.switcherWindowlessAppsCaption.isEmpty
                    && !strings.switcherWindowlessAppsCaption.contains("—"),
                    "\(prefix) App Switcher windowless apps caption is present without em dash")
+            suite.expect(!strings.switcherWindowlessAppsMixedOrder.isEmpty
+                   && !strings.switcherWindowlessAppsMixedOrderCaption.isEmpty
+                   && !strings.switcherWindowlessAppsMixedOrder.contains("—")
+                   && !strings.switcherWindowlessAppsMixedOrderCaption.contains("—"),
+                   "\(prefix) App Switcher windowless mixed-order labels are present without em dash (issue #3659)")
             suite.expect(!strings.dockClickHide.isEmpty
                    && !strings.dockClickHideCaption.isEmpty
                    && !strings.dockClickHide.contains("—")

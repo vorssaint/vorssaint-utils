@@ -245,6 +245,8 @@ extension Strings {
         switcherWindowlessAppsFinder: "Iba Finder",
         switcherWindowlessAppsAll: "Všetky aplikácie",
         switcherWindowlessAppsLockedFormat: "Kým je voľba „%@“ zapnutá, všetky spustené aplikácie ostanú dostupné. Ak chcete vybrať, vypnite ju.",
+        switcherWindowlessAppsMixedOrder: "Zmiešať s ostatnými aplikáciami",
+        switcherWindowlessAppsMixedOrderCaption: "Aplikácie bez otvorených okien zaradí medzi ostatné aplikácie podľa poradia posledného použitia, a nie do samostatnej časti.",
         switcherNoOpenWindow: "Žiadne otvorené okno",
         switcherOtherDesktop: "Iná plocha",
         dockPreviewName: "Dock Preview",
