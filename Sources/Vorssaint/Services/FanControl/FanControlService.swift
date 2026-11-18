@@ -183,7 +183,7 @@ final class FanControlService: ObservableObject {
                 self.restoreAutomatic(supersedingCurrentRequest: false,
                                       preserving: response.error ?? .controlFailed,
                                       retrySnapshot: retrySnapshot)
-                if resuming { self.resumeDidFail(response.error ?? .controlFailed) }
+                if resuming { self.resumeDidFail(response.error ?? .controlFailed, stopReason: response.snapshot.stopReason) }
             }
         }
     }
@@ -192,10 +192,13 @@ final class FanControlService: ObservableObject {
         restoreAutomatic(supersedingCurrentRequest: false)
     }
 
-    /// The user's own return to System, the one stop a resume must honor.
-    func returnToSystem() {
+    func forgetResume() {
         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlResumeConfiguration)
         cancelResumeRetry()
+    }
+
+    func returnToSystem() {
+        forgetResume()
         restoreAutomatic()
     }
 
@@ -218,7 +221,7 @@ final class FanControlService: ObservableObject {
             self.apply(response)
             if response.succeeded, !response.snapshot.isCooling {
                 if self.snapshot.fans.isEmpty, let retrySnapshot {
-                    self.snapshot = retrySnapshot
+                    self.snapshot.fans = retrySnapshot.fans
                 }
                 if let failure { self.error = failure }
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
@@ -380,6 +383,11 @@ final class FanControlService: ObservableObject {
     /// A launch or wake starts over with the full retry budget.
     private func beginResume(_ configuration: FanControlConfiguration) -> Bool {
         cancelResumeRetry()
+        guard !isWorking, !FanControlResumePolicy.defersResume(thermalState: ProcessInfo.processInfo.thermalState) else {
+            startObservingSystemState()
+            scheduleResumeAttempt(after: FanControlResumePolicy.retryDelays[0])
+            return true
+        }
         return resume(configuration)
     }
 
@@ -391,8 +399,14 @@ final class FanControlService: ObservableObject {
 
     /// One refused resume used to leave the fans on System for good while the
     /// card still showed the curve, so a hot Mac kept its fans at idle speed.
-    private func resumeDidFail(_ failure: FanControlErrorCode) {
+    private func resumeDidFail(_ failure: FanControlErrorCode, stopReason: FanControlStopReason? = nil) {
         guard Self.resumableConfiguration != nil else { return }
+        guard (failure == .controlFailed || failure == .helperUnavailable),
+              stopReason != .hardwareChanged, stopReason != .temperatureUnavailable,
+              stopReason != .thermalPressure else {
+            resumeFailed = true
+            return
+        }
         Self.log.error("Fan control resume attempt \(self.resumeFailures + 1) failed: \(failure.rawValue, privacy: .public)")
         scheduleResumeRetry()
     }
@@ -408,22 +422,31 @@ final class FanControlService: ObservableObject {
     }
 
     private func retryResume() {
-        guard !snapshot.isCooling, let configuration = Self.resumableConfiguration else { return }
+        guard let configuration = Self.resumableConfiguration else { return }
         guard !isWorking,
               !FanControlResumePolicy.defersResume(thermalState: ProcessInfo.processInfo.thermalState) else {
-            scheduleResumeRetry()
+            scheduleResumeAttempt(after: FanControlResumePolicy.retryDelays[0])
             return
         }
+        guard !snapshot.isCooling else { return }
         if !resume(configuration) { resumeFailed = true }
     }
 
-    /// The helper hands the fans back by itself when a safety check trips, such
-    /// as a lost heartbeat or firmware reclaiming a fan. With resume on, that
-    /// control is brought back the same way as after a wake.
-    private func helperReleasedControl() {
-        guard Self.resumableConfiguration != nil else { return }
-        resumeFailures = 0
-        scheduleResumeRetry()
+    /// Both panel refreshes and heartbeats can be the first to see a stopped session.
+    private func applyStatus(_ response: FanControlResponse) {
+        let wasCooling = snapshot.isCooling
+        apply(response)
+        guard response.succeeded, !response.snapshot.isCooling else { return }
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
+        stopIdleWorkIfPossible()
+        guard wasCooling, Self.resumableConfiguration != nil else { return }
+        if response.snapshot.stopReason == .heartbeatLost {
+            scheduleResumeRetry()
+        } else {
+            // A protection stop or an unknown reason leaves control with macOS.
+            cancelResumeAttempt()
+            resumeFailed = true
+        }
     }
 
     private func scheduleResumeAttempt(after delay: TimeInterval) {
@@ -466,14 +489,11 @@ final class FanControlService: ObservableObject {
                 self.error = .helperUnavailable
                 return
             }
-            self.apply(response)
+            self.applyStatus(response)
             // Any decoded reply proves that the installed helper speaks this
             // protocol, even when the hardware itself is unsupported.
             UserDefaults.standard.set(Self.helperVersion,
                                       forKey: DefaultsKey.fanControlHelperVersion)
-            if response.succeeded, !response.snapshot.isCooling {
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-            }
         }
     }
 
@@ -540,12 +560,7 @@ final class FanControlService: ObservableObject {
                 self.error = .helperUnavailable
                 return
             }
-            self.apply(response)
-            if response.succeeded, !response.snapshot.isCooling {
-                UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-                self.stopIdleWorkIfPossible()
-                self.helperReleasedControl()
-            }
+            self.applyStatus(response)
         }
     }
 

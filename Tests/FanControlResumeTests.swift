@@ -39,6 +39,7 @@ enum FanControlResumeContract {
         static let log = Logger(subsystem: "com.vorssaint.tests", category: "FanControlResume")
         var accessState = AccessState.enabled
         var snapshot = FanControlSnapshot.empty
+        var error: FanControlErrorCode?
         var panelIsVisible = false
         var timer: Invalidating?
         var connection: Invalidating?
@@ -59,6 +60,7 @@ enum FanControlResumeContract {
         func restoreAutomatic(supersedingCurrentRequest: Bool) { events.append("restore superseding") }
         func restoreThenUnregister() { events.append("unregister") }
         func refresh() { events.append("refresh") }
+        func startObservingSystemState() { observing = true }
         func stopObservingSystemState() { observing = false }
     }
 
@@ -243,15 +245,55 @@ enum FanControlResumeContract {
         suite.expect(service.applied.isEmpty && service.scheduledResumes.count == 1,
                      "a retry waits for a request already in flight")
 
-        // The helper can hand the fans back on its own while the Mac is awake.
+        service.snapshot.isCooling = true
+        service.retryResume()
+        suite.expect(service.scheduledResumes.count == 2 && service.resumeFailures == 0,
+                     "a stale active snapshot during restoration does not lose the retry")
+        service.isWorking = false
+        service.snapshot = .empty
+        for _ in 0..<20 {
+            ProcessInfo.processInfo.thermalState = .critical
+            service.retryResume()
+        }
+        ProcessInfo.processInfo.thermalState = .fair
+        service.retryResume()
+        suite.expect(service.applied == [manual] && service.resumeFailures == 0,
+                     "waiting for restoration and thermal pressure preserves the full retry budget")
         reset()
-        service.helperReleasedControl()
-        suite.expect(service.scheduledResumes == [FanControlResumePolicy.retryDelays[0]],
-                     "control the helper let go of is brought back while resume is on")
+        ProcessInfo.processInfo.thermalState = .critical
+        service.workspaceDidWake()
+        suite.expect(service.applied.isEmpty && service.scheduledResumes.count == 1,
+                     "a wake under thermal pressure defers even its initial application")
+        reset()
+        service.resumeDidFail(.controlFailed)
+        service.forgetResume()
+        defaults.values[DefaultsKey.fanControlMode] = FanControlMode.manual.rawValue
+        service.retryResume()
+        suite.expect(storedResume == nil && service.applied.isEmpty,
+                     "selecting System then Manual cannot bring back an unapplied curve")
+
+        for reason: FanControlStopReason? in [.hardwareChanged, .temperatureUnavailable, .thermalPressure,
+                                               .recovery, .appDisconnected, .timeLimit, nil, .heartbeatLost] {
+            reset()
+            service.snapshot.isCooling = true
+            var stopped = FanControlSnapshot.empty
+            stopped.stopReason = reason
+            service.applyStatus(.success(stopped))
+            service.applyStatus(.success(stopped))
+            suite.expect(service.scheduledResumes.count == (reason == .heartbeatLost ? 1 : 0)
+                            && service.resumeFailed == (reason != .heartbeatLost),
+                         "polling a stopped session twice honors its reason and schedules at most once")
+        }
+        reset()
+        service.resumeDidFail(.controlFailed, stopReason: .hardwareChanged)
+        suite.expect(service.resumeFailed && service.scheduledResumes.isEmpty,
+                     "a refused application that lost hardware ownership leaves control with the system")
         reset(resume: false, stored: nil)
-        service.helperReleasedControl()
-        suite.expect(service.scheduledResumes.isEmpty,
-                     "without resume, control the helper let go of stays with the system")
+        service.snapshot.isCooling = true
+        var stopped = FanControlSnapshot.empty
+        stopped.stopReason = .heartbeatLost
+        service.applyStatus(.success(stopped))
+        suite.expect(service.scheduledResumes.isEmpty, "a heartbeat loss only resumes opted-in control")
         reset()
         Environment.available = false
         service.syncWithPreferences()

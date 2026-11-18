@@ -49,7 +49,10 @@ struct FanControlSection: View {
     private var modeBinding: Binding<FanControlMode> {
         Binding(
             get: { FanControlMode(rawValue: modeRaw) ?? .system },
-            set: { modeRaw = $0.rawValue }
+            set: { selection in
+                modeRaw = selection.rawValue
+                if selection == .system { service.forgetResume() }
+            }
         )
     }
 
