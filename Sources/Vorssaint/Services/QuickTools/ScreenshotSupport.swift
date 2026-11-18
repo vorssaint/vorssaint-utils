@@ -14,6 +14,13 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    case scrolling
+
+    var settingsDestination: FeatureSettingsDestination {
+        self == .scrolling
+            ? FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
+            : feature.settingsDestination
+    }
 
     var shortcutKey: String {
         switch self {
@@ -21,6 +28,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .scrolling: return "5"
         }
     }
 
@@ -31,7 +39,7 @@ enum ScreenCaptureTool: String, CaseIterable {
 
     var feature: AppFeature {
         switch self {
-        case .screenshot: return .screenshot
+        case .screenshot, .scrolling: return .screenshot
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
@@ -57,6 +65,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .screenshot:
             return DedicatedShortcut(role: .screenshot,
                                      enabledKey: DefaultsKey.screenshotShortcutEnabled)
+        case .scrolling:
+            return DedicatedShortcut(role: .screenshotScrolling,
+                                     enabledKey: DefaultsKey.screenshotScrollingShortcutEnabled)
         case .recording:
             return DedicatedShortcut(role: .screenRecorder,
                                      enabledKey: DefaultsKey.recorderShortcutEnabled)
@@ -72,6 +83,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var showCaptureMenuOnShortcutKey: String {
         switch self {
         case .screenshot: return DefaultsKey.screenshotShowCaptureMenuOnShortcut
+        case .scrolling: return DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
@@ -92,6 +104,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     var systemImageName: String {
         switch self {
         case .screenshot: return "camera.viewfinder"
+        case .scrolling: return "rectangle.stack"
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
@@ -106,6 +119,7 @@ enum ScreenCaptureTool: String, CaseIterable {
     func settingsTitle(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .screenshot: return FeatureStrings.screenshot(language).pageTitle
+        case .scrolling: return FeatureStrings.screenshot(language).scrollingCaptureTitle
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
@@ -151,11 +165,11 @@ enum ScreenshotSupport {
                                      screenshotHideVorssaintWindows: Bool)
         -> UnifiedCapturePolicy {
         UnifiedCapturePolicy(
-            freeze: tool == .screenshot ? screenshotFreeze : true,
+            freeze: tool == .scrolling ? false : tool == .screenshot ? screenshotFreeze : true,
             includePointer: tool == .screenshot && screenshotIncludePointer,
             hideVorssaintWindows: tool != .recording && screenshotHideVorssaintWindows,
             keepsContentWindowsOut: tool == .recording || screenshotHideVorssaintWindows,
-            usesGeometry: tool == .recording)
+            usesGeometry: tool == .recording || tool == .scrolling)
     }
 
     static func captureAvailabilityChanged(activeTools: [ScreenCaptureTool],
@@ -370,6 +384,14 @@ enum ScreenshotSupport {
 
     // MARK: - Scrolling capture
 
+    static func scrollingControlsFrame(size: CGSize, visibleFrame: CGRect,
+                                       avoiding scrollPoint: CGPoint?) -> CGRect {
+        var frame = CGRect(x: visibleFrame.midX - size.width / 2, y: visibleFrame.maxY - size.height - 24,
+                           width: size.width, height: size.height)
+        if let scrollPoint, frame.contains(scrollPoint) { frame.origin.y = visibleFrame.minY + 24 }
+        return frame
+    }
+
     /// A failed scroll target must never keep the capture alive forever or
     /// exhaust memory. Reaching a guard keeps the valid portion and explains
     /// why the capture stopped.
@@ -571,9 +593,64 @@ enum ScreenshotSupport {
         }) {
             return .unmatched
         }
-        return .advanced(overlap: height - best.advance,
-                         direction: best.reversed ? .backward : .forward,
-                         contentColumns: best.contentColumns)
+        return scrollingMotion(previous: best.reversed ? current : previous,
+                               current: best.reversed ? previous : current,
+                               advance: best.advance, columns: best.contentColumns,
+                               direction: best.reversed ? .backward : .forward)
+    }
+
+    private static func scrollingMotion(previous: ScrollingSample, current: ScrollingSample,
+                                        advance: Int, columns: Range<Int>,
+                                        direction: ScrollingDirection) -> ScrollingTransition {
+        let overlap = previous.height - advance
+        var firstChange = current.height, lastChange = -1
+        var firstMoving = current.height, lastMoving = -1, moving = 0
+        var stationaryRows = [Int]()
+        var unexplainedChange = false
+        for row in 0..<current.height {
+            var aligned = 0, shifted = 0
+            for column in columns {
+                let index = row * current.width + column
+                let pixel = Int(current.pixels[index])
+                aligned += abs(Int(previous.pixels[index]) - pixel)
+                if row < overlap {
+                    shifted += abs(Int(previous.pixels[index + advance * previous.width]) - pixel)
+                }
+            }
+            let alignedError = Double(aligned) / Double(columns.count)
+            if alignedError > 1.5 {
+                firstChange = min(firstChange, row)
+                lastChange = row
+            }
+            guard row < overlap else { continue }
+            let shiftedError = Double(shifted) / Double(columns.count)
+            if shiftedError <= 8 && alignedError > shiftedError + 1.5 {
+                firstMoving = min(firstMoving, row)
+                lastMoving = row
+                moving += 1
+            } else if alignedError <= 1.5 && shiftedError > alignedError + 1.5 {
+                stationaryRows.append(row)
+            } else if alignedError > 1.5 && shiftedError > 8 {
+                unexplainedChange = true
+            }
+        }
+        guard moving > 0 else { return .unmatched }
+        if lastChange - firstChange + 1 < current.height / 2 {
+            // A moving banner between stationary document features is not a
+            // wheel advance. On a blank background we cannot identify the
+            // document, but a clipped animation cannot explain every changed
+            // row at the proposed offset. A sparse line sliding intact can.
+            if stationaryRows.count > moving,
+               stationaryRows.contains(firstChange - 1),
+               stationaryRows.contains(lastChange + 1) { return .end }
+            if unexplainedChange || lastChange >= overlap { return .unmatched }
+        }
+        // Fixed headers and footers are outside the moving content. Their
+        // texture must never outvote a few widely spaced lines of real text.
+        let movingRegion = firstMoving...lastMoving
+        guard stationaryRows.lazy.filter({ movingRegion.contains($0) }).count <= moving
+        else { return .unmatched }
+        return .advanced(overlap: overlap, direction: direction, contentColumns: columns)
     }
 
     /// A fixed footer stays at the same viewport rows while the page behind it

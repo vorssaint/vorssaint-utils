@@ -9,6 +9,10 @@ let package = Package(
     platforms: [.macOS(.v14)],
     targets: [
         .systemLibrary(
+            name: "CoreAudioTapCompat",
+            path: "Sources/CoreAudioTapCompat"
+        ),
+        .systemLibrary(
             name: "HIDEventSystem",
             path: "Sources/HIDEventSystem"
         ),
@@ -23,7 +27,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "Vorssaint",
-            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "RecorderGIFCodec"],
+            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "CoreAudioTapCompat", "RecorderGIFCodec"],
             path: "Sources/Vorssaint"
         )
     ]

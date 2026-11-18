@@ -1649,11 +1649,12 @@ final class WindowLayoutService: ObservableObject {
             // Vorssaint moved that window itself. Its release skips a lookup that has
             // already come back empty every time it was tried.
             let lookupsExhausted = edgeSnapResolveAttempts >= edgeSnapResolveAttemptLimit && !edgeSnapResolving
-            let releasedOverZone = pressOrigin.map {
+            let releasedAfterDrag = pressOrigin.map {
                 WindowGestureSupport.exceedsDragSlop(from: $0, to: location)
-                    && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
             } ?? false
-            let mayRestore = !followsMoveGesture
+            let releasedOverZone = releasedAfterDrag
+                && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
+            let mayRestore = releasedAfterDrag && !followsMoveGesture
                 && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)
                 && pressCandidate.map { candidate in
                     restoreFrames.keys.contains {
