@@ -271,7 +271,7 @@ struct PanelClipboardView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.mini)
                 .help(entry.isPinned ? text.unpin : text.pin)
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                if ClipboardHistoryImageSupport.canEdit(entry), AppFeature.screenshot.isAvailable {
                     Button { history.editImage(entry) } label: {
                         Image(systemName: "pencil")
                             .font(.system(size: 10, weight: .bold))

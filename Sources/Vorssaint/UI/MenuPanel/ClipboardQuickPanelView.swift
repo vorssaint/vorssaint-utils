@@ -663,7 +663,7 @@ private struct QuickEntryView: View, Equatable {
     private func entryTrailing(_ entry: ClipboardHistoryEntry, isHovered: Bool) -> some View {
         if isHovered {
             HStack(spacing: 4) {
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                if ClipboardHistoryImageSupport.canEdit(entry), AppFeature.screenshot.isAvailable {
                     Button { history.editImage(entry) } label: {
                         Image(systemName: "pencil")
                             .font(.system(size: 10.5, weight: .semibold))

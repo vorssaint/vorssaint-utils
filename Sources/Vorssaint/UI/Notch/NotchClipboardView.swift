@@ -392,7 +392,7 @@ struct NotchClipboardView: View {
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             if active {
                 HStack(spacing: 2) {
-                    if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                    if ClipboardHistoryImageSupport.canEdit(entry), AppFeature.screenshot.isAvailable {
                         NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
                     }
                     NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
@@ -454,7 +454,7 @@ struct NotchClipboardView: View {
                         .foregroundStyle(.tertiary)
                         .accessibilityHidden(true)
                 }
-                if entry.kind == .image, AppFeature.screenshot.isAvailable {
+                if ClipboardHistoryImageSupport.canEdit(entry), AppFeature.screenshot.isAvailable {
                     NotchIconButton(symbol: "pencil", title: text.edit) { history.editImage(entry) }
                 }
                 NotchIconButton(symbol: copiedID == entry.id ? "checkmark" : "doc.on.doc",
