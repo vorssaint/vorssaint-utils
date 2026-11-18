@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "导航",
         mouseNavigationEnable: "使用侧键后退和前进",
         mouseNavigationCaption: "将鼠标的后退和前进按钮转换为 Finder、浏览器和兼容 App 的导航命令。",
+        mouseNavigationSwipe: "模拟触控板轻扫",
         middleClickSection: "触控板中键点按",
         middleClickEnable: "三指按下作为中键点按",
         middleClickEnableCaption: "用三根手指按下触控板，效果等同于鼠标滚轮点按：在新标签页中打开链接、关闭标签页，以及中键能做的一切。",

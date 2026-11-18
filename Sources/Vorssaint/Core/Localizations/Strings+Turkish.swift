@@ -176,6 +176,7 @@ extension Strings {
         mouseNavigationSection: "Gezinme",
         mouseNavigationEnable: "Geri ve İleri için yan düğmeleri kullan",
         mouseNavigationCaption: "Farenin Geri ve İleri düğmelerini Finder, tarayıcılar ve uyumlu uygulamalarda gezinme komutlarına dönüştürür.",
+        mouseNavigationSwipe: "İzleme dörtgeninde kaydırmaları simüle et",
         middleClickSection: "İzleme dörtgeniyle orta tıklama",
         middleClickEnable: "Üç parmakla tıklama orta tıklama olur",
         middleClickEnableCaption: "İzleme dörtgenine üç parmakla basmak fare tekerleği tıklaması gibi çalışır: bağlantıları yeni sekmede açma, sekmeleri kapatma ve orta düğmenin yaptığı her şey.",

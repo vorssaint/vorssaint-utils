@@ -3,9 +3,17 @@
 
 import Foundation
 
+let kTLInfoSubtypeSwipe: Int64 = 0x10
+let kTLInfoSwipeLeft: Int64 = 4
+let kTLInfoSwipeRight: Int64 = 8
+
 enum MouseNavigationDirection: Hashable, CaseIterable {
     case back
     case forward
+
+    var trackpadSwipeDirection: Int64 {
+        self == .back ? kTLInfoSwipeLeft : kTLInfoSwipeRight
+    }
 }
 
 /// Why a look through the frontmost app's menus pressed nothing.
