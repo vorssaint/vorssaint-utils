@@ -192,7 +192,7 @@ struct NotchDownloadsView: View {
                         NSWorkspace.shared.activateFileViewerSelecting([item.url])
                     }
                     if AppFeature.shelf.isAvailable {
-                        NotchIconButton(symbol: "tray.and.arrow.down", title: FeatureStrings.notch(l10n.language).files) {
+                        NotchIconButton(symbol: "tray.and.arrow.down", title: l10n.s.shelfName) {
                             _ = ShelfService.shared.addFiles([item.url])
                         }
                     }
