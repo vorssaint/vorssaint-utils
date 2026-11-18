@@ -14,9 +14,9 @@ enum BrightnessKeyRoutingTests {
         let keyCode: Int
         let data1: Int
         let repeated: Bool
-        init(down: Bool, repeated: Bool = false, increase: Bool = true) {
+        init(down: Bool, repeated: Bool = false, increase: Bool = true, mediaCode: Int? = nil) {
             keyCode = increase ? 144 : 145
-            let mediaCode = increase ? 2 : 3
+            let mediaCode = mediaCode ?? (increase ? 2 : 3)
             let state = down ? 10 : 11
             data1 = (mediaCode << 16) | (state << 8) | (repeated ? 1 : 0)
             self.repeated = repeated
@@ -34,9 +34,12 @@ enum BrightnessKeyRoutingTests {
         struct Subtype { let rawValue = 8 }
         static let mouseLocation = NSPoint(x: 50, y: 50)
         let subtype = Subtype()
-        let modifierFlags: AppKit.NSEvent.ModifierFlags = []
+        let modifierFlags: AppKit.NSEvent.ModifierFlags
         let data1: Int
-        init?(cgEvent: CGEvent) { data1 = cgEvent.data1 }
+        init?(cgEvent: CGEvent) {
+            data1 = cgEvent.data1
+            modifierFlags = AppKit.NSEvent.ModifierFlags(rawValue: UInt(cgEvent.flags.rawValue))
+        }
     }
     final class NSScreen {
         static var current: UInt32 = 1
@@ -54,22 +57,38 @@ enum BrightnessKeyRoutingTests {
         }
     }
     enum NotchSupport {
-        enum Kind { case brightness }
-        static func routes(_ kind: Kind) -> Bool { false }
+        enum Kind { case brightness, keyboardLight }
+        static var keyboardLight = true
+        static func routes(_ kind: Kind) -> Bool { kind == .keyboardLight && keyboardLight }
     }
     final class NotchService {
         static let shared = NotchService()
-        let showsSystemFeedback = false
+        var acceptsSystemFeedback = true
+        var showsSystemFeedback = true
+        var keyboardNotices: [Double] = []
+        func showKeyboardLight(_ level: Double) { keyboardNotices.append(level) }
     }
     final class SessionActivity {
         static let shared = SessionActivity()
-        let isActive = true
+        var isActive = true
     }
     enum BrightnessBridge {
         static let setBrightness: ((UInt32, Float) -> Int32)? = { _, _ in 0 }
     }
     final class Queue { func async(execute work: () -> Void) { work() } }
     enum DispatchQueue { static let main = Queue() }
+    final class KeyboardLightBridge {
+        var level: Float = 0.5
+        var succeeds = true
+        var writes: [Float] = []
+        func brightness() -> Float { level }
+        func setBrightness(_ value: Float) -> Bool {
+            guard succeeds else { return false }
+            writes.append(value)
+            level = value
+            return true
+        }
+    }
 
     class Fixture {
         struct Route { var method: Method }
@@ -85,6 +104,11 @@ enum BrightnessKeyRoutingTests {
         var keyOwnership = BrightnessSupport.BrightnessKeyOwnership()
         var swallowedMediaKeys = Set<Bool>()
         var swallowedKeyCodes = Set<Int>()
+        var swallowedKeyboardLightKeys = Set<Int>()
+        var keyboardLightBridge: KeyboardLightBridge? = KeyboardLightBridge()
+        var keyboardLightLevel: Float? = 0.5
+        var keyboardLightEnabled: Bool? = true
+        var lastKeyboardLightLevel: Float = 0.5
         var keyStep = BrightnessSupport.KeyStep.standard
         var functionKeyStep = BrightnessSupport.KeyStep.standard
         var functionKeysAdjustBrightness = true
@@ -104,7 +128,8 @@ enum BrightnessKeyRoutingTests {
         func AXIsProcessTrusted() -> Bool { true }
         func tapsAreSuspended() -> Bool { inputTapsSuspended }
         func syncKeyTap() {}
-        func scheduleKeyboardLightNotice() {}
+        func finishKeyboardLightDrag() {}
+        func refreshKeyboardLight() {}
         static func postSystemQuarterSteps(increase: Bool, count: Int) { forwardedSteps += count }
         func currentSystemBrightness(for id: UInt32, fallback: Double?) -> Double? { fallback }
         func setBrightness(_ value: Double, for id: UInt32, showOSD: Bool, smooth: Bool) { steps += 1 }
@@ -122,6 +147,7 @@ enum BrightnessKeyRoutingTests {
     }
 
     static func run(_ suite: TestSuite) {
+        keyboardLightKeys(suite)
         for mediaKey in [true, false] {
             func service() -> Service {
                 NSScreen.current = 1
@@ -217,5 +243,88 @@ enum BrightnessKeyRoutingTests {
                          && press(both, down: false) && press(both, down: false, increase: false),
                          "\(kind): opposite brightness keys keep independent releases")
         }
+    }
+
+    private static func keyboardLightKeys(_ suite: TestSuite) {
+        func service() -> Service {
+            NotchSupport.keyboardLight = true
+            NotchService.shared.acceptsSystemFeedback = true
+            NotchService.shared.showsSystemFeedback = true
+            NotchService.shared.keyboardNotices = []
+            SessionActivity.shared.isActive = true
+            return Service()
+        }
+        func press(_ host: Service, code: Int = 21, down: Bool = true,
+                   repeated: Bool = false, flags: CGEventFlags = []) -> Bool {
+            let event = CGEvent(down: down, repeated: repeated, mediaCode: code)
+            event.flags = flags
+            return host.handleKeyEvent(type: CGEventType(rawValue: 14)!, event: event) == nil
+        }
+        defer { _ = service() }
+        for (code, target): (Int, Float) in [(21, 0.5625), (22, 0.4375), (23, 0)] {
+            let host = service()
+            suite.expect(press(host, code: code) && host.keyboardLightBridge?.writes == [target]
+                         && NotchService.shared.keyboardNotices == [Double(target)],
+                         "keyboard light \(code): apply one step and consume its native indicator")
+            suite.expect(press(host, code: code, down: false),
+                         "keyboard light \(code): the intercepted press also owns its release")
+        }
+        let fine = service()
+        suite.expect(press(fine, flags: [.maskAlternate, .maskShift])
+                     && fine.keyboardLightBridge?.writes == [0.515625],
+                     "Option-Shift keyboard light retains the native quarter step")
+        let toggle = service()
+        toggle.keyboardLightBridge?.level = 0.75
+        suite.expect(press(toggle, code: 23) && press(toggle, code: 23, repeated: true)
+                     && toggle.keyboardLightBridge?.writes == [0],
+                     "holding keyboard-light toggle does not repeatedly toggle")
+        suite.expect(press(toggle, code: 23, down: false) && press(toggle, code: 23)
+                     && toggle.keyboardLightBridge?.writes == [0, 0.75],
+                     "keyboard-light toggle restores the last nonzero hardware level")
+
+        for disable: (Service) -> Void in [
+            { _ in NotchSupport.keyboardLight = false },
+            { _ in NotchService.shared.showsSystemFeedback = false },
+            { _ in NotchService.shared.acceptsSystemFeedback = false },
+            { _ in SessionActivity.shared.isActive = false },
+            { $0.keyboardLightBridge = nil },
+            { $0.keyboardLightBridge?.level = .nan },
+            { $0.keyboardLightBridge?.level = -1 },
+            { $0.keyboardLightBridge?.level = 2 },
+            { $0.keyboardLightBridge?.succeeds = false }
+        ] {
+            let host = service()
+            disable(host)
+            suite.expect(!press(host) && !press(host, down: false)
+                         && (host.keyboardLightBridge?.writes.isEmpty ?? true)
+                         && NotchService.shared.keyboardNotices.isEmpty,
+                         "unavailable feedback or keyboard control leaves native adjustment intact")
+        }
+        for flags: CGEventFlags in [.maskAlternate, .maskCommand, .maskControl] {
+            let host = service()
+            suite.expect(!press(host, flags: flags) && !press(host, repeated: true)
+                         && !press(host, down: false) && host.keyboardLightBridge?.writes.isEmpty == true,
+                         "modified native shortcuts keep their repeats and releases")
+        }
+        let native = service()
+        NotchService.shared.showsSystemFeedback = false
+        suite.expect(!press(native), "hidden island starts with the native handler")
+        NotchService.shared.showsSystemFeedback = true
+        suite.expect(!press(native, repeated: true) && !press(native, down: false),
+                     "revealing the island never steals a native held key")
+        suite.expect(press(native), "the next visible press uses island feedback")
+        NotchService.shared.showsSystemFeedback = false
+        suite.expect(press(native, repeated: true) && press(native, down: false)
+                     && native.keyboardLightBridge?.writes == [0.5625, 0.625],
+                     "hiding the island keeps an intercepted key's repeats and release together")
+        let disabled = service()
+        suite.expect(press(disabled), "an eligible key starts before keyboard-light notices are disabled")
+        NotchSupport.keyboardLight = false
+        suite.expect(press(disabled, repeated: true) && press(disabled, down: false)
+                     && disabled.keyboardLightBridge?.writes == [0.5625],
+                     "disabling notices stops adjustment without leaking half a native key")
+        let unrelated = service()
+        suite.expect(!press(unrelated, code: 16) && unrelated.keyboardLightBridge?.writes.isEmpty == true,
+                     "unrelated media keys remain native")
     }
 }
