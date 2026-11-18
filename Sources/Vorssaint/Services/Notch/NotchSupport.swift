@@ -367,11 +367,11 @@ enum NotchLayout {
     static let mixerMinimumHeight: CGFloat = 104
     /// Breathing room every compact strip keeps from its silhouette.
     static let compactEdgeGap: CGFloat = 5
-    /// The compact player's equalizer, spaced by its own bar width.
-    static let compactMusicBarCount = 7
-    static let compactMusicBarWidth: CGFloat = 1.8
+    /// The compact player's equalizer, spaced by the width of its dots.
+    static let compactMusicBarCount = 6
+    static let compactMusicBarWidth: CGFloat = 1.5
     static var compactMusicBarsWidth: CGFloat {
-        compactMusicBarWidth * (CGFloat(compactMusicBarCount) + CGFloat(compactMusicBarCount - 1) * 0.85)
+        NotchAudioLevelSupport.barRowWidth(bars: compactMusicBarCount, barWidth: compactMusicBarWidth)
     }
     /// Corners of a surface of this height. A strip as tall as the camera
     /// keeps the cutout's own corners, so the closed island and the last
@@ -2488,7 +2488,8 @@ struct NotchGeometry: Equatable {
         min(16, max(6, compactActivityContentHeight - NotchLayout.compactEdgeGap * 2))
     }
     var compactMusicBarsInset: CGFloat {
-        compactActivityEdgeInset(boxHeight: compactMusicBarHeight, radius: NotchLayout.compactMusicBarWidth / 2)
+        compactActivityEdgeInset(boxHeight: compactMusicBarHeight,
+                                 radius: NotchLayout.compactMusicBarWidth * NotchAudioLevelSupport.widestBar / 2)
     }
     private var compactMusicContentWing: CGFloat {
         max(compactMusicArtworkInset + compactMusicArtworkSide,
