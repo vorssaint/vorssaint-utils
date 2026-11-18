@@ -121,26 +121,27 @@ enum MicMuteSupport {
         return (recorded ?? []).filter { !here.contains($0) }
     }
 
-    /// Sweeps in a row a device may refuse the mute before it stops being
-    /// watched. One refusal is not enough: an app raising the gain between a
-    /// write and its read-back looks the same for that one sweep.
-    static let refusedSweepLimit = 3
+    /// Only consecutive attempts to silence an input accumulate. A quiet
+    /// sweep or a new device ID starts over; persistent failures back off
+    /// from a quarter second to half a minute.
+    struct Retry {
+        let deviceID: UInt32
+        let onlyWhileIdle: Bool
+        let attempts: Int
+        let lastAttempt: TimeInterval
+        let deadline: TimeInterval?
 
-    /// A refusal is a sweep that wrote a device's controls and still read it
-    /// live afterwards. Any sweep that does not refuse starts the count over.
-    static func refusalCounts(previous: [String: Int], refused: [String]) -> [String: Int] {
-        var counts: [String: Int] = [:]
-        for uid in refused { counts[uid] = (previous[uid] ?? 0) + 1 }
-        return counts
-    }
-
-    /// Whether a muted device's controls stay watched. A driver that accepts
-    /// a write, announces the change and keeps its old value (the Microsoft
-    /// Teams virtual microphone does this) answers every re-assert with
-    /// another change, so watching it sweeps forever without silencing it.
-    /// Such a device is still swept when the device list or default input
-    /// changes, and is watched again once a sweep leaves it quiet.
-    static func shouldWatch(refusals: Int?) -> Bool {
-        (refusals ?? 0) < refusedSweepLimit
+        init(deviceID: UInt32, onlyWhileIdle: Bool, previous: Retry?, now: TimeInterval) {
+            self.deviceID = deviceID
+            self.onlyWhileIdle = onlyWhileIdle
+            lastAttempt = now
+            if let previous, previous.deviceID == deviceID, previous.onlyWhileIdle == onlyWhileIdle,
+               !onlyWhileIdle || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
+                attempts = min(previous.attempts + 1, 10)
+            } else {
+                attempts = 1
+            }
+            deadline = attempts < 3 ? nil : now + min(30, 0.25 * Double(1 << (attempts - 3)))
+        }
     }
 }
