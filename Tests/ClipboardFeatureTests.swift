@@ -2374,6 +2374,35 @@ enum ClipboardPreviewContract {
         suite.expect(refreshedCommandBar && deepService.filteredEntries(matching: " хвост", surface: .commandBar)
                         .map(\.id) == [documentEntry.id],
                      "the command bar and quick window both receive their deep results while the island browses")
+        let rankedService = Service()
+        let filler = String(repeating: ".", count: ClipboardHistoryEntry.indexCharacters)
+        let partials = (0..<4).map { ClipboardHistoryEntry(text: "a tool-needle-\($0)") }
+        let pinnedDeep = ClipboardHistoryEntry(text: filler + " needle", pinnedAt: Date())
+        let improved = ClipboardHistoryEntry(text: "partial-needle " + filler + " needle")
+        let tied = ClipboardHistoryEntry(text: filler + " needle")
+        let corpus = partials + [pinnedDeep, improved, tied]
+        rankedService.setEntries(corpus)
+        var completedSurfaces = Set<ClipboardHistorySearchSurface>()
+        for surface in [ClipboardHistorySearchSurface.panel, .commandBar] {
+            let instant = rankedService.filteredEntries(matching: "needle", surface: surface) {
+                completedSurfaces.insert(surface)
+            }
+            suite.expect(!instant.contains(pinnedDeep) && instant.contains(improved),
+                         "a search returns prefix matches immediately before ranking the full documents")
+        }
+        let rankedDeadline = Date().addingTimeInterval(3)
+        while completedSurfaces.count < 2 && Date() < rankedDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        let whole = corpus.enumerated().map { ClipboardHistorySearchCandidate(index: $0.offset, text: $0.element.text,
+                                                                              isPinned: $0.element.isPinned, limit: .max) }
+        let expected = ClipboardHistorySearch.rankedIndexes(candidates: whole, matching: "needle").map { corpus[$0].id }
+        for surface in [ClipboardHistorySearchSurface.panel, .commandBar] {
+            let final = rankedService.filteredEntries(matching: "needle", surface: surface).map(\.id)
+            suite.expect(completedSurfaces.contains(surface) && final == expected
+                            && Array(final.prefix(3)) == [pinnedDeep.id, improved.id, tied.id],
+                         "final ranking promotes deep whole words and pins before the command bar limit and breaks ties in history order")
+        }
         var boundary = ClipboardHistoryEntry(text: String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters))
         deepService.setEntries([boundary])
         _ = deepService.filteredEntries(matching: "boundary")

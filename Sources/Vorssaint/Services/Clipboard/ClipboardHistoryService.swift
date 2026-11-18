@@ -521,45 +521,34 @@ final class ClipboardHistoryService: ObservableObject {
         let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
         filterCache[surface] = (query, entriesStamp, imageLabel, result)
         scheduleDeferredSearch(candidates: candidates,
-                               matchedIndexes: Set(ranked),
+                               indexedRanking: ranked,
                                query: query,
                                imageLabel: imageLabel,
                                stamp: entriesStamp, surface: surface, onDeferredResults: onDeferredResults)
         return result
     }
 
-    /// Searches the rest of the entries whose text the index had to cut,
-    /// then appends what it finds below the indexed results. Only entries the
-    /// fast pass did not already match are scanned, so a short history of
-    /// short texts never queues anything.
+    /// Scores complete documents off-main so suffix-only and already visible
+    /// matches both settle in the same order as a full-text search.
     private func scheduleDeferredSearch(candidates: [ClipboardHistorySearchCandidate],
-                                        matchedIndexes: Set<Int>,
-                                        query: String,
-                                        imageLabel: String,
+                                        indexedRanking: [Int], query: String, imageLabel: String,
                                         stamp: Int, surface: ClipboardHistorySearchSurface,
                                         onDeferredResults: (() -> Void)?) {
-        let pending = candidates.compactMap { candidate -> ClipboardHistoryEntry? in
-            guard candidate.isIndexTruncated, !matchedIndexes.contains(candidate.index) else { return nil }
-            return entries[candidate.index]
-        }
-        guard !pending.isEmpty else { return }
+        guard candidates.contains(where: \.isIndexTruncated) else { return }
+        let snapshot = entries
         deferredSearchWork[surface] = Task.detached(priority: .utility) { [weak self] in
             do { try await Task.sleep(nanoseconds: 150_000_000) } catch { return }
-            var found: [ClipboardHistoryEntry] = []
-            for entry in pending {
-                guard !Task.isCancelled else { return }
-                if ClipboardHistorySearch.matches(entry.searchableText(imageLabel: imageLabel), query: query) {
-                    found.append(entry)
-                }
-            }
-            let added = found
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query,
+                completeText: { snapshot[$0].searchableText(imageLabel: imageLabel) },
+                isCancelled: { Task.isCancelled })
+            guard !Task.isCancelled else { return }
             await MainActor.run { [weak self] in
                 guard let self, !Task.isCancelled, self.entriesStamp == stamp,
                       let cache = self.filterCache[surface], cache.query == query, cache.imageLabel == imageLabel
                 else { return }
                 self.deferredSearchWork[surface] = nil
-                guard !added.isEmpty else { return }
-                self.filterCache[surface] = (query, stamp, imageLabel, cache.result + added)
+                guard complete != indexedRanking else { return }
+                self.filterCache[surface] = (query, stamp, imageLabel, complete.map { self.entries[$0] })
                 self.objectWillChange.send()
                 onDeferredResults?()
             }

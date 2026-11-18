@@ -755,28 +755,28 @@ typealias ClipboardHistorySearchResults = (query: String, stamp: Int, imageLabel
 
 enum ClipboardHistorySearch {
     static func rankedIndexes(candidates: [ClipboardHistorySearchCandidate],
-                              matching query: String) -> [Int] {
+                              matching query: String,
+                              completeText: ((Int) -> String)? = nil,
+                              isCancelled: () -> Bool = { false }) -> [Int] {
         let normalizedQuery = normalized(query)
         let tokens = queryTokens(normalizedQuery)
         guard !tokens.isEmpty else { return candidates.map(\.index) }
 
-        return candidates
-            .compactMap { candidate -> (index: Int, score: Int, originalOrder: Int)? in
-                let text = candidate.normalizedText
-                guard tokens.allSatisfy({ text.contains($0) }) else { return nil }
-                return (candidate.index,
-                        score(for: text,
-                              words: candidate.words,
-                              normalizedQuery: normalizedQuery,
-                              tokens: tokens,
-                              isPinned: candidate.isPinned),
-                        candidate.index)
-            }
-            .sorted {
-                if $0.score != $1.score { return $0.score > $1.score }
-                return $0.originalOrder < $1.originalOrder
-            }
-            .map(\.index)
+        var matches: [(index: Int, score: Int)] = []
+        for candidate in candidates {
+            if isCancelled() { return [] }
+            // Hold at most one document's full fold and word set during the background pass.
+            let full = candidate.isIndexTruncated ? completeText.map { normalized($0(candidate.index)) } : nil
+            let text = full ?? candidate.normalizedText
+            guard tokens.allSatisfy({ text.contains($0) }) else { continue }
+            if isCancelled() { return [] }
+            let score = score(for: text, words: full.map { words(in: $0) } ?? candidate.words,
+                              normalizedQuery: normalizedQuery, tokens: tokens, isPinned: candidate.isPinned)
+            matches.append((candidate.index, score))
+        }
+        return matches.sorted {
+            $0.score == $1.score ? $0.index < $1.index : $0.score > $1.score
+        }.map(\.index)
     }
 
     static func matches(_ text: String, query: String) -> Bool {
