@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, deepseek, cursor
 
     var id: String { rawValue }
 
@@ -16,6 +16,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .deepseek: return "DeepSeek Harness"
+        case .cursor: return "Cursor"
         }
     }
 
@@ -25,6 +27,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .deepseek: return "water.waves"
+        case .cursor: return "cursorarrow"
         }
     }
 
@@ -67,11 +71,12 @@ struct AgentTokens: Equatable {
 struct AgentUsageRecord: Equatable {
     let provider: AgentProvider
     let date: Date
-    let model: String
+    var model: String
     let project: String
     let session: String
     /// Model requests represented by this record; checkpoints may hold several.
-    let requests: Int
+    /// Cumulative session records update it as the session runs.
+    var requests: Int
     var tokens: AgentTokens
     /// What the response would cost at API list prices, in US dollars. Nil
     /// when the model has no known price.

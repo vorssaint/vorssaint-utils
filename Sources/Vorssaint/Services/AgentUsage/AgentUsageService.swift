@@ -421,6 +421,27 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    /// Keeps a DeepSeek turn's activity current while its cache is unchanged,
+    /// and clears one whose app quit without closing it. The cache can stay
+    /// still through a long model step, so the modification date alone would
+    /// let the live timer go quiet.
+    private func refreshLiveTurns() -> Bool {
+        guard readerSession >= 0 else { return false }
+        let working = Set(store.turns.keys).union(store.waiting.keys)
+        let deepSeek = working.filter { cursors[$0]?.provider == .deepseek }
+        guard !deepSeek.isEmpty else { return false }
+        let running = AgentDeepSeekApp.isRunning
+        var changed = false
+        for path in deepSeek {
+            if running {
+                if read(path, provider: .deepseek) { changed = true }
+            } else if store.forget(file: path) {
+                changed = true
+            }
+        }
+        return changed
+    }
+
     /// Reads the logs that grew, were replaced or disappeared since the last
     /// look, among those an agent may still be writing. True when that
     /// changed what is stored.
@@ -437,8 +458,9 @@ final class AgentUsageService: ObservableObject {
         var changed = false
         for (path, cursor) in cursors
         where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
-            if cursor.provider == .opencode {
-                // A database changes in place: its write-ahead log grows instead.
+            if cursor.provider == .opencode || cursor.provider == .deepseek || cursor.provider == .cursor {
+                // A database or a projection cache changes in place: the
+                // modification time is the only signal it changed.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
                 if read(path, provider: cursor.provider) { changed = true }
                 continue
@@ -586,9 +608,12 @@ final class AgentUsageService: ObservableObject {
             let before = inputs
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             store.dropRecords(before: now.addingTimeInterval(-Self.horizon))
+            // A DeepSeek cache can stay unchanged through a long model step;
+            // refresh its live turn anyway, and clear one whose app quit.
+            var changed = refreshLiveTurns()
             // A log kept open through a long pause reports nothing when work
             // resumes; the day's logs are looked at less often than recent ones.
-            var changed = pollOpenLogs(within: 86_400)
+            changed = pollOpenLogs(within: 86_400) || changed
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
