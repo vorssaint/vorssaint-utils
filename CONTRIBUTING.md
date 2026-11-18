@@ -28,8 +28,11 @@ A plain `./build.sh` builds the optimized variant used by CI; its health check i
 Developer and install builds automatically try to create a stable local signing
 identity when none is available. You can also run `./Tools/setup-signing.sh`.
 Keep that identity across rebuilds: ad-hoc signatures change with the binary and
-can invalidate macOS permission grants. Check the build output for signing
-failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).
+can invalidate macOS permission grants. A Developer ID identity in your keychain
+takes precedence; when there are several, the first one listed is used unless
+`VORSSAINT_SIGNING_IDENTITY` names one, for example
+`VORSSAINT_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)" ./build.sh --dev`.
+Check the build output for signing failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).
 
 Official releases use Developer ID signing and notarization through the protected
 release workflow. Local signing does not produce an official release.
