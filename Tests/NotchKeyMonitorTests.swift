@@ -38,12 +38,13 @@ enum NotchKeyMonitorTests {
     final class Panel { var firstResponder: AnyObject? }
     final class NSTextView {
         let isFieldEditor: Bool
-        let delegate: AnyObject? = nil
+        var delegate: AnyObject?
         var composing = false
         init(isFieldEditor: Bool) { self.isFieldEditor = isFieldEditor }
         func hasMarkedText() -> Bool { composing }
     }
     final class MixerPercentNativeTextField {}
+    final class NotchTimerNumberNativeField {}
     enum PlainTextEditor { static func findBarHasKeyboard(in window: Panel?) -> Bool { false } }
     final class Host {
         var underPointer = false
@@ -143,6 +144,21 @@ enum NotchKeyMonitorTests {
         suite.expect(NSEvent.handler?(backTab) != nil && service.showsKeyboardFocus,
                      "reverse keyboard navigation restores visible focus without consuming Shift-Tab")
         let escape = NSEvent(window: service.panel, keyCode: 53)
+        service.selected = .timer
+        let durationEditor = NSTextView(isFieldEditor: true)
+        durationEditor.delegate = NotchTimerNumberNativeField()
+        service.panel?.firstResponder = durationEditor
+        actions = []
+        suite.expect(NSEvent.handler?(escape) != nil && actions.isEmpty,
+                     "Escape reaches the timer duration editor instead of closing the island")
+        durationEditor.delegate = MixerPercentNativeTextField()
+        service.selected = .mixer
+        suite.expect(NSEvent.handler?(escape) != nil && actions.isEmpty,
+                     "the mixer Escape exemption continues to preserve its own editor")
+        service.panel?.firstResponder = nil
+        service.selected = .timer
+        suite.expect(NSEvent.handler?(escape) == nil && actions == ["stepBack"],
+                     "Escape steps back normally when the duration editor is gone")
         // Each Escape branch, reached from a field that can hold a composing
         // input method: the gallery search, a field in a Tools utility, one
         // in the app panel and the Scratchpad editor.

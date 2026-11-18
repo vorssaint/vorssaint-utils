@@ -30,11 +30,11 @@ final class NotchTimerService: ObservableObject {
         scheduleCompletion()
     }
 
-    func start(mode: NotchTimerMode, minutes: Int) {
+    func start(mode: NotchTimerMode, seconds: Int) {
         guard !suspended, NotchTimerSupport.isEnabled() else { return }
         guard !session.hasSession else { return }
         alert.stop()
-        session.start(mode: mode, minutes: minutes, now: now, configuration: .load())
+        session.start(mode: mode, seconds: seconds, now: now, configuration: .load())
         scheduleCompletion()
         NotchService.shared.reactMascot(.ready)
     }
