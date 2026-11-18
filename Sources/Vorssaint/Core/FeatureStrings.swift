@@ -213,7 +213,8 @@ extension ClipboardFeatureStrings {
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
         historyLayoutList: "목록",
-        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시",
+        focusRecentWhenOpening: "열 때 최근 항목에 초점 맞추기"
     )
 }
 
@@ -539,6 +540,7 @@ struct ClipboardFeatureStrings {
     let historyLayoutCards: String
     let historyLayoutList: String
     let showSourceAppIconsInList: String
+    let focusRecentWhenOpening: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -603,7 +605,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
         historyLayoutList: "List",
-        showSourceAppIconsInList: "Show source app icons in list view"
+        showSourceAppIconsInList: "Show source app icons in list view",
+        focusRecentWhenOpening: "Focus recent items when opening"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -669,7 +672,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista",
+        focusRecentWhenOpening: "Focar nos itens recentes ao abrir"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -735,7 +739,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster",
+        focusRecentWhenOpening: "Açılışta son öğelere odaklan"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -801,7 +806,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке",
+        focusRecentWhenOpening: "При открытии переходить к недавним элементам"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -867,7 +873,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista",
+        focusRecentWhenOpening: "Centrar los elementos recientes al abrir"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -933,7 +940,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
         historyLayoutList: "Zoznam",
-        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname",
+        focusRecentWhenOpening: "Pri otvorení zamerať nedávne položky"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -999,7 +1007,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen",
+        focusRecentWhenOpening: "Beim Öffnen zuletzt kopierte Einträge anzeigen"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1065,7 +1074,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste",
+        focusRecentWhenOpening: "Afficher les éléments récents à l’ouverture"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1131,7 +1141,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
         historyLayoutList: "Elenco",
-        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco",
+        focusRecentWhenOpening: "Mostra gli elementi recenti all’apertura"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1197,7 +1208,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
         historyLayoutList: "リスト",
-        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示",
+        focusRecentWhenOpening: "開くときに最近の項目を優先"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1263,7 +1275,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中显示来源应用图标"
+        showSourceAppIconsInList: "在列表中显示来源应用图标",
+        focusRecentWhenOpening: "打开时优先显示最近项目"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1329,7 +1342,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        focusRecentWhenOpening: "開啟時優先顯示最近項目"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1395,7 +1409,8 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        focusRecentWhenOpening: "開啟時優先顯示最近項目"
     )
 }
 
@@ -3266,7 +3281,8 @@ extension ClipboardFeatureStrings {
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку",
+        focusRecentWhenOpening: "Під час відкриття переходити до нещодавніх елементів"
     )
 }
 

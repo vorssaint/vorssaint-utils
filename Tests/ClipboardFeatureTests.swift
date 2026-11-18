@@ -13,6 +13,39 @@ import SwiftUI
 import VMStatisticsCompat
 
 enum ClipboardFeatureTests {
+    /// Production scroll decisions, with only the queue and SwiftUI proxy
+    /// replaced. Entries can arrive after the first opening pass has finished.
+    final class OpeningScrollHost {
+        struct History {
+            var pinnedEntries = [ClipboardHistoryEntry(text: "Synthetic pin", pinnedAt: Date())]
+            var recentEntries: [ClipboardHistoryEntry] = []
+            var quickQuery = ""
+            var quickSelectionIsVisible = false
+            var quickFocusRecentWhenOpening = true
+        }
+        final class ScrollViewProxy {
+            var targets: [AnyHashable] = []
+            var anchors: [UnitPoint] = []
+            func scrollTo<ID: Hashable>(_ id: ID, anchor: UnitPoint) {
+                targets.append(AnyHashable(id))
+                anchors.append(anchor)
+            }
+        }
+        enum DispatchQueue {
+            static let main = Queue()
+            final class Queue {
+                func async(_ work: () -> Void) { work() }
+            }
+        }
+        static let topAnchorID = "clipboard-list-top"
+        var history = History()
+        var layout = ClipboardHistoryLayout.list
+        var openingScrollNeedsRecent = false
+        var canReorderEntries: Bool {
+            history.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     /// Runs the production placement and geometry observers on panels that
     /// are never shown, with simulated visibility, screens and user events.
     final class PanelPlacementHost {
@@ -35,6 +68,7 @@ enum ClipboardFeatureTests {
             static let standard = Foundation.UserDefaults(suiteName: name)!
         }
         var quickLayout = ClipboardHistoryLayout.cards
+        var quickFocusRecentWhenOpening = true
         var quickPreviewPresented = false
         var adjustingPanelFrame = false
         var panelResizeObserver: NSObjectProtocol?
@@ -105,6 +139,74 @@ enum ClipboardFeatureTests {
         }
         static let urlType = AppKit.NSPasteboard.PasteboardType("public.url")
         static let rules = URLCleaning.Rules.none
+    }
+
+    private static func openingScroll(_ suite: TestSuite) {
+        let recent = ClipboardHistoryEntry(text: "Delayed synthetic copy")
+        for layout in ClipboardHistoryLayout.allCases {
+            let host = OpeningScrollHost()
+            host.layout = layout
+            let proxy = OpeningScrollHost.ScrollViewProxy()
+            host.scrollToOpeningPosition(with: proxy)
+            suite.expect(proxy.targets == [AnyHashable(OpeningScrollHost.topAnchorID)],
+                         "\(layout) opens a pins-only history at the top")
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 1,
+                         "\(layout) waits while the opening capture has not supplied a recent entry")
+            host.history.recentEntries = [recent]
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.last == AnyHashable(recent.id) && proxy.targets.count == 2,
+                         "\(layout) retries positioning after the first recent entry arrives late")
+            suite.expect(proxy.anchors.last == (layout == .list
+                         ? UnitPoint(x: 0, y: 0.22) : UnitPoint(x: 0.22, y: 0)),
+                         "\(layout) retains pinned context when following the delayed copy")
+            host.history.recentEntries.insert(ClipboardHistoryEntry(text: "Later copy"), at: 0)
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 2,
+                         "\(layout) does not keep scrolling on later clipboard arrivals")
+
+            for choice in ["pins", "keyboard", "search"] {
+                let browsing = OpeningScrollHost()
+                browsing.layout = layout
+                let browsingProxy = OpeningScrollHost.ScrollViewProxy()
+                browsing.scrollToOpeningPosition(with: browsingProxy)
+                switch choice {
+                case "pins": browsing.openingScrollNeedsRecent = false
+                case "keyboard": browsing.history.quickSelectionIsVisible = true
+                default: browsing.history.quickQuery = "Synthetic"
+                }
+                browsing.history.recentEntries = [recent]
+                browsing.retryOpeningPosition(with: browsingProxy)
+                suite.expect(browsingProxy.targets.count == 1 && !browsing.openingScrollNeedsRecent,
+                             "\(layout) leaves an explicit \(choice) choice alone when the capture arrives")
+            }
+
+            host.history.recentEntries = []
+            host.scrollToOpeningPosition(with: proxy)
+            host.history.recentEntries = [recent]
+            host.retryOpeningPosition(with: proxy)
+            suite.expect(proxy.targets.count == 4 && proxy.targets.last == AnyHashable(recent.id),
+                         "\(layout) rearms the one-time retry when a pins-only window reopens")
+
+            let pinsFirst = OpeningScrollHost()
+            pinsFirst.layout = layout
+            pinsFirst.history.quickFocusRecentWhenOpening = false
+            pinsFirst.history.recentEntries = [recent]
+            let pinsProxy = OpeningScrollHost.ScrollViewProxy()
+            pinsFirst.scrollToOpeningPosition(with: pinsProxy)
+            suite.expect(pinsProxy.targets == [AnyHashable(OpeningScrollHost.topAnchorID)],
+                         "\(layout) opens at pins when focusing recent copies is disabled")
+            pinsFirst.history.recentEntries = []
+            pinsFirst.scrollToOpeningPosition(with: pinsProxy)
+            pinsFirst.history.recentEntries = [recent]
+            pinsFirst.retryOpeningPosition(with: pinsProxy)
+            suite.expect(pinsProxy.targets.count == 2 && !pinsFirst.openingScrollNeedsRecent,
+                         "\(layout) stays at pins when a recent copy arrives with the preference off")
+            pinsFirst.history.quickFocusRecentWhenOpening = true
+            pinsFirst.scrollToOpeningPosition(with: pinsProxy)
+            suite.expect(pinsProxy.targets.last == AnyHashable(recent.id),
+                         "\(layout) opens at recent copies after the preference is enabled")
+        }
     }
 
     private static func panelGeometryPersistence(_ suite: TestSuite) {
@@ -824,6 +926,8 @@ enum ClipboardFeatureTests {
                "auto clear starts at twenty seconds")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryQuickPreview] as? Bool == false,
                "clipboard history quick preview is closed by default")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryFocusRecentWhenOpening] as? Bool == true,
+                     "the clipboard history focuses recent copies by default")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.clipboardHistoryShowSourceAppIcons] as? Bool == false,
                      "source app icons are opt-in, preserving the existing list by default")
@@ -996,13 +1100,29 @@ enum ClipboardFeatureTests {
         // Each opening reads the layout again, so a choice made in Settings
         // applies the next time the window opens.
         placementDefaults.removeObject(forKey: DefaultsKey.clipboardHistoryLayout)
-        placement.refreshQuickLayout()
+        placementDefaults.register(defaults: [DefaultsKey.clipboardHistoryFocusRecentWhenOpening: true])
+        placement.refreshQuickPreferences()
         suite.expect(placement.quickLayout == .list, "an opening with no choice shows the list")
+        suite.expect(placement.quickFocusRecentWhenOpening,
+                     "an opening with the default preference focuses recent copies")
+        placementDefaults.set(false, forKey: DefaultsKey.clipboardHistoryFocusRecentWhenOpening)
+        suite.expect(placement.quickFocusRecentWhenOpening,
+                     "changing the preference does not change the current presentation's paste target")
+        placement.refreshQuickPreferences()
+        suite.expect(!placement.quickFocusRecentWhenOpening,
+                     "reopening reads the disabled preference and focuses pins")
+        placementDefaults.set(true, forKey: DefaultsKey.clipboardHistoryFocusRecentWhenOpening)
+        suite.expect(!placement.quickFocusRecentWhenOpening,
+                     "reenabling recent focus waits for the next opening")
+        placement.refreshQuickPreferences()
+        suite.expect(placement.quickFocusRecentWhenOpening,
+                     "reopening reads the enabled preference and focuses recent copies")
         placementDefaults.set(ClipboardHistoryLayout.cards.rawValue, forKey: DefaultsKey.clipboardHistoryLayout)
-        placement.refreshQuickLayout()
+        placement.refreshQuickPreferences()
         suite.expect(placement.quickLayout == .cards, "an opening after choosing the cards shows the cards")
         placementDefaults.removePersistentDomain(forName: PanelPlacementHost.UserDefaults.name)
         panelGeometryPersistence(suite)
+        openingScroll(suite)
 
         // MARK: Clipboard history arrow keys
 
@@ -1159,6 +1279,10 @@ enum ClipboardFeatureTests {
                          && (language == .enUS || clipboardStrings.showSourceAppIconsInList
                              != FeatureStrings.clipboard(.enUS).showSourceAppIconsInList),
                          "\(language.rawValue) source app icons setting is localized")
+            suite.expect(!clipboardStrings.focusRecentWhenOpening.isEmpty
+                         && (language == .enUS || clipboardStrings.focusRecentWhenOpening
+                             != FeatureStrings.clipboard(.enUS).focusRecentWhenOpening),
+                         "\(language.rawValue) recent focus setting is localized")
             let layoutStrings = FeatureStrings.windowLayout(language)
             suite.expect(!layoutStrings.sixths.isEmpty
                    && !layoutStrings.topLeftSixth.isEmpty
@@ -1867,6 +1991,7 @@ enum ClipboardPreviewContract {
         func trimToLimit() {}
         func save() {}
         var quickQuery = ""
+        var quickFocusRecentWhenOpening = true
         var quickSelectionID: UUID?
         var quickSelectionIsVisible = false
         var quickBatchEntryIDs: Set<UUID> = []
@@ -2178,6 +2303,53 @@ enum ClipboardPreviewContract {
         service.removeSelectedQuickEntries()
         suite.expect(service.entries == [fresh, a, c] && service.selectedQuickEntry == c,
                      "deleting the highlighted entry highlights the one that took its place")
+
+        let pins = (1...10).map { ClipboardHistoryEntry(text: "Pinned example \($0)", pinnedAt: Date()) }
+        let opening = Service()
+        opening.setEntries(pins + [a, b, c])
+        suite.expect(opening.selectedQuickEntry == a,
+                     "with ten pins, Return and preview default to the first recent copy")
+        opening.moveQuickSelection(1)
+        suite.expect(opening.selectedQuickEntry == a,
+                     "the first arrow reveals the default recent selection")
+        opening.moveQuickSelection(-1)
+        suite.expect(opening.selectedQuickEntry == pins.last,
+                     "Up from the first recent copy reaches the last pin")
+        opening.moveQuickSelection(1)
+        opening.moveQuickSelection(1)
+        suite.expect(opening.selectedQuickEntry == b,
+                     "Down walks recent copies in their existing order")
+
+        let pinsFirst = Service()
+        pinsFirst.quickFocusRecentWhenOpening = false
+        pinsFirst.setEntries(pins + [a, b, c])
+        suite.expect(pinsFirst.selectedQuickEntry == pins.first,
+                     "with recent focus disabled, Return and preview default to the first pin")
+        pinsFirst.moveQuickSelection(1)
+        pinsFirst.moveQuickSelection(1)
+        suite.expect(pinsFirst.selectedQuickEntry == pins[1],
+                     "with recent focus disabled, arrows start from the pinned section")
+        pinsFirst.setEntries([a, b, c])
+        suite.expect(pinsFirst.selectedQuickEntry == a,
+                     "with recent focus disabled and no pins, Return still defaults to recent copies")
+
+        let searching = Service()
+        let matchingRecent = ClipboardHistoryEntry(text: "Pinned example recent")
+        searching.setEntries(pins + [matchingRecent])
+        searching.quickQuery = "Pinned example"
+        suite.expect(searching.filteredQuickEntries.count == 11
+                     && searching.filteredQuickEntries.first?.isPinned == true
+                     && searching.selectedQuickEntry == searching.filteredQuickEntries.first,
+                     "search still defaults to its highest-ranked match")
+        searching.quickQuery = "  \n"
+        suite.expect(searching.selectedQuickEntry == matchingRecent,
+                     "a whitespace-only query defaults to recent copies")
+        searching.setEntries(pins)
+        suite.expect(searching.selectedQuickEntry == pins.first,
+                     "a pins-only history falls back to its first pin")
+        searching.setEntries([])
+        suite.expect(searching.selectedQuickEntry == nil,
+                     "an empty history has no default paste target")
     }
 
     /// #1885: typing searches the history once per keystroke, so the folded

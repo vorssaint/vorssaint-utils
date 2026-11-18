@@ -867,6 +867,17 @@ enum SearchHighlightText {
 }
 
 enum ClipboardHistorySelection {
+    /// Pins keep their order and numbered shortcuts, but an unfiltered quick
+    /// window can start its paste/preview target at the first recent copy.
+    static func defaultIndex(in entries: [ClipboardHistoryEntry], query: String,
+                             focusRecent: Bool) -> Int? {
+        guard !entries.isEmpty else { return nil }
+        if focusRecent, query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return entries.firstIndex { !$0.isPinned } ?? 0
+        }
+        return 0
+    }
+
     static func previewEntry(preferredID: UUID?,
                              visibleEntries: [ClipboardHistoryEntry],
                              selectedEntry: ClipboardHistoryEntry?) -> ClipboardHistoryEntry? {
