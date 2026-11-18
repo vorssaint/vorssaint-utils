@@ -366,6 +366,18 @@ enum MixerFeatureTests {
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "an unavailable explicit output still falls back to untouched default playback at unity")
+        suite.expect(MixerRoutingSupport.keepsEngine(hasEngine: true, isPlaying: true, hasAudioObjects: true,
+                                                     targetOutputDeviceUID: "out"),
+                     "an app that plays keeps its tap at 100%, so the level can pass through there without a cut")
+        suite.expect(!MixerRoutingSupport.keepsEngine(hasEngine: false, isPlaying: true, hasAudioObjects: true,
+                                                      targetOutputDeviceUID: "out")
+                     && !MixerRoutingSupport.keepsEngine(hasEngine: true, isPlaying: false, hasAudioObjects: true,
+                                                         targetOutputDeviceUID: "out")
+                     && !MixerRoutingSupport.keepsEngine(hasEngine: true, isPlaying: true, hasAudioObjects: false,
+                                                         targetOutputDeviceUID: "out")
+                     && !MixerRoutingSupport.keepsEngine(hasEngine: true, isPlaying: true, hasAudioObjects: true,
+                                                         targetOutputDeviceUID: nil),
+                     "an untapped app stays untapped at 100%, and a tap goes once the app stops or loses its output")
         suite.expect(!MixerRoutingSupport.requiresEngine(hasAudioObjects: false,
                                                    volume: 0.5,
                                                    selectedOutputDeviceUID: nil,
