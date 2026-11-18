@@ -69,6 +69,8 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read again on every opening, so the window's frame and its content
     /// always agree, even if the setting changes while it is open.
     @Published private(set) var quickLayout = ClipboardHistoryLayout.current()
+    /// ⌘ held over the shelf: its cards show their ⌘1 to ⌘9.
+    @Published private(set) var quickCommandHeld = false
 
     private var timer: Timer?
     /// Entries age out with nothing new copied, so the retention window is
@@ -98,6 +100,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var adjustingPanelFrame = false
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
+    private var modifierMonitor: Any?
     private var localClickMonitor: Any?
     private var outsideClickMonitor: Any?
     private var activationObserver: NSObjectProtocol?
@@ -1259,7 +1262,7 @@ final class ClipboardHistoryService: ObservableObject {
 
     func toggleHistoryWindow() {
         if NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard(toggle: true) { return }
-        if panel?.isVisible == true {
+        if panel?.isVisible == true, !shelfIsSlidingOut {
             hideHistoryWindow()
         } else {
             showHistoryWindow()
@@ -1282,8 +1285,73 @@ final class ClipboardHistoryService: ObservableObject {
         // hold the keys yet, so it keeps the app it came from.
         captureIfChanged()
         panel.alphaValue = 1
+        if quickLayout == .cards, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            slideShelf(panel, in: true)
+            return
+        }
+        shelfSlideGeneration += 1
+        shelfIsSlidingOut = false
+        shelfDepartureWork = []
         panel.orderFrontRegardless()
         panel.makeKey()
+    }
+
+    /// Bumped by every opening and closing, so a slide that finishes after a
+    /// newer one began leaves the window to the newer one.
+    private var shelfSlideGeneration = 0
+    private var shelfIsSlidingOut = false
+    /// What waits for the shelf to finish sliding away: until then it keeps
+    /// the keyboard, so a Command-V sent to the app behind would land in the
+    /// shelf instead.
+    private var shelfDepartureWork: [() -> Void] = []
+
+    private func afterShelfLeaves(_ work: @escaping () -> Void) {
+        guard shelfIsSlidingOut else {
+            work()
+            return
+        }
+        shelfDepartureWork.append(work)
+    }
+
+    private func shelfDidLeave() {
+        shelfIsSlidingOut = false
+        let work = shelfDepartureWork
+        shelfDepartureWork = []
+        work.forEach { $0() }
+    }
+
+    /// The shelf rises from below the screen's bottom edge and sinks back
+    /// there. The window is placed fully off screen at the far end, so the
+    /// whole height travels.
+    private func slideShelf(_ panel: NSPanel, in comingIn: Bool) {
+        shelfSlideGeneration += 1
+        let generation = shelfSlideGeneration
+        shelfIsSlidingOut = !comingIn
+        let shown = panel.frame
+        let hidden = shown.offsetBy(dx: 0, dy: -(shown.height + 8))
+        (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = true
+        if comingIn {
+            // A shelf coming back takes the keyboard again, so nothing that
+            // waited for it to leave may run any more.
+            shelfDepartureWork = []
+            panel.setFrame(hidden, display: false)
+            panel.orderFrontRegardless()
+            panel.makeKey()
+        }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = comingIn ? 0.3 : 0.2
+            context.timingFunction = comingIn
+                ? CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
+                : CAMediaTimingFunction(name: .easeIn)
+            panel.animator().setFrame(comingIn ? shown : hidden, display: true)
+        }, completionHandler: { [weak self, weak panel] in
+            guard let self, let panel, self.shelfSlideGeneration == generation else { return }
+            if !comingIn {
+                panel.orderOut(nil)
+                self.shelfDidLeave()
+            }
+            (panel as? ClipboardShelfPanel)?.allowsFrameBelowScreen = false
+        })
     }
 
     func hideHistoryWindow() {
@@ -1295,7 +1363,14 @@ final class ClipboardHistoryService: ObservableObject {
         // Ordering out keeps an open confirmation attached, and it would come
         // back with its old count the next time the window opens.
         if let panel, let sheet = panel.attachedSheet { panel.endSheet(sheet) }
-        panel?.orderOut(nil)
+        if let panel, panel.isVisible, quickLayout == .cards,
+           !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
+            if !shelfIsSlidingOut { slideShelf(panel, in: false) }
+        } else {
+            shelfSlideGeneration += 1
+            panel?.orderOut(nil)
+            shelfDidLeave()
+        }
         clearQuickBatchSelection()
     }
 
@@ -1333,8 +1408,10 @@ final class ClipboardHistoryService: ObservableObject {
             }
             return
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            Self.postPasteShortcut()
+        afterShelfLeaves {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                Self.postPasteShortcut()
+            }
         }
     }
 
@@ -1355,11 +1432,11 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = OverlayPanel(contentRect: .zero,
-                                 styleMask: [.titled, .closable,
-                                             .fullSizeContentView, .nonactivatingPanel],
-                                 backing: .buffered,
-                                 defer: false)
+        let panel = ClipboardShelfPanel(contentRect: .zero,
+                                        styleMask: [.titled, .closable,
+                                                    .fullSizeContentView, .nonactivatingPanel],
+                                        backing: .buffered,
+                                        defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
         panel.titlebarAppearsTransparent = true
         panel.titleVisibility = .hidden
@@ -1444,8 +1521,9 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     /// Placed again on every open, so a changed display never strands it.
-    /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list keeps its chosen location when that display is still usable.
+    /// Cards make a shelf along the bottom edge of the screen the pointer is
+    /// on, over the Dock. The list keeps its chosen location when that
+    /// display is still usable.
     private func position(_ panel: NSPanel) {
         adjustingPanelFrame = true
         defer { adjustingPanelFrame = false }
@@ -1453,11 +1531,22 @@ final class ClipboardHistoryService: ObservableObject {
         switch quickLayout {
         case .cards:
             panel.styleMask.remove(.resizable)
-            panel.setFrame(NSRect(x: screen.minX + 16, y: screen.minY + 8,
-                                  width: screen.width - 32, height: min(318, screen.height - 16)),
+            // The Dock's level is below the main menu's.
+            panel.level = .mainMenu
+            // The shelf draws its own rounded glass or material; the window
+            // behind it stays clear so the desktop shows through the glass.
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            let full = NSScreen.pointerFrame
+            panel.setFrame(NSRect(x: full.minX + 8, y: full.minY + 8,
+                                  width: full.width - 16,
+                                  height: min(ClipboardHistoryWindowSizing.shelfHeight, screen.height - 16)),
                            display: true,
                            animate: false)
         case .list:
+            panel.level = .floating
+            panel.isOpaque = true
+            panel.backgroundColor = .windowBackgroundColor
             panel.styleMask.insert(.resizable)
             let defaults = UserDefaults.standard
             if defaults.object(forKey: DefaultsKey.clipboardHistoryWindowX) != nil,
@@ -1502,6 +1591,12 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func installKeyMonitor(for panel: NSPanel) {
         removeKeyMonitor()
+        modifierMonitor = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self, weak panel] event in
+            guard let self, let panel, event.window === panel else { return event }
+            let held = event.modifierFlags.intersection(.deviceIndependentFlagsMask) == [.command]
+            if held != self.quickCommandHeld { self.quickCommandHeld = held }
+            return event
+        }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             // An open confirmation owns Return and Escape.
             guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
@@ -1533,7 +1628,8 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
-                if modifiers == [.command] {
+                // The shelf chooses one card at a time.
+                if modifiers == [.command], self.quickLayout == .list {
                     self.toggleSelectedQuickEntryBatchSelection()
                     return nil
                 }
@@ -1557,7 +1653,7 @@ final class ClipboardHistoryService: ObservableObject {
                 self.copySelectedQuickEntryOnly()
                 return nil
             }
-            if modifiers == [.command], key == "a",
+            if modifiers == [.command], key == "a", self.quickLayout == .list,
                ClipboardHistoryBatch.listOwnsSelectAllShortcut(
                    batchCount: self.quickBatchCount,
                    queryIsEmpty: self.quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
@@ -1593,7 +1689,7 @@ final class ClipboardHistoryService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
-            if event.window !== panel, !Self.mouseIsInside(panel) {
+            if !Self.window(event.window, belongsTo: panel), !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
             }
             return event
@@ -1625,6 +1721,17 @@ final class ClipboardHistoryService: ObservableObject {
         panel.frame.insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
     }
 
+    /// The panel or a window it owns, such as a card's preview popover: a
+    /// click there is not a click away from the history.
+    private static func window(_ window: NSWindow?, belongsTo panel: NSPanel) -> Bool {
+        var current = window
+        while let candidate = current {
+            if candidate === panel { return true }
+            current = candidate.parent
+        }
+        return false
+    }
+
     private func removeDismissMonitors() {
         if let localClickMonitor {
             NSEvent.removeMonitor(localClickMonitor)
@@ -1645,11 +1752,36 @@ final class ClipboardHistoryService: ObservableObject {
             NSEvent.removeMonitor(keyMonitor)
             self.keyMonitor = nil
         }
+        if let modifierMonitor {
+            NSEvent.removeMonitor(modifierMonitor)
+            self.modifierMonitor = nil
+        }
+        quickCommandHeld = false
     }
 
     private func resetQuickSelection() {
         quickSelectionID = nil
-        quickSelectionIsVisible = false
+        // The shelf shows its first card chosen until a search starts: Space
+        // then types instead of previewing.
+        quickSelectionIsVisible = quickLayout == .cards && quickQuery.isEmpty
+    }
+
+    /// A click on a card of the shelf chooses it; a double click pastes.
+    func selectQuickEntry(_ entry: ClipboardHistoryEntry) {
+        // Each publish redraws the window; a click on the chosen card changes nothing.
+        if quickSelectionID != entry.id { quickSelectionID = entry.id }
+        if !quickSelectionIsVisible { quickSelectionIsVisible = true }
+    }
+
+    func previewQuickEntry(_ entry: ClipboardHistoryEntry) {
+        selectQuickEntry(entry)
+        setQuickPreviewPresented(true)
+    }
+
+    func openClipboardSettings() {
+        hideHistoryWindow()
+        SettingsRouter.shared.page = .clipboard
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     private var quickBatchEntries: [ClipboardHistoryEntry] {
@@ -1924,5 +2056,16 @@ private final class ClipboardPanelSizeLimit: NSObject, NSWindowDelegate {
             NSSize(width: max(minimum.width, frameSize.width),
                    height: max(minimum.height, frameSize.height)),
             visibleFrame: visibleFrame(sender))
+    }
+}
+
+/// AppKit keeps a titled window's frame on screen, which would cut the
+/// shelf's slide short at the bottom edge. The constraint is lifted only
+/// while the shelf slides.
+private final class ClipboardShelfPanel: OverlayPanel {
+    var allowsFrameBelowScreen = false
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        allowsFrameBelowScreen ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }
 }
