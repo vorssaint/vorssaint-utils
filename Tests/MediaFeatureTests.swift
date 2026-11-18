@@ -44,6 +44,20 @@ enum MediaFeatureTests {
         suite.expect(MediaImageResizeMode.exact(width: 321, height: 123).targetSize(for: CGSize(width: 1600, height: 1200))
                == CGSize(width: 321, height: 123),
                "Image exact resize uses custom dimensions")
+        suite.expect(MediaImageResizeMode.exact(width: 144, height: 144).targetSize(for: CGSize(width: 1024, height: 768))
+               == CGSize(width: 144, height: 144)
+               && MediaSupport.sanitizedImageDimension(144, fallback: 1600) == 144,
+               "Image exact resize accepts arbitrary pixel sizes such as 144×144")
+        let workspace = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift",
+                                     encoding: .utf8)) ?? ""
+        if let section = workspace.range(of: "private var imageResizeSection"),
+           let end = workspace.range(of: "private var imageWatermarkSection", range: section.upperBound..<workspace.endIndex) {
+            let body = workspace[section.lowerBound..<end.lowerBound]
+            suite.expect(body.contains("pixelField(") && !body.contains("stepperInt("),
+                         "Image resize sizes are typed so values like 144×144 are reachable")
+        } else {
+            suite.expect(false, "Image resize section still exposes typed pixel fields")
+        }
         let exactFill = MediaImageResizeMode.exact(width: 320, height: 180, mode: .fill)
         suite.expect(exactFill.exactMode == .fill
                && exactFill.targetSize(for: CGSize(width: 1600, height: 1200)) == CGSize(width: 320, height: 180),
