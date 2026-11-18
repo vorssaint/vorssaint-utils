@@ -155,6 +155,22 @@ enum CommandBarRowShortcuts {
         return shortcuts.filter { !keys.contains($0.key) }
     }
 
+    /// App rows holding a combination that no listed app answers to, such as
+    /// an app whose bundle ID changed. The combination still counts as taken,
+    /// so Settings lists these rows where they can be cleared.
+    static func unlistedAppKeys(in shortcuts: [String: GlobalShortcut],
+                                listed: Set<String>) -> [String] {
+        shortcuts.keys.filter { $0.hasPrefix("app.") && !listed.contains($0) }.sorted()
+    }
+
+    /// What an unlisted app row is called: its bundle ID, or the app's file
+    /// name when it was keyed by where it lived.
+    static func unlistedAppTitle(_ key: String) -> String {
+        if key.hasPrefix("app.bundle.") { return String(key.dropFirst("app.bundle.".count)) }
+        return URL(fileURLWithPath: String(key.dropFirst("app.".count)))
+            .deletingPathExtension().lastPathComponent
+    }
+
     /// Whether a combination is worth registering at all. A bare letter would
     /// take that letter away from every app on the Mac.
     static func isUsable(_ shortcut: GlobalShortcut) -> Bool {

@@ -2143,6 +2143,15 @@ enum CommandBarFeatureTests {
                "a key macOS has switched off saves at once and drops a stale take-over")
         suite.expect(rowTakeOverKey == "\(DefaultsKey.commandBarRowShortcuts).app.bundle.a",
                "an app row's take-over is kept under the name its hotkey is claimed with")
+        let optionW = GlobalShortcut(keyCode: 13, modifiers: [.option])
+        let stored = ["app.bundle.listed": optionW, "app.bundle.renamed": commandPeriod,
+                      "app./Volumes/Gone/Old Tool.app": lookUp,
+                      CommandBarPreferences.emojiBrowserRowID: optionW]
+        let unlisted = CommandBarRowShortcuts.unlistedAppKeys(in: stored, listed: ["app.bundle.listed"])
+        suite.expect(unlisted == ["app./Volumes/Gone/Old Tool.app", "app.bundle.renamed"],
+               "an app combination no listed app answers to is offered for clearing, and other rows are left alone")
+        suite.expect(unlisted.map(CommandBarRowShortcuts.unlistedAppTitle) == ["Old Tool", "renamed"],
+               "an unlisted app row is named by its bundle ID or its file name")
         let emojiBinding = CommandBarRowShortcuts.setting(
             commandPeriod, for: CommandBarPreferences.emojiBrowserRowID, in: [:])
         suite.expect(CommandBarRowShortcuts.key(for: commandPeriod, in: emojiBinding)
