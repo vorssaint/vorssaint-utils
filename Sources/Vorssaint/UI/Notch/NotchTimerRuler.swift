@@ -20,7 +20,7 @@ struct NotchTimerRuler: NSViewRepresentable {
         let control = NotchTimerRulerControl()
         control.focusRingType = .none
         control.minValue = 1
-        control.maxValue = 180
+        control.maxValue = 1439
         control.altIncrementValue = 1
         control.target = context.coordinator
         control.action = #selector(Coordinator.changed(_:))
@@ -164,7 +164,7 @@ final class NotchTimerRulerControl: NSSlider {
         // ticks and pointer below the labels instead of cutting them off.
         let scale = bounds.height / NotchLayout.timerRulerHeight
         let selectionX = self.selectionX
-        for minute in 1...180 {
+        for minute in 1...1439 {
             let x = selectionX + CGFloat(NotchTimerRulerScale.offset(of: minute, selected: integerValue))
             guard x >= bounds.minX - 16, x <= bounds.maxX + 16 else { continue }
             let fade = minute == integerValue ? 1 : min(1, max(0, min(x - bounds.minX, bounds.maxX - x) / edgeFade))
