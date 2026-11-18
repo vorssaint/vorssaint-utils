@@ -60,6 +60,8 @@ enum NotchLockScreenTests {
         defer { defaults.removePersistentDomain(forName: domain) }
         for (key, value) in Defaults.registeredDefaults where key.hasPrefix("notch") { defaults.set(value, forKey: key) }
         for (key, value) in AppFeature.availabilityDefaults { defaults.set(value, forKey: key) }
+        // These checks cover the sections and the floating buttons.
+        defaults.set(NotchNavigationStyle.sideButtons.rawValue, forKey: DefaultsKey.notchNavigationStyle)
         defaults.set(true, forKey: DefaultsKey.notchLockScreen)
         defaults.set(true, forKey: DefaultsKey.notchLockSounds)
         defaults.set(false, forKey: DefaultsKey.notchEnabled)
