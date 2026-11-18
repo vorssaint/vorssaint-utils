@@ -876,7 +876,7 @@ def main():
               "    var homebrewRemovalConfirmation:", "    func removeSelectedWithHomebrew("])
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
-              "    @Published var query", "    private func beginUninstallReview(",
+              "    @Published var query", "    private func stopClipboardSearch(", "    private func beginUninstallReview(",
               "    private func handleUninstallKey(", "    func stepBack()",
               "    private func confirmUninstallReview(",
               "    private func finishUninstallReview()"])
