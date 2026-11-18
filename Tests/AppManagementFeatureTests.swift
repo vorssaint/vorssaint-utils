@@ -256,11 +256,31 @@ enum AppManagementFeatureTests {
                "missed WhatsApp checks recover after nine without a first-enable surprise")
         let panel500 = ExtraBrightnessSupport.panelReference(model: "MacBookPro18,1")
         let panel600 = ExtraBrightnessSupport.panelReference(model: "Mac16,7")
-        suite.expect(ExtraBrightnessSupport.isNativeCaptureProcess("screencapture")
-                && ExtraBrightnessSupport.isNativeCaptureProcess("screencaptureui")
-                && !ExtraBrightnessSupport.isNativeCaptureProcess("ScreenshotControls")
-                && !ExtraBrightnessSupport.isNativeCaptureProcess("Vorssaint"),
-               "capture detection ignores the persistent Screenshot controls extension")
+        suite.expect(!ExtraBrightnessSupport.excludeFromNativeWindowPicker(0)
+                && !ExtraBrightnessSupport.excludeFromNativeWindowPicker(-1),
+               "a missing window never marks another surface as excluded from screenshots")
+        if !NSScreen.screens.isEmpty {
+            // Never order the window on screen. Read the server's property for
+            // this exact window instead of duplicating the decision in a stub.
+            let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 20, height: 20),
+                                  styleMask: .borderless, backing: .buffered, defer: false)
+            let symbols = UnsafeMutableRawPointer(bitPattern: -2)
+            if let main = dlsym(symbols, "CGSMainConnectionID"),
+               let copy = dlsym(symbols, "CGSCopyWindowProperty"),
+               dlsym(symbols, "CGSSetWindowProperty") != nil {
+                typealias Connection = @convention(c) () -> UInt32
+                typealias CopyProperty = @convention(c) (UInt32, CGWindowID, CFString,
+                    UnsafeMutablePointer<Unmanaged<CFTypeRef>?>) -> Int32
+                let marked = ExtraBrightnessSupport.excludeFromNativeWindowPicker(window.windowNumber)
+                var value: Unmanaged<CFTypeRef>?
+                let result = unsafeBitCast(copy, to: CopyProperty.self)(
+                    unsafeBitCast(main, to: Connection.self)(), CGWindowID(window.windowNumber),
+                    "IgnoreForScreencaptureWindowSelection" as CFString, &value)
+                suite.expect(marked && result == 0
+                        && value.map { CFEqual($0.takeRetainedValue(), kCFBooleanTrue) } == true,
+                       "the window server records the native screenshot exclusion before display")
+            }
+        }
         suite.expect(panel500.referenceEDR == 3.2 && panel500.bonus == 0.58,
                "the 2021/2023 500 nit panels take the stronger curve")
         suite.expect(panel600.referenceEDR == 2.66 && panel600.bonus == 0.48,

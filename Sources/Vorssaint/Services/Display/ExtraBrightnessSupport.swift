@@ -3,6 +3,7 @@
 
 import CoreGraphics
 import Foundation
+import Darwin
 
 /// Decisions and math for the extra brightness boost, kept free of AppKit and
 /// Metal so unit tests can pin its behavior.
@@ -13,8 +14,21 @@ import Foundation
 /// panel reserves for HDR. Blacks stay black and contrast is preserved, since
 /// multiplication only scales.
 enum ExtraBrightnessSupport {
-    static func isNativeCaptureProcess(_ name: String) -> Bool {
-        name == "screencapture" || name == "screencaptureui"
+    /// Set the same per-window property that Apple's screenshot picker checks
+    /// before highlighting a candidate. It applies for the window's lifetime:
+    /// no polling, brightness interruption or permission to observe shortcuts.
+    @discardableResult
+    static func excludeFromNativeWindowPicker(_ windowNumber: Int) -> Bool {
+        typealias Connection = @convention(c) () -> UInt32
+        typealias SetProperty = @convention(c) (UInt32, CGWindowID, CFString, CFTypeRef) -> Int32
+        let symbols = UnsafeMutableRawPointer(bitPattern: -2) // RTLD_DEFAULT
+        guard let id = CGWindowID(exactly: windowNumber), id != kCGNullWindowID,
+              let main = dlsym(symbols, "CGSMainConnectionID"),
+              let set = dlsym(symbols, "CGSSetWindowProperty") else { return false }
+        let connection = unsafeBitCast(main, to: Connection.self)()
+        guard connection != 0 else { return false }
+        return unsafeBitCast(set, to: SetProperty.self)(
+            connection, id, "IgnoreForScreencaptureWindowSelection" as CFString, kCFBooleanTrue) == 0
     }
 
     /// The overlay needs to show extended range content before macOS engages
