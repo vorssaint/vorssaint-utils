@@ -148,7 +148,7 @@ enum MenuPanelRecoveryTests {
         func setMicBadgeHeld(_ value: Bool) { held = value }
     }
     typealias MetricDetailKind = String
-    struct MenuBarMetric { let detailKind: String }
+    struct MenuBarMetric: Equatable { let detailKind: String }
     enum Module { case system }
     enum NotchSupport {
         static func routesAppPanel() -> Bool { false }
@@ -227,8 +227,10 @@ enum MenuPanelRecoveryTests {
         weak var fadingPopoverWindow: NSWindow?
         var popoverIsReopening = false
         var metricAnchorSwitchSerial = 0
+        var activeMetricReading: MenuBarMetric?
         var scheduledReanchors = 0
-        func scheduleMetricAnchorSwitch(to metric: String, anchoredTo button: NSStatusBarButton) {
+        func scheduleMetricAnchorSwitch(to metric: String, anchoredTo button: NSStatusBarButton,
+                                        anchorRect: NSRect) {
             scheduledReanchors += 1
         }
         var popoverCloseIsAppRequested = false
@@ -511,7 +513,9 @@ enum MenuPanelRecoveryTests {
                 completions += 1
                 completedBeforeReopen = !host.popover.isShown && host.popover.attempts == 1
             })
-            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"),
+                                     anchoredTo: host.statusController.button!,
+                                     anchorRect: host.statusController.button!.bounds)
             expect(completions == 1 && completedBeforeReopen && host.popoverCloseCompletions.isEmpty,
                    "a missing close callback completes the old action once before the next presentation")
             expect(host.popover.isShown && !host.popoverIsClosing && !host.popoverCloseIsAppRequested
@@ -605,7 +609,8 @@ enum MenuPanelRecoveryTests {
             host.popover.showNotifies = { [unowned host] in
                 host.popoverWillClose(Notification(name: Notification.Name("oldAnchorWillClose")))
             }
-            host.reanchorMetricPopover(to: "cpu", anchoredTo: host.statusController.button!)
+            host.reanchorMetricPopover(to: "cpu", anchoredTo: host.statusController.button!, anchorRect: host.statusController.button!.bounds)
+            host.activeMetricReading = MenuBarMetric(detailKind: "cpu")
             host.popover.showNotifies = nil
             host.popoverDidClose(Notification(name: Notification.Name("oldAnchorDidClose")))
             expect(host.popover.isShown && host.monitors && host.popoverIsClosing == fading
@@ -617,7 +622,9 @@ enum MenuPanelRecoveryTests {
             if fading {
                 NSAnimationContext.finish()
             } else {
-                host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+                host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"),
+                                     anchoredTo: host.statusController.button!,
+                                     anchorRect: host.statusController.button!.bounds)
             }
             expect(!host.popover.isShown && !host.monitors && !host.popoverIsClosing,
                    "a reanchored metric still closes on its second click or pending fade \(fading)")
@@ -745,10 +752,14 @@ enum MenuPanelRecoveryTests {
             if interruptFade {
                 host.closePopoverNow(animated: true, reason: .statusItem, completion: nil)
             }
-            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"),
+                                     anchoredTo: host.statusController.button!,
+                                     anchorRect: host.statusController.button!.bounds)
             expect(MenuPanelFocus.shared.request == "cpu" && MenuPanelFocus.shared.activeMetric == "cpu",
                    "opening a metric keeps its view request and toggle identity with interrupted fade \(interruptFade)")
-            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"), anchoredTo: host.statusController.button!)
+            host.showMetricPanel(for: MenuBarMetric(detailKind: "cpu"),
+                                     anchoredTo: host.statusController.button!,
+                                     anchorRect: host.statusController.button!.bounds)
             expect(!host.popover.isShown && host.scheduledReanchors == 0,
                    "the next click on the same metric closes it with interrupted fade \(interruptFade)")
             NSAnimationContext.finish()
