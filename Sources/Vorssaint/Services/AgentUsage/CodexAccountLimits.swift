@@ -168,7 +168,13 @@ enum CodexAccountUsageReader {
     }
 
     private static func plan(_ account: [String: Any]) -> String? {
-        ((account["account"] as? [String: Any])?["planType"] as? String).flatMap {
+        knownPlan((account["account"] as? [String: Any])?["planType"] as? String)
+    }
+
+    /// The name of a plan type ChatGPT reports for a subscription; nil for
+    /// any other, which would show as raw text.
+    static func knownPlan(_ type: String?) -> String? {
+        type.flatMap {
             ["free", "go", "plus", "pro", "team", "business", "enterprise", "edu"].contains($0)
                 ? AgentPlans.codex(planType: $0)?.name : nil
         }

@@ -8,6 +8,7 @@ struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
+    @ObservedObject private var hubs = AgentHubLimitsService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
@@ -29,12 +30,21 @@ struct NotchAgentsView: View {
         return NotchAgentSupport.showsCodexAccounts() ? accounts.states : []
     }
 
+    /// The accounts of the hubs the person added, for the agents that are on,
+    /// each with a card in the Limits card's place.
+    private var hubAccounts: [AgentHubAccount] {
+        _ = (claude, codex, hiddenCards)
+        let shown = NotchAgentSupport.shownHubProviders()
+        return hubs.accounts.filter { shown.contains($0.provider) }
+    }
+
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
         [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault) }
+            .filter { provider in usage.snapshot.seen.contains(provider) || (provider == .codex && !codexAccounts.isEmpty)
+                || (provider == .claude && !usage.claudeProfile.isDefault)
+                || hubAccounts.contains { $0.provider == provider } }
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -42,13 +52,14 @@ struct NotchAgentsView: View {
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
+                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
+                                                              hubAccounts: hubAccounts),
                                       width: size.width)
     }
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded && codexAccounts.isEmpty {
+            if !usage.snapshot.loaded && codexAccounts.isEmpty && hubAccounts.isEmpty {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -80,11 +91,13 @@ struct NotchAgentsView: View {
         .onAppear {
             usage.pageDidAppear(preview: preview)
             accounts.pageDidAppear(preview: preview)
+            hubs.pageDidAppear(preview: preview)
         }
         .onDisappear {
             guard !preview else { return }
             usage.pageDidDisappear()
             accounts.pageDidDisappear()
+            hubs.pageDidDisappear()
         }
     }
 
@@ -139,6 +152,9 @@ struct NotchAgentsView: View {
     }
 
     private func account(_ tile: NotchAgentTile, now: Date) -> NotchAgentAccount? {
+        if let id = tile.accountID, let account = hubAccounts.first(where: { $0.id == id }) {
+            return hubAccount(account, now: now)
+        }
         if tile.provider == .claude, tile.accountID != nil {
             let strings = FeatureStrings.codexAccounts(l10n.language)
             return NotchAgentAccount(name: claudeAccountName, limits: usage.snapshot.limits[.claude],
@@ -160,6 +176,23 @@ struct NotchAgentsView: View {
         return NotchAgentAccount(name: state.profile.name, limits: state.currentLimits(at: now), plan: state.plan,
                                  checking: state.checking, failure: failure, refreshHint: strings.refreshHint,
                                  checkLabel: strings.check) { accounts.refresh(id: id, force: true) }
+    }
+
+    /// A hub account's card: a refusal of the whole hub outranks the
+    /// account's own last failure, since the hub's fix comes first.
+    private func hubAccount(_ account: AgentHubAccount, now: Date) -> NotchAgentAccount {
+        let strings = FeatureStrings.codexAccounts(l10n.language)
+        let hubText = FeatureStrings.agentHubs(l10n.language)
+        let status = hubs.status(of: account)
+        let failure = status?.state.flatMap(hubText.cardProblem) ?? account.failure.map { failure -> String in
+            switch failure {
+            case .signIn: return hubText.accountSignIn
+            case .unavailable: return strings.failed
+            }
+        }
+        return NotchAgentAccount(name: account.name, limits: account.currentLimits(at: now), plan: account.plan,
+                                 checking: status?.checking ?? false, failure: failure, refreshHint: strings.refreshHint,
+                                 checkLabel: strings.check) { hubs.refresh(id: account.hub, force: true) }
     }
 
     private var claudeAccountName: String {

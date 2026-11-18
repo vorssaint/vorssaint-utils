@@ -139,7 +139,15 @@ enum AgentClaudeServer {
     static func limits(_ result: [String: Any], observed: Date) -> AgentLimits? {
         guard result["rate_limits_available"] as? Bool == true,
               let limits = result["rate_limits"] as? [String: Any] else { return nil }
-        let windows: [AgentLimitWindow] = [
+        let windows = windows(limits, observed: observed)
+        guard !windows.isEmpty else { return nil }
+        return AgentLimits(provider: .claude, windows: windows, observedAt: observed, source: .account)
+    }
+
+    /// The windows in Anthropic's usage answer, which Claude Code passes on as
+    /// its `rate_limits` and a hub fetches for each of its accounts.
+    static func windows(_ limits: [String: Any], observed: Date) -> [AgentLimitWindow] {
+        [
             ("five_hour", AgentLimitWindow.Kind.session, 300, nil as String?),
             ("seven_day", .weekly, 10_080, nil),
             ("seven_day_opus", .weekly, 10_080, "Opus"),
@@ -157,8 +165,6 @@ enum AgentClaudeServer {
                 return AgentLimitWindow(id: "claude.\(id)", kind: kind, minutes: minutes, scope: scope,
                                         usedPercent: min(100, max(0, percent.doubleValue)), resetsAt: end)
             }
-        guard !windows.isEmpty else { return nil }
-        return AgentLimits(provider: .claude, windows: windows, observedAt: observed, source: .account)
     }
 
     /// Expires each window without inventing zero usage after a reset. Remote
