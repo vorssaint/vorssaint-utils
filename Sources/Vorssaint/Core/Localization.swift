@@ -1207,6 +1207,8 @@ struct Strings {
     let cleanerPanelCaption: String
     let cleanerSafeSection: String
     let cleanerOptionalSection: String
+    let cleanerExpandAll: String
+    let cleanerCollapseAll: String
     let cleanerCatOtherCaches: String
     let cleanerCachesCaption: String
     let cleanerLogsCaption: String
@@ -2336,6 +2338,8 @@ extension Strings {
         cleanerPanelCaption: "Restos de apps, caches e logs",
         cleanerSafeSection: "Limpeza segura",
         cleanerOptionalSection: "Opcional, revise antes",
+        cleanerExpandAll: "Expandir tudo",
+        cleanerCollapseAll: "Recolher tudo",
         cleanerCatOtherCaches: "Outros caches",
         cleanerCachesCaption: "Arquivos temporários que os apps refazem sozinhos.",
         cleanerLogsCaption: "Registros antigos de diagnóstico.",
@@ -3466,6 +3470,8 @@ extension Strings {
         cleanerPanelCaption: "App leftovers, caches and logs",
         cleanerSafeSection: "Safe cleanup",
         cleanerOptionalSection: "Optional, review first",
+        cleanerExpandAll: "Expand all",
+        cleanerCollapseAll: "Collapse all",
         cleanerCatOtherCaches: "Other caches",
         cleanerCachesCaption: "Temporary files apps rebuild on their own.",
         cleanerLogsCaption: "Old diagnostic logs.",

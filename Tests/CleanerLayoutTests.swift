@@ -29,6 +29,9 @@ enum CleanerLayoutTests {
         var resultsHeader: some View { Text("Cleaner").padding(12) }
         var resultsFooter: some View { Button("Clean 1.92 GB") {}.padding(12) }
         func items(for group: DisplayGroup) -> [Int] { cleaner.items }
+        func sectionHeader(_ title: String, groups: [DisplayGroup]) -> some View {
+            HStack { Text(title); Spacer(); Button("Expand all") {} }
+        }
         func groupRow(_ group: DisplayGroup) -> some View {
             DisclosureGroup(isExpanded: .constant(expanded)) {
                 ForEach(cleaner.items, id: \.self) { Text("Sample file \($0)").padding(4) }
