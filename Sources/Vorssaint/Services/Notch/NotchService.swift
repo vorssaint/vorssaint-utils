@@ -3480,9 +3480,10 @@ final class NotchService: ObservableObject {
                                                        barHeight: geometry.menuBarHeight, occupied: [])
         // Fitting beside the icons measures them even where the island may
         // cover them, and covers them only where its strip does not fit. It
-        // needs a camera to fit beside and Accessibility to measure; without
-        // either, the choices above apply as they always have.
-        let fitting = NotchSupport.fitsMenuBarRoom() && displayHasMenuBar && geometry.isNotched
+        // needs an island in the menu bar, notched or drawn on a plain display,
+        // and Accessibility to measure; without either, the choices above
+        // apply as they always have.
+        let fitting = NotchSupport.fitsMenuBarRoom() && displayHasMenuBar && !geometry.floats
             && AXIsProcessTrusted()
         let fit = fitting ? NotchMenuBarFit(coverRoom: NotchSupport.coversMenus() ? emptyBarRoom : nil) : nil
         if geometry.menuBarFit != fit {

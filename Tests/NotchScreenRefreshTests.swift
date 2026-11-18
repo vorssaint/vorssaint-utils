@@ -484,8 +484,12 @@ enum NotchScreenRefreshContract {
         simulatedFit.coversMenus = true
         simulatedFit.fitsMenuBarRoom = true
         simulatedFit.syncMenuSpaceMonitoring()
-        suite.expect(simulatedFit.geometry.menuBarFit == nil && simulatedFit.menuSpaceTimer == nil,
-                     "a simulated cutout has no camera to fit beside and keeps covering the menus")
+        let simulatedEmptyBar = NotchMenuBarLayout.sideRoom(screen: simulatedFit.geometry.screen,
+                                                           cameraWidth: simulatedFit.geometry.cameraWidth,
+                                                           barHeight: simulatedFit.geometry.menuBarHeight, occupied: [])
+        suite.expect(simulatedFit.geometry.menuBarFit == NotchMenuBarFit(coverRoom: simulatedEmptyBar)
+                     && simulatedFit.menuSpaceTimer != nil && simulatedFit.reads == 1,
+                     "an island drawn on a display without a notch fits beside the icons too")
 
         let idleSimulated = Service()
         idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
