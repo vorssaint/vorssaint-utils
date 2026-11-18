@@ -308,7 +308,14 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "작게",
         gapMedium: "중간",
         gapLarge: "크게",
-        gapExtraLarge: "아주 크게"
+        gapExtraLarge: "아주 크게",
+        nudgeSection: "픽셀 단위 이동",
+        nudgeCaption: "활성 윈도우를 정확한 픽셀 수만큼 이동합니다. 화면 가장자리 밖으로 일부 이동할 수도 있습니다.",
+        nudgeLeft: "왼쪽으로 %d px 이동",
+        nudgeRight: "오른쪽으로 %d px 이동",
+        nudgeUp: "위로 %d px 이동",
+        nudgeDown: "아래로 %d px 이동",
+        nudgeStep: "1회 이동 픽셀"
     )
 }
 
@@ -1490,6 +1497,13 @@ struct WindowLayoutFeatureStrings {
     let gapMedium: String
     let gapLarge: String
     let gapExtraLarge: String
+    let nudgeSection: String
+    let nudgeCaption: String
+    let nudgeLeft: String
+    let nudgeRight: String
+    let nudgeUp: String
+    let nudgeDown: String
+    let nudgeStep: String
 
     static let enUS = WindowLayoutFeatureStrings(
         title: "Window layout",
@@ -1581,7 +1595,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Small",
         gapMedium: "Medium",
         gapLarge: "Large",
-        gapExtraLarge: "Extra large"
+        gapExtraLarge: "Extra large",
+        nudgeSection: "Move by pixels",
+        nudgeCaption: "Move the active window by an exact number of pixels, even partly past the screen edge.",
+        nudgeLeft: "Move by %d px left",
+        nudgeRight: "Move by %d px right",
+        nudgeUp: "Move by %d px up",
+        nudgeDown: "Move by %d px down",
+        nudgeStep: "Pixels per move"
     )
 
     static let ptBR = WindowLayoutFeatureStrings(
@@ -1674,7 +1695,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeno",
         gapMedium: "Médio",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+        gapExtraLarge: "Extragrande",
+        nudgeSection: "Mover por pixels",
+        nudgeCaption: "Move a janela ativa um número exato de pixels, mesmo que parte dela passe da borda da tela.",
+        nudgeLeft: "Mover %d px para a esquerda",
+        nudgeRight: "Mover %d px para a direita",
+        nudgeUp: "Mover %d px para cima",
+        nudgeDown: "Mover %d px para baixo",
+        nudgeStep: "Pixels por movimento"
     )
 
     static let tr = WindowLayoutFeatureStrings(
@@ -1767,7 +1795,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Küçük",
         gapMedium: "Orta",
         gapLarge: "Büyük",
-        gapExtraLarge: "Çok büyük"
+        gapExtraLarge: "Çok büyük",
+        nudgeSection: "Piksel ile taşı",
+        nudgeCaption: "Etkin pencereyi tam piksel sayısı kadar taşır; pencere kısmen ekran kenarının dışına da çıkabilir.",
+        nudgeLeft: "%d px sola taşı",
+        nudgeRight: "%d px sağa taşı",
+        nudgeUp: "%d px yukarı taşı",
+        nudgeDown: "%d px aşağı taşı",
+        nudgeStep: "Hareket başına piksel"
     )
 
     static let ru = WindowLayoutFeatureStrings(
@@ -1860,7 +1895,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Маленький",
         gapMedium: "Средний",
         gapLarge: "Большой",
-        gapExtraLarge: "Очень большой"
+        gapExtraLarge: "Очень большой",
+        nudgeSection: "Сдвиг на пиксели",
+        nudgeCaption: "Сдвигает активное окно на точное число пикселей, даже частично за край экрана.",
+        nudgeLeft: "Сдвинуть влево на %d px",
+        nudgeRight: "Сдвинуть вправо на %d px",
+        nudgeUp: "Сдвинуть вверх на %d px",
+        nudgeDown: "Сдвинуть вниз на %d px",
+        nudgeStep: "Пикселей за сдвиг"
     )
 
     static let es = WindowLayoutFeatureStrings(
@@ -1953,7 +1995,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Pequeño",
         gapMedium: "Mediano",
         gapLarge: "Grande",
-        gapExtraLarge: "Extragrande"
+        gapExtraLarge: "Extragrande",
+        nudgeSection: "Mover por píxeles",
+        nudgeCaption: "Mueve la ventana activa un número exacto de píxeles, incluso en parte fuera del borde de la pantalla.",
+        nudgeLeft: "Mover %d px a la izquierda",
+        nudgeRight: "Mover %d px a la derecha",
+        nudgeUp: "Mover %d px hacia arriba",
+        nudgeDown: "Mover %d px hacia abajo",
+        nudgeStep: "Píxeles por movimiento"
     )
 
     static let sk = WindowLayoutFeatureStrings(
@@ -2046,7 +2095,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Malá",
         gapMedium: "Stredná",
         gapLarge: "Veľká",
-        gapExtraLarge: "Extra veľká"
+        gapExtraLarge: "Extra veľká",
+        nudgeSection: "Posun o pixely",
+        nudgeCaption: "Posunie aktívne okno o presný počet pixelov, aj čiastočne za okraj obrazovky.",
+        nudgeLeft: "Posunúť o %d px doľava",
+        nudgeRight: "Posunúť o %d px doprava",
+        nudgeUp: "Posunúť o %d px nahor",
+        nudgeDown: "Posunúť o %d px nadol",
+        nudgeStep: "Pixely na posun"
     )
 
     static let de = WindowLayoutFeatureStrings(
@@ -2139,7 +2195,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Klein",
         gapMedium: "Mittel",
         gapLarge: "Groß",
-        gapExtraLarge: "Sehr groß"
+        gapExtraLarge: "Sehr groß",
+        nudgeSection: "Um Pixel verschieben",
+        nudgeCaption: "Verschiebt das aktive Fenster um eine genaue Anzahl Pixel, auch teilweise über den Bildschirmrand hinaus.",
+        nudgeLeft: "Um %d px nach links verschieben",
+        nudgeRight: "Um %d px nach rechts verschieben",
+        nudgeUp: "Um %d px nach oben verschieben",
+        nudgeDown: "Um %d px nach unten verschieben",
+        nudgeStep: "Pixel pro Verschiebung"
     )
 
     static let fr = WindowLayoutFeatureStrings(
@@ -2232,7 +2295,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Petit",
         gapMedium: "Moyen",
         gapLarge: "Grand",
-        gapExtraLarge: "Très grand"
+        gapExtraLarge: "Très grand",
+        nudgeSection: "Déplacer par pixels",
+        nudgeCaption: "Déplace la fenêtre active d’un nombre exact de pixels, même en partie au-delà du bord de l’écran.",
+        nudgeLeft: "Déplacer de %d px à gauche",
+        nudgeRight: "Déplacer de %d px à droite",
+        nudgeUp: "Déplacer de %d px vers le haut",
+        nudgeDown: "Déplacer de %d px vers le bas",
+        nudgeStep: "Pixels par déplacement"
     )
 
     static let it = WindowLayoutFeatureStrings(
@@ -2325,7 +2395,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "Piccolo",
         gapMedium: "Medio",
         gapLarge: "Grande",
-        gapExtraLarge: "Molto grande"
+        gapExtraLarge: "Molto grande",
+        nudgeSection: "Sposta di pixel",
+        nudgeCaption: "Sposta la finestra attiva di un numero esatto di pixel, anche in parte oltre il bordo dello schermo.",
+        nudgeLeft: "Sposta di %d px a sinistra",
+        nudgeRight: "Sposta di %d px a destra",
+        nudgeUp: "Sposta di %d px in alto",
+        nudgeDown: "Sposta di %d px in basso",
+        nudgeStep: "Pixel per spostamento"
     )
 
     static let ja = WindowLayoutFeatureStrings(
@@ -2418,7 +2495,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        nudgeSection: "ピクセル単位で移動",
+        nudgeCaption: "アクティブウインドウを指定したピクセル数だけ移動します。画面の端から一部はみ出す位置にも移動できます。",
+        nudgeLeft: "左へ%d px移動",
+        nudgeRight: "右へ%d px移動",
+        nudgeUp: "上へ%d px移動",
+        nudgeDown: "下へ%d px移動",
+        nudgeStep: "1回の移動量"
     )
 
     static let zhHans = WindowLayoutFeatureStrings(
@@ -2511,7 +2595,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        nudgeSection: "按像素移动",
+        nudgeCaption: "将当前窗口移动精确的像素数，也可以部分移出屏幕边缘。",
+        nudgeLeft: "向左移动 %d px",
+        nudgeRight: "向右移动 %d px",
+        nudgeUp: "向上移动 %d px",
+        nudgeDown: "向下移动 %d px",
+        nudgeStep: "每次移动像素"
     )
 
     static let zhTW = WindowLayoutFeatureStrings(
@@ -2604,7 +2695,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        nudgeSection: "依像素移動",
+        nudgeCaption: "將目前視窗移動精確的像素數，也可以部分移出螢幕邊緣。",
+        nudgeLeft: "向左移動 %d px",
+        nudgeRight: "向右移動 %d px",
+        nudgeUp: "向上移動 %d px",
+        nudgeDown: "向下移動 %d px",
+        nudgeStep: "每次移動像素"
     )
 
     static let zhHK = WindowLayoutFeatureStrings(
@@ -2697,7 +2795,14 @@ struct WindowLayoutFeatureStrings {
         gapSmall: "小",
         gapMedium: "中",
         gapLarge: "大",
-        gapExtraLarge: "特大"
+        gapExtraLarge: "特大",
+        nudgeSection: "依像素移動",
+        nudgeCaption: "將目前視窗移動精確的像素數，也可以部分移出螢幕邊緣。",
+        nudgeLeft: "向左移動 %d px",
+        nudgeRight: "向右移動 %d px",
+        nudgeUp: "向上移動 %d px",
+        nudgeDown: "向下移動 %d px",
+        nudgeStep: "每次移動像素"
     )
 }
 
@@ -3361,7 +3466,14 @@ extension WindowLayoutFeatureStrings {
         gapSmall: "Малий",
         gapMedium: "Середній",
         gapLarge: "Великий",
-        gapExtraLarge: "Дуже великий"
+        gapExtraLarge: "Дуже великий",
+        nudgeSection: "Зсув на пікселі",
+        nudgeCaption: "Зсуває активне вікно на точну кількість пікселів, навіть частково за край екрана.",
+        nudgeLeft: "Зсунути ліворуч на %d px",
+        nudgeRight: "Зсунути праворуч на %d px",
+        nudgeUp: "Зсунути вгору на %d px",
+        nudgeDown: "Зсунути вниз на %d px",
+        nudgeStep: "Пікселів за зсув"
     )
 }
 
