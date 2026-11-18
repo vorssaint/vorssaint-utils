@@ -12,7 +12,8 @@ import Network
 /// memory and in the app's private folder so the next launch reads only what
 /// the agents wrote meanwhile. OpenCode's stay in memory only, and its
 /// database is read again at each launch. Claude Code checks account-wide
-/// limits through its own CLI, including use on other machines. The public
+/// limits through its own CLI, including use on other machines, and OpenCode
+/// Go asks OpenCode's own server with the sign-in OpenCode saved. The public
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
@@ -76,6 +77,13 @@ final class AgentUsageService: ObservableObject {
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
+    private let opencodeLimitsQueue = DispatchQueue(label: "com.vorssaint.opencode-limits", qos: .utility)
+    private var opencodeLimitsRequest: AgentOpenCodeRequest?
+    private var opencodeLimitsAttempted = Date.distantPast
+    private var opencodeLimitsFailure: AgentOpenCodeServer.Failure?
+    /// Checks in a row that OpenCode's server did not answer, counted again
+    /// from zero once the Mac is back online.
+    private var opencodeUnreachable = 0
     /// Whether the Mac has a network, as the reading queue last heard.
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
@@ -147,6 +155,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshOpenCodeLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +169,7 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        cancelOpenCodeLimits()
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,9 +204,13 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        cancelOpenCodeLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
+        opencodeLimitsAttempted = .distantPast
+        opencodeLimitsFailure = nil
+        opencodeUnreachable = 0
         online = true
         paused = false
         session += 1
@@ -255,6 +269,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshOpenCodeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -579,6 +594,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshOpenCodeLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -864,12 +880,78 @@ final class AgentUsageService: ObservableObject {
         claudeAccountUnreachable = failure == .unreachable ? claudeAccountUnreachable + 1 : 0
     }
 
+    // Main thread. Every minute only while the page shows; failures back
+    // off, and looking at the page does not bypass that.
+    func refreshOpenCodeLimits(now: Date = Date(), pageShows: Bool = false) {
+        guard openCodeLimitsDue(at: now, pageShows: pageShows) else { return }
+        opencodeLimitsAttempted = now
+        let request = AgentOpenCodeRequest()
+        opencodeLimitsRequest = request
+        let session = self.session
+        let home = self.home
+        opencodeLimitsQueue.async { [weak self] in
+            request.run(home: home) { result in
+                DispatchQueue.main.async {
+                    guard let self, self.running, !self.paused, self.session == session,
+                          self.opencodeLimitsRequest === request else { return }
+                    self.opencodeLimitsRequest = nil
+                    switch result {
+                    case .failure(let failure): self.noteOpenCodeCheck(failure)
+                    case .success(let summary):
+                        self.noteOpenCodeCheck(nil)
+                        self.queue.async {
+                            guard self.readerSession == session, self.enabled.contains(.opencode) else { return }
+                            self.store.setLimits(summary.limits)
+                            self.checkLimits()
+                            self.schedulePublish()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func cancelOpenCodeLimits() {
+        guard let request = opencodeLimitsRequest else { return }
+        request.cancel()
+        opencodeLimitsRequest = nil
+        // Resume asks again instead of waiting out a cancelled check; with
+        // none in flight, the wait after a failure still holds.
+        opencodeLimitsAttempted = .distantPast
+    }
+
+    /// Never while the feature is off, asleep, offline or already checking,
+    /// nor while nothing shows or alerts on the limits. Main thread.
+    private func openCodeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
+        guard running, !paused, online, providers.contains(.opencode), opencodeLimitsRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        return now.timeIntervalSince(opencodeLimitsAttempted) >= AgentOpenCodeServer.interval(
+            after: opencodeLimitsFailure, repeated: opencodeUnreachable, pageVisible: pageVisible)
+    }
+
+    /// Main thread.
+    private func noteOpenCodeCheck(_ failure: AgentOpenCodeServer.Failure?) {
+        opencodeLimitsFailure = failure
+        opencodeUnreachable = failure == .unreachable ? opencodeUnreachable + 1 : 0
+        // A sign-in gone or refused leaves no reading to show; a server that
+        // did not answer keeps the last known one.
+        guard failure == .expired || failure == .missing else { return }
+        queue.async { [weak self] in
+            guard let self, self.readerSession >= 0 else { return }
+            self.store.clearLimits(.opencode)
+            self.schedulePublish()
+        }
+    }
+
     /// Back online, the checks start over from the shortest wait: those the
     /// network failed say nothing about how Claude Code is set up. Main thread.
     private func networkChanged(online: Bool) {
         guard online != self.online else { return }
         self.online = online
-        if online { claudeAccountUnreachable = 0 }
+        if online {
+            claudeAccountUnreachable = 0
+            opencodeUnreachable = 0
+        }
     }
 
     // MARK: Prices

@@ -125,6 +125,8 @@ struct AgentLimits: Equatable {
         case sessionLog
         /// Asked of the agent on request, which checks the account itself.
         case account
+        /// Asked of OpenCode's server with the sign-in OpenCode saved.
+        case opencodeAccount
     }
 
     let provider: AgentProvider

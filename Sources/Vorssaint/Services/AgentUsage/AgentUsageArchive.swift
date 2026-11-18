@@ -301,6 +301,7 @@ enum AgentUsageArchive {
             case .sessionLog: count(0)
             case .claudeApp: count(1)
             case .account: count(2)
+            case .opencodeAccount: count(3)
             }
         }
 
@@ -466,6 +467,7 @@ enum AgentUsageArchive {
             case 0: source = .sessionLog
             case 1: source = .claudeApp
             case 2: source = .account
+            case 3: source = .opencodeAccount
             default: throw Malformed()
             }
             return AgentLimits(provider: provider, windows: windows, observedAt: observed, source: source)
