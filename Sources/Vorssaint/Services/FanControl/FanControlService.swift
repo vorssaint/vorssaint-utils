@@ -4,6 +4,7 @@
 import AppKit
 import Foundation
 import ServiceManagement
+import os
 
 final class FanControlService: ObservableObject {
     enum AccessState: Equatable {
@@ -31,6 +32,11 @@ final class FanControlService: ObservableObject {
     private var tickCount = 0
     private var registrationAttemptedVersion: String?
     private var observingWorkspace = false
+    private var reapplyAttempt = 0
+    private var reapplyGeneration = 0
+    private var reapplyInProgress = false
+    private var controlHeldSinceUptime: TimeInterval?
+    private let log = Logger(subsystem: FanControlIdentifiers.appBundleID, category: "FanControl")
 
     private static var appService: SMAppService {
         SMAppService.daemon(plistName: FanControlIdentifiers.plistName)
@@ -136,6 +142,12 @@ final class FanControlService: ObservableObject {
             returnToSystem()
             return
         }
+        // Any apply supersedes a pending re-apply; only the user's own
+        // starts the waits over.
+        let automatic = reapplyInProgress
+        reapplyInProgress = false
+        reapplyGeneration += 1
+        if !automatic { reapplyAttempt = 0 }
         guard accessState == .enabled else { authorize(); return }
         guard let encodedConfiguration = FanControlIPC.encode(configuration) else {
             error = .controlFailed
@@ -159,12 +171,15 @@ final class FanControlService: ObservableObject {
             }
             self.apply(response)
             if response.succeeded, response.snapshot.isCooling {
+                self.controlHeldSinceUptime = ProcessInfo.processInfo.systemUptime
                 self.rememberForResume(configuration)
                 self.startTimerIfNeeded()
             } else {
                 self.restoreAutomatic(supersedingCurrentRequest: false,
                                       preserving: response.error ?? .controlFailed,
                                       retrySnapshot: retrySnapshot)
+                // A re-apply that could not start is one more attempt spent.
+                if automatic { self.scheduleReapply() }
             }
         }
     }
@@ -370,6 +385,56 @@ final class FanControlService: ObservableObject {
         UserDefaults.standard.set(stored, forKey: DefaultsKey.fanControlResumeConfiguration)
     }
 
+    // MARK: - Re-apply after a safety stop
+
+    /// The helper ended a running session on its own. With resume on, the
+    /// kept control comes back after a short wait instead of staying with the
+    /// system until the next wake.
+    private func controlDidStop(reason: FanControlStopReason?) {
+        log.notice("Fan control stopped by the helper: \(reason?.rawValue ?? "none", privacy: .public)")
+        guard FanControlReapplyPolicy.isTransientStop(reason) else { return }
+        let uptime = ProcessInfo.processInfo.systemUptime
+        reapplyAttempt = FanControlReapplyPolicy.attempt(
+            after: reapplyAttempt,
+            heldFor: controlHeldSinceUptime.map { uptime - $0 }
+        )
+        controlHeldSinceUptime = nil
+        scheduleReapply()
+    }
+
+    private func scheduleReapply() {
+        guard Self.resumableConfiguration != nil else { return }
+        guard let delay = FanControlReapplyPolicy.delay(attempt: reapplyAttempt) else {
+            log.notice("Fan control keeps stopping; the fans stay with the system")
+            return
+        }
+        reapplyAttempt += 1
+        reapplyAfter(delay)
+    }
+
+    private func reapplyAfter(_ delay: TimeInterval) {
+        reapplyGeneration += 1
+        let generation = reapplyGeneration
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.reapply(generation)
+        }
+    }
+
+    private func reapply(_ generation: Int) {
+        // Returning to System, a newer apply or a wake that already resumed
+        // each leave nothing to do here.
+        guard generation == reapplyGeneration, !snapshot.isCooling,
+              let configuration = Self.resumableConfiguration else { return }
+        guard !isWorking,
+              FanControlReapplyPolicy.thermalStateAllows(ProcessInfo.processInfo.thermalState) else {
+            reapplyAfter(FanControlReapplyPolicy.thermalRecheck)
+            return
+        }
+        log.notice("Re-applying fan control, attempt \(self.reapplyAttempt, privacy: .public)")
+        reapplyInProgress = true
+        if !resume(configuration) { reapplyInProgress = false }
+    }
+
     // MARK: - Requests
 
     private func requestStatus() {
@@ -464,8 +529,10 @@ final class FanControlService: ObservableObject {
     }
 
     private func apply(_ response: FanControlResponse) {
+        let wasCooling = snapshot.isCooling
         snapshot = response.snapshot
         error = response.error
+        if wasCooling, !snapshot.isCooling { controlDidStop(reason: snapshot.stopReason) }
     }
 
     private func beginRequest() -> Int {

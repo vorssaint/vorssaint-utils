@@ -26,3 +26,45 @@ extension FanControlConfiguration {
         return configuration
     }
 }
+
+/// What the app does after the helper hands the fans back on its own. The
+/// helper never restarts a session it stopped, by design, so without this a
+/// single safety stop in the middle of a game left the fans with the system
+/// until the next wake or app launch.
+enum FanControlReapplyPolicy {
+    /// Waits before each consecutive attempt. Running out leaves the fans
+    /// with the system: a stop that keeps coming back is not transient.
+    static let delays: [TimeInterval] = [5, 15, 30, 60, 120]
+    /// Control that held this long counts as healthy, and the next stop
+    /// starts again from the first wait.
+    static let settledAfter: TimeInterval = 300
+    /// How often a re-apply held back by thermal pressure looks again.
+    static let thermalRecheck: TimeInterval = 15
+
+    /// Stops the helper decides alone while the app still wants control. A
+    /// time limit, a closed app and the cleanup after a crash are final.
+    static func isTransientStop(_ reason: FanControlStopReason?) -> Bool {
+        switch reason {
+        case .hardwareChanged, .temperatureUnavailable, .thermalPressure, .heartbeatLost:
+            return true
+        case .timeLimit, .appDisconnected, .recovery, .none:
+            return false
+        }
+    }
+
+    static func delay(attempt: Int) -> TimeInterval? {
+        delays.indices.contains(attempt) ? delays[attempt] : nil
+    }
+
+    /// The attempt count to continue from when control stops again.
+    static func attempt(after previous: Int, heldFor: TimeInterval?) -> Int {
+        guard let heldFor, heldFor >= settledAfter else { return previous }
+        return 0
+    }
+
+    /// The helper drops control under serious thermal pressure, so asking
+    /// again before it clears would only start and stop the fans.
+    static func thermalStateAllows(_ state: ProcessInfo.ThermalState) -> Bool {
+        state == .nominal || state == .fair
+    }
+}
