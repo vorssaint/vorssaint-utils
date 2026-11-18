@@ -2519,6 +2519,11 @@ enum PointerInputFeatureTests {
                 && !SuperKeySupport.hasNativeCapsLock(in: [["unrecognized": 1]])
                 && !SuperKeySupport.hasNativeCapsLock(in: "unrecognized"),
                "a keyboard must have a native Caps Lock before its lock is cleared during repair")
+        suite.expect(SuperKeySupport.soloEffect(action: .fixLayout, longHold: false, repeated: false) == .fixLayout
+                && SuperKeySupport.soloEffect(action: .fixLayout, longHold: false, repeated: true) == .none
+                && SuperKeySupport.soloEffect(action: .fixLayout, longHold: true, repeated: false) == .none
+                && SuperKeySoloAction.sanitized("fixLayout") == .fixLayout,
+               "the layout fix action runs on a quick tap only, never on a hold or a repeat")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",

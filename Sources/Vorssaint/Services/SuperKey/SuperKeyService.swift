@@ -21,6 +21,8 @@ import IOKit.hidsystem
 /// either, so the source is never left as a key that does nothing.
 final class SuperKeyService: ObservableObject {
     static let shared = SuperKeyService()
+    /// Runs the "Fix layout" solo action; set at launch by Layout Fix.
+    static var fixLayout: (() -> Void)?
 
     /// True while the key is actually working: tap up and mapping applied.
     @Published private(set) var isRunning = false
@@ -833,6 +835,8 @@ final class SuperKeyService: ObservableObject {
             // in flight, and hopping to main (or waiting on Accessibility) left
             // that character in the old source.
             Self.selectNextInputSource()
+        case .fixLayout:
+            DispatchQueue.main.async { Self.fixLayout?() }
         }
     }
 

@@ -148,6 +148,7 @@ enum SuperKeyTapContract {
         func runOnMainIfNeeded(_ work: @escaping () -> Void) { Queue.main.async(execute: work) }
         static func postKey(_ code: CGKeyCode) -> Bool { true }
         static func selectNextInputSource() { inputSourceChanges += 1 }
+        static var fixLayout: (() -> Void)?
     }
     class RecordingState {
         typealias DispatchQueue = Queue
