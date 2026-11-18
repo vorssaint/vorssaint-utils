@@ -290,9 +290,10 @@ final class NotchService: ObservableObject {
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private let menuBarGap = NotchMenuBarGapItem()
-    /// The widest the island has wanted to be at rest for what it shows now,
-    /// so a reading that shortens does not move the gap back and forth.
-    private var menuBarGapWidth: (activity: NotchCompactActivity?, width: CGFloat)?
+    /// When a gap wider than the strip needs may follow it, and the check
+    /// that comes back then.
+    private var menuBarGapShrinkAt: Date?
+    private var menuBarGapShrinkWork: DispatchWorkItem?
     private var appFullscreenTimer: Timer?
     private var appFullscreenDisplays: Set<CGDirectDisplayID> = []
     /// Whether a full-screen Space, not an app's own full screen, hides the island.
@@ -1332,7 +1333,8 @@ final class NotchService: ObservableObject {
         sectionScroll = NotchSectionScroll()
         stopMenuSpaceMonitoring()
         menuBarGap.hide()
-        menuBarGapWidth = nil
+        menuBarGapShrinkWork?.cancel(); menuBarGapShrinkWork = nil
+        menuBarGapShrinkAt = nil
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
@@ -3477,22 +3479,28 @@ final class NotchService: ObservableObject {
     }
 
     /// Keeps the status items out from under the island at rest: an empty
-    /// status item as wide as the island would be over an empty bar, with
-    /// what it shows now, so the items it would cover move to its left. The
-    /// strip then fits only to what the app's menus leave. Measured with the
-    /// widest the island has wanted for the same activity, and moved only
-    /// past the gap's own threshold, since each move lays out the menu bar.
+    /// status item under the strip as it is drawn now, or as it would be over
+    /// an empty bar where fitting holds it narrower, so the items it would
+    /// cover move to its left and the strip can grow back. The strip then
+    /// fits only to what the app's menus leave. A wider strip moves the gap
+    /// at once; a narrower one only once it has stayed narrower, since each
+    /// move lays out the whole menu bar.
     private func syncMenuBarGap() {
         var emptyBar = geometry
         emptyBar.menuBarFit = nil
         emptyBar.compactSideRoom = NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                                barHeight: geometry.menuBarHeight, occupied: [])
         let activity = compactActivity
-        let wanted = activity != nil
-            ? compactGeometry(for: activity, companion: compactCompanion, base: emptyBar).compactActivitySize.width
-            : emptyBar.restingSize(showsContent: idleContent != .none || mascotShows(on: emptyBar)).width
-        let width = menuBarGapWidth.map { $0.activity == activity ? max($0.width, wanted) : wanted } ?? wanted
-        menuBarGapWidth = (activity, width)
+        let wanted: CGFloat
+        let drawn: CGFloat
+        if activity != nil {
+            wanted = compactGeometry(for: activity, companion: compactCompanion, base: emptyBar).compactActivitySize.width
+            drawn = compactActivityGeometry.compactActivitySize.width
+        } else {
+            wanted = emptyBar.restingSize(showsContent: idleContent != .none || mascotShows(on: emptyBar)).width
+            drawn = geometry.restingSize(showsContent: idleContent != .none || mascotShows(on: geometry)).width
+        }
+        let width = max(wanted, drawn)
         // A cutout drawn on a plain display shows only while the menus leave
         // it room, or while it may cover them.
         let hidden = hiddenInFullscreen || hiddenUntilHover || (!geometry.isNotched && geometry.compactSideRoom == nil)
@@ -3500,11 +3508,33 @@ final class NotchService: ObservableObject {
                                     hidden: hidden, floats: geometry.floats, displayHasMenuBar: displayHasMenuBar,
                                     isNotched: geometry.isNotched, islandWidth: width,
                                     cameraWidth: geometry.cameraWidth),
-              let gap = NotchMenuBarGap.under(island: width, screen: geometry.screen,
+              let gap = NotchMenuBarGap.under(island: width, surfaceShift: expanded ? 0 : surfaceShift,
+                                              screen: geometry.screen,
                                               notchWidth: geometry.isNotched ? geometry.cameraWidth : nil) else {
+            menuBarGapShrinkWork?.cancel(); menuBarGapShrinkWork = nil
+            menuBarGapShrinkAt = nil
             menuBarGap.hide(); return
         }
-        menuBarGap.show(gap)
+        switch NotchMenuBarGap.change(from: menuBarGap.gap, to: gap) {
+        case .keep:
+            menuBarGapShrinkWork?.cancel(); menuBarGapShrinkWork = nil
+            menuBarGapShrinkAt = nil
+        case .recreate:
+            menuBarGapShrinkWork?.cancel(); menuBarGapShrinkWork = nil
+            menuBarGapShrinkAt = nil
+            menuBarGap.place(gap)
+        case .shrinkLater:
+            if let due = menuBarGapShrinkAt, Date() >= due {
+                menuBarGapShrinkAt = nil
+                menuBarGapShrinkWork = nil
+                menuBarGap.place(gap)
+            } else if menuBarGapShrinkAt == nil {
+                menuBarGapShrinkAt = Date().addingTimeInterval(NotchMenuBarGap.shrinkDelay)
+                let work = DispatchWorkItem { [weak self] in self?.syncMenuBarGap() }
+                menuBarGapShrinkWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + NotchMenuBarGap.shrinkDelay + 0.05, execute: work)
+            }
+        }
     }
 
     private func syncMenuSpaceMonitoring() {
@@ -3591,6 +3621,7 @@ final class NotchService: ObservableObject {
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
         let gapWindow = menuBarGap.windowNumber
+        let gapFrame = menuBarGap.frame ?? menuBarGap.gap?.frame(on: geometry.screen, barHeight: geometry.menuBarHeight)
         let timeout = DispatchWorkItem { [weak self] in
             guard let self, self.menuSpaceTimer != nil, self.menuSpaceReading else { return }
             self.applyMeasuredMenuSpace(nil)
@@ -3598,7 +3629,8 @@ final class NotchService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: timeout)
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
-                                                primaryTop: primaryTop, ownWindow: window, gapWindow: gapWindow)
+                                                primaryTop: primaryTop, ownWindow: window, gapWindow: gapWindow,
+                                                gapFrame: gapFrame)
             DispatchQueue.main.async {
                 timeout.cancel()
                 guard let self else { return }

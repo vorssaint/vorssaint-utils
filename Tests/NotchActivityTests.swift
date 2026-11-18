@@ -130,10 +130,36 @@ enum NotchActivityTests {
                      "an island no wider than the notch leaves the status items where they are")
 
         let placed = NotchMenuBarGap(position: 800, length: 320)
-        suite.expect(!placed.needsRecreating(for: NotchMenuBarGap(position: 806, length: 328))
-                     && placed.needsRecreating(for: NotchMenuBarGap(position: 791, length: 320))
-                     && placed.needsRecreating(for: NotchMenuBarGap(position: 800, length: 329)),
-                     "the gap moves only past eight points, so the bar is not laid out again for a reading")
+        suite.expect(NotchMenuBarGap.change(from: nil, to: placed) == .recreate,
+                     "an island with no gap yet places one")
+        suite.expect(NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 794, length: 330)) == .keep
+                     && NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 806, length: 310)) == .keep,
+                     "within eight points the gap stays, so the bar is not laid out again for a reading")
+        suite.expect(NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 791, length: 338)) == .recreate
+                     && NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 800, length: 329)) == .recreate,
+                     "a strip growing past the gap on either side moves it at once")
+        suite.expect(NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 820, length: 280)) == .shrinkLater
+                     && NotchMenuBarGap.change(from: placed, to: NotchMenuBarGap(position: 800, length: 300)) == .shrinkLater,
+                     "a narrower strip lets the gap follow only later")
+        suite.expect(NotchMenuBarGap.shrinkDelay == 3, "a narrower strip has to stay narrower for three seconds")
+
+        // Measured over Accessibility, the gap is one of the island's own status items.
+        let bar = CGRect(x: 0, y: 1056, width: 1920, height: 24)
+        let gapFrame = placed.frame(on: plain, barHeight: 24)
+        suite.expect(gapFrame == CGRect(x: 800, y: 1056, width: 320, height: 24),
+                     "the gap's frame follows from its position and length")
+        let main = CGRect(x: 1700, y: bar.minY, width: 28, height: 24)
+        let obs = CGRect(x: 1121, y: bar.minY, width: 30, height: 24)
+        let drawnGap = CGRect(x: 801, y: bar.minY, width: 319, height: 24)
+        suite.expect(NotchMenuBarGap.removing(drawnGap, from: [main, drawnGap, obs]) == [main, obs],
+                     "measuring leaves out the gap, and keeps the island's own icon and the others")
+        suite.expect(NotchMenuBarGap.removing(nil, from: [main, obs]) == [main, obs],
+                     "with no gap every status item counts")
+        let room = NotchMenuBarLayout.sideRoom(screen: plain, cameraWidth: 180, barHeight: 24,
+                                               occupied: NotchMenuBarGap.removing(drawnGap, from: [drawnGap, obs]))
+        suite.expect(NotchMenuBarLayout.sideRoom(screen: plain, cameraWidth: 180, barHeight: 24, occupied: [drawnGap]) == nil
+                     && room == 1121 - 8 - (960 + 90),
+                     "the gap over the camera would leave no room; without it the room runs to the next icon")
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,

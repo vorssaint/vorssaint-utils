@@ -6,9 +6,11 @@ import ApplicationServices
 
 /// Geometry only: never reads menu titles, opens menus or requests permission.
 /// Run off-main. Missing geometry fails closed rather than covering a menu.
+/// The island's own gap status item, by window or by frame, is no menu to
+/// give way to.
 enum NotchMenuBarSpace {
     static func measure(pid: pid_t, geometry: NotchGeometry, primaryTop: CGFloat,
-                        ownWindow: Int, gapWindow: Int = -1,
+                        ownWindow: Int, gapWindow: Int = -1, gapFrame: CGRect? = nil,
                         hasAccessibility: () -> Bool = AXIsProcessTrusted) -> CGFloat? {
         guard hasAccessibility() else { return nil }
         let reader = NotchMenuBarAXReader(primaryTop: primaryTop)
@@ -40,7 +42,8 @@ enum NotchMenuBarSpace {
               reader.timeRemaining > 0 else { return nil }
         return NotchMenuBarLayout.measuredSideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
                                                    barHeight: geometry.menuBarHeight, menuItems: menuItems,
-                                                   statusItems: measured, physicalCamera: geometry.physicalCamera)
+                                                   statusItems: NotchMenuBarGap.removing(gapFrame, from: measured),
+                                                   physicalCamera: geometry.physicalCamera)
     }
 }
 

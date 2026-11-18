@@ -19,10 +19,16 @@ final class NotchMenuBarGapItem {
         return number
     }
 
+    /// Where the gap is drawn, for measurements to leave out; nil before
+    /// macOS has placed it.
+    var frame: CGRect? {
+        guard let frame = item?.button?.window?.frame, frame.width > 0, frame.minY > 0 else { return nil }
+        return frame
+    }
+
     /// macOS reads a status item's position only as it appears, so a gap
-    /// that has to move is created again. Small changes keep the one there.
-    func show(_ wanted: NotchMenuBarGap) {
-        if item != nil, let gap, !gap.needsRecreating(for: wanted) { return }
+    /// that has to move is created again.
+    func place(_ wanted: NotchMenuBarGap) {
         hide()
         let name = NotchMenuBarGap.autosaveName
         let defaults = UserDefaults.standard

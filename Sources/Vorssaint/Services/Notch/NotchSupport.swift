@@ -3232,6 +3232,18 @@ struct NotchMenuBarGap: Equatable {
     /// Smaller changes keep the gap where it is, since a new one lays out
     /// the whole menu bar again.
     static let recreateThreshold: CGFloat = 8
+    /// How long a strip stays narrower before its gap follows, so a reading
+    /// that shortens for a moment does not lay out the bar twice.
+    static let shrinkDelay: TimeInterval = 3
+
+    enum Change: Equatable {
+        /// The gap in place already clears the strip.
+        case keep
+        /// The strip reaches past the gap: place a new one now.
+        case recreate
+        /// The gap is wider than the strip needs: follow it once that lasts.
+        case shrinkLater
+    }
 
     /// Points from the display's right edge to the gap's right end.
     var position: CGFloat
@@ -3262,8 +3274,34 @@ struct NotchMenuBarGap: Equatable {
         return isNotched ? islandWidth > cameraWidth + 1 : islandWidth > 0
     }
 
-    func needsRecreating(for wanted: NotchMenuBarGap) -> Bool {
-        abs(wanted.position - position) > Self.recreateThreshold || abs(wanted.length - length) > Self.recreateThreshold
+    /// Where the gap ends on the left, in points from the display's right edge.
+    private var reach: CGFloat { position + length }
+
+    /// The strip may grow past the gap at once and shrink inside it only
+    /// later, each by more than the threshold.
+    static func change(from current: NotchMenuBarGap?, to wanted: NotchMenuBarGap) -> Change {
+        guard let current else { return .recreate }
+        if wanted.position < current.position - recreateThreshold || wanted.reach > current.reach + recreateThreshold {
+            return .recreate
+        }
+        if wanted.position > current.position + recreateThreshold || wanted.reach < current.reach - recreateThreshold {
+            return .shrinkLater
+        }
+        return .keep
+    }
+
+    /// The gap as it sits on `screen`, in the screen coordinates the menus
+    /// are measured in.
+    func frame(on screen: CGRect, barHeight: CGFloat) -> CGRect {
+        CGRect(x: screen.maxX - reach, y: screen.maxY - barHeight, width: length, height: barHeight)
+    }
+
+    /// Status items measured over Accessibility include the gap itself,
+    /// which lies over the camera and would leave the island no room at
+    /// all. Only an item at the gap's place and of its width is the gap.
+    static func removing(_ gap: CGRect?, from frames: [CGRect]) -> [CGRect] {
+        guard let gap, !gap.isEmpty else { return frames }
+        return frames.filter { abs($0.minX - gap.minX) > 3 || abs($0.width - gap.width) > 3 }
     }
 }
 
