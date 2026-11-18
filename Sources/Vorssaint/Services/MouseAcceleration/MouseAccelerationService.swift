@@ -5,8 +5,8 @@ import AppKit
 import Foundation
 import HIDEventSystem
 
-/// Applies macOS's per-device linear pointer mode to ordinary mouse devices.
-/// Trackpads are deliberately excluded.
+/// Applies macOS's per-device linear pointer mode and a pointer speed to
+/// ordinary mouse devices. Trackpads are deliberately excluded.
 final class MouseAccelerationService {
     static let shared = MouseAccelerationService()
 
@@ -44,9 +44,18 @@ final class MouseAccelerationService {
     }
 
     private var featureWanted: Bool {
-        AppFeature.mouseAcceleration.isAvailable
-            && defaults.bool(forKey: DefaultsKey.mouseAccelerationDisabled)
+        AppFeature.mouseAcceleration.isAvailable && (accelerationWanted || speedWanted)
     }
+
+    private var accelerationWanted: Bool {
+        defaults.bool(forKey: DefaultsKey.mouseAccelerationDisabled)
+    }
+
+    private var speed: Int {
+        MouseAccelerationSupport.sanitizedSpeed(defaults.integer(forKey: DefaultsKey.mousePointerSpeed))
+    }
+
+    private var speedWanted: Bool { speed != MouseAccelerationSupport.defaultSpeed }
 
     private func startIfAllowed() {
         guard featureWanted, sessionIsActive, systemIsAwake else {
@@ -58,14 +67,14 @@ final class MouseAccelerationService {
 
     private func start() {
         if client != nil {
-            applyLinearMode()
+            applyMouseSettings()
             return
         }
         let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
         _ = MouseAccelerationRecovery.restorePending(using: client)
         self.client = client
         startDeviceObservation()
-        applyLinearMode()
+        applyMouseSettings()
         scheduleDeviceReapplication()
     }
 
@@ -89,46 +98,34 @@ final class MouseAccelerationService {
         return !hasPendingRecovery
     }
 
-    private func applyLinearMode() {
+    private func applyMouseSettings() {
         guard let client,
               let services = MouseAccelerationRecovery.services(using: client),
               var journal = MouseAccelerationRecovery.journalForMutation() else {
             return
         }
-
         for service in services where MouseAccelerationRecovery.isMouse(service) {
             guard let id = MouseAccelerationRecovery.registryID(of: service),
                   let identity = MouseAccelerationRecovery.identity(of: service) else { continue }
-
-            let entry: MouseAccelerationRecoveryEntry
-            if let existing = journal.entry(registryID: id, identity: identity) {
-                entry = existing
-            } else {
-                let unresolvedIdentity = identity.canMatchAcrossRegistryIDs
-                    && journal.entries.contains { $0.identity.matches(identity) }
-                guard !journal.entries.contains(where: { $0.registryID == id }),
-                      !unresolvedIdentity,
-                      ensureRecoveryGuard(),
-                      let captured = MouseAccelerationRecovery.captureEntry(
-                          for: service,
-                          registryID: id,
-                          identity: identity
-                      ),
-                      MouseAccelerationRecovery.record(captured, in: &journal) else {
-                    continue
+            // Without linear mode, turning acceleration off takes over the
+            // value speed would scale, so acceleration wins on those mice.
+            let speedApplies = speedWanted
+                && (!accelerationWanted || MouseAccelerationRecovery.supportsLinearMode(service))
+            let wanted: [(MouseAccelerationSlot, Bool)] = [(.acceleration, accelerationWanted),
+                                                           (.speed, speedApplies)]
+            // Put back what is no longer wanted first, so a setting captured
+            // next always saves the mouse's own value, never the other's.
+            for (slot, isWanted) in wanted where !isWanted {
+                if let saved = journal.entry(registryID: id, identity: identity, slot: slot),
+                   MouseAccelerationRecovery.restore(saved, on: service) {
+                    _ = MouseAccelerationRecovery.remove(registryID: id, slot: slot, from: &journal)
                 }
-                entry = captured
             }
-
-            guard ensureRecoveryGuard() else {
-                pauseAndRestore()
-                return
-            }
-            guard MouseAccelerationRecovery.applyTarget(for: entry, to: service) else {
-                if MouseAccelerationRecovery.restore(entry, on: service) {
-                    _ = MouseAccelerationRecovery.remove(registryID: id, from: &journal)
+            for (slot, isWanted) in wanted where isWanted {
+                guard apply(slot, to: service, id: id, identity: identity, journal: &journal) else {
+                    pauseAndRestore()
+                    return
                 }
-                continue
             }
         }
 
@@ -136,6 +133,55 @@ final class MouseAccelerationService {
             _ = recoveryGuard.stop()
             self.recoveryGuard = nil
         }
+    }
+
+    /// Saves the mouse's own value for `slot` once, then writes the target.
+    /// Returns false only when recovery can no longer be guaranteed.
+    private func apply(_ slot: MouseAccelerationSlot,
+                       to service: IOHIDServiceClient,
+                       id: UInt64,
+                       identity: MouseAccelerationDeviceIdentity,
+                       journal: inout MouseAccelerationRecoveryJournal) -> Bool {
+        let entry: MouseAccelerationRecoveryEntry
+        if let existing = journal.entry(registryID: id, identity: identity, slot: slot) {
+            entry = existing
+        } else {
+            let unresolvedIdentity = identity.canMatchAcrossRegistryIDs
+                && journal.entries.contains { $0.slot == slot && $0.identity.matches(identity) }
+            guard !journal.entries.contains(where: { $0.registryID == id && $0.slot == slot }),
+                  !unresolvedIdentity,
+                  ensureRecoveryGuard() else { return true }
+            let captured: MouseAccelerationRecoveryEntry
+            switch slot {
+            case .acceleration:
+                guard let value = MouseAccelerationRecovery.captureEntry(for: service,
+                                                                         registryID: id,
+                                                                         identity: identity) else { return true }
+                captured = value
+            case .speed:
+                guard let value = MouseAccelerationRecovery.captureSpeedEntry(for: service,
+                                                                              registryID: id,
+                                                                              identity: identity) else { return true }
+                captured = value
+            }
+            guard MouseAccelerationRecovery.record(captured, in: &journal) else { return true }
+            entry = captured
+        }
+
+        guard ensureRecoveryGuard() else { return false }
+        let applied: Bool
+        switch slot {
+        case .acceleration:
+            applied = MouseAccelerationRecovery.applyTarget(for: entry, to: service)
+        case .speed:
+            applied = MouseAccelerationRecovery.apply(
+                MouseAccelerationSupport.speedTarget(original: entry.original, speed: speed),
+                for: entry, to: service)
+        }
+        if !applied, MouseAccelerationRecovery.restore(entry, on: service) {
+            _ = MouseAccelerationRecovery.remove(registryID: id, slot: slot, from: &journal)
+        }
+        return true
     }
 
     private func ensureRecoveryGuard() -> Bool {
@@ -171,7 +217,7 @@ final class MouseAccelerationService {
             self.client = client
             _ = MouseAccelerationRecovery.restorePending(using: client,
                                                           preservingConnectedEntries: true)
-            self.applyLinearMode()
+            self.applyMouseSettings()
             self.scheduleDeviceReapplication(for: token)
         }
         reapplyWork = work

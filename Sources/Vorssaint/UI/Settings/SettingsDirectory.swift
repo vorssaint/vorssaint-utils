@@ -405,7 +405,7 @@ enum SettingsDirectory {
                                         (.smoothScroll, [s.smoothScrollName]),
                                         (.linearScroll, [s.linearScrollName, s.linearScrollLinesLabel]),
                                         (.scrollSpeed, [s.scrollSpeedName, s.scrollSpeedMultiplierLabel]),
-                                        (.mouseAcceleration, [s.mouseAccelerationName]),
+                                        (.mouseAcceleration, [s.mouseAccelerationName, s.mousePointerSpeedLabel]),
                                         (.mouseNavigation, [s.mouseNavigationEnable, s.mouseNavigationSection]),
                                         (.mouseButtonShortcuts,
                                          [FeatureStrings.mouseButtons(language).pageTitle,
