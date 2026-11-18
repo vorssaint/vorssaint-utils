@@ -1965,7 +1965,8 @@ private struct CaptureGuideView: View {
                 Text(subtitle)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.85)
             }
             Spacer(minLength: 8)
             HStack(spacing: 7) {
@@ -2008,7 +2009,7 @@ private struct CaptureGuideView: View {
     private var subtitle: String {
         let base = requiresDraggedRegion || scrollingCaptureEnabled
             ? strings.scrollingCaptureSelectionHint
-            : isFrozen ? strings.freezeCaption
+            : isFrozen ? strings.frozenSelectionHint
             : purpose?.isEmpty == false
             ? strings.hintDrag + "  ·  " + strings.hintClick
             : strings.hintClick
@@ -2058,8 +2059,9 @@ private struct UnifiedCaptureGuideContent: View {
             Text(subtitle)
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .help(options.selectedTool == .text ? l10n.s.ocrCaption : subtitle)
             if options.availableTools.count > 1 {
                 CaptureKeyHint(key: options.availableTools.map(\.shortcutKey).joined(separator: " "), icon: "keyboard")
             }
@@ -2183,8 +2185,7 @@ private struct UnifiedCaptureGuideContent: View {
         switch options.selectedTool {
         case .screenshot:
             if scrollingCaptureEnabled { return strings.scrollingCaptureSelectionHint }
-            if isFrozen { return strings.freezeCaption }
-            let base = strings.hintDrag + "  ·  " + strings.hintClick
+            let base = isFrozen ? strings.frozenSelectionHint : strings.hintDrag + "  ·  " + strings.hintClick
             guard offersScrollingCapture else { return base }
             return base + "  ·  " + strings.scrollingCaptureHintOff
         case .scrolling:
@@ -2193,7 +2194,7 @@ private struct UnifiedCaptureGuideContent: View {
             return FeatureStrings.recorder(l10n.language).selectionPurpose
                 + "  ·  " + strings.hintDrag + "  ·  " + strings.hintClick
         case .text:
-            return isFrozen ? strings.freezeCaption : l10n.s.ocrCaption
+            return isFrozen ? l10n.s.ocrName + "  ·  " + strings.frozenSelectionHint : l10n.s.ocrCaption
         case .color:
             return l10n.s.colorPickerCaption
         }
