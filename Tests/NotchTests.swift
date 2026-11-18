@@ -1736,6 +1736,55 @@ enum NotchTests {
                "stopping the island releases its shortcut")
     }
 
+    private static func restingGlassContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-resting-glass"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.register(defaults: Defaults.registeredDefaults)
+        suite.expect(!NotchRestingGlass.isEnabled(in: defaults, reduceTransparency: false)
+                && NotchRestingGlass.tint(in: defaults) == NotchRestingGlass.defaultTint
+                && NotchRestingGlass.frost(in: defaults) == NotchRestingGlass.defaultFrost,
+               "the closed island stays black until resting glass is turned on")
+        defaults.set(true, forKey: DefaultsKey.notchRestingGlass)
+        suite.expect(NotchRestingGlass.isEnabled(in: defaults, reduceTransparency: false)
+                && !NotchRestingGlass.isEnabled(in: defaults, reduceTransparency: true),
+               "resting glass follows its switch and yields to Reduce Transparency")
+        defaults.set(0, forKey: DefaultsKey.notchRestingGlassTint)
+        defaults.set(0, forKey: DefaultsKey.notchRestingGlassFrost)
+        suite.expect(NotchRestingGlass.tint(in: defaults) == 0 && NotchRestingGlass.frost(in: defaults) == 0,
+               "a fully clear island keeps zero tint and zero frost")
+        defaults.set(1.7, forKey: DefaultsKey.notchRestingGlassTint)
+        defaults.set(-0.4, forKey: DefaultsKey.notchRestingGlassFrost)
+        suite.expect(NotchRestingGlass.tint(in: defaults) == 1 && NotchRestingGlass.frost(in: defaults) == 0,
+               "stored levels outside 0...1 are clamped")
+        let hovered = NotchRestingGlass.surface(tint: 0, frost: 0, pointerOver: true)
+        let resting = NotchRestingGlass.surface(tint: 0, frost: 0, pointerOver: false)
+        suite.expect(hovered.tint == NotchRestingGlass.hoverTint && hovered.frost == 1
+                && resting.tint == 0 && resting.frost == 0
+                && NotchRestingGlass.surface(tint: 0.9, frost: 0.2, pointerOver: true).tint == 0.9,
+               "hovering darkens light glass to readable frosted glass and never lightens a darker one")
+        suite.expect(NotchRestingGlass.level(.nan, fallback: 0.35) == 0.35
+                && NotchRestingGlass.level(.infinity, fallback: 1) == 1,
+               "a level that is not a number falls back")
+        let keys: Set<String> = [DefaultsKey.notchRestingGlass, DefaultsKey.notchRestingGlassTint,
+                                 DefaultsKey.notchRestingGlassFrost]
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: keys),
+               "resting glass and its levels travel in backup")
+
+        suite.expect(NotchRestingBrightness.level(in: defaults) == NotchRestingBrightness.full,
+               "the closed island's content starts at full brightness")
+        defaults.set(0.4, forKey: DefaultsKey.notchRestingBrightness)
+        suite.expect(NotchRestingBrightness.opacity(level: NotchRestingBrightness.level(in: defaults), awake: false) == 0.4
+                && NotchRestingBrightness.opacity(level: NotchRestingBrightness.level(in: defaults), awake: true) == 1,
+               "dimmed content rests dim and returns to full brightness on hover or when the island opens")
+        suite.expect(NotchRestingBrightness.level(0) == NotchRestingBrightness.range.lowerBound
+                && NotchRestingBrightness.level(3) == 1 && NotchRestingBrightness.level(.nan) == 1,
+               "resting brightness never hides the content and ignores values that are not numbers")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchRestingBrightness),
+               "resting brightness travels in backup")
+    }
+
     static func run(_ suite: TestSuite) {
         shortcutContracts(suite)
         let previewStrip: CGFloat = 37
@@ -1758,6 +1807,7 @@ enum NotchTests {
         }
         suite.expect(stripIsBlack(islandHeight: previewStrip + 62) && stripIsBlack(islandHeight: 400),
                "the strip stays black at every island height, tall or at the preview's")
+        restingGlassContracts(suite)
 
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
