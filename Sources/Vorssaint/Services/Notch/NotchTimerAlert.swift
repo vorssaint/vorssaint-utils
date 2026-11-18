@@ -54,6 +54,13 @@ final class NotchTimerAlert {
         stopSound()
     }
 
+    /// Automatically advancing phases announce the boundary once, without an
+    /// alarm continuing into the next focus session or break.
+    func chime(enabled: Bool) {
+        stop()
+        if enabled { sound() }
+    }
+
     func stop() {
         suspend()
         deadline = nil
