@@ -202,6 +202,7 @@ enum MenuBarSegment {
     case usageBarBlock(label: String, fraction: Double?, style: MenuBarBlockStyle, pressure: MemoryPressure?)
     case networkBlock(down: String, up: String, style: MenuBarBlockStyle)
     case diskActivityBlock(read: String, write: String, style: MenuBarBlockStyle)
+    case fanBlock(speeds: [String], style: MenuBarBlockStyle)
     case batteryBlock(percent: Int, isCharging: Bool, externalConnected: Bool,
                       warning: BatteryWarning = .none, style: MenuBarBlockStyle)
     case dot(MemoryPressure)
@@ -589,7 +590,11 @@ enum MenuBarRenderer {
                                                 pressure: nil)])
                 }
             case .fanSpeed:
-                if let value = FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds) {
+                let stacked = UserDefaults.standard.bool(forKey: DefaultsKey.menuBarFanStacked)
+                if FanControlPolicy.menuBarStacksFans(snapshot.fanSpeeds, stacked: stacked),
+                   let lines = FanControlPolicy.menuBarLines(for: snapshot.fanSpeeds) {
+                    groups.append([.fanBlock(speeds: lines, style: style)])
+                } else if let value = FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds) {
                     let minimumValue = Array(repeating: "20000", count: snapshot.fanSpeeds.count)
                         .joined(separator: "/")
                     groups.append([.metricBlock(label: "RPM",
@@ -745,6 +750,8 @@ enum MenuBarRenderer {
                 result.append(networkBlockAttachment(down: down, up: up, style: style))
             case let .diskActivityBlock(read, write, style):
                 result.append(diskActivityBlockAttachment(read: read, write: write, style: style))
+            case let .fanBlock(speeds, style):
+                result.append(fanBlockAttachment(speeds: speeds, style: style))
             case let .batteryBlock(percent, isCharging, externalConnected, warning, style):
                 result.append(batteryBlockAttachment(percent: percent,
                                                      isCharging: isCharging,
@@ -844,6 +851,17 @@ enum MenuBarRenderer {
                                                     write: String,
                                                     style: MenuBarBlockStyle) -> NSAttributedString {
         let image = diskActivityBlockImage(read: read, write: write, style: style)
+        let attachment = NSTextAttachment()
+        attachment.image = image
+        attachment.bounds = NSRect(x: 0,
+                                   y: (style == .readable ? -6.1 : -5.5) + legacyBlockAttachmentNudge,
+                                   width: image.size.width,
+                                   height: image.size.height)
+        return NSAttributedString(attachment: attachment)
+    }
+
+    private static func fanBlockAttachment(speeds: [String], style: MenuBarBlockStyle) -> NSAttributedString {
+        let image = fanBlockImage(speeds: speeds, style: style)
         let attachment = NSTextAttachment()
         attachment.image = image
         attachment.bounds = NSRect(x: 0,
@@ -1044,6 +1062,16 @@ enum MenuBarRenderer {
 
         return stackedRatesImage(lines: ["R\(read)", "W\(write)"],
                                  reservedLines: ["R000B", "W000B"],
+                                 cacheKey: cacheKey,
+                                 style: style)
+    }
+
+    private static func fanBlockImage(speeds: [String], style: MenuBarBlockStyle) -> NSImage {
+        let cacheKey = "fan|\(speeds.joined(separator: "/"))|\(style)" as NSString
+        if let cached = blockImageCache.object(forKey: cacheKey) { return cached }
+
+        return stackedRatesImage(lines: speeds,
+                                 reservedLines: ["00000"],
                                  cacheKey: cacheKey,
                                  style: style)
     }
