@@ -8,6 +8,10 @@ import AppKit
 if let command = SettingsBackupSupport.command(in: CommandLine.arguments) {
     SettingsBackup.runCommandAndExit(command)
 }
+// Next, for the same reason: `vors` must not touch anything the app owns.
+if let command = CommandLineSupport.command(in: CommandLine.arguments) {
+    CommandLineTool.runCommandAndExit(command)
+}
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
