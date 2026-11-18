@@ -903,7 +903,7 @@ enum CommandBarCatalog {
             guard FeatureVisibilitySupport.isPageVisible(item.destination.page, isAvailable: isAvailable)
             else { return false }
             if case .page = item.id { return true }
-            return item.feature.map(isAvailable) ?? true
+            return item.keepsKeywordsWhenUnavailable || (item.feature.map(isAvailable) ?? true)
         }
         var labels: [SettingsSearchItem.ID: [String]] = [:]
         for item in rows {

@@ -63,15 +63,20 @@ struct SettingsSearchItem: Identifiable {
     /// whose `id` stays `.page(...)` for identity stability. `nil` for a
     /// purely generic page (Features itself, General, ...).
     var feature: AppFeature?
+    /// Feature discovery aliases may lead to the installation card before
+    /// the utility is available. Ordinary control keywords stay hidden.
+    let keepsKeywordsWhenUnavailable: Bool
 
     init(id: ID, destination: FeatureSettingsDestination, title: String, icon: String,
-         keywords: [String] = [], terms: [SettingsSearchTerms] = [], feature: AppFeature? = nil) {
+         keywords: [String] = [], terms: [SettingsSearchTerms] = [], feature: AppFeature? = nil,
+         keepsKeywordsWhenUnavailable: Bool = false) {
         self.id = id
         self.destination = destination
         self.title = title
         self.icon = icon
         self.terms = [SettingsSearchTerms(keywords)] + terms
         self.feature = feature
+        self.keepsKeywordsWhenUnavailable = keepsKeywordsWhenUnavailable
     }
 }
 
@@ -130,7 +135,9 @@ enum SettingsSearchSupport {
                                    ? FeatureStrings.commandBar(language).sourceClipboard
                                    : title(feature),
                                icon: feature.symbolName,
-                               feature: feature)
+                               keywords: feature == .mixer ? [VirtualOutputStrings.localized(language).title] : [],
+                               feature: feature,
+                               keepsKeywordsWhenUnavailable: feature == .mixer)
         }
     }
 
@@ -287,9 +294,10 @@ enum SettingsSearchSupport {
                 // row, but settings that do not exist until installation must
                 // not make that utility appear as a field-level match. A page
                 // that stays visible keeps the keywords of the features that
-                // are on; the loop below drops the others.
+                // are on; the loop below drops the others. Explicit discovery
+                // aliases can still point to their feature's installation card.
                 var fallbackItem = item
-                fallbackItem.terms = []
+                if !item.keepsKeywordsWhenUnavailable { fallbackItem.terms = [] }
                 return fallbackItem
             }
             guard FeatureVisibilitySupport.isPageVisible(

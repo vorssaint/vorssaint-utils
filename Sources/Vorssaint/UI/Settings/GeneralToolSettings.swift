@@ -9,6 +9,7 @@ import SwiftUI
 struct GeneralToolSettings: View {
     let anchor: SettingsSectionAnchor
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var router = SettingsRouter.shared
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
 
@@ -35,7 +36,8 @@ struct GeneralToolSettings: View {
                     }
                     .settingsSectionAnchor(.panelConfiguration, cornerRadius: 16)
                 case .mixer:
-                    MixerSection(settingsMode: true)
+                    MixerSection(settingsMode: true, optionsInitiallyExpanded: true,
+                                 optionsExpansionRequest: router.requestID)
                         .settingsSectionAnchor(.mixer, cornerRadius: 16)
                 case .soundOutputSwitcher:
                     SettingsCard(title: l10n.s.soundOutputSwitcherTitle) {

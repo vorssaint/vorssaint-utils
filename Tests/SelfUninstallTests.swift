@@ -14,6 +14,23 @@ enum SelfUninstallContract {
     static var tccResetAllowed = true
     static var fanHelperWasRegistered = true
     static var fanRegistrationRestored = true
+    enum VirtualOutputHAL {
+        static var present = false
+        static func installedComponentExists() -> Bool { present }
+    }
+    struct VirtualOutputService {
+        static let shared = VirtualOutputService()
+        static var removalAllowed = true
+        func removeComponent(completion: @escaping (Bool) -> Void) {
+            events.append("audio driver")
+            if Self.removalAllowed { VirtualOutputHAL.present = false }
+            completion(Self.removalAllowed)
+        }
+    }
+    struct VirtualOutputStrings {
+        static func localized(_ language: String) -> Self { Self() }
+        func message(_ issue: VirtualOutputSupport.Issue) -> String { "audio driver kept" }
+    }
 
     enum DispatchQueue {
         static let main = Queue()
@@ -97,7 +114,25 @@ enum SelfUninstallContract {
             fanHelperWasRegistered = true
             fanRegistrationRestored = true
             SpacesOrderHold.restores = spacesRestore
+            VirtualOutputHAL.present = false
+            VirtualOutputService.removalAllowed = true
         }
+
+        reset(allowRule: true)
+        VirtualOutputHAL.present = true
+        var driverFailure: String?
+        Host.uninstallCompletely { driverFailure = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(driverFailure == nil && events.first == "audio driver" && events.last == "trash",
+                     "full uninstall removes the optional HAL driver before deleting its removal UI")
+
+        reset(allowRule: true)
+        VirtualOutputHAL.present = true
+        VirtualOutputService.removalAllowed = false
+        Host.uninstallCompletely { driverFailure = $0 }
+        DispatchQueue.main.flush()
+        suite.expect(driverFailure == "audio driver kept" && events == ["audio driver"],
+                     "cancelled driver removal preserves the app and its permissions")
 
         reset(allowRule: true)
         suspensionAllowed = false

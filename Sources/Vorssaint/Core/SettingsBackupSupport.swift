@@ -149,6 +149,9 @@ enum SettingsBackupSupport {
         DefaultsKey.micMuteSavedChannelVolumes,
         DefaultsKey.micMuteSavedControls,
         DefaultsKey.micMuteMutedDevices,
+        // Device UIDs and their last levels describe this Mac's audio outputs.
+        DefaultsKey.mixerSoftwareVolumes,
+        DefaultsKey.softwareVolumePhysicalOutputUID,
         DefaultsKey.cleanerLastAutoRun,
         // When the last check ran and what it found belong to one Mac.
         DefaultsKey.appUpdatesLastCheck,

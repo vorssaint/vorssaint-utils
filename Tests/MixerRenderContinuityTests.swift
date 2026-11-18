@@ -84,7 +84,60 @@ enum MixerRenderContinuityTests {
         }
     }
 
+    private static func transparentUnity(_ suite: TestSuite) {
+        let frames = 1024
+        for gain: Float in [0.25, 1] {
+            let source = (0..<frames).flatMap { frame -> [Float] in
+                let sample = Float(1.2 * sin(2 * Double.pi * 997 * Double(frame) / 48_000))
+                return [sample, sample * 0.8]
+            }
+            let renderer = Renderer()
+            renderer.box.value = gain
+            let result = renderer.render(source, frames: frames, layout: [2])
+            let expected = Array(repeating: Float.zero, count: 256 * 2)
+                + source.prefix((frames - 256) * 2).map { $0 * gain }
+            suite.expect(result == expected,
+                         "unboosted gain \(gain) preserves PCM exactly after the existing delay, including native overrange samples")
+        }
+        let renderer = Renderer()
+        var rendered: [Float] = [], expected: [Float] = [], protected: [Bool] = []
+        var previousGain: Float = 1
+        for (frames, gain) in [(300, Float(1)), (127, Float(1.15)), (300, Float(1)),
+                               (111, Float(0.5)), (129, Float(1.5)), (300, Float(1)),
+                               (300, Float(1))] {
+            renderer.box.value = gain
+            let source = Array(repeating: [Float(0.99), Float(0.7)], count: frames).flatMap { $0 }
+            rendered += renderer.render(source, frames: frames, layout: [2])
+            for frame in 0..<frames {
+                let fraction = Float(frame) / Float(frames)
+                let applied = previousGain + fraction * (gain - previousGain)
+                expected += [source[frame * 2] * applied, source[frame * 2 + 1] * applied]
+                protected += [applied > 1, applied > 1]
+            }
+            previousGain = gain
+        }
+        renderer.box.value = 1
+        rendered += renderer.render(Array(repeating: 0, count: 256 * 2), frames: 256, layout: [2])
+        let aligned = Array(rendered.dropFirst(256 * 2))
+        suite.expect(aligned.count == expected.count && zip(aligned.indices, aligned).allSatisfy { index, value in
+            protected[index] ? abs(value) <= BoostLimiter.ceiling + 0.0001 : abs(value - expected[index]) < 0.00001
+        }, "boost protection follows ramped and delayed frames across 100% without attenuating unboosted samples")
+        suite.expect(aligned.allSatisfy { $0 > 0 },
+                     "switching limiter protection across100% keeps the same filled delay and introduces no silent gap")
+        let compensated = Renderer()
+        compensated.compensation.value = 2
+        let native = compensated.render(Array(repeating: 0.6, count: 512 * 2), frames: 512, layout: [2])
+        suite.expect(native == Array(repeating: Float.zero, count: 256 * 2)
+                     + Array(repeating: Float(1.2), count: 256 * 2),
+                     "restoring tap attenuation at requested unity is not a user boost and must not enable limiting")
+        let fallback = Renderer(channelCapacity: 1)
+        let direct = Array(repeating: Float(1.2), count: 128 * 2)
+        suite.expect(fallback.render(direct, frames: 128, layout: [2]) == direct,
+                     "the unexpected-layout fallback also leaves unboosted native PCM unchanged")
+    }
+
     static func run(_ suite: TestSuite) {
+        transparentUnity(suite)
         muteDuringSilentCallbacks(suite)
         for channels in [2, 8, 16, 32] {
             let frames = 768
@@ -213,10 +266,10 @@ enum MixerRenderContinuityTests {
         for index in 0..<2 {
             output[index] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 0, mData: nil)
         }
-        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000))
+        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), requestedGain: 1.5, renderedFrames: 0)
         output[0] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 64 * 4, mData: left)
         output[1] = AudioBuffer(mNumberChannels: 1, mDataByteSize: 32 * 4, mData: right)
-        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000))
+        limiter.process(output, release: BoostLimiter.release(sampleRate: 48_000), requestedGain: 1.5, renderedFrames: 32)
         suite.expect(Array(UnsafeBufferPointer(start: left, count: 65))
                         == Array(repeating: 0, count: 32) + Array(repeating: 0.4, count: 33)
                      && Array(UnsafeBufferPointer(start: right, count: 65))

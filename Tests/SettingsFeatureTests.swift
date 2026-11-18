@@ -58,6 +58,39 @@ enum SettingsFeatureTests {
                 keyboardLight: true, bluetoothSleep: true, brightnessOSD: true))
         }
         for (language, strings) in LocalizationTests.languages {
+            let fallbackTitle = VirtualOutputStrings.localized(language).title
+            let items = SettingsDirectory.searchItems(strings, language: language, state: state())
+            for installed in [false, true] {
+                let available: (AppFeature) -> Bool = { $0 != .mixer || installed }
+                let suggestions = SettingsSearchSupport.groupedMatchingItems(
+                    query: fallbackTitle, items: items, isAvailable: available)
+                    .flatMap(\.suggestions).filter { $0.title == fallbackTitle }
+                suite.expect(suggestions.count == 1,
+                             "localized software fallback is discoverable with mixer installed=\(installed) (\(language))")
+                if let suggestion = suggestions.first {
+                    let routed = SettingsSearchSupport.route(for: suggestion, isAvailable: available)
+                    suite.expect(routed.destination == (installed ? AppFeature.mixer.settingsDestination : FeatureSettingsDestination(.features))
+                                 && routed.targetFeature == (installed ? nil : .mixer),
+                                 "fallback search opens mixer controls or reveals its installation card")
+                }
+                var actions: [CommandBarEntry] = []
+                let commands = SearchCommands.settingsEntries(items, language: language, settingsTitle: strings.settingsTitle,
+                                                              actions: &actions, isAvailable: available)
+                let command = commands.first {
+                    $0.id == "settings.feature.mixer" && CommandBarSearch.matches(title: $0.title, keywords: $0.keywords, query: fallbackTitle)
+                }
+                suite.expect(command != nil, "Command Bar also discovers localized fallback before mixer installation")
+                if let command {
+                    SearchCommands.router.request(FeatureSettingsDestination(.about))
+                    command.run(nil)
+                    suite.expect(SearchCommands.router.destination == (installed ? AppFeature.mixer.settingsDestination : FeatureSettingsDestination(.features)),
+                                 "fallback Command Bar result uses the same installation-aware route")
+                    suite.expect(SearchCommands.router.pendingFeatureTarget?.feature == (installed ? nil : .mixer),
+                                 "an unavailable fallback command targets the mixer installation card")
+                }
+            }
+        }
+        for (language, strings) in LocalizationTests.languages {
             let mouse = SettingsDirectory.sections(strings, language: language, state: state())
                 .flatMap(\.items).first { $0.page == .mouse }!
             let zoomKeywords = mouse.terms.filter { $0.feature == .scrollZoom }.flatMap(\.titles)
@@ -385,6 +418,9 @@ enum SettingsFeatureTests {
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
+        suite.expect(backupKeys.contains(DefaultsKey.mixerSoftwareVolumeEnabled)
+                && !backupKeys.contains(DefaultsKey.mixerSoftwareVolumes),
+               "software volume choice is portable but output UID levels stay on this Mac")
         let islandKeys: Set<String> = [
             DefaultsKey.notchEnabled,
             DefaultsKey.notchShowPlayingMusic,
