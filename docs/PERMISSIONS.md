@@ -28,7 +28,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 - **Notch**, for optional mirroring of new visible notifications, opening their original native action and optionally hiding the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
 - **Scroll direction inverter**, which flips the mouse wheel.
-- **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
+- **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture. With zones on, it also watches for a window being dragged so it can show the zones, and, for apps you have placed in a zone, notices their new windows so they open in that zone.
 - **App and window switcher**, which captures the switcher hotkey and reads the window list.
 - **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
 - **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
