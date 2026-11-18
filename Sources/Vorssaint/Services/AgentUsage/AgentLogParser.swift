@@ -176,6 +176,59 @@ enum AgentLogParser {
         CopilotReader().parse(line, state: &state, now: now)
     }
 
+    // MARK: Cursor
+
+    /// Cursor agent transcripts under `~/.cursor/projects`. Only turn edges
+    /// and the project folder name are taken; prompts and replies are not.
+    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CursorReader().parse(line, state: &state, now: now)
+    }
+
+    /// The workspace folder Cursor encodes in
+    /// `~/.cursor/projects/<slug>/agent-transcripts/…`.
+    static func cursorProject(from path: String) -> String {
+        let parts = (path as NSString).pathComponents
+        guard let projects = parts.firstIndex(of: "projects"),
+              projects >= 2, parts[projects - 1] == ".cursor",
+              projects + 1 < parts.count else { return "" }
+        let slug = parts[projects + 1]
+        // Home is taken from the transcript path, not this Mac's account, so
+        // fixtures and other users' copied logs still name the project.
+        let homeParts = Array(parts[1..<(projects - 1)])
+        let homePath = "/" + homeParts.joined(separator: "/")
+        let encodedHome = homeParts.joined(separator: "-")
+        if slug == encodedHome { return projectName(homePath) }
+        if !encodedHome.isEmpty, slug.hasPrefix(encodedHome + "-") {
+            let rest = String(slug.dropFirst(encodedHome.count + 1))
+            if let resolved = resolveHyphenatedPath(base: homePath, encoded: rest) {
+                return projectName(resolved)
+            }
+            return native(rest)
+        }
+        return native(slug)
+    }
+
+    /// Recovers a path Cursor wrote with `/` turned into `-`, preferring
+    /// components that still exist on disk and accepting a final missing one.
+    private static func resolveHyphenatedPath(base: String, encoded: String) -> String? {
+        let tokens = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        guard !tokens.isEmpty else { return nil }
+        return resolveHyphenatedPath(base: base, tokens: ArraySlice(tokens))
+    }
+
+    private static func resolveHyphenatedPath(base: String, tokens: ArraySlice<String>) -> String? {
+        guard !tokens.isEmpty else { return base }
+        for length in 1...tokens.count {
+            let name = tokens.prefix(length).joined(separator: "-")
+            let next = (base as NSString).appendingPathComponent(name)
+            let exists = FileManager.default.fileExists(atPath: next)
+            if length == tokens.count { return exists || FileManager.default.fileExists(atPath: base) ? next : nil }
+            guard exists, let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) else { continue }
+            return found
+        }
+        return nil
+    }
+
     static func copilotEvent(_ type: String) -> Bool {
         ["user.message", "assistant.turn_start", "assistant.message", "assistant.turn_end",
          "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)

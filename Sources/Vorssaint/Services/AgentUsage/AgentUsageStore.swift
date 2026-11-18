@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.cursor, ".cursor/projects")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,9 +501,17 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        if provider == .copilot {
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        }
+        if provider == .cursor {
+            // <slug>/agent-transcripts/<id>/<id>.jsonl — never agent-tools or terminals.
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == "agent-transcripts" && !parts[2].isEmpty
+                && parts[3] == parts[2] + ".jsonl"
+        }
+        return true
     }
 }
 
@@ -581,6 +590,7 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -629,6 +639,7 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
     }
@@ -757,6 +768,21 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            // Cursor keeps tools, terminals and canvases beside transcripts.
+            // Only the shallow transcript path is walked.
+            if root.provider == .cursor {
+                let projects = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for project in projects {
+                    let transcripts = project.appending(path: "agent-transcripts", directoryHint: .isDirectory)
+                    let sessions = (try? FileManager.default.contentsOfDirectory(
+                        at: transcripts, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                    for session in sessions {
+                        include(session.appending(path: session.lastPathComponent + ".jsonl"), from: root)
+                    }
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
