@@ -667,6 +667,38 @@ enum WindowEdgeSnapSupport {
         return defaults.object(forKey: key).map { _ in defaults.bool(forKey: key) }
     }
 
+    /// Whether a snapped window differs enough from the size it had before to
+    /// be worth resizing while the drag is already under way.
+    static func needsSizeRestore(from snapped: CGSize, to restore: CGSize) -> Bool {
+        restore.width > 0 && restore.height > 0
+            && (abs(snapped.width - restore.width) > sizeTolerance
+                || abs(snapped.height - restore.height) > sizeTolerance)
+    }
+
+    /// Where a window that returns to `restoreSize` goes once the pointer has
+    /// pulled it out of its snapped place. The pointer keeps its relative spot
+    /// along the title bar and its distance below the window's top, and the
+    /// result stays on the display under the pointer. All in Quartz points.
+    static func restoredFrame(snapped: CGRect,
+                              restoreSize: CGSize,
+                              pointerStart: CGPoint,
+                              pointerNow: CGPoint,
+                              screenFrame: CGRect?) -> CGRect {
+        let ratio = snapped.width > 0
+            ? min(max((pointerStart.x - snapped.minX) / snapped.width, 0), 1)
+            : 0.5
+        let grabY = min(max(pointerStart.y - snapped.minY, 0), restoreSize.height)
+        var origin = CGPoint(x: pointerNow.x - ratio * restoreSize.width,
+                             y: pointerNow.y - grabY)
+        if let screenFrame {
+            if restoreSize.width <= screenFrame.width {
+                origin.x = min(max(origin.x, screenFrame.minX), screenFrame.maxX - restoreSize.width)
+            }
+            origin.y = max(origin.y, screenFrame.minY)
+        }
+        return CGRect(origin: origin, size: restoreSize)
+    }
+
     static var isSystemTopWindowOverviewDragEnabled: Bool {
         guard #available(macOS 15.0, *) else { return true }
         guard let defaults = UserDefaults(suiteName: "com.apple.dock") else { return true }

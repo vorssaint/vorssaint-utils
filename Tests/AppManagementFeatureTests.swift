@@ -500,6 +500,25 @@ enum AppManagementFeatureTests {
         suite.expect(Bundle(url: flatApp)?.bundleIdentifier == "com.vendor.flat"
                && UninstallerSupport.selection(for: flatApp) == nil,
                "a bare iPhone-style bundle with no Contents/Info.plist is refused")
+        // Bundle(url:) caches by path for the whole process, so a different
+        // app that later sits at a path already read (a Trash name reused
+        // after Empty Trash) must still be read from disk.
+        let reusedApp = selectionFixture.appendingPathComponent("Reused.app", isDirectory: true)
+        writeInfo("com.vendor.first", to: reusedApp.appendingPathComponent("Contents/Info.plist"))
+        let firstReused = UninstallerSupport.selection(for: reusedApp)?.bundleID
+        _ = Bundle(url: reusedApp)?.bundleIdentifier
+        try? FileManager.default.removeItem(at: reusedApp)
+        writeInfo("com.vendor.second", to: reusedApp.appendingPathComponent("Contents/Info.plist"))
+        suite.expect(firstReused == "com.vendor.first"
+               && UninstallerSupport.selection(for: reusedApp)?.bundleID == "com.vendor.second"
+               && UninstallerSupport.bundleIdentifier(of: reusedApp) == "com.vendor.second",
+               "a different app at a path already read is selected by its own bundle ID")
+        let reviewed = UninstallerSupport.selection(for: reusedApp)
+        suite.expect(reviewed?.isCurrent == true, "the current selection matches its app on disk")
+        let reusedInfo = reusedApp.appendingPathComponent("Contents/Info.plist")
+        try? Data(contentsOf: reusedInfo).write(to: reusedInfo, options: .atomic)
+        suite.expect(reviewed?.isCurrent == false,
+               "replacing the Info.plist invalidates the earlier selection")
         // An iPhone or iPad app installed on a Mac with Apple silicon (#1582):
         // the App Store keeps the real bundle in Wrapper with its Info.plist at
         // the top, and Bundle reads it through the WrappedBundle link.
@@ -712,6 +731,14 @@ enum AppManagementFeatureTests {
                 URL(fileURLWithPath: "/Users/test/Downloads/Editor.app"),
                 home: URL(fileURLWithPath: "/Users/test")),
                "embedded helpers belong to the selected app while unregistered download copies never own shared data")
+        let trashHome = URL(fileURLWithPath: "/Users/test")
+        suite.expect(!UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Editor.app"), home: trashHome)
+            && !UninstallerSupport.applicationIsInTrustedInstallRoot(
+                URL(fileURLWithPath: "/Users/test/.Trash/Old Stuff/Editor.app"), home: trashHome)
+            && !UninstallerSupport.isInTrash(
+                URL(fileURLWithPath: "/Users/test/.Trash"), home: trashHome),
+               "a Trash path alone never grants ownership of shared data")
         let uninstallCandidateIDs: Set<String> = ["com.vendor.editor", "com.vendor.editor.helper"]
         suite.expect(UninstallerSupport.exclusiveBundleIDs(
                    uninstallCandidateIDs,
@@ -1258,6 +1285,14 @@ enum AppManagementFeatureTests {
                "identifiers with no installed relative are unowned")
         suite.expect(!CleanerSupport.isOwned(candidate: "com.makerapp.tool", byInstalled: ["com.maker.app"]),
                "prefix ownership requires a dot boundary, not a string prefix")
+        suite.expect(CleanerSupport.isOwnedSupportDomain("Battle.net", byInstalled: ["net.battle.app"])
+               && CleanerSupport.isOwnedSupportDomain("maker.com", byInstalled: ["com.maker"]),
+               "a domain named support folder is owned by the installed app under its reverse")
+        suite.expect(!CleanerSupport.isOwnedSupportDomain("battle.net", byInstalled: ["net.battlefield.app"])
+               && !CleanerSupport.isOwnedSupportDomain("battle.net", byInstalled: ["com.battle.app"])
+               && !CleanerSupport.isOwnedSupportDomain("github.io", byInstalled: ["io.github.someone.tool"])
+               && !CleanerSupport.isOwnedSupportDomain("com.maker.app", byInstalled: ["app.maker.com"]),
+               "reverse ownership needs a dot boundary, two parts and no hosting namespace")
         suite.expect(CleanerSupport.executablePaths(inLaunchPlist: [
                    "Program": "/Applications/Gone.app/Contents/MacOS/agent",
                    "ProgramArguments": ["/usr/local/bin/gone-tool", "--flag"],

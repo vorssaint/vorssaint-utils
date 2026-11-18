@@ -182,8 +182,8 @@ struct NotchSettings: View {
         .onChange(of: accessData) { _, _ in NotchService.shared.syncWithPreferences() }
         .onChange(of: browserCovers) { _, _ in NotchMusicService.shared.syncBrowserCovers() }
         .onChange(of: tab) { _, _ in draggingModule = nil; draggingControl = nil }
-        .onAppear(perform: consumeModuleHint)
-        .onChange(of: router.notchModule) { _, _ in consumeModuleHint() }
+        .onAppear(perform: revealDestination)
+        .onChange(of: router.requestID) { _, _ in revealDestination() }
         .onAppear(perform: consumeCompanionHint)
         .onChange(of: router.notchCompanion) { _, _ in consumeCompanionHint() }
         // Uninstalled while its tab shows, the companion leaves the page to the layout.
@@ -213,12 +213,10 @@ struct NotchSettings: View {
         }.id(tab)
     }
 
-    /// A section of the island can ask for its own options; the hint is one-shot.
-    private func consumeModuleHint() {
-        guard let module = router.notchModule else { return }
-        router.notchModule = nil
-        selectedModule = module
-        tab = .content
+    private func revealDestination() {
+        guard let location = router.destination.notchLocation else { return }
+        if case .module(let module) = location { selectedModule = module }
+        tab = location.tab
     }
 
     private func sync() {

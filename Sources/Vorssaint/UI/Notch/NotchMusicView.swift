@@ -350,7 +350,7 @@ struct NotchMusicView: View {
         let extras = FeatureStrings.notchMusicExtras(l10n.language)
         let pid = playback?.track.appPID
         let name = service.sources.first(where: { $0.pid == pid })?.displayName
-            ?? pid.flatMap { NSRunningApplication(processIdentifier: $0)?.localizedName }
+            ?? pid.flatMap { RadialNowPlayingApplication.playerApplication(bundleIdentifier: nil, pid: $0)?.localizedName }
             ?? playback?.track.appBundleIdentifier ?? extras.playbackSource
         return Menu {
             Button { service.selectSource(nil) } label: {
@@ -427,9 +427,11 @@ private enum NotchPlayerApps {
 
     static func app(pid: Int32, bundle: String?) -> (name: String?, icon: NSImage?) {
         if let entry = known[pid], bundle == nil || entry.bundle == bundle { return (entry.name, entry.icon) }
-        let running = NSRunningApplication(processIdentifier: pid)
+        let running = RadialNowPlayingApplication.playerApplication(bundleIdentifier: bundle, pid: pid)
         if known.count >= 16 { known.removeAll() }
-        known[pid] = (running?.bundleIdentifier ?? bundle, running?.localizedName, running?.icon)
+        // Keyed by what the reading names, which for a WebKit helper is not
+        // the app it resolves to.
+        known[pid] = (bundle ?? running?.bundleIdentifier, running?.localizedName, running?.icon)
         return (running?.localizedName, running?.icon)
     }
 }
