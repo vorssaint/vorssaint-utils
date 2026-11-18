@@ -86,6 +86,8 @@ final class AgentUsageService: ObservableObject {
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
     private var store = AgentUsageStore()
+    /// Every day's spending, kept after its logs are gone. Loaded on first use.
+    private lazy var ledger = AgentUsageLedger()
     private var cursors: [String: AgentLogCursor] = [:]
     private var watcher: AgentLogWatcher?
     private var watchedRoots: [AgentLogRoot] = []
@@ -107,6 +109,9 @@ final class AgentUsageService: ObservableObject {
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
+    /// Watches the profile where every running Claude Code saves the
+    /// account's usage, while the limits are in use.
+    private var claudeCacheWatcher: AgentFileWatcher?
     private var shippedPrices: AgentPriceList?
     private var previousLimits: [AgentProvider: AgentLimits] = [:]
     /// Warned windows, each waiting for its renewal.
@@ -146,6 +151,7 @@ final class AgentUsageService: ObservableObject {
             resume()
         }
         syncPrices()
+        syncClaudeCache()
         refreshClaudeLimits()
     }
 
@@ -166,6 +172,7 @@ final class AgentUsageService: ObservableObject {
             poller?.cancel()
             poller = nil
             watcher?.stop()
+            claudeCacheWatcher?.stop()
             saveProgress()
         }
     }
@@ -215,6 +222,8 @@ final class AgentUsageService: ObservableObject {
             poller = nil
             watcher?.stop()
             watcher = nil
+            claudeCacheWatcher?.stop()
+            claudeCacheWatcher = nil
             watchedRoots = []
             network?.cancel()
             network = nil
@@ -254,6 +263,7 @@ final class AgentUsageService: ObservableObject {
     func pageDidAppear(preview: Bool = false) {
         if !preview { pageVisible = true }
         guard running else { return }
+        if !preview { syncClaudeCache() }
         refreshClaudeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
@@ -266,6 +276,7 @@ final class AgentUsageService: ObservableObject {
 
     func pageDidDisappear() {
         pageVisible = false
+        syncClaudeCache()
     }
 
     /// A deliberate retry after choosing or signing in to an account.
@@ -350,6 +361,7 @@ final class AgentUsageService: ObservableObject {
     /// on `queue`.
     private func saveProgress() {
         guard readerSession >= 0 else { return }
+        ledger.save()
         let mark = progressMark
         lastSave = Date()
         guard mark != savedMark else { return }
@@ -578,6 +590,7 @@ final class AgentUsageService: ObservableObject {
     private func tickTimer() {
         guard running else { return }
         syncPrices()
+        syncClaudeCache()
         refreshClaudeLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
@@ -639,7 +652,9 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        ledger.merge(next)
+        next.lifetime = ledger.usage(providers: enabled)
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -780,9 +795,10 @@ final class AgentUsageService: ObservableObject {
             claudeAppSamples = modified == nil ? []
                 : (try? Data(contentsOf: url)).flatMap(AgentClaudeAppUsage.samples) ?? []
         }
-        // Claude Code's own first request can place the session's start.
-        let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
-                                                     organization: claudeOrganization)
+        // Claude Code's own first request can place the session's start,
+        // unless an API key pays for it and the plan never sees it.
+        let start = AgentClaudeBilling.usesAPI(home: home) ? nil
+            : AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples, organization: claudeOrganization)
         let desktop = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
                                                  organization: claudeOrganization)
         let account = AgentClaudeServer.current(claudeAccountLimits, now: now)
@@ -828,7 +844,10 @@ final class AgentUsageService: ObservableObject {
                     self.queue.async {
                         guard self.readerSession == session, self.enabled.contains(.claude) else { return }
                         self.readClaudePlan()
-                        guard self.readerClaudeProfile == profile, self.claudeIdentity == summary.identity else { return }
+                        // A copy a Claude Code session saved meanwhile may be newer.
+                        guard self.readerClaudeProfile == profile, self.claudeIdentity == summary.identity,
+                              summary.limits.observedAt >= self.claudeAccountLimits?.observedAt ?? .distantPast
+                        else { return }
                         self.claudeAccountLimits = summary.limits
                         self.readClaudeApp(now: Date())
                         self.checkLimits()
@@ -854,14 +873,74 @@ final class AgentUsageService: ObservableObject {
     private func claudeLimitsDue(at now: Date, pageShows: Bool) -> Bool {
         guard running, !paused, online, providers.contains(.claude), claudeAccountRequest == nil,
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
+        // The resting island shows the plan's limits all day, as the page does.
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
-            after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+            after: claudeAccountFailure, repeated: claudeAccountUnreachable,
+            pageVisible: NotchAgentSupport.limitsOnScreen(pageShown: pageVisible || pageShows))
     }
 
     /// Main thread.
     private func noteClaudeCheck(_ failure: AgentClaudeServer.Failure?) {
         claudeAccountFailure = failure
         claudeAccountUnreachable = failure == .unreachable ? claudeAccountUnreachable + 1 : 0
+    }
+
+    /// A copy of the account's usage that a Claude Code session fetched
+    /// counts as a check that answered then, so Claude Code is started only
+    /// once that copy has aged as a check's would. Main thread.
+    private func noteClaudeCache(_ fetched: Date) {
+        guard fetched > claudeAccountAttempted else { return }
+        claudeAccountAttempted = fetched
+        noteClaudeCheck(nil)
+    }
+
+    /// Watches the chosen account's Claude Code profile only while the
+    /// feature reads Claude and something uses the limits; pause, sleep and
+    /// stop end it. Main thread.
+    private func syncClaudeCache() {
+        let wanted = running && !paused && providers.contains(.claude)
+            && NotchAgentSupport.limitsInUse(pageShown: pageVisible)
+        queue.async { [self] in
+            guard wanted, readerSession >= 0, enabled.contains(.claude) else {
+                claudeCacheWatcher?.stop()
+                claudeCacheWatcher = nil
+                return
+            }
+            guard claudeCacheWatcher == nil else { return }
+            let watcher = AgentFileWatcher(readerClaudeProfile.profileURL(home: home), queue: queue) { [weak self] in
+                self?.readClaudeCache(now: Date())
+            }
+            watcher.start()
+            claudeCacheWatcher = watcher
+            readClaudeCache(now: Date())
+        }
+    }
+
+    /// Reads the account usage a Claude Code session saved in its profile.
+    /// Runs on `queue`.
+    private func readClaudeCache(now: Date) {
+        guard readerSession >= 0, enabled.contains(.claude), claudeCacheWatcher != nil else { return }
+        readClaudePlan()
+        guard let fetched = takeClaudeCache(AgentClaudeServer.cache(at: readerClaudeProfile.profileURL(home: home), now: now),
+                                             now: now) else { return }
+        let session = readerSession
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.running, self.session == session else { return }
+            self.noteClaudeCache(fetched)
+        }
+    }
+
+    /// Shows a saved copy that belongs to the organization in use and is
+    /// newer than the reading in hand, and says when it was fetched; nil
+    /// when it is left out. Runs on `queue`.
+    private func takeClaudeCache(_ cache: AgentClaudeServer.Cache?, now: Date) -> Date? {
+        guard let cache, cache.organization == claudeOrganization,
+              cache.limits.observedAt > claudeAccountLimits?.observedAt ?? .distantPast else { return nil }
+        claudeAccountLimits = cache.limits
+        readClaudeApp(now: now)
+        checkLimits()
+        schedulePublish()
+        return cache.limits.observedAt
     }
 
     /// Back online, the checks start over from the shortest wait: those the

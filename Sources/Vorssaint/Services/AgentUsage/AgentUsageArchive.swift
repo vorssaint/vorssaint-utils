@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 6
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -282,6 +282,7 @@ enum AgentUsageArchive {
             tokens(value.tokens)
             optional(value.cost) { $0.double($1) }
             double(value.savings)
+            bool(value.claudeApp)
         }
 
         mutating func limits(_ value: AgentLimits) {
@@ -313,6 +314,7 @@ enum AgentUsageArchive {
             string(value.project)
             tokens(value.tokens)
             double(value.cost)
+            bool(value.place == .app)
         }
 
         mutating func state(_ value: AgentLogState) {
@@ -327,6 +329,7 @@ enum AgentUsageArchive {
             bool(value.codexHeaderRead)
             string(value.codexRoot)
             string(value.codexTotalsSession)
+            bool(value.codexApp)
             dictionary(value.copilotTotals) { $0.tokens($1) }
             dictionary(value.copilotRequests) { $0.int($1) }
             dictionary(value.copilotRequestModels) { $0.string($1) }
@@ -446,7 +449,7 @@ enum AgentUsageArchive {
             AgentUsageRecord(provider: try provider(), date: try date(), model: try string(), project: try string(),
                              session: try string(), requests: try amount(),
                              tokens: try tokens(), cost: try optional { try $0.double() },
-                             savings: try double())
+                             savings: try double(), claudeApp: try bool())
         }
 
         mutating func limits() throws -> AgentLimits {
@@ -474,7 +477,7 @@ enum AgentUsageArchive {
         mutating func session() throws -> AgentLiveSession {
             AgentLiveSession(id: try string(), provider: try provider(), started: try date(),
                              lastActivity: try date(), model: try string(), project: try string(),
-                             tokens: try tokens(), cost: try double())
+                             tokens: try tokens(), cost: try double(), place: try bool() ? .app : .terminal)
         }
 
         mutating func state() throws -> AgentLogState {
@@ -484,6 +487,7 @@ enum AgentUsageArchive {
             value.codexHeaderRead = try bool()
             value.codexRoot = try string()
             value.codexTotalsSession = try string()
+            value.codexApp = try bool()
             value.copilotTotals = try dictionary { try $0.tokens() }
             value.copilotRequests = try dictionary { try $0.amount() }
             value.copilotRequestModels = try dictionary { try $0.string() }

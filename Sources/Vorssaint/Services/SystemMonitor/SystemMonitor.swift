@@ -142,12 +142,16 @@ final class SystemMonitor: ObservableObject {
 
     private let queue = DispatchQueue(label: "com.vorssaint.utils.system-monitor", qos: .utility)
     private var timer: Timer?
-    private var intervalSeconds = 2
+    /// Seconds between samples, which sets how long the histories reach back.
+    private(set) var intervalSeconds = 2
     private var panelClients = 0
     private var menuPanelNeeds: SystemMonitorPanelNeeds = .none
     private var notchVisible = false
     private var notchDetailNeeds: SystemMonitorPanelNeeds = .none
     private var notchAccessoryMonitoring = false
+    /// The lock screen's This Mac page, its own slot so the island's
+    /// teardown as the Mac locks never takes its readings away.
+    private var lockScreenNeeds: SystemMonitorPanelNeeds = .none
     private var menuBarActive = false
     private var alertsActive = false
     private var refreshInFlight = false
@@ -285,6 +289,17 @@ final class SystemMonitor: ObservableObject {
         runOnMain { [weak self] in
             guard let self, self.notchDetailNeeds != needs else { return }
             self.notchDetailNeeds = needs
+            self.stopTimerIfIdle()
+            self.ensureTimer()
+            if needs.any { self.refresh(suppressImmediateGPU: true); self.scheduleDeferredGPURefreshIfNeeded() }
+        }
+    }
+
+    /// What the lock screen's This Mac page reads while the Mac is locked.
+    func setLockScreenNeeds(_ needs: SystemMonitorPanelNeeds) {
+        runOnMain { [weak self] in
+            guard let self, self.lockScreenNeeds != needs else { return }
+            self.lockScreenNeeds = needs
             self.stopTimerIfIdle()
             self.ensureTimer()
             if needs.any { self.refresh(suppressImmediateGPU: true); self.scheduleDeferredGPURefreshIfNeeded() }
@@ -482,7 +497,7 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
+    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || lockScreenNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -545,7 +560,7 @@ final class SystemMonitor: ObservableObject {
     }
 
     private func currentPlan(defaults: UserDefaults) -> SamplingPlan {
-        let menuPanelNeeds = self.menuPanelNeeds.merging(notchDetailNeeds)
+        let menuPanelNeeds = self.menuPanelNeeds.merging(notchDetailNeeds).merging(lockScreenNeeds)
         var plan = SamplingPlan()
         let hasInternalBattery = PowerSampler.hasInternalBattery
         let panelNeedsSystem = fullMonitorVisible || menuPanelNeeds.system
@@ -676,7 +691,7 @@ final class SystemMonitor: ObservableObject {
     /// onto the new grid or `tick % stride` could become unreachable.
     private func syncTimerCadence(plan: SamplingPlan) {
         lastSyncedPlan = plan
-        let foreground = fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible
+        let foreground = fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || lockScreenNeeds.any || notchVisible
         let desired = MonitorSamplingPolicy.wakeTicks(for: Self.neededKinds(of: plan),
                                                       intervalSeconds: intervalSeconds,
                                                       foreground: foreground)
@@ -742,7 +757,7 @@ final class SystemMonitor: ObservableObject {
         syncTimerCadence(plan: plan)
         refreshInFlight = true
         let suppressGPUReadsUntil = self.suppressGPUReadsUntil
-        let foregroundSampling = fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible
+        let foregroundSampling = fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || lockScreenNeeds.any || notchVisible
         let intervalSeconds = self.intervalSeconds
         // Ticks advance by the timer's cadence so `tick % stride` keeps
         // measuring base intervals; mutated on main only, read by the queue
