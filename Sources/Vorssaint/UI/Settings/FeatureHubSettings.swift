@@ -719,6 +719,7 @@ private struct FeatureHubRow: View {
                 .accessibilityLabel("\(accessibilityTitle). \(feature.hubDescription(hub))")
                 .accessibilityAddTraits(.isLink)
                 .accessibilityRemoveTraits(.isButton)
+                .accessibilityIdentifier("feature.\(feature.rawValue).open")
             } else {
                 rowContent(showsChevron: false)
                     .accessibilityElement(children: .combine)
@@ -835,6 +836,7 @@ private struct FeatureHubRow: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .accessibilityLabel("\(hub.uninstallButton) \(accessibilityTitle)")
+            .accessibilityIdentifier("feature.\(feature.rawValue).uninstall")
         } else if let reason = unsupportedReason {
             // .help() never fires on a disabled control, so the tooltip
             // has to sit on this wrapper. Flattening it loses the only
@@ -845,6 +847,7 @@ private struct FeatureHubRow: View {
                     .controlSize(.small)
                     .disabled(true)
                     .accessibilityLabel("\(hub.installButton) \(accessibilityTitle). \(reason)")
+                    .accessibilityIdentifier("feature.\(feature.rawValue).install")
             }
             .help(reason)
         } else {
@@ -852,6 +855,7 @@ private struct FeatureHubRow: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
                 .accessibilityLabel("\(hub.installButton) \(accessibilityTitle)")
+                .accessibilityIdentifier("feature.\(feature.rawValue).install")
         }
     }
 
@@ -1140,6 +1144,7 @@ extension AppFeature {
         case .switcher: return s.switcherSection
         case .dockPreview: return s.dockPreviewName
         case .dockClick: return hub.titleDockClick
+        case .missionControlActions: return FeatureStrings.missionControlActions(language).title
         case .windowMaximizer: return s.windowMaximizeName
         case .windowLayout: return FeatureStrings.windowLayout(language).title
         case .autoQuit: return s.autoQuitName
@@ -1227,6 +1232,8 @@ extension AppFeature {
         case .switcher: return hub.descSwitcher
         case .dockPreview: return hub.descDockPreview
         case .dockClick: return hub.descDockClick
+        case .missionControlActions:
+            return FeatureStrings.missionControlActions(L10n.shared.language).hubDescription
         case .windowMaximizer: return hub.descWindowMaximizer
         case .windowLayout: return hub.descWindowLayout
         case .autoQuit: return hub.descAutoQuit

@@ -144,6 +144,10 @@ enum DefaultsKey {
     static let dockClickMinimize = "dockClickMinimize"    // click the active app's Dock icon to minimize its windows
     static let dockClickHide = "dockClickHide"            // click the active app's Dock icon to hide the app
     static let dockClickCycleWindows = "dockClickCycleWindows" // click the active app's Dock icon to cycle through its windows
+    static let missionControlActionsEnabled = "missionControlActionsEnabled"
+    static let missionControlRightClickAction = "missionControlRightClickAction"
+    static let missionControlMiddleClickAction = "missionControlMiddleClickAction"
+    static let missionControlKeyboardShortcutsEnabled = "missionControlKeyboardShortcutsEnabled"
     static let spacesOrderEnabled = "spacesOrderEnabled" // keeps macOS from rearranging Spaces by recent use (Dock mru-spaces)
     static let spacesOrderRestore = "spacesOrderRestore" // local recovery; never backed up: "absent" or "on", the mru-spaces state to put back, or "off" when there was nothing to put back
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
@@ -1342,6 +1346,10 @@ enum Defaults {
         DefaultsKey.dockClickMinimize: false,
         DefaultsKey.dockClickHide: false,
         DefaultsKey.dockClickCycleWindows: false,
+        DefaultsKey.missionControlActionsEnabled: false,
+        DefaultsKey.missionControlRightClickAction: MissionControlAction.terminateApp.rawValue,
+        DefaultsKey.missionControlMiddleClickAction: MissionControlAction.none.rawValue,
+        DefaultsKey.missionControlKeyboardShortcutsEnabled: false,
         DefaultsKey.spacesOrderEnabled: false,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,

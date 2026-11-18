@@ -234,6 +234,7 @@ struct MetricsTests {
                 DockPreviewFrameRestorationTests.run(suite)
             }),
             ("spaces-order", { SpacesOrderTests.run(suite) }),
+            ("mission-control-actions", { MissionControlActionsTests.run(suite) }),
             ("switcher", {
                 SwitcherHoverSelectionTests.run(suite)
                 SwitcherAllWindowsTests.run(suite)
