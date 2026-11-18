@@ -688,6 +688,10 @@ enum NotchLayout {
 
 enum NotchClipboardKey: Equatable {
     case move(backwards: Bool)
+    case extend(Int)
+    case toggle(Int)
+    case skip(Int)
+    case clearSelection
     case paste
     /// The key goes on to the search field, which shows to take it.
     case reveal
@@ -1744,8 +1748,29 @@ enum NotchSupport {
     /// Other Command, Control or Option keys belong to their own shortcuts;
     /// Shift with the arrows or Return stays with the field, which selects with them.
     static func clipboardKey(keyCode: UInt16, characters: String, modifiers: NSEvent.ModifierFlags,
-                             composing: Bool) -> NotchClipboardKey? {
+                             composing: Bool, interactionActive: Bool = false, hasSelection: Bool = false,
+                             searchIsEmpty: Bool = true, searchHasSelection: Bool = false,
+                             listNavigationActive: Bool = false, isEditingBody: Bool = false) -> NotchClipboardKey? {
+        guard !isEditingBody else { return nil }
         let shortcutModifiers = modifiers.intersection([.command, .control, .option, .shift])
+        if let action = ClipboardKeyboardNavigation.action(
+            keyCode: keyCode, flags: modifiers, sideArrowsMoveSelection: false,
+            interactionActive: interactionActive, hasMarkedText: composing, isEditingBody: isEditingBody,
+            searchIsEmpty: searchIsEmpty, searchHasSelection: searchHasSelection,
+            listNavigationActive: listNavigationActive
+        ) {
+            switch action {
+            case .extend(let step): return .extend(step)
+            case .toggle(let step): return .toggle(step)
+            case .skip(let step): return .skip(step)
+            }
+        }
+        // A rejected search-editing arrow must not fall through to the legacy
+        // list move, which would otherwise end the active range segment.
+        if !searchIsEmpty, searchHasSelection, keyCode == 125 || keyCode == 126 {
+            return nil
+        }
+        if !composing, shortcutModifiers.isEmpty, keyCode == 53, hasSelection { return .clearSelection }
         if !composing, shortcutModifiers == .control {
             switch characters.lowercased() {
             case "n": return .move(backwards: false)

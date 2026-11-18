@@ -905,6 +905,160 @@ enum ClipboardHistoryNavigation {
     }
 }
 
+struct ClipboardKeyboardSelection {
+    private enum Session { case range, toggle, mouseRange, additiveMouseRange }
+    private var session: Session?
+    var isActive: Bool { session != nil }
+    private(set) var focusID: UUID?
+    private var anchorID: UUID?
+    private var baseSelection: Set<UUID> = []
+    private var visibleSnapshot: [UUID] = []
+
+    mutating func extend(visibleIDs: [UUID], currentID: UUID?,
+                         selectedIDs: Set<UUID>, step: Int) -> Set<UUID> {
+        guard let move = destination(visibleIDs: visibleIDs, currentID: currentID, step: step) else {
+            return selectedIDs
+        }
+        guard move.moved || move.origin == nil else { return selectedIDs }
+        if session != .range && session != .mouseRange {
+            anchorID = visibleIDs[move.origin ?? move.index]
+            baseSelection = selectedIDs
+        }
+        session = .range
+        return rangeSelection(visibleIDs: visibleIDs, targetIndex: move.index)
+    }
+
+    mutating func toggle(visibleIDs: [UUID], currentID: UUID?,
+                         selectedIDs: Set<UUID>, step: Int) -> Set<UUID> {
+        guard let move = destination(visibleIDs: visibleIDs, currentID: currentID, step: step) else {
+            return selectedIDs
+        }
+        if session != .toggle {
+            anchorID = visibleIDs[move.origin ?? move.index]
+            baseSelection = selectedIDs
+        }
+        session = .toggle
+        guard move.moved || move.origin == nil else { return selectedIDs }
+        return rangeSelection(visibleIDs: visibleIDs, targetIndex: move.index)
+    }
+
+    mutating func skip(visibleIDs: [UUID], currentID: UUID?, step: Int) -> UUID? {
+        _ = destination(visibleIDs: visibleIDs, currentID: currentID, step: step)
+        endSegment()
+        return focusID
+    }
+
+    mutating func setAnchor(_ id: UUID) {
+        endSegment()
+        focusID = id
+        anchorID = id
+    }
+
+    mutating func selectRange(visibleIDs: [UUID], currentID: UUID?,
+                              selectedIDs: Set<UUID>, targetID: UUID,
+                              additive: Bool = false) -> Set<UUID> {
+        _ = invalidate(visibleIDs: visibleIDs)
+        guard let targetIndex = visibleIDs.firstIndex(of: targetID) else { return selectedIDs }
+        if additive {
+            if session != .additiveMouseRange {
+                anchorID = anchorID.flatMap { visibleIDs.contains($0) ? $0 : nil } ?? currentID ?? visibleIDs.first
+            }
+            baseSelection = selectedIDs
+            session = .additiveMouseRange
+        } else if session != .range && session != .mouseRange {
+            anchorID = anchorID.flatMap { visibleIDs.contains($0) ? $0 : nil } ?? currentID ?? visibleIDs.first
+            baseSelection = selectedIDs
+            session = .mouseRange
+        } else {
+            session = .mouseRange
+        }
+        visibleSnapshot = visibleIDs
+        focusID = targetID
+        return rangeSelection(visibleIDs: visibleIDs, targetIndex: targetIndex)
+    }
+
+    mutating func modifiersChanged(_ flags: NSEvent.ModifierFlags) {
+        let modifiers = flags.intersection([.command, .shift, .option, .control])
+        if (session == .range && modifiers != [.shift])
+            || (session == .toggle && modifiers != [.command, .shift]) {
+            endSegment()
+        }
+    }
+
+    /// End a session without changing its final selection or navigation focus.
+    mutating func endSegment() {
+        session = nil
+        anchorID = nil
+        baseSelection = []
+    }
+
+    mutating func reset() {
+        self = Self()
+    }
+
+    /// Reordering ends the old range; callers retain and prune selected UUIDs
+    /// against the complete history, rather than only its visible results.
+    mutating func invalidate(visibleIDs: [UUID]) -> Bool {
+        guard !visibleSnapshot.isEmpty, visibleSnapshot != visibleIDs else { return false }
+        endSegment()
+        visibleSnapshot = visibleIDs
+        if !visibleIDs.contains(where: { $0 == focusID }) { focusID = visibleIDs.first }
+        return true
+    }
+
+    private mutating func destination(visibleIDs: [UUID], currentID: UUID?,
+                                      step: Int) -> (index: Int, origin: Int?, moved: Bool)? {
+        _ = invalidate(visibleIDs: visibleIDs)
+        guard !visibleIDs.isEmpty else {
+            endSegment()
+            focusID = nil
+            return nil
+        }
+        let current = isActive ? (focusID ?? currentID) : currentID
+        let origin = current.flatMap { visibleIDs.firstIndex(of: $0) }
+        let index = origin.map { min(max($0 + step, 0), visibleIDs.count - 1) } ?? 0
+        focusID = visibleIDs[index]
+        visibleSnapshot = visibleIDs
+        return (index, origin, origin.map { $0 != index } ?? false)
+    }
+
+    private func rangeSelection(visibleIDs: [UUID], targetIndex: Int) -> Set<UUID> {
+        let anchorIndex = anchorID.flatMap { visibleIDs.firstIndex(of: $0) } ?? targetIndex
+        let range = ClipboardHistoryBatch.rangeSelectionIDs(
+            allIDs: visibleIDs, anchor: anchorIndex, target: targetIndex)
+        return session == .toggle ? baseSelection.symmetricDifference(range) : baseSelection.union(range)
+    }
+}
+
+enum ClipboardKeyboardNavigation {
+    enum Action: Equatable {
+        case extend(Int)
+        case toggle(Int)
+        case skip(Int)
+    }
+
+    static func action(keyCode: UInt16, flags: NSEvent.ModifierFlags,
+                       sideArrowsMoveSelection: Bool, interactionActive: Bool,
+                       hasMarkedText: Bool, isEditingBody: Bool, searchIsEmpty: Bool,
+                       searchHasSelection: Bool, listNavigationActive: Bool) -> Action? {
+        guard !hasMarkedText, !isEditingBody,
+              searchIsEmpty || (listNavigationActive && !searchHasSelection) else { return nil }
+        let step: Int
+        switch keyCode {
+        case UInt16(kVK_UpArrow): step = -1
+        case UInt16(kVK_DownArrow): step = 1
+        case UInt16(kVK_LeftArrow) where sideArrowsMoveSelection: step = -1
+        case UInt16(kVK_RightArrow) where sideArrowsMoveSelection: step = 1
+        default: return nil
+        }
+        let modifiers = flags.intersection([.command, .shift, .option, .control])
+        if modifiers == [.command, .shift] { return .toggle(step) }
+        if modifiers == [.shift] { return .extend(step) }
+        if modifiers == [.command] || (interactionActive && modifiers.isEmpty) { return .skip(step) }
+        return nil
+    }
+}
+
 enum ClipboardHistoryEscape {
     enum Action: Equatable {
         case clearBatchSelection

@@ -2403,10 +2403,10 @@ enum NotchTests {
                 && key(0, "a", .control) == nil && key(0, "å", .option) == nil,
                "keys held with Command, Control or Option are left to their own shortcuts")
         // Arrow keys carry the numeric pad and function flags, which change nothing.
-        suite.expect(key(125, "\u{F701}", [.shift, .numericPad, .function]) == nil && key(126, "", .shift) == nil
+        suite.expect(key(125, "\u{F701}", [.shift, .numericPad, .function]) == .extend(1) && key(126, "", .shift) == .extend(-1)
                 && key(36, "\r", .shift) == nil && key(76, "\u{3}", .shift) == nil
                 && key(0, "A", .shift) == .reveal && key(125, "\u{F701}", [.numericPad, .function]) == .move(backwards: false),
-               "Shift with an arrow or Return is left to the search field, while a capital letter still shows it")
+               "Shift arrows select a range while Shift-Return stays with search and capitals still reveal it")
         // An open entry is drawn over the list from its row and stays in view
         // without the list scrolling: up where it would pass the bottom, down
         // to the top where its row is partly scrolled away.

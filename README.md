@@ -148,6 +148,12 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
 - **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
 
+In both the clipboard history window and the notch clipboard, hold Shift and use ↑/↓ to expand or shrink the selection range; horizontal cards also support ←/→. Hold ⌘⇧ and use the arrows to invert the selection in the range from a fixed starting item to the current item, including both endpoints. Each range inverts the selection as it was when the operation began; shrinking the range restores entries that leave it to their original selection state. Releasing the modifiers keeps the selection. Arrow keys alone or with ⌘ only move focus, leaving the selection unchanged. When the search field is nonempty, first use an unmodified arrow key to navigate the results and leave no search text selected.
+
+For example, with consecutive entries A, B and C initially unselected, extending from A to C selects all three; shrinking back to B leaves A and B selected and restores C to unselected. If all three were initially selected, extending from A to C deselects all three; shrinking back to B restores C to selected while A and B remain unselected.
+
+Release the modifiers and press Enter to paste the selection in history order, regardless of selection direction or search ranking. Esc clears the selection first. Without Accessibility permission, Enter in the notch clipboard copies the selection instead.
+
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
