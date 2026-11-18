@@ -202,7 +202,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// should not be free. An estimate, not a measurement.
     private static let undoAnnotationBytes = 512
     private weak var cleanImage: CGImage?
-    private var cleanAnnotations: [ScreenshotSupport.Annotation] = []
+    private var cleanAnnotations: [ScreenshotSupport.SavedAnnotation] = []
     private var cleanBackdropStyle = ScreenshotSupport.BackdropStyle()
     private var cleanWatermarkStyle = ScreenshotSupport.WatermarkStyle()
     private var cleanAnnotationShadowsEnabled = false
@@ -706,7 +706,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     private func recordCleanState() {
         cleanImage = baseImage
-        cleanAnnotations = annotations.map(\.withoutImagePixels)
+        cleanAnnotations = annotations.map(ScreenshotSupport.SavedAnnotation.init)
         cleanBackdropStyle = backdropStyle.sanitized()
         cleanWatermarkStyle = watermarkStyle.sanitized()
         cleanAnnotationShadowsEnabled = annotationShadowsEnabled
@@ -716,7 +716,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
 
     private func refreshDirtyState() {
         isDirty = baseImage !== cleanImage
-            || annotations.map(\.withoutImagePixels) != cleanAnnotations
+            || annotations.map(ScreenshotSupport.SavedAnnotation.init) != cleanAnnotations
             || backdropStyle.sanitized() != cleanBackdropStyle
             || watermarkStyle.sanitized() != cleanWatermarkStyle
             || annotationShadowsEnabled != cleanAnnotationShadowsEnabled

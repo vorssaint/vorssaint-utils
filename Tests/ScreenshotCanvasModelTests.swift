@@ -203,10 +203,14 @@ enum ScreenshotCanvasModelTests {
         click.finishDrawing(draft.id, isTap: false)
         suite.expect(click.undoStack.last?.annotations.isEmpty == true && click.redoStack.isEmpty,
                      "a completed drawing stores its pre-drag state and supersedes redo")
-        click.cropDraft = CGRect(origin: .zero, size: click.imageSize)
-        click.applyCrop()
-        suite.expect(click.baseImage === frames[1],
-                     "confirming a full-canvas crop keeps the original buffer")
+        let full = CGRect(origin: .zero, size: click.imageSize)
+        let beforeCrop = click.undoStack.count
+        for draft in [full, full.insetBy(dx: -4, dy: -3), full.insetBy(dx: 0.2, dy: 0.4)] {
+            click.cropDraft = draft
+            click.applyCrop()
+            suite.expect(click.baseImage === frames[1] && click.undoStack.count == beforeCrop,
+                         "a crop that clamps or rounds to the full canvas keeps its buffer and history")
+        }
     }
 
     /// A crop owns its pixels instead of pointing into the frame it came from,

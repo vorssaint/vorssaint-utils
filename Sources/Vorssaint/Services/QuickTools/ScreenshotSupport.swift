@@ -1972,9 +1972,24 @@ enum ScreenshotSupport {
 
     /// Immutable pixels shared by image annotations and undo snapshots.
     final class ImageAsset: Equatable {
+        /// Stable identity for saved-state comparisons after the pixels have been released.
+        let id = UUID()
         let image: CGImage
         init(image: CGImage) { self.image = image }
         static func == (lhs: ImageAsset, rhs: ImageAsset) -> Bool { lhs === rhs }
+    }
+
+    /// Dirty-state comparisons remember each image layer's identity without
+    /// keeping its potentially large image alive after it leaves history.
+    struct SavedAnnotation: Equatable {
+        private var annotation: Annotation
+        private let imageID: UUID?
+
+        init(_ source: Annotation) {
+            annotation = source
+            imageID = source.imageAsset?.id
+            annotation.imageAsset = nil
+        }
     }
 
     /// One annotation on the canvas. Geometry lives in image-point
@@ -1997,13 +2012,6 @@ enum ScreenshotSupport {
         var scribbleSeed: UInt64
         var number: Int
         var imageAsset: ImageAsset?
-        /// An image layer gets its own immutable ID at paste time. The clean
-        /// state compares that ID and its edits without retaining its pixels.
-        var withoutImagePixels: Self {
-            var copy = self
-            copy.imageAsset = nil
-            return copy
-        }
         var renderReferenceSize: CGSize?
 
         init(id: UUID = UUID(),
