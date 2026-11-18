@@ -31,7 +31,8 @@ struct NetworkSection: View {
     var body: some View {
         PanelSection(.network, title: l10n.s.networkSection, collapsible: collapsible,
                      supportsEditing: true,
-                     resetAction: resetPanelDefaults) { editing in
+                     resetAction: resetPanelDefaults,
+                     activityMonitorTab: .network) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(Array(blocks(editing: editing).enumerated()), id: \.element) { index, block in
                     if index > 0 { Divider() }

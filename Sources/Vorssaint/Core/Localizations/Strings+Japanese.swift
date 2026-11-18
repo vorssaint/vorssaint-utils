@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "システムサウンド",
         mixerSoundEffectsOutputTooltip: "通知音とサウンドエフェクトの出力先を選択",
         monitorOpenActivityMonitor: "アクティビティモニタを開く",
+        monitorActivityMonitorPermission: "Vorssaintがアクティビティモニタの該当するタブを選択するには、アクセシビリティが必要です。",
         dockClickHide: "Dock クリックでアプリを隠す",
         dockClickHideCaption: "手前のアプリの Dock アイコンをクリックすると、そのアプリを隠します。もう一度クリックすると戻ります。",
         monitorMemoryMetricLabel: "メモリの測定方法",

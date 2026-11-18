@@ -1260,6 +1260,7 @@ struct Strings {
     let mixerSoundEffectsOutputTitle: String
     let mixerSoundEffectsOutputTooltip: String
     let monitorOpenActivityMonitor: String
+    let monitorActivityMonitorPermission: String
     let dockClickHide: String
     let dockClickHideCaption: String
     let monitorMemoryMetricLabel: String
@@ -2389,6 +2390,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Sons do sistema",
         mixerSoundEffectsOutputTooltip: "Escolher onde alertas e efeitos sonoros tocam",
         monitorOpenActivityMonitor: "Abrir o Monitor de Atividade",
+        monitorActivityMonitorPermission: "O Vorssaint precisa de Acessibilidade para selecionar a aba correspondente no Monitor de Atividade.",
         dockClickHide: "Clicar no Dock oculta o app",
         dockClickHideCaption: "O app ativo é ocultado ao clicar no ícone dele no Dock. Clique de novo para trazê-lo de volta.",
         monitorMemoryMetricLabel: "Medir memória como",
@@ -3519,6 +3521,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "System sounds",
         mixerSoundEffectsOutputTooltip: "Choose where alerts and sound effects play",
         monitorOpenActivityMonitor: "Open Activity Monitor",
+        monitorActivityMonitorPermission: "Vorssaint needs Accessibility to select the matching tab in Activity Monitor.",
         dockClickHide: "Click the Dock icon to hide the app",
         dockClickHideCaption: "The active app hides when you click its Dock icon. Click again to bring it back.",
         monitorMemoryMetricLabel: "Measure memory as",

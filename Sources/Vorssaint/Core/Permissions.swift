@@ -250,13 +250,14 @@ final class Permissions: ObservableObject {
     }
 
     /// Shows the system Accessibility prompt (once per TCC reset) and floats
-    /// the little guide card for the System Settings round trip.
-    func requestAccessibility() {
+    /// the little guide card for the System Settings round trip. A feature can
+    /// pass its own reason so the guide says why that feature needs the grant.
+    func requestAccessibility(reason: String? = nil) {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
         refreshActivePermissions()
         if !accessibility {
-            PermissionGuideOverlay.shared.show(for: .accessibility)
+            PermissionGuideOverlay.shared.show(for: .accessibility, reason: reason)
         }
     }
 

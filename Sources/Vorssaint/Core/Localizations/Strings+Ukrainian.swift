@@ -1024,6 +1024,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Системні звуки",
         mixerSoundEffectsOutputTooltip: "Вибрати пристрій для сповіщень та звукових ефектів",
         monitorOpenActivityMonitor: "Відкрити Монітор активності",
+        monitorActivityMonitorPermission: "Vorssaint потребує Універсальний доступ, щоб вибрати потрібну вкладку в Моніторі активності.",
         dockClickHide: "Ховати програму клацом по Dock",
         dockClickHideCaption: "Активна програма ховається при клаці по її значку в Dock. Натисніть ще раз, щоб повернути її.",
         monitorMemoryMetricLabel: "Як вимірювати пам’ять",

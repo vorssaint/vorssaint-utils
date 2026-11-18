@@ -53,7 +53,8 @@ struct SystemSection: View {
     var body: some View {
         PanelSection(.system, title: l10n.s.systemSection, collapsible: collapsible,
                      supportsEditing: true,
-                     resetAction: resetPanelDefaults) { editing in
+                     resetAction: resetPanelDefaults,
+                     activityMonitorTab: .cpu) { editing in
             VStack(alignment: .leading, spacing: 10) {
                 let currentBlocks = blocks(editing: editing)
                 ForEach(Array(currentBlocks.enumerated()), id: \.element) { index, block in
@@ -364,13 +365,7 @@ struct SystemSection: View {
 
     private func usageRows(editing: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                subsectionLabel(l10n.s.usageSection)
-                Spacer(minLength: 0)
-                if !editing {
-                    ActivityMonitorButton()
-                }
-            }
+            subsectionLabel(l10n.s.usageSection)
             if sysCPU, cpuAvailable {
                 usageRow(label: l10n.s.cpuLabel, fraction: monitor.snapshot.cpuUsage,
                          kind: .cpu, editing: editing, visible: $sysCPU)

@@ -1054,6 +1054,7 @@ extension Strings {
         mixerSoundEffectsOutputTitle: "Systemtöne",
         mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
         monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen",
+        monitorActivityMonitorPermission: "Vorssaint benötigt Bedienungshilfen, um den passenden Tab in der Aktivitätsanzeige auszuwählen.",
         dockClickHide: "Klick aufs Dock-Symbol blendet App aus",
         dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück.",
         monitorMemoryMetricLabel: "Speicher messen als",
