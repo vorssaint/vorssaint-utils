@@ -10,6 +10,8 @@ enum QuickTogglesSupport {
     static let finderDomain = "com.apple.finder"
     static let showAllFilesKey = "AppleShowAllFiles"
     static let createDesktopKey = "CreateDesktop"
+    /// Finder Settings > Advanced > "Show warning before emptying the Trash".
+    static let warnOnEmptyTrashKey = "WarnOnEmptyTrash"
 
     static let emptyTrashSource = "tell application \"Finder\" to empty trash"
     static let quitFinderSource = "tell application \"Finder\" to quit"
@@ -39,6 +41,12 @@ enum QuickTogglesSupport {
         default:
             return defaultValue
         }
+    }
+
+    /// A Mac that never changed the Finder's Trash warning stores no value,
+    /// and the Finder's default is to warn.
+    static func finderWarnsBeforeEmptyingTrash(_ value: Any?) -> Bool {
+        finderFlag(value, default: true)
     }
 
     /// Which mounted volumes "Eject all disks" offers. The system flags

@@ -10,6 +10,7 @@ enum QuickTogglesAlertTests {
     enum RunState { case running }
     class Fixture {
         var available = true
+        var finderWarnsBeforeEmptyingTrash = true
         var states: [Action: RunState] = [:]
         var confirmations = 0
         func emptyTrashConfirmed() { confirmations += 1 }
@@ -134,14 +135,24 @@ enum QuickTogglesAlertTests {
         drainMainQueue()
         suite.expect(island.keyReturns == 0, "a hidden island does not take focus when the confirmation closes")
         Alert.beforeReturn = nil
-        for unavailable in [true, false] {
-            Alert.latest = nil
-            let host = Host()
-            host.available = !unavailable
-            if !unavailable { host.states[.emptyTrash] = .running }
-            host.emptyTrash()
-            suite.expect(Alert.latest == nil && host.confirmations == 0,
-                   "an unavailable or already-running Trash action opens no confirmation and does no work")
+        Alert.latest = nil
+        let unwarned = Host()
+        unwarned.finderWarnsBeforeEmptyingTrash = false
+        unwarned.emptyTrash()
+        suite.expect(Alert.latest == nil && unwarned.confirmations == 1,
+               "with the Finder's warning off, the Trash empties on one click without a confirmation")
+        for finderWarns in [true, false] {
+            for unavailable in [true, false] {
+                Alert.latest = nil
+                let host = Host()
+                host.finderWarnsBeforeEmptyingTrash = finderWarns
+                host.available = !unavailable
+                if !unavailable { host.states[.emptyTrash] = .running }
+                host.emptyTrash()
+                suite.expect(Alert.latest == nil && host.confirmations == 0,
+                       "an unavailable or already-running Trash action opens no confirmation and does no work, "
+                       + "whatever the Finder's warning")
+            }
         }
     }
 
