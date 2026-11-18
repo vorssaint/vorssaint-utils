@@ -422,7 +422,7 @@ private final class PickerCanvasView: NSView {
 
         let appKitScreen = NSPoint(x: screenFrame.minX + point.x, y: screenFrame.minY + point.y)
         let cgPoint = AutoClickerCoordinates.cgPoint(fromAppKitPoint: appKitScreen, primaryScreenMaxY: primaryScreenMaxY)
-        let label = String(format: "X: %.0f  Y: %.0f", cgPoint.x, cgPoint.y)
+        let label = "X: \(Int(cgPoint.x.rounded()))  Y: \(Int(cgPoint.y.rounded()))"
 
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .semibold),

@@ -213,7 +213,7 @@ extension AutoClickerFeatureStrings {
         stopAction: "Durdur",
         statusRunning: "Çalışıyor",
         statusIdle: "Boşta",
-        emergencyStopHint: "Hemen durdurmak için ESC'ye basın"
+        emergencyStopHint: "Hemen durdurmak için ESC’ye basın"
     )
 }
 
@@ -429,7 +429,7 @@ extension AutoClickerFeatureStrings {
         targetSection: "Emplacement du Clic",
         targetCursor: "Curseur",
         targetFixedPoint: "Position Fixe",
-        pickLocationAction: "Choisir à l'écran",
+        pickLocationAction: "Choisir à l’écran",
         coordinatesFormat: "X: %d, Y: %d",
         pickerSingleHint: "Cliquez pour définir la cible · ÉCH pour annuler",
         pickerMacroHint: "Cliquez pour ajouter des étapes · ÉCH ou Terminé",
@@ -448,9 +448,9 @@ extension AutoClickerFeatureStrings {
         macroDeleteAction: "Supprimer",
         macroNamePlaceholder: "Nom de la macro",
         macroRepeatSection: "Répétitions",
-        macroRecordStepsAction: "Enregistrer à l'écran",
+        macroRecordStepsAction: "Enregistrer à l’écran",
         macroClearStepsAction: "Effacer les étapes",
-        macroEmptyHint: "Aucune étape. Cliquez sur \"Enregistrer à l'écran\".",
+        macroEmptyHint: "Aucune étape. Cliquez sur \"Enregistrer à l’écran\".",
         macroStepDelayLabel: "Délai (ms)",
         macroSingleClick: "1×",
         macroDoubleClick: "2×",

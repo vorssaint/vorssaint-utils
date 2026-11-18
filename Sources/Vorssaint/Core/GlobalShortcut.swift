@@ -136,7 +136,7 @@ struct GlobalShortcut: Equatable, Hashable {
     static let soundOutputSwitcherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
                                                            modifiers: [.control, .option, .command])
     static let autoClickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
-                                                   modifiers: [.control, .option, .command])
+                                                   modifiers: [.control, .shift, .option, .command])
     static let displayBrightnessDecreaseDefault = GlobalShortcut(
         keyCode: Int64(kVK_ANSI_Minus), modifiers: [.shift, .command])
     static let displayBrightnessIncreaseDefault = GlobalShortcut(

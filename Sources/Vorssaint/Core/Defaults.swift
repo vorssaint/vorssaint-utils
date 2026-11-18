@@ -1306,7 +1306,7 @@ enum Defaults {
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
         DefaultsKey.autoClickerEnabled: false,
-        DefaultsKey.autoClickerShortcut: "control+option+command+c",
+        DefaultsKey.autoClickerShortcut: "control+shift+option+command+c",
         DefaultsKey.autoClickerButton: "left",
         DefaultsKey.autoClickerIntervalMs: 100,
         DefaultsKey.autoClickerRepeatLimit: 0,
