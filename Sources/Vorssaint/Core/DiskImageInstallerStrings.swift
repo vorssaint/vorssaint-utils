@@ -22,6 +22,8 @@ struct DiskImageInstallerStrings {
     let alreadyInstalledBodyFormat: String
     let trashDownloadOption: String
     let revealAppOption: String
+    let ejectOnCloseOption: String
+    let ejectOnCloseHelp: String
     let installedKeptDownloadBodyFormat: String
     let installingFormat: String
 }
@@ -68,6 +70,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ is already in Applications.",
         trashDownloadOption: "Move the download to Trash",
         revealAppOption: "Show the installed app in Finder",
+        ejectOnCloseOption: "Eject the disk image when I close it",
+        ejectOnCloseHelp: "Closing the image’s window needs Accessibility access. Without it, the image is only ejected after you press Cancel.",
         installedKeptDownloadBodyFormat: "%@ is ready in %@. The disk image was ejected and its download kept.",
         installingFormat: "Installing %@…"
     )
@@ -91,6 +95,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ já está em Aplicativos.",
         trashDownloadOption: "Mover o download para o Lixo",
         revealAppOption: "Mostrar o app instalado no Finder",
+        ejectOnCloseOption: "Ejetar a imagem de disco quando eu a fechar",
+        ejectOnCloseHelp: "Fechar a janela da imagem exige acesso de Acessibilidade. Sem ele, a imagem só é ejetada depois que você clica em Cancelar.",
         installedKeptDownloadBodyFormat: "%@ está pronto na %@. A imagem de disco foi ejetada e o download foi mantido.",
         installingFormat: "Instalando %@…"
     )
@@ -114,6 +120,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ zaten Uygulamalar’da.",
         trashDownloadOption: "İndirilen dosyayı Çöp Sepeti’ne taşı",
         revealAppOption: "Yüklenen uygulamayı Finder’da göster",
+        ejectOnCloseOption: "Kapattığımda disk görüntüsünü çıkar",
+        ejectOnCloseHelp: "Görüntünün penceresini kapatmak Erişilebilirlik izni gerektirir. İzin yoksa görüntü yalnızca İptal’e bastığınızda çıkarılır.",
         installedKeptDownloadBodyFormat: "%@, %@ konumunda hazır. Disk görüntüsü çıkarıldı ve indirilen dosya tutuldu.",
         installingFormat: "%@ yükleniyor…"
     )
@@ -137,6 +145,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ уже находится в папке «Программы».",
         trashDownloadOption: "Переместить загрузку в Корзину",
         revealAppOption: "Показать установленное приложение в Finder",
+        ejectOnCloseOption: "Извлекать образ диска, когда я его закрываю",
+        ejectOnCloseHelp: "Для отслеживания закрытия окна образа нужен доступ к универсальному доступу. Без него образ извлекается только после нажатия «Отмена».",
         installedKeptDownloadBodyFormat: "%@ готово в %@. Образ диска извлечён, а загрузка сохранена.",
         installingFormat: "Установка %@…"
     )
@@ -160,6 +170,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ ya está en Aplicaciones.",
         trashDownloadOption: "Mover la descarga a la Papelera",
         revealAppOption: "Mostrar la app instalada en Finder",
+        ejectOnCloseOption: "Expulsar la imagen de disco al cerrarla",
+        ejectOnCloseHelp: "Detectar el cierre de la ventana de la imagen requiere acceso de Accesibilidad. Sin él, la imagen solo se expulsa al pulsar Cancelar.",
         installedKeptDownloadBodyFormat: "%@ está lista en %@. La imagen de disco se expulsó y la descarga se conservó.",
         installingFormat: "Instalando %@…"
     )
@@ -183,6 +195,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "Aplikácia %@ je už v priečinku Aplikácie.",
         trashDownloadOption: "Presunúť stiahnutý súbor do Koša",
         revealAppOption: "Zobraziť nainštalovanú aplikáciu vo Finderi",
+        ejectOnCloseOption: "Vysunúť obraz disku, keď ho zatvorím",
+        ejectOnCloseHelp: "Zistenie zatvorenia okna obrazu vyžaduje prístup k Zjednodušeniu ovládania. Bez neho sa obraz vysunie, až keď kliknete na Zrušiť.",
         installedKeptDownloadBodyFormat: "Aplikácia %@ bola nainštalovaná do %@. Obraz disku bol vysunutý a stiahnutý súbor zostal zachovaný.",
         installingFormat: "Inštaluje sa aplikácia %@…"
     )
@@ -206,6 +220,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ befindet sich bereits in Programme.",
         trashDownloadOption: "Download in den Papierkorb legen",
         revealAppOption: "Installierte App im Finder anzeigen",
+        ejectOnCloseOption: "Image auswerfen, wenn ich es schließe",
+        ejectOnCloseHelp: "Das Schließen des Image-Fensters zu erkennen erfordert Bedienungshilfen-Zugriff. Ohne ihn wird das Image nur nach Klick auf „Abbrechen“ ausgeworfen.",
         installedKeptDownloadBodyFormat: "%@ wurde in %@ installiert. Das Disk-Image wurde ausgeworfen und der Download behalten.",
         installingFormat: "%@ wird installiert…"
     )
@@ -229,6 +245,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ se trouve déjà dans Applications.",
         trashDownloadOption: "Placer le téléchargement dans la Corbeille",
         revealAppOption: "Afficher l’app installée dans le Finder",
+        ejectOnCloseOption: "Éjecter l’image disque quand je la ferme",
+        ejectOnCloseHelp: "Détecter la fermeture de la fenêtre de l’image nécessite l’accès à l’Accessibilité. Sans cela, l’image n’est éjectée qu’après avoir cliqué sur Annuler.",
         installedKeptDownloadBodyFormat: "%@ est prête dans %@. L’image disque a été éjectée et le téléchargement conservé.",
         installingFormat: "Installation de %@…"
     )
@@ -252,6 +270,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ è già in Applicazioni.",
         trashDownloadOption: "Sposta il download nel Cestino",
         revealAppOption: "Mostra l’app installata nel Finder",
+        ejectOnCloseOption: "Espelli l’immagine disco quando la chiudo",
+        ejectOnCloseHelp: "Rilevare la chiusura della finestra dell’immagine richiede l’accesso a Accessibilità. Senza, l’immagine viene espulsa solo dopo aver premuto Annulla.",
         installedKeptDownloadBodyFormat: "%@ è pronta nella %@. L’immagine disco è stata espulsa e il download conservato.",
         installingFormat: "Installazione di %@…"
     )
@@ -275,6 +295,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@はすでにアプリケーションにあります。",
         trashDownloadOption: "ダウンロードをゴミ箱に移動",
         revealAppOption: "インストールしたアプリをFinderで表示",
+        ejectOnCloseOption: "閉じたときにディスクイメージを取り出す",
+        ejectOnCloseHelp: "イメージのウインドウが閉じられたことの検出にはアクセシビリティの許可が必要です。許可がない場合は、キャンセルを押したときだけ取り出されます。",
         installedKeptDownloadBodyFormat: "%@を%@にインストールしました。ディスクイメージを取り出し、ダウンロードは残しています。",
         installingFormat: "%@をインストール中…"
     )
@@ -298,6 +320,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@은(는) 이미 응용 프로그램에 있습니다.",
         trashDownloadOption: "다운로드를 휴지통으로 이동",
         revealAppOption: "설치한 앱을 Finder에서 표시",
+        ejectOnCloseOption: "닫을 때 디스크 이미지 꺼내기",
+        ejectOnCloseHelp: "이미지 윈도우가 닫혔는지 감지하려면 손쉬운 사용 권한이 필요합니다. 권한이 없으면 취소를 누를 때만 이미지를 꺼냅니다.",
         installedKeptDownloadBodyFormat: "%@이(가) %@에 준비되었습니다. 디스크 이미지를 추출했고 다운로드는 그대로 두었습니다.",
         installingFormat: "%@ 설치 중…"
     )
@@ -321,6 +345,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ 已在“应用程序”中。",
         trashDownloadOption: "将下载文件移到废纸篓",
         revealAppOption: "在访达中显示已安装的 App",
+        ejectOnCloseOption: "关闭时推出磁盘映像",
+        ejectOnCloseHelp: "检测映像窗口是否关闭需要“辅助功能”权限。没有该权限时，只有点按“取消”后才会推出映像。",
         installedKeptDownloadBodyFormat: "%@ 已在%@中就绪。磁盘映像已推出，下载文件已保留。",
         installingFormat: "正在安装 %@…"
     )
@@ -344,6 +370,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。",
         trashDownloadOption: "將下載檔案移到垃圾桶",
         revealAppOption: "在 Finder 中顯示已安裝的 App",
+        ejectOnCloseOption: "關閉時退出磁碟映像",
+        ejectOnCloseHelp: "偵測映像視窗是否關閉需要「輔助使用」權限。沒有該權限時，只有按下「取消」後才會退出映像。",
         installedKeptDownloadBodyFormat: "%@ 已可在%@中使用。磁碟映像檔已退出，下載檔案已保留。",
         installingFormat: "正在安裝 %@…"
     )
@@ -367,6 +395,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ 已在「應用程式」中。",
         trashDownloadOption: "將下載檔案移到垃圾桶",
         revealAppOption: "在 Finder 中顯示已安裝的 App",
+        ejectOnCloseOption: "關閉時退出磁碟映像",
+        ejectOnCloseHelp: "偵測映像視窗是否關閉需要「輔助使用」權限。沒有該權限時，只有按下「取消」後才會退出映像。",
         installedKeptDownloadBodyFormat: "%@ 已可在%@中使用。磁碟映像檔已退出，下載檔案已保留。",
         installingFormat: "正在安裝 %@…"
     )
@@ -389,6 +419,8 @@ extension DiskImageInstallerStrings {
         alreadyInstalledBodyFormat: "%@ вже у папці «Програми».",
         trashDownloadOption: "Перемістити завантаження в Смітник",
         revealAppOption: "Показати встановлену програму у Finder",
+        ejectOnCloseOption: "Виймати образ диска, коли я його закриваю",
+        ejectOnCloseHelp: "Щоб виявити закриття вікна образу, потрібен доступ до універсального доступу. Без нього образ виймається лише після натискання «Скасувати».",
         installedKeptDownloadBodyFormat: "%@ встановлено в %@. Образ диска вийнято, а завантаження збережено.",
         installingFormat: "Встановлення %@…"
     )
