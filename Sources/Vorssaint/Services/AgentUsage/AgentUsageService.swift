@@ -639,7 +639,8 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        overlayGoAllowance(&next)
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -658,6 +659,29 @@ final class AgentUsageService: ObservableObject {
     }
 
     // MARK: Alerts
+
+    /// In Go mode the island reads Go allowances where it reads plan
+    /// limits: the strip beside the camera, the resting island and the
+    /// Limits card. Runs on `queue`. The local estimate never leaves the
+    /// Mac; the Console check sends only the saved key to opencode.ai.
+    private func overlayGoAllowance(_ snapshot: inout AgentUsageSnapshot) {
+        guard enabled.contains(.opencode), NotchAgentSupport.goMode() else { return }
+        // The account's exact allowances win while fresh; otherwise the
+        // local estimate stands in.
+        if NotchAgentSupport.goConsole(),
+           let console = AgentGoConsoleService.shared.currentLimits(now: snapshot.now) {
+            snapshot.limits[.opencode] = console
+            snapshot.seen.insert(.opencode)
+            return
+        }
+        let plan = NotchAgentSupport.goPlan()
+        let card = AgentGoSupport.cardModel(snapshot: snapshot, now: snapshot.now,
+                                            plan: plan, table: AgentGoSupport.bundledTable())
+        guard !card.windows.isEmpty else { return }
+        snapshot.limits[.opencode] = AgentLimits(provider: .opencode, windows: card.windows,
+                                                 observedAt: snapshot.now, source: .sessionLog)
+        snapshot.seen.insert(.opencode)
+    }
 
     /// Filters by the person's choices on the main thread, where they live.
     private func report(_ event: AgentUsageEvent) {

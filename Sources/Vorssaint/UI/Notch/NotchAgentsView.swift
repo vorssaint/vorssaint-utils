@@ -17,6 +17,8 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCodeGo) private var opencodeGo = false
+    @AppStorage(DefaultsKey.notchAgentsGoPlan) private var goPlanRaw = AgentGoPlan.go.rawValue
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
@@ -39,10 +41,11 @@ struct NotchAgentsView: View {
 
     private var rows: [[NotchAgentTile]] {
         // The strings are read here so a change in Settings redraws the page.
-        _ = (cardOrder, hiddenCards)
+        _ = (cardOrder, hiddenCards, opencodeGo)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
+                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
+                                                              goMode: opencodeGo),
                                       width: size.width)
     }
 
@@ -80,6 +83,7 @@ struct NotchAgentsView: View {
         .onAppear {
             usage.pageDidAppear(preview: preview)
             accounts.pageDidAppear(preview: preview)
+            AgentGoConsoleService.shared.pageDidAppear(preview: preview)
         }
         .onDisappear {
             guard !preview else { return }
@@ -120,7 +124,8 @@ struct NotchAgentsView: View {
                                      accountName: provider == .claude ? claudeAccountName : nil)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text,
+                                goMode: opencodeGo)
         case .live:
             NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
         case .trend:
@@ -135,6 +140,10 @@ struct NotchAgentsView: View {
             NotchAgentActivityCard(snapshot: snapshot, text: text)
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
+        case .allowance:
+            NotchAgentGoCard(snapshot: snapshot, now: now, text: text,
+                             plan: AgentGoPlan(rawValue: goPlanRaw) ?? .go,
+                             display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining)
         }
     }
 
@@ -513,15 +522,64 @@ private struct NotchAgentInlineLabel: LabelStyle {
 
 /// The period it covers is chosen in the island's top row, which the trend,
 /// models and projects follow too; the plan multiples take its place here.
+/// In Go mode the card meters OpenCode tokens instead: dollars mean nothing
+/// against allowances, while token counts are exact with or without prices.
 private struct NotchAgentSpendCard: View {
     let snapshot: AgentUsageSnapshot
     let providers: [AgentProvider]
     let period: AgentPeriod
     let text: NotchAgentStrings
+    var goMode = false
+
+    private var goTokens: Bool { goMode && providers.contains(.opencode) }
 
     var body: some View {
+        if goTokens {
+            goBody
+        } else {
+            spendBody
+        }
+    }
+
+    private var goBody: some View {
         let usage = snapshot.usage(period)
-        NotchAgentCardChrome {
+        let open = usage.byProvider[.opencode] ?? AgentTotals()
+        let dayPeriod = AgentGoSupport.tokenFooterPeriod(period)
+        let dayTokens = snapshot.usage(dayPeriod).byProvider[.opencode]?.tokens.total ?? 0
+        let dayLine = text.period(dayPeriod) + " · " + text.tokens(AgentFormat.tokens(dayTokens))
+        return NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 5) {
+                NotchAgentCardHeader(title: text.tokensCard, symbol: "number.circle",
+                                     tint: AgentProvider.opencode.tint, provider: .opencode) {
+                    EmptyView()
+                }
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text(AgentFormat.tokens(open.tokens.total))
+                        .font(.system(size: 22, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Text(text.period(period))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                }
+                .help(dayLine)
+                split(usage, byTokens: true)
+                Text(dayLine)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+        }
+    }
+
+    private var spendBody: some View {
+        let usage = snapshot.usage(period)
+        return NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
                     if period == .month { multiples(usage) }
@@ -565,8 +623,8 @@ private struct NotchAgentSpendCard: View {
         }
     }
 
-    @ViewBuilder private func split(_ usage: AgentPeriodUsage) -> some View {
-        let byCost = usage.fullyPriced
+    @ViewBuilder private func split(_ usage: AgentPeriodUsage, byTokens: Bool = false) -> some View {
+        let byCost = byTokens ? false : usage.fullyPriced
         let parts = providers.map { usage.byProvider[$0]?.weight(byCost: byCost) ?? 0 }
         let total = parts.reduce(0, +)
         let shown = parts.filter { $0 > 0 }.count
@@ -881,6 +939,166 @@ private struct NotchAgentActivityCard: View {
 
     private func value(_ totals: AgentTotals, byCost: Bool) -> String {
         byCost ? AgentFormat.cost(totals.cost) : AgentFormat.tokens(totals.tokens.total)
+    }
+}
+
+// MARK: Go allowance
+
+/// OpenCode Go remaining: rolling 5h, weekly and monthly dollars left for
+/// the model closest to its monthly cap, estimated from this Mac's priced
+/// OpenCode records.
+private struct NotchAgentGoCard: View {
+    let snapshot: AgentUsageSnapshot
+    let now: Date
+    let text: NotchAgentStrings
+    let plan: AgentGoPlan
+    let display: NotchAgentLimitDisplay
+    @Environment(\.locale) private var locale
+
+    private var table: AgentGoSupport.GoModelTable? {
+        AgentGoSupport.bundledTable()
+    }
+
+    private var card: (model: String?, windows: [AgentLimitWindow], known: Bool) {
+        AgentGoSupport.cardModel(snapshot: snapshot, now: now, plan: plan, table: table)
+    }
+
+    private var dollars: (rolling: Double, weekly: Double, monthly: Double) {
+        let weekly = AgentGoSupport.modelCosts(snapshot: snapshot, period: .week)
+        let monthly = AgentGoSupport.modelCosts(snapshot: snapshot, period: .month)
+        let rollingTotal = AgentGoSupport.rollingCost(hours: snapshot.hours, now: now)
+        guard let model = card.model else {
+            let used = AgentGoSupport.usage(snapshot: snapshot, now: now)
+            return (used.rolling, used.weekly, used.monthly)
+        }
+        return AgentGoSupport.modelDollars(model: model, rollingTotal: rollingTotal,
+                                           weekly: weekly, monthly: monthly)
+    }
+
+    private var quotas: (rolling: Double, weekly: Double, monthly: Double) {
+        guard let model = card.model else { return plan.quotas }
+        let monthlyCap = table?.monthlyCap(model: model, plan: plan) ?? plan.quotas.monthly
+        return (monthlyCap * 0.2, monthlyCap * 0.5, monthlyCap)
+    }
+
+    /// The Console's exact numbers while fresh, with countdowns straight
+    /// from its resets. Nil while the check is off, keyless or stale.
+    /// Dollars stay empty: the Console sends percents, not dollar caps.
+    private var console: (rows: [(title: String, fraction: Double, dollars: (used: Double, quota: Double)?, reset: Date?)], observed: Date)? {
+        guard let current = AgentGoConsoleService.shared.currentReading(now: now) else { return nil }
+        func row(_ title: String, _ window: AgentGoConsole.Window?) -> (String, Double, (Double, Double)?, Date?)? {
+            guard let window else { return nil }
+            let percent: Double?
+            if let exact = window.percent {
+                percent = min(100, max(0, exact))
+            } else if window.limit > 0 {
+                percent = AgentGoSupport.usedFraction(used: window.used, quota: window.limit) * 100
+            } else {
+                return nil
+            }
+            let reset = window.resetAt ?? window.resetIn.map { now.addingTimeInterval(max(0, $0)) }
+            return (title, percent! / 100, nil, reset)
+        }
+        let rows = [row(text.rollingTitle, current.reading.rolling),
+                    row(text.weeklyLeftTitle, current.reading.weekly),
+                    row(text.monthlyLeftTitle, current.reading.monthly)].compactMap { $0 }
+        guard !rows.isEmpty else { return nil }
+        return (rows, current.observed)
+    }
+
+    private var rows: [(title: String, fraction: Double, dollars: (used: Double, quota: Double)?, reset: Date?)] {
+        if let console { return console.rows }
+        let dollars = dollars
+        let quotas = quotas
+        func local(_ title: String, used: Double, quota: Double, reset: Date?) -> (String, Double, (Double, Double)?, Date?) {
+            (title, AgentGoSupport.usedFraction(used: used, quota: quota), (used, quota), reset)
+        }
+        return [
+            local(text.rollingTitle, used: dollars.rolling, quota: quotas.rolling, reset: nil),
+            local(text.weeklyLeftTitle, used: dollars.weekly, quota: quotas.weekly,
+                  reset: card.windows.count > 1 ? card.windows[1].resetsAt : AgentGoSupport.nextWeeklyReset(now: now)),
+            local(text.monthlyLeftTitle, used: dollars.monthly, quota: quotas.monthly,
+                  reset: card.windows.count > 2 ? card.windows[2].resetsAt : AgentGoSupport.nextMonthlyReset(now: now)),
+        ]
+    }
+
+    var body: some View {
+        let card = card
+        let rows = rows
+        let consoleObserved = console?.observed
+        NotchAgentCardChrome {
+            VStack(alignment: .leading, spacing: 6) {
+                NotchAgentCardHeader(title: text.allowanceCard, symbol: NotchAgentCard.allowance.symbol,
+                                     tint: AgentProvider.opencode.tint, provider: .opencode) {
+                    NotchAgentChip(text: plan.displayName, tint: AgentProvider.opencode.tint)
+                }
+                if consoleObserved == nil, let model = card.model {
+                    Text(model)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help(card.known ? model : text.estimated)
+                }
+                VStack(spacing: 5) {
+                    ForEach(rows, id: \.title) { row($0.title, fraction: $0.fraction, dollars: $0.dollars, reset: $0.reset) }
+                }
+                if let observed = consoleObserved {
+                    Text(text.updated(observed.formatted(
+                        .relative(presentation: .named, unitsStyle: .abbreviated).locale(locale))))
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                } else if !card.known || (snapshot.usage(.month).byProvider[.opencode]?.unpriced ?? 0) > 0 {
+                    Text(card.known ? text.unpriced : text.estimated)
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func row(_ title: String, fraction: Double, dollars: (used: Double, quota: Double)?, reset: Date?) -> some View {
+        let remaining = display == .remaining
+        let share = remaining
+            ? text.left(AgentFormat.percent(1 - fraction))
+            : text.usedShare(AgentFormat.percent(fraction))
+        let tint: Color = fraction >= 0.9 ? .orange : AgentProvider.opencode.tint
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                if let reset {
+                    Label(AgentFormat.duration(max(60, reset.timeIntervalSince(now)), locale: locale, units: 2),
+                          systemImage: "arrow.clockwise")
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: false)
+                }
+                Spacer(minLength: 2)
+                Text(share)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                if let dollars {
+                    Text(AgentFormat.cost(AgentGoSupport.remaining(used: dollars.used, quota: dollars.quota)))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .fixedSize(horizontal: true, vertical: false)
+                        .foregroundStyle(tint == AgentProvider.opencode.tint ? Color.white : tint)
+                }
+            }
+            .help(dollars.map { "\(title) · \(AgentFormat.cost($0.used)) / \(AgentFormat.cost($0.quota)) · \(share)" } ?? "\(title) · \(share)")
+            NotchAgentMeter(value: remaining ? 1 - fraction : fraction, tint: tint, height: 4)
+        }
     }
 }
 

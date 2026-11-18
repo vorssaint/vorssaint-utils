@@ -12,6 +12,13 @@ struct NotchAgentsSettingsControls: View {
     @AppStorage(DefaultsKey.notchAgentsClaudeProfile) private var claudeProfile = ""
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
+    @AppStorage(DefaultsKey.notchAgentsOpenCodeGo) private var opencodeGo = false
+    @AppStorage(DefaultsKey.notchAgentsGoPlan) private var goPlanRaw = AgentGoPlan.go.rawValue
+    @AppStorage(DefaultsKey.notchAgentsGoConsole) private var goConsole = false
+    @AppStorage(DefaultsKey.notchAgentsGoEndpoint) private var goEndpoint = AgentGoConsole.defaultEndpoint
+    @ObservedObject private var goConsoleService = AgentGoConsoleService.shared
+    @State private var goKeyDraft = ""
+    @State private var goKeySaved: Bool?
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
@@ -52,6 +59,54 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.copilot, isOn: $copilot)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
+            if opencode {
+                SettingsRow(symbol: NotchAgentCard.allowance.symbol, title: text.goMode) {
+                    Toggle(text.goMode, isOn: $opencodeGo).labelsHidden().toggleStyle(.switch)
+                }
+                if opencodeGo {
+                    SettingsMenuRow(symbol: "dollarsign.circle", title: text.goPlan, selection: $goPlanRaw) {
+                        ForEach(AgentGoPlan.allCases) { plan in
+                            Text(plan.displayName).tag(plan.rawValue)
+                        }
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                    SettingsRow(symbol: "checkmark.shield", title: text.goConsole) {
+                        Toggle(text.goConsole, isOn: $goConsole).labelsHidden().toggleStyle(.switch)
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                    if goConsole {
+                        Text(text.goConsoleHint).font(.caption).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.leading, settingsRowTextInset)
+                        SettingsRow(symbol: "link", title: text.goEndpoint) {
+                            TextField(text.goEndpoint, text: $goEndpoint)
+                                .textFieldStyle(.roundedBorder)
+                                .labelsHidden()
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                        SettingsRow(symbol: "key", title: text.goKey, caption: goKeyCaption) {
+                            SecureField(text.goKey, text: $goKeyDraft)
+                                .textFieldStyle(.roundedBorder)
+                                .labelsHidden()
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                        HStack(spacing: 8) {
+                            Button(text.goCheck) { saveGoKeyIfNeeded(); goConsoleService.refresh() }
+                                .disabled(goKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !(goKeySaved ?? false))
+                            if goConsoleService.checking { ProgressView().controlSize(.small) }
+                            if let failure = goConsoleService.failure {
+                                Text(failure == .missingKey ? text.goKeyMissing : text.goCheckFailed)
+                                    .font(.caption).foregroundStyle(.orange)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            } else if let observed = goConsoleService.limits?.observedAt {
+                                Text(text.updated(relative(observed, now: Date())))
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.leading, settingsRowTextInset)
+                    }
+                }
+            }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))
@@ -61,11 +116,16 @@ struct NotchAgentsSettingsControls: View {
                                          order: Binding(get: { orderedCards },
                                                         set: { cardOrder = $0.map(\.rawValue).joined(separator: ",") }),
                                          dragging: $dragging) {
-                        NotchEditorItem(symbol: card.symbol, title: text.card(card), included: cardBinding(card)) {
+                        NotchEditorItem(symbol: card == .spend && opencodeGo && opencode ? "number.circle" : card.symbol,
+                                        title: card == .spend && opencodeGo && opencode ? text.tokensCard : text.card(card),
+                                        included: cardBinding(card)) {
                             cardBinding(card).wrappedValue.toggle()
                         }
                         .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveUp) { moveCard(card, by: -1) }
                         .accessibilityAction(named: FeatureStrings.clipboard(l10n.language).moveDown) { moveCard(card, by: 1) }
+                        // Go replaces API-value trends with allowances.
+                        .disabled(card == .trend && opencodeGo && opencode)
+                        .opacity(card == .trend && opencodeGo && opencode ? 0.5 : 1)
                     }
                 }
             }
@@ -152,6 +212,7 @@ struct NotchAgentsSettingsControls: View {
         .toggleStyle(.switch)
         .onAppear {
             findRoots()
+            goKeySaved = AgentGoConsole.readKey() != nil
             // An agent turned off is not read at all, not even for its status.
             if claude { findClaudeApp() }
         }
@@ -164,9 +225,28 @@ struct NotchAgentsSettingsControls: View {
         }
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
-        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
+        .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(opencodeGo), goPlanRaw,
+                       String(goConsole), goEndpoint, String(copilot),
                        String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
+        }
+        .onChange(of: goConsole) { _, on in
+            if on { goConsoleService.refreshIfStale() }
+        }
+    }
+
+    private var goKeyCaption: String {
+        (goKeySaved ?? (AgentGoConsole.readKey() != nil)) ? text.goKeySaved : text.goKeyEmpty
+    }
+
+    /// Saves a freshly typed key owner-only; an untouched field keeps
+    /// what is stored. The field is cleared so the secret never lingers.
+    private func saveGoKeyIfNeeded() {
+        let draft = goKeyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !draft.isEmpty else { return }
+        if AgentGoConsole.saveKey(draft) {
+            goKeyDraft = ""
+            goKeySaved = true
         }
     }
 
