@@ -23,16 +23,23 @@ final class NotchMenuBarGapItem {
     private var requested: NotchMenuBarGap?
     private var shrink: (from: CGFloat, to: CGFloat, start: CFTimeInterval)?
     private var shrinkTimer: Timer?
+    /// Where an Accessibility reading last found the gap. macOS 27 draws
+    /// status items itself and the item's own window does not say.
+    var measuredFrame: CGRect?
 
     var isPlaced: Bool { item != nil }
+    /// The length the item has now, to find it among the items read.
+    var currentLength: CGFloat? { item?.length }
 
     var windowNumber: Int {
         guard let number = item?.button?.window?.windowNumber, number > 0 else { return -1 }
         return number
     }
 
-    /// Where the gap is drawn now; nil before macOS has placed it.
+    /// Where the gap is drawn now, as last read or as its window says; nil
+    /// before either knows.
     var frame: CGRect? {
+        if let measuredFrame { return measuredFrame }
         guard let frame = item?.button?.window?.frame, frame.width > 0, frame.minY > 0 else { return nil }
         return frame
     }
@@ -75,24 +82,26 @@ final class NotchMenuBarGapItem {
         self.item = item
         placedScreen = screen
         requested = wanted
+        measuredFrame = nil
     }
 
     /// A wider island takes its room at once, ahead of its own growth; a
-    /// narrower one hands it back in steps.
-    func setLength(_ length: CGFloat) {
+    /// narrower one hands it back in steps. False when nothing changes.
+    @discardableResult func setLength(_ length: CGFloat) -> Bool {
         guard let item, let target = targetLength,
-              NotchMenuBarGap.needsLength(current: target, wanted: length) else { return }
+              NotchMenuBarGap.needsLength(current: target, wanted: length) else { return false }
         if length > item.length || NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             stopShrinking()
             item.length = length
-            return
+            return true
         }
         shrink = (item.length, length, CACurrentMediaTime())
-        guard shrinkTimer == nil else { return }
+        guard shrinkTimer == nil else { return true }
         let timer = Timer(timeInterval: Self.stepInterval, repeats: true) { [weak self] _ in self?.stepShrink() }
         shrinkTimer = timer
         RunLoop.main.add(timer, forMode: .common)
         stepShrink()
+        return true
     }
 
     private func stepShrink() {
@@ -116,6 +125,7 @@ final class NotchMenuBarGapItem {
 
     func hide() {
         stopShrinking()
+        measuredFrame = nil
         placedScreen = nil
         requested = nil
         guard let item else { return }

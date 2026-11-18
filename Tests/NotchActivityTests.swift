@@ -24,6 +24,7 @@ enum NotchActivityTests {
         gateContracts(suite)
         menuBarFitContracts(suite)
         menuBarGapContracts(suite)
+        menuBarGapAuditContracts(suite)
     }
 
     /// Fitting the strip beside the menu bar's icons: on by default, saved
@@ -92,6 +93,60 @@ enum NotchActivityTests {
                      "the resting wings cover the menus or give way like an activity's")
     }
 
+    /// The gap checked against where every status item really is, and how
+    /// often it may be placed again.
+    private static func menuBarGapAuditContracts(_ suite: TestSuite) {
+        let plain = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        func item(_ x: CGFloat, _ width: CGFloat) -> CGRect { CGRect(x: x, y: 1056, width: width, height: 24) }
+        // The reading on the user's display: the island at 786...1133, the
+        // gap pushed left to 610...993 by Deep Work's item appearing right of it.
+        let island: ClosedRange<CGFloat> = 786...1133
+        let pushed = [item(610, 383), item(1007, 24), item(1083, 150), item(1209, 24), item(1384, 44)]
+        suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 383, frames: pushed, screen: plain)
+                     == .replace(NotchMenuBarGap(position: 686, length: 467)),
+                     "a gap pushed under the island is placed again right of the items over it")
+        suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 383, frames: [item(1007, 24)], screen: plain) == .unknown,
+                     "a reading without the gap changes nothing")
+        let landed = [item(770, 30), item(800, 434), item(1240, 24), item(1384, 44)]
+        suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 434, frames: landed, screen: plain)
+                     == .fits(gap: item(800, 434)),
+                     "a gap ending past the island with nothing over the island to its right fits, from where it really ends")
+        suite.expect(NotchMenuBarGap.length(rightEnd: 1234, island: island, screen: plain) == 458,
+                     "its length then runs from its real end, not the one asked for")
+        let leftOver = [item(760, 40), item(790, 444), item(1240, 24)]
+        suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 444, frames: leftOver, screen: plain)
+                     == .fits(gap: item(790, 444)),
+                     "an item left of the gap is cleared by its length, without placing it again")
+        let short = [item(700, 420), item(1135, 24)]
+        if case .replace = NotchMenuBarGap.audit(island: island, gapLength: 420, frames: short, screen: plain) {
+            suite.expect(true, "")
+        } else {
+            suite.expect(false, "a gap ending short of the island and its margin is placed again")
+        }
+        let notched = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        let notchItems = [CGRect(x: 849, y: 958, width: 81, height: 24), CGRect(x: 600, y: 958, width: 40, height: 24)]
+        suite.expect(NotchMenuBarGap.audit(island: 606...906, gapLength: 81, frames: notchItems, screen: notched,
+                                           notchWidth: 185) == .fits(gap: notchItems[0]),
+                     "beside a camera, items left of the notch are not over the island")
+
+        var retry = NotchMenuBarGapRetry()
+        suite.expect(retry.allows(at: 10), "a first place is allowed")
+        retry.placed(at: 10, retrying: false)
+        suite.expect(!retry.allows(at: 10.3) && retry.allows(at: 10.5), "places come at most every half second")
+        retry.placed(at: 10.5, retrying: true)
+        retry.placed(at: 11, retrying: true)
+        suite.expect(retry.allows(at: 11.5), "two places that did not land are tried again")
+        retry.placed(at: 11.5, retrying: true)
+        suite.expect(!retry.allows(at: 12) && !retry.allows(at: 16.4) && retry.allows(at: 16.5),
+                     "after three places in a row that did not land, the gap waits five seconds")
+        var settled = NotchMenuBarGapRetry()
+        settled.placed(at: 0, retrying: true)
+        settled.placed(at: 1, retrying: true)
+        settled.landed()
+        settled.placed(at: 2, retrying: true)
+        suite.expect(settled.allows(at: 2.5), "a gap that lands starts the count again")
+    }
+
     /// The empty status item under the island: placed once with its right
     /// end a little past the island, then lengthened and shortened live with
     /// the island's left end, and placed again only when its end must move.
@@ -128,8 +183,8 @@ enum NotchActivityTests {
                      "an island that stays within the gap's end keeps the gap where it is")
         suite.expect(NotchMenuBarGap.needsPlacing(rightEnd: end, island: 795...1125),
                      "an island reaching past the gap's end, less the margin, moves it")
-        suite.expect(NotchMenuBarGap.needsPlacing(rightEnd: end, island: 860...1060),
-                     "an island leaving a wide band before the gap's end brings the items there back")
+        suite.expect(!NotchMenuBarGap.needsPlacing(rightEnd: end, island: 900...1000),
+                     "a narrower island keeps the gap's end, so an item it was placed to clear stays clear")
         suite.expect(NotchMenuBarGap.length(rightEnd: end, island: 810...1110, screen: plain) == 334
                      && NotchMenuBarGap.length(rightEnd: end, island: 820...1100, screen: plain) == 324
                      && NotchMenuBarGap.length(rightEnd: end, island: 790...1130, screen: plain) == 354,

@@ -290,6 +290,12 @@ final class NotchService: ObservableObject {
     private var notchNeedsMonitor = false
     private var menuSpaceTimer: Timer?
     private let menuBarGap = NotchMenuBarGapItem()
+    /// The island's ends the gap last followed, for the readings that check it.
+    private var menuBarGapIsland: ClosedRange<CGFloat>?
+    private var menuBarGapRetry = NotchMenuBarGapRetry()
+    private var menuBarGapAuditTimer: Timer?
+    private var menuBarGapFollowUp: DispatchWorkItem?
+    private var menuBarGapAuditing = false
     private var appFullscreenTimer: Timer?
     private var appFullscreenDisplays: Set<CGDirectDisplayID> = []
     /// Whether a full-screen Space, not an app's own full screen, hides the island.
@@ -1328,7 +1334,7 @@ final class NotchService: ObservableObject {
         gesture = NotchGestureSupport()
         sectionScroll = NotchSectionScroll()
         stopMenuSpaceMonitoring()
-        menuBarGap.hide()
+        hideMenuBarGap()
         geometry.compactSideRoom = nil
         hoverWork?.cancel(); hoverWork = nil
         noticeWork?.cancel(); noticeWork = nil
@@ -3501,16 +3507,83 @@ final class NotchService: ObservableObject {
                                     cameraWidth: geometry.cameraWidth),
               let island = NotchMenuBarGap.island(width: width, surfaceShift: closed ? surfaceShift : 0,
                                                   screen: geometry.screen) else {
-            menuBarGap.hide(); return
+            hideMenuBarGap(); return
         }
+        menuBarGapIsland = island
         if menuBarGap.isPlaced, menuBarGap.placedScreen == geometry.screen, let rightEnd = menuBarGap.rightEnd,
            !NotchMenuBarGap.needsPlacing(rightEnd: rightEnd, island: island) {
-            menuBarGap.setLength(NotchMenuBarGap.length(rightEnd: rightEnd, island: island, screen: geometry.screen,
-                                                        notchWidth: notchWidth))
-        } else if let gap = NotchMenuBarGap.placed(island: island, screen: geometry.screen, notchWidth: notchWidth) {
-            menuBarGap.place(gap, on: geometry.screen)
-        } else {
-            menuBarGap.hide()
+            if menuBarGap.setLength(NotchMenuBarGap.length(rightEnd: rightEnd, island: island, screen: geometry.screen,
+                                                           notchWidth: notchWidth)) {
+                auditMenuBarGapSoon()
+            }
+        } else if !menuBarGap.isPlaced || menuBarGapRetry.allows(at: ProcessInfo.processInfo.systemUptime),
+                  let gap = NotchMenuBarGap.placed(island: island, screen: geometry.screen, notchWidth: notchWidth) {
+            placeMenuBarGap(gap, retrying: false)
+        }
+    }
+
+    private func placeMenuBarGap(_ gap: NotchMenuBarGap, retrying: Bool) {
+        menuBarGap.place(gap, on: geometry.screen)
+        menuBarGapRetry.placed(at: ProcessInfo.processInfo.systemUptime, retrying: retrying)
+        if menuBarGapAuditTimer == nil {
+            let timer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in self?.auditMenuBarGap() }
+            timer.tolerance = 0.2
+            menuBarGapAuditTimer = timer
+            RunLoop.main.add(timer, forMode: .common)
+        }
+        auditMenuBarGapSoon()
+    }
+
+    private func hideMenuBarGap() {
+        menuBarGapAuditTimer?.invalidate(); menuBarGapAuditTimer = nil
+        menuBarGapFollowUp?.cancel(); menuBarGapFollowUp = nil
+        menuBarGapIsland = nil
+        menuBarGap.hide()
+    }
+
+    /// A gap just placed or resized, or items appearing beside it, settle
+    /// within a moment; the check that follows sees where they landed.
+    private func auditMenuBarGapSoon() {
+        guard menuBarGapFollowUp == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            self?.menuBarGapFollowUp = nil
+            self?.auditMenuBarGap()
+        }
+        menuBarGapFollowUp = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2, execute: work)
+    }
+
+    /// Reads where every status item really is, the gap among them, since
+    /// an item to its right that appears or widens moves it left, under the
+    /// island. Then the gap follows the island from its real end, or is
+    /// placed again right of whatever reaches over the island.
+    private func auditMenuBarGap() {
+        guard menuBarGap.isPlaced, !menuBarGapAuditing, let screen = menuBarGap.placedScreen,
+              let length = menuBarGap.currentLength else { return }
+        menuBarGapAuditing = true
+        let primaryTop = NSScreen.screens.first?.frame.maxY ?? screen.maxY
+        menuSpaceQueue.async { [weak self] in
+            let frames = NotchMenuBarSpace.statusItemFrames(primaryTop: primaryTop)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.menuBarGapAuditing = false
+                guard let frames, self.menuBarGap.isPlaced, self.menuBarGap.placedScreen == screen,
+                      let island = self.menuBarGapIsland else { return }
+                let notchWidth = self.geometry.isNotched ? self.geometry.cameraWidth : nil
+                switch NotchMenuBarGap.audit(island: island, gapLength: length, frames: frames, screen: screen,
+                                             notchWidth: notchWidth) {
+                case .unknown:
+                    break
+                case .fits(let gap):
+                    self.menuBarGapRetry.landed()
+                    self.menuBarGap.measuredFrame = gap
+                    self.menuBarGap.setLength(NotchMenuBarGap.length(rightEnd: gap.maxX, island: island, screen: screen,
+                                                                     notchWidth: notchWidth))
+                case .replace(let gap):
+                    guard self.menuBarGapRetry.allows(at: ProcessInfo.processInfo.systemUptime) else { return }
+                    self.placeMenuBarGap(gap, retrying: true)
+                }
+            }
         }
     }
 

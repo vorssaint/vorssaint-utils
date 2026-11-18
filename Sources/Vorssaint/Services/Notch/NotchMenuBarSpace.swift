@@ -47,6 +47,19 @@ enum NotchMenuBarSpace {
     }
 }
 
+extension NotchMenuBarSpace {
+    /// Every status item's frame, the island's own gap among them, in the
+    /// flipped coordinates the menus use: what the gap is checked against.
+    /// Run off-main; nil without Accessibility, while the owners are still
+    /// unknown, or when a read runs out of time.
+    static func statusItemFrames(primaryTop: CGFloat, hasAccessibility: () -> Bool = AXIsProcessTrusted) -> [CGRect]? {
+        guard hasAccessibility() else { return nil }
+        let reader = NotchMenuBarAXReader(primaryTop: primaryTop)
+        guard let frames = NotchStatusItemOwners.shared.frames(reader: reader), reader.timeRemaining > 0 else { return nil }
+        return frames
+    }
+}
+
 /// Geometry-only reads, all sharing one deadline across every app, child and attribute.
 struct NotchMenuBarAXReader {
     let primaryTop: CGFloat

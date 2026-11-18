@@ -3228,8 +3228,10 @@ struct NotchMenuBarFit: Equatable {
 /// little past the island's right edge. Its length then follows the
 /// island's left edge as the island grows and shrinks, which moves only
 /// the items to its left, live and without a new item. Only when the island
-/// reaches past that end, or leaves a wide band before it, is the gap
-/// placed again.
+/// reaches past that end, or an item to its right appears or widens and
+/// pushes it under the island, is the gap placed again. It is never placed
+/// closer on its own: an item it was placed to clear may still be ordered
+/// by the position it had, and would come back under the island.
 struct NotchMenuBarGap: Equatable {
     static let autosaveName = "VorssaintNotchMenuBarGap"
     /// Room kept past the island's left end. It exceeds the clearance the
@@ -3239,9 +3241,6 @@ struct NotchMenuBarGap: Equatable {
     /// Room kept past the island's right end when the gap is placed, so a
     /// strip can grow a little before the gap has to move.
     static let anchorSlack: CGFloat = 24
-    /// A band wider than this right of the island places the gap again,
-    /// closer, so the items there come back.
-    static let anchorTolerance: CGFloat = 72
     /// Smaller length changes are not worth laying out the bar for.
     static let lengthTolerance: CGFloat = 1
 
@@ -3275,9 +3274,9 @@ struct NotchMenuBarGap: Equatable {
     }
 
     /// The gap's right end has to move: the island reaches past it, less
-    /// the margin, or leaves more than the tolerance before it.
+    /// the margin.
     static func needsPlacing(rightEnd: CGFloat, island: ClosedRange<CGFloat>) -> Bool {
-        island.upperBound + margin > rightEnd || rightEnd - island.upperBound > anchorTolerance
+        island.upperBound + margin > rightEnd
     }
 
     /// The length that reaches from the gap's right end, where macOS drew
@@ -3309,6 +3308,41 @@ struct NotchMenuBarGap: Equatable {
         return frames.filter { abs($0.maxX - gap.maxX) > 3 || $0.maxX <= gap.minX }
     }
 
+    /// What a reading of every status item says about the gap.
+    enum Audit: Equatable {
+        /// The gap was not among the items read.
+        case unknown
+        /// Nothing to its right reaches over the island: its length follows
+        /// the island from where it really ends.
+        case fits(gap: CGRect)
+        /// It ends short of the island, or an item to its right reaches over
+        /// the island, as when that item appears or widens: place it again,
+        /// right of every such item.
+        case replace(NotchMenuBarGap)
+    }
+
+    /// The gap is the item as wide as its length, within two points, on the
+    /// island's display; items to its right that reach over the island, or
+    /// a gap that ends short of it, need a new place. Items to its left are
+    /// cleared by its length alone.
+    static func audit(island: ClosedRange<CGFloat>, gapLength: CGFloat, frames: [CGRect], screen: CGRect,
+                      notchWidth: CGFloat? = nil) -> Audit {
+        let onScreen = frames.filter { $0.midX >= screen.minX && $0.midX <= screen.maxX && !$0.isEmpty }
+        guard let gap = onScreen.filter({ abs($0.width - gapLength) <= 2 })
+                .min(by: { abs($0.width - gapLength) < abs($1.width - gapLength) }) else { return .unknown }
+        let clearFrom = notchWidth.map { screen.midX + max(0, $0) / 2 } ?? island.lowerBound
+        let over = onScreen.filter { $0 != gap && $0.maxX > clearFrom + 1 && $0.minX < island.upperBound - 1 }
+        let pushing = over.filter { $0.minX >= gap.maxX - 2 }
+        if pushing.isEmpty, gap.maxX >= island.upperBound + margin / 2 { return .fits(gap: gap) }
+        // Ordered just right of the rightmost item over the island, the gap
+        // ends where the first item clear of it begins.
+        let anchor = min(screen.maxX, max(island.upperBound + margin, pushing.map(\.maxX).max() ?? 0))
+        let left = leftEnd(island: island, screen: screen, notchWidth: notchWidth)
+        guard anchor > left else { return .unknown }
+        return .replace(NotchMenuBarGap(position: max(0, (screen.maxX - anchor - 1).rounded(.down)),
+                                        length: (anchor + margin - left).rounded(.up)))
+    }
+
     /// Only for an island hanging in the menu bar of its display while it
     /// shows there. Beside a physical camera it clears only what reaches
     /// past the housing; elsewhere the island itself sits on the items.
@@ -3317,6 +3351,36 @@ struct NotchMenuBarGap: Equatable {
         guard enabled, presenting, !hidden, !floats, displayHasMenuBar, islandWidth.isFinite else { return false }
         return isNotched ? islandWidth > cameraWidth + 1 : islandWidth > 0
     }
+}
+
+/// How often the gap may be placed again. A place that does not land, as
+/// when macOS orders it by a stale position, is tried again at most every
+/// half second, and after three in a row the gap waits five seconds.
+struct NotchMenuBarGapRetry: Equatable {
+    static let minimumInterval: TimeInterval = 0.5
+    static let failuresBeforePause = 3
+    static let pause: TimeInterval = 5
+
+    var lastPlaced: TimeInterval = -.infinity
+    var failures = 0
+    var pausedUntil: TimeInterval = -.infinity
+
+    func allows(at now: TimeInterval) -> Bool {
+        now >= pausedUntil && now - lastPlaced >= Self.minimumInterval
+    }
+
+    /// `retrying` is a place made because the last one did not land.
+    mutating func placed(at now: TimeInterval, retrying: Bool) {
+        lastPlaced = now
+        guard retrying else { return }
+        failures += 1
+        if failures >= Self.failuresBeforePause {
+            failures = 0
+            pausedUntil = now + Self.pause
+        }
+    }
+
+    mutating func landed() { failures = 0 }
 }
 
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
