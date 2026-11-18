@@ -52,6 +52,7 @@ enum DisplaySpeakerVolumeTests {
             displays.filter { !$0.isBuiltIn }.map { ($0.id, $0.name) } + hiddenDisplays
         }
         var audioRoutes: [UInt32: AudioRoute] = [:]
+        var pendingSpeakerUnmutes: [String: UInt64] = [:]
         var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
         var audioLifetime: UInt64 = 0
         var speakerLevelRevisions: [String: UInt64] = [:]
@@ -65,6 +66,7 @@ enum DisplaySpeakerVolumeTests {
         var maximum: UInt16 = 100
         var nativeMuted: Bool?
         var unmutedReads: UInt16 = 2
+        var rejectUnmute = false
         var rejectVolume = false
         var ignoreVolume = false
         var onSend: (() -> Void)?
@@ -100,6 +102,7 @@ enum DisplaySpeakerVolumeTests {
                 guard !rejectVolume else { return false }
                 if !ignoreVolume { raw = value }
             } else if code == BrightnessSupport.audioMuteCode, nativeMuted != nil {
+                if value == 2, rejectUnmute { return false }
                 nativeMuted = value == 1
                 if value == 2, let volumeOnUnmute { raw = volumeOnUnmute }
             } else { return false }
