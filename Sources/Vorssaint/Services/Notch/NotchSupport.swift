@@ -380,7 +380,17 @@ enum NotchLayout {
     static func surfaceRadius(height: CGFloat) -> CGFloat { min(28, height * 0.34) }
     static func shoulder(height: CGFloat) -> CGFloat { min(shoulder, height * 0.19) }
     /// The optional outline's stroke. Only its inner half, inside the island, shows.
-    static let outlineWidth: CGFloat = 2
+    /// A coloured outline needs more than the 2 points white against black read
+    /// at, so the width is the user's. It is clamped because it also reserves
+    /// layout room: a stray 0 or a huge stored value would deform the island.
+    static var outlineWidth: CGFloat {
+        // An absent preference keeps the width the island shipped with, which
+        // is not the range's lower bound.
+        let stored = UserDefaults.standard.object(forKey: DefaultsKey.notchOutlineWidth) as? Double
+        return CGFloat(NotchSize.clamped(stored ?? Defaults.defaultNotchOutlineWidth,
+                                         to: Defaults.allowedNotchOutlineWidthRange,
+                                         fallback: Defaults.defaultNotchOutlineWidth))
+    }
 
     // MARK: Capsule
     // Without a camera the island can float in the menu bar as a capsule.

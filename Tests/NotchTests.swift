@@ -1472,6 +1472,23 @@ enum NotchTests {
                                           silhouette: silhouette, outline: true)
             suite.expect(simulated == plain, "a cutout without a camera already shows its outline on the menu bar")
         }
+        // The width is the user's, and it reserves layout room, so a stored
+        // value outside the allowed range must never reach the island.
+        let standard = Foundation.UserDefaults.standard
+        standard.set(4.5, forKey: DefaultsKey.notchOutlineWidth)
+        suite.expect(NotchLayout.outlineWidth == 4.5, "the outline's width reads the saved preference")
+        let bounds = Defaults.allowedNotchOutlineWidthRange
+        for stored in [0, -3, 99, Double.nan] {
+            standard.set(stored, forKey: DefaultsKey.notchOutlineWidth)
+            suite.expect(bounds.contains(Double(NotchLayout.outlineWidth)),
+                   "an outline width stored outside its range is clamped before it reserves layout room")
+        }
+        standard.set("invalid", forKey: DefaultsKey.notchOutlineWidth)
+        suite.expect(NotchLayout.outlineWidth == CGFloat(Defaults.defaultNotchOutlineWidth),
+               "an outline width stored with the wrong type uses the default")
+        standard.removeObject(forKey: DefaultsKey.notchOutlineWidth)
+        suite.expect(NotchLayout.outlineWidth == CGFloat(Defaults.defaultNotchOutlineWidth),
+               "removing the preference restores the width the island shipped with")
     }
 
     private static func musicLabelContracts(_ suite: TestSuite) {
