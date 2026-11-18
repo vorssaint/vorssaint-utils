@@ -64,10 +64,10 @@ enum ClipboardHistoryDragTests {
                         && payload.writers.compactMap { ($0 as? NSURL).map { $0 as URL } } == expected,
                      "a prepared native drag retains access to every resolved file for the entire session")
         var sessionPayload: ClipboardHistoryDrag.Payload? = ClipboardHistoryDrag.prepare(for: entry, imageDirectory: nil)
-        weak let sessionFileAccess = sessionPayload?.fileLeases.first
-        suite.expect(sessionFileAccess != nil, "a prepared file drag keeps its file access alive")
+        let hasSessionFileAccess = { [weak lease = sessionPayload?.fileLeases.first] in lease != nil }
+        suite.expect(hasSessionFileAccess(), "a prepared file drag keeps its file access alive")
         sessionPayload = nil
-        suite.expect(sessionFileAccess == nil, "ending a file drag releases its scoped file access")
+        suite.expect(!hasSessionFileAccess(), "ending a file drag releases its scoped file access")
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         suite.expect(pasteboard.writeObjects(writers), "native file drag writers can be published together")
