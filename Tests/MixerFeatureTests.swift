@@ -309,7 +309,6 @@ enum MixerFeatureTests {
         func owningApp(of responsible: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
             MixerRoutingSupport.owningRegularAppPid(
                 responsiblePid: responsible,
-                preferProcessItself: preferProcessItself,
                 isRegularApp: { regularApps.contains($0) },
                 parentPid: { helperParents[$0] ?? 0 })
         }
@@ -332,6 +331,7 @@ enum MixerFeatureTests {
             MixerRoutingSupport.regularAppOwnerPid(
                 of: pid,
                 responsiblePid: responsible,
+                preferProcessItself: preferProcessItself,
                 isRegularApp: { regularApps.contains($0) },
                 parentPid: { helperParents[$0] ?? 0 })
         }
