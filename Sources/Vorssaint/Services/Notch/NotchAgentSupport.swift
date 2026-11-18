@@ -237,7 +237,14 @@ enum NotchAgentSupport {
             return AgentFormat.cost(live.reduce(0) { $0 + $1.cost })
         case .limit:
             guard let provider = AgentProvider.allCases.first(where: { provider in live.contains { $0.provider == provider } }),
-                  let window = focusedLimit(snapshot.limits[provider], focus: focus, now: now) else { return elapsed() }
+                  let session = live.first(where: { $0.provider == provider }) else { return elapsed() }
+            let reading = provider == .claude ? session.claudeProfile.flatMap { snapshot.claudeLimits[$0] }
+                : snapshot.limits[provider]
+            // Desktop history renews with the clock. Direct account readings
+            // expire instead: another device may already have spent the new window.
+            let limits = provider == .claude && reading?.source == .account
+                ? AgentClaudeServer.current(reading, now: now) : reading
+            guard let window = focusedLimit(limits, focus: focus, now: now) else { return elapsed() }
             return AgentFormat.percent(display == .used ? window.usedFraction : window.remainingFraction)
         }
     }
@@ -253,13 +260,19 @@ enum NotchAgentSupport {
                                             tokens: AgentTokens(input: 1_180_000, output: 20_000), cost: 4.56)]
         }
         let working = AgentProvider.allCases.first { provider in sample.live.contains { $0.provider == provider } } ?? provider
-        if focusedLimit(sample.limits[working], focus: focus, now: now) == nil {
-            sample.limits[working] = AgentLimits(provider: working, windows: [
+        guard let index = sample.live.firstIndex(where: { $0.provider == working }) else { return sample }
+        if working == .claude, sample.live[index].claudeProfile == nil { sample.live[index].claudeProfile = "example" }
+        let profile = sample.live[index].claudeProfile
+        let limits = working == .claude ? profile.flatMap { sample.claudeLimits[$0] } : sample.limits[working]
+        if focusedLimit(limits, focus: focus, now: now) == nil {
+            let example = AgentLimits(provider: working, windows: [
                 AgentLimitWindow(id: "example-session", kind: .session, minutes: 300, scope: nil,
                                  usedPercent: 32, resetsAt: now.addingTimeInterval(3600)),
                 AgentLimitWindow(id: "example-week", kind: .weekly, minutes: 10_080, scope: nil,
                                  usedPercent: 57, resetsAt: now.addingTimeInterval(86_400))
             ], observedAt: now, source: .sessionLog)
+            if working == .claude, let profile { sample.claudeLimits[profile] = example }
+            else { sample.limits[working] = example }
         }
         return sample
     }
@@ -291,15 +304,42 @@ enum NotchAgentSupport {
     /// Below this width every card takes a row of its own.
     static let pairWidth: CGFloat = 390
 
+    static func displayedSnapshot(_ snapshot: AgentUsageSnapshot, claudeSnapshots: [String: AgentUsageSnapshot],
+                                  filter: String?) -> AgentUsageSnapshot {
+        guard let filter else { return snapshot }
+        return claudeSnapshots[filter] ?? AgentUsageSnapshot()
+    }
+
+    /// Limits and resets load independently of usage history.
+    static func cardIsLoading(_ card: NotchAgentCard, snapshot: AgentUsageSnapshot) -> Bool {
+        !snapshot.loaded && card != .limits && card != .resets
+    }
+
+    /// The view and its measured height use the same account selection.
+    static func pageProviders(enabled: [AgentProvider], seen: Set<AgentProvider>, codexAccounts: [String],
+                              claudeAccounts: [ClaudeMonitoredAccount], filter: String?) -> [AgentProvider] {
+        if enabled.contains(.claude), filter != nil { return [.claude] }
+        return enabled.filter {
+            seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
+                || ($0 == .claude && (claudeAccounts.count > 1 || claudeAccounts.first?.profile.isDefault == false))
+        }
+    }
+
+    static func claudeAccountIDs(_ accounts: [ClaudeMonitoredAccount], filter: String?) -> [String] {
+        guard accounts.count > 1 || accounts.first?.profile.isDefault == false else { return [] }
+        return accounts.filter { filter == nil || $0.id == filter }.map(\.id)
+    }
+
     /// Codex homes the person added take the place of Codex's one limits
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
-                      codexAccounts: [String] = [], claudeAccount: String? = nil) -> [NotchAgentTile] {
+                      codexAccounts: [String] = [], claudeAccount: String? = nil, claudeAccounts: [String] = []) -> [NotchAgentTile] {
         cards.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
-                if provider == .claude, let claudeAccount {
-                    return [NotchAgentTile(card: .limits, provider: provider, accountID: claudeAccount)]
+                if provider == .claude {
+                    let accounts = claudeAccounts.isEmpty ? claudeAccount.map { [$0] } ?? [] : claudeAccounts
+                    if !accounts.isEmpty { return accounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) } }
                 }
                 guard provider == .codex, !codexAccounts.isEmpty else { return [NotchAgentTile(card: .limits, provider: provider)] }
                 return codexAccounts.map { NotchAgentTile(card: .limits, provider: provider, accountID: $0) }

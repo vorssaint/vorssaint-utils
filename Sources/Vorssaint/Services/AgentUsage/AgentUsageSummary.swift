@@ -93,6 +93,9 @@ struct AgentUsageSnapshot: Equatable {
     var hours: [AgentBucket] = []
     var limits: [AgentProvider: AgentLimits] = [:]
     var plans: [AgentProvider: AgentPlan] = [:]
+    var claudePlans: [String: AgentPlan] = [:]
+    /// Live allowances by canonical configuration directory, separate from resting limits.
+    var claudeLimits: [String: AgentLimits] = [:]
     var live: [AgentLiveSession] = []
     var claudeBlock: AgentBlock?
     /// The last half hour, scaled to an hour.
@@ -103,6 +106,12 @@ struct AgentUsageSnapshot: Equatable {
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
+
+    func planMultiple(for provider: AgentProvider) -> Double? {
+        guard let price = plans[provider]?.monthlyPrice, price.isFinite, price > 0,
+              let spent = usage(.month).byProvider[provider]?.cost, spent > 0 else { return nil }
+        return spent / price
+    }
 }
 
 enum AgentUsageSummary {

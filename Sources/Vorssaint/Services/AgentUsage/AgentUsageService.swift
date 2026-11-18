@@ -16,7 +16,7 @@ import Network
 /// price list is fetched only when the person keeps prices up to date.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
-/// work to each other asynchronously, except that a stop waits for progress
+/// work to each other asynchronously, except that a final stop waits for progress
 /// to be saved. The queue never waits for the main thread.
 final class AgentUsageService: ObservableObject {
     static let shared = AgentUsageService()
@@ -27,6 +27,17 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
     @Published private(set) var claudeProfile = ClaudeAccountProfile()
+    @Published private(set) var claudeAccounts: [ClaudeMonitoredAccount] = []
+    @Published var claudeAccountFilter: String? {
+        didSet {
+            let filter = claudeAccountFilter
+            queue.async { [self] in
+                readerClaudeFilter = filter
+                if readerSession >= 0 { publish() }
+            }
+        }
+    }
+    @Published private(set) var claudeSnapshots: [String: AgentUsageSnapshot] = [:]
     @Published private(set) var claudeAccountIdentity: ClaudeAccountProfile.Identity?
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
@@ -80,6 +91,7 @@ final class AgentUsageService: ObservableObject {
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
+    private var claudeLimitsSubscription: AnyCancellable?
 
     // Confined to `queue`.
     private var readerSession = -1
@@ -103,6 +115,10 @@ final class AgentUsageService: ObservableObject {
     private var claudeOrganization: String?
     private var claudeIdentity: ClaudeAccountProfile.Identity?
     private var readerClaudeProfile = ClaudeAccountProfile()
+    private var readerClaudeAccounts: [ClaudeMonitoredAccount] = []
+    private var readerClaudeScopes: [String: String] = [:]
+    private var readerClaudeRecordScopes: [String: String] = [:]
+    private var readerClaudeFilter: String?
     private var claudeProfileModified: Date?
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
@@ -119,29 +135,40 @@ final class AgentUsageService: ObservableObject {
     private var savedMark: Int?
     private var lastSave = Date.distantPast
 
-    private init() {}
+    private init() {
+        claudeLimitsSubscription = ClaudeProfileLimitsService.shared.$states.dropFirst().sink { [weak self] states in
+            guard let self else { return }
+            let readings = ClaudeProfileLimitsState.readings(primary: self.claudeAccounts.first,
+                limits: self.snapshot.limits[.claude], additional: states, home: self.home)
+            if self.snapshot.claudeLimits != readings { self.snapshot.claudeLimits = readings }
+        }
+    }
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
+        ClaudeProfileLimitsService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
-        let profile = ClaudeAccountProfile.selected()
+        let accounts = ClaudeMonitoredAccount.configured()
+        let profile = accounts[0].profile
         let showingPage = pageVisible
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading, which would not
         // resume progress saved for the old set, so it goes at once. Codex
         // accounts keep their checks: they read no log.
-        if running, wanted != providers || profile != claudeProfile {
-            stop(keepingProgress: false, pausingAccounts: false)
+        if running, wanted != providers || accounts.map(\.directory) != claudeAccounts.map(\.directory) {
+            stop(keepingProgress: false, pausingAccounts: false, waitingForReader: false)
         }
         if claudeProfile != profile { claudeProfile = profile }
+        if claudeAccounts != accounts { claudeAccounts = accounts }
+        if let selected = claudeAccountFilter, accounts.count <= 1 || !accounts.contains(where: { $0.id == selected }) { claudeAccountFilter = nil }
         pageVisible = showingPage
         if !running {
             running = true
             session += 1
             cancellation = Cancellation()
             providers = wanted
-            start(session: session, providers: Set(wanted), cancellation: cancellation, claudeProfile: profile)
+            start(session: session, providers: Set(wanted), cancellation: cancellation, claudeProfile: profile, claudeAccounts: accounts)
         } else if paused {
             resume()
         }
@@ -154,6 +181,7 @@ final class AgentUsageService: ObservableObject {
     /// way back costs far more than the pause saves.
     func pause() {
         CodexProfileLimitsService.shared.pause()
+        ClaudeProfileLimitsService.shared.pause()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -176,7 +204,8 @@ final class AgentUsageService: ObservableObject {
         startTimer()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
-            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
+            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile,
+                additionalClaudeProfiles: readerClaudeAccounts.dropFirst().map(\.profile)).filter { enabled.contains($0.provider) })
             filesChanged([], rescan: true)
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
@@ -184,13 +213,16 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
-    func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true) {
-        if pausingAccounts { CodexProfileLimitsService.shared.pause() }
+    func stop(keepingProgress keeps: Bool = true, pausingAccounts: Bool = true, waitingForReader waits: Bool = true) {
+        if pausingAccounts {
+            CodexProfileLimitsService.shared.pause()
+            ClaudeProfileLimitsService.shared.pause()
+        }
         pageVisible = false
-        // A first read still going stops at its next chunk, so the wait
-        // below is short.
+        // A first read still going stops at its next chunk. A settings restart
+        // leaves its cleanup queued before the new read.
         if running { cancellation.cancel() }
-        settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
+        settleArchive(keeping: keeps && NotchAgentSupport.isEnabled(), waitingForReader: waits)
         guard running else { return }
         running = false
         cancelClaudeLimits()
@@ -206,6 +238,7 @@ final class AgentUsageService: ObservableObject {
         pricesInFlight = false
         pricesSaved = nil
         snapshot = AgentUsageSnapshot()
+        claudeSnapshots = [:]
         claudeAppChecked = nil
         claudeAccountIdentity = nil
         queue.async { [self] in
@@ -285,20 +318,26 @@ final class AgentUsageService: ObservableObject {
     }
 
     private func start(session: Int, providers: Set<AgentProvider>, cancellation: Cancellation,
-                       claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) {
+                       claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile(),
+                       claudeAccounts: [ClaudeMonitoredAccount] = []) {
         startTimer()
         queue.async { [self] in
+            guard !cancellation.isCancelled else { return }
             readerSession = session
             readerCancellation = cancellation
             enabled = providers
             readerClaudeProfile = claudeProfile
+            readerClaudeAccounts = claudeAccounts
+            readerClaudeScopes = ClaudeMonitoredAccount.logScopes(claudeAccounts, home: home)
+            readerClaudeRecordScopes = ClaudeMonitoredAccount.recordScopes(claudeAccounts, home: home)
             store = AgentUsageStore()
             cursors.removeAll()
             // Prices first, so the first read is already priced.
             loadPrices()
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
-            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
+            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile,
+                additionalClaudeProfiles: claudeAccounts.dropFirst().map(\.profile)).filter { providers.contains($0.provider) }
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
@@ -316,7 +355,7 @@ final class AgentUsageService: ObservableObject {
             let now = Date()
             // A turn left open by a crash would otherwise stay working.
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
-            closeEndedTurns(roots, atLaunch: true)
+            closeEndedTurns(atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
             readClaudePlan()
             readClaudeApp(now: now)
@@ -337,13 +376,14 @@ final class AgentUsageService: ObservableObject {
     }
 
     /// Saves progress, or removes it once the section is off, even what an
-    /// earlier launch saved. Quitting stops the service too and ends the
-    /// process right after, so this returns only once the file is settled.
+    /// earlier launch saved. Quitting waits for the file to settle; a settings
+    /// restart queues it before the new read without holding up the main thread.
     /// Main thread.
-    private func settleArchive(keeping keeps: Bool) {
-        queue.sync {
+    private func settleArchive(keeping keeps: Bool, waitingForReader waits: Bool = true) {
+        let settle = { [self] in
             if keeps { saveProgress() } else { AgentUsageArchive.remove() }
         }
+        if waits { queue.sync { settle() } } else { queue.async { settle() } }
     }
 
     /// Saves what was read, when reading moved on since the last save. Runs
@@ -395,7 +435,7 @@ final class AgentUsageService: ObservableObject {
                 stopped = true
             }
             // After the logs, so a turn its last lines ended ends as usual.
-            guard self.closeEndedTurns(self.watchedRoots) || read || stopped else { return }
+            guard self.closeEndedTurns() || read || stopped else { return }
             self.checkLimits()
             self.schedulePublish()
         }
@@ -487,11 +527,11 @@ final class AgentUsageService: ObservableObject {
 
     /// Ends the Claude turns whose process is gone. True when one was showing.
     @discardableResult
-    private func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool = false) -> Bool {
+    private func closeEndedTurns(atLaunch: Bool = false) -> Bool {
         guard store.showsClaudeTurn else { return false }
-        let folders = roots.filter { $0.provider == .claude }
-            .map { $0.url.deletingLastPathComponent().appending(path: "sessions", directoryHint: .isDirectory) }
-        return store.closeEndedTurns(AgentSessionRegistry.read(folders), atLaunch: atLaunch)
+        let accounts = readerClaudeAccounts.isEmpty ? [ClaudeMonitoredAccount(directory: readerClaudeProfile.directory)]
+            : readerClaudeAccounts
+        return store.closeEndedTurns(atLaunch: atLaunch, accounts: AgentSessionRegistry.read(accounts: accounts, home: home))
     }
 
     /// True when the log had entries to apply, or was gone and took a
@@ -507,6 +547,7 @@ final class AgentUsageService: ObservableObject {
         cursors[path] = cursor
         var changed = false
         let now = Date()
+        let accountScope = provider == .claude ? ClaudeMonitoredAccount.logRoot(for: path, scopes: readerClaudeRecordScopes) : nil
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
@@ -519,7 +560,7 @@ final class AgentUsageService: ObservableObject {
             let parent = isSubagent ? "\(path)#\(cursor.state.parentSession)"
                 : cursor.parent ?? cursor.codexParent(among: cursors)
             let finished = store.apply(entries, file: turnFile, provider: provider, tracksTurns: tracksTurns,
-                                       parent: parent, modified: cursor.modified, now: now)
+                                       parent: parent, accountScope: accountScope, modified: cursor.modified, now: now)
             finished.forEach(report)
         }
         if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
@@ -592,8 +633,11 @@ final class AgentUsageService: ObservableObject {
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
-                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) }
+                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile,
+                additionalClaudeProfiles: readerClaudeAccounts.dropFirst().map(\.profile)).filter { enabled.contains($0.provider) }
                 if roots.filter(\.exists) != watchedRoots {
+                    readerClaudeScopes = ClaudeMonitoredAccount.logScopes(readerClaudeAccounts, home: home)
+                    readerClaudeRecordScopes = ClaudeMonitoredAccount.recordScopes(readerClaudeAccounts, home: home)
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
                         if read(file.path, provider: file.provider) { changed = true }
                     }
@@ -637,10 +681,26 @@ final class AgentUsageService: ObservableObject {
         let session = readerSession
         guard session >= 0 else { return }
         var plans: [AgentProvider: AgentPlan] = [:]
-        if let claudePlan { plans[.claude] = claudePlan }
+        var claudePlans: [String: AgentPlan] = [:]
+        if enabled.contains(.claude) {
+            for account in readerClaudeAccounts {
+                claudePlans[account.id] = account.id == readerClaudeAccounts.first?.id
+                    ? claudePlan : account.profile.read(home: home).plan
+            }
+            plans[.claude] = AgentPlans.combined(readerClaudeAccounts.map { claudePlans[$0.id] })
+        }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        next.claudePlans = claudePlans
+        if readerClaudeAccounts.count > 1 { next.claudeBlock = nil }
         published = next
+        var accountSnapshots: [String: AgentUsageSnapshot] = [:]
+        if enabled.contains(.claude), let account = readerClaudeAccounts.first(where: { $0.id == readerClaudeFilter }) {
+            accountSnapshots[account.id] = store.claudeSnapshot(roots: account.logURLs(home: home, scopes: readerClaudeScopes),
+                excluding: account.excludedLogURLs(home: home, scopes: readerClaudeScopes),
+                now: next.now, plan: claudePlans[account.id])
+        }
+        let snapshots = accountSnapshots
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
@@ -653,7 +713,11 @@ final class AgentUsageService: ObservableObject {
             if self.claudeAppChecked != checked { self.claudeAppChecked = checked }
             if self.claudeAccountIdentity != identity { self.claudeAccountIdentity = identity }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
-            if self.snapshot != next { self.snapshot = next }
+            var current = next
+            current.claudeLimits = ClaudeProfileLimitsState.readings(primary: self.claudeAccounts.first,
+                limits: current.limits[.claude], additional: ClaudeProfileLimitsService.shared.states, home: self.home)
+            if self.snapshot != current { self.snapshot = current }
+            if self.claudeSnapshots != snapshots { self.claudeSnapshots = snapshots }
         }
     }
 
@@ -781,7 +845,7 @@ final class AgentUsageService: ObservableObject {
                 : (try? Data(contentsOf: url)).flatMap(AgentClaudeAppUsage.samples) ?? []
         }
         // Claude Code's own first request can place the session's start.
-        let start = AgentClaudeAppUsage.sessionStart(store.records, samples: claudeAppSamples,
+        let start = AgentClaudeAppUsage.sessionStart(store.claudeRecords(roots: ClaudeMonitoredAccount(directory: readerClaudeProfile.directory).logURLs(home: home)), samples: claudeAppSamples,
                                                      organization: claudeOrganization)
         let desktop = AgentClaudeAppUsage.limits(from: claudeAppSamples, now: now, sessionStart: start,
                                                  organization: claudeOrganization)
@@ -867,6 +931,7 @@ final class AgentUsageService: ObservableObject {
     /// Back online, the checks start over from the shortest wait: those the
     /// network failed say nothing about how Claude Code is set up. Main thread.
     private func networkChanged(online: Bool) {
+        ClaudeProfileLimitsService.shared.setOnline(online)
         guard online != self.online else { return }
         self.online = online
         if online { claudeAccountUnreachable = 0 }
