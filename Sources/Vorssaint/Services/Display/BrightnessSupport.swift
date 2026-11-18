@@ -784,6 +784,13 @@ enum BrightnessSupport {
         }
     }
 
+    /// Whether a monitor whose mute is not the MCCS control still takes the
+    /// unmute when it leaves zero. A Samsung S34C65xT reads 0 unmuted and 1
+    /// muted, and stays silent after reaching zero until it is told to unmute.
+    static func unmutesLeavingZero(muteReply current: UInt16, maximum: UInt16) -> Bool {
+        current == 0 && maximum >= audioUnmutedValue
+    }
+
     static func muteDeviceValue(_ muted: Bool) -> UInt16 {
         muted ? audioMutedValue : audioUnmutedValue
     }
@@ -828,7 +835,7 @@ enum BrightnessSupport {
     /// mute on, as macOS does for its own outputs, and leaving zero always
     /// writes mute off whatever the last reading said. A raise (or a slider
     /// set) also lifts a mute the person chose; a lower leaves it in place.
-    /// A monitor without an MCCS mute control gets no mute writes at all.
+    /// A monitor without an MCCS mute control gets no mute change here.
     static func monitorMuteChange(from current: Double, muted: Bool?,
                                   to level: Double, raises: Bool) -> Bool? {
         guard let muted else { return nil }
@@ -878,14 +885,18 @@ enum BrightnessSupport {
     /// Runs on the DDC queue. Every successful result describes a level the
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
-        _ change: SpeakerChange, hasNativeMute: Bool, keySettings: MonitorVolumeKeySettings,
-        restore: inout SpeakerLevel?,
+        _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
+        keySettings: MonitorVolumeKeySettings,
+        restore: inout SpeakerLevel?, needsUnmute: inout Bool,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
         guard let initial = SpeakerLevel(read(audioVolumeCode)) else { return nil }
         if initial.raw > 0 || restore?.maximum != initial.maximum { restore = nil }
         func readMute() -> Bool? {
-            read(audioMuteCode).flatMap { muteReply(current: $0.current, maximum: $0.maximum) }
+            guard let reply = read(audioMuteCode) else { return nil }
+            // A monitor discovered while muted can use either unmuted encoding.
+            if Self.unmutesLeavingZero(muteReply: reply.current, maximum: reply.maximum) { return false }
+            return muteReply(current: reply.current, maximum: reply.maximum)
         }
         let muted = hasNativeMute ? readMute() : initial.mutedWithoutNativeControl(restoring: restore)
         guard !hasNativeMute || muted != nil else { return nil }
@@ -918,7 +929,7 @@ enum BrightnessSupport {
                 }
             }
             let mutesAtZero = !raises && initial.raw == 0 && keySettings.minimumPercent == 0 && muted == false
-            guard target != start || mutesAtZero else { return (initial, muted) }
+            guard target != start || mutesAtZero || (needsUnmute && raises && target > 0) else { return (initial, muted) }
             desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
                                             to: Double(target) / Double(initial.maximum), raises: raises)
         case .toggleMute:
@@ -946,6 +957,7 @@ enum BrightnessSupport {
             guard target > 0 else { return (initial, muted) }
         }
 
+        if unmutesLeavingZero && initial.raw == 0 && target > 0 { needsUnmute = true }
         var confirmed = initial
         if target != initial.raw {
             guard write(audioVolumeCode, target),
@@ -954,18 +966,28 @@ enum BrightnessSupport {
             confirmed = actual
         }
         if !hasNativeMute {
+            if unmutesLeavingZero, needsUnmute, confirmed.raw > 0 {
+                guard confirmed.raw <= keySettings.ceiling(for: confirmed.maximum),
+                      write(audioMuteCode, audioUnmutedValue) else { return nil }
+                // Firmware can restore its previous (loud) level as part of unmute.
+                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed else {
+                    if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+                    return nil
+                }
+                needsUnmute = false
+            }
             if confirmed.raw > 0 { restore = nil }
             else if initial.raw > 0 { restore = initial }
             return (confirmed, confirmed.mutedWithoutNativeControl(restoring: restore))
         }
         if desiredMute == false {
-            guard setNativeMute(false) else { return nil }
+            guard write(audioMuteCode, audioUnmutedValue) else { return nil }
             // Some firmware restores its own stored level on unmute. A level
             // change must still be present after that last command.
             let final = SpeakerLevel(read(audioVolumeCode))
-            guard let final, !requestsLevel || final == confirmed,
+            guard readMute() == false, let final, !requestsLevel || final == confirmed,
                   final.raw <= keySettings.ceiling(for: final.maximum) else {
-                if muted == true { _ = setNativeMute(true) }
+                if muted == true || initial.raw == 0 { _ = setNativeMute(true) }
                 return nil
             }
             return (final, false)
