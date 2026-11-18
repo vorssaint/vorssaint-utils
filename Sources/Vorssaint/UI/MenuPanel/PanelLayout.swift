@@ -355,7 +355,8 @@ struct PanelDragHandle: View {
     }
 }
 
-struct PanelReorderableItem<Item: PanelOrderItem, Content: View>: View {
+// Dynamic collections such as installed browsers use the same drag behavior as enum-backed menu items.
+struct PanelReorderableItem<Item: RawRepresentable & Hashable, Content: View>: View where Item.RawValue == String {
     let item: Item
     var isEnabled = true
     /// Rows inside a `PanelRowGroup` have no card of their own, so the one
@@ -398,7 +399,7 @@ struct PanelReorderableItem<Item: PanelOrderItem, Content: View>: View {
     }
 }
 
-private struct PanelItemDropDelegate<Item: PanelOrderItem>: DropDelegate {
+private struct PanelItemDropDelegate<Item: RawRepresentable & Hashable>: DropDelegate where Item.RawValue == String {
     let item: Item
     @Binding var order: [Item]
     @Binding var dragging: Item?

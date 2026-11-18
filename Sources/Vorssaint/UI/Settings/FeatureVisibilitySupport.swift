@@ -55,6 +55,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cameraPreview
     case wallpaper
     case scratchpad
+    case browserPicker
     case cleaningMode
     case soundOutputSwitcher
     case keyboardBrightnessShortcuts
@@ -75,7 +76,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .dock, .dockClick, .spacesOrder: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad,
+        case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad, .browserPicker,
              .cleaningMode:
             return .quickTools
         case .screenshot, .screenshotScrolling, .screenRecorder, .colorPicker, .screenOCR:
@@ -430,6 +431,8 @@ extension AppFeature {
         case .notchWatch: return FeatureSettingsDestination(notch: .module(.watch))
         case .notchMascot: return FeatureSettingsDestination(.notchMascot)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
+        case .browserPicker:
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .browserPicker)
         case .scratchpad:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .scratchpad)
         case .commandBar: return FeatureSettingsDestination(.commandBar)
@@ -470,7 +473,7 @@ enum FeatureVisibilitySupport {
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
         case .quickTools: return [.quickLauncher, .quickToggles, .quitApps, .micMute,
-                                  .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
+                                  .cameraPreview, .wallpaper, .scratchpad, .browserPicker, .cleaningMode]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]
         case .homebrew: return [.homebrew]

@@ -29,6 +29,7 @@ struct QuickToolsSettings: View {
 
     var body: some View {
         Form {
+            if AppFeature.browserPicker.isAvailable { BrowserPickerSettings() }
             if AppFeature.quickLauncher.isAvailable {
                 Section {
                     Button {

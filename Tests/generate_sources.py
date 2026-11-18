@@ -47,6 +47,18 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    browser_picker = "Sources/Vorssaint/Services/QuickTools/BrowserPickerService.swift"
+    write("BrowserPickerMenuDrag.swift", "import Foundation\nimport SwiftUI\n"
+          + "extension BrowserPickerMenuDragContract {\nfinal class Handler: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/UI/MenuPanel/PanelLayout.swift", prefix,
+                                scope="private struct PanelItemDropDelegate<") for prefix in [
+              "    func dropEntered(", "    func performDrop("])
+          + "}\n}\n")
+    write("BrowserPickerOrder.swift", "import Foundation\n"
+          + "extension BrowserPickerOrderContract {\nfinal class Service: Fixture {\n"
+          + "".join(declaration(browser_picker, prefix) for prefix in [
+              "    var visibleBrowsers:", "    func moveBrowser(", "    func setBrowserOrder(", "    func setBrowserEnabled("])
+          + "}\n}\n")
     shortcut_row = "Sources/Vorssaint/UI/ShortcutRecorderButton.swift"
     # Keep the registrars, takeover ownership and recording lifecycle intact.
     # Only the existing preference-reader arguments point at the isolated suite;
