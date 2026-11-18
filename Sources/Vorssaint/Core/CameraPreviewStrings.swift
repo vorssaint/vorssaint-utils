@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func cameraPreview(_ language: AppLanguage) -> CameraPreviewFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -216,5 +217,17 @@ extension CameraPreviewFeatureStrings {
         noCameraMessage: "Камеру не виявлено",
         permName: "Камера",
         permExplain: "Показує вашу камеру лише у вікні попереднього перегляду, щоб ви могли перевірити, як виглядаєте перед дзвінком. Нічого не записується та не залишає ваш Mac."
+    )
+
+    static let idID = CameraPreviewFeatureStrings(
+        pageTitle: "Pratinjau kamera",
+        hubDescription: "Membuka cermin mengambang dari kameramu",
+        panelCaption: "Cek penampilanmu sebelum panggilan",
+        openButton: "Buka pratinjau",
+        cameraMenuLabel: "Kamera",
+        deniedMessage: "Akses kamera untuk Vorssaint dimatikan di Pengaturan Sistem.",
+        noCameraMessage: "Tidak ada kamera yang terdeteksi",
+        permName: "Kamera",
+        permExplain: "Menampilkan kameramu hanya di jendela pratinjau agar kamu bisa mengecek penampilan sebelum panggilan. Tidak ada yang direkam atau keluar dari Mac kamu."
     )
 }

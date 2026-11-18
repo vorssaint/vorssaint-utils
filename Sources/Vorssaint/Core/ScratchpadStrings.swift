@@ -59,6 +59,7 @@ extension FeatureStrings {
     static func scratchpad(_ language: AppLanguage) -> ScratchpadFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -810,6 +811,55 @@ extension ScratchpadFeatureStrings {
         markLink: "Посилання",
         formatMarks: "Форматування",
         textSize: "Розмір тексту"
+    )
+
+    static let idID = ScratchpadFeatureStrings(
+        pageTitle: "Catatan cepat",
+        hubDescription: "Lembar melayang untuk catatan singkat",
+        panelCaption: "Catatan cepat di tab terpisah",
+        openButton: "Buka catatan cepat",
+        placeholder: "Ketik apa saja. Tersimpan otomatis.",
+        copyAll: "Salin semua",
+        copied: "Disalin",
+        exportAction: "Simpan sebagai file",
+        exportFailed: "File gagal disimpan",
+        loadFailed: "Catatanmu gagal dibuka. Isinya tidak diubah.",
+        saveFailed: "Catatanmu gagal disimpan. Salin ke tempat lain sebelum keluar.",
+        clearAction: "Bersihkan",
+        retentionTitle: "Bersihkan otomatis",
+        retentionNever: "Jangan pernah",
+        retentionDay: "Setelah sehari tidak dipakai",
+        retentionWeek: "Setelah seminggu tidak dipakai",
+        retentionMonth: "Setelah sebulan tidak dipakai",
+        retentionCaption: "Lembar akan mengosongkan dirinya sendiri setelah teks tidak diedit selama itu.",
+        closeOnClickOutside: "Tutup saat klik di luar",
+        keepOpen: "Biarkan terbuka",
+        backgroundOpacity: "Latar lembar",
+        backgroundTranslucent: "Tembus pandang",
+        backgroundOpaque: "Solid",
+        newPad: "Catatan cepat baru",
+        padActions: "Aksi catatan cepat",
+        renamePad: "Ganti nama catatan cepat",
+        closePad: "Tutup catatan cepat",
+        saveName: "Simpan",
+        cancel: "Batal",
+        deletePadMessageFormat: "Hapus “%@” beserta seluruh isinya?",
+        padLimitFormat: "Kamu bisa menyimpan hingga %d catatan cepat",
+        previewFormatting: "Tampilkan pemformatan",
+        editText: "Edit teks",
+        taskDone: "Selesai",
+        taskNotDone: "Belum selesai",
+        markBold: "Tebal",
+        markItalic: "Miring",
+        markStrikethrough: "Coret",
+        markHeading: "Judul",
+        markBullet: "Daftar poin",
+        markNumbered: "Daftar bernomor",
+        markQuote: "Kutipan",
+        markCode: "Kode",
+        markLink: "Link",
+        formatMarks: "Pemformatan",
+        textSize: "Ukuran teks"
     )
 }
 

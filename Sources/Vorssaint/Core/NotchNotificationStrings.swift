@@ -32,6 +32,18 @@ extension FeatureStrings {
             unavailable: "This notification can no longer accept this action.",
             hideSystemBanner: "Hide the system banner",
             hideSystemBannerHint: "Hide the original while the Dynamic Island shows it. To mirror an app’s notifications, keep its desktop alerts on in macOS.")
+        case .idID: return NotchNotificationStrings(
+            title: "Notifikasi",
+            description: "Notifikasi sistem baru di Dynamic Island.",
+            privacy: "Hanya menampilkan spanduk baru yang terlihat. Pesan disimpan di memori dan dihapus saat kamu mengunci Mac ini atau mematikan fitur ini.",
+            empty: "Notifikasi baru akan muncul di sini",
+            waiting: "Menunggu layanan notifikasi sistem",
+            open: "Buka",
+            dismiss: "Tutup",
+            clearAll: "Hapus semua",
+            unavailable: "Notifikasi ini tidak lagi mendukung aksi ini.",
+            hideSystemBanner: "Sembunyikan spanduk sistem",
+            hideSystemBannerHint: "Sembunyikan spanduk asli saat Dynamic Island menampilkannya. Untuk menampilkan notifikasi suatu app di sini, biarkan peringatan desktopnya tetap menyala di macOS.")
         case .ptBR: return NotchNotificationStrings(
             title: "Notificações",
             description: "Novas notificações do sistema no Dynamic Island.",

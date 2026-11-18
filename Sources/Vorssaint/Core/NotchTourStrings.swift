@@ -13,6 +13,8 @@ extension FeatureStrings {
         switch language {
         case .enUS: return NotchTourStrings(preview: "Preview for 3.4",
             caption: "Control music, timers, volume and brightness. Choose the floating shortcuts you use most.")
+        case .idID: return NotchTourStrings(preview: "Pratinjau untuk 3.4",
+            caption: "Kontrol musik, pengatur waktu, volume, dan kecerahan. Pilih shortcut mengambang yang paling sering kamu pakai.")
         case .ptBR: return NotchTourStrings(preview: "Prévia da 3.4",
             caption: "Controle música, temporizadores, volume e brilho. Escolha os atalhos flutuantes que você mais usa.")
         case .es: return NotchTourStrings(preview: "Vista previa de 3.4",

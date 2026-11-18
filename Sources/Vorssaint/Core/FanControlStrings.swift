@@ -53,6 +53,7 @@ extension FeatureStrings {
     static func fanControl(_ language: AppLanguage) -> FanControlFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -759,5 +760,51 @@ extension FanControlFeatureStrings {
         hottestGPU: "Найгарячіший GPU",
         helperUnavailable: "Захищений контролер вентиляторів недоступний. Дозвольте Vorssaint у розділі «Автозапуск» і спробуйте знову.",
         resumeAfterRestart: "Відновлювати після перезавантаження або сну"
+    )
+
+    static let idID = FanControlFeatureStrings(
+        title: "Kontrol kipas",
+        hubDescription: "Atur kipas secara manual atau dengan kurva suhu sambil memantau RPM aktual dan target",
+        showInPanel: "Tampilkan Kontrol kipas di panel",
+        settingsCaption: "Menambahkan kecepatan kipas manual dan kurva suhu ke panel bar menu.",
+        fanNameFormat: "Kipas %d",
+        rpmFormat: "%d RPM",
+        allowControl: "Izinkan kontrol kipas",
+        approvalCaption: "Izinkan Vorssaint di Item Masuk untuk memakai pengontrol kipas terproteksi.",
+        openSettings: "Buka Pengaturan Sistem",
+        noFans: "Mac ini tidak memiliki kipas yang bisa dikontrol.",
+        unsupported: "Kontrol kipas tidak tersedia di Mac ini.",
+        alreadyControlled: "Proses lain sedang mengontrol kipas. Kembalikan dulu ke kontrol sistem.",
+        failed: "Kipas dikembalikan ke kontrol sistem karena pengaturan yang diminta gagal diverifikasi.",
+        safetyCaption: "Kontrol tetap aktif sampai kamu mengembalikannya ke Sistem. Kontrol otomatis kembali ke Sistem jika app terputus, Mac tidur, pembacaan sensor gagal, atau tekanan termal meningkat.",
+        safetyStopped: "Kembali ke kontrol sistem karena kontrol kipas terputus.",
+        menuBarTitle: "Kecepatan kipas",
+        systemControl: "Sistem",
+        manualControl: "Manual",
+        customCurve: "Kurva",
+        mode: "Mode kontrol",
+        coolingIntensity: "Kecepatan kipas",
+        currentRPMFormat: "Saat ini %d RPM",
+        targetRPMFormat: "Target %d RPM",
+        applyManual: "Terapkan kontrol manual",
+        applyCurve: "Terapkan kurva kipas",
+        returnToSystem: "Gunakan kontrol sistem",
+        temperatureUnavailable: "Sensor suhu yang dipilih berhenti merespons. Kontrol kipas dikembalikan ke Sistem.",
+        curveUnavailable: "Sensor suhu yang dipilih tidak tersedia di Mac ini.",
+        sensor: "Sensor suhu",
+        temperature: "Suhu",
+        fanSpeed: "Kecepatan kipas",
+        addPoint: "Tambah titik",
+        addSensor: "Tambah sensor",
+        removePoint: "Hapus titik",
+        removeSensor: "Hapus sensor",
+        curveGraph: "Kurva suhu dan kecepatan kipas",
+        averageSoC: "Rata-rata SoC",
+        hottestSoC: "SoC terpanas",
+        averageCPU: "Rata-rata CPU",
+        hottestCPU: "CPU terpanas",
+        hottestGPU: "GPU terpanas",
+        helperUnavailable: "Pengontrol kipas terproteksi tidak tersedia. Izinkan Vorssaint di Item Masuk, lalu coba lagi.",
+        resumeAfterRestart: "Lanjutkan setelah mulai ulang atau tidur"
     )
 }

@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func switcherAppRules(_ language: AppLanguage) -> SwitcherAppRulesStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -199,5 +200,16 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Лише вікна",
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
+    )
+
+    static let idID = SwitcherAppRulesStrings(
+        listTitle: "Aturan per app",
+        addButton: "Tambah app…",
+        removeButton: "Hapus",
+        behaviorLabel: "Perilaku di pengalih",
+        showWithoutWindows: "Tampilkan tanpa jendela",
+        windowsOnly: "Hanya jika ada jendela",
+        hidden: "Jangan pernah tampilkan",
+        caption: "Pilih cara tiap app ditampilkan. App tanpa aturan khusus mengikuti pilihan di atas."
     )
 }

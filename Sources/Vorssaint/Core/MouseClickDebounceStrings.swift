@@ -15,6 +15,7 @@ extension FeatureStrings {
     static func mouseClickDebounce(_ language: AppLanguage) -> MouseClickDebounceStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -151,5 +152,13 @@ extension MouseClickDebounceStrings {
         moreOptions: "Більше опцій",
         windowLabel: "Фільтрувати вікно",
         windowCaption: "Повторний клац усередині цього інтервалу вважається випадковим дублікатом."
+    )
+
+    static let idID = MouseClickDebounceStrings(
+        title: "Filter klik ganda",
+        caption: "Mengabaikan klik tambahan cepat dari tombol mouse yang mulai aus tanpa memperlambat klik normal.",
+        moreOptions: "Opsi lainnya",
+        windowLabel: "Rentang filter",
+        windowCaption: "Klik berulang dalam rentang waktu ini dianggap sebagai klik ganda tidak sengaja."
     )
 }

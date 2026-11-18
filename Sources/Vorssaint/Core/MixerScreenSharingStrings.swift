@@ -12,6 +12,10 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "Allow volume control",
             protectedCaption: "Volume control is off to prevent echo when sharing audio.",
             sharingWarning: "Turn off volume control before sharing audio to avoid echo.")
+        case .idID: return .init(
+            allowVolumeControl: "Izinkan kontrol volume",
+            protectedCaption: "Kontrol volume dimatikan untuk mencegah gema saat membagikan audio.",
+            sharingWarning: "Matikan kontrol volume sebelum membagikan audio untuk mencegah gema.")
         case .ptBR: return .init(
             allowVolumeControl: "Permitir controle de volume",
             protectedCaption: "O controle de volume está desativado para evitar eco ao compartilhar áudio.",

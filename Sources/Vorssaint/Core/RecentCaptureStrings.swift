@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func recentCaptures(_ language: AppLanguage) -> RecentCaptureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -199,5 +200,16 @@ extension RecentCaptureStrings {
         open: "Відкрити",
         remove: "Видалити з історії",
         clear: "Очистити історію"
+    )
+
+    static let idID = RecentCaptureStrings(
+        title: "Tangkapan terbaru",
+        empty: "Ambil screenshot atau simpan rekaman agar muncul di sini.",
+        screenshot: "Screenshot",
+        recording: "Rekaman",
+        restore: "Pulihkan",
+        open: "Buka",
+        remove: "Hapus dari riwayat",
+        clear: "Bersihkan riwayat"
     )
 }

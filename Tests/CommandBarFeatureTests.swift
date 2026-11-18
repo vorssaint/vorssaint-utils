@@ -614,7 +614,8 @@ enum CommandBarFeatureTests {
                                                   query: clipboard.clearRecentKeywords),
                    "the clipboard clear action keeps its former \(language) name as a search term")
         }
-        for (language, query) in [(AppLanguage.enUS, "screen 40"), (.zhHans, "屏幕 40")] {
+        for (language, query) in [(AppLanguage.enUS, "screen 40"), (.zhHans, "屏幕 40"),
+                                  (.idID, "kecerahan 40")] {
             let bar = FeatureStrings.commandBar(language)
             let split = CommandBarSearch.splitTrailingNumber(query)
             suite.expect(split.number == 40
@@ -1362,6 +1363,10 @@ enum CommandBarFeatureTests {
 
         suite.expect(unitValue("100 km to mi").map { abs($0 - 62.1371) < 0.001 } == true,
                "a distance converts")
+        suite.expect(unitValue("100 km ke mi").map { abs($0 - 62.1371) < 0.001 } == true,
+               "the Indonesian example chip converts with its own word for to")
+        suite.expect(CommandBarEmoji.emoji.contains { $0.name.lowercased().contains("robot") },
+               "the Indonesian emoji example chip finds an emoji")
         suite.expect(unitValue("20 c to f").map { abs($0 - 68) < 0.001 } == true,
                "a temperature converts as an absolute reading, not as a step")
         suite.expect(unitValue("0 c to f").map { abs($0 - 32) < 0.001 } == true,

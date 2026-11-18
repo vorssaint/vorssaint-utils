@@ -38,6 +38,7 @@ struct WhatsAppOrganizerStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppOrganizerStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -549,5 +550,38 @@ extension WhatsAppOrganizerStrings {
         notificationTitle: "Впорядкування WhatsApp",
         notificationFormat: "Впорядковано файлів: %1$d. Оброблено дублікатів: %2$d. Не вдалося: %3$d.",
         privacyNote: "Для точного виявлення дублікатів байти файлів читаються локально лише під час обчислення криптографічного дайджесту. Вміст та чати ніколи не зберігаються та не завантажуються."
+    )
+
+    static let idID = WhatsAppOrganizerStrings(
+        title: "Penataan otomatis",
+        experimental: "Eksperimental",
+        description: "Memindahkan unduhan WhatsApp yang selesai ke folder khusus dan mendeteksi unduhan berulang yang sama persis.",
+        enabled: "Tata otomatis",
+        enabledCaption: "WhatsApp mungkin mengunduh lagi file yang dipindahkan. Vorssaint tidak bisa mencegah unduhan jaringan, tetapi bisa mendeteksi dan membuang salinan tambahan yang identik.",
+        destination: "Folder tujuan",
+        chooseFolder: "Pilih…",
+        useDefault: "Gunakan Unduhan/WhatsApp",
+        invalidDestination: "Pilih folder selain folder Unduhan itu sendiri.",
+        organization: "Struktur folder",
+        flat: "Tanpa subfolder",
+        byType: "Menurut jenis file",
+        byMonth: "Menurut tahun dan bulan",
+        delay: "Tunggu sebelum memindahkan",
+        minutesFormat: "%d menit",
+        duplicateAction: "Saat file yang sama diunduh lagi",
+        trashDuplicate: "Pindahkan salinan baru ke Sampah",
+        keepBoth: "Simpan kedua salinan",
+        replaceExisting: "Ganti salinan yang sudah ditata",
+        duplicateCaption: "Duplikat dipastikan dengan sidik SHA-256 privat. Salinan yang sudah ditata diperiksa ulang sebelum salinan lain dibuang.",
+        organizeNow: "Tata file yang memenuhi syarat sekarang",
+        undo: "Urungkan penataan terakhir",
+        waiting: "Memantau Unduhan",
+        working: "Menata file WhatsApp…",
+        resultFormat: "%1$d dipindahkan · %2$d duplikat · %3$d gagal",
+        lastRunFormat: "Penataan terakhir %@: %d dipindahkan · %d duplikat · %d gagal",
+        neverRun: "Belum ada penataan yang dijalankan.",
+        notificationTitle: "Penataan WhatsApp",
+        notificationFormat: "%1$d file ditata. %2$d unduhan duplikat ditangani. %3$d gagal.",
+        privacyNote: "Untuk mengenali duplikat yang sama persis, byte file hanya dibaca secara lokal saat menghitung sidik kriptografis. Isi file dan obrolan tidak pernah disimpan atau diunggah."
     )
 }

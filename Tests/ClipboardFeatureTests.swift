@@ -1122,6 +1122,7 @@ enum ClipboardFeatureTests {
             (.zhHans, "剪贴板", "窗口布局", "实用工具", "提醒"),
             (.zhTW, "剪貼簿", "視窗排列", "工具程式", "提醒"),
             (.zhHK, "剪貼簿", "視窗排列", "工具", "提示"),
+            (.idID, "Clipboard", "Tata letak jendela", "Utilitas", "Peringatan"),
         ]
         for (language, clipboardTitle, windowTitle, utilitiesTitle, alertsTitle) in featureTitles {
             suite.expect(FeatureStrings.clipboard(language).title == clipboardTitle,

@@ -27,7 +27,7 @@ enum CommandBarUnits {
     /// it: "5 in to cm" reads the first as inches and the second as the verb.
     static let conversionWords: Set<String> = [
         "to", "in", "into", "as", "em", "para", "pra", "en", "a", "nach", "zu",
-        "à", "su", "->", ">", "→",
+        "à", "su", "ke", "->", ">", "→",
     ]
 
     /// Everything the bar can convert, grouped so two units only meet when

@@ -19,6 +19,7 @@ extension FeatureStrings {
     static func recorderShare(_ language: AppLanguage) -> RecorderShareStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -215,5 +216,17 @@ extension RecorderShareStrings {
         tooLarge: "Цей запис не може уміститися в 100 МБ без зайвої втрати якості.",
         failed: "Не вдалося створити тимчасове посилання",
         tourCaption: "Стисніть завершений запис на цьому Mac та поділіться ним на 1 або 6 годин."
+    )
+
+    static let idID = RecorderShareStrings(
+        caption: "Pilih 1 atau 6 jam. Video akhir dikompresi di Mac ini agar di bawah 100 MB lalu dihapus otomatis.",
+        privacyData: "Vorssaint hanya mengirim video akhir hasil rekaman ini, termasuk audio yang kamu pertahankan, serta masa berlaku yang kamu pilih. Nama, akun, atau pengenal perangkatmu tidak dikirim.",
+        privacyStorage: "Penyedia jaringan dan layanan memproses IP publikmu sementara untuk mencegah penyalahgunaan. Video dan metadata link dihapus permanen saat kamu menghapus link atau masa berlakunya habis. Layanan tidak membuat cadangan.",
+        privacyAccess: "Siapa pun yang memegang link bisa melihat, mengunduh, menyimpan, atau menyebarkan ulang video. Link yang aktif terbuka bagi operator layanan untuk moderasi penyalahgunaan. Bagikan hanya ke orang yang kamu percaya.",
+        compressing: "Mengompresi untuk dibagikan…",
+        uploading: "Mengunggah dengan aman…",
+        tooLarge: "Rekaman ini tidak muat di bawah 100 MB tanpa kehilangan terlalu banyak kualitas.",
+        failed: "Link sementara gagal dibuat",
+        tourCaption: "Kompresi rekaman yang selesai di Mac ini lalu bagikan selama 1 atau 6 jam."
     )
 }
