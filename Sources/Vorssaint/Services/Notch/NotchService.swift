@@ -1498,6 +1498,11 @@ final class NotchService: ObservableObject {
         if takeFocus { panel.makeKey() }
         if feedback, changesPresentation { provideHapticFeedback() }
         if closesCommandBar { commandBarDidClose() }
+        // Choosing the camera page by a click, a key or the sections is the
+        // request for the mirror; opening under the pointer still waits.
+        if changesPresentation, takeFocus, destination == .camera, !appPanel, !sections, metric == nil {
+            CameraPreviewService.shared.showEmbedded()
+        }
     }
 
     func collapse() {
