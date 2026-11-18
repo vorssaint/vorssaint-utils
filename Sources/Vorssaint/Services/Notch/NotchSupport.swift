@@ -3223,46 +3223,90 @@ struct NotchMenuBarFit: Equatable {
 /// placed by writing its preferred position before it is created: macOS
 /// orders status items by that value, in points from the right edge of the
 /// display, and only reads it when the item appears.
+///
+/// Placed once, its right end stays where the items to its right begin, a
+/// little past the island's right edge. Its length then follows the
+/// island's left edge as the island grows and shrinks, which moves only
+/// the items to its left, live and without a new item. Only when the island
+/// reaches past that end, or leaves a wide band before it, is the gap
+/// placed again.
 struct NotchMenuBarGap: Equatable {
     static let autosaveName = "VorssaintNotchMenuBarGap"
-    /// Room kept past each end of the island. It exceeds the clearance the
+    /// Room kept past the island's left end. It exceeds the clearance the
     /// menu measurement keeps from a status item, so the items laid out
     /// beside the gap leave the wings their full width.
     static let margin: CGFloat = 10
-    /// Smaller changes keep the gap where it is, since a new one lays out
-    /// the whole menu bar again.
-    static let recreateThreshold: CGFloat = 8
-    /// How long a strip stays narrower before its gap follows, so a reading
-    /// that shortens for a moment does not lay out the bar twice.
-    static let shrinkDelay: TimeInterval = 3
-
-    enum Change: Equatable {
-        /// The gap in place already clears the strip.
-        case keep
-        /// The strip reaches past the gap: place a new one now.
-        case recreate
-        /// The gap is wider than the strip needs: follow it once that lasts.
-        case shrinkLater
-    }
+    /// Room kept past the island's right end when the gap is placed, so a
+    /// strip can grow a little before the gap has to move.
+    static let anchorSlack: CGFloat = 24
+    /// A band wider than this right of the island places the gap again,
+    /// closer, so the items there come back.
+    static let anchorTolerance: CGFloat = 72
+    /// Smaller length changes are not worth laying out the bar for.
+    static let lengthTolerance: CGFloat = 1
 
     /// Points from the display's right edge to the gap's right end.
     var position: CGFloat
     var length: CGFloat
 
-    /// The gap under an island `width` wide, centred on the display and
-    /// moved `surfaceShift` toward a wider side. Beside a physical camera
-    /// `notchWidth` is the island's camera: the gap starts just past it, as
-    /// macOS hides a status item that reaches into the notch, and the items
-    /// it moves go behind the notch as on any full bar. Nil when there is
-    /// nothing to clear.
-    static func under(island width: CGFloat, surfaceShift: CGFloat = 0, screen: CGRect,
-                      notchWidth: CGFloat? = nil) -> NotchMenuBarGap? {
+    /// The island's ends on `screen`: `width` wide, centred on the display
+    /// and moved `surfaceShift` toward a wider side.
+    static func island(width: CGFloat, surfaceShift: CGFloat = 0, screen: CGRect) -> ClosedRange<CGFloat>? {
         guard width.isFinite, width > 0, surfaceShift.isFinite, screen.width > 0 else { return nil }
-        let right = min(screen.maxX, screen.midX + surfaceShift + width / 2 + margin)
-        let left = notchWidth.map { screen.midX + max(0, $0) / 2 + 1 }
-            ?? max(screen.minX, screen.midX + surfaceShift - width / 2 - margin)
+        let left = max(screen.minX, screen.midX + surfaceShift - width / 2)
+        let right = min(screen.maxX, screen.midX + surfaceShift + width / 2)
+        return right > left ? left...right : nil
+    }
+
+    /// Where the gap starts on the left: past the island and the margin, or,
+    /// beside a physical camera `notchWidth` wide, just past the notch, as
+    /// macOS hides a status item that reaches into it and the items the gap
+    /// moves go behind the notch as on any full bar.
+    static func leftEnd(island: ClosedRange<CGFloat>, screen: CGRect, notchWidth: CGFloat? = nil) -> CGFloat {
+        notchWidth.map { screen.midX + max(0, $0) / 2 + 1 } ?? max(screen.minX, island.lowerBound - margin)
+    }
+
+    /// A new gap for the island, its right end the slack past the island.
+    static func placed(island: ClosedRange<CGFloat>, screen: CGRect, notchWidth: CGFloat? = nil) -> NotchMenuBarGap? {
+        let right = min(screen.maxX, island.upperBound + anchorSlack)
+        let left = leftEnd(island: island, screen: screen, notchWidth: notchWidth)
         guard right > left else { return nil }
         return NotchMenuBarGap(position: (screen.maxX - right).rounded(.down), length: (right - left).rounded(.up))
+    }
+
+    /// The gap's right end has to move: the island reaches past it, less
+    /// the margin, or leaves more than the tolerance before it.
+    static func needsPlacing(rightEnd: CGFloat, island: ClosedRange<CGFloat>) -> Bool {
+        island.upperBound + margin > rightEnd || rightEnd - island.upperBound > anchorTolerance
+    }
+
+    /// The length that reaches from the gap's right end, where macOS drew
+    /// it, to the island's left end.
+    static func length(rightEnd: CGFloat, island: ClosedRange<CGFloat>, screen: CGRect,
+                       notchWidth: CGFloat? = nil) -> CGFloat {
+        max(0, rightEnd - leftEnd(island: island, screen: screen, notchWidth: notchWidth)).rounded(.up)
+    }
+
+    static func needsLength(current: CGFloat, wanted: CGFloat) -> Bool {
+        abs(current - wanted) > lengthTolerance
+    }
+
+    /// Where the gap ends on the left, in points from the display's right edge.
+    private var reach: CGFloat { position + length }
+
+    /// The gap as it was asked for on `screen`, in the screen coordinates
+    /// the menus are measured in.
+    func frame(on screen: CGRect, barHeight: CGFloat) -> CGRect {
+        CGRect(x: screen.maxX - reach, y: screen.maxY - barHeight, width: length, height: barHeight)
+    }
+
+    /// Status items measured over Accessibility include the gap itself,
+    /// which lies over the camera and would leave the island no room at
+    /// all. Status items never overlap, so the one that ends where the gap
+    /// ends and overlaps it is the gap, even while its length changes.
+    static func removing(_ gap: CGRect?, from frames: [CGRect]) -> [CGRect] {
+        guard let gap, !gap.isEmpty else { return frames }
+        return frames.filter { abs($0.maxX - gap.maxX) > 3 || $0.maxX <= gap.minX }
     }
 
     /// Only for an island hanging in the menu bar of its display while it
@@ -3272,36 +3316,6 @@ struct NotchMenuBarGap: Equatable {
                       isNotched: Bool, islandWidth: CGFloat, cameraWidth: CGFloat) -> Bool {
         guard enabled, presenting, !hidden, !floats, displayHasMenuBar, islandWidth.isFinite else { return false }
         return isNotched ? islandWidth > cameraWidth + 1 : islandWidth > 0
-    }
-
-    /// Where the gap ends on the left, in points from the display's right edge.
-    private var reach: CGFloat { position + length }
-
-    /// The strip may grow past the gap at once and shrink inside it only
-    /// later, each by more than the threshold.
-    static func change(from current: NotchMenuBarGap?, to wanted: NotchMenuBarGap) -> Change {
-        guard let current else { return .recreate }
-        if wanted.position < current.position - recreateThreshold || wanted.reach > current.reach + recreateThreshold {
-            return .recreate
-        }
-        if wanted.position > current.position + recreateThreshold || wanted.reach < current.reach - recreateThreshold {
-            return .shrinkLater
-        }
-        return .keep
-    }
-
-    /// The gap as it sits on `screen`, in the screen coordinates the menus
-    /// are measured in.
-    func frame(on screen: CGRect, barHeight: CGFloat) -> CGRect {
-        CGRect(x: screen.maxX - reach, y: screen.maxY - barHeight, width: length, height: barHeight)
-    }
-
-    /// Status items measured over Accessibility include the gap itself,
-    /// which lies over the camera and would leave the island no room at
-    /// all. Only an item at the gap's place and of its width is the gap.
-    static func removing(_ gap: CGRect?, from frames: [CGRect]) -> [CGRect] {
-        guard let gap, !gap.isEmpty else { return frames }
-        return frames.filter { abs($0.minX - gap.minX) > 3 || abs($0.width - gap.width) > 3 }
     }
 }
 
