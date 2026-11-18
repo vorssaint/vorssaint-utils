@@ -4,9 +4,9 @@
 import SwiftUI
 
 /// The closed island while Keep Awake runs: the cup of its tile left of the
-/// camera, in the tile's yellow, and on the right the time a timed session
-/// has left, or infinity for one without an end. Both open Controls, where
-/// the tile is. The wings are as wide as the wider side needs.
+/// camera, in the session's chosen icon tint, and on the right the time a
+/// timed session has left, or infinity for one without an end. Both open
+/// Controls, where the tile is. The wings are as wide as the wider side needs.
 struct NotchKeepAwakeStrip: View {
     @ObservedObject var service: NotchService
     /// Where the island draws it: its own strip as of the last update, or
@@ -14,6 +14,7 @@ struct NotchKeepAwakeStrip: View {
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var awake = KeepAwakeManager.shared
     @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.keepAwakeIconTint) private var keepAwakeIconTint = KeepAwakeIconTint.orange.rawValue
 
     var body: some View {
         // Ending a session clears its end before the strip has left.
@@ -63,7 +64,8 @@ struct NotchKeepAwakeStrip: View {
                 .padding(.trailing, geometry.compactActivityEdgeInset(boxHeight: textSize * 0.72, radius: 0))
                 .frame(width: wing, height: height, alignment: .trailing)
             }
-            .foregroundStyle(.yellow)
+            .foregroundStyle(NotchKeepAwakeSupport.indicatorColor(
+                for: Defaults.sanitizedKeepAwakeIconTint(keepAwakeIconTint)))
             .frame(height: height)
             .contentShape(Rectangle())
         }

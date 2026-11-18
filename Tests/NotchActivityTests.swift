@@ -57,6 +57,19 @@ enum NotchActivityTests {
                      && NotchCompactActivity.keepAwake.symbol == NotchControlItem.keepAwake.symbol,
                      "the activity opens Controls, where the Keep Awake tile is, and shows the tile's mark")
 
+        suite.expect(KeepAwakeIconTint.orange.color == .orange && KeepAwakeIconTint.green.color == .green
+                     && KeepAwakeIconTint.blue.color == .blue && KeepAwakeIconTint.purple.color == .purple
+                     && KeepAwakeIconTint.pink.color == .pink && KeepAwakeIconTint.none.color == nil,
+                     "the icon tints carry their colors, and None carries none")
+        suite.expect(NotchKeepAwakeSupport.indicatorColor(for: .orange) == .orange
+                     && NotchKeepAwakeSupport.indicatorColor(for: .green) == .green
+                     && NotchKeepAwakeSupport.indicatorColor(for: .blue) == .blue
+                     && NotchKeepAwakeSupport.indicatorColor(for: .purple) == .purple
+                     && NotchKeepAwakeSupport.indicatorColor(for: .pink) == .pink,
+                     "the island draws the session in the chosen icon tint, like the menu bar glyph")
+        suite.expect(NotchKeepAwakeSupport.indicatorColor(for: .none) == .yellow,
+                     "with no tint chosen, the island keeps the tile's yellow")
+
         let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
         let locale = Locale(identifier: "en_US")
         func text(_ seconds: TimeInterval) -> String {

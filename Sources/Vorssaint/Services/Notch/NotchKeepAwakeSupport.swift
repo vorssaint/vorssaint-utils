@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import SwiftUI
 
 /// A running Keep Awake session as a live activity of the closed island, for
 /// those who turn it on. With the island standing in for the menu bar glyph,
@@ -11,6 +12,13 @@ enum NotchKeepAwakeSupport {
     static let symbol = "cup.and.saucer.fill"
     /// Where a timed session shows its time left, one without an end shows this.
     static let openSymbol = "infinity"
+
+    /// The color the island draws a session in: the Keep Awake icon tint the
+    /// menu bar glyph follows, so one session reads as one color. "None"
+    /// names no color for the island to follow, so it keeps the tile's yellow.
+    static func indicatorColor(for tint: KeepAwakeIconTint) -> Color {
+        tint.color ?? .yellow
+    }
 
     static func showsActivity(in defaults: UserDefaults = .standard) -> Bool {
         NotchSupport.isEnabled(in: defaults) && AppFeature.keepAwake.isAvailable(in: defaults)
@@ -70,5 +78,21 @@ enum NotchKeepAwakeSupport {
             .size.width.rounded(.up) ?? size
         measuredSymbols[key] = width
         return width
+    }
+}
+
+extension KeepAwakeIconTint {
+    /// The color a tint choice stands for, shared by the picker's swatch and
+    /// every mark that follows the menu bar's icon tint. "None" names no
+    /// color, leaving each surface its own untinted look.
+    var color: Color? {
+        switch self {
+        case .orange: return .orange
+        case .green: return .green
+        case .blue: return .blue
+        case .purple: return .purple
+        case .pink: return .pink
+        case .none: return nil
+        }
     }
 }
