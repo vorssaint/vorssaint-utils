@@ -1892,6 +1892,8 @@ enum FeatureCatalogTests {
             suite.expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
                    "every backup description accounts for the Scratchpad text (\(language.rawValue))")
+            expectFormat(FeatureStrings.backup(language).configFileConfirmFormat, ["@"],
+                         "\(language.rawValue) settings file confirmation names the path")
             suite.expect(FeatureStrings.appUpdates(language).updateSelectedFormat.contains("%d")
                     && FeatureStrings.appUpdates(language).lastCheckFormat.contains("%@")
                     && FeatureStrings.appUpdates(language).nextCheckFormat.contains("%@")
