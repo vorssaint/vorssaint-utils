@@ -58,6 +58,16 @@ struct NotchLyrics: Equatable {
         return dates
     }
 
+    /// Where the player must move for `index` to be the verse being sung, with
+    /// the user's timing adjustment applied and the recording's bounds kept.
+    /// `allowed` is the surface's effective seek permission, which can exceed
+    /// the player's own metadata when the island drives it through automation.
+    func seekPosition(for index: Int, offset: Double, into playback: NotchPlayback,
+                      allowed: Bool? = nil) -> Double? {
+        guard lines.indices.contains(index), offset.isFinite else { return nil }
+        return playback.seekPosition(lines[index].time + offset, allowed: allowed)
+    }
+
     func activeIndex(at position: Double, offset: Double = 0) -> Int? {
         guard position.isFinite, offset.isFinite else { return nil }
         let time = position - offset
