@@ -166,6 +166,42 @@ enum SettingsFileTests {
             suite.expect(danglingTarget == target.path && !manager.fileExists(atPath: target.path),
                          "an external deletion remains a deletion")
         } catch { suite.expect(false, "settings file fixture failed: \(error)") }
+        stableExportChecks(suite)
+    }
+
+    /// Swift seeds its hash per process, so JSON the export rebuilds must not
+    /// depend on dictionary order, or an unchanged setup writes a new file.
+    private static func stableExportChecks(_ suite: TestSuite) {
+        typealias Style = ScreenshotSupport.WatermarkStyle
+        let style = Style(kind: .text, text: "Portable", color: "blue", rotation: 20)
+        let options = MediaImageOptions(quality: 0.8, maxDimension: 1400, format: .png, stripMetadata: false,
+                                        watermark: MediaImageWatermark(kind: .text, text: "Sample", opacity: 0.5))
+        let source: [String: Any] = [
+            DefaultsKey.screenshotWatermarkStyle: style.encoded(),
+            DefaultsKey.screenshotWatermarkPresets: ScreenshotSupport.encodedWatermarkPresets([style]),
+            DefaultsKey.recorderEditorPresets: (try? JSONEncoder().encode(
+                [RecorderEditPreset(name: "Preset", document: RecorderEditDocument())])) ?? Data(),
+            DefaultsKey.mediaImageProfiles: String(decoding: (try? JSONEncoder().encode(
+                [MediaImageProfile(id: "profile", name: "Profile", options: options)])) ?? Data(), as: UTF8.self),
+        ]
+        let payload = SettingsBackupSupport.payload(appVersion: "test") { source[$0] }
+        let exported = payload[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+        func canonical<T: Codable>(_ type: T.Type, _ data: Data) -> Data? {
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            return (try? JSONDecoder().decode(type, from: data)).flatMap { try? encoder.encode($0) }
+        }
+        let types: [String: (Data) -> Data?] = [
+            DefaultsKey.screenshotWatermarkStyle: { canonical(Style.self, $0) },
+            DefaultsKey.screenshotWatermarkPresets: { canonical([Style].self, $0) },
+            DefaultsKey.recorderEditorPresets: { canonical([RecorderEditPreset].self, $0) },
+            DefaultsKey.mediaImageProfiles: { canonical([MediaImageProfile].self, $0) },
+        ]
+        for key in source.keys.sorted() {
+            let data = (exported[key] as? Data) ?? (exported[key] as? String).map { Data($0.utf8) }
+            suite.expect(data != nil && data == data.flatMap { types[key]?($0) },
+                         "export writes \(key) with a stable key order")
+        }
     }
 
     private static func exerciseProfiles(at target: URL, defaults: UserDefaults,

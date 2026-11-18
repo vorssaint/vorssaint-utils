@@ -3126,7 +3126,9 @@ enum ScreenshotSupport {
         }
 
         func encoded() -> String {
-            guard let data = try? JSONEncoder().encode(self) else { return "" }
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            guard let data = try? encoder.encode(self) else { return "" }
             return String(data: data, encoding: .utf8) ?? ""
         }
 
@@ -3152,7 +3154,9 @@ enum ScreenshotSupport {
     }
 
     static func encodedWatermarkPresets(_ presets: [WatermarkStyle]) -> String {
-        guard let data = try? JSONEncoder().encode(Array(presets.suffix(backdropPresetLimit)))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(Array(presets.suffix(backdropPresetLimit)))
         else { return "[]" }
         return String(data: data, encoding: .utf8) ?? "[]"
     }
