@@ -30,6 +30,7 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardAutoClearOnSleep) private var autoClearOnSleep = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDisplaySleep) private var autoClearOnDisplaySleep = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnScreenLock) private var autoClearOnScreenLock = false
+    @AppStorage(DefaultsKey.clipboardCopyOnSelect) private var copyOnSelect = false
 
     private var text: ClipboardFeatureStrings {
         FeatureStrings.clipboard(l10n.language)
@@ -103,6 +104,7 @@ struct ClipboardSettings: View {
                 }
 
                 clipboardAutoClearSection
+                clipboardCopyOnSelectSection
             }
 
             if AppFeature.finderCutPaste.isAvailable {
@@ -285,6 +287,24 @@ struct ClipboardSettings: View {
             Text(text.autoClearCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    // Its own section, like auto clear: it copies with history capture off, and
+    // it is the one setting here that acts on text selected in other apps.
+    @ViewBuilder
+    private var clipboardCopyOnSelectSection: some View {
+        Section {
+            Toggle(text.copyOnSelect, isOn: $copyOnSelect)
+                .onChange(of: copyOnSelect) { _, _ in
+                    CopyOnSelectService.shared.syncWithPreferences()
+                }
+            Text(text.copyOnSelectCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if copyOnSelect, !permissions.accessibility {
+                PermissionRow(kind: .accessibility)
+            }
         }
     }
 

@@ -609,6 +609,11 @@ enum DefaultsKey {
     static let clipboardAutoClearOnDisplaySleep = "clipboardAutoClearOnDisplaySleep"
     static let clipboardAutoClearOnScreenLock = "clipboardAutoClearOnScreenLock"
 
+    // Copy on select: text selected with the mouse in any app is copied to the
+    // pasteboard. Outside the clipboardHistory family for the same reason as
+    // auto clear: it works with capture off.
+    static let clipboardCopyOnSelect = "clipboardCopyOnSelect"
+
     static let windowPreviewExcludedApps = "windowPreviewExcludedApps" // pause Dock Preview thumbnail capture while these apps are in front (once shared with the app switcher)
     static let switcherPreviewExcludedApps = "switcherPreviewExcludedApps" // pause app switcher thumbnail capture while these apps are in front
     static let diskEjectExcludedVolumes = "diskEjectExcludedVolumes" // volume names/UUIDs excluded from Eject all disks
@@ -1849,6 +1854,7 @@ enum Defaults {
         DefaultsKey.clipboardAutoClearOnSleep: false,
         DefaultsKey.clipboardAutoClearOnDisplaySleep: false,
         DefaultsKey.clipboardAutoClearOnScreenLock: false,
+        DefaultsKey.clipboardCopyOnSelect: false,
         DefaultsKey.finderCutPasteShowHUD: true,
         DefaultsKey.finderPasteImageAsFile: false,
         DefaultsKey.windowPreviewExcludedApps: [String](),
