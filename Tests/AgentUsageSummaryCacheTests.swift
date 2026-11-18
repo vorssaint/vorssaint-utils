@@ -90,7 +90,118 @@ enum AgentUsageSummaryCacheTests {
         for index in records.indices { records[index].cost = 0.5 }
         cache.invalidate()
         check("repricing rebuilds cost, savings and unpriced totals")
+        customRange(suite)
+        allTime(suite, now: now, calendar: calendar)
         storeIntegration(suite, now: now, calendar: calendar)
+    }
+
+    private static func customRange(_ suite: TestSuite) {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let start = calendar.date(from: DateComponents(year: 2026, month: 3, day: 8))!
+        let range = AgentDateRange(from: start, through: start, calendar: calendar)
+        let interval = range.interval(calendar: calendar)!
+        suite.expect(interval.duration == 23 * 3600, "an inclusive one-day range follows the DST calendar day")
+        suite.expect(AgentDateRange.restore(range.storageValue) == range,
+                     "custom date choices round-trip through a single saved preference")
+        var east = calendar
+        east.timeZone = TimeZone(identifier: "Asia/Kolkata")!
+        let moved = range.interval(calendar: east)!
+        suite.expect(east.component(.day, from: moved.start) == 8 && east.component(.hour, from: moved.start) == 0,
+                     "saved calendar dates keep the selected day when the time zone changes")
+        suite.expect(AgentDateRange(from: interval.end, through: start, calendar: calendar).interval(calendar: calendar) == nil,
+                     "a reversed range is invalid")
+        suite.expect(AgentDateRange.restore("invalid") == nil
+                        && AgentDateRange.restore(#"{"from":"2026-02-30","through":"2026-03-08"}"#) == nil,
+                     "malformed preferences and impossible dates are rejected")
+        let now = interval.end.addingTimeInterval(10 * 86_400)
+        var records: [AgentUsageRecord] = [
+            (start.addingTimeInterval(-1), AgentProvider.claude, 1.0, "before"),
+            (start, .claude, 2.0, "inside"),
+            (interval.end.addingTimeInterval(-1), .codex, 4.0, "inside"),
+            (interval.end, .claude, 8.0, "after")
+        ].map { date, provider, cost, project in
+            AgentUsageRecord(provider: provider, date: date, model: provider.rawValue, project: project,
+                session: "s", tokens: AgentTokens(input: 10), cost: cost, savings: 0)
+        }
+        let cache = AgentUsageSummaryCache()
+        let providers: Set<AgentProvider> = [.claude, .codex]
+        func snapshot(_ selected: DateInterval?) -> AgentUsageSnapshot {
+            cache.snapshot(records: records, limits: [:], live: [], plans: [:], providers: providers,
+                           now: now, customRange: selected, calendar: calendar)
+        }
+        var result = snapshot(interval)
+        suite.expect(result.usage(.custom).total.cost == 6 && result.usage(.custom).total.tokens.total == 20,
+                     "custom totals include both boundary days and exclude the following midnight")
+        suite.expect(result.usage(.custom).projects.map(\.name) == ["inside"]
+                        && result.usage(.custom).models.count == 2,
+                     "custom model and project shares use the same date filter")
+        suite.expect(result.trendBuckets(.custom).count == 1
+                        && result.trendBuckets(.custom).reduce(0) { $0 + $1.total.cost } == 6,
+                     "a single-day custom chart preserves the selected totals")
+        suite.expect(result.usage(.allTime).total.cost == 15 && result.usage(.month).total.cost == 15,
+                     "custom filtering does not change preset totals")
+        _ = snapshot(interval)
+        suite.expect(cache.accumulatedRecords == 0, "an unchanged custom range reuses cached history")
+        let emptyRange = DateInterval(start: interval.end.addingTimeInterval(86_400), end: now)
+        suite.expect(snapshot(emptyRange).usage(.custom).total.tokens.total == 0,
+                     "changing to an empty custom range clears its previous totals")
+        cache.recordChanged(at: records.count, previous: nil)
+        records.append(AgentUsageRecord(provider: .claude, date: now.addingTimeInterval(-3600), model: "m",
+            project: "new", session: "s", tokens: AgentTokens(input: 5), cost: 1, savings: 0))
+        result = snapshot(emptyRange)
+        suite.expect(result.usage(.custom).total.cost == 1 && cache.accumulatedRecords == 1,
+                     "new activity updates a selected range incrementally")
+        result = snapshot(interval)
+        suite.expect(result.usage(.custom).total.cost == 6
+                        && result == AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+                            providers: providers, now: now, customRange: interval, calendar: calendar),
+                     "changing ranges rebuilds the cache and matches the complete summary")
+        let filtered = AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+            providers: [.claude], now: now, customRange: interval, calendar: calendar)
+        suite.expect(filtered.usage(.custom).total.cost == 2, "custom ranges respect provider visibility")
+    }
+
+    private static func allTime(_ suite: TestSuite, now: Date, calendar: Calendar) {
+        let cache = AgentUsageSummaryCache()
+        var records = [AgentUsageRecord(provider: .claude, date: now, model: "m", project: "recent",
+            session: "s", tokens: AgentTokens(input: 10), cost: 1, savings: 0)]
+        func snapshot() -> AgentUsageSnapshot {
+            cache.snapshot(records: records, limits: [:], live: [], plans: [:],
+                           providers: [.claude], now: now, calendar: calendar)
+        }
+        _ = snapshot()
+        let old = AgentUsageRecord(provider: .claude,
+            date: calendar.date(byAdding: .day, value: -400, to: now)!, model: "m", project: "old",
+            session: "s", tokens: AgentTokens(input: 10), cost: 4, savings: 0)
+        cache.recordChanged(at: records.count, previous: nil)
+        records.append(old)
+        let result = snapshot()
+        suite.expect(result.usage(.allTime).total.cost == 5, "all time includes responses older than 91 days")
+        suite.expect(result.usage(.month).total.cost == 1, "all time does not widen the 30-day filter")
+        suite.expect(result.usage(.allTime).projects.contains { $0.name == "old" }, "all time includes historical projects")
+        suite.expect(result == AgentUsageSummary.snapshot(records: records, limits: [:], live: [], plans: [:],
+            providers: [.claude], now: now, calendar: calendar), "late older history rebuilds the cache correctly")
+        let bars = result.trendBuckets(.allTime)
+        suite.expect(bars.count <= 30 && bars.reduce(0) { $0 + $1.total.cost } == 5,
+                     "all-time trend stays readable without losing historical cost")
+        cache.recordChanged(at: 1, previous: records[1])
+        records[1].cost = 6
+        suite.expect(snapshot().usage(.allTime).total.cost == 7, "historical corrections update all-time totals once")
+        suite.expect(result.trendBuckets(.month).count == 30, "month trend keeps thirty daily bars")
+        let checkpoint = AgentUsageRecord(provider: .copilot, date: old.date, model: "m", project: "checkpoint",
+            session: "s", requests: 0, tokens: AgentTokens(input: 25), cost: 2, savings: 0)
+        let checkpointSnapshot = AgentUsageSummary.snapshot(records: [checkpoint], limits: [:], live: [], plans: [:],
+            providers: [.copilot], now: now, calendar: calendar)
+        let checkpointBars = checkpointSnapshot.trendBuckets(.allTime)
+        suite.expect(checkpointBars.reduce(0) { $0 + $1.total.tokens.total } == 25
+                        && checkpointBars.reduce(0) { $0 + $1.total.cost } == 2,
+                     "all-time trend retains token checkpoints with no additional requests")
+        suite.expect(checkpointBars.first?.start == calendar.startOfDay(for: old.date),
+                     "all-time trend starts at the first recorded usage, including zero-request checkpoints")
+        let empty = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
+            providers: [.claude], now: now, calendar: calendar)
+        suite.expect(empty.trendBuckets(.allTime).isEmpty, "all-time trend is empty when no history is available")
     }
 
     private static func storeIntegration(_ suite: TestSuite, now: Date, calendar: Calendar) {

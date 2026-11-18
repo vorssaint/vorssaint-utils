@@ -4,15 +4,68 @@
 import Foundation
 
 enum AgentPeriod: String, CaseIterable, Identifiable {
-    case today, week, month
+    case today, week, month, allTime, custom
 
     var id: String { rawValue }
-    var days: Int {
+    /// Nil means the period has no age cutoff.
+    var days: Int? {
         switch self {
         case .today: return 1
         case .week: return 7
         case .month: return 30
+        case .allTime, .custom: return nil
         }
+    }
+
+    func contains(day: Int, lastDay: Int, date: Date, customRange: DateInterval?) -> Bool {
+        if self == .custom {
+            guard let customRange else { return false }
+            return date >= customRange.start && date < customRange.end
+        }
+        guard let days else { return true }
+        return day > lastDay - days
+    }
+}
+
+/// Calendar dates, kept as ISO dates so changing time zone preserves the selected days.
+struct AgentDateRange: Codable, Equatable {
+    let from: String
+    let through: String
+
+    init(from: Date, through: Date, calendar: Calendar = .current) {
+        let formatter = Self.formatter(calendar)
+        self.from = formatter.string(from: from)
+        self.through = formatter.string(from: through)
+    }
+
+    func interval(calendar: Calendar = .current) -> DateInterval? {
+        let formatter = Self.formatter(calendar)
+        guard let first = formatter.date(from: from), let last = formatter.date(from: through),
+              formatter.string(from: first) == from, formatter.string(from: last) == through,
+              first <= last, let end = calendar.date(byAdding: .day, value: 1, to: last) else { return nil }
+        return DateInterval(start: first, end: end)
+    }
+
+    var storageValue: String {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(self)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+    }
+
+    static func restore(_ value: String) -> AgentDateRange? {
+        guard let range = try? JSONDecoder().decode(Self.self, from: Data(value.utf8)),
+              range.interval() != nil else { return nil }
+        return range
+    }
+
+    private static func formatter(_ calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.isLenient = false
+        return formatter
     }
 }
 
@@ -86,6 +139,7 @@ struct AgentUsageSnapshot: Equatable {
 
     var loaded = false
     var now = Date.distantPast
+    var customRange: DateInterval?
     var periods: [AgentPeriod: AgentPeriodUsage] = [:]
     /// Oldest first, ending with today.
     var days: [AgentBucket] = []
@@ -102,6 +156,28 @@ struct AgentUsageSnapshot: Equatable {
     var seen: Set<AgentProvider> = []
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
+    /// At most thirty bars across the complete history, preserving provider totals.
+    func trendBuckets(_ period: AgentPeriod) -> [AgentBucket] {
+        if period == .today { return hours }
+        if let count = period.days { return Array(days.suffix(count)) }
+        let history: [AgentBucket]
+        if period == .custom {
+            guard let customRange else { return [] }
+            history = days.filter { $0.start >= customRange.start && $0.start < customRange.end }
+        } else {
+            history = Array(days.drop(while: { $0.byProvider.isEmpty }))
+        }
+        let daysPerBar = max(1, (history.count + 29) / 30)
+        var result: [AgentBucket] = []
+        for index in history.indices {
+            if index % daysPerBar == 0 { result.append(AgentBucket(start: history[index].start)) }
+            for (provider, total) in history[index].byProvider {
+                result[result.count - 1].byProvider[provider, default: AgentTotals()] += total
+            }
+        }
+        return result
+    }
+
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
 }
 
@@ -115,17 +191,17 @@ enum AgentUsageSummary {
     static func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
                          live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
                          providers: Set<AgentProvider>, now: Date,
+                         customRange: DateInterval? = nil,
                          calendar: Calendar = .autoupdatingCurrent) -> AgentUsageSnapshot {
         var snapshot = AgentUsageSnapshot(loaded: true, now: now)
+        snapshot.customRange = customRange
         snapshot.limits = limits.filter { providers.contains($0.key) }
         snapshot.plans = plans.filter { providers.contains($0.key) }
         snapshot.live = live.filter { providers.contains($0.provider) }.sorted { $0.started < $1.started }
         snapshot.seen = Set(snapshot.limits.keys).union(snapshot.live.map(\.provider))
 
         let today = calendar.startOfDay(for: now)
-        let starts: [Date] = (0..<AgentUsageSnapshot.dayCount).reversed().compactMap {
-            calendar.date(byAdding: .day, value: -$0, to: today)
-        }
+        let starts = dayStarts(records: records, providers: providers, now: now, calendar: calendar)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
         let hourStarts: [Date] = (0..<24).compactMap { calendar.date(byAdding: .hour, value: $0, to: today) }
         var days = starts.map { AgentBucket(start: $0) }
@@ -163,7 +239,7 @@ enum AgentUsageSummary {
                 names[record.model] = name
             }
             let modelID = record.provider.rawValue + ":" + name
-            for period in AgentPeriod.allCases where day > lastDay - period.days {
+            for period in AgentPeriod.allCases where period.contains(day: day, lastDay: lastDay, date: record.date, customRange: customRange) {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
                 models[period, default: [:]][modelID, default: AgentShare(
@@ -200,6 +276,17 @@ enum AgentUsageSummary {
         snapshot.hours = hours
         snapshot.claudeBlock = currentBlock(claude, now: now)
         return snapshot
+    }
+
+    /// Keep the activity map's minimum span, but never discard older usage.
+    static func dayStarts(records: [AgentUsageRecord], providers: Set<AgentProvider>,
+                          now: Date, calendar: Calendar) -> [Date] {
+        let today = calendar.startOfDay(for: now)
+        let oldest = records.lazy.filter { providers.contains($0.provider) && $0.date <= now }
+            .map(\.date).min() ?? today
+        let count = max(AgentUsageSnapshot.dayCount,
+                        (calendar.dateComponents([.day], from: calendar.startOfDay(for: oldest), to: today).day ?? 0) + 1)
+        return (0..<count).reversed().compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }
     }
 
     /// Whether a snapshot reads differently at `now` with nothing new read:
@@ -286,9 +373,14 @@ final class AgentUsageSummaryCache {
     func snapshot(records: [AgentUsageRecord], limits: [AgentProvider: AgentLimits],
                   live: [AgentLiveSession], plans: [AgentProvider: AgentPlan],
                   providers: Set<AgentProvider>, now: Date,
+                  customRange: DateInterval? = nil,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         accumulatedRecords = 0
-        let rebuild = history == nil || self.calendar != calendar || self.providers != providers
+        let olderHistory = changes.keys.contains { position in
+            providers.contains(records[position].provider) && records[position].date < (starts.first ?? .distantPast)
+        }
+        let rebuild = olderHistory || history == nil || history?.customRange != customRange
+            || self.calendar != calendar || self.providers != providers
             || now < lastTime || !calendar.isDate(lastTime, inSameDayAs: now)
         if rebuild {
             self.calendar = calendar
@@ -298,8 +390,9 @@ final class AgentUsageSummaryCache {
             names.removeAll(keepingCapacity: true)
             recentPositions.removeAll(keepingCapacity: true)
             history = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
-                                                 providers: providers, now: now, calendar: calendar)
-            starts = history!.days.map(\.start)
+                                                 providers: providers, now: now, customRange: customRange, calendar: calendar)
+            starts = AgentUsageSummary.dayStarts(records: records, providers: providers, now: now, calendar: calendar)
+            history!.days = starts.map { AgentBucket(start: $0) }
             hourStarts = history!.hours.map(\.start)
             let today = calendar.startOfDay(for: now)
             tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
@@ -384,7 +477,7 @@ final class AgentUsageSummaryCache {
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
         let modelID = record.provider.rawValue + ":" + name
-        for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
+        for period in AgentPeriod.allCases where period.contains(day: day, lastDay: starts.count - 1, date: record.date, customRange: history!.customRange) {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
             models[period, default: [:]][modelID, default: AgentShare(
