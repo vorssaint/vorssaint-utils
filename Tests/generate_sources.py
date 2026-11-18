@@ -525,6 +525,8 @@ def main():
           + "extension ScreenshotAttachedCaptureTests {\nenum Engine {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
                         "    private static func composeAttached(").replace("private static", "static", 1)
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
+                        "    static func captureIndependentWindow(")
           + "}\n}\n")
     write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
@@ -2216,6 +2218,7 @@ def main():
         "    private func repeatLastRegion()",
         "    fileprivate func confirmWindow(",
         "    fileprivate func confirmRegion(",
+        "    private func finishFrozenCrop(",
         "    fileprivate func confirmColor(",
     ]
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"
