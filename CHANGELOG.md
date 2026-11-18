@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+This update improves microphone muting, audio device priorities, window snapping and screenshot capture.
+
+### Fixed
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. Bursts of device notifications still trigger an immediate mute check, and a failed manual unmute is reported. Thanks to @JosueM1109.
+- The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
+- Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
+- Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
+- Shelf stays responsive while it prepares a file drag from iCloud or another slow volume. Files inside a package remain protected from moves. Thanks to @iva-zhu.
+- Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
+- The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
+- Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
+
+### Contributors
+Thanks to @binjamshid, @EugeneCarldotme, @iva-zhu, @JosueM1109, @nodegan and @TC-Virtuoso.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

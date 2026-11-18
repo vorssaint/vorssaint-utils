@@ -140,6 +140,7 @@ final class BrightnessService: ObservableObject {
         let service: CFTypeRef
         let chipAddress: UInt32
         let hasNativeMute: Bool
+        let unmutesLeavingZero: Bool
     }
 
     private struct Route {
@@ -225,6 +226,9 @@ final class BrightnessService: ObservableObject {
     /// Includes real external displays that have no controllable row in the panel.
     private var audioDisplayNames: [(id: UInt32, name: String)] = []
     /// Only the DDC queue touches these confirmed, per-connection levels.
+    // The level and unmute are separate DDC writes. A newer slider request
+    // inherits the unfinished unmute only on this physical connection.
+    private var pendingSpeakerUnmutes: [String: UInt64] = [:]
     private var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
     private struct PendingAudio {
         let target: BrightnessSupport.SpeakerTarget
@@ -697,7 +701,10 @@ final class BrightnessService: ObservableObject {
         knownMirrorSources = [:]
         stateLock.unlock()
         cancelPendingAudio()
-        workQueue.async { [weak self] in self?.speakerRestoreLevels = [:] }
+        workQueue.async { [weak self] in
+            self?.speakerRestoreLevels = [:]
+            self?.pendingSpeakerUnmutes = [:]
+        }
         ddcPendingSteps = [:]
         pendingDisplayIDs = []
         displayControlFailure = nil
@@ -2595,7 +2602,8 @@ final class BrightnessService: ObservableObject {
             ddcRetryAttempts[speakerKey] = nil
             built[candidate.index].audio = probed.state
             newAudioRoutes[id] = AudioRoute(path: path, fingerprint: fingerprint, service: matched.service,
-                                           chipAddress: matched.chipAddress, hasNativeMute: probed.hasNativeMute)
+                                           chipAddress: matched.chipAddress, hasNativeMute: probed.hasNativeMute,
+                                           unmutesLeavingZero: probed.unmutesLeavingZero)
         }
 
         // A DDC or system route owns the picture again. A gamma curve left
@@ -2642,6 +2650,7 @@ final class BrightnessService: ObservableObject {
             audioDisplayNames = externalNames
             let connectedPaths = Set(newAudioRoutes.values.map(\.path))
             speakerLevelRevisions = speakerLevelRevisions.filter { connectedPaths.contains($0.key) }
+            pendingSpeakerUnmutes = pendingSpeakerUnmutes.filter { connectedPaths.contains($0.key) }
             speakerRestoreLevels = speakerRestoreLevels.filter { connectedPaths.contains($0.key) }
             scannedAudio = probesAudio
             audioScanQueued = nil
@@ -3159,12 +3168,12 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    private func isCurrentSpeakerChange(_ pending: PendingAudio) -> Bool {
+    private func isCurrentSpeakerChange(_ pending: PendingAudio, checkingLevel: Bool = true) -> Bool {
         let target = pending.target
         return stateLock.withLock {
             audioLifetime == target.connectionGeneration && audioRoutes[target.displayID]?.path == target.path
                 && (target.deviceID == nil || target.outputGeneration == audioOutputGeneration)
-                && (pending.levelRevision == nil || pending.levelRevision == speakerLevelRevisions[target.path, default: 0])
+                && (!checkingLevel || pending.levelRevision == nil || pending.levelRevision == speakerLevelRevisions[target.path, default: 0])
         }
     }
 
@@ -3174,10 +3183,10 @@ final class BrightnessService: ObservableObject {
         let target = pending.target
         let id = target.displayID
         guard let route = stateLock.withLock({ audioRoutes[id] }), route.path == target.path else { return nil }
-        func current() -> Bool {
+        func current(checkingLevel: Bool = true) -> Bool {
             guard wantsMonitorVolume,
                   !pending.requiresKeys || UserDefaults.standard.bool(forKey: DefaultsKey.displayVolumeKeysEnabled),
-                  isCurrentSpeakerChange(pending),
+                  isCurrentSpeakerChange(pending, checkingLevel: checkingLevel),
                   Self.restorationDisplayFingerprint(id) == route.fingerprint,
                   CGDisplayIsActive(id) != 0, CGDisplayIsAsleep(id) == 0 else { return false }
             guard let device = target.deviceID else { return true }
@@ -3190,23 +3199,33 @@ final class BrightnessService: ObservableObject {
         }
         guard current() else { return nil }
         var restore = speakerRestoreLevels[target.path]
+        var needsUnmute = pendingSpeakerUnmutes[target.path] == target.connectionGeneration
         let keySettings = pending.requiresKeys ? monitorVolumeKeySettings : MonitorVolumeKeySettings()
+        var sentUnmute = false
         let result = BrightnessSupport.applySpeakerChange(pending.change, hasNativeMute: route.hasNativeMute,
-            keySettings: keySettings, restore: &restore, read: { code in
-                guard current(), case let .replied(value, maximum) = self.ddcProbe(code, for: id, service: route.service,
-                                                                        chip: route.chipAddress)
+            unmutesLeavingZero: route.unmutesLeavingZero, keySettings: keySettings, restore: &restore,
+            needsUnmute: &needsUnmute, read: { code in
+                guard current(), !sentUnmute || !pending.requiresKeys || self.monitorVolumeKeySettings == keySettings,
+                      case let .replied(value, maximum) = self.ddcProbe(code, for: id, service: route.service,
+                                                                       chip: route.chipAddress)
                 else { return nil }
                 return (value, maximum)
             }, write: { code, value in
                 let packet = BrightnessSupport.writePacket(code: code, value: value)
-                return self.ddcSend(to: id, service: route.service, chip: route.chipAddress,
-                                    packet: packet) {
+                let accepted = self.ddcSend(to: id, service: route.service, chip: route.chipAddress,
+                                            packet: packet) {
                     // Settings can change while the bus is pacing a write. A
                     // protective re-mute still belongs to the original target.
                     let mutes = code == BrightnessSupport.audioMuteCode && value == BrightnessSupport.audioMutedValue
-                    return current() && (!pending.requiresKeys || mutes || self.monitorVolumeKeySettings == keySettings)
+                    return current(checkingLevel: !(sentUnmute && mutes))
+                        && (!pending.requiresKeys || mutes || self.monitorVolumeKeySettings == keySettings)
                 }
+                if accepted, code == BrightnessSupport.audioMuteCode, value == BrightnessSupport.audioUnmutedValue {
+                    sentUnmute = true
+                }
+                return accepted
             })
+        pendingSpeakerUnmutes[target.path] = needsUnmute ? target.connectionGeneration : nil
         speakerRestoreLevels[target.path] = restore
         guard let result else { return nil }
         let panel = BrightnessSupport.SpeakerTarget(displayID: id, path: target.path,
@@ -3336,7 +3355,7 @@ final class BrightnessService: ObservableObject {
     // MARK: - Speaker probing (work queue)
 
     private func probeAudio(for id: CGDirectDisplayID, service: CFTypeRef, chip: UInt32, path: String)
-        -> (hasNativeMute: Bool, state: BrightnessDisplay.Audio)? {
+        -> (hasNativeMute: Bool, unmutesLeavingZero: Bool, state: BrightnessDisplay.Audio)? {
         guard wantsMonitorVolume, BrightnessSupport.shouldProbe(
             pathKey: path, rememberedPaths: rememberedPaths(DefaultsKey.displayAudioSilentPaths)),
               case let .replied(current, maximum) = ddcProbe(BrightnessSupport.audioVolumeCode,
@@ -3348,15 +3367,18 @@ final class BrightnessService: ObservableObject {
             return nil
         }
         var nativeMute: Bool?
+        var unmutesLeavingZero = false
         if case let .replied(value, range) = ddcProbe(BrightnessSupport.audioMuteCode, for: id, service: service, chip: chip) {
             nativeMute = BrightnessSupport.muteReply(current: value, maximum: range)
+            unmutesLeavingZero = BrightnessSupport.unmutesLeavingZero(muteReply: value, maximum: range)
         }
         guard wantsMonitorVolume else { return nil }
         if level.raw > 0 { speakerRestoreLevels[path] = nil }
         let muted = nativeMute ?? level.mutedWithoutNativeControl(restoring: speakerRestoreLevels[path])
         let target = BrightnessSupport.SpeakerTarget(displayID: id, path: path,
                                                      connectionGeneration: stateLock.withLock { audioLifetime })
-        return (nativeMute != nil, BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
+        return (nativeMute != nil, unmutesLeavingZero,
+                BrightnessDisplay.Audio(target: target, volume: level.volume, muted: muted))
     }
 
     // MARK: - Display identity

@@ -52,6 +52,7 @@ enum DisplaySpeakerVolumeTests {
             displays.filter { !$0.isBuiltIn }.map { ($0.id, $0.name) } + hiddenDisplays
         }
         var audioRoutes: [UInt32: AudioRoute] = [:]
+        var pendingSpeakerUnmutes: [String: UInt64] = [:]
         var speakerRestoreLevels: [String: BrightnessSupport.SpeakerLevel] = [:]
         var audioLifetime: UInt64 = 0
         var speakerLevelRevisions: [String: UInt64] = [:]
@@ -64,6 +65,8 @@ enum DisplaySpeakerVolumeTests {
         var raw: UInt16 = 40
         var maximum: UInt16 = 100
         var nativeMuted: Bool?
+        var unmutedReads: UInt16 = 2
+        var rejectUnmute = false
         var rejectVolume = false
         var ignoreVolume = false
         var onSend: (() -> Void)?
@@ -89,7 +92,7 @@ enum DisplaySpeakerVolumeTests {
             onRead?()
             if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
-            return .replied(current: nativeMuted ? 1 : 2, maximum: 2)
+            return .replied(current: nativeMuted ? 1 : unmutedReads, maximum: 2)
         }
         func ddcSend(to id: UInt32, service: CFTypeRef, chip: UInt32, packet: [UInt8],
                      whileCurrent: () -> Bool) -> Bool {
@@ -103,6 +106,7 @@ enum DisplaySpeakerVolumeTests {
                 guard !rejectVolume else { return false }
                 if !ignoreVolume { raw = value }
             } else if code == BrightnessSupport.audioMuteCode, nativeMuted != nil {
+                if value == 2, rejectUnmute { return false }
                 nativeMuted = value == 1
                 if value == 2, let volumeOnUnmute { raw = volumeOnUnmute }
             } else { return false }
@@ -122,17 +126,18 @@ enum DisplaySpeakerVolumeTests {
     @discardableResult
     static func connect(_ mixer: MixerOutputAdjustmentContract.Mixer,
                         raw: UInt16 = 40, maximum: UInt16 = 100, muted: Bool? = false,
-                        chip: UInt32 = BrightnessSupport.chipAddress) -> Service {
+                        unmutedReads: UInt16 = 2, chip: UInt32 = BrightnessSupport.chipAddress) -> Service {
         let service = Service()
         Service.shared = service
         service.raw = raw
         service.maximum = maximum
         service.nativeMuted = muted
+        service.unmutedReads = unmutedReads
         let endpoint = NSObject()
         if let probed = service.probeAudio(for: 7, service: endpoint, chip: chip, path: "port-a") {
             service.audioRoutes[7] = AudioRoute(path: "port-a", fingerprint: "fixture-identity",
-                                                service: endpoint, chipAddress: chip,
-                                                hasNativeMute: probed.hasNativeMute)
+                                                service: endpoint, chipAddress: chip, hasNativeMute: probed.hasNativeMute,
+                                                unmutesLeavingZero: probed.unmutesLeavingZero)
             service.displays = [BrightnessDisplay(id: 7, name: "Monitor A", audio: probed.state)]
         }
         service.onDisplayChange = { [weak service, weak mixer] in mixer?.monitorOutput = service?.monitorSpeakerOutput() }
