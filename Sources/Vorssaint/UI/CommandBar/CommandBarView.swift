@@ -633,9 +633,17 @@ struct CommandBarView: View {
         .onHover { hovering in
             if hovering { service.selectFromHover(index) }
         }
+        .modifier(FileRowDragModifier(path: Self.draggableFilePath(of: entry)))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(entry))
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// Only rows Spotlight found are real files someone may want to carry
+    /// elsewhere; apps, commands and the rest have nothing to drag out.
+    private static func draggableFilePath(of entry: CommandBarEntry) -> String? {
+        guard entry.id.hasPrefix("file."), let path = entry.revealPath else { return nil }
+        return path
     }
 
     /// Everything the eye gets from a row, said in words: the name, where it
@@ -1306,5 +1314,24 @@ private struct CommandBarMascot: View {
                 cue = .celebrate
                 cueID += 1
             }
+    }
+}
+
+/// Lets a found file be dragged out of the bar as a copy. The drag carries
+/// the file's URL, not its contents: Finder then copies it under its own name
+/// (numbering a clash itself) and SwiftUI keeps no copy of the data in its
+/// drag cache, while other apps still take the file as an attachment.
+private struct FileRowDragModifier: ViewModifier {
+    let path: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let path {
+            content.onDrag {
+                NSItemProvider(object: URL(fileURLWithPath: path) as NSURL)
+            }
+        } else {
+            content
+        }
     }
 }
