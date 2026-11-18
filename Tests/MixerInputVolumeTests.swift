@@ -1209,5 +1209,55 @@ enum MixerInputVolumeContract {
         check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0 && HAL.muteElements[firstMute] == 1
                 && !MicMuteService.shared.hasOutstandingClaims,
               "a pending legacy unmute restores only the claimed main switch when the microphone returns")
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(MicMuteService.shared.isMuted && MicMuteService.isSilenced(10),
+              "mute still zeros capture before the unmute race cases")
+        let watched = HAL.key(10)
+        HAL.afterWrite = {
+            var address = AudioObjectPropertyAddress(mSelector: watched.s,
+                                                     mScope: kAudioDevicePropertyScopeInput,
+                                                     mElement: watched.e)
+            _ = MicMuteService.listenerCallback(10, 1, &address, MicMuteService.shared.listenerClient)
+        }
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
+                && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "unmute finishes and clears mute even when restore writes notify old device listeners")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        MicMuteService.shared.halQueue.run()
+        // Mute sweep done on HAL; published finish still pending. A second
+        // press must reverse the in-flight mute, not queue another mute.
+        MicMuteService.shared.toggle()
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
+                && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive),
+              "toggle follows the mute request in flight so a second press unmutes")
+
+        HAL.reset()
+        let driftedMain = HAL.key(10, 0, kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        HAL.levels[driftedMain] = 0.5
+        HAL.levels[HAL.key(10, 1)] = 0.4
+        HAL.levels[HAL.key(10, 2)] = 0.6
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.afterWrite = {
+            if let current = HAL.levels[driftedMain], current > 0 {
+                HAL.levels[driftedMain] = max(0.02, current - 0.02)
+            }
+        }
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && !MicMuteService.isSilenced(10)
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "a driver that drifts the virtual main on restore still releases mute when capture is open")
     }
 }

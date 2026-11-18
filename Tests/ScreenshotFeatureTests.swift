@@ -4191,6 +4191,11 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
                "every input channel is muted, never fewer than the stereo pair")
+        suite.expect(MicMuteSupport.controlValuesMatch(0.5, 0.48, isMute: false)
+                && !MicMuteSupport.controlValuesMatch(0.5, 0.4, isMute: false)
+                && MicMuteSupport.controlValuesMatch(1, 1, isMute: true)
+                && !MicMuteSupport.controlValuesMatch(1, 0, isMute: true),
+               "restored gain may settle near the saved level; mute switches stay exact")
         let micMuteServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
             encoding: .utf8)) ?? ""
@@ -4198,10 +4203,13 @@ enum ScreenshotFeatureTests {
             .map { micMuteServiceSource[$0.lowerBound...] }
             .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
             .map(String.init) ?? ""
-        suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
+        suite.expect(reapply.contains("if wantsMute {") && reapply.contains("!applyInFlight")
+                && !reapply.contains("micMuteActive")
                 && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted"),
-               "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
+                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted")
+                && micMuteServiceSource.contains("setMuted(!wantsMute)")
+                && micMuteServiceSource.contains("if !muted {\n                self?.removeDeviceListeners()"),
+               "toggle follows the request in flight, unmute drops device watchers first, and a restore write cannot bump away the finish that clears mute")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
