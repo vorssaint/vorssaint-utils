@@ -613,6 +613,10 @@ struct WindowEdgeSnapPointerTrail {
     }
 }
 
+enum WindowEdgeSnapSystemDrag {
+    case idle, watchingOption, claimed
+}
+
 enum WindowEdgeSnapSupport {
     static let activationDistance: CGFloat = 12
     static let resizeCornerDistance: CGFloat = 12
@@ -626,15 +630,15 @@ enum WindowEdgeSnapSupport {
     private static let movementThreshold: CGFloat = 2
     private static let sizeTolerance: CGFloat = 2
 
-    static var isSystemTilingEnabled: Bool {
+    static var isSystemTilingEnabled: Bool { systemTilingEnabledForDrag() }
+
+    static func systemTilingEnabledForDrag(optionHeld: Bool = false) -> Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
         return systemTilingEnabled(
-            valueFor: { key in
-                guard defaults.object(forKey: key) != nil else { return nil }
-                return defaults.bool(forKey: key)
-            },
-            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+            valueFor: { key in defaults.object(forKey: key) as? Bool },
+            displaysSpan: displaysSpan(spacesPreference("spans-displays")),
+            optionHeld: optionHeld
         )
     }
 
@@ -646,20 +650,12 @@ enum WindowEdgeSnapSupport {
     /// out and the system's own tiling is inert, even if a key was written
     /// as enabled. The warning's instruction is unreachable then (issue #1079).
     static func systemTilingEnabled(valueFor: (String) -> Bool?,
-                                    displaysSpan: Bool = false) -> Bool {
+                                    displaysSpan: Bool = false,
+                                    optionHeld: Bool = false) -> Bool {
         if displaysSpan { return false }
-        // Unwritten choices arrive enabled, which is how System Settings shows
-        // them.
         let edgeDrag = valueFor("EnableTilingByEdgeDrag") ?? true
         let topDrag = valueFor("EnableTopTilingByEdgeDrag") ?? true
-        // A drag across an edge or the top tiles on its own, so either switch
-        // is a conflict. EnableTilingOptionAccelerator deliberately plays no
-        // part: holding ⌥ only tiles while one of those drag switches is on,
-        // so the accelerator can never conflict by itself. Reading its key
-        // alone is the trap behind issue #4172 — macOS leaves it unwritten
-        // until the switch is toggled once in System Settings, and a missing
-        // key taken as enabled suppressed edge snapping for good.
-        return edgeDrag || topDrag
+        return edgeDrag || topDrag || (optionHeld && (valueFor("EnableTilingOptionAccelerator") ?? true))
     }
 
     /// Separate Spaces off is the only configuration where displays span.

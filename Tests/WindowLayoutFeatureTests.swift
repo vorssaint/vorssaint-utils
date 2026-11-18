@@ -726,9 +726,15 @@ enum WindowLayoutFeatureTests {
                },
                "the option-key accelerator on its own, without a drag across an edge, is not a conflict")
         suite.expect(WindowEdgeSnapSupport.systemTilingEnabled {
-                   $0 == "EnableTopTilingByEdgeDrag" ? true : nil
+                   $0 == "EnableTilingOptionAccelerator" ? nil : $0 == "EnableTopTilingByEdgeDrag"
                },
                "an enabled top tiling drag is a conflict even with an unwritten accelerator")
+        suite.expect(WindowEdgeSnapSupport.systemTilingEnabled(
+                   valueFor: { $0 == "EnableTilingOptionAccelerator" ? nil : false }, optionHeld: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in false }, optionHeld: true)
+                && !WindowEdgeSnapSupport.systemTilingEnabled(valueFor: { _ in true }, displaysSpan: true,
+                                                              optionHeld: true),
+               "Option defaults to system tiling only when enabled on separate Spaces")
         suite.expect(!WindowEdgeSnapSupport.systemTilingEnabled(
                    valueFor: { _ in nil }, displaysSpan: true)
                 && !WindowEdgeSnapSupport.systemTilingEnabled(
