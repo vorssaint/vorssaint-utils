@@ -363,6 +363,8 @@ struct RadialMenuVisualCanvas: View {
         case .file: return text.kindFile
         case .url: return text.kindURL
         case .shortcut: return text.kindShortcut
+        case .snippet: return AppFeature.textSnippets.hubTitle(L10n.shared.s,
+                                                                hub: FeatureStrings.hub(L10n.shared.language))
         case .tool: return text.kindTool
         case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
         case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
