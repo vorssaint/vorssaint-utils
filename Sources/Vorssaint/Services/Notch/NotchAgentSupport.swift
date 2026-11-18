@@ -182,6 +182,18 @@ enum NotchAgentSupport {
         return value.isFinite ? min(3600, max(0, value)) : defaultFinishMinimum
     }
 
+    /// Whether the notice for a finished task names its API value.
+    static func showsFinishCost(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchAgentsFinishCost) as? Bool ?? true
+    }
+
+    /// The finished notice's detail: how long the task took and, unless it
+    /// is left out or there is none, what it would cost at API prices.
+    static func finishedDetail(duration: TimeInterval, cost: Double, showsCost: Bool, locale: Locale) -> String {
+        [AgentFormat.duration(duration, locale: locale), showsCost && cost > 0 ? AgentFormat.cost(cost) : ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
     /// Percent used that earns a warning; nil while warnings are off.
     static func limitThreshold(in defaults: UserDefaults = .standard) -> Double? {
         guard defaults.object(forKey: DefaultsKey.notchAgentsLimitAlert) as? Bool ?? true else { return nil }

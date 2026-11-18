@@ -3184,13 +3184,24 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.finishMinimum(in: defaults) == nil && NotchAgentSupport.limitThreshold(in: defaults) == 95
                         && NotchAgentSupport.dailyBudget(in: defaults) == nil,
                      "alerts follow their switches and a budget must be positive")
+        let english = Locale(identifier: "en_US")
+        let took = AgentFormat.duration(6, locale: english)
+        suite.expect(NotchAgentSupport.showsFinishCost(in: defaults)
+                        && NotchAgentSupport.finishedDetail(duration: 6, cost: 0.11, showsCost: true, locale: english)
+                            == took + " · " + AgentFormat.cost(0.11),
+                     "a finished task names its API value unless that is turned off")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsFinishCost)
+        suite.expect(!NotchAgentSupport.showsFinishCost(in: defaults)
+                        && NotchAgentSupport.finishedDetail(duration: 6, cost: 0.11, showsCost: false, locale: english) == took
+                        && NotchAgentSupport.finishedDetail(duration: 6, cost: 0, showsCost: true, locale: english) == took,
+                     "without its API value, or with none, a finished task shows only how long it took")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
-                    DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
-                    DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
+                    DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsFinishCost,
+                    DefaultsKey.notchAgentsLimitAlert, DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
