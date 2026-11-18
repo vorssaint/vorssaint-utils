@@ -90,6 +90,8 @@ struct NotchNoticeView: View {
                             .transition(.identity)
                             .opacity(hidesMascot ? 0 : 1)
                             .animation(nil, value: hidesMascot)
+                    } else if notice.event == .agents, let dots = AgentDotAnimation.forNotice(symbol: notice.symbol) {
+                        AgentDotAnimationView(animation: dots, tint: tint, size: 13)
                     } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
                         NotchAgentMark(provider: agent, size: 13)
                     } else if notice.event == .track {
