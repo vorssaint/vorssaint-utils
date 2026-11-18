@@ -880,6 +880,7 @@ enum DefaultsKey {
     static let notchKeepAwakeActivity = "notchKeepAwakeActivity" // a running Keep Awake session in the closed island
     static let notchScratchpad = "notchScratchpad"
     static let notchHoverExpands = "notchHoverExpands"
+    static let notchHoverGrows = "notchHoverGrows" // the closed island's hover emphasis in Click to open and Preview on hover
     static let notchGesturesEnabled = "notchGesturesEnabled"
     static let notchKeyboardLight = "notchKeyboardLight"
     static let notchNotificationsEnabled = "notchNotificationsEnabled"
@@ -1503,6 +1504,7 @@ enum Defaults {
         DefaultsKey.notchKeepAwakeActivity: false,
         DefaultsKey.notchScratchpad: true,
         DefaultsKey.notchHoverExpands: true,
+        DefaultsKey.notchHoverGrows: true,
         DefaultsKey.notchGesturesEnabled: true,
         DefaultsKey.notchKeyboardLight: true,
         DefaultsKey.notchNotificationsEnabled: true,
