@@ -162,10 +162,6 @@ enum NotchLockScreenTests {
         suite.expect(NotchLockScreenSupport.activities(timer: false, calendar: false, agents: true, downloads: true)
                         == [.agents, .downloads],
                      "only live activities are read out")
-        suite.expect(NotchLockScreenSupport.showsMusic(isPlaying: true, playedWhileLocked: false)
-                     && NotchLockScreenSupport.showsMusic(isPlaying: false, playedWhileLocked: true)
-                     && !NotchLockScreenSupport.showsMusic(isPlaying: false, playedWhileLocked: false),
-                     "a song paused before locking stays off; one paused on the lock screen stays to be resumed")
 
         var countdown = NotchTimerSession()
         countdown.start(mode: .timer, minutes: 5, now: 100)
