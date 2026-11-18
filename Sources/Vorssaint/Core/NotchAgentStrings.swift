@@ -62,6 +62,7 @@ struct NotchAgentStrings {
     let readoutLimit: String
     let alerts: String
     let finishAlert: String
+    let confirmationAlert: String
     let finishAfter: String
     let anyLength: String
     let limitAlert: String
@@ -190,8 +191,8 @@ extension FeatureStrings {
 extension NotchAgentStrings {
     static let enUS = NotchAgentStrings(
         title: "AI Agents",
-        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode and GitHub Copilot in the Dynamic Island.",
-        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
+        hubDescription: "Follow plan limits, tokens, API value and the work in progress of Claude, Codex, OpenCode, GitHub Copilot and Antigravity in the Dynamic Island.",
+        settingsDescription: "Reads the usage Claude Code, Codex, OpenCode, GitHub Copilot and Antigravity record on this Mac and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your Mac.",
         restingTitle: "AI limits",
         limitsCard: "Limits",
         spendCard: "Spending",
@@ -247,6 +248,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limit",
         alerts: "Alerts",
         finishAlert: "When a task finishes",
+        confirmationAlert: "Confirmation request",
         finishAfter: "For tasks longer than",
         anyLength: "Any length",
         limitAlert: "Near a plan limit",
@@ -289,8 +291,8 @@ extension NotchAgentStrings {
 
     static let uk = NotchAgentStrings(
         title: "ШІ-агенти",
-        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode і GitHub Copilot у Dynamic Island.",
-        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode і GitHub Copilot записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
+        hubDescription: "Стежте за лімітами плану, токенами, вартістю API та поточною роботою Claude, Codex, OpenCode, GitHub Copilot і Antigravity у Dynamic Island.",
+        settingsDescription: "Читає дані про використання, які Claude Code, Codex, OpenCode, GitHub Copilot і Antigravity записують на цьому Mac, та ліміти плану, збережені програмою Claude. Запити, відповіді й файли не зберігаються, а дані про використання не залишають ваш Mac.",
         restingTitle: "Ліміти ШІ",
         limitsCard: "Ліміти",
         spendCard: "Витрати",
@@ -346,6 +348,7 @@ extension NotchAgentStrings {
         readoutLimit: "Ліміт",
         alerts: "Сповіщення",
         finishAlert: "Коли завдання завершено",
+        confirmationAlert: "Запит підтвердження",
         finishAfter: "Для завдань довших за",
         anyLength: "Будь-яка тривалість",
         limitAlert: "Поблизу ліміту плану",
@@ -388,8 +391,8 @@ extension NotchAgentStrings {
 
     static let ptBR = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode e do GitHub Copilot.",
-        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode e o GitHub Copilot registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
+        hubDescription: "Acompanhe no Dynamic Island os limites do plano, os tokens, o valor de API e o trabalho em andamento do Claude, do Codex, do OpenCode, do GitHub Copilot e do Antigravity.",
+        settingsDescription: "Lê o uso que o Claude Code, o Codex, o OpenCode, o GitHub Copilot e o Antigravity registram neste Mac e os limites do plano que o app Claude salva. Prompts, respostas e arquivos nunca são guardados, e o seu uso nunca sai do seu Mac.",
         restingTitle: "Limites de IA",
         limitsCard: "Limites",
         spendCard: "Gastos",
@@ -445,6 +448,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limite",
         alerts: "Alertas",
         finishAlert: "Quando uma tarefa terminar",
+        confirmationAlert: "Solicitação de confirmação",
         finishAfter: "Para tarefas com mais de",
         anyLength: "Qualquer duração",
         limitAlert: "Perto de um limite do plano",
@@ -487,8 +491,8 @@ extension NotchAgentStrings {
 
     static let es = NotchAgentStrings(
         title: "Agentes de IA",
-        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode y GitHub Copilot.",
-        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode y GitHub Copilot registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
+        hubDescription: "Sigue en el Dynamic Island los límites del plan, los tokens, el valor de API y el trabajo en curso de Claude, Codex, OpenCode, GitHub Copilot y Antigravity.",
+        settingsDescription: "Lee el uso que Claude Code, Codex, OpenCode, GitHub Copilot y Antigravity registran en este Mac y los límites del plan que guarda la app de Claude. Nunca se guardan instrucciones, respuestas ni archivos, y tu uso nunca sale de tu Mac.",
         restingTitle: "Límites de IA",
         limitsCard: "Límites",
         spendCard: "Gasto",
@@ -544,6 +548,7 @@ extension NotchAgentStrings {
         readoutLimit: "Límite",
         alerts: "Avisos",
         finishAlert: "Cuando termine una tarea",
+        confirmationAlert: "Solicitud de confirmación",
         finishAfter: "Para tareas de más de",
         anyLength: "Cualquier duración",
         limitAlert: "Cerca de un límite del plan",
@@ -586,8 +591,8 @@ extension NotchAgentStrings {
 
     static let sk = NotchAgentStrings(
         title: "AI agenti",
-        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode a GitHub Copilot.",
-        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode a GitHub Copilot zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
+        hubDescription: "Sledujte v Dynamic Island limity plánu, tokeny, hodnotu API a to, na čom práve pracujú Claude, Codex, OpenCode, GitHub Copilot a Antigravity.",
+        settingsDescription: "Číta využitie, ktoré si Claude Code, Codex, OpenCode, GitHub Copilot a Antigravity zaznamenávajú na tomto Macu, a limity plánu, ktoré ukladá aplikácia Claude. Prompty, odpovede ani súbory sa neuchovávajú a vaše využitie nikdy neopustí váš Mac.",
         restingTitle: "Limity AI",
         limitsCard: "Limity",
         spendCard: "Výdavky",
@@ -643,6 +648,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limit",
         alerts: "Upozornenia",
         finishAlert: "Keď sa úloha dokončí",
+        confirmationAlert: "Žiadosť o potvrdenie",
         finishAfter: "Pri úlohách dlhších ako",
         anyLength: "Ľubovoľná dĺžka",
         limitAlert: "Blízko limitu plánu",
@@ -685,8 +691,8 @@ extension NotchAgentStrings {
 
     static let de = NotchAgentStrings(
         title: "KI-Agenten",
-        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode und GitHub Copilot.",
-        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode und GitHub Copilot auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
+        hubDescription: "Verfolge im Dynamic Island die Planlimits, Tokens, den API-Wert und die laufende Arbeit von Claude, Codex, OpenCode, GitHub Copilot und Antigravity.",
+        settingsDescription: "Liest die Nutzung, die Claude Code, Codex, OpenCode, GitHub Copilot und Antigravity auf diesem Mac protokollieren, und die Planlimits, die die Claude-App speichert. Prompts, Antworten und Dateien werden nie gespeichert, und deine Nutzung verlässt nie deinen Mac.",
         restingTitle: "KI-Limits",
         limitsCard: "Limits",
         spendCard: "Ausgaben",
@@ -742,6 +748,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limit",
         alerts: "Hinweise",
         finishAlert: "Wenn eine Aufgabe fertig ist",
+        confirmationAlert: "Bestätigungsanfrage",
         finishAfter: "Bei Aufgaben länger als",
         anyLength: "Jede Dauer",
         limitAlert: "Nahe an einem Planlimit",
@@ -784,8 +791,8 @@ extension NotchAgentStrings {
 
     static let fr = NotchAgentStrings(
         title: "Agents IA",
-        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode et GitHub Copilot.",
-        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode et GitHub Copilot enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
+        hubDescription: "Suivez dans le Dynamic Island les limites du forfait, les jetons, la valeur API et le travail en cours de Claude, Codex, OpenCode, GitHub Copilot et Antigravity.",
+        settingsDescription: "Lit l’usage que Claude Code, Codex, OpenCode, GitHub Copilot et Antigravity enregistrent sur ce Mac et les limites du forfait que l’app Claude enregistre. Les requêtes, réponses et fichiers ne sont jamais conservés, et votre usage ne quitte jamais votre Mac.",
         restingTitle: "Limites IA",
         limitsCard: "Limites",
         spendCard: "Dépenses",
@@ -841,6 +848,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limite",
         alerts: "Alertes",
         finishAlert: "Quand une tâche se termine",
+        confirmationAlert: "Demande de confirmation",
         finishAfter: "Pour les tâches de plus de",
         anyLength: "Toute durée",
         limitAlert: "Près d’une limite du forfait",
@@ -883,8 +891,8 @@ extension NotchAgentStrings {
 
     static let it = NotchAgentStrings(
         title: "Agenti IA",
-        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode e GitHub Copilot.",
-        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode e GitHub Copilot registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
+        hubDescription: "Segui nel Dynamic Island i limiti del piano, i token, il valore API e il lavoro in corso di Claude, Codex, OpenCode, GitHub Copilot e Antigravity.",
+        settingsDescription: "Legge l’utilizzo che Claude Code, Codex, OpenCode, GitHub Copilot e Antigravity registrano su questo Mac e i limiti del piano che l’app Claude salva. Prompt, risposte e file non vengono mai conservati, e il tuo utilizzo non lascia mai il tuo Mac.",
         restingTitle: "Limiti IA",
         limitsCard: "Limiti",
         spendCard: "Spesa",
@@ -940,6 +948,7 @@ extension NotchAgentStrings {
         readoutLimit: "Limite",
         alerts: "Avvisi",
         finishAlert: "Quando un’attività finisce",
+        confirmationAlert: "Richiesta di conferma",
         finishAfter: "Per attività più lunghe di",
         anyLength: "Qualsiasi durata",
         limitAlert: "Vicino a un limite del piano",
@@ -982,8 +991,8 @@ extension NotchAgentStrings {
 
     static let ru = NotchAgentStrings(
         title: "ИИ-агенты",
-        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode и GitHub Copilot.",
-        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode и GitHub Copilot записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
+        hubDescription: "Следите в Dynamic Island за лимитами тарифа, токенами, стоимостью по API и текущей работой Claude, Codex, OpenCode, GitHub Copilot и Antigravity.",
+        settingsDescription: "Читает сведения об использовании, которые Claude Code, Codex, OpenCode, GitHub Copilot и Antigravity записывают на этом Mac, и лимиты тарифа, которые сохраняет приложение Claude. Запросы, ответы и файлы не сохраняются, а сведения об использовании никогда не покидают ваш Mac.",
         restingTitle: "Лимиты ИИ",
         limitsCard: "Лимиты",
         spendCard: "Расходы",
@@ -1039,6 +1048,7 @@ extension NotchAgentStrings {
         readoutLimit: "Лимит",
         alerts: "Уведомления",
         finishAlert: "Когда задача завершена",
+        confirmationAlert: "Запрос подтверждения",
         finishAfter: "Для задач дольше",
         anyLength: "Любой длительности",
         limitAlert: "Около лимита тарифа",
@@ -1081,8 +1091,8 @@ extension NotchAgentStrings {
 
     static let tr = NotchAgentStrings(
         title: "YZ Ajanları",
-        hubDescription: "Claude, Codex, GitHub Copilot ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
-        settingsDescription: "Claude Code, Codex, GitHub Copilot ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
+        hubDescription: "Claude, Codex, GitHub Copilot, Antigravity ve OpenCode için plan sınırlarını, token’ları, API değerini ve süren işleri Dynamic Island’dan izleyin.",
+        settingsDescription: "Claude Code, Codex, GitHub Copilot, Antigravity ve OpenCode’un bu Mac’e kaydettiği kullanımı ve Claude uygulamasının kaydettiği plan sınırlarını okur. İstemler, yanıtlar ve dosyalar asla saklanmaz ve kullanımınız Mac’inizden asla çıkmaz.",
         restingTitle: "YZ sınırları",
         limitsCard: "Sınırlar",
         spendCard: "Harcama",
@@ -1138,6 +1148,7 @@ extension NotchAgentStrings {
         readoutLimit: "Sınır",
         alerts: "Uyarılar",
         finishAlert: "Bir görev bittiğinde",
+        confirmationAlert: "Onay isteği",
         finishAfter: "Şundan uzun görevler için",
         anyLength: "Her süre",
         limitAlert: "Plan sınırına yaklaşınca",
@@ -1180,8 +1191,8 @@ extension NotchAgentStrings {
 
     static let ja = NotchAgentStrings(
         title: "AIエージェント",
-        hubDescription: "Claude、Codex、OpenCode、GitHub Copilotのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
-        settingsDescription: "Claude Code、Codex、OpenCode、GitHub CopilotがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
+        hubDescription: "Claude、Codex、OpenCode、GitHub Copilot、Antigravityのプラン上限、トークン、API換算額、進行中の作業をDynamic Islandで確認できます。",
+        settingsDescription: "Claude Code、Codex、OpenCode、GitHub Copilot、AntigravityがこのMacに記録する使用状況と、Claudeアプリが保存するプラン上限を読み取ります。プロンプト、応答、ファイルは保持せず、使用状況がMacの外に送信されることはありません。",
         restingTitle: "AIの上限",
         limitsCard: "上限",
         spendCard: "使用額",
@@ -1237,6 +1248,7 @@ extension NotchAgentStrings {
         readoutLimit: "上限",
         alerts: "通知",
         finishAlert: "タスクが完了したとき",
+        confirmationAlert: "確認リクエスト",
         finishAfter: "対象のタスクの長さ",
         anyLength: "すべて",
         limitAlert: "プラン上限に近づいたとき",
@@ -1279,8 +1291,8 @@ extension NotchAgentStrings {
 
     static let ko = NotchAgentStrings(
         title: "AI 에이전트",
-        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
-        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot이 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
+        hubDescription: "Claude, Codex, OpenCode, GitHub Copilot, Antigravity의 플랜 한도, 토큰, API 환산 금액, 진행 중인 작업을 Dynamic Island에서 확인하세요.",
+        settingsDescription: "Claude Code, Codex, OpenCode, GitHub Copilot, Antigravity가 이 Mac에 기록하는 사용량과 Claude 앱이 저장하는 플랜 한도를 읽습니다. 프롬프트, 응답, 파일은 보관하지 않으며, 사용량은 Mac 밖으로 나가지 않습니다.",
         restingTitle: "AI 한도",
         limitsCard: "한도",
         spendCard: "사용 금액",
@@ -1336,6 +1348,7 @@ extension NotchAgentStrings {
         readoutLimit: "한도",
         alerts: "알림",
         finishAlert: "작업이 끝났을 때",
+        confirmationAlert: "확인 요청",
         finishAfter: "다음보다 긴 작업",
         anyLength: "모든 길이",
         limitAlert: "플랜 한도에 가까울 때",
@@ -1378,8 +1391,8 @@ extension NotchAgentStrings {
 
     static let zhHans = NotchAgentStrings(
         title: "AI 智能体",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 和 GitHub Copilot 的套餐额度、令牌、API 价值与正在进行的工作。",
-        settingsDescription: "读取 Claude Code、Codex、OpenCode 和 GitHub Copilot 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 和 Antigravity 的套餐额度、令牌、API 价值与正在进行的工作。",
+        settingsDescription: "读取 Claude Code、Codex、OpenCode、GitHub Copilot 和 Antigravity 在这台 Mac 上记录的用量，以及 Claude App 保存的套餐额度。不会保留提示、回复和文件，你的用量也不会离开你的 Mac。",
         restingTitle: "AI 额度",
         limitsCard: "额度",
         spendCard: "花费",
@@ -1435,6 +1448,7 @@ extension NotchAgentStrings {
         readoutLimit: "额度",
         alerts: "提醒",
         finishAlert: "任务完成时",
+        confirmationAlert: "确认请求",
         finishAfter: "任务时长超过",
         anyLength: "任意时长",
         limitAlert: "接近套餐额度时",
@@ -1477,8 +1491,8 @@ extension NotchAgentStrings {
 
     static let zhTW = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的方案額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Antigravity 的方案額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Antigravity 在這台 Mac 上記錄的用量，以及 Claude App 儲存的方案額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1534,6 +1548,7 @@ extension NotchAgentStrings {
         readoutLimit: "額度",
         alerts: "提醒",
         finishAlert: "任務完成時",
+        confirmationAlert: "確認請求",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近方案額度時",
@@ -1576,8 +1591,8 @@ extension NotchAgentStrings {
 
     static let zhHK = NotchAgentStrings(
         title: "AI 代理",
-        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode 與 GitHub Copilot 的計劃額度、Token、API 價值與進行中的工作。",
-        settingsDescription: "讀取 Claude Code、Codex、OpenCode 與 GitHub Copilot 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
+        hubDescription: "在 Dynamic Island 中查看 Claude、Codex、OpenCode、GitHub Copilot 與 Antigravity 的計劃額度、Token、API 價值與進行中的工作。",
+        settingsDescription: "讀取 Claude Code、Codex、OpenCode、GitHub Copilot 與 Antigravity 在這部 Mac 上記錄的用量，以及 Claude App 儲存的計劃額度。不會保留提示、回覆與檔案，你的用量也不會離開你的 Mac。",
         restingTitle: "AI 額度",
         limitsCard: "額度",
         spendCard: "花費",
@@ -1633,6 +1648,7 @@ extension NotchAgentStrings {
         readoutLimit: "額度",
         alerts: "提示",
         finishAlert: "任務完成時",
+        confirmationAlert: "確認請求",
         finishAfter: "任務時間超過",
         anyLength: "任何長度",
         limitAlert: "接近計劃額度時",
@@ -1672,4 +1688,43 @@ extension NotchAgentStrings {
         resetsUpdate: "請更新 Codex 以在此使用重設",
         resetsCheckFailed: "無法檢查重設",
         resetsHelp: "一次重設會同時恢復 Codex 的工作階段額度和每週額度。Codex 用自己的登入資料檢查你的重設，Vorssaint 從不讀取這些資料。")
+}
+
+/// Antigravity's account check uses its separately installed CLI, including
+/// when conversation logs come from the IDE.
+struct AntigravityAccountStrings {
+    let missingCLI: String
+    let incompatible: String
+    let unavailable: String
+    let openLogs: String
+
+    func failure(_ failure: AntigravityQuotaService.Failure) -> String {
+        switch failure {
+        case .missingCLI: return missingCLI
+        case .incompatibleCLI, .invalidResponse: return incompatible
+        case .request, .timeout: return unavailable
+        }
+    }
+}
+
+extension FeatureStrings {
+    static func antigravityAccount(_ language: AppLanguage) -> AntigravityAccountStrings {
+        switch language {
+        case .enUS: return .init(missingCLI: "Install Antigravity CLI (agy) to check quotas.", incompatible: "Antigravity returned an unrecognized quota response. Check CLI compatibility.", unavailable: "Could not check Antigravity quotas. Check your CLI sign-in and try again.", openLogs: "Open logs folder")
+        case .fr: return .init(missingCLI: "Installez Antigravity CLI (agy) pour vérifier les quotas.", incompatible: "La réponse des quotas Antigravity n’est pas reconnue. Vérifiez la compatibilité du CLI.", unavailable: "Impossible de vérifier les quotas Antigravity. Vérifiez votre connexion au CLI et réessayez.", openLogs: "Ouvrir le dossier des journaux")
+        case .ptBR: return .init(missingCLI: "Instale o Antigravity CLI (agy) para consultar as cotas.", incompatible: "A resposta de cotas do Antigravity não foi reconhecida. Verifique a compatibilidade do CLI.", unavailable: "Não foi possível consultar as cotas do Antigravity. Verifique o login no CLI e tente novamente.", openLogs: "Abrir pasta de registros")
+        case .es: return .init(missingCLI: "Instala Antigravity CLI (agy) para consultar las cuotas.", incompatible: "No se reconoce la respuesta de cuotas de Antigravity. Comprueba la compatibilidad del CLI.", unavailable: "No se pudieron consultar las cuotas de Antigravity. Comprueba tu sesión del CLI e inténtalo de nuevo.", openLogs: "Abrir carpeta de registros")
+        case .de: return .init(missingCLI: "Installiere Antigravity CLI (agy), um Kontingente abzufragen.", incompatible: "Die Kontingentantwort von Antigravity wurde nicht erkannt. Prüfe die CLI-Kompatibilität.", unavailable: "Antigravity-Kontingente konnten nicht abgefragt werden. Prüfe die CLI-Anmeldung und versuche es erneut.", openLogs: "Protokollordner öffnen")
+        case .it: return .init(missingCLI: "Installa Antigravity CLI (agy) per verificare le quote.", incompatible: "La risposta sulle quote di Antigravity non è riconosciuta. Verifica la compatibilità del CLI.", unavailable: "Impossibile verificare le quote di Antigravity. Controlla l’accesso al CLI e riprova.", openLogs: "Apri cartella dei registri")
+        case .sk: return .init(missingCLI: "Nainštalujte Antigravity CLI (agy) na kontrolu kvót.", incompatible: "Odpoveď s kvótami Antigravity sa nerozpoznala. Skontrolujte kompatibilitu CLI.", unavailable: "Kvóty Antigravity sa nepodarilo overiť. Skontrolujte prihlásenie do CLI a skúste to znova.", openLogs: "Otvoriť priečinok denníkov")
+        case .tr: return .init(missingCLI: "Kotaları denetlemek için Antigravity CLI (agy) yükleyin.", incompatible: "Antigravity kota yanıtı tanınmadı. CLI uyumluluğunu kontrol edin.", unavailable: "Antigravity kotaları denetlenemedi. CLI oturumunuzu kontrol edip yeniden deneyin.", openLogs: "Günlük klasörünü aç")
+        case .ru: return .init(missingCLI: "Установите Antigravity CLI (agy) для проверки квот.", incompatible: "Ответ Antigravity о квотах не распознан. Проверьте совместимость CLI.", unavailable: "Не удалось проверить квоты Antigravity. Проверьте вход в CLI и повторите попытку.", openLogs: "Открыть папку журналов")
+        case .uk: return .init(missingCLI: "Установіть Antigravity CLI (agy) для перевірки квот.", incompatible: "Відповідь Antigravity щодо квот не розпізнано. Перевірте сумісність CLI.", unavailable: "Не вдалося перевірити квоти Antigravity. Перевірте вхід у CLI та повторіть спробу.", openLogs: "Відкрити папку журналів")
+        case .ja: return .init(missingCLI: "クォータを確認するにはAntigravity CLI (agy)をインストールしてください。", incompatible: "Antigravityのクォータ応答を認識できません。CLIの互換性を確認してください。", unavailable: "Antigravityのクォータを確認できませんでした。CLIのログインを確認して再試行してください。", openLogs: "ログフォルダを開く")
+        case .ko: return .init(missingCLI: "할당량을 확인하려면 Antigravity CLI (agy)를 설치하세요.", incompatible: "Antigravity 할당량 응답을 인식할 수 없습니다. CLI 호환성을 확인하세요.", unavailable: "Antigravity 할당량을 확인하지 못했습니다. CLI 로그인을 확인하고 다시 시도하세요.", openLogs: "로그 폴더 열기")
+        case .zhHans: return .init(missingCLI: "请安装 Antigravity CLI (agy) 以检查配额。", incompatible: "无法识别 Antigravity 配额响应。请检查 CLI 兼容性。", unavailable: "无法检查 Antigravity 配额。请检查 CLI 登录状态后重试。", openLogs: "打开日志文件夹")
+        case .zhTW: return .init(missingCLI: "請安裝 Antigravity CLI (agy) 以檢查配額。", incompatible: "無法識別 Antigravity 配額回應。請檢查 CLI 相容性。", unavailable: "無法檢查 Antigravity 配額。請檢查 CLI 登入狀態後重試。", openLogs: "開啟記錄檔資料夾")
+        case .zhHK: return .init(missingCLI: "請安裝 Antigravity CLI (agy) 以檢查配額。", incompatible: "無法識別 Antigravity 配額回應。請檢查 CLI 兼容性。", unavailable: "無法檢查 Antigravity 配額。請檢查 CLI 登入狀態後重試。", openLogs: "開啟日誌資料夾")
+        }
+    }
 }

@@ -4361,6 +4361,15 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        case .confirmationNeeded(let provider, let project, let detail):
+            let summary = detail.isEmpty ? (project.isEmpty ? text.confirmationAlert : project) : detail
+            show(NotchNotice(event: .agents,
+                             title: "\(provider.displayName) · \(text.confirmationAlert)",
+                             detail: summary,
+                             symbol: "questionmark.circle.fill",
+                             agent: provider,
+                             mascot: .perk))
+            reactMascot(.perk)
         }
     }
 
