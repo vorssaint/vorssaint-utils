@@ -5,7 +5,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The watermark picker: a line of text in one of the editor's colors or a
-/// picture from disk, set on one of nine places with size, opacity and tilt
+/// picture from disk, anchored or tiled with size, opacity and tilt
 /// sliders. Everything applies live and is remembered for the next capture,
 /// like the backdrop, and a mark worth keeping goes into the presets row so
 /// switching between a logo and a caption is one click.
@@ -220,10 +220,20 @@ struct ScreenshotWatermarkPopover: View {
 
     private var placementSection: some View {
         VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                sliderLabel(strings.watermarkPositionLabel)
-                anchorGrid
-                Spacer(minLength: 0)
+            Picker(strings.watermarkLayoutLabel, selection: $model.watermarkStyle.layout) {
+                Text(strings.watermarkLayoutSingle).tag(ScreenshotSupport.WatermarkStyle.Layout.single)
+                Text(strings.watermarkLayoutTiled).tag(ScreenshotSupport.WatermarkStyle.Layout.tiled)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .controlSize(.small)
+            .accessibilityLabel(strings.watermarkLayoutLabel)
+            if model.watermarkStyle.layout == .single {
+                HStack(alignment: .top, spacing: 8) {
+                    sliderLabel(strings.watermarkPositionLabel)
+                    anchorGrid
+                    Spacer(minLength: 0)
+                }
             }
             HStack(spacing: 8) {
                 sliderLabel(strings.watermarkSizeLabel)
