@@ -1132,7 +1132,7 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// `includeShapeInteriors: false` is the creation-tap variant: area
     /// shapes (boxes, ellipses, highlights, censors) only answer near their
     /// edge, so their inside stays free for placing a new text, sticker or
-    /// counter — the tap that used to create one there must keep doing so.
+    /// counter: the tap that used to create one there must keep doing so.
     func hitTest(_ point: CGPoint, includeShapeInteriors: Bool = true) -> UUID? {
         let tolerance = 10 * scale
         for annotation in annotations.reversed() {
@@ -1751,9 +1751,18 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         return true
     }
 
+    /// What Save writes. A picture opened from a JPEG or HEIC file keeps its
+    /// format; a capture is saved in the format chosen in Settings.
+    private func fileForSaving(_ export: ScreenshotRenderer.Export) -> ScreenshotImageFile? {
+        guard sourceFormat == .png else {
+            return ScreenshotImageFile.encode(export, preferredFormat: sourceFormat)
+        }
+        return ScreenshotService.encodedForSaving(export)
+    }
+
     func save() {
         guard let export = model.exportImage(),
-              let file = ScreenshotImageFile.encode(export, preferredFormat: sourceFormat)
+              let file = fileForSaving(export)
         else { return }
         let (url, consumedNumber) = ScreenshotService.saveDestination(
             strings: strings, fileExtension: file.format.fileExtension)
@@ -1775,15 +1784,30 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     func saveAs() {
         guard let window, let export = model.exportImage(),
-              let file = ScreenshotImageFile.encode(export, preferredFormat: sourceFormat) else { return }
+              let file = fileForSaving(export) else { return }
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [file.format.contentType]
+        // The chosen format names the file. A capture also offers the other
+        // of PNG and JPEG, and typing its extension saves that type.
+        let offersBoth = sourceFormat == .png
+        panel.allowedContentTypes = offersBoth
+            ? (file.format == .png ? [.png, .jpeg] : [.jpeg, .png])
+            : [file.format.contentType]
         panel.nameFieldStringValue = ScreenshotSupport.fileName(
             prefix: strings.fileNamePrefix, date: Date(), fileExtension: file.format.fileExtension)
         panel.beginSheetModal(for: window) { [weak self] response in
             guard let self, response == .OK, let url = panel.url else { return }
+            let typed = ScreenshotSaveFormat.FileType(fileExtension: url.pathExtension)
+            let data: Data?
+            if !offersBoth || typed.contentType == file.format.contentType {
+                data = file.data
+            } else {
+                data = typed == .png
+                    ? ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+                    : ScreenshotSaveFormat.jpegData(from: export.image, scale: export.scale)
+            }
+            guard let data else { return }
             do {
-                try file.data.write(to: url, options: .atomic)
+                try data.write(to: url, options: .atomic)
                 self.model.markExported()
                 self.window?.close()
             } catch {
