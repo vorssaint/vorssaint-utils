@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "轻微移动指针",
         keepAwakeMouseJiggleCaption: "会话期间按所选间隔轻微移动指针。",
         keepAwakeMouseJiggleInterval: "间隔",
+        keepAwakeMouseJiggleSkipFullscreen: "全屏时暂停",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "视频、游戏或其他应用全屏时不移动指针。",
         keepAwakeActiveIconLabel: "活跃图标",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "咖啡",

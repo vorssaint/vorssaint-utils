@@ -38,6 +38,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.keepAwakeActiveIcon) private var keepAwakeActiveIcon = KeepAwakeActiveIcon.vorssaint.rawValue
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleEnabled) private var keepAwakeMouseJiggle = false
     @AppStorage(DefaultsKey.keepAwakeMouseJiggleInterval) private var keepAwakeMouseJiggleInterval = 5
+    @AppStorage(DefaultsKey.keepAwakeMouseJiggleSkipFullscreen) private var keepAwakeMouseJiggleSkipFullscreen = false
     @State private var brightnessOptionsExpanded = false
 
     var body: some View {
@@ -244,6 +245,19 @@ struct EnergySettings: View {
                         Text(l10n.s.keepAwakeMouseJiggleInterval)
                         Spacer()
                         KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+                    }
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(l10n.s.keepAwakeMouseJiggleSkipFullscreen)
+                            Text(l10n.s.keepAwakeMouseJiggleSkipFullscreenCaption)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        Spacer()
+                        Toggle(l10n.s.keepAwakeMouseJiggleSkipFullscreen,
+                               isOn: $keepAwakeMouseJiggleSkipFullscreen)
+                            .labelsHidden()
                     }
                     if !permissions.accessibility {
                         PermissionRow(kind: .accessibility)

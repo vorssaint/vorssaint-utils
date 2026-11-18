@@ -61,6 +61,8 @@ extension Strings {
         keepAwakeMouseJiggle: "ポインタを少し動かす",
         keepAwakeMouseJiggleCaption: "セッション中、選んだ間隔でポインタを少し動かします。",
         keepAwakeMouseJiggleInterval: "間隔",
+        keepAwakeMouseJiggleSkipFullscreen: "フルスクリーン時は停止",
+        keepAwakeMouseJiggleSkipFullscreenCaption: "ビデオやゲームなどがフルスクリーンの間はポインタを動かしません。",
         keepAwakeActiveIconLabel: "使用中のアイコン",
         keepAwakeActiveIconVorssaint: "Vorssaint",
         keepAwakeActiveIconCoffee: "コーヒー",
