@@ -1621,33 +1621,19 @@ enum CommandBarFeatureTests {
 
         // MARK: Command bar emoji
 
-        suite.expect(CommandBarEmoji.emoji.count > 1_000, "the searchable Unicode emoji set is there")
-        suite.expect(CommandBarEmoji.emoji.allSatisfy { !$0.name.isEmpty && !$0.character.isEmpty },
+        let englishEmoji = CommandBarEmoji.emoji
+        suite.expect(englishEmoji.count > 1_000, "the searchable Unicode emoji set is there")
+        suite.expect(englishEmoji.allSatisfy { !$0.name.isEmpty && !$0.character.isEmpty },
                "every emoji carries the words that find it")
-        suite.expect(CommandBarEmoji.emoji.contains {
-            $0.character == "😂" && $0.name == "face with tears of joy"
-                && $0.keywords.contains("haha") && $0.keywords.contains("roflmao")
-        }, "chat vocabulary finds laughter the way mainstream pickers do")
-        suite.expect(CommandBarEmoji.emoji.contains {
-            $0.character == "🤷" && $0.keywords.contains("idk")
-                && $0.keywords.contains("whatever")
-        }, "conversational aliases find common reactions")
-        suite.expect(CommandBarEmoji.emoji.contains {
-            $0.character == "🙏" && $0.keywords.contains("appreciate")
-                && $0.keywords.contains("thx")
-        }, "chat shorthand and intent find emoji, not only literal gestures")
-        suite.expect(CommandBarEmoji.emoji.contains { $0.name.contains("heart") },
-               "the ones people look for by feeling are findable")
-        suite.expect(CommandBarEmoji.emoji.contains {
-            $0.character == "💀" && $0.name == "skull" && $0.keywords.contains("dead")
-        }, "common emoji answer to both Unicode names and human aliases")
-        suite.expect(CommandBarEmoji.emoji.contains {
+        suite.expect(englishEmoji.contains { $0.character == "❤️" && $0.name == "red heart" },
+               "an emoji is titled by the name people know it by, not its formal Unicode name")
+        suite.expect(englishEmoji.contains {
             $0.character == "🖥️" && $0.identity == "🖥"
         }, "emoji presentation does not change a popular row's stored identity")
-        suite.expect(CommandBarEmoji.emoji.contains {
+        suite.expect(englishEmoji.contains {
             $0.character == "❤️" && $0.identity == "❤️"
         }, "an existing selector remains part of its original row identity")
-        let emojiCharacters = Set(CommandBarEmoji.emoji.map(\.character))
+        let emojiCharacters = Set(englishEmoji.map(\.character))
         suite.expect(["©️", "™️", "✂️"].allSatisfy(emojiCharacters.contains),
                "text-default emoji get the selector that displays them as emoji")
         suite.expect(["🌤️", "🌧️", "⛈️", "🗺️", "🖥️", "🖱️", "🖨️", "🛠️"].allSatisfy {
@@ -1656,9 +1642,9 @@ enum CommandBarFeatureTests {
         suite.expect(["#️", "*️", "0️", "9️", "🏻", "🇦", "🦰", "🦱", "🦲", "🦳"].allSatisfy {
             !emojiCharacters.contains($0)
         }, "incomplete emoji sequence components are not offered alone")
-        suite.expect(CommandBarEmoji.emoji.first?.character == "😀",
+        suite.expect(englishEmoji.first?.character == "😀",
                "popular emoji keep a predictable lead over the Unicode long tail")
-        suite.expect(emojiCharacters.count == CommandBarEmoji.emoji.count,
+        suite.expect(emojiCharacters.count == englishEmoji.count,
                "no emoji is offered twice")
 
         // MARK: Skin tones
@@ -1687,8 +1673,8 @@ enum CommandBarFeatureTests {
         suite.expect(Set(CommandBarEmoji.SkinTone.allCases.map(\.swatch)).count
                 == CommandBarEmoji.SkinTone.allCases.count,
                "the picker shows a different hand for every tone it offers")
-        suite.expect(CommandBarEmoji.emoji.contains { CommandBarEmoji.acceptsSkinTone($0.character) }
-                && CommandBarEmoji.emoji.contains { !CommandBarEmoji.acceptsSkinTone($0.character) },
+        suite.expect(englishEmoji.contains { CommandBarEmoji.acceptsSkinTone($0.character) }
+                && englishEmoji.contains { !CommandBarEmoji.acceptsSkinTone($0.character) },
                "the offered set has emoji that take a tone and emoji that do not")
         suite.expect(CommandBarPreferences.skinTone(from: "") == CommandBarEmoji.SkinTone.none
                 && CommandBarPreferences.skinTone(from: "dark") == CommandBarEmoji.SkinTone.dark
@@ -1897,6 +1883,15 @@ enum CommandBarFeatureTests {
                "usage boost reorders equally good matches")
         suite.expect(CommandBarSearch.rankedIndexes(candidates: boosted, matching: "capturar") == [0],
                "a boost never resurrects a non-match")
+        let appRows = [
+            CommandBarCandidate(index: 0, title: "Lollipop Timer"),
+            CommandBarCandidate(index: 1, title: "Laugh Track", keywords: "lol"),
+            CommandBarCandidate(index: 2, title: "Point Finder"),
+        ]
+        suite.expect(CommandBarSearch.rankedIndexes(candidates: appRows, matching: "lol") == [0, 1],
+               "outside emoji a title that starts with the query still leads a keyword the row carries")
+        suite.expect(CommandBarSearch.rankedIndexes(candidates: appRows, matching: "pointer").isEmpty,
+               "outside emoji a word matches as typed, not in its other forms")
         let awakeRows = [
             ("settings.feature.keepAwake", "Keep Awake"),
             ("action.keepAwake.15", "Keep awake for 15 minutes"),

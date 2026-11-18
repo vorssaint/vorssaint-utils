@@ -1398,7 +1398,7 @@ enum CommandBarCatalog {
     // MARK: - Emoji
 
     /// Emoji rows, which type themselves at the caret the way a snippet does.
-    /// The names come from Unicode and never change.
+    /// Their names and words come from the generated emoji tables.
     /// The tone is read here, because the bar has to rebuild this on every
     /// opening and a chosen tone has to arrive with it.
     static func emojiEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {

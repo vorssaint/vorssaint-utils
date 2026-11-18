@@ -301,7 +301,8 @@ enum CommandBarSearch {
         score(normalizedTitle: normalizedTitle,
               normalizedKeywords: normalizedKeywords,
               normalizedQuery: normalizedQuery,
-              tokens: QueryToken.tokens(of: normalizedQuery))
+              tokens: QueryToken.tokens(of: normalizedQuery),
+              wordForms: false)?.score
     }
 
     /// A query token, measured once per keystroke rather than once per row:
@@ -313,6 +314,9 @@ enum CommandBarSearch {
         let isASCII: Bool
         /// Digit tokens are values, never typos.
         let isFuzzy: Bool
+        /// What the token's other forms share, when it is an English word
+        /// long enough to have any.
+        let stem: [UInt8]?
 
         init(_ text: Substring) {
             self.text = String(text)
@@ -320,6 +324,7 @@ enum CommandBarSearch {
             utf8 = Array(text.utf8)
             isASCII = utf8.allSatisfy { $0 < 0x80 }
             isFuzzy = !text.allSatisfy(\.isNumber)
+            stem = count >= 3 ? CommandBarSearch.wordStem(utf8) : nil
         }
 
         static func tokens(of normalizedQuery: String) -> [QueryToken] {
@@ -327,10 +332,16 @@ enum CommandBarSearch {
         }
     }
 
+    /// A token that found its own word.
+    private static let exactWordScore = 140
+    /// A token that found the same word in another form.
+    private static let wholeWordScore = 120
+
     private static func score(normalizedTitle: String,
                               normalizedKeywords: String,
                               normalizedQuery: String,
-                              tokens: [QueryToken]) -> Int? {
+                              tokens: [QueryToken],
+                              wordForms: Bool) -> (score: Int, words: Int)? {
         guard !normalizedQuery.isEmpty else { return nil }
         let haystack = normalizedKeywords.isEmpty
             ? normalizedTitle
@@ -343,12 +354,17 @@ enum CommandBarSearch {
         let haystackIsASCII = haystack.utf8.allSatisfy { $0 < 0x80 }
 
         var score = 0
+        var exactWords = true
+        var wholeWords = true
         for token in tokens {
             guard let tokenScore = bestTokenScore(token, in: words, haystack: haystack,
-                                                  ascii: haystackIsASCII && token.isASCII) else {
+                                                  ascii: haystackIsASCII && token.isASCII,
+                                                  wordForms: wordForms) else {
                 return nil
             }
             score += tokenScore
+            exactWords = exactWords && tokenScore >= exactWordScore
+            wholeWords = wholeWords && tokenScore >= wholeWordScore
         }
 
         if normalizedTitle == normalizedQuery {
@@ -360,30 +376,42 @@ enum CommandBarSearch {
         } else if !normalizedKeywords.isEmpty, normalizedKeywords.contains(normalizedQuery) {
             score += 350
         }
-        return score
+        return (score, exactWords ? 2 : wholeWords ? 1 : 0)
     }
 
     /// Indexes of the matching candidates, best first. Deliberate preferences
     /// lead match quality; ties keep the caller's order so equally good rows
     /// stay where the catalog put them.
-    static func rankedIndexes(candidates: [CommandBarCandidate], matching query: String) -> [Int] {
-        let normalizedQuery = normalized(query)
+    ///
+    /// `wordForms` ranks rows the way an emoji picker does. Their names are
+    /// phrases and their keywords loose words, so people type a word, in any
+    /// form: "pointer" finds the hand whose words are "point" and "pointing".
+    /// A row that has every typed word whole leads one whose name only starts
+    /// with the letters, so "lol" is the laughing face before the lollipop.
+    /// The typed word itself leads another form of it, so "win" is the
+    /// trophy before the wine that only shares its stem. Underscores are
+    /// spaces, so the shortcode sweat_smile finds the words sweat and smile.
+    static func rankedIndexes(candidates: [CommandBarCandidate], matching query: String,
+                              wordForms: Bool = false) -> [Int] {
+        let normalizedQuery = normalized(wordForms ? query.replacingOccurrences(of: "_", with: " ") : query)
         let tokens = QueryToken.tokens(of: normalizedQuery)
-        let scored: [(index: Int, priority: Int, tier: Int, score: Int, position: Int)] = candidates.enumerated()
-            .compactMap { position, candidate in
+        let scored: [(index: Int, priority: Int, words: Int, tier: Int, score: Int, position: Int)]
+            = candidates.enumerated().compactMap { position, candidate in
                 guard let base = score(normalizedTitle: candidate.normalizedTitle,
                                        normalizedKeywords: candidate.normalizedKeywords,
                                        normalizedQuery: normalizedQuery,
-                                       tokens: tokens) else { return nil }
+                                       tokens: tokens,
+                                       wordForms: wordForms) else { return nil }
                 let tier = matchTier(title: candidate.normalizedTitle,
                                      keywords: candidate.normalizedKeywords,
                                      query: normalizedQuery)
-                return (candidate.index, candidate.priority, tier,
-                        base + candidate.boost, position)
+                return (candidate.index, candidate.priority, wordForms ? base.words : 0, tier,
+                        base.score + candidate.boost, position)
             }
         return scored
             .sorted {
                 if $0.priority != $1.priority { return $0.priority > $1.priority }
+                if $0.words != $1.words { return $0.words > $1.words }
                 if $0.tier != $1.tier { return $0.tier > $1.tier }
                 if $0.score != $1.score { return $0.score > $1.score }
                 return $0.position < $1.position
@@ -448,16 +476,23 @@ enum CommandBarSearch {
     }
 
     private static func bestTokenScore(_ token: QueryToken, in words: [Substring],
-                                       haystack: String, ascii: Bool) -> Int? {
+                                       haystack: String, ascii: Bool, wordForms: Bool) -> Int? {
         var best: Int?
         for word in words {
             if ascii {
-                if word.utf8.elementsEqual(token.utf8) { return 140 }
+                if word.utf8.elementsEqual(token.utf8) { return exactWordScore }
                 if word.utf8.starts(with: token.utf8) { best = max(best ?? 0, 80) }
             } else {
-                if word == token.text { return 140 }
+                if word == token.text { return exactWordScore }
                 if word.hasPrefix(token.text) { best = max(best ?? 0, 80) }
             }
+        }
+        // Forms of one word keep their first two letters ("cries" and "cry"),
+        // so only the few words that start with them are cut down to compare.
+        if wordForms, let stem = token.stem, words.contains(where: {
+            $0.utf8.starts(with: stem.prefix(2)) && wordStem(Array($0.utf8)) == stem
+        }) {
+            return wholeWordScore
         }
         if best == nil, ascii ? asciiContains(haystack, token.utf8) : haystack.contains(token.text) {
             best = 44
@@ -487,6 +522,47 @@ enum CommandBarSearch {
             if matched { return 16 }
         }
         return nil
+    }
+
+    /// The part an English word shares with its other forms: "points",
+    /// "pointing", "pointed" and "pointer" all come to "point", "cries" and
+    /// "crying" to "cry", "smiles" and "smiling" to "smil". One ending comes
+    /// off and a short word stays whole, so "cater" never turns into "cat".
+    /// Nil for anything but lowercase ASCII letters, which has no English forms.
+    private static func wordStem(_ word: [UInt8]) -> [UInt8]? {
+        guard word.allSatisfy({ (0x61...0x7A).contains($0) }) else { return nil }
+        guard word.count >= 4 else { return word }
+        func ends(_ suffix: String, keeping length: Int) -> Bool {
+            word.count - suffix.utf8.count >= length && word.suffix(suffix.utf8.count).elementsEqual(suffix.utf8)
+        }
+        let e = UInt8(ascii: "e"), y = UInt8(ascii: "y")
+        var stem = word
+        var verbEnding = false
+        if ends("ies", keeping: 2) || ends("ied", keeping: 2) {
+            stem = Array(word.dropLast(3)) + [y]
+        } else if ends("ing", keeping: 3) {
+            stem.removeLast(3)
+            verbEnding = true
+        } else if ends("ers", keeping: 4) {
+            stem.removeLast(3)
+        } else if ends("er", keeping: 4) {
+            stem.removeLast(2)
+        } else if ends("ed", keeping: 3), !ends("eed", keeping: 0) {
+            stem.removeLast(2)
+            verbEnding = true
+        } else if ends("s", keeping: 3), !ends("ss", keeping: 0), !ends("us", keeping: 0),
+                  !ends("is", keeping: 0) {
+            stem.removeLast()
+        }
+        // "running" and "stopped" double the consonant the base word ends on.
+        if verbEnding, let last = stem.last, stem.dropLast().last == last,
+           !"aeiouylsz".utf8.contains(last) {
+            stem.removeLast()
+        }
+        // "smile" loses the e that "smiling" dropped, and "kisses" the one
+        // its plural added.
+        if stem.count > 3, stem.last == e { stem.removeLast() }
+        return stem
     }
 
     private static func asciiContains(_ haystack: String, _ needle: [UInt8]) -> Bool {
