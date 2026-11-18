@@ -15,6 +15,7 @@ struct NotchAgentStrings {
     let modelsCard: String
     let projectsCard: String
     let activityCard: String
+    let weeklyCard: String
     let today: String
     let week: String
     let month: String
@@ -144,6 +145,7 @@ struct NotchAgentStrings {
         case .projects: return projectsCard
         case .activity: return activityCard
         case .resets: return resetsCard
+        case .weekly: return weeklyCard
         }
     }
 
@@ -200,6 +202,7 @@ extension NotchAgentStrings {
         modelsCard: "Models",
         projectsCard: "Projects",
         activityCard: "Activity",
+        weeklyCard: "Weekly usage",
         today: "Today",
         week: "7 days",
         month: "30 days",
@@ -299,6 +302,7 @@ extension NotchAgentStrings {
         modelsCard: "Моделі",
         projectsCard: "Проєкти",
         activityCard: "Активність",
+        weeklyCard: "Тижневе споживання",
         today: "Сьогодні",
         week: "7 днів",
         month: "30 днів",
@@ -398,6 +402,7 @@ extension NotchAgentStrings {
         modelsCard: "Modelos",
         projectsCard: "Projetos",
         activityCard: "Atividade",
+        weeklyCard: "Consumo semanal",
         today: "Hoje",
         week: "7 dias",
         month: "30 dias",
@@ -497,6 +502,7 @@ extension NotchAgentStrings {
         modelsCard: "Modelos",
         projectsCard: "Proyectos",
         activityCard: "Actividad",
+        weeklyCard: "Consumo semanal",
         today: "Hoy",
         week: "7 días",
         month: "30 días",
@@ -596,6 +602,7 @@ extension NotchAgentStrings {
         modelsCard: "Modely",
         projectsCard: "Projekty",
         activityCard: "Aktivita",
+        weeklyCard: "Týždenná spotreba",
         today: "Dnes",
         week: "7 dní",
         month: "30 dní",
@@ -695,6 +702,7 @@ extension NotchAgentStrings {
         modelsCard: "Modelle",
         projectsCard: "Projekte",
         activityCard: "Aktivität",
+        weeklyCard: "Wöchentlicher Verbrauch",
         today: "Heute",
         week: "7 Tage",
         month: "30 Tage",
@@ -794,6 +802,7 @@ extension NotchAgentStrings {
         modelsCard: "Modèles",
         projectsCard: "Projets",
         activityCard: "Activité",
+        weeklyCard: "Consommation hebdomadaire",
         today: "Aujourd’hui",
         week: "7 jours",
         month: "30 jours",
@@ -893,6 +902,7 @@ extension NotchAgentStrings {
         modelsCard: "Modelli",
         projectsCard: "Progetti",
         activityCard: "Attività",
+        weeklyCard: "Consumo settimanale",
         today: "Oggi",
         week: "7 giorni",
         month: "30 giorni",
@@ -992,6 +1002,7 @@ extension NotchAgentStrings {
         modelsCard: "Модели",
         projectsCard: "Проекты",
         activityCard: "Активность",
+        weeklyCard: "Недельный расход",
         today: "Сегодня",
         week: "7 дней",
         month: "30 дней",
@@ -1091,6 +1102,7 @@ extension NotchAgentStrings {
         modelsCard: "Modeller",
         projectsCard: "Projeler",
         activityCard: "Etkinlik",
+        weeklyCard: "Haftalık kullanım",
         today: "Bugün",
         week: "7 gün",
         month: "30 gün",
@@ -1190,6 +1202,7 @@ extension NotchAgentStrings {
         modelsCard: "モデル",
         projectsCard: "プロジェクト",
         activityCard: "アクティビティ",
+        weeklyCard: "週間使用量",
         today: "今日",
         week: "7日間",
         month: "30日間",
@@ -1289,6 +1302,7 @@ extension NotchAgentStrings {
         modelsCard: "모델",
         projectsCard: "프로젝트",
         activityCard: "활동",
+        weeklyCard: "주간 사용량",
         today: "오늘",
         week: "7일",
         month: "30일",
@@ -1388,6 +1402,7 @@ extension NotchAgentStrings {
         modelsCard: "模型",
         projectsCard: "项目",
         activityCard: "活动",
+        weeklyCard: "每周用量",
         today: "今天",
         week: "7 天",
         month: "30 天",
@@ -1487,6 +1502,7 @@ extension NotchAgentStrings {
         modelsCard: "模型",
         projectsCard: "專案",
         activityCard: "活動",
+        weeklyCard: "每週用量",
         today: "今天",
         week: "7 天",
         month: "30 天",
@@ -1586,6 +1602,7 @@ extension NotchAgentStrings {
         modelsCard: "模型",
         projectsCard: "項目",
         activityCard: "活動",
+        weeklyCard: "每週用量",
         today: "今天",
         week: "7 天",
         month: "30 天",

@@ -900,15 +900,18 @@ final class NotchService: ObservableObject {
         let usage = AgentUsageService.shared.snapshot
         let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
-        let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
+        let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states
+            .filter { $0.id != CodexProfileLimitsService.weeklyProfileID }.map(\.id) : []
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        let cards = NotchAgentSupport.cards()
+        let providers = NotchAgentSupport.visibleProviders(enabled, seen: usage.seen,
+            hasCodexAccounts: !accounts.isEmpty, hasClaudeAccount: claudeAccount != nil,
+            showsWeekly: cards.contains(.weekly))
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
-            NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
+            NotchAgentSupport.tiles(cards: cards, providers: providers, codexAccounts: accounts,
                                     claudeAccount: claudeAccount),
             width: width))
     }

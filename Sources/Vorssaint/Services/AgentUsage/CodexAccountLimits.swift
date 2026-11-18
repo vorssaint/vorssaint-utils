@@ -151,7 +151,12 @@ enum CodexAccountUsageReader {
             .flatMap { account -> Result<CodexAccountReading, CodexAccountUsageError> in
                 if AgentCodexServer.signInFailure(account) != nil { return .failure(.needsSignIn) }
                 return conversation.ask("account/rateLimits/read").mapError(failure).flatMap { result in
-                    guard let limits = AgentCodexServer.limits(result, observed: Date()) else { return .failure(.unavailable) }
+                    guard var limits = AgentCodexServer.limits(result, observed: Date()) else { return .failure(.unavailable) }
+                    let identity = (account["account"] as? [String: Any])?["email"] as? String
+                    let bucket = (result["rateLimitsByLimitId"] as? [String: [String: Any]])?["codex"]
+                        ?? result["rateLimits"] as? [String: Any]
+                    limits.accountScope = AgentWeeklyAccount.scope(identifier: identity,
+                        organization: result["accountId"] as? String ?? bucket?["accountId"] as? String)
                     return .success(CodexAccountReading(limits: limits, plan: plan(account)))
                 }
             }

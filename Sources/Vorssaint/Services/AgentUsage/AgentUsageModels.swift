@@ -131,6 +131,8 @@ struct AgentLimits: Equatable {
     var windows: [AgentLimitWindow]
     let observedAt: Date
     let source: Source
+    /// Non-secret account metadata hashed locally; nil for unscoped logs.
+    var accountScope: String? = nil
 }
 
 /// The subscription an account is on, when the agent's local files say.

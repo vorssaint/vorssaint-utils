@@ -296,7 +296,8 @@ enum AgentUsageArchiveTests {
             ("AgentBillable", labels(sampleRecord.billable),
              ["tokens", "isAggregate", "longCacheWrite", "fast", "domestic", "webSearches"]),
             ("AgentTokens", labels(sampleRecord.record.tokens), ["input", "cacheWrite", "cacheRead", "output", "reasoning"]),
-            ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source"]),
+            // Account scope is intentionally rechecked, never resumed from a log cache.
+            ("AgentLimits", labels(sampleLimits), ["provider", "windows", "observedAt", "source", "accountScope"]),
             ("AgentLimitWindow", labels(sampleWindow), ["id", "kind", "minutes", "scope", "usedPercent", "resetsAt", "estimatedResetsAt"]),
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
