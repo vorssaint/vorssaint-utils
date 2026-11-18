@@ -180,7 +180,11 @@ struct NotchLayoutEditor: View {
         switch side {
         case .left: return CGPoint(x: island.minX - 18, y: island.minY + 30 + CGFloat(index) * 40)
         case .right: return CGPoint(x: island.maxX + 18, y: island.minY + 30 + CGFloat(index) * 40)
-        case .bottom: return CGPoint(x: island.midX + (CGFloat(index) - CGFloat(slots - 1) / 2) * 40, y: island.maxY + 24)
+        case .bottom:
+            // A full row closes up to stay under a narrow preview, as the real one does.
+            let full = CGFloat(NotchQuickAccessConfiguration.maximumBelow - 1)
+            let spacing = min(40, max(30, (island.width - 30) / full))
+            return CGPoint(x: island.midX + (CGFloat(index) - CGFloat(slots - 1) / 2) * spacing, y: island.maxY + 24)
         }
     }
 
