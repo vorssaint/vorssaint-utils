@@ -3,12 +3,26 @@
 
 import AppKit
 
+struct SwitcherInventorySpaces {
+    private(set) var visible: Set<UInt64>?
+    private(set) var revision = 0
+
+    mutating func changed(to newSpaces: Set<UInt64>?, notified: Bool) -> Bool {
+        guard visible != newSpaces || (notified && newSpaces == nil) else { return false }
+        visible = newSpaces
+        revision += 1
+        return true
+    }
+}
+
 final class SwitcherWindowInventory {
     private var remembered = WindowEnumerator.WindowList(items: [], sourceItems: [])
     private var observers: [NSObjectProtocol] = []
     private var screenObserver: NSObjectProtocol?
     private var pendingRefresh: DispatchWorkItem?
     private var refreshInFlight = false
+    private var spaces = SwitcherInventorySpaces()
+    private var fallbackTimer: Timer?
     private var needsFullRefresh = false
     private var pendingPIDs: Set<pid_t> = []
     private var pendingWindowIDs: Set<CGWindowID> = []
@@ -27,7 +41,11 @@ final class SwitcherWindowInventory {
         guard lifetime == nil else { return }
         lifetimeLock.withLock { lifetime = UUID() }
         titles.onChange = { [weak self] pid in self?.invalidate(pid: pid) }
-        SwitcherWindowEvents.shared.start { [weak self] event in self?.receive(event) }
+        let observingWindows = SwitcherWindowEvents.shared.start { [weak self] event in self?.receive(event) }
+        if !observingWindows {
+            fallbackTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.invalidate() }
+        }
+        _ = spaces.changed(to: SpaceWindowBridge.topology()?.visibleSpaces, notified: false)
         let center = NSWorkspace.shared.notificationCenter
         let notifications = [NSWorkspace.didLaunchApplicationNotification,
                              NSWorkspace.didTerminateApplicationNotification,
@@ -44,6 +62,8 @@ final class SwitcherWindowInventory {
                         self.remove(pid: app.processIdentifier)
                     }
                     self.invalidate(pid: app.processIdentifier)
+                } else if name == NSWorkspace.activeSpaceDidChangeNotification {
+                    self.checkSpaces(notified: true)
                 } else {
                     self.invalidate()
                 }
@@ -60,6 +80,9 @@ final class SwitcherWindowInventory {
 
     func stop() {
         lifetimeLock.withLock { lifetime = nil }
+        fallbackTimer?.invalidate()
+        fallbackTimer = nil
+        spaces = SwitcherInventorySpaces()
         pendingRefresh?.cancel()
         pendingRefresh = nil
         refreshInFlight = false
@@ -95,7 +118,22 @@ final class SwitcherWindowInventory {
     }
 
     func contains(_ item: SwitcherItem) -> Bool {
-        remembered.items.contains { $0.id == item.id }
+        SwitcherWindowSelection.contains(item, in: remembered.items)
+    }
+
+    /// The shortcut can precede the workspace notification for its new Space.
+    func readyForSession(currentSpaceOnly: Bool) -> Bool {
+        if currentSpaceOnly { checkSpaces(notified: false) }
+        return isReady
+    }
+
+    private func checkSpaces(notified: Bool) {
+        guard spaces.changed(to: SpaceWindowBridge.topology()?.visibleSpaces, notified: notified) else { return }
+        isReady = false
+        needsFullRefresh = true
+        pendingRefresh?.cancel()
+        pendingRefresh = nil
+        refresh()
     }
 
     func invalidate(pid: pid_t? = nil) {
@@ -113,6 +151,9 @@ final class SwitcherWindowInventory {
         let windowID: CGWindowID
         switch event {
         case .spacesChanged:
+            checkSpaces(notified: true)
+            return
+        case .membershipChanged:
             invalidate()
             return
         case .changed(let id), .destroyed(let id), .focused(let id):
@@ -139,7 +180,7 @@ final class SwitcherWindowInventory {
         case .changed:
             if let item { invalidate(pid: item.pid) }
             else { discover(windowID) }
-        case .spacesChanged:
+        case .spacesChanged, .membershipChanged:
             break
         }
     }
@@ -180,6 +221,7 @@ final class SwitcherWindowInventory {
         guard let generation = lifetime, !refreshInFlight,
               needsFullRefresh || !pendingPIDs.isEmpty else { return }
         pendingRefresh = nil
+        let spaceRevision = spaces.revision
         let pids = needsFullRefresh ? nil : pendingPIDs
         needsFullRefresh = false
         pendingPIDs = []
@@ -218,18 +260,22 @@ final class SwitcherWindowInventory {
             }
             DispatchQueue.main.async {
                 guard let self, !isCancelled() else { return }
-                self.adopt(result, replacing: pids)
                 self.refreshInFlight = false
+                guard self.spaces.revision == spaceRevision else {
+                    self.refresh()
+                    return
+                }
+                self.adopt(result, replacing: pids)
                 if self.needsFullRefresh || !self.pendingPIDs.isEmpty { self.invalidatePendingRefresh() }
             }
         }
     }
 
     private func invalidatePendingRefresh() {
-        guard let generation = lifetime else { return }
-        pendingRefresh?.cancel()
+        guard let generation = lifetime, !refreshInFlight, pendingRefresh == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.lifetime == generation else { return }
+            self.pendingRefresh = nil
             self.refresh()
         }
         pendingRefresh = work
@@ -247,6 +293,7 @@ final class SwitcherWindowInventory {
             updated.items = retained + updated.items
             updated.bundleIdentifiers = remembered.bundleIdentifiers.merging(updated.bundleIdentifiers) { _, new in new }
             let retainedIDs = Set(retained.compactMap(\.windowID))
+            updated.observedWindowIDs.formUnion(retainedIDs)
             updated.nativeFullscreenWindowIDs.formUnion(remembered.nativeFullscreenWindowIDs.intersection(retainedIDs))
             updated.accessibilityElements.merge(remembered.accessibilityElements.filter { retainedIDs.contains($0.key) }) { new, _ in new }
         }

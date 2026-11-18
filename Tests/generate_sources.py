@@ -197,7 +197,11 @@ def main():
                         "    func reconcile(")
           + "}\n")
     write("SwitcherRememberedSelection.swift", "import AppKit\nimport ApplicationServices\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
+                        "struct SwitcherInventorySpaces {")
           + "extension SwitcherRememberedSelectionTests.Selection {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
+                        "    static func contains(")
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func select(")
           + "}\nextension SwitcherRememberedSelectionTests.WindowEvents {\n"

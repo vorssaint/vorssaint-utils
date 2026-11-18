@@ -11,6 +11,7 @@ final class SwitcherWindowEvents {
         case changed(CGWindowID)
         case destroyed(CGWindowID)
         case focused(CGWindowID)
+        case membershipChanged
         case spacesChanged
     }
 
@@ -35,7 +36,7 @@ final class SwitcherWindowEvents {
         case activeSpaceChanged = 1401
     }
     private var handler: ((Event) -> Void)?
-    private var registered = false
+    private var registered = Set<Notification>()
     private var watched: Set<CGWindowID> = []
 
     private static func symbol(_ name: String) -> UnsafeMutableRawPointer? {
@@ -69,8 +70,8 @@ final class SwitcherWindowEvents {
         switch notification {
         case .windowDestroyed: decoded = .destroyed(windowID)
         case .windowFocused: decoded = .focused(windowID)
-        case .windowAddedToSpace, .windowRemovedFromSpace, .spaceCurrentChanged, .activeSpaceChanged:
-            decoded = .spacesChanged
+        case .windowAddedToSpace, .windowRemovedFromSpace: decoded = .membershipChanged
+        case .spaceCurrentChanged, .activeSpaceChanged: decoded = .spacesChanged
         case .windowCreated, .windowMoved, .windowResized, .windowOrderedIn, .windowOrderedOut:
             decoded = .changed(windowID)
         }
@@ -83,13 +84,15 @@ final class SwitcherWindowEvents {
         number > 0 && CGWindowID(exactly: number) == windowID
     }
 
-    func start(handler: @escaping (Event) -> Void) {
+    func start(handler: @escaping (Event) -> Void) -> Bool {
         self.handler = handler
-        guard !registered, connection != 0, let registerNotification else { return }
-        for notification in Notification.allCases {
-            _ = registerNotification(connection, Self.notificationCallback, notification.rawValue, nil)
+        guard connection != 0, let registerNotification, requestWindowNotifications != nil else { return false }
+        for notification in Notification.allCases where !registered.contains(notification) {
+            if registerNotification(connection, Self.notificationCallback, notification.rawValue, nil) == .success {
+                registered.insert(notification)
+            }
         }
-        registered = true
+        return registered.count == Notification.allCases.count
     }
 
     func watch(_ windowIDs: Set<CGWindowID>) {

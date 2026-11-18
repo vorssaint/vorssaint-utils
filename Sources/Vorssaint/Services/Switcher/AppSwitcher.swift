@@ -1142,13 +1142,11 @@ final class AppSwitcher: ObservableObject {
             return
         }
         let reportedFrontPID = sourceApplication.processIdentifier
-        guard windowInventory.isReady else { return }
+        guard windowInventory.readyForSession(currentSpaceOnly: UserDefaults.standard.bool(forKey: DefaultsKey.switcherCurrentSpaceOnly)) else { return }
         let selection = windowInventory.selection(
             scope: requested.scope,
             frontmostPID: reportedFrontPID,
             displayScope: currentDisplayScope)
-        // Refresh the inventory for future openings; this session keeps its snapshot for stable layout and selection.
-        windowInventory.invalidate()
         finishPendingSession(generation: generation,
                              reportedFrontPID: reportedFrontPID,
                              focusedSourceWindowID: selection.focusedWindowID,
@@ -1259,17 +1257,18 @@ final class AppSwitcher: ObservableObject {
         startObservingTermination(generation: generation)
         if pending.commitWhenReady {
             commitSession()
-        } else if capturesPreviews {
+            return
+        }
+        scheduleShowPanel { [weak self] in
+            guard let self, self.capturesPreviews, self.sessionActive,
+                  self.routeLock.withLock({ self.sessionStartGeneration == generation }) else { return }
             WindowPreviewProvider.shared.refreshPreviews(for: list, maxPixelSize: 640 * PreviewSizing.switcherScale,
-                                                          excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps) { [weak self] windowID, image in
-                guard let self,
-                      self.sessionActive,
+                                                        excludedAppsKey: DefaultsKey.switcherPreviewExcludedApps) { [weak self] windowID, image in
+                guard let self, self.sessionActive,
+                      self.routeLock.withLock({ self.sessionStartGeneration == generation }),
                       self.sessionItems.contains(where: { $0.previewWindowID == windowID }) else { return }
                 self.enqueuePreviewUpdate(windowID: windowID, image: image)
             }
-        }
-        if !pending.commitWhenReady {
-            scheduleShowPanel()
         }
     }
 
@@ -1887,11 +1886,12 @@ final class AppSwitcher: ObservableObject {
 
     /// Shows the panel after a short delay — quick flicks commit before it
     /// fires and never see any UI, exactly like the system switcher.
-    private func scheduleShowPanel() {
+    private func scheduleShowPanel(afterShowing: @escaping () -> Void) {
         pendingShow?.cancel()
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.sessionActive else { return }
             self.showPanel()
+            DispatchQueue.main.async(execute: afterShowing)
         }
         pendingShow = work
         let appearanceDelay = SwitcherSupport.appearanceDelay(

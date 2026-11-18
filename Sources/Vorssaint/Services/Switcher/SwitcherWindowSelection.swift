@@ -4,6 +4,10 @@
 import AppKit
 
 enum SwitcherWindowSelection {
+    static func contains(_ selected: SwitcherItem, in current: [SwitcherItem]) -> Bool {
+        current.contains { $0.id == selected.id || (selected.isAppEntry && $0.pid == selected.pid) }
+    }
+
     static func select(
         remembered: WindowEnumerator.WindowList,
         scope: SwitcherSessionScope,

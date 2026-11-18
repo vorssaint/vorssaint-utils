@@ -38,6 +38,22 @@ enum SwitcherRememberedSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        var spaces = SwitcherInventorySpaces()
+        _ = spaces.changed(to: [1], notified: false)
+        let inFlightRevision = spaces.revision
+        suite.expect(spaces.changed(to: [2], notified: false) && spaces.revision != inFlightRevision,
+                     "a shortcut detects a Space change before the notification and invalidates an in-flight scan")
+        let newRevision = spaces.revision
+        suite.expect(!spaces.changed(to: [2], notified: true) && spaces.revision == newRevision,
+                     "a duplicate Space notification keeps the new Space's pending scan")
+        suite.expect(spaces.changed(to: nil, notified: true) && spaces.changed(to: nil, notified: true)
+                     && !spaces.changed(to: nil, notified: false),
+                     "a system without Space IDs refreshes on notifications and can still open the switcher")
+        let finder = SwitcherItem.appOnly(appName: "Finder", pid: 7)
+        suite.expect(Selection.contains(finder, in: [window(42, pid: 7)]) &&
+                     !Selection.contains(finder, in: [window(42, pid: 8)]) &&
+                     !Selection.contains(window(41, pid: 7), in: [window(42, pid: 7)]),
+                     "a windowless Finder selection follows its first window, while closed windows and apps stay gone")
         for number in [Int.min, -1, 0, Int.max, Int(UInt32.max) + 1] {
             suite.expect(!WindowEvents.matchesWindowNumber(number, windowID: 1),
                          "an unavailable AppKit window number \(number) safely remains unmatched")
