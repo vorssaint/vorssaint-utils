@@ -217,6 +217,43 @@ enum ScreenshotCaptureEngine {
         return (capture ?? clippedFallback).map { ($0, scale) }
     }
 
+    /// The app a picked window belongs to, or nil for Vorssaint's own windows
+    /// and processes that are not apps.
+    static func ownerBundleID(ofWindow windowID: CGWindowID) -> String? {
+        guard let info = (CGWindowListCopyWindowInfo([.optionIncludingWindow], windowID)
+                            as? [[String: Any]])?.first,
+              let pid = info[kCGWindowOwnerPID as String] as? pid_t
+        else { return nil }
+        return appBundleID(ofPID: pid)
+    }
+
+    /// The app of the topmost ordinary window under a point in Cocoa global
+    /// coordinates: the one an area or a screen capture mostly shows.
+    static func ownerBundleID(at point: CGPoint) -> String? {
+        let primaryHeight = NSScreen.screens.first?.frame.height ?? 0
+        let windowPoint = CGPoint(x: point.x, y: primaryHeight - point.y)
+        let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                              kCGNullWindowID) as? [[String: Any]] ?? []
+        for window in info {
+            guard (window[kCGWindowLayer as String] as? Int) == 0,
+                  let pid = window[kCGWindowOwnerPID as String] as? pid_t, pid != getpid(),
+                  (window[kCGWindowAlpha as String] as? Double ?? 1) > 0.01,
+                  let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+                  let frame = CGRect(dictionaryRepresentation: bounds),
+                  frame.contains(windowPoint)
+            else { continue }
+            return appBundleID(ofPID: pid)
+        }
+        return nil
+    }
+
+    private static func appBundleID(ofPID pid: pid_t) -> String? {
+        guard pid != getpid(), let app = NSRunningApplication(processIdentifier: pid),
+              app.activationPolicy == .regular
+        else { return nil }
+        return app.bundleIdentifier
+    }
+
     /// The window drawn on its own by ScreenCaptureKit, whole wherever it
     /// sits. Watch reads a window through this as well, in its capture turn.
     static func captureIndependentWindow(_ windowID: CGWindowID, scale: CGFloat) async -> CGImage? {

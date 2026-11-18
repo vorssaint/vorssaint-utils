@@ -22,6 +22,9 @@ final class ScreenshotSelectionController {
         let scale: CGFloat
         /// The captured area in Cocoa global coordinates.
         let anchorRect: CGRect
+        /// The app the picture shows, which a copy names on the pasteboard so
+        /// a clipboard history credits it instead of Vorssaint.
+        var sourceBundleID: String? = nil
         var sourceFormat: MediaImageFormat = .png
     }
 
@@ -730,7 +733,8 @@ final class ScreenshotSelectionController {
                 scale: capture.scale,
                 anchorRect: ScreenshotSupport.cocoaRect(
                     fromFlippedView: frame,
-                    screenFrame: panel.screenFrame))))
+                    screenFrame: panel.screenFrame),
+                sourceBundleID: ScreenshotCaptureEngine.ownerBundleID(ofWindow: windowID))))
         }
     }
 

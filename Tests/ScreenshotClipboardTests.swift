@@ -26,6 +26,7 @@ enum ScreenshotClipboardTests {
             acceptsWrites && contents.writeObjects(objects)
         }
         func declareVorssaintSource() { contents.declareVorssaintSource() }
+        func declareSource(_ bundleID: String?) { contents.declareSource(bundleID) }
     }
 
     enum NSSound {
@@ -54,6 +55,7 @@ enum ScreenshotClipboardTests {
         let model = Model()
         let strings = ScreenshotFeatureStrings.enUS
         var window: Window? = Window()
+        var sourceBundleID: String?
     }
 
     static func run(_ suite: TestSuite) {
@@ -108,7 +110,10 @@ enum ScreenshotClipboardTests {
 
                 let fileEditor = Editor()
                 fileEditor.model.output = export
+                fileEditor.sourceBundleID = "com.example.browser"
                 fileEditor.copyToClipboard()
+                suite.expect(pasteboard.contents.string(forType: .source) == "com.example.browser",
+                             "the editor's copy names the app the capture shows")
                 let copiedURL = pasteboard.contents.string(forType: .fileURL).flatMap { URL(string: $0) }
                 suite.expect(fileEditor.model.exports == 1 && fileEditor.window?.closes == 1
                     && copiedURL?.deletingLastPathComponent().standardizedFileURL == folder.standardizedFileURL

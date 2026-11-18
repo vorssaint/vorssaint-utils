@@ -89,7 +89,8 @@ enum ScreenshotAutoCopyTests {
                                     tiff: Data([0xff, UInt8(export.image)]))
         }
 
-        static func copyFile(_ url: URL?, payload: ClipboardPayload, imageOnly: Bool) -> Bool {
+        static func copyFile(_ url: URL?, payload: ClipboardPayload, imageOnly: Bool,
+                             source: String? = nil) -> Bool {
             attemptedModes.append(imageOnly)
             guard accepts else { return false }
             NSPasteboard.general.replace(png: payload.png, url: url)
