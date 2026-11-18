@@ -5,13 +5,19 @@ import AVFoundation
 import SwiftUI
 
 /// The floating mirror: the live camera image with a camera picker that
-/// appears on hover when more than one camera is around. Esc, a click
-/// anywhere else or switching to the meeting app closes it.
+/// appears on hover when more than one camera is around, and a right-click
+/// menu offering mirror sizes. Esc, a click anywhere else or switching to
+/// the meeting app closes it.
 struct CameraPreviewView: View {
-    var size = CGSize(width: 320, height: 240)
+    /// The notch hands its own geometry; without it the floating mirror uses
+    /// the size saved in the service.
+    var size: CGSize?
     /// The picker over the image on hover. The island turns it off: its top
     /// row holds the picker and the stop button, clear of the image.
     var showsCameraMenu = true
+    /// Only the floating mirror offers the size menu: the notch camera's
+    /// geometry follows the notch, not a preference.
+    var allowsSizeAdjustment = false
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var service = CameraPreviewService.shared
     @State private var hovering = false
@@ -20,12 +26,16 @@ struct CameraPreviewView: View {
         FeatureStrings.cameraPreview(l10n.language)
     }
 
+    private var displaySize: CGSize {
+        size ?? service.mirrorSize.pixelSize
+    }
+
     var body: some View {
         ZStack {
             Color.black
             content
         }
-        .frame(width: size.width, height: size.height)
+        .frame(width: displaySize.width, height: displaySize.height)
         .overlay(alignment: .bottom) { controls }
         .animation(.easeInOut(duration: 0.15), value: hovering)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -37,6 +47,24 @@ struct CameraPreviewView: View {
         // buttons) must draw for a dark background in either system look.
         .environment(\.colorScheme, .dark)
         .onHover { hovering = $0 }
+        .contextMenu { if allowsSizeAdjustment { sizeMenu } }
+    }
+
+    @ViewBuilder
+    private var sizeMenu: some View {
+        Menu(strings.sizeMenu) {
+            ForEach(CameraPreviewWindowSize.allCases, id: \.self) { choice in
+                Button {
+                    service.setMirrorSize(choice)
+                } label: {
+                    if choice == service.mirrorSize {
+                        Label(choice.menuTitle(strings), systemImage: "checkmark")
+                    } else {
+                        Text(choice.menuTitle(strings))
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder

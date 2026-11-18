@@ -22,6 +22,9 @@ final class CameraPreviewService: ObservableObject {
     @Published private(set) var devices: [AVCaptureDevice] = []
     @Published private(set) var selectedDeviceID: String?
     @Published private(set) var isEmbeddedPresented = false
+    /// The floating mirror's size, saved across opens. The notch camera does
+    /// not follow it.
+    @Published private(set) var mirrorSize = CameraPreviewWindowSize.saved()
     private var captureGeneration = UUID()
     private var sessionRequest: CameraPreviewRequest?
     private var sessionObservers: [NSObjectProtocol] = []
@@ -254,6 +257,19 @@ final class CameraPreviewService: ObservableObject {
         activateCamera(device, rememberChoice: true)
     }
 
+    /// Picks a size from the mirror's right-click menu and keeps it for the
+    /// next opens. While the mirror is on screen it grows in place: same
+    /// horizontal center, same top edge.
+    func setMirrorSize(_ choice: CameraPreviewWindowSize) {
+        guard choice != mirrorSize else { return }
+        choice.save()
+        mirrorSize = choice
+        guard let panel, panel.isVisible else { return }
+        let screen = panel.screen?.visibleFrame ?? NSScreen.pointerVisibleFrame
+        let frame = CameraPreviewWindowSize.adjustedFrame(from: panel.frame, to: choice.pixelSize, in: screen)
+        panel.setFrame(frame, display: true, animate: false)
+    }
+
     private func activateCamera(_ device: AVCaptureDevice, rememberChoice: Bool) {
         guard device.uniqueID != selectedDeviceID else { return }
         selectedDeviceID = device.uniqueID
@@ -372,8 +388,7 @@ final class CameraPreviewService: ObservableObject {
         panel.isOpaque = false
         panel.hasShadow = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        let host = NSHostingController(rootView: CameraPreviewView())
-        host.sizingOptions = .preferredContentSize
+        let host = NSHostingController(rootView: CameraPreviewView(allowsSizeAdjustment: true))
         panel.contentViewController = host
         self.panel = panel
         return panel

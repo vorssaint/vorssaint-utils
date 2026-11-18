@@ -149,6 +149,7 @@ struct MetricsTests {
                 QuickTogglesQuitAllTests.run(suite)
                 QuitAppsRuntimeTests.run(suite)
                 PortManagerRefreshTests.run(suite)
+                CameraPreviewWindowSizeTests.run(suite)
             }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
