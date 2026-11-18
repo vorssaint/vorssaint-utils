@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "Плавная прокрутка",
         smoothScrollCaption: "Превращает каждый щелчок колёсика мыши в короткое плавное скольжение. Трекпад не меняется.",
         smoothScrollStepLabel: "Скорость прокрутки",
+        mouseNavigationReverseButtons: "Поменять кнопки местами",
         mouseNavigationSection: "Навигация",
         mouseNavigationEnable: "Использовать боковые кнопки для переходов назад и вперёд",
         mouseNavigationCaption: "Преобразует кнопки мыши Назад и Вперёд в команды навигации для Finder, браузеров и совместимых приложений.",

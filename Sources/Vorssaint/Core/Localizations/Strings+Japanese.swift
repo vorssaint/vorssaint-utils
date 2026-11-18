@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "スムーズスクロール",
         smoothScrollCaption: "マウスホイールの1目盛りを短くなめらかなスライドに変えます。トラックパッドは変わりません。",
         smoothScrollStepLabel: "スクロール速度",
+        mouseNavigationReverseButtons: "ボタンを入れ替える",
         mouseNavigationSection: "ナビゲーション",
         mouseNavigationEnable: "サイドボタンで戻ると進むを操作",
         mouseNavigationCaption: "マウスの戻るボタンと進むボタンを、Finder、ブラウザ、対応アプリのナビゲーション操作に変換します。",

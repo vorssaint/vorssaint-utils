@@ -173,6 +173,7 @@ extension Strings {
         smoothScrollName: "平滑滚动",
         smoothScrollCaption: "把鼠标滚轮的每一格变成短暂顺滑的滑动。触控板不受影响。",
         smoothScrollStepLabel: "滚动速度",
+        mouseNavigationReverseButtons: "交换按钮",
         mouseNavigationSection: "导航",
         mouseNavigationEnable: "使用侧键后退和前进",
         mouseNavigationCaption: "将鼠标的后退和前进按钮转换为 Finder、浏览器和兼容 App 的导航命令。",

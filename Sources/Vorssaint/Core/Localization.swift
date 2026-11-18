@@ -337,6 +337,7 @@ struct Strings {
     let smoothScrollName: String
     let smoothScrollCaption: String
     let smoothScrollStepLabel: String
+    let mouseNavigationReverseButtons: String
     let mouseNavigationSection: String
     let mouseNavigationEnable: String
     let mouseNavigationCaption: String
@@ -1507,6 +1508,7 @@ extension Strings {
         smoothScrollName: "Rolagem suave",
         smoothScrollCaption: "Transforma cada passo da rodinha do mouse em um deslize curto e macio. O trackpad não muda.",
         smoothScrollStepLabel: "Velocidade da rolagem",
+        mouseNavigationReverseButtons: "Inverter botões",
         mouseNavigationSection: "Navegação",
         mouseNavigationEnable: "Usar botões laterais para voltar e avançar",
         mouseNavigationCaption: "Converte os botões Voltar e Avançar do mouse em comandos de navegação no Finder, navegadores e apps compatíveis.",
@@ -2637,6 +2639,7 @@ extension Strings {
         smoothScrollName: "Smooth scrolling",
         smoothScrollCaption: "Turns each mouse wheel step into a short, gentle glide. The trackpad is not affected.",
         smoothScrollStepLabel: "Scrolling speed",
+        mouseNavigationReverseButtons: "Reverse buttons",
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Use side buttons for Back and Forward",
         mouseNavigationCaption: "Turns the mouse Back and Forward buttons into navigation commands in Finder, browsers and compatible apps.",

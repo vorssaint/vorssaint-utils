@@ -62,7 +62,9 @@ class SettingsWindow: NSWindow {
         case .otherMouseDown:
             let button = Int64(event.buttonNumber)
             guard canNavigate,
-                  let direction = MouseNavigationSupport.direction(forButtonNumber: button),
+                  let direction = MouseNavigationSupport.direction(
+                      forButtonNumber: button,
+                      reverseButtons: UserDefaults.standard.bool(forKey: DefaultsKey.mouseNavigationReverseButtons)),
                   !RadialMenuSupport.claimsMouseButton(button),
                   !MouseButtonShortcutSupport.claimsButton(button) else {
                 super.sendEvent(event)
