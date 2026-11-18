@@ -22,6 +22,8 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
+    @AppStorage(DefaultsKey.clipboardHistoryCopySound) private var copySound = false
+    @AppStorage(DefaultsKey.clipboardHistoryCopySoundName) private var copySoundName = "Glass"
     @AppStorage(DefaultsKey.panelUtilityClipboard) private var showInPanel = true
     @AppStorage(DefaultsKey.finderPasteImageAsFile) private var pasteImageAsFile = false
     @AppStorage(DefaultsKey.clipboardAutoClearOnDelay) private var autoClearOnDelay = false
@@ -63,6 +65,7 @@ struct ClipboardSettings: View {
 
                 clipboardShortcutSection
                 clipboardMenuBarPreviewSection
+                clipboardCopySoundSection
 
                 Section {
                     Toggle(text.includeImagesFiles, isOn: $includeImagesFiles)
@@ -239,6 +242,23 @@ struct ClipboardSettings: View {
             Text(text.menuBarPreviewCaption)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var clipboardCopySoundSection: some View {
+        Section {
+            Toggle(text.copySound, isOn: $copySound)
+                .disabled(!enabled)
+            Picker(text.copySoundName, selection: $copySoundName) {
+                ForEach(ClipboardHistoryService.copySoundNames, id: \.self) { name in
+                    Text(name).tag(name)
+                }
+            }
+            .onChange(of: copySoundName) { _, name in
+                NSSound(named: name)?.play()
+            }
+            .disabled(!enabled || !copySound)
         }
     }
 

@@ -19,6 +19,14 @@ enum ClipboardHistoryMoveDirection {
 /// images and files; keeps a small local history. Confidential pasteboard
 /// content is excluded; guessing sensitive text is a separate opt-in.
 final class ClipboardHistoryService: ObservableObject {
+    /// The system alert sounds the copy sound can be, by name, such as "Glass".
+    static let copySoundNames: [String] = {
+        let files = (try? FileManager.default.contentsOfDirectory(atPath: "/System/Library/Sounds")) ?? []
+        return files.filter { $0.hasSuffix(".aiff") }
+            .map { String($0.dropLast(".aiff".count)) }
+            .sorted()
+    }()
+
     static let shared = ClipboardHistoryService()
 
     @Published private(set) var entries: [ClipboardHistoryEntry] = [] {
@@ -773,6 +781,10 @@ final class ClipboardHistoryService: ObservableObject {
                 return
             }
             guard !source.excluded, let content = result.content else { return }
+            if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryCopySound),
+               let sound = UserDefaults.standard.string(forKey: DefaultsKey.clipboardHistoryCopySoundName) {
+                NSSound(named: sound)?.play()
+            }
             // A copy out of the history's own panel, such as text selected in
             // the preview, is of an entry already there, and its app stays.
             let keepsSource = source.fromHistoryPanel

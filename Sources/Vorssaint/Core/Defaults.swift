@@ -599,6 +599,8 @@ enum DefaultsKey {
     static let clipboardHistoryWindowY = "clipboardHistoryWindowY"
     static let clipboardHistoryMenuBarPreview = "clipboardHistoryMenuBarPreview" // show latest copy next to the menu bar icon
     static let clipboardHistoryMenuBarPreviewLength = "clipboardHistoryMenuBarPreviewLength" // characters shown before truncating
+    static let clipboardHistoryCopySound = "clipboardHistoryCopySound" // play a sound for each saved copy
+    static let clipboardHistoryCopySoundName = "clipboardHistoryCopySoundName" // a sound in /System/Library/Sounds
 
     // Auto clear: wipes the system pasteboard on a delay or on sleep and lock.
     // Deliberately outside the clipboardHistory family, since it clears the
@@ -1844,6 +1846,8 @@ enum Defaults {
         DefaultsKey.clipboardHistoryWindowHeight: 0.0,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,
         DefaultsKey.clipboardHistoryMenuBarPreviewLength: Defaults.defaultClipboardMenuBarPreviewLength,
+        DefaultsKey.clipboardHistoryCopySound: false,
+        DefaultsKey.clipboardHistoryCopySoundName: "Glass",
         DefaultsKey.clipboardAutoClearOnDelay: false,
         DefaultsKey.clipboardAutoClearDelay: Defaults.defaultClipboardAutoClearDelay,
         DefaultsKey.clipboardAutoClearOnSleep: false,
