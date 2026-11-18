@@ -1728,8 +1728,10 @@ def main():
           + "".join(declaration(renderer, prefix).replace("private static", "static")
                     .replace("UserDefaults.standard", "ReviewDefaults.current!") for prefix in [
                         "    static func attributed(", "    private static func metricBlockAttachment(",
+                        "    private static func metricBlockAttachmentOffset(",
                         "    private static func metricBlockImage(", "    private static func batteryBlockAttachment(",
                         "    private static func batteryBlockImage(", "    private static func blockImageCost(",
+                        "    private static func weatherBlockAttachment(", "    private static func weatherBlockImage(",
                         "    private static func dynamicTextAttributes(", "    static func nsColor(for warning:",
                         "    static func nsColor(for pressure:", "    private static func temperatureCompact(",
                         "    private static func temperatureLabel(", "    private static func combinedComponentValue("])

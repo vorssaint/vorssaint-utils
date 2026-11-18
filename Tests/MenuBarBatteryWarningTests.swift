@@ -29,10 +29,12 @@ enum MenuBarBatteryWarningTests {
         static func blockJoined(_ groups: [[MenuBarSegment]], style: MenuBarBlockStyle) -> [MenuBarSegment] {
             groups.flatMap { $0 }
         }
-        static func segments(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool) -> [MenuBarSegment] {
+        static func segments(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool,
+                             weather: WeatherMenuBarReading? = nil) -> [MenuBarSegment] {
             overrideSegments ?? blockSegments(for: snapshot, metrics: metrics, style: style)
         }
-        static func usesStackedLayout(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool) -> Bool { false }
+        static func usesStackedLayout(for snapshot: SystemSnapshot, metrics: [MenuBarMetric], allowStacked: Bool,
+                                      weather: WeatherMenuBarReading? = nil) -> Bool { false }
         // Unrelated branches of the production attributed-string renderer
         // must not be reached by this battery-only fixture.
         static func symbolAttachment(named: String, stacked: Bool, enlarged: Bool = false) -> NSAttributedString { preconditionFailure() }

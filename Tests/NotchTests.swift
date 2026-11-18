@@ -2335,6 +2335,18 @@ enum NotchTests {
         let allModules = NotchModule.allCases
         suite.expect(Set(allModules.map(\.shortcutKey)).count == allModules.count,
                "every section has a unique direct shortcut, including destinations after the ninth")
+        defaults.set(true, forKey: AppFeature.weather.availabilityKey)
+        defaults.set(true, forKey: DefaultsKey.weatherEnabled)
+        suite.expect(NotchModule.weather.isAvailable(in: defaults)
+               && NotchSupport.modules(in: defaults).contains(.weather)
+               && allModules.filter { $0.shortcutKey == NotchModule.weather.shortcutKey } == [.weather],
+               "weather joins the island when its feature is installed and switched on")
+        defaults.set(false, forKey: DefaultsKey.weatherEnabled)
+        suite.expect(!NotchModule.weather.isAvailable(in: defaults)
+               && !NotchSupport.modules(in: defaults).contains(.weather),
+               "weather leaves the island when the feature is switched off")
+        defaults.set(true, forKey: DefaultsKey.weatherEnabled)
+        defaults.set(false, forKey: AppFeature.weather.availabilityKey)
         for module in allModules {
             suite.expect(NotchSupport.moduleShortcut(module.shortcutKey, modules: allModules.reversed()) == module
                    && NotchSupport.moduleShortcut(module.shortcutKey.uppercased(), modules: allModules) == module,

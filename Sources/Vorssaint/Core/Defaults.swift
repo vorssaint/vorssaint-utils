@@ -515,6 +515,32 @@ enum DefaultsKey {
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
+    // Weather. Units are stored per quantity so one changed preference never
+    // resets the rest; location names and coordinates mirror the last choice.
+    static let weatherEnabled = "weatherEnabled"
+    static let weatherLocationMode = "weatherLocationMode" // manual | current
+    static let weatherLocationName = "weatherLocationName"
+    static let weatherLatitude = "weatherLatitude"
+    static let weatherLongitude = "weatherLongitude"
+    static let weatherTimezone = "weatherTimezone"
+    static let weatherTemperatureUnit = "weatherTemperatureUnit"   // celsius | fahrenheit
+    static let weatherWindUnit = "weatherWindUnit"                 // kph | mph | mps | kn
+    static let weatherPrecipitationUnit = "weatherPrecipitationUnit" // mm | in
+    static let weatherPressureUnit = "weatherPressureUnit"         // hPa | inHg
+    static let weatherDistanceUnit = "weatherDistanceUnit"         // km | mi
+    static let weatherMenuBarStyle = "weatherMenuBarStyle"         // symbolOnly | temperatureOnly | symbolTemperature | highLow | precipitationChance
+    static let weatherMenuBarShowsUnit = "weatherMenuBarShowsUnit"
+    static let weatherAlertsEnabled = "weatherAlertsEnabled"
+    static let weatherPanelHourly = "weatherPanelHourly"
+    static let weatherPanelGraphs = "weatherPanelGraphs"
+    static let weatherPanelRadar = "weatherPanelRadar"
+    static let weatherPanelDetails = "weatherPanelDetails"
+    static let weatherPanelDaily = "weatherPanelDaily"
+    static let weatherNotchHourly = "weatherNotchHourly"
+    static let weatherNotchGraphs = "weatherNotchGraphs"
+    static let weatherNotchDetails = "weatherNotchDetails"
+    static let menuBarWeather = "menuBarWeather"
+    static let panelShowWeather = "panelShowWeather"
     // Menu panel layout — the order the major sections appear in and which are
     // collapsed, both comma-joined section ids (see PanelSectionID). Absent keys
     // mean the canonical order and nothing collapsed, so no defaults registration.
@@ -523,6 +549,7 @@ enum DefaultsKey {
     static let panelControlOrder = "panelControlOrder"
     static let panelToggleOrder = "panelToggleOrder"
     static let panelSystemOrder = "panelSystemOrder"
+    static let panelWeatherOrder = "panelWeatherOrder"
     static let panelNetworkOrder = "panelNetworkOrder"
     static let panelDiskOrder = "panelDiskOrder"
     static let panelPowerOrder = "panelPowerOrder"
@@ -1223,7 +1250,7 @@ enum Defaults {
     static let defaultMenuBarMetricOrder = [
         "cpu", "cpuTemperature",
         "gpu", "gpuTemperature",
-        "memory",
+        "memory", "weather",
         "battery", "batteryTime", "batteryTemperature", "peripheralBattery",
         "network", "diskUsage", "diskActivity", "connectedDevices", "power", "fanSpeed",
     ]
@@ -1789,6 +1816,30 @@ enum Defaults {
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
+        DefaultsKey.weatherEnabled: true,
+        DefaultsKey.weatherLocationMode: "manual",
+        DefaultsKey.weatherLocationName: "",
+        DefaultsKey.weatherLatitude: 0.0,
+        DefaultsKey.weatherLongitude: 0.0,
+        DefaultsKey.weatherTimezone: "",
+        DefaultsKey.weatherTemperatureUnit: WeatherUnitPreferences.localeDefault.temperature.rawValue,
+        DefaultsKey.weatherWindUnit: WeatherUnitPreferences.localeDefault.wind.rawValue,
+        DefaultsKey.weatherPrecipitationUnit: WeatherUnitPreferences.localeDefault.precipitation.rawValue,
+        DefaultsKey.weatherPressureUnit: WeatherUnitPreferences.localeDefault.pressure.rawValue,
+        DefaultsKey.weatherDistanceUnit: WeatherUnitPreferences.localeDefault.distance.rawValue,
+        DefaultsKey.weatherMenuBarStyle: WeatherMenuBarStyle.symbolTemperature.rawValue,
+        DefaultsKey.weatherMenuBarShowsUnit: false,
+        DefaultsKey.weatherAlertsEnabled: false,
+        DefaultsKey.weatherPanelHourly: true,
+        DefaultsKey.weatherPanelGraphs: true,
+        DefaultsKey.weatherPanelRadar: true,
+        DefaultsKey.weatherPanelDetails: true,
+        DefaultsKey.weatherPanelDaily: true,
+        DefaultsKey.weatherNotchHourly: true,
+        DefaultsKey.weatherNotchGraphs: true,
+        DefaultsKey.weatherNotchDetails: true,
+        DefaultsKey.menuBarWeather: false,
+        DefaultsKey.panelShowWeather: true,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,
         DefaultsKey.mediaVideoStart: 0.0,
         DefaultsKey.mediaVideoEnd: 0.0,

@@ -24,6 +24,7 @@ struct MenuBarMetricsPreview: View {
     @AppStorage(DefaultsKey.menuBarPower) private var power = false
     @AppStorage(DefaultsKey.menuBarFanSpeed) private var fanSpeed = false
     @AppStorage(DefaultsKey.menuBarConnectedDevices) private var connectedDevices = false
+    @AppStorage(DefaultsKey.menuBarWeather) private var weatherMetric = false
     @AppStorage(DefaultsKey.menuBarMetricOrder) private var metricOrder = ""
     @AppStorage(DefaultsKey.menuBarCombineTemperatures) private var combineTemperatures = true
     @AppStorage(DefaultsKey.menuBarMetricAppearance) private var metricAppearance = "values"
@@ -59,12 +60,13 @@ struct MenuBarMetricsPreview: View {
         let _ = networkSpeedUnit
         let _ = metricSpacing
         let metrics = activeMetrics
-        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics)
+        let weather = weatherReading
+        let lines = separateMetrics ? [] : MenuBarRenderer.lines(for: monitor.snapshot, metrics: metrics, weather: weather)
         // Separate items are their own status items, which macOS seats to
         // the left of the one that was there first.
         let items = separateMetrics
             ? StatusItemController.metricStatusGroups(for: metrics, strings: l10n.s)
-                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics) }
+                .map { MenuBarRenderer.lines(for: monitor.snapshot, metrics: $0.metrics, weather: weather) }
                 .filter { !$0.isEmpty }
             : []
         // The steady state of the hide option: a pending update, a running
@@ -136,7 +138,19 @@ struct MenuBarMetricsPreview: View {
         let _ = power
         let _ = fanSpeed
         let _ = connectedDevices
+        let _ = weatherMetric
         return MenuBarMetric.enabled(in: .standard)
+    }
+
+    /// The same reading the status item draws, so the preview shows the chosen
+    /// weather style. The service owns the snapshot and the units.
+    private var weatherReading: WeatherMenuBarReading? {
+        guard AppFeature.weather.isAvailable, weatherMetric else { return nil }
+        return MainActor.assumeIsolated {
+            let service = WeatherService.shared
+            guard let snapshot = service.snapshot else { return nil }
+            return WeatherMenuBarReading(snapshot: snapshot, preferences: service.preferences)
+        }
     }
 
     @ViewBuilder
@@ -167,6 +181,21 @@ struct MenuBarMetricsPreview: View {
                         style: style,
                         pressure: pressure,
                         warning: warning)
+        case let .weatherBlock(symbol, value, _, style):
+            HStack(spacing: style == .readable ? 5 : 4) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: style == .readable ? 17 : 15.5, weight: .semibold))
+                }
+                if let value {
+                    Text(value)
+                        .font(.system(size: style == .readable ? 13 : 12,
+                                      weight: .semibold,
+                                      design: .monospaced))
+                        .monospacedDigit()
+                }
+            }
+            .foregroundStyle(.white)
         case let .usageBarBlock(label, fraction, style, pressure):
             usageBarBlock(label: label,
                           fraction: fraction,
@@ -236,8 +265,10 @@ struct MenuBarMetricsPreview: View {
                              pressure: MemoryPressure?,
                              warning: BatteryWarning) -> some View {
         VStack(spacing: -1) {
-            Text(label)
-                .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
+            }
             HStack(spacing: pressure == nil || value.isEmpty ? 0 : 4) {
                 if let pressure {
                     Circle()
