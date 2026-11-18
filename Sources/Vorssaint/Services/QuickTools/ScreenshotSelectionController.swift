@@ -693,13 +693,7 @@ final class ScreenshotSelectionController {
         }
     }
 
-    /// The still cropped to one rectangle of the panel's view. With freeze on
-    /// the still is the picture the person was shown, composited video
-    /// included, so a confirmation takes its pixels from there instead of
-    /// capturing again. A window that runs past this display is clipped to
-    /// the still, which holds only the part drawn here, and whatever covered
-    /// the window at freeze time stays in the crop, exactly as it does for a
-    /// rectangle drawn over the same frame.
+    /// A dragged rectangle selects everything visible in that part of the still.
     private func finishFrozenCrop(at viewRect: CGRect, on panel: ScreenshotOverlayPanel) {
         guard let frozen = panel.frozenImage,
               let cropped = frozen.cropping(to: ScreenshotSupport.imagePixelRect(
@@ -730,19 +724,17 @@ final class ScreenshotSelectionController {
             finish(.region(region(fromView: frame, on: panel, windowID: windowID)))
             return
         }
-        // With freeze on, a window click takes the same still a drag over the
-        // window's frame takes, so composited video and shared content stay in
-        // it (#4187). A fresh window-only capture would leave them out.
-        if panel.frozenImage != nil {
-            finishFrozenCrop(at: frame, on: panel)
-            return
-        }
+        // The desktop still may contain another app over the target or only
+        // one display's slice. Retire the opaque chooser so a video producer
+        // can resume drawing, then capture only the selected window(s).
+        let wasFrozen = panel.frozenImage != nil
+        if wasFrozen { retirePanels() }
         Task { @MainActor [weak self] in
             guard let self else { return }
             // A composite with an attached dialog may be captured at another
             // display's scale than this panel's; record the one it has.
             guard let capture = await ScreenshotCaptureEngine.captureWindow(
-                windowID, scale: panel.pixelScale) else {
+                windowID, scale: panel.pixelScale, preferComposited: wasFrozen) else {
                 self.finish(.failed)
                 return
             }
@@ -1114,6 +1106,7 @@ private final class ScreenshotOverlayView: NSView {
         self.frozenImage = frozenImage
         self.loupeImage = frozenImage
         self.windows = windows
+        refreshCaptureGuide()
         refreshPointerState()
     }
 
@@ -1145,6 +1138,7 @@ private final class ScreenshotOverlayView: NSView {
         let host = PassThroughHostingView(fixedFrameRootView: CaptureGuideView(
             strings: strings,
             purpose: purpose,
+            isFrozen: frozenImage != nil,
             offersScrollingCapture: controller.offersScrollingCapture,
             offersRepeatLastRegion: controller.offersRepeatLastRegion,
             requiresDraggedRegion: controller.requiresDraggedRegion,
@@ -1263,6 +1257,7 @@ private final class ScreenshotOverlayView: NSView {
         guideHost.rootView = CaptureGuideView(
             strings: strings,
             purpose: purpose,
+            isFrozen: frozenImage != nil,
             offersScrollingCapture: controller?.offersScrollingCapture ?? false,
             offersRepeatLastRegion: controller?.offersRepeatLastRegion ?? false,
             requiresDraggedRegion: controller?.requiresDraggedRegion ?? false,
@@ -1931,6 +1926,7 @@ private struct CaptureChromeBackdrop<S: Shape>: View {
 private struct CaptureGuideView: View {
     let strings: ScreenshotFeatureStrings
     let purpose: String?
+    let isFrozen: Bool
     let offersScrollingCapture: Bool
     let offersRepeatLastRegion: Bool
     let requiresDraggedRegion: Bool
@@ -1941,6 +1937,7 @@ private struct CaptureGuideView: View {
     var body: some View {
         if let screenCaptureOptions {
             UnifiedCaptureGuideContent(strings: strings,
+                                       isFrozen: isFrozen,
                                        options: screenCaptureOptions,
                                        offersScrollingCapture: offersScrollingCapture,
                                        offersRepeatLastRegion: offersRepeatLastRegion,
@@ -2011,6 +2008,7 @@ private struct CaptureGuideView: View {
     private var subtitle: String {
         let base = requiresDraggedRegion || scrollingCaptureEnabled
             ? strings.scrollingCaptureSelectionHint
+            : isFrozen ? strings.freezeCaption
             : purpose?.isEmpty == false
             ? strings.hintDrag + "  ·  " + strings.hintClick
             : strings.hintClick
@@ -2025,6 +2023,7 @@ private struct CaptureGuideView: View {
 
 private struct UnifiedCaptureGuideContent: View {
     let strings: ScreenshotFeatureStrings
+    let isFrozen: Bool
     @ObservedObject var options: ScreenCaptureSelectionOptions
     @ObservedObject private var l10n = L10n.shared
     let offersScrollingCapture: Bool
@@ -2184,6 +2183,7 @@ private struct UnifiedCaptureGuideContent: View {
         switch options.selectedTool {
         case .screenshot:
             if scrollingCaptureEnabled { return strings.scrollingCaptureSelectionHint }
+            if isFrozen { return strings.freezeCaption }
             let base = strings.hintDrag + "  ·  " + strings.hintClick
             guard offersScrollingCapture else { return base }
             return base + "  ·  " + strings.scrollingCaptureHintOff
@@ -2193,7 +2193,7 @@ private struct UnifiedCaptureGuideContent: View {
             return FeatureStrings.recorder(l10n.language).selectionPurpose
                 + "  ·  " + strings.hintDrag + "  ·  " + strings.hintClick
         case .text:
-            return l10n.s.ocrCaption
+            return isFrozen ? strings.freezeCaption : l10n.s.ocrCaption
         case .color:
             return l10n.s.colorPickerCaption
         }

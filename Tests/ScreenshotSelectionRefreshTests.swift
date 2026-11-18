@@ -124,8 +124,10 @@ enum ScreenshotSelectionRefreshContract {
         /// The scale a window capture reports, like a composite recaptured
         /// on a 2x display; `nil` echoes the scale asked for.
         static var windowCaptureScale: CGFloat?
-        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
-            (CGImage(excluded: []), windowCaptureScale ?? scale)
+        static var windowRequest: (id: CGWindowID, composited: Bool)?
+        static func captureWindow(_ id: CGWindowID, scale: CGFloat, preferComposited: Bool) async -> (image: CGImage, scale: CGFloat)? {
+            windowRequest = (id, preferComposited)
+            return (CGImage(excluded: []), windowCaptureScale ?? scale)
         }
         static func complete(_ index: Int, displays: [CGDirectDisplayID]) {
             let request = requests[index]
@@ -217,6 +219,8 @@ enum ScreenshotSelectionRefreshContract {
         func region(fromView: CGRect, on: ScreenshotOverlayPanel, windowID: CGWindowID?)
             -> RecorderSupport.Region
         { .init(windowID: windowID, viewRect: fromView) }
+        var panelsRetired = false
+        func retirePanels() { panelsRetired = true }
         func finish(_ outcome: Outcome) {
             self.outcome = outcome
             finished = true
@@ -544,23 +548,27 @@ enum ScreenshotSelectionRefreshContract {
             }
         }
         ScreenshotCaptureEngine.windowCaptureScale = nil
-        // Issue #4187: with freeze on, a window click takes the pixels of the
-        // still the same drag over its frame would, so composited video in
-        // that still is kept instead of being captured again without it.
+        // A frozen desktop can include a third-party window and cannot hold
+        // both halves of a spanning window. Neither should become the source.
         for tool in [ScreenCaptureTool.screenshot, .text] {
-            let frozenWindow = Chooser(tool)
-            let still = frozenWindow.panels[0].frozenImage!
-            let windowFrame = frozenWindow.panels[0].windows[0].frame
-            frozenWindow.confirmWindow(11, frame: windowFrame, on: frozenWindow.panels[0])
-            if case .captured(let capture)? = frozenWindow.outcome {
-                expect(capture.image.excluded == still.excluded
-                       && capture.scale == frozenWindow.panels[0].pixelScale
-                       && capture.anchorRect
-                        == ScreenshotSupport.cocoaRect(fromFlippedView: windowFrame,
-                                                       screenFrame: frozenWindow.panels[0].screenFrame),
-                       "a frozen window click crops the still and keeps the window's anchor")
-            } else {
-                expect(false, "a frozen window click crops the still and keeps the window's anchor")
+            for windowFrame in [CGRect(x: 0, y: 0, width: 50, height: 50),
+                                CGRect(x: 75, y: 0, width: 70, height: 50)] {
+                let chooser = Chooser(tool)
+                let panel = chooser.panels[0]
+                ScreenshotCaptureEngine.windowRequest = nil
+                chooser.confirmWindow(11, frame: windowFrame, on: panel)
+                await drain()
+                if case .captured(let capture)? = chooser.outcome {
+                    expect(chooser.panelsRetired
+                           && ScreenshotCaptureEngine.windowRequest?.id == 11
+                           && ScreenshotCaptureEngine.windowRequest?.composited == true
+                           && capture.image.excluded.isEmpty
+                           && capture.anchorRect == ScreenshotSupport.cocoaRect(
+                               fromFlippedView: windowFrame, screenFrame: panel.screenFrame),
+                           "a frozen window click requests the complete isolated composited window")
+                } else {
+                    expect(false, "a frozen window click returns a scoped capture")
+                }
             }
         }
         let rapid = Chooser(.recording)

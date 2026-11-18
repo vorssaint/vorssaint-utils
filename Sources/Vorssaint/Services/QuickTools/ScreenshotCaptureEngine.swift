@@ -170,23 +170,27 @@ enum ScreenshotCaptureEngine {
     /// stacked on the window is drawn at the scale its layers were captured
     /// at, which on mixed displays can differ from the one asked for.
     static func captureWindow(_ windowID: CGWindowID,
-                              scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
+                              scale: CGFloat,
+                              preferComposited: Bool = false) async -> (image: CGImage, scale: CGFloat)? {
         // A sheet or dialog the app stacked on the window is a window of its
         // own, and neither single-window route draws it (issue #1098). The
         // window list answers this without waiting on shareable content, so
         // the ordinary capture keeps the faster route.
         let onScreen = onScreenWindows()
-        if let target = onScreen.first(where: { $0.id == windowID }),
-           let geometricPlan = ScreenshotCapturePolicy.attachedCapturePlan(
-               target: target, frontToBack: onScreen) {
-            var plan: ScreenshotCapturePolicy.AttachedCapturePlan? = geometricPlan
-            if Permissions.shared.accessibility {
+        if let target = onScreen.first(where: { $0.id == windowID }) {
+            var plan = ScreenshotCapturePolicy.attachedCapturePlan(target: target, frontToBack: onScreen)
+            if let geometricPlan = plan, Permissions.shared.accessibility {
                 let confirmedIDs = accessibilityAttachedWindowIDs(
                     targetWindowID: target.id,
                     ownerPID: target.ownerPID,
                     candidateWindowIDs: Array(geometricPlan.windowIDs.dropFirst()))
                 plan = ScreenshotCapturePolicy.confirmedAttachment(
                     geometricPlan, confirmedIDs: confirmedIDs)
+            }
+            // A filtered display capture includes the window's composited
+            // video layers without exposing pixels belonging to other apps.
+            if preferComposited && plan == nil {
+                plan = .init(windowIDs: [windowID], bounds: target.frame)
             }
             if let plan,
                let composited = await captureAttached(plan) {
@@ -195,7 +199,7 @@ enum ScreenshotCaptureEngine {
             // A window spanning two displays has no single display image to
             // crop from; draw each window's own buffer at its place instead
             // of dropping the dialog on it.
-            if let plan,
+            if let plan, plan.windowIDs.count > 1,
                let composited = await composeAttached(plan, frames: Dictionary(
                    onScreen.map { ($0.id, $0.frame) }, uniquingKeysWith: { first, _ in first })) {
                 return composited
@@ -337,12 +341,11 @@ enum ScreenshotCaptureEngine {
             content.windows.first { $0.windowID == id }
         }
         let hits = content.displays.filter { $0.frame.intersects(plan.bounds) }
-        // A window straddling two displays has no single display to crop from,
-        // while one hanging off a lone display's edge still does: the crop
-        // clamps the part that is on screen.
+        // If any of the target is missing from this display, fall back to
+        // the complete window buffers. A clipped still cannot stand in.
         guard windows.count == plan.windowIDs.count,
               hits.count == 1,
-              let display = hits.first,
+              let display = hits.first, display.frame.contains(plan.bounds),
               let screen = NSScreen.screens.first(where: { $0.displayID == display.displayID }),
               let mainScreen = NSScreen.screens.first
         else { return nil }
