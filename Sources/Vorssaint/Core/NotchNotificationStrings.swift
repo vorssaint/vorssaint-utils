@@ -211,7 +211,7 @@ extension FeatureStrings {
             clearAll: "مسح الكل",
             unavailable: "لم يعد هذا الإشعار يقبل هذا الإجراء.",
             hideSystemBanner: "إخفاء راية النظام",
-            hideSystemBannerHint: "يُخفي الراية الأصلية بينما تعرضها الجزيرة الديناميكية.")
+            hideSystemBannerHint: "يُخفي الراية الأصلية بينما تعرضها الجزيرة الديناميكية. ولعرض إشعارات تطبيق ما هنا، أبقِ تنبيهاته على سطح المكتب مفعّلة في macOS.")
         case .fa: return NotchNotificationStrings(
             title: "اعلان‌ها",
             description: "اعلان‌های جدید سیستم در Dynamic Island.",
@@ -223,7 +223,7 @@ extension FeatureStrings {
             clearAll: "پاک کردن همه",
             unavailable: "این اعلان دیگر نمی‌تواند این کنش را بپذیرد.",
             hideSystemBanner: "پنهان کردن بنر سیستم",
-            hideSystemBannerHint: "تا وقتی Dynamic Island آن را نشان می‌دهد، نسخهٔ اصلی را پنهان می‌کند.")
+            hideSystemBannerHint: "تا وقتی Dynamic Island آن را نشان می‌دهد، نسخهٔ اصلی را پنهان می‌کند. برای انعکاس اعلان‌های یک برنامه، هشدارهای میز کار آن را در macOS روشن نگه دارید.")
         }
     }
 }

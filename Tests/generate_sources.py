@@ -1912,6 +1912,9 @@ def main():
     media_workspace = "Sources/Vorssaint/UI/Media/MediaWorkspaceView.swift"
     menu_panel = "Sources/Vorssaint/UI/MenuPanel/MenuPanelView.swift"
     write("MediaWorkspaceLayout.swift", "import AppKit\nimport SwiftUI\nimport UniformTypeIdentifiers\n"
+          # The scroll host mirrors with the app language, which the harness
+          # has no language for; the helper itself comes from the quit panel's.
+          + "typealias MirroredView<Content: View> = Content\n"
           + declaration(menu_panel, "private struct OverlayScrollView<")
           + declaration(menu_panel, "private final class HeightReportingHostingView<")
           + "extension MediaWorkspaceLayoutTests {\n"

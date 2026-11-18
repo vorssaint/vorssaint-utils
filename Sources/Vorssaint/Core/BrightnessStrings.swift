@@ -891,6 +891,13 @@ extension BrightnessFeatureStrings {
         displayBrightnessIncrease: "رفع سطوع الشاشة",
         keyboardLight: "إضاءة لوحة المفاتيح",
         keyboardLightCaption: "يشغّل الإضاءة الخلفية للوحة المفاتيح أو يوقفها.",
+        volumeToggle: "مكبرات صوت الشاشة",
+        volumeCaption: "تحصل الشاشات التي لها مكبرات صوت خاصة على شريط مستوى صوت هنا، عبر القناة نفسها التي تستخدمها أزرارها. أما الشاشات التي بلا مكبرات فلا تعرض واحدًا أبدًا.",
+        volumeLabel: "مستوى الصوت",
+        mute: "كتم",
+        unmute: "إلغاء الكتم",
+        volumeKeysToggle: "مفاتيح الصوت تصل إلى مكبرات الشاشة",
+        volumeKeysCaption: "حين يخرج الصوت من شاشة، تحرّك مفاتيح مستوى الصوت في لوحة المفاتيح تلك الشاشة بدلًا من مستوى لا يستطيع macOS تغييره.",
         keyboardBrightnessShortcuts: "استخدام اختصارات إضاءة لوحة المفاتيح",
         keyboardBrightnessDecrease: "خفض إضاءة لوحة المفاتيح",
         keyboardBrightnessIncrease: "رفع إضاءة لوحة المفاتيح",
@@ -898,7 +905,13 @@ extension BrightnessFeatureStrings {
         extendedDimming: "تعتيم إضافي",
         islandPromptTitle: "إظهار السطوع في الجزيرة الديناميكية؟",
         islandPromptMessage: "لا تعرض الجزيرة الديناميكية تغيّرات السطوع إلا وخيار “التحكم في الشاشات” مفعّل في إعدادات الشاشات.",
-        islandPromptKeepOff: "إبقاؤه مغلقًا")
+        islandPromptKeepOff: "إبقاؤه مغلقًا",
+        speakersStep: "خطوة مستوى الصوت",
+        speakersStepStandard: "قياسية (6.25%)",
+        speakersMinimum: "أدنى مستوى للصوت",
+        speakersMinimumCaption: "يتوقف خفض الصوت هنا. ويظل الكتم يُسكت الشاشة.",
+        speakersMaximum: "أقصى مستوى للصوت",
+        speakersMaximumCaption: "يتوقف رفع الصوت هنا.")
 
     static let fa = BrightnessFeatureStrings(
         pageTitle: "نمایشگرها",
@@ -929,6 +942,13 @@ extension BrightnessFeatureStrings {
         displayBrightnessIncrease: "زیاد کردن روشنایی نمایشگر",
         keyboardLight: "نور صفحه‌کلید",
         keyboardLightCaption: "نور پس‌زمینهٔ صفحه‌کلید را روشن یا خاموش می‌کند.",
+        volumeToggle: "بلندگوهای نمایشگر",
+        volumeCaption: "نمایشگرهایی که بلندگوی خودشان را دارند اینجا لغزندهٔ صدا می‌گیرند، از همان کانالی که دکمه‌هایشان استفاده می‌کنند. نمایشگرهای بدون بلندگو هرگز لغزنده‌ای نشان نمی‌دهند.",
+        volumeLabel: "صدا",
+        mute: "بی‌صدا",
+        unmute: "لغو بی‌صدایی",
+        volumeKeysToggle: "کلیدهای صدا به بلندگوهای نمایشگر می‌رسند",
+        volumeKeysCaption: "وقتی صدا از نمایشگر خارج می‌شود، کلیدهای صدای صفحه‌کلید به‌جای سطحی که macOS نمی‌تواند تغییر دهد، همان نمایشگر را حرکت می‌دهند.",
         keyboardBrightnessShortcuts: "استفاده از میان‌بُرهای روشنایی صفحه‌کلید",
         keyboardBrightnessDecrease: "کم کردن روشنایی صفحه‌کلید",
         keyboardBrightnessIncrease: "زیاد کردن روشنایی صفحه‌کلید",
@@ -936,5 +956,11 @@ extension BrightnessFeatureStrings {
         extendedDimming: "کم‌نوری بیشتر",
         islandPromptTitle: "روشنایی در Dynamic Island نشان داده شود؟",
         islandPromptMessage: "Dynamic Island تغییرات روشنایی را فقط وقتی نشان می‌دهد که “کنترل نمایشگرها” در تنظیمات نمایشگرها روشن باشد.",
-        islandPromptKeepOff: "خاموش بماند")
+        islandPromptKeepOff: "خاموش بماند",
+        speakersStep: "گام صدا",
+        speakersStepStandard: "استاندارد (6.25%)",
+        speakersMinimum: "حداقل صدا",
+        speakersMinimumCaption: "کم کردن صدا اینجا متوقف می‌شود. بی‌صدایی همچنان نمایشگر را ساکت می‌کند.",
+        speakersMaximum: "حداکثر صدا",
+        speakersMaximumCaption: "زیاد کردن صدا اینجا متوقف می‌شود.")
 }
