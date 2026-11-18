@@ -32,6 +32,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -200,4 +202,25 @@ extension SwitcherAppRulesStrings {
         hidden: "Ніколи не показувати",
         caption: "Виберіть, як кожна програма з’являється. Програми без правила використовують вибір вище."
     )
+
+    static let ar = SwitcherAppRulesStrings(
+        listTitle: "القواعد حسب التطبيق",
+        addButton: "إضافة تطبيق…",
+        removeButton: "إزالة",
+        behaviorLabel: "سلوك مبدّل النوافذ",
+        showWithoutWindows: "العرض بدون نوافذ",
+        windowsOnly: "النوافذ فقط",
+        hidden: "عدم العرض أبدًا",
+        caption: "اختر كيف يظهر كل تطبيق. التطبيقات بلا قاعدة تتبع الخيار أعلاه."
+    )
+
+    static let fa = SwitcherAppRulesStrings(
+        listTitle: "قواعد بر اساس برنامه",
+        addButton: "افزودن برنامه…",
+        removeButton: "حذف",
+        behaviorLabel: "رفتار تعویض‌گر",
+        showWithoutWindows: "نمایش بدون پنجره",
+        windowsOnly: "فقط پنجره‌ها",
+        hidden: "هرگز نشان نده",
+        caption: "انتخاب کنید هر برنامه چگونه ظاهر شود. برنامه‌های بدون قاعده از انتخاب بالا پیروی می‌کنند.")
 }

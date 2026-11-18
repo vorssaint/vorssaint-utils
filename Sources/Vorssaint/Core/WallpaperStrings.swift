@@ -49,6 +49,8 @@ extension FeatureStrings {
         case .zhHans: return .zhHans
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -441,4 +443,55 @@ extension WallpaperFeatureStrings {
         previousPage: "上一頁",
         nextPage: "下一頁"
     )
+
+    static let ar = WallpaperFeatureStrings(
+        pageTitle: "خلفية الشاشة",
+        hubDescription: "اختر خلفية ثابتة دون فتح إعدادات النظام",
+        panelDescription: "اختر خلفية ثابتة دون فتح إعدادات النظام.",
+        filterAll: "الكل",
+        filterOwn: "صورك",
+        filterApple: "Apple",
+        applyAllDisplays: "الإظهار في كل المسافات",
+        addImage: "إضافة صورة",
+        addFolder: "إضافة مجلد",
+        removeAdded: "إزالة",
+        doneRemoving: "تم",
+        sourceUnavailable: "غير متاح",
+        addImagePrompt: "اختر صورًا لإبقائها في قائمة خلفيات Vorssaint",
+        addFolderPrompt: "اختر مجلد صور لإبقائه في قائمة خلفيات Vorssaint",
+        openSystemSettings: "فتح إعدادات خلفية الشاشة",
+        emptyAll: "لم يتم العثور على خلفيات",
+        emptyOwn: "لم تُضف أي صورة بعد",
+        emptyApple: "لم يتم العثور على خلفيات Apple ثابتة",
+        downloading: "جارٍ التنزيل…",
+        downloadFailed: "تعذّر تنزيل الخلفية",
+        applyFailed: "تعذّر تعيين الخلفية",
+        previousPage: "السابق",
+        nextPage: "التالي"
+    )
+
+    static let fa = WallpaperFeatureStrings(
+        pageTitle: "تصویر زمینه",
+        hubDescription: "بدون باز کردن تنظیمات سیستم یک تصویر زمینهٔ ثابت انتخاب کنید",
+        panelDescription: "بدون باز کردن تنظیمات سیستم یک تصویر زمینهٔ ثابت انتخاب کنید.",
+        filterAll: "همه",
+        filterOwn: "تصاویر شما",
+        filterApple: "Apple",
+        applyAllDisplays: "نمایش در همهٔ Spaceها",
+        addImage: "افزودن تصویر",
+        addFolder: "افزودن پوشه",
+        removeAdded: "حذف",
+        doneRemoving: "انجام شد",
+        sourceUnavailable: "در دسترس نیست",
+        addImagePrompt: "تصاویری را انتخاب کنید که در فهرست تصویر زمینهٔ Vorssaint بمانند",
+        addFolderPrompt: "پوشه‌ای از تصاویر را انتخاب کنید که در فهرست تصویر زمینهٔ Vorssaint بماند",
+        openSystemSettings: "باز کردن تنظیمات تصویر زمینه",
+        emptyAll: "تصویر زمینه‌ای پیدا نشد",
+        emptyOwn: "هنوز تصویری اضافه نشده",
+        emptyApple: "تصویر ثابتی از Apple پیدا نشد",
+        downloading: "در حال دانلود…",
+        downloadFailed: "تصویر زمینه دانلود نشد",
+        applyFailed: "تصویر زمینه تنظیم نشد",
+        previousPage: "قبلی",
+        nextPage: "بعدی")
 }

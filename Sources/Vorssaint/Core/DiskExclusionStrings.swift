@@ -30,6 +30,8 @@ extension FeatureStrings {
         case .zhTW: return .zhTW
         case .zhHK: return .zhHK
         case .uk: return .uk
+        case .ar: return .ar
+        case .fa: return .fa
         }
     }
 }
@@ -168,4 +170,21 @@ extension DiskExclusionStrings {
         customPlaceholder: "Назва диска або тому",
         caption: "Диски з цього списку ніколи не демонтуються при використанні «Вийняти всі диски»."
     )
+
+    static let ar = DiskExclusionStrings(
+        listTitle: "الأقراص المستثناة",
+        addButton: "إضافة قرص…",
+        otherDrive: "اسم قرص آخر…",
+        removeButton: "إزالة",
+        customPlaceholder: "اسم القرص أو الوحدة",
+        caption: "لا تُفصل الأقراص الموجودة في هذه القائمة أبدًا عند استخدام “إخراج كل الأقراص”."
+    )
+
+    static let fa = DiskExclusionStrings(
+        listTitle: "درایوهای مستثنا",
+        addButton: "افزودن درایو…",
+        otherDrive: "نام درایو دیگر…",
+        removeButton: "حذف",
+        customPlaceholder: "نام درایو یا حجم",
+        caption: "درایوهای این فهرست هنگام “بیرون دادن همهٔ دیسک‌ها” هرگز جدا نمی‌شوند.")
 }

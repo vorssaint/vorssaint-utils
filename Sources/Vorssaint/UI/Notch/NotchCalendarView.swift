@@ -153,14 +153,14 @@ struct NotchCalendarView: View {
         let byWeek = !showsMonth && !showingMonth
         return HStack(spacing: 6) {
             HStack(spacing: 0) {
-                NotchIconButton(symbol: "chevron.left", title: byWeek ? text.previousWeek : text.previousMonth) {
+                NotchIconButton(symbol: "chevron.backward", title: byWeek ? text.previousWeek : text.previousMonth) {
                     byWeek ? moveWeek(-1) : moveMonth(-1)
                 }
                 NotchIconButton(symbol: "circle.circle", title: text.today) {
                     today(now: Date())
                     showingMonth = false
                 }
-                NotchIconButton(symbol: "chevron.right", title: byWeek ? text.nextWeek : text.nextMonth) {
+                NotchIconButton(symbol: "chevron.forward", title: byWeek ? text.nextWeek : text.nextMonth) {
                     byWeek ? moveWeek(1) : moveMonth(1)
                 }
             }
