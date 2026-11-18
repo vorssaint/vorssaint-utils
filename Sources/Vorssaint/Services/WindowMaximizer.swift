@@ -17,6 +17,11 @@ final class WindowMaximizer: ObservableObject {
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private var pendingClick: ClickTarget?
+    /// A press on the green button of one of this app's own windows. Those are
+    /// resized through AppKit: Accessibility cannot ask this process about its
+    /// own windows while the tap holds the main thread.
+    private weak var pendingOwnWindow: NSWindow?
+    private var ownOriginalFrames: [Int: NSRect] = [:]
     private var originalFrames: [CGWindowID: AXFrame] = [:]
     private var maximizedFrames: [CGWindowID: AXFrame] = [:]
     private var frameAnimations: [CGWindowID: Timer] = [:]
@@ -109,6 +114,13 @@ final class WindowMaximizer: ObservableObject {
 
         switch type {
         case .leftMouseDown:
+            if event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
+               let window = ownWindow(at: event.location) {
+                pendingClick = nil
+                pendingOwnWindow = window
+                return nil
+            }
+            pendingOwnWindow = nil
             guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
                   let target = target(at: event.location)
             else {
@@ -119,6 +131,17 @@ final class WindowMaximizer: ObservableObject {
             return nil
 
         case .leftMouseUp:
+            if let window = pendingOwnWindow {
+                pendingOwnWindow = nil
+                if ownWindow(at: event.location) === window {
+                    // Animating the frame runs its own loop; leave the tap first.
+                    DispatchQueue.main.async { [weak self, weak window] in
+                        guard let window else { return }
+                        self?.toggleOwn(window)
+                    }
+                }
+                return nil
+            }
             guard let target = pendingClick else { return Unmanaged.passUnretained(event) }
             pendingClick = nil
             if target.acceptsMouseUp(at: event.location, tolerance: clickTolerance) {
@@ -157,6 +180,43 @@ final class WindowMaximizer: ObservableObject {
                            frame: frame,
                            buttonFrame: buttonFrame.frame,
                            allowsNativeFallback: buttonFrame.allowsNativeFallback)
+    }
+
+    /// One of this app's own resizable windows whose green button is under the
+    /// point, when that window is the topmost one there.
+    private func ownWindow(at point: CGPoint) -> NSWindow? {
+        guard !isExcluded(pid: getpid()),
+              let primary = NSScreen.screens.first else { return nil }
+        let location = NSPoint(x: point.x, y: primary.frame.maxY - point.y)
+        let number = NSWindow.windowNumber(at: location, belowWindowWithWindowNumber: 0)
+        guard let window = NSApp.window(withWindowNumber: number),
+              window.isVisible,
+              window.styleMask.contains(.resizable),
+              !window.styleMask.contains(.fullScreen),
+              let button = window.standardWindowButton(.zoomButton),
+              !button.isHidden, button.isEnabled,
+              let superview = button.superview
+        else { return nil }
+        let rect = window.convertToScreen(superview.convert(button.frame, to: nil)).insetBy(dx: -2, dy: -2)
+        return rect.contains(location) ? window : nil
+    }
+
+    private func toggleOwn(_ window: NSWindow) {
+        guard let screen = window.screen ?? NSScreen.main else { return }
+        let maximized = screen.windowLayoutVisibleFrame
+        let key = window.windowNumber
+        func close(_ a: NSRect, _ b: NSRect) -> Bool {
+            abs(a.minX - b.minX) <= frameTolerance && abs(a.minY - b.minY) <= frameTolerance
+                && abs(a.width - b.width) <= frameTolerance && abs(a.height - b.height) <= frameTolerance
+        }
+        if close(window.frame, maximized), let original = ownOriginalFrames[key],
+           original.width > 80, original.height > 80 {
+            ownOriginalFrames[key] = nil
+            window.setFrame(original, display: true, animate: true)
+        } else {
+            ownOriginalFrames[key] = window.frame
+            window.setFrame(maximized, display: true, animate: true)
+        }
     }
 
     /// The list is read here rather than cached: this only runs for a press on
