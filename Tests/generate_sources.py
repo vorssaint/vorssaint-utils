@@ -1804,7 +1804,7 @@ def main():
           + declaration("Sources/Vorssaint/Services/Notch/NotchFileToolsService.swift", "    func hideMedia(")
           + declaration("Sources/Vorssaint/Services/Notch/NotchFileToolsService.swift", "    func showMedia(")
           + "}\nfinal class Notch: NotchState {\n"
-          + declaration(notch, "    var canAcceptFileDrop:")
+          + declaration(notch, "    func canAcceptFileDrop(")
           + declaration(notch, "    func beginFileDrop(")
           + declaration(notch, "    func updateFileDrop(")
           + declaration(notch, "    func endFileDrop(")
@@ -1932,9 +1932,14 @@ def main():
           + "Workspace(fixture: fixture, onContentHeightChange: nil, scrollsContent: false)\n"
           + "}.frame(width: 308)\n}.frame(width: 308, height: navigableScrollHeight)\n}\n"
           + declaration(menu_panel, "    private var navigableScrollHeight:")
-          + "}\nstruct Input: View {\nlet inNotch: Bool\n@State var isDropTargeted = false\n"
+          + "}\nstruct Input: View {\nlet acceptsDirectDrops: Bool\nvar fixture = DropFixture()\n@State var isDropTargeted = false\n"
           + "var inputSelector: some View { Color.clear.frame(width: 300, height: 70) }\n"
-          + "func acceptDrop(_ providers: [NSItemProvider]) -> Bool { false }\n"
+          + "var workspace: DropFixture { fixture }\nvar media: DropFixture { fixture }\n"
+          + "var selectedTool: MediaTool { fixture.tool }\nvar isRunning: Bool { fixture.running }\n"
+          + "func setInputs(_ urls: [URL]) { fixture.inputs = urls }\n"
+          + "typealias AppFeature = ShelfDropRoutingContract.AppFeature\n"
+          + declaration(media_workspace, "    private var inputTypes:")
+          + declaration(media_workspace, "    private func acceptDrop(").replace("private func", "func", 1)
           + "var body: some View { inputDropTarget }\n"
           + declaration(media_workspace, "    @ViewBuilder private var inputDropTarget:")
           + "}\nstruct ToolPicker {\nlet fixture: Selection\nlet onToolChange: (() -> Void)?\n"

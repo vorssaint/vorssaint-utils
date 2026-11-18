@@ -128,6 +128,7 @@ final class NotchService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
@@ -2283,14 +2284,17 @@ final class NotchService: ObservableObject {
         else { DispatchQueue.main.async(execute: action) }
     }
 
-    var canAcceptFileDrop: Bool {
+    func canAcceptFileDrop(_ pasteboard: NSPasteboard) -> Bool {
+        // Leave file drags to the open media card as they cross the island's
+        // edge. The Files page keeps its own Shelf / Optimize destination.
         acceptsUserInteraction && captureControls == nil && modules.contains(.files)
+            && !(directMediaDropWorkspace != nil && pasteboard.types?.contains(.fileURL) == true)
             && AppFeature.shelf.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
-        guard canAcceptFileDrop else { return }
+        guard canAcceptFileDrop(pasteboard) else { return }
         choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
@@ -2318,7 +2322,7 @@ final class NotchService: ObservableObject {
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
         defer { endFileDrop() }
-        guard canAcceptFileDrop else { return false }
+        guard canAcceptFileDrop(pasteboard) else { return false }
         let optimize = choosingFileDropDestination && targetsMediaDrop
         let accepted = optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
@@ -3650,7 +3654,7 @@ final class NotchService: ObservableObject {
         if modules.contains(.files), AppFeature.shelf.isAvailable {
             windowHost?.setFileDropActions(NotchFileDropActions(
                 canAccept: { [weak self] pasteboard in
-                    self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
+                    self?.canAcceptFileDrop(pasteboard) == true && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
                 enter: { [weak self] in self?.beginFileDrop($0) },
