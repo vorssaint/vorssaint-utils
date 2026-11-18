@@ -652,6 +652,7 @@ extension Strings {
         audioPriorityMoveUp: "Monter",
         audioPriorityMoveDown: "Descendre",
         audioPriorityUnavailable: "Indisponible",
+        audioPriorityRemove: "Retirer",
         audioPriorityCurrent: "Actif",
         audioPriorityCaption: "Les périphériques sont sélectionnés par ordre de priorité. Lorsqu’un périphérique de priorité plus élevée est connecté, le système bascule vers celui-ci. Lorsque le périphérique actif est déconnecté, le suivant disponible est sélectionné.",
 
