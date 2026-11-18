@@ -538,7 +538,7 @@ final class StatusItemController {
             let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
             full.append(title)
             let stacked = full.string.contains("\n")
-            let font = MenuBarRenderer.statusFont(stacked: stacked)
+            let font = MenuBarRenderer.statusFont(stacked: stacked, fontWeight: .current())
             full.addAttribute(.font, value: font, range: NSRange(location: 0, length: full.length))
             if stacked {
                 let paragraph = NSMutableParagraphStyle()
@@ -618,7 +618,7 @@ final class StatusItemController {
             guard let button = item.button else { continue }
 
             let full = NSMutableAttributedString(attributedString: title)
-            let font = MenuBarRenderer.statusFont(stacked: false)
+            let font = MenuBarRenderer.statusFont(stacked: false, fontWeight: .current())
             full.addAttribute(.font,
                               value: font,
                               range: NSRange(location: 0, length: full.length))
