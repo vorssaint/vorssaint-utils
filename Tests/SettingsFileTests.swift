@@ -62,11 +62,27 @@ enum SettingsFileTests {
             defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
             suite.expect(Backup.write(to: link, from: defaults),
                          "saving to the settings file replaces the earlier snapshot")
-            let beforeLaunch = defaults.persistentDomain(forName: domain) as NSDictionary?
+            let beforeLaunch = defaults.persistentDomain(forName: domain) ?? [:]
             _ = launch()
-            suite.expect(defaults.persistentDomain(forName: domain) as NSDictionary? == beforeLaunch,
-                         "a launch after saving to the settings file leaves every preference as it was")
+            let afterSave = defaults.persistentDomain(forName: domain) ?? [:]
+            let changed = Set(beforeLaunch.keys).union(afterSave.keys).filter {
+                beforeLaunch[$0] as? NSObject != afterSave[$0] as? NSObject
+            }
+            suite.expect(changed.isEmpty,
+                         "a launch after saving leaves preferences unchanged; changed keys: \(changed.sorted())")
 
+            defaults.set("light", forKey: DefaultsKey.appearance)
+            _ = launch()
+            suite.expect(defaults.string(forKey: DefaultsKey.appearance) == "dark"
+                         && (defaults.dictionary(forKey: DefaultsKey.appVolumes)?["com.example.player"] as? Double) == 0.4,
+                         "restoring a different setting leaves matching mixer positions exactly as saved")
+            let ordered = #"{"name":"Test","style":{"a":0,"b":1}}"#
+            let reordered = #"{"style":{"b":1,"a":0},"name":"Test"}"#
+            let different = #"{"style":{"b":2,"a":0},"name":"Test"}"#
+            suite.expect(SettingsBackupSupport.matchesPortableValue(ordered, local: reordered, key: DefaultsKey.screenshotWatermarkStyle)
+                         && !SettingsBackupSupport.matchesPortableValue(ordered, local: different, key: DefaultsKey.screenshotWatermarkStyle)
+                         && !SettingsBackupSupport.matchesPortableValue(ordered, local: reordered, key: DefaultsKey.appearance),
+                         "only JSON settings compare by content even when nested object keys change order")
             let featureKey = AppFeature.textSnippets.availabilityKey
             let partial = try plist([DefaultsKey.appearance: "dark", featureKey: true,
                                      "futureSetting": ["new": "value"]], version: " 1 ")

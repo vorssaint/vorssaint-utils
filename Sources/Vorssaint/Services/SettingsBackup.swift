@@ -231,8 +231,7 @@ enum SettingsBackup {
     /// writes it on its own; this is the same complete snapshot as an export,
     /// with the same refusal to replace a read-only or non-regular target.
     static func writeConfigFile() -> Bool {
-        ScratchpadService.shared.prepareForSettingsBackup()
-        return write(to: configFileURL)
+        write(to: configFileURL)
     }
 
     /// A normal app launch overlays the declared keys after migrating local
@@ -255,10 +254,18 @@ enum SettingsBackup {
         if settings[DefaultsKey.mediaImageWatermarkKind] != nil { comparisonKeys.insert(DefaultsKey.mediaImageWatermarkText) }
         let local = comparisonKeys.reduce(into: [String: Any]()) { $0[$1] = defaults.object(forKey: $1) }
         let portable = SettingsBackupSupport.portableSettings(local)
-        if settings.contains(where: { portable[$0.key] as? NSObject != $0.value as? NSObject }) {
-            apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local),
+        let changed = settings.filter { !SettingsBackupSupport.matchesPortableValue($0.value, local: portable[$0.key], key: $0.key) }
+        if !changed.isEmpty {
+            var incoming = SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local)
+            // Do not round-trip already matching slider positions through audio gains
+            // when a different preference in the same file changes.
+            if changed[DefaultsKey.appVolumes] == nil && changed[DefaultsKey.appVolumesArePositions] == nil {
+                incoming.removeValue(forKey: DefaultsKey.appVolumes)
+                incoming.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+            }
+            apply(settings: incoming,
                   replacingMissing: false, in: defaults)
-            if settings[DefaultsKey.appVolumes] != nil {
+            if incoming[DefaultsKey.appVolumes] != nil {
                 Defaults.migrateAppVolumesToPositions(in: defaults)
             }
         }

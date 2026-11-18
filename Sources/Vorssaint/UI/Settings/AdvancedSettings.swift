@@ -31,7 +31,7 @@ struct AdvancedSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                HStack(spacing: 10) {
+                FlowLayoutLite(spacing: 10) {
                     Button {
                         importFailed = false
                         exported = SettingsBackup.runExportPanel()
@@ -155,8 +155,13 @@ struct AdvancedSettings: View {
                 }
             }
         } message: {
-            Text(SettingsBackupSupport.omitsDynamicIslandSettings(pendingImport ?? [:])
-                 ? backup.importMissingIslandBody : backup.importConfirmBody)
+            let body = SettingsBackupSupport.omitsDynamicIslandSettings(pendingImport ?? [:])
+                ? backup.importMissingIslandBody : backup.importConfirmBody
+            if FileManager.default.fileExists(atPath: SettingsBackup.configFileURL.path) {
+                Text(body + "\n\n" + backup.importConfigFileNotice)
+            } else {
+                Text(body)
+            }
         }
         .alert(backup.configFileConfirmTitle, isPresented: $showConfigFileConfirm) {
             Button(l10n.s.uninstallerCancel, role: .cancel) {}

@@ -101,7 +101,8 @@ so save again after changing settings in the app, or the next launch brings
 the saved values back. A read-only target, such as a
 Nix store link, is left unchanged and the save reports that it failed.
 Export to a separate path to review changes to a hand-maintained file.
-The Import button and `--import-settings FILE` still perform a full restore.
+The Import button and `--import-settings FILE` restore the backup. On the next
+launch, values declared in the XDG file take precedence over the imported ones.
 Quit the app before importing from a script.
 
 Apps opened from Finder inherit the login environment. To choose a custom
