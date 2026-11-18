@@ -31,23 +31,21 @@ enum ResponsibleProcess {
         return owner > 0 ? owner : pid
     }
 
-    /// The regular app to bill the process to: the process itself when it is
-    /// one, otherwise its responsible app, following the parent chain when the
-    /// responsibility API dead-ends on a helper that answers for itself
-    /// (browser audio helpers, issue #256). Nil when no ancestor is
-    /// a regular app — daemons and login items stay unlisted.
+    /// Secure Input and Now Playing attribute a process to its responsible app
+    /// first, even if the process is itself a regular app.
     static func regularAppOwner(of pid: pid_t) -> NSRunningApplication? {
-        regularAppOwnerPid(of: pid).flatMap(NSRunningApplication.init(processIdentifier:))
+        regularAppOwnerPid(of: pid, preferProcessItself: false)
+            .flatMap(NSRunningApplication.init(processIdentifier:))
     }
 
-    /// The real pid of that regular app. Key and compare by this, not by the
-    /// returned app's `processIdentifier`: the workspace reports -1 for some
-    /// apps (Steam, Device Hub) even when looked up by their real pid
-    /// (issue #3929).
-    static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
+    /// Audio attribution prefers a regular app playing its own sound over
+    /// its launcher. Use the real pid that was checked; the workspace can
+    /// report -1 for Steam or Device Hub even when found by their real pid.
+    static func regularAppOwnerPid(of pid: pid_t, preferProcessItself: Bool = true) -> pid_t? {
         MixerRoutingSupport.regularAppOwnerPid(
             of: pid,
             responsiblePid: owner(of: pid),
+            preferProcessItself: preferProcessItself,
             isRegularApp: { NSRunningApplication(processIdentifier: $0)?.activationPolicy == .regular },
             parentPid: parent(of:))
     }

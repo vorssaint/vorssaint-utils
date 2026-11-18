@@ -785,10 +785,11 @@ enum MixerRoutingSupport {
     /// it gets its own row instead of being folded into Steam's.
     static func regularAppOwnerPid(of pid: pid_t,
                                    responsiblePid: pid_t,
+                                   preferProcessItself: Bool = true,
                                    isRegularApp: (pid_t) -> Bool,
                                    parentPid: (pid_t) -> pid_t) -> pid_t? {
         guard pid > 0 else { return nil }
-        if isRegularApp(pid) { return pid }
+        if preferProcessItself && isRegularApp(pid) { return pid }
         return owningRegularAppPid(responsiblePid: responsiblePid,
                                    isRegularApp: isRegularApp,
                                    parentPid: parentPid)

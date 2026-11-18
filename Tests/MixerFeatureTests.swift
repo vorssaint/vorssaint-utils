@@ -309,6 +309,7 @@ enum MixerFeatureTests {
         func owningApp(of responsible: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
             MixerRoutingSupport.owningRegularAppPid(
                 responsiblePid: responsible,
+                preferProcessItself: preferProcessItself,
                 isRegularApp: { regularApps.contains($0) },
                 parentPid: { helperParents[$0] ?? 0 })
         }
@@ -326,7 +327,8 @@ enum MixerFeatureTests {
                "a regular app within the depth cap is still found")
         suite.expect(owningApp(of: 0) == nil,
                "a missing responsible pid maps to no app")
-        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
+        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100],
+                               preferProcessItself: Bool = true) -> pid_t? {
             MixerRoutingSupport.regularAppOwnerPid(
                 of: pid,
                 responsiblePid: responsible,
@@ -348,6 +350,11 @@ enum MixerFeatureTests {
             .map { resolvedOwningApp(responsible: $0.responsible, pid: $0.pid, regularApps: steamApps) }
         suite.expect(steamOwners == [14271, 2836, 44794],
                "apps the workspace lists with pid -1 are keyed by their real pids, never merged")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: steamApps,
+                                       preferProcessItself: false) == 14271,
+               "Secure Input and Now Playing still attribute a regular child to its responsible app")
+        suite.expect(resolvedOwningApp(responsible: 700, pid: 500, preferProcessItself: false) == 100,
+               "a legacy owner lookup still falls back to the child's parent when responsibility dead-ends")
         suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: [14271]) == 14271,
                "a non-regular process launched by Steam is still billed to Steam")
         suite.expect([pid_t(-1), 0].allSatisfy {
