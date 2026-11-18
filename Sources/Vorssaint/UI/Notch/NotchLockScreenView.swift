@@ -360,7 +360,7 @@ struct NotchLockScreenActivities: View {
             let clock = finished ? text.finished : NotchTimerSupport.clockText(for: session, at: now)
             HStack(spacing: 7) {
                 Image(systemName: finished ? "checkmark.circle.fill" : session.isPaused ? "pause.circle.fill"
-                      : session.countsUp ? "stopwatch.fill" : "timer")
+                      : session.mode == .sleep ? "moon.zzz.fill" : session.countsUp ? "stopwatch.fill" : "timer")
                     .foregroundStyle(.orange)
                 Text(session.mode == .pomodoro && !finished ? text.phase(session.phase) + " " + clock : clock)
             }

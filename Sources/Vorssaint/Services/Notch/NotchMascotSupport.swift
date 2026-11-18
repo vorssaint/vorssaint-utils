@@ -1183,12 +1183,13 @@ enum NotchMascotSupport {
 
     /// How it takes a countdown running out: startled by a plain timer's
     /// ring, glad at the end of a focus session, and ready to go again when
-    /// a break is over.
+    /// a break is over. A sleep timer never rings: the Mac sleeps instead.
     static func timerReaction(finishing phase: NotchTimerPhase) -> NotchMascotReaction {
         switch phase {
         case .focus: return .celebrate
         case .shortBreak, .longBreak: return .ready
         case .timer, .stopwatch: return .surprised
+        case .sleep: return .yawn
         }
     }
 
