@@ -6,6 +6,7 @@ import Foundation
 // Italiano — translated and hand-checked, not machine output.
 extension Strings {
     static let it = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: stop normale",
         statusActiveUntil: "Vorssaint: attivo fino alle",
         statusActiveIndefinite: "Vorssaint: attivo a tempo indeterminato",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "Zoom",
         menuClose: "Chiudi",
 
+        // MARK: Durations
         minutes15: "15 minuti",
         minutes30: "30 minuti",
         hour1: "1 ora",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "A tempo indeterminato",
         indefinite: "Indeterminato",
 
+        // MARK: Panel — header & footer
         panelSettings: "Impostazioni",
         panelQuit: "Esci",
         panelHotkeyHint: "La scorciatoia attiva/disattiva",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "Mantieni attivo",
         keepAwakeEndsIn: "Termina tra",
         keepAwakeUntilDisabled: "Attivo finché non lo disattivi",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "Pronto. Si attiva e disattiva senza password",
         clamshellNeedsPassword: "Richiede la password di amministratore una volta",
 
+        // MARK: Panel — system monitor
         systemSection: "Sistema",
         temperatures: "Temperature",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "Consumo energia rilevante",
         energyAppsIdle: "Nessun consumo energia rilevante",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "Sessione terminata",
         notifySessionEndedBody: "Il tempo è scaduto. Il Mac tornerà allo stop normale.",
         notifyBatteryTitle: "Vorssaint disattivato",
         notifyBatteryBody: "Batteria scarica. Lo stop normale è stato ripristinato per preservare la carica.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint ha bisogno della password per continuare con il coperchio chiuso.",
         adminPromptClamshellOff: "Vorssaint ha bisogno della password per ripristinare lo stop normale del Mac.",
         adminPromptRecover: "Vorssaint è stato chiuso mentre lo stop del Mac era disattivato. Inserisci la password per ripristinare lo stop normale.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint creerà una regola limitata (solo pmset disablesleep) per attivare la modalità a coperchio chiuso senza chiedere la password. È l’unica volta che la password è necessaria.",
         adminPromptSudoersRemove: "Vorssaint rimuoverà la regola del coperchio chiuso senza password.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Impostazioni di Vorssaint",
         tabGeneral: "Generali",
         tabEnergy: "Energia",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "Grande",
         previewSizeXLarge: "Molto grande",
         settingsGroupFeatures: "Funzioni",
+
+        // MARK: Settings — advanced
         advancedResetSection: "Autorizzazioni",
         advancedResetDescription: "Rimuove tutte le autorizzazioni concesse a Vorssaint (Accessibilità, Registrazione schermo, Accesso completo al disco e altre), l’elemento di login e la regola del coperchio chiuso. Utile per ripartire da zero o prima di disinstallare. L’app resta installata.",
         advancedClearButton: "Cancella tutte le autorizzazioni",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "Disinstallazione interrotta",
         advancedUninstallFailedBody: "Vorssaint non è riuscito a ripristinare un’impostazione di sistema che aveva cambiato: lo stop, la velocità delle ventole, l’accelerazione del mouse o l’ordine degli Spazi. Non è stato rimosso nulla. Riprova e consenti la richiesta della password, se compare.",
 
+        // MARK: Settings — general
         launchAtLogin: "Apri al login",
         languageLabel: "Lingua",
         menuBarSection: "Barra dei menu",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "Abilita scorciatoia per “Mantieni attivo”",
         hotkeyCaption: "Funziona in qualsiasi app, senza autorizzazioni aggiuntive.",
 
+        // MARK: Settings — energy
         sessionSection: "Sessione",
         defaultDurationLabel: "Durata predefinita",
         keepAwakeAutoStart: "Mantieni attivo all’apertura di Vorssaint",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "Oscura lo schermo del tutto",
         dimScreenOnLidCloseCaption: "Oscura lo schermo quando il coperchio si chiude e ripristina la luminosità alla riapertura.",
 
+        // MARK: Settings — mouse
         scrollSection: "Scorrimento",
         invertMouseScroll: "Inverti lo scorrimento del mouse",
         invertMouseScrollCaption: "Inverte la direzione della rotellina del mouse.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "Scorrimento fluido",
         smoothScrollCaption: "Trasforma ogni scatto della rotellina del mouse in una breve scivolata fluida. Il trackpad non cambia.",
         smoothScrollStepLabel: "Velocità di scorrimento",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "Navigazione",
         mouseNavigationEnable: "Usa i pulsanti laterali per Indietro e Avanti",
         mouseNavigationCaption: "Trasforma i pulsanti Indietro e Avanti del mouse in comandi di navigazione per Finder, browser e app compatibili.",
+
+        // MARK: Settings — middle click
         middleClickSection: "Clic centrale da trackpad",
         middleClickEnable: "Il clic con tre dita agisce da clic centrale",
         middleClickEnableCaption: "Premere il trackpad con tre dita funziona come il clic della rotellina del mouse: aprire i link in una nuova scheda, chiudere le schede e tutto ciò che fa il tasto centrale.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 dita",
         middleClickTapFourFingers: "4 dita",
         middleClickTapCaption: "Un tocco leggero con quel numero di dita, senza premere, attiva anche il clic centrale. Scorrere non conta mai. Se il tocco a tre dita di macOS è assegnato a Cerca, disattivalo perché i due non si attivino insieme.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "Pannello rapido",
         quickToolShortcutToggle: "Abbreviazione globale",
+
+        // MARK: Quick tool — OCR
         ocrName: "Copia testo dallo schermo",
         ocrCaption: "Seleziona un’area dello schermo e il testo riconosciuto viene copiato, pronto da incollare.",
         ocrCopied: "Testo copiato",
         ocrNoText: "Nessun testo trovato",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "Contagocce colore",
         colorPickerCaption: "Cattura il colore di qualsiasi pixel sullo schermo e copialo nel formato che preferisci.",
         colorPickerFormatLabel: "Formato copiato",
         colorPickerBareHexToggle: "Copia senza il prefisso #",
         colorPickerPickNow: "Preleva colore",
+
+        // MARK: Quick tool — microphone
         micMuteName: "Silenzia microfono",
         micUnmuteName: "Riattiva microfono",
         micMuteCaption: "Usa i controlli di silenziamento o del volume in ingresso di ogni microfono. Siri e alcune app potrebbero ancora sentirti. Non blocca ogni accesso al microfono.",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "Alcuni microfoni sono ancora silenziati",
         micMuteMenuBarToggle: "Mostra nella barra dei menu quando attivo",
         micMuteMenuBarCaption: "Il microfono rosso nella barra dei menu indica che la funzione è attiva. Non garantisce che tutte le app smettano di acquisire audio.",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "Incolla come testo semplice",
         pastePlainCaption: "Incolla ciò che hai copiato senza colori, font o formattazione. L’originale resta negli appunti.",
+
+        // MARK: Quick tool — launcher
         launcherName: "Pannello rapido",
         launcherCaption: "Un pannello fluttuante con i tuoi strumenti preferiti, richiamato con un’abbreviazione da ovunque.",
         launcherOpenNow: "Apri pannello rapido",
@@ -215,11 +245,15 @@ extension Strings {
         launcherEmptyState: "Tutti gli strumenti sono nascosti. Usa il pulsante di regolazione per riaverli.",
         launcherAddSection: "Aggiungi di nuovo",
         launcherKeysHint: "Le frecce navigano, Invio apre, 1 a 9 aprono direttamente",
+
+        // MARK: Settings — switcher
         switcherSection: "Commutatore di finestre",
         switcherEnable: "Usa il commutatore di Vorssaint",
         switcherEnableCaption: "Passa tra app e finestre, incluse quelle ridotte a icona e più finestre della stessa app.",
         switcherUsageHint: "Tieni premuta la scorciatoia per spostarti; rilascia per attivare la finestra. Maiuscole o ← torna indietro; W chiude la finestra; Q chiude l’app; Esc annulla.",
         switcherNoWindows: "Nessuna finestra aperta",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "Mostra %@ con icone grandi",
         switcherIconRowModeCaption: "Mostra un’icona per app con le anteprime delle sue finestre sopra.",
         switcherSimpleModeCaption: "Mostra icone delle app e titoli delle finestre, senza anteprime né acquisizione dello schermo dal selettore.",
@@ -239,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "Spostare il puntatore su app e finestre lascia l’evidenziazione dov’è. Un clic apre comunque un elemento.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un’app in un’unica voce nel commutatore, anziché una per finestra.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "App senza finestre aperte",
         switcherWindowlessAppsCaption: "Sceglie quali app aperte senza alcuna finestra compaiono nel commutatore.",
         switcherWindowlessAppsOff: "Non mostrare",
@@ -247,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "Tutte le app aperte restano raggiungibili finché l’opzione “%@” è attiva. Disattivala per scegliere.",
         switcherNoOpenWindow: "Senza finestre aperte",
         switcherOtherDesktop: "Altra scrivania",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Anteprima finestre dal Dock",
         dockPreviewEnableCaption: "Passa il mouse su un’app aperta nel Dock per vedere le sue finestre, poi fai clic su quella da aprire.",
@@ -280,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "Finestra precedente",
         dockPreviewNextWindow: "Finestra successiva",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "Taglia e incolla",
         cutPasteEnable: "Taglia e incolla i file nel Finder",
         cutPasteEnableCaption: "Usa ⌘X per tagliare e ⌘V per spostare file e cartelle nel Finder.",
@@ -301,6 +340,7 @@ extension Strings {
         cutMovingTitle: "Spostamento…",
         cutMovingCountFormat: "%d di %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "Esci alla chiusura",
         autoQuitEnable: "Esci da un’app quando si chiude la sua ultima finestra",
         autoQuitEnableCaption: "Chiudere l’ultima finestra di un’app la fa anche uscire.",
@@ -315,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "Nessuna eccezione",
         autoQuitAddApp: "Aggiungi app…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "Disinstallatore",
         uninstallerEnableCaption: "Rimuove un’app insieme a cache, preferenze, log e residui che lascia in giro.",
         uninstallerStep1: "Trascina un’app nelle Impostazioni oppure scegline una dall’elenco.",
@@ -372,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "Impossibile disinstallare %@ perché non è possibile capire di quale app si tratti.",
         uninstallerPickerHiddenNote: "Le app che fanno parte di macOS o sono di Apple non compaiono nell’elenco.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "Pulisci URL",
         urlCleanerEnable: "Pulisci gli URL quando li copi",
         urlCleanerEnableCaption: "Rimuove i parametri di tracciamento da un link non appena arriva negli appunti.",
@@ -388,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "Copiato.",
         urlCleanerLocalNote: "Locale. Senza rete.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Cerca, installa e rimuovi formule e cask.",
         homebrewMissingTitle: "Homebrew non trovato",
@@ -404,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "Tap non ancora attendibile",
         homebrewTrustCaption: "Homebrew ora chiede la tua conferma prima di usare tap di terze parti. Considera attendibile %@ per continuare.",
         homebrewTrustButton: "Autorizza e continua",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "Cerca pacchetti",
         homebrewKeyboardHint: "Spazio o Invio chiude il pannello macOS. Usa il pulsante di ricerca.",
         homebrewSearchButton: "Cerca",
@@ -419,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "Installati come dipendenze, ma nessun pacchetto installato ne ha più bisogno.",
         homebrewDependencyUpdatesFormat: "Aggiornamenti delle dipendenze: %d",
         homebrewNoSelection: "Seleziona un pacchetto installato o cercane uno nuovo.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "Dettagli pacchetto",
         homebrewInstall: "Installa",
         homebrewUninstall: "Disinstalla",
@@ -442,6 +489,8 @@ extension Strings {
         homebrewUpdates: "Aggiornamenti",
         homebrewUpdateAvailableBadge: "Aggiornamento disponibile",
         homebrewLatestVersion: "Più recente",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Installare con Homebrew?",
         homebrewConfirmInstallBodyFormat: "Homebrew scaricherà e installerà %@. Potrebbero essere installate anche dipendenze.",
         homebrewConfirmUninstallTitle: "Disinstallare con Homebrew?",
@@ -455,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "Questa operazione richiede il tuo terminale per chiedere la password di amministratore. Vorssaint non acquisisce password.",
         homebrewLoading: "Caricamento…",
         homebrewSearchEmpty: "Nessun risultato",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "Installazione di %@",
         homebrewOperationUninstallFormat: "Disinstallazione di %@",
         homebrewOperationUpgradeFormat: "Aggiornamento di %@",
@@ -481,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "Dettagli tecnici",
         homebrewOperationProgressUnknown: "Homebrew non ha ancora indicato una percentuale.",
 
+        // MARK: Feature — local media tools
         mediaName: "Media",
         mediaEnableCaption: "Comprimi video, converti ed elabora immagini, crea GIF ed estrai testo localmente.",
         mediaLocalNote: "Locale. Nessuna rete.",
@@ -488,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "Immagine",
         mediaToolText: "Testo",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "Scegli file",
         mediaDropHint: "Trascina un file qui o fai clic per scegliere.",
         mediaOutput: "Uscita",
         mediaOutputAutomatic: "Automatica",
         mediaChooseOutput: "Destinazione",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "Comprimi video",
         mediaStartGIF: "Crea GIF",
         mediaStartImage: "Elabora immagine",
@@ -522,11 +578,15 @@ extension Strings {
         mediaFormat: "Formato",
         mediaStripMetadata: "Rimuovi metadati",
         mediaLoopGIF: "Ripeti GIF",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "Accurato",
         mediaOCRFast: "Rapido",
         mediaLanguageCorrection: "Correzione lingua",
         mediaTextOutputNote: "Il testo estratto può essere copiato e salvato come TXT.",
+
+        // MARK: Media — results & errors
         mediaRunning: "Elaborazione",
         mediaCompleted: "Completato",
         mediaCancelled: "Annullato.",
@@ -542,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "Scegli una destinazione diversa dal file originale.",
         mediaErrorUnsupported: "Formato non supportato da macOS.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "Ripiano",
         shelfEnable: "Area temporanea per trascinare i file",
         shelfEnableCaption: "Uno spazio fluttuante per raccogliere file, immagini e testo, da trascinare poi ovunque.",
@@ -570,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "Lo scuotimento e l’area nella barra dei menu restano inattivi per i trascinamenti avviati in queste app. La scorciatoia e Apri ora funzionano ancora.",
         shelfPin: "Mantieni aperto",
         shelfUnpin: "Consenti chiusura dopo l’uso",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "Luminosità extra",
         extraBrightnessCaption: "Usa la riserva HDR dello schermo per superare la luminosità massima. Consuma più batteria e il Mac può scaldarsi.",
         extraBrightnessLevelLabel: "Intensità",
@@ -578,6 +641,8 @@ extension Strings {
         shelfOpenNow: "Apri ora",
         shelfNoPermission: "Non richiede alcuna autorizzazione.",
         shelfMenuItem: "Apri ripiano",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "Ripiano",
         shelfEmpty: "Trascina qui gli elementi",
         shelfClearAll: "Cancella tutto",
@@ -585,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "%d selezionati",
         shelfHint: "Fai clic per selezionare. Trascina per usare o fai clic destro per altre azioni.",
         shelfItemImage: "Immagine",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d elementi",
         shelfTooltipItemsFew: "%d elementi",
         shelfTooltipImageSingular: "%d immagine",
@@ -599,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d link",
         shelfTooltipLinkFew: "%d link",
         shelfTooltipLinkPlural: "%d link",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "Apri",
         shelfActionOpenWith: "Apri con",
         shelfActionShare: "Condividi",
         shelfActionPin: "Fissa",
         shelfActionUnpin: "Rimuovi fissaggio",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "Misurazione…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "Mixer del volume",
         mixerEmpty: "Le app che usano l’audio compaiono qui",
         mixerUnavailable: "Disponibile su macOS 14.4 e successivi",
         mixerPermissionBody: "Per regolare il volume per ogni app, consenti “Registrazione schermo e audio di sistema” in Impostazioni di Sistema. L’audio non viene mai registrato.",
         mixerResetTooltip: "Ripristina al 100%",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "Predefinita",
         mixerOutputCurrent: "attuale",
         mixerOutputUnavailable: "Uscita non disponibile",
@@ -623,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "Nessuna uscita trovata",
         mixerSystemOutputTooltip: "Scegli uscita di sistema",
         mixerSystemOutputErrorFormat: "Impossibile cambiare: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "Abbassa il volume quando le cuffie si scollegano",
         mixerLowerOnHeadphonesDisconnectCaption: "Regola l’uscita quando cuffie cablate o Bluetooth si scollegano.",
         mixerHeadphonesDisconnectVolume: "Volume dopo disconnessione",
         preciseVolumeRollerEnable: "Usa passi volume più fini",
         preciseVolumeRollerCaption: "Trasforma rotelle e tasti volume in passi di sistema più piccoli.",
         preciseVolumeRollerTapFailed: "Impossibile ascoltare i tasti volume.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "Selettore uscita",
         soundOutputSwitcherEnable: "Cambia uscite con scorciatoia",
         soundOutputSwitcherCaption: "Scegli le uscite e usa la scorciatoia per passare alla prossima disponibile.",
         soundOutputSwitcherDevices: "Uscite nel ciclo",
         soundOutputSwitcherNoAvailableSelection: "Seleziona almeno un’uscita disponibile.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "Microfono",
         mixerInputNoDevices: "Nessun microfono trovato",
         mixerInputUnavailable: "Microfono non disponibile",
         mixerInputFallback: "Uso il predefinito finché questo microfono non torna.",
         mixerInputTooltip: "Scegli microfono",
         mixerInputErrorFormat: "Impossibile cambiare: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "App nell’elenco",
         mixerAllShown: "Tutte",
         mixerHiddenCountLabel: "Nascoste",
         mixerHideFromList: "Nascondi dall’elenco",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "Priorità dei dispositivi audio",
         audioPriorityOutputEnable: "Passa automaticamente all’uscita audio con la priorità più alta",
         audioPriorityInputEnable: "Passa automaticamente al microfono con la priorità più alta",
@@ -655,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "In uso",
         audioPriorityCaption: "I dispositivi vengono selezionati in ordine di priorità. Quando viene collegato un dispositivo con priorità più alta, il sistema passa a quel dispositivo. Quando il dispositivo attivo viene scollegato, viene selezionato il successivo disponibile.",
 
+        // MARK: Settings — updates
         updatesSection: "Aggiornamenti",
         autoCheckToggle: "Cerca aggiornamenti automaticamente",
         includeBetaUpdatesToggle: "Ricevi aggiornamenti beta",
@@ -675,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "L’app è in esecuzione da una posizione che non può essere aggiornata, come l’immagine disco o una posizione temporanea di sistema. Trascina Vorssaint nella cartella Applicazioni, aprilo da lì e riprova.",
         menuCheckUpdates: "Cerca aggiornamenti…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "Autorizzazione richiesta",
         permissionAccessibility: "Accessibilità",
         permissionScreenRecording: "Registrazione schermo",
@@ -683,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "Apri Impostazioni di Sistema…",
         permissionRequest: "Concedi accesso",
         permissionRestartNote: "macOS potrebbe chiedere di riaprire l’app dopo la concessione.",
+
+        // MARK: Secure input
         secureInputTitle: "L’input sicuro è attivo",
         secureInputHeldFormat: "%@ era l’app in primo piano quando si è attivato e potrebbe trattenerlo, quindi Vorssaint non può digitare al posto tuo. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
         secureInputUnattributed: "Non è possibile sapere quale app lo stia trattenendo, quindi Vorssaint non può digitare al posto tuo. Chiudi qualsiasi campo password aperto, oppure esci e accedi di nuovo, per azzerarlo.",
         secureInputUnidentified: "Non è stato possibile identificare l’app che lo sta trattenendo, quindi Vorssaint non può digitare al posto tuo.",
         secureInputRevealFormat: "Mostra %@",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "%@ era l’app in primo piano quando si è attivato e potrebbe trattenerlo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
         secureInputSwitcherUnattributed: "Non è possibile sapere quale app lo stia trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Chiudi qualsiasi campo password aperto, oppure esci e accedi di nuovo, per azzerarlo.",
         secureInputSwitcherUnidentified: "Non è stato possibile identificare l’app che lo sta trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS.",
 
+        // MARK: About
         aboutDescription: "Un centro di utilità per il tuo Mac.\nEnergia, monitoraggio del sistema, scorrimento e un commutatore di finestre, direttamente nella barra dei menu.",
         versionPrefix: "Versione",
         reviewIntro: "Rivedi l’introduzione",
         reviewHighlights: "Rivedi le novità",
         viewOnGitHub: "Vedi su GitHub",
 
+        // MARK: Onboarding
         obContinue: "Continua",
         obBack: "Indietro",
         obSkipStep: "Salta questo passaggio",
@@ -711,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "Mouse e finestre come piacciono a te",
         obWelcomeBullet3Body: "Scorrimento invertito del mouse e un commutatore di finestre con miniature.",
         obLanguageLabel: "Lingua",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "Accessibilità",
         obStepAccessibilityBody: "Necessaria per invertire lo scorrimento del mouse e perché il commutatore di finestre risponda alla tastiera.",
         obAccessibilityWhy: "L’app si limita a osservare la rotellina del mouse e la scorciatoia del commutatore. Nulla viene registrato o inviato altrove.",
         obStepRecordingTitle: "Registrazione schermo",
         obStepRecordingBody: "Consente al commutatore di mostrare miniature reali delle finestre invece delle sole icone.",
         obRecordingWhy: "Le miniature vengono generate al momento, restano in memoria e non lasciano mai il tuo Mac. Senza, il commutatore funziona comunque con le icone.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "Monitoraggio del sistema",
         obStepMonitorBody: "Il pannello mostra le temperature di CPU, GPU e batteria, l’utilizzo dell’hardware e la pressione della memoria.",
         obMonitorNoPermission: "Nessuna autorizzazione necessaria. I sensori vengono letti direttamente dal sistema.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "Funzioni opzionali",
         obStepOptionalBody: "Attiva ora ciò che vuoi usare. Puoi cambiare tutto in seguito nelle Impostazioni.",
         obStepStatusTitle: "Controllo",
         obStepStatusBody: "Assicurati che sia tutto pronto per le funzioni che vuoi usare.",
         obStatusRecheck: "Controlla di nuovo",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "Tutto pronto!",
         obStepDoneBody: "Vorssaint si sta già prendendo cura del tuo Mac.",
         obDoneHint: "Cerca il buco nero nella barra dei menu, in alto a destra dello schermo.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "Novità di questa versione",
         obWhatsNewFallback: "Questo aggiornamento include le correzioni e i miglioramenti più recenti.",
         obLanguageUpdateTitle: "Ora nella tua lingua",
@@ -736,7 +837,10 @@ extension Strings {
         obPurposeBody: "Scegli una configurazione pronta o esattamente le funzioni che vuoi usare.",
         obPurposeSkip: "Puoi aggiungere o rimuovere funzioni in seguito nelle Impostazioni.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "Monitoraggio",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "Nella barra dei menu",
         monitorMenuBarPreview: "Anteprima della barra dei menu",
         monitorMenuBarCaption: "Scegli cosa appare accanto all’icona nella barra dei menu.",
@@ -753,6 +857,8 @@ extension Strings {
         monitorInterval1: "1 secondo",
         monitorInterval2: "2 secondi",
         monitorInterval5: "5 secondi",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "Nel pannello",
         panelNavigationMode: "Naviga il pannello per sezioni",
         panelNavigationCaption: "Mostra una sezione alla volta. Scegli Lista per vedere tutto in uno scorrimento continuo.",
@@ -761,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Potresti riscontrare alcuni bug.",
 
+        // MARK: Panel — network
         networkSection: "Rete",
         networkIPAddresses: "Indirizzi IP",
         networkLocalIP: "IPv4 locale",
@@ -771,6 +878,7 @@ extension Strings {
         networkApps: "App con traffico rete",
         networkAppsIdle: "Nessuna app usa la rete ora",
 
+        // MARK: Panel — disk
         diskSection: "Dischi",
         diskUsed: "usato",
         diskFree: "libero",
@@ -806,6 +914,7 @@ extension Strings {
         diskStorageSettings: "Archiviazione",
         diskNoDisks: "Nessun disco montato trovato.",
 
+        // MARK: Panel — power
         powerSection: "Energia",
         powerSystem: "Sistema",
         powerAdapter: "Alimentatore",
@@ -823,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "Nessuna periferica trovata",
         monitorGraphsSection: "Grafici",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "Aggiornamento disponibile",
         updateBannerAction: "Aggiorna",
         obStepMenuBarTitle: "Metriche nella barra dei menu",
@@ -844,6 +954,8 @@ extension Strings {
         memoryStyleDot: "Punto",
         memoryStylePercent: "%",
         memoryStyleBoth: "Entrambi",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "Attivo da",
         batteryCharge: "Carica",
         powerHealth: "Stato batteria",
@@ -854,6 +966,7 @@ extension Strings {
         speedTestTesting: "Test in corso…",
         speedTestFailed: "Test non riuscito",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "Mostra nel pannello",
         disclosureExpanded: "Espanso",
         disclosureCollapsed: "Contratto",
@@ -871,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "Strumenti",
         monitorPanelConfigHint: "Apri un blocco per scegliere cosa mostra.",
         monitorOrderHint: "Trascina per riordinare le sezioni del pannello e usa l’occhio per mostrarne o nasconderne ognuna.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "Cosa appare nel pannello",
         obStepPanelBody: "Apri ogni blocco e scegli esattamente cosa mostrare quando fai clic sull’icona.",
         obStepPanelNavigationTitle: "Pannello per sezioni",
         obStepPanelNavigationBody: "Il pannello ora può mostrare una sezione alla volta. Puoi passare da Sezioni a Lista nelle impostazioni.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "Modalità pulizia",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "Utilità",
         quickControlsSection: "Controlli",
         panelCategoryWindows: "Finestre",
         panelCategoryInput: "Mouse e tastiera",
         panelCategoryFiles: "File",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "Massimizza finestre",
         windowMaximizeCaption: "Il pulsante verde massimizza senza creare un altro Spazio.",
         windowMaximizeActiveNow: "Pulsante verde attivo",
         windowMaximizeNeedsAccessibility: "Richiede Accessibilità per funzionare.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "Debounce",
         keyDebounceEnable: "Filtra tasti duplicati",
         keyDebounceCaption: "Filtra pressioni duplicate molto rapide.",
@@ -898,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "Aggiungi tasto",
         keyDebounceNoOverrides: "Nessun tasto specifico configurato.",
         keyDebounceRemoveKey: "Rimuovi tasto",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "Blocca la tastiera per pulire in sicurezza.",
         cleaningOverlayTitle: "Tastiera bloccata per la pulizia",
         cleaningOverlaySubtitle: "Premi Esc 5 volte per sbloccare",
@@ -909,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "Serve l’Accessibilità",
         cleaningNeedsAxBody: "Per bloccare la tastiera in sicurezza, Vorssaint ha bisogno dell’autorizzazione di Accessibilità. Concedila in Impostazioni di Sistema e riprova.",
 
+        // MARK: Support / donate
         tabSupport: "Sostieni",
         shortcutsPageCaption: "Modifica qui tutte le scorciatoie globali delle funzioni installate su questo Mac. Quelle inattive restano salvate ma non si attivano.",
         shortcutsPageTitle: "Abbreviazioni da tastiera",
         settingsSearchPlaceholder: "Cerca nelle impostazioni",
+
+        // MARK: Support — donations
         donateHeading: "Aiuta Vorssaint a continuare a crescere",
         donateMessage: "Vorssaint resta gratuito e locale, senza pubblicità né tracciamento. Se ti è utile, Buy Me a Coffee è l’unico modo per sostenerne economicamente lo sviluppo.",
         donateButton: "Sostieni su Buy Me a Coffee",
         donateThanks: "Grazie di essere qui. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Aiuta Vorssaint a continuare a crescere",
         supportIntroMessage: "Vorssaint resta gratuito e locale, senza pubblicità né tracciamento. Se ti è utile, Buy Me a Coffee è l’unico modo per sostenerne economicamente lo sviluppo.",
         supportIntroStarButton: "Dai una stella a Vorssaint su GitHub",
@@ -925,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Sostieni su Buy Me a Coffee",
         supportIntroLaterButton: "Non ora",
         supportIntroDoneButton: "Fatto",
+
+        // MARK: Support — community
         discordIntroTitle: "La community di Vorssaint su Discord è appena nata",
         discordIntroMessage: "La community di Vorssaint è nuova e sta ancora prendendo forma. Entra fin dall’inizio per conoscere altri utenti e contribuire a creare uno spazio accogliente attorno all’app.",
         discordIntroJoinButton: "Entra nella community su Discord",
         communityIntroTitle: "Guarda tutto prima degli altri",
         communityIntroMessage: "Chi mi seguiva già su X ha visto molte novità di questo aggiornamento prima di tutti. Lì pubblico anteprime di ciò che arriverà e mostro come funziona, così conosci già le basi prima ancora dell’uscita dell’aggiornamento. Seguimi e scopri cosa arriverà!",
         communityIntroFollowButton: "Segui @vorssaint su X",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Ora nel catalogo ufficiale di Homebrew",
         homebrewOfficialIntroMessage: "Vorssaint ora può essere installato direttamente dal catalogo ufficiale di Homebrew.",
         homebrewOfficialIntroInstallLabel: "Nuova installazione",
         homebrewOfficialIntroMigrationTitle: "Usavi il vecchio tap?",
         homebrewOfficialIntroMigrationMessage: "Rimuovi una volta il vecchio tap. L’app e le tue impostazioni restano al loro posto.",
         homebrewOfficialIntroCopyButton: "Copia comando",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "Novità di 3.1.4",
         updateShowcaseMessage: "Guarda una breve anteprima dei principali miglioramenti di questo aggiornamento.",
         updateShowcaseUnavailable: "Non è stato possibile caricare il video ora. Puoi continuare comunque.",
         updateShowcaseRestart: "Torna all’inizio",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "Mostra l’icona nella barra dei menu",
         menuBarIconStillHiddenTitle: "L’icona è ancora nascosta",
         menuBarIconStillHiddenBody: "L’icona è stata ricreata, ma macOS non le ha dato un posto visibile. Probabilmente la barra dei menu è senza spazio: rimuovi alcune icone dalla barra (o chiudi le app con menu lunghi) e riprova.",
         menuBarIconManagerHintFormat: "%@ è aperto e potrebbe tenere l’icona nella sua sezione nascosta. Cerca Vorssaint lì, oppure imposta %@ per mostrare sempre Vorssaint.",
         menuBarIconDisallowedBody: "macOS sta tenendo Vorssaint fuori dalla barra dei menu. Apri Impostazioni di Sistema > Barra dei menu, trova Vorssaint nell’elenco delle app e attiva “Consenti nella barra dei menu” (Allow in the Menu Bar). L’icona compare appena l’interruttore è attivo.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "Premi la nuova scorciatoia",
         shortcutReset: "Ripristina",
         shortcutNone: "Nessuna",
@@ -963,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS ha rifiutato questa scorciatoia. Scegline un’altra.",
         shelfShortcutToggle: "Scorciatoia Shelf",
         switcherUsageHintFormat: "Tieni premuto %@ per spostarti; rilascia per attivare la finestra. Maiuscole o ← torna indietro; W chiude la finestra; Q chiude l’app; Esc annulla.",
+
+        // MARK: Media keys
         musicBlockSection: "Tasti multimediali",
         musicBlockTitle: "Impedisci a Musica di aprirsi da sola",
         musicBlockCaption: "Blocca l’apertura dell’app musicale dopo un tasto multimediale rilevato. Richiede l’accesso ad Accessibilità. I comandi delle cuffie senza un tasto rilevato sono consentiti.",
@@ -972,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "Musica e iTunes sono le app bloccate, quindi non possono aprirsi al loro posto. Scegli un’altra app.",
         musicBlockChooseApp: "Scegli app…",
         musicBlockPlayReplacement: "Riproduci dopo aver aperto l’app sostitutiva",
+
+        // MARK: Cleaner
         cleanerName: "Pulizia",
         cleanerIntroTitle: "Pulisci il Mac",
         cleanerIntroCaption: "Cerca residui di app disinstallate, cache, log e il Cestino. Rivedi tutto prima e gli elementi rimossi vanno nel Cestino.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "Analizza",
         cleanerScanning: "Analisi…",
         cleanerCleaning: "Pulizia…",
@@ -993,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "Screenshot che non apri da %d giorni e che hanno ancora il nome e la cartella dati da macOS. Quelli rinominati o spostati non compaiono mai qui.",
         cleanerScreenshotsSettingCaption: "La scansione elenca, non selezionati e con la dimensione totale, gli screenshot che non apri da questo tempo.",
         cleanerScreenshotsAfterFormat: "Dopo %d giorni",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "Niente da pulire. Il tuo Mac è in ordine.",
         cleanerClean: "Pulisci",
         cleanerDoneNote: "Gli elementi sono nel Cestino e possono essere recuperati da lì.",
@@ -1009,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "File lasciati da app disinstallate.",
         cleanerOtherCachesCaption: "Sicuro da eliminare, niente si rompe. Le app possono aprirsi più lente una volta e i contenuti scaricati, come la musica offline, si scaricano di nuovo.",
         cleanerCleanSizeFormat: "Pulisci %@",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "Pulizia automatica",
         cleanerScheduleOff: "Disattivata",
         cleanerScheduleDaily: "Giornaliera",
@@ -1019,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "Prossima pulizia %@.",
         cleanerScheduleRanFormat: "Ultima pulizia automatica %@.",
         cleanerScheduleNotifyToggle: "Avvisa al termine",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Le notifiche di Vorssaint sono disattivate nel sistema.",
         cleanerNotifOpenSettings: "Apri impostazioni notifiche…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "L’app è in esecuzione da una posizione che non consente l’apertura all’accesso. Trascina Vorssaint nella cartella Applicazioni, aprila da lì e riattiva l’opzione.",
         launchAtLoginNeedsApproval: "L’elemento di login è registrato, ma macOS richiede ancora la tua autorizzazione. In Impostazioni di Sistema, consenti a Vorssaint di aprirsi all’accesso e di funzionare in background.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "Rimuovi interruzioni di riga",
         ocrRemoveLineBreaksCaption: "Rimuove le interruzioni di riga, così il testo copiato viene incollato come un unico paragrafo.",
         ocrQRToggle: "Leggi i codici QR",
@@ -1031,6 +1186,8 @@ extension Strings {
         qrResultTitle: "Codice QR",
         qrResultCopy: "Copia",
         qrResultOpen: "Apri link",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "Novità di questo aggiornamento",
         highlightsTitleClipboardRedesign: "Appunti rinnovati",
         highlightsTitleWindowLayout: "Disposizione delle finestre",
@@ -1047,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "Configura",
         highlightsTry: "Prova",
         highlightsSeeAll: "Vedi tutte le modifiche",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "Mostra solo la scrivania attuale",
         switcherCurrentSpaceOnlyCaption: "Mostra le finestre della scrivania attuale. Se la visualizzazione delle finestre a schermo intero è attiva, queste appaiono anche dalle altre scrivanie.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "Il file non esiste più",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "Piccola",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "Suoni di sistema",
         mixerSoundEffectsOutputTooltip: "Scegli dove riprodurre avvisi ed effetti sonori",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "Apri Monitoraggio Attività",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Nascondi l’app con un clic sul Dock",
         dockClickHideCaption: "L’app attiva viene nascosta quando fai clic sulla sua icona nel Dock. Fai di nuovo clic per riportarla in primo piano.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "Misura la memoria come",
         memoryMetricUsed: "Memoria usata",
         memoryMetricApp: "Memoria app",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "Fai clic destro sull’icona della barra dei menu per attivare o disattivare “Mantieni attivo”",
         keepAwakeRightClickToggleCaption: "Sostituisce il menu contestuale del clic destro.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "Regole di pulizia",
         urlCleanerRulesCaption: "Un sito aggiunge questi parametri ai propri link di condivisione per risalire a dove è nato il link. Selezionato, il nome viene rimosso durante la pulizia; deselezionato, resta. I nomi che aggiungi possono essere eliminati.",
         urlCleanerRulesCoverageCaption: "L’elenco copre i diversi percorsi di condivisione di un sito (la pagina web, l’app, una diretta) ed è per questo che è lungo; un link reale ne porta di solito solo da due a quattro.",
@@ -1075,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Disattiva tutte le regole di questo sito",
         urlCleanerRulesRestoreSiteButton: "Attiva tutte le regole di questo sito",
         urlCleanerRemovedFormat: "Rimossi %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "Blocca la ricerca con S",
         switcherSearchPinCaption: "S avvia la ricerca e blocca il selettore aperto: niente più caratteri speciali quando la scorciatoia usa ⌥, e una ricerca che inizia con Q o W non chiude più la finestra né l’app per errore.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "Inverti lo scorrimento verticale",
         invertHorizontalScroll: "Inverti lo scorrimento orizzontale",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "Scorrimento orizzontale tenendo premuto un tasto",
+
+        // MARK: Settings — zoom
         zoomSection: "Zoom",
         zoomControlNote: "Control + scorrimento ingrandisce il contenuto dell’app anziché lo schermo di macOS.",
         pinchZoom: "Zoom con pizzico",
@@ -1088,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "Tieni premuto solo il tasto scelto per scorrere in orizzontale con la rotellina verticale del mouse. Le altre combinazioni di tasti restano invariate.",
         switcherShowShortcutHints: "Mostra suggerimenti scorciatoie",
         switcherShowShortcutHintsCaption: "Mostra le scorciatoie per app e finestre sotto le icone.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ verrà rimosso anche da Homebrew.",
         uninstallerHomebrewCheckFailed: "Impossibile verificare se Homebrew gestisce questa app. Aggiorna per riprovare oppure disinstallala da Homebrew.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "Apri vicino a un bordo dello schermo",
         shelfEdgeCaption: "Trascina un file verso il bordo dello schermo per far intravedere il ripiano. Rilascialo lì, oppure torna indietro e si ritira.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "Il focus segue il mouse",
         focusFollowsMouseCaption: "Mette a fuoco la finestra sotto il puntatore.",
         focusFollowsMouseDelay: "Ritardo al passaggio",
         focusFollowsMouseRaise: "Porta la finestra in primo piano",
         focusFollowsMouseWaitForStop: "Attendi che il puntatore si fermi",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "Finestre ridotte a icona",
         switcherTreatHiddenAppsLikeMinimized: "Tratta le app nascoste come finestre ridotte a icona",
         switcherMinimizedPlacementNormal: "Ordine normale",
@@ -1110,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "Su quale schermo si apre il commutatore quando ne sono collegati più di uno.",
         switcherCurrentDisplayOnly: "Mostra solo lo schermo attuale",
         switcherCurrentDisplayOnlyCaption: "Mostra solo le finestre sullo schermo sotto il puntatore. Se lo schermo non contiene finestre, il commutatore non si apre.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "Reattività",
         smoothScrollCoastLabel: "Inerzia",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "Disattiva l’accelerazione del mouse",
         mouseAccelerationCaption: "Rimuove l’accelerazione del puntatore per i mouse collegati. L’impostazione precedente viene ripristinata quando disattivi l’opzione o chiudi Vorssaint.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "Scorrimento lineare",
         linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
         linearScrollLinesLabel: "Righe per scatto",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "Scorri più velocemente tenendo un tasto",
         scrollSpeedCaption: "Tieni premuto solo il modificatore scelto mentre usi la rotella del mouse per moltiplicare la distanza. Il trackpad non cambia.",
         scrollSpeedMultiplierLabel: "Velocità",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "Svuota alla chiusura",
         shelfClearOnCloseCaption: "Svuota lo scaffale solo quando fai clic sul pulsante di chiusura. Se si nasconde automaticamente o viene ridotto, gli elementi restano.",
         shelfShortcutFinderSelection: "Aggiungi la selezione del Finder con la scorciatoia",
         shelfShortcutFinderSelectionCaption: "Con il Finder in primo piano, la scorciatoia apre il ripiano con i file selezionati già dentro. Senza selezione si apre come sempre.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "Mantieni gli Spazi in ordine fisso",
         spacesOrderCaption: "Impedisce a macOS di riordinare gli Spazi in base all’uso più recente, così restano nell’ordine che hai scelto. L’impostazione precedente torna quando disattivi questa opzione. Il Dock potrebbe riavviarsi una volta per applicare la modifica.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "Esci dalle app",
-        quitAppsCaption: "Elenca le app aperte per uscirne una alla volta, tutte insieme o tutte tranne quella in primo piano. Mostra sempre l’elenco prima di chiudere qualcosa."
+        quitAppsCaption: "Elenca le app aperte per uscirne una alla volta, tutte insieme o tutte tranne quella in primo piano. Mostra sempre l’elenco prima di chiudere qualcosa.",
     )
 }

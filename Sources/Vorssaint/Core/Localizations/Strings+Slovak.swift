@@ -6,6 +6,7 @@ import Foundation
 // Slovenčina — translated and hand-checked, not machine output.
 extension Strings {
     static let sk = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: normálny spánok",
         statusActiveUntil: "Vorssaint: bdie do",
         statusActiveIndefinite: "Vorssaint: bdie natrvalo",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "Zväčšiť",
         menuClose: "Zavrieť",
 
+        // MARK: Durations
         minutes15: "15 minút",
         minutes30: "30 minút",
         hour1: "1 hodina",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "Natrvalo",
         indefinite: "Neobmedzene",
 
+        // MARK: Panel — header & footer
         panelSettings: "Nastavenia",
         panelQuit: "Ukončiť",
         panelHotkeyHint: "Skratka prepína",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "Bdelý režim",
         keepAwakeEndsIn: "Skončí o",
         keepAwakeUntilDisabled: "Aktívny, kým ho nevypnete",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "Pripravené. Prepína sa bez hesla",
         clamshellNeedsPassword: "Raz si vyžiada heslo správcu",
 
+        // MARK: Panel — system monitor
         systemSection: "Systém",
         temperatures: "Teploty",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "Aplikácie s vysokou spotrebou energie",
         energyAppsIdle: "Žiadna výrazná spotreba energie",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "Relácia skončila",
         notifySessionEndedBody: "Čas vypršal. Mac bude opäť normálne zaspávať.",
         notifyBatteryTitle: "Vorssaint je vypnutý",
         notifyBatteryBody: "Slabá batéria. Kvôli úspore sa obnovil normálny spánok.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint potrebuje vaše heslo, aby Mac fungoval so zatvoreným vekom.",
         adminPromptClamshellOff: "Vorssaint potrebuje vaše heslo, aby obnovil normálny spánok Macu.",
         adminPromptRecover: "Vorssaint sa ukončil, kým bol spánok Macu vypnutý. Zadajte heslo na obnovenie normálneho spánku.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint vytvorí obmedzené pravidlo (iba pmset disablesleep), aby sa režim zatvoreného veka prepínal bez hesla. Heslo je potrebné len teraz.",
         adminPromptSudoersRemove: "Vorssaint odstráni pravidlo pre režim zatvoreného veka bez hesla.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Nastavenia Vorssaintu",
         tabGeneral: "Všeobecné",
         tabEnergy: "Energia",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "Veľká",
         previewSizeXLarge: "Extra veľká",
         settingsGroupFeatures: "Funkcie",
+
+        // MARK: Settings — advanced
         advancedResetSection: "Povolenia",
         advancedResetDescription: "Odstráni všetky povolenia, ktoré ste Vorssaintu udelili (Prístupnosť, Nahrávanie obrazovky, Plný prístup k disku a ďalšie), položku po prihlásení aj pravidlo pre zatvorené veko. Hodí sa na čistý začiatok alebo pred odinštalovaním. Aplikácia ostane nainštalovaná.",
         advancedClearButton: "Vymazať všetky povolenia",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "Odinštalovanie sa zastavilo",
         advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora, akceleráciu myši alebo poradie plôch. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
 
+        // MARK: Settings — general
         launchAtLogin: "Spustiť po prihlásení",
         languageLabel: "Jazyk",
         menuBarSection: "Lišta s ponukami",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "Zapnúť skratku pre „Bdelý režim“",
         hotkeyCaption: "Funguje v každej aplikácii, bez ďalších povolení.",
 
+        // MARK: Settings — energy
         sessionSection: "Relácia",
         defaultDurationLabel: "Predvolené trvanie",
         keepAwakeAutoStart: "Zapnúť bdelý režim po otvorení Vorssaintu",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "Úplne stmaviť obrazovku",
         dimScreenOnLidCloseCaption: "Pri zatvorení veka stmaví obrazovku a po otvorení vráti jas.",
 
+        // MARK: Settings — mouse
         scrollSection: "Rolovanie",
         invertMouseScroll: "Obrátiť rolovanie myšou",
         invertMouseScrollCaption: "Obráti smer kolieska myši.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "Plynulé rolovanie",
         smoothScrollCaption: "Zmení každý krok kolieska myši na krátky, jemný pohyb. Trackpadu sa to netýka.",
         smoothScrollStepLabel: "Rýchlosť rolovania",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "Navigácia",
         mouseNavigationEnable: "Používať bočné tlačidlá na Späť a Dopredu",
         mouseNavigationCaption: "Zmení tlačidlá Späť a Dopredu na myši na navigačné príkazy vo Finderi, prehliadačoch a kompatibilných aplikáciách.",
+
+        // MARK: Settings — middle click
         middleClickSection: "Stredné kliknutie na trackpade",
         middleClickEnable: "Kliknutie tromi prstami funguje ako stredné kliknutie",
         middleClickEnableCaption: "Stlačenie trackpadu tromi prstami funguje ako kliknutie kolieskom myši: otvorí odkazy na novej karte, zatvorí karty a urobí všetko ostatné, čo stredné tlačidlo.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 prsty",
         middleClickTapFourFingers: "4 prsty",
         middleClickTapCaption: "Jemné ťuknutie takýmto počtom prstov bez stlačenia tiež vyvolá stredné kliknutie. Posunutie sa nikdy nepočíta. Ak je ťuknutie tromi prstami v macOS priradené k funkcii Vyhľadať, vypnite ho, aby sa nespúšťali obe naraz.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "Rýchly panel",
         quickToolShortcutToggle: "Globálna skratka",
+
+        // MARK: Quick tool — OCR
         ocrName: "Kopírovať text z obrazovky",
         ocrCaption: "Vyberte oblasť obrazovky a rozpoznaný text sa skopíruje, pripravený na vloženie.",
         ocrCopied: "Text skopírovaný",
         ocrNoText: "Nenašiel sa žiadny text",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "Výber farby",
         colorPickerCaption: "Zoberte farbu ľubovoľného pixelu na obrazovke a skopírujte ju vo svojom obľúbenom formáte.",
         colorPickerFormatLabel: "Formát kopírovania",
         colorPickerBareHexToggle: "Kopírovať bez predpony #",
         colorPickerPickNow: "Vybrať farbu",
+
+        // MARK: Quick tool — microphone
         micMuteName: "Stlmiť mikrofón",
         micUnmuteName: "Zrušiť stlmenie mikrofónu",
         micMuteCaption: "Používa ovládanie stlmenia alebo vstupnej hlasitosti každého mikrofónu. Siri a niektoré aplikácie vás môžu naďalej počuť. Táto funkcia neblokuje všetok prístup k mikrofónu.",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "Niektoré mikrofóny sú stále stlmené",
         micMuteMenuBarToggle: "Zobraziť v lište s ponukami, keď je funkcia zapnutá",
         micMuteMenuBarCaption: "Červený mikrofón v lište s ponukami označuje zapnutú funkciu. Nezaručuje, že všetky aplikácie prestali zachytávať zvuk.",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "Vložiť ako čistý text",
         pastePlainCaption: "Vloží skopírovaný obsah bez farieb, písiem a formátovania. Originál ostáva v schránke.",
+
+        // MARK: Quick tool — launcher
         launcherName: "Rýchly panel",
         launcherCaption: "Plávajúci panel s vašimi obľúbenými nástrojmi, vyvolaný skratkou odkiaľkoľvek.",
         launcherOpenNow: "Otvoriť rýchly panel",
@@ -215,11 +245,15 @@ extension Strings {
         launcherEmptyState: "Všetky nástroje sú skryté. Tlačidlom na úpravy ich pridáte späť.",
         launcherAddSection: "Pridať späť",
         launcherKeysHint: "Šípky navigujú, Enter otvára, 1 až 9 otvárajú priamo",
+
+        // MARK: Settings — switcher
         switcherSection: "Prepínač okien",
         switcherEnable: "Používať prepínač Vorssaint",
         switcherEnableCaption: "Prepínajte medzi aplikáciami a oknami vrátane minimalizovaných okien a viacerých okien tej istej aplikácie.",
         switcherUsageHint: "Podržte skratku na prechádzanie; pustením okno aktivujete. Shift alebo ← ide späť; W zatvorí okno; Q ukončí aplikáciu; Esc zruší.",
         switcherNoWindows: "Žiadne otvorené okná",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "Zobraziť %@ s veľkými ikonami",
         switcherIconRowModeCaption: "Zobrazí jednu ikonu na aplikáciu a nad ňou náhľady jej okien.",
         switcherSimpleModeCaption: "Zobrazí ikony aplikácií a názvy okien, bez náhľadov a bez snímania obrazovky prepínačom.",
@@ -239,6 +273,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "Posun ukazovateľa po aplikáciách a oknách nechá zvýraznenie na mieste. Kliknutie stále otvorí položku.",
         switcherMergeTabs: "Zobraziť jednu položku na aplikáciu",
         switcherMergeTabsCaption: "Zlúči všetky okná aplikácie do jednej položky v prepínači namiesto jednej položky na každé okno.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "Aplikácie bez otvoreného okna",
         switcherWindowlessAppsCaption: "Určuje, ktoré spustené aplikácie úplne bez okna sa zobrazia v prepínači.",
         switcherWindowlessAppsOff: "Nezobrazovať",
@@ -247,6 +283,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "Kým je voľba „%@“ zapnutá, všetky spustené aplikácie ostanú dostupné. Ak chcete vybrať, vypnite ju.",
         switcherNoOpenWindow: "Žiadne otvorené okno",
         switcherOtherDesktop: "Iná plocha",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Náhľady okien z Docku",
         dockPreviewEnableCaption: "Podržte kurzor nad otvorenou aplikáciou v Docku, uvidíte jej okná a kliknutím vyberiete to, ktoré chcete.",
@@ -280,6 +318,7 @@ extension Strings {
         dockPreviewPreviousWindow: "Predchádzajúce okno",
         dockPreviewNextWindow: "Ďalšie okno",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "Vystrihnúť a vložiť",
         cutPasteEnable: "Vystrihovať a vkladať súbory vo Finderi",
         cutPasteEnableCaption: "Pomocou ⌘X vystrihnete a pomocou ⌘V presuniete súbory a priečinky vo Finderi.",
@@ -301,6 +340,7 @@ extension Strings {
         cutMovingTitle: "Presúva sa…",
         cutMovingCountFormat: "%d z %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "Ukončiť po zatvorení",
         autoQuitEnable: "Ukončiť aplikáciu po zatvorení jej posledného okna",
         autoQuitEnableCaption: "Zatvorením posledného okna aplikácie sa aplikácia aj ukončí.",
@@ -315,6 +355,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "Žiadne výnimky",
         autoQuitAddApp: "Pridať aplikáciu…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "Odinštalátor",
         uninstallerEnableCaption: "Odstráni aplikáciu spolu s cache, predvoľbami, protokolmi a zvyškami, ktoré po sebe zanechá.",
         uninstallerStep1: "Potiahnite aplikáciu do Nastavení alebo ju vyberte zo zoznamu.",
@@ -372,6 +413,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@ nemožno odinštalovať, pretože sa nedá určiť, o akú aplikáciu ide.",
         uninstallerPickerHiddenNote: "Aplikácie, ktoré sú súčasťou macOS alebo pochádzajú od Apple, sa tu nezobrazujú.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "Vyčistiť URL",
         urlCleanerEnable: "Čistiť URL pri kopírovaní",
         urlCleanerEnableCaption: "Odstráni sledovacie parametre z odkazu hneď, ako sa dostane do schránky.",
@@ -388,6 +430,7 @@ extension Strings {
         urlCleanerCopied: "Skopírované.",
         urlCleanerLocalNote: "Lokálne. Bez siete.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Hľadajte, inštalujte a odstraňujte formulae a casks.",
         homebrewMissingTitle: "Homebrew sa nenašiel",
@@ -404,6 +447,8 @@ extension Strings {
         homebrewTrustTitle: "Tap ešte nie je dôveryhodný",
         homebrewTrustCaption: "Homebrew teraz pred použitím tapov tretích strán žiada vaše potvrdenie. Ak chcete pokračovať, dôverujte %@.",
         homebrewTrustButton: "Dôverovať a pokračovať",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "Hľadať balíky",
         homebrewKeyboardHint: "Medzerník alebo Return zatvorí panel macOS. Použite tlačidlo hľadania.",
         homebrewSearchButton: "Hľadať",
@@ -419,6 +464,8 @@ extension Strings {
         homebrewOrphansNote: "Nainštalované ako závislosti, ale žiadny nainštalovaný balík ich už nepotrebuje.",
         homebrewDependencyUpdatesFormat: "Aktualizácie závislostí: %d",
         homebrewNoSelection: "Vyberte nainštalovaný balík alebo vyhľadajte nový.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "Detaily balíka",
         homebrewInstall: "Inštalovať",
         homebrewUninstall: "Odinštalovať",
@@ -442,6 +489,8 @@ extension Strings {
         homebrewUpdates: "Aktualizácie",
         homebrewUpdateAvailableBadge: "Dostupná aktualizácia",
         homebrewLatestVersion: "Najnovšia",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Nainštalovať cez Homebrew?",
         homebrewConfirmInstallBodyFormat: "Homebrew stiahne a nainštaluje %@. Môžu sa nainštalovať aj závislosti.",
         homebrewConfirmUninstallTitle: "Odinštalovať cez Homebrew?",
@@ -455,6 +504,8 @@ extension Strings {
         homebrewTerminalFallback: "Táto operácia potrebuje váš terminál, aby si vyžiadal heslo správcu. Vorssaint heslá nezachytáva.",
         homebrewLoading: "Načítava sa…",
         homebrewSearchEmpty: "Žiadne výsledky",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "Inštaluje sa %@",
         homebrewOperationUninstallFormat: "Odinštaluje sa %@",
         homebrewOperationUpgradeFormat: "Aktualizuje sa %@",
@@ -481,6 +532,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "Technické detaily",
         homebrewOperationProgressUnknown: "Homebrew zatiaľ neoznámil percentá.",
 
+        // MARK: Feature — local media tools
         mediaName: "Médiá",
         mediaEnableCaption: "Komprimujte videá, konvertujte a upravujte obrázky, vytvárajte GIF a extrahujte text lokálne.",
         mediaLocalNote: "Lokálne. Bez siete.",
@@ -488,11 +540,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "Obrázok",
         mediaToolText: "Text",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "Vybrať súbor",
         mediaDropHint: "Potiahnite sem súbor alebo ho kliknutím vyberte.",
         mediaOutput: "Výstup",
         mediaOutputAutomatic: "Automaticky",
         mediaChooseOutput: "Cieľ",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "Komprimovať video",
         mediaStartGIF: "Vytvoriť GIF",
         mediaStartImage: "Spracovať obrázok",
@@ -522,11 +578,15 @@ extension Strings {
         mediaFormat: "Formát",
         mediaStripMetadata: "Odstrániť metadáta",
         mediaLoopGIF: "Opakovať GIF",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "Presné",
         mediaOCRFast: "Rýchle",
         mediaLanguageCorrection: "Jazyková korekcia",
         mediaTextOutputNote: "Extrahovaný text možno skopírovať a uložiť ako TXT.",
+
+        // MARK: Media — results & errors
         mediaRunning: "Spracúva sa",
         mediaCompleted: "Hotovo",
         mediaCancelled: "Zrušené.",
@@ -542,6 +602,7 @@ extension Strings {
         mediaErrorSameOutput: "Vyberte cieľ odlišný od pôvodného súboru.",
         mediaErrorUnsupported: "Formát, ktorý macOS nepodporuje.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "Polica",
         shelfEnable: "Dočasné miesto na ťahanie súborov",
         shelfEnableCaption: "Plávajúce miesto, kam zhromaždíte súbory, obrázky a text a neskôr ich potiahnete kamkoľvek.",
@@ -570,6 +631,8 @@ extension Strings {
         shelfExclusionsCaption: "Zatrasenie a zóna na pustenie v lište s ponukami ostanú vypnuté pri ťahaní spustenom v týchto aplikáciách. Skratka a Otvoriť teraz fungujú ďalej.",
         shelfPin: "Nechať otvorené",
         shelfUnpin: "Povoliť zatvorenie po použití",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "Extra jas",
         extraBrightnessCaption: "Využíva HDR rezervu displeja, aby prekročil maximálny jas. Spotrebuje viac batérie a Mac sa môže zahrievať.",
         extraBrightnessLevelLabel: "Intenzita",
@@ -578,6 +641,8 @@ extension Strings {
         shelfOpenNow: "Otvoriť teraz",
         shelfNoPermission: "Nevyžaduje žiadne povolenia.",
         shelfMenuItem: "Otvoriť policu",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "Polica",
         shelfEmpty: "Potiahnite sem položky",
         shelfClearAll: "Vymazať všetko",
@@ -585,6 +650,8 @@ extension Strings {
         shelfSelectedFormat: "Vybrané: %d",
         shelfHint: "Kliknutím vyberiete. Potiahnutím von položku použijete, pravým kliknutím získate ďalšie akcie.",
         shelfItemImage: "Obrázok",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d položiek",
         shelfTooltipItemsFew: "%d položky",
         shelfTooltipImageSingular: "%d obrázok",
@@ -599,19 +666,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d odkaz",
         shelfTooltipLinkFew: "%d odkazy",
         shelfTooltipLinkPlural: "%d odkazov",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "Otvoriť",
         shelfActionOpenWith: "Otvoriť v aplikácii",
         shelfActionShare: "Zdieľať",
         shelfActionPin: "Pripnúť",
         shelfActionUnpin: "Odopnúť",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "Meria sa…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "Mixér hlasitosti",
         mixerEmpty: "Aplikácie, ktoré používajú zvuk, sa objavia tu",
         mixerUnavailable: "Dostupné na macOS 14.4 a novšom",
         mixerPermissionBody: "Ak chcete upravovať hlasitosť jednotlivých aplikácií, povoľte „Nahrávanie obrazovky a systémového audia“ v Systémových nastaveniach. Zvuk sa nikdy nenahráva.",
         mixerResetTooltip: "Obnoviť na 100 %",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "Predvolený",
         mixerOutputCurrent: "aktuálny",
         mixerOutputUnavailable: "Výstup nie je dostupný",
@@ -623,27 +696,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "Nenašli sa žiadne výstupy",
         mixerSystemOutputTooltip: "Vybrať systémový výstup",
         mixerSystemOutputErrorFormat: "Nepodarilo sa prepnúť: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "Znížiť hlasitosť pri odpojení slúchadiel",
         mixerLowerOnHeadphonesDisconnectCaption: "Upraví výstup, keď sa odpoja káblové alebo Bluetooth slúchadlá.",
         mixerHeadphonesDisconnectVolume: "Hlasitosť po odpojení",
         preciseVolumeRollerEnable: "Používať jemnejšie kroky hlasitosti",
         preciseVolumeRollerCaption: "Zmení kolieska a klávesy hlasitosti na menšie kroky systémovej hlasitosti.",
         preciseVolumeRollerTapFailed: "Klávesy hlasitosti sa nepodarilo sledovať.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "Prepínač výstupov",
         soundOutputSwitcherEnable: "Prepínať výstupy skratkou",
         soundOutputSwitcherCaption: "Vyberte výstupy a skratkou prejdete na ďalší dostupný.",
         soundOutputSwitcherDevices: "Výstupy v cykle",
         soundOutputSwitcherNoAvailableSelection: "Vyberte aspoň jeden dostupný výstup.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "Mikrofón",
         mixerInputNoDevices: "Nenašli sa žiadne mikrofóny",
         mixerInputUnavailable: "Mikrofón nie je dostupný",
         mixerInputFallback: "Kým sa tento mikrofón nevráti, používa sa predvolený.",
         mixerInputTooltip: "Vybrať mikrofón",
         mixerInputErrorFormat: "Nepodarilo sa prepnúť: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "Aplikácie v zozname",
         mixerAllShown: "Všetky",
         mixerHiddenCountLabel: "Skryté",
         mixerHideFromList: "Skryť zo zoznamu",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "Priorita zvukových zariadení",
         audioPriorityOutputEnable: "Automaticky prepnúť na výstup s najvyššou prioritou",
         audioPriorityInputEnable: "Automaticky prepnúť na mikrofón s najvyššou prioritou",
@@ -655,6 +738,7 @@ extension Strings {
         audioPriorityCurrent: "Používa sa",
         audioPriorityCaption: "Zariadenia sa vyberajú podľa poradia priority. Keď sa pripojí zariadenie s vyššou prioritou, začne sa používať. Keď sa aktívne zariadenie odpojí, nahradí ho ďalšie dostupné.",
 
+        // MARK: Settings — updates
         updatesSection: "Aktualizácie",
         autoCheckToggle: "Automaticky kontrolovať aktualizácie",
         includeBetaUpdatesToggle: "Dostávať beta aktualizácie",
@@ -675,6 +759,7 @@ extension Strings {
         updateNeedsApplicationsBody: "Aplikácia beží z miesta, ktoré sa nedá aktualizovať, napríklad z obrazu disku alebo dočasného systémového umiestnenia. Potiahnite Vorssaint do priečinka Aplikácie, otvorte ho odtiaľ a skúste to znova.",
         menuCheckUpdates: "Skontrolovať aktualizácie…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "Vyžaduje sa povolenie",
         permissionAccessibility: "Prístupnosť",
         permissionScreenRecording: "Nahrávanie obrazovky",
@@ -683,21 +768,27 @@ extension Strings {
         permissionOpenSettings: "Otvoriť Systémové nastavenia…",
         permissionRequest: "Udeliť prístup",
         permissionRestartNote: "macOS môže po udelení požiadať o opätovné otvorenie aplikácie.",
+
+        // MARK: Secure input
         secureInputTitle: "Zabezpečený vstup je zapnutý",
         secureInputHeldFormat: "Keď sa zapol, aktívnou aplikáciou bola %@ a možno ho drží, takže Vorssaint nemôže písať za vás. Zavrite jej pole s heslom alebo ju ukončite, aby ho uvoľnila.",
         secureInputUnattributed: "Nedá sa určiť, ktorá aplikácia ho drží, takže Vorssaint nemôže písať za vás. Zavrite otvorené pole s heslom alebo sa odhláste a znova prihláste, aby sa uvoľnil.",
         secureInputUnidentified: "Aplikáciu, ktorá ho drží, sa nepodarilo identifikovať, takže Vorssaint nemôže písať za vás.",
         secureInputRevealFormat: "Zobraziť %@",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "Keď sa zapol, aktívnou aplikáciou bola %@ a možno ho drží. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS. Zavrite jej pole s heslom alebo ju ukončite, aby ho uvoľnila.",
         secureInputSwitcherUnattributed: "Nedá sa určiť, ktorá aplikácia ho drží. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS. Zavrite otvorené pole s heslom alebo sa odhláste a znova prihláste, aby sa uvoľnil.",
         secureInputSwitcherUnidentified: "Aplikáciu, ktorá ho drží, sa nepodarilo identifikovať. Kým je zapnutý, macOS skrýva stlačené klávesy pred prepínačom a ⌘Tab namiesto neho otvára prepínač macOS.",
 
+        // MARK: About
         aboutDescription: "Centrum nástrojov pre váš Mac.\nEnergia, monitor systému, rolovanie a prepínač okien priamo v lište s ponukami.",
         versionPrefix: "Verzia",
         reviewIntro: "Znova zobraziť úvod",
         reviewHighlights: "Znova zobraziť novinky",
         viewOnGitHub: "Zobraziť na GitHube",
 
+        // MARK: Onboarding
         obContinue: "Pokračovať",
         obBack: "Späť",
         obSkipStep: "Preskočiť tento krok",
@@ -711,23 +802,33 @@ extension Strings {
         obWelcomeBullet3Title: "Myš a okná po vašom",
         obWelcomeBullet3Body: "Obrátené rolovanie myšou a prepínač okien s náhľadmi.",
         obLanguageLabel: "Jazyk",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "Prístupnosť",
         obStepAccessibilityBody: "Potrebná na obrátenie rolovania myšou a na to, aby prepínač okien reagoval na klávesnicu.",
         obAccessibilityWhy: "Aplikácia sleduje len koliesko myši a skratku prepínača. Nič sa nenahráva ani nikam neodosiela.",
         obStepRecordingTitle: "Nahrávanie obrazovky",
         obStepRecordingBody: "Umožní prepínaču zobraziť skutočné náhľady okien namiesto samotných ikon.",
         obRecordingWhy: "Náhľady vznikajú priebežne, ostávajú v pamäti a nikdy neopustia váš Mac. Bez tohto povolenia prepínač funguje s ikonami.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "Monitor systému",
         obStepMonitorBody: "Panel zobrazuje teploty CPU, GPU a batérie, využitie hardvéru a zaťaženie pamäte.",
         obMonitorNoPermission: "Nevyžaduje žiadne povolenie. Senzory sa čítajú priamo zo systému.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "Voliteľné funkcie",
         obStepOptionalBody: "Zapnite si to, čo chcete používať teraz. Všetko sa dá neskôr zmeniť v Nastaveniach.",
         obStepStatusTitle: "Kontrola",
         obStepStatusBody: "Uistite sa, že je všetko pripravené pre funkcie, ktoré chcete.",
         obStatusRecheck: "Skontrolovať znova",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "Hotovo!",
         obStepDoneBody: "Vorssaint sa už stará o váš Mac.",
         obDoneHint: "Hľadajte čiernu dieru v lište s ponukami, vpravo hore na obrazovke.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "Novinky v tejto verzii",
         obWhatsNewFallback: "Táto aktualizácia obsahuje najnovšie opravy a vylepšenia.",
         obLanguageUpdateTitle: "Teraz aj vo vašom jazyku",
@@ -736,7 +837,10 @@ extension Strings {
         obPurposeBody: "Vyberte si hotové nastavenie alebo presne to, čo chcete používať.",
         obPurposeSkip: "Funkcie môžete neskôr pridať alebo odstrániť v Nastaveniach.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "Monitor",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "V lište s ponukami",
         monitorMenuBarPreview: "Náhľad lišty s ponukami",
         monitorMenuBarCaption: "Vyberte, čo sa zobrazí vedľa ikony v lište s ponukami.",
@@ -753,6 +857,8 @@ extension Strings {
         monitorInterval1: "1 sekunda",
         monitorInterval2: "2 sekundy",
         monitorInterval5: "5 sekúnd",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "V paneli",
         panelNavigationMode: "Prechádzať panel po sekciách",
         panelNavigationCaption: "Zobrazí jednu sekciu naraz. Vyberte Zoznam, ak chcete vidieť všetko v jednom súvislom rolovaní.",
@@ -761,6 +867,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Môžete naraziť na chyby.",
 
+        // MARK: Panel — network
         networkSection: "Sieť",
         networkIPAddresses: "IP adresy",
         networkLocalIP: "Lokálna IPv4",
@@ -771,6 +878,7 @@ extension Strings {
         networkApps: "Aplikácie používajúce sieť",
         networkAppsIdle: "Sieť teraz nepoužíva žiadna aplikácia",
 
+        // MARK: Panel — disk
         diskSection: "Disky",
         diskUsed: "využité",
         diskFree: "voľné",
@@ -806,6 +914,7 @@ extension Strings {
         diskStorageSettings: "Úložisko",
         diskNoDisks: "Nenašli sa žiadne pripojené disky.",
 
+        // MARK: Panel — power
         powerSection: "Napájanie",
         powerSystem: "Systém",
         powerAdapter: "Adaptér",
@@ -823,6 +932,7 @@ extension Strings {
         peripheralBatteryNoDevices: "Nenašli sa žiadne zariadenia",
         monitorGraphsSection: "Grafy",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "Dostupná aktualizácia",
         updateBannerAction: "Aktualizovať",
         obStepMenuBarTitle: "Metriky v lište s ponukami",
@@ -844,6 +954,8 @@ extension Strings {
         memoryStyleDot: "Bodka",
         memoryStylePercent: "%",
         memoryStyleBoth: "Oboje",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "Beží",
         batteryCharge: "Nabitie",
         powerHealth: "Kondícia batérie",
@@ -854,6 +966,7 @@ extension Strings {
         speedTestTesting: "Testuje sa…",
         speedTestFailed: "Test zlyhal",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "Zobraziť v paneli",
         disclosureExpanded: "Rozbalené",
         disclosureCollapsed: "Zbalené",
@@ -871,21 +984,30 @@ extension Strings {
         monitorItemDiskTools: "Nástroje",
         monitorPanelConfigHint: "Otvorením bloku vyberiete, čo sa v ňom zobrazí.",
         monitorOrderHint: "Potiahnutím zmeníte poradie sekcií panela a okom každú z nich zobrazíte alebo skryjete.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "Čo je v paneli",
         obStepPanelBody: "Otvorte každý blok a vyberte presne to, čo sa zobrazí po kliknutí na ikonu.",
         obStepPanelNavigationTitle: "Panel po sekciách",
         obStepPanelNavigationBody: "Panel teraz vie zobraziť jednu sekciu naraz. Medzi Sekciami a Zoznamom prepnete v Nastaveniach.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "Režim čistenia",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "Nástroje",
         quickControlsSection: "Ovládanie",
         panelCategoryWindows: "Okná",
         panelCategoryInput: "Myš a klávesnica",
         panelCategoryFiles: "Súbory",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "Maximalizovať okná",
         windowMaximizeCaption: "Zelené tlačidlo maximalizuje okno bez vytvorenia ďalšej plochy.",
         windowMaximizeActiveNow: "Prevzatie zeleného tlačidla je aktívne",
         windowMaximizeNeedsAccessibility: "Na fungovanie potrebuje Prístupnosť.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "Debounce",
         keyDebounceEnable: "Filtrovať duplicitné stlačenia",
         keyDebounceCaption: "Odfiltruje veľmi rýchle duplicitné stlačenia klávesov.",
@@ -898,6 +1020,8 @@ extension Strings {
         keyDebounceAddKey: "Pridať kláves",
         keyDebounceNoOverrides: "Žiadne konkrétne klávesy nie sú nastavené.",
         keyDebounceRemoveKey: "Odstrániť kláves",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "Uzamkne klávesnicu, aby ste ju mohli bezpečne vyčistiť.",
         cleaningOverlayTitle: "Klávesnica je uzamknutá na čistenie",
         cleaningOverlaySubtitle: "Odomknete piatimi stlačeniami Escape",
@@ -909,14 +1033,19 @@ extension Strings {
         cleaningNeedsAxTitle: "Potrebná je Prístupnosť",
         cleaningNeedsAxBody: "Na bezpečné uzamknutie klávesnice potrebuje Vorssaint povolenie Prístupnosť. Udeľte ho v Systémových nastaveniach a skúste to znova.",
 
+        // MARK: Support / donate
         tabSupport: "Podpora",
         shortcutsPageCaption: "Upravte všetky globálne skratky funkcií nainštalovaných na tomto Macu. Neaktívne skratky ostávajú uložené, ale nespúšťajú sa.",
         shortcutsPageTitle: "Klávesové skratky",
         settingsSearchPlaceholder: "Hľadať v nastaveniach",
+
+        // MARK: Support — donations
         donateHeading: "Pomôžte Vorssaintu rásť",
         donateMessage: "Vorssaint zostáva zadarmo a funguje lokálne, bez reklám či sledovania. Ak vám pomáha, jeho vývoj môžete finančne podporiť iba cez Buy Me a Coffee.",
         donateButton: "Podporiť cez Buy Me a Coffee",
         donateThanks: "Ďakujem, že ste tu. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Pomôžte Vorssaintu rásť",
         supportIntroMessage: "Vorssaint zostáva zadarmo a funguje lokálne, bez reklám či sledovania. Ak vám pomáha, jeho vývoj môžete finančne podporiť iba cez Buy Me a Coffee.",
         supportIntroStarButton: "Dajte Vorssaintu hviezdu na GitHube",
@@ -925,27 +1054,37 @@ extension Strings {
         supportIntroCoffeeButton: "Podporiť cez Buy Me a Coffee",
         supportIntroLaterButton: "Teraz nie",
         supportIntroDoneButton: "Hotovo",
+
+        // MARK: Support — community
         discordIntroTitle: "Discord komunita Vorssaintu sa práve rozbieha",
         discordIntroMessage: "Komunita Vorssaintu je nová a stále sa buduje. Pridajte sa hneď na začiatku, spoznajte ďalších používateľov a pomôžte vytvoriť priateľský priestor okolo aplikácie.",
         discordIntroJoinButton: "Pridať sa do komunity na Discorde",
         communityIntroTitle: "Uvidíte to skôr ako ostatní",
         communityIntroMessage: "Tí, čo ma už sledujú na X, videli viaceré zmeny z tejto aktualizácie skôr ako ktokoľvek iný. Zverejňujem ukážky toho, čo prichádza, a ukazujem, ako to funguje, takže základy poznáte ešte pred vydaním aktualizácie. Sledujte ma a uvidíte, čo príde ďalej!",
         communityIntroFollowButton: "Sledovať @vorssaint na X",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Teraz v oficiálnom katalógu Homebrew",
         homebrewOfficialIntroMessage: "Vorssaint sa teraz dá nainštalovať priamo z oficiálneho katalógu Homebrew.",
         homebrewOfficialIntroInstallLabel: "Nová inštalácia",
         homebrewOfficialIntroMigrationTitle: "Používali ste starý tap?",
         homebrewOfficialIntroMigrationMessage: "Stačí tap raz odstrániť. Aplikácia aj vaše nastavenia ostanú na mieste.",
         homebrewOfficialIntroCopyButton: "Kopírovať príkaz",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "Novinky v 3.1.4",
         updateShowcaseMessage: "Pozrite si v rýchlosti hlavné vylepšenia tejto aktualizácie.",
         updateShowcaseUnavailable: "Video sa teraz nepodarilo načítať. Pokračovať môžete aj tak.",
         updateShowcaseRestart: "Prehrať znova",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "Zobraziť ikonu v lište s ponukami",
         menuBarIconStillHiddenTitle: "Ikona je stále skrytá",
         menuBarIconStillHiddenBody: "Ikona sa znova vytvorila, ale macOS jej nedal viditeľné miesto. Lišta s ponukami je pravdepodobne plná: odstráňte niektoré ikony (alebo zatvorte aplikácie s dlhými ponukami) a skúste to znova.",
         menuBarIconManagerHintFormat: "%@ je spustený a môže držať ikonu vo svojej skrytej časti. Pohľadajte tam Vorssaint alebo v %@ nastavte, aby sa Vorssaint zobrazoval vždy.",
         menuBarIconDisallowedBody: "macOS nepúšťa Vorssaint do lišty s ponukami. Otvorte Systémové nastavenia › Lišta, nájdite Vorssaint v zozname aplikácií a zapnite „Povoliť položky v lište“. Ikona sa objaví hneď po zapnutí.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "Stlačte novú skratku",
         shortcutReset: "Obnoviť",
         shortcutNone: "Žiadna",
@@ -963,6 +1102,8 @@ extension Strings {
         shortcutUnavailable: "macOS túto skratku odmietol. Vyberte inú.",
         shelfShortcutToggle: "Skratka police",
         switcherUsageHintFormat: "Podržaním %@ prechádzate oknami; pustením okno aktivujete. Shift alebo ← ide späť; W zatvorí okno; Q ukončí aplikáciu; Esc zruší.",
+
+        // MARK: Media keys
         musicBlockSection: "Multimediálne klávesy",
         musicBlockTitle: "Zabrániť samovoľnému otváraniu Hudby",
         musicBlockCaption: "Zablokuje otvorenie hudobnej aplikácie po rozpoznanom multimediálnom klávese. Vyžaduje prístup Prístupnosť. Príkazy zo slúchadiel bez rozpoznaného klávesu ostávajú nedotknuté.",
@@ -972,9 +1113,13 @@ extension Strings {
         musicBlockReplacementBlocked: "Hudba a iTunes sú aplikácie, ktoré sa blokujú, preto sa nemôžu otvoriť namiesto nich. Vyberte inú aplikáciu.",
         musicBlockChooseApp: "Vybrať aplikáciu…",
         musicBlockPlayReplacement: "Prehrať po otvorení náhradnej aplikácie",
+
+        // MARK: Cleaner
         cleanerName: "Čistenie",
         cleanerIntroTitle: "Vyčistite si Mac",
         cleanerIntroCaption: "Vyhľadá zvyšky po odinštalovaných aplikáciách, cache, protokoly a Kôš. Najprv si všetko prezriete a odstránené položky idú do Koša.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "Prehľadať",
         cleanerScanning: "Prehľadáva sa…",
         cleanerCleaning: "Čistí sa…",
@@ -993,6 +1138,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "Snímky obrazovky, ktoré ste neotvorili %d dní a ktoré majú stále názov a priečinok od macOS. Premenované alebo presunuté sa tu nikdy nezobrazia.",
         cleanerScreenshotsSettingCaption: "Kontrola zobrazí neoznačené snímky obrazovky, ktoré ste tak dlho neotvorili, aj s ich celkovou veľkosťou.",
         cleanerScreenshotsAfterFormat: "Po %d dňoch",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "Nie je čo čistiť. Váš Mac je uprataný.",
         cleanerClean: "Vyčistiť",
         cleanerDoneNote: "Položky putovali do Koša a dajú sa odtiaľ obnoviť.",
@@ -1009,6 +1156,8 @@ extension Strings {
         cleanerLeftoversCaption: "Súbory, ktoré po sebe nechali odinštalované aplikácie.",
         cleanerOtherCachesCaption: "Bezpečne sa dajú odstrániť, nič sa nepokazí. Aplikácie sa raz otvoria pomalšie a stiahnutý obsah, napríklad hudba offline, sa stiahne znova.",
         cleanerCleanSizeFormat: "Vyčistiť %@",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "Automatické čistenie",
         cleanerScheduleOff: "Vypnuté",
         cleanerScheduleDaily: "Denne",
@@ -1019,10 +1168,16 @@ extension Strings {
         cleanerScheduleNextFormat: "Ďalšie čistenie %@.",
         cleanerScheduleRanFormat: "Posledné automatické čistenie %@.",
         cleanerScheduleNotifyToggle: "Upozorniť po dokončení",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Hlásenia Vorssaintu sú v systéme vypnuté.",
         cleanerNotifOpenSettings: "Otvoriť nastavenia hlásení…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "Aplikácia beží z miesta, z ktorého sa nedá otvárať po prihlásení. Potiahnite Vorssaint do priečinka Aplikácie, otvorte ho odtiaľ a znova to zapnite.",
         launchAtLoginNeedsApproval: "Položka po prihlásení je zaregistrovaná, ale macOS ešte vyžaduje vaše povolenie. V Systémových nastaveniach povoľte, aby sa Vorssaint otváral po prihlásení a bežal na pozadí.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "Odstrániť zalomenia riadkov",
         ocrRemoveLineBreaksCaption: "Odstráni zalomenia riadkov, takže skopírovaný text sa vloží ako jeden odsek.",
         ocrQRToggle: "Čítať QR kódy",
@@ -1031,6 +1186,8 @@ extension Strings {
         qrResultTitle: "QR kód",
         qrResultCopy: "Kopírovať",
         qrResultOpen: "Otvoriť odkaz",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "Novinky v tejto aktualizácii",
         highlightsTitleClipboardRedesign: "Prepracovaná schránka",
         highlightsTitleWindowLayout: "Rozloženie okien",
@@ -1047,20 +1204,38 @@ extension Strings {
         highlightsConfigure: "Nastaviť",
         highlightsTry: "Vyskúšať",
         highlightsSeeAll: "Zobraziť všetky zmeny",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "Zobraziť len aktuálnu plochu",
         switcherCurrentSpaceOnlyCaption: "Zobrazuje okná aktuálnej plochy. Ak je zapnuté zobrazovanie okien na celej obrazovke, zobrazujú sa aj z ostatných plôch.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "Súbor už neexistuje",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "Malá",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "Systémové zvuky",
         mixerSoundEffectsOutputTooltip: "Vyberte, kde sa prehrávajú výstrahy a zvukové efekty",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "Otvoriť Monitor aktivity",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Kliknutím na ikonu v Docku skryť aplikáciu",
         dockClickHideCaption: "Aktívna aplikácia sa skryje, keď kliknete na jej ikonu v Docku. Ďalším kliknutím ju vrátite späť.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "Merať pamäť ako",
         memoryMetricUsed: "Využitá pamäť",
         memoryMetricApp: "Pamäť aplikácií",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "Pravým kliknutím na ikonu v lište prepínať bdelý režim",
         keepAwakeRightClickToggleCaption: "Nahradí kontextovú ponuku po pravom kliknutí.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "Pravidlá čistenia",
         urlCleanerRulesCaption: "Stránka pripája tieto parametre k vlastným odkazom na zdieľanie, aby sledovala, odkiaľ odkaz prišiel. Keď je názov zapnutý, pri čistení odkazu sa odstráni; keď je vypnutý, ostane. Názvy, ktoré pridáte, sa dajú zmazať.",
         urlCleanerRulesCoverageCaption: "Zoznam pokrýva rôzne cesty zdieľania jednej stránky (webová stránka, aplikácia, živá miestnosť), preto je taký dlhý; skutočný odkaz ich zvyčajne nesie len dva až štyri.",
@@ -1075,11 +1250,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Vypnúť všetky pravidlá pre túto stránku",
         urlCleanerRulesRestoreSiteButton: "Zapnúť všetky pravidlá pre túto stránku",
         urlCleanerRemovedFormat: "Odstránené: %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "Pripnúť hľadanie klávesom S",
         switcherSearchPinCaption: "S spustí hľadanie a pripne prepínač otvorený, takže písanie už nevytvára špeciálne znaky, keď vaša skratka používa ⌥, a hľadanie začínajúce na Q alebo W už omylom nezatvorí okno ani neukončí aplikáciu.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "Obrátiť zvislé rolovanie",
         invertHorizontalScroll: "Obrátiť vodorovné rolovanie",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "Rolovať do strán pri podržaní klávesu",
+
+        // MARK: Settings — zoom
         zoomSection: "Priblíženie",
         zoomControlNote: "Control + posúvanie zväčšuje obsah aplikácie namiesto obrazovky macOS.",
         pinchZoom: "Priblíženie stiahnutím",
@@ -1088,15 +1271,23 @@ extension Strings {
         scrollHorizontalCaption: "Podržaním samotného zvoleného modifikátora budete zvislým kolieskom myši rolovať vodorovne. Ostatné kombinácie klávesov ostávajú nezmenené.",
         switcherShowShortcutHints: "Zobraziť nápovedu ku skratkám",
         switcherShowShortcutHintsCaption: "Zobrazí skratky pre aplikácie a okná pod ikonami.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ sa odstráni aj z Homebrew.",
         uninstallerHomebrewCheckFailed: "Nepodarilo sa overiť, či túto aplikáciu spravuje Homebrew. Obnovte zoznam a skúste to znova alebo ju odinštalujte cez Homebrew.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "Otvoriť pri okraji obrazovky",
         shelfEdgeCaption: "Potiahnite súbor k okraju obrazovky a polica sa vysunie. Buď na ňu súbor pustíte, alebo sa potiahnutím späť zasunie.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "Zameranie sleduje myš",
         focusFollowsMouseCaption: "Zameria okno pod kurzorom.",
         focusFollowsMouseDelay: "Oneskorenie pri prejdení",
         focusFollowsMouseRaise: "Vyniesť okno dopredu",
         focusFollowsMouseWaitForStop: "Počkať, kým sa kurzor zastaví",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "Minimalizované okná",
         switcherTreatHiddenAppsLikeMinimized: "Považovať skryté aplikácie za minimalizované okná",
         switcherMinimizedPlacementNormal: "Bežné poradie",
@@ -1110,23 +1301,36 @@ extension Strings {
         switcherScreenPlacementCaption: "Na ktorom displeji sa prepínač otvorí, keď je pripojených viac displejov.",
         switcherCurrentDisplayOnly: "Zobraziť len aktuálny displej",
         switcherCurrentDisplayOnlyCaption: "Vypíše len okná na displeji pod kurzorom. Ak na tom displeji nie sú okná, prepínač sa neotvorí.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "Odozva",
         smoothScrollCoastLabel: "Dobeh",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "Vypnúť akceleráciu myši",
         mouseAccelerationCaption: "Odstráni akceleráciu kurzora pre pripojené myši. Predchádzajúce nastavenie sa vráti po vypnutí tejto funkcie alebo po ukončení Vorssaintu.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "Lineárne rolovanie",
         linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
         linearScrollLinesLabel: "Riadky na krok",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "Rýchlejšie rolovanie so stlačeným klávesom",
         scrollSpeedCaption: "Pri rolovaní kolieskom myši držte len vybraný modifikátor, aby sa vzdialenosť znásobila. Trackpad nie je ovplyvnený.",
         scrollSpeedMultiplierLabel: "Rýchlosť",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "Vymazať pri zatvorení",
         shelfClearOnCloseCaption: "Vyprázdni policu len vtedy, keď kliknete na jej tlačidlo zatvorenia. Automatické skrytie a zbalenie položky zachovajú.",
         shelfShortcutFinderSelection: "Pridať výber z Findera skratkou",
         shelfShortcutFinderSelectionCaption: "Keď je Finder v popredí, skratka otvorí policu už s vybranými súbormi. Ak nie je nič vybraté, otvorí sa ako zvyčajne.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "Udržať plochy v pevnom poradí",
         spacesOrderCaption: "Zabráni systému macOS meniť poradie plôch podľa posledného použitia, takže zostanú v poradí, ktoré ste nastavili. Po vypnutí sa vráti predchádzajúce nastavenie. Dock sa môže raz reštartovať, aby sa zmena použila.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "Ukončenie aplikácií",
-        quitAppsCaption: "Zobrazí otvorené aplikácie, aby ste ich mohli ukončiť jednu po druhej, všetky naraz alebo všetky okrem tej vpredu. Zoznam sa vždy zobrazí skôr, než sa čokoľvek ukončí."
+        quitAppsCaption: "Zobrazí otvorené aplikácie, aby ste ich mohli ukončiť jednu po druhej, všetky naraz alebo všetky okrem tej vpredu. Zoznam sa vždy zobrazí skôr, než sa čokoľvek ukončí.",
     )
 }

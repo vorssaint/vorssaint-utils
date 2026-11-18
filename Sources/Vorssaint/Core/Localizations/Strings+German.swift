@@ -6,6 +6,7 @@ import Foundation
 // Deutsch — translated and hand-checked, not machine output.
 extension Strings {
     static let de = Strings(
+        // MARK: Menu bar & context menu
         statusIdleTooltip: "Vorssaint: normaler Ruhezustand",
         statusActiveUntil: "Vorssaint: aktiv bis",
         statusActiveIndefinite: "Vorssaint: dauerhaft aktiv",
@@ -38,6 +39,7 @@ extension Strings {
         menuZoom: "Zoomen",
         menuClose: "Schließen",
 
+        // MARK: Durations
         minutes15: "15 Minuten",
         minutes30: "30 Minuten",
         hour1: "1 Stunde",
@@ -47,10 +49,12 @@ extension Strings {
         indefinitely: "Dauerhaft",
         indefinite: "Unbegrenzt",
 
+        // MARK: Panel — header & footer
         panelSettings: "Einstellungen",
         panelQuit: "Beenden",
         panelHotkeyHint: "Kurzbefehl schaltet um",
 
+        // MARK: Panel — keep awake card
         keepAwakeTitle: "Wachhalten",
         keepAwakeEndsIn: "Endet in",
         keepAwakeUntilDisabled: "Aktiv, bis du es ausschaltest",
@@ -81,6 +85,7 @@ extension Strings {
         clamshellReady: "Bereit. Schaltet ohne Passwort um",
         clamshellNeedsPassword: "Fragt einmalig nach dem Administratorpasswort",
 
+        // MARK: Panel — system monitor
         systemSection: "System",
         temperatures: "Temperaturen",
         cpuLabel: "CPU",
@@ -99,10 +104,13 @@ extension Strings {
         energyAppsTitle: "Hoher Energieverbrauch",
         energyAppsIdle: "Kein hoher Energieverbrauch",
 
+        // MARK: Notifications
         notifySessionEndedTitle: "Sitzung beendet",
         notifySessionEndedBody: "Die Zeit ist abgelaufen. Der Mac wechselt wieder normal in den Ruhezustand.",
         notifyBatteryTitle: "Vorssaint deaktiviert",
         notifyBatteryBody: "Niedriger Batteriestand. Der normale Ruhezustand wurde wiederhergestellt, um die Ladung zu schonen.",
+
+        // MARK: Administrator prompts (shown by macOS password dialogs)
         adminPromptClamshellOn: "Vorssaint benötigt dein Passwort, um bei zugeklapptem Mac weiterzulaufen.",
         adminPromptClamshellOff: "Vorssaint benötigt dein Passwort, um den normalen Ruhezustand des Mac wiederherzustellen.",
         adminPromptRecover: "Vorssaint wurde beendet, während der Ruhezustand des Mac deaktiviert war. Gib das Passwort ein, um den normalen Ruhezustand wiederherzustellen.",
@@ -110,6 +118,7 @@ extension Strings {
         adminPromptSudoersInstall: "Vorssaint legt eine eingeschränkte Regel an (nur pmset disablesleep), um den Modus bei geschlossenem Display ohne Passwortabfrage umzuschalten. Nur dieses eine Mal wird das Passwort benötigt.",
         adminPromptSudoersRemove: "Vorssaint entfernt die passwortfreie Regel für das geschlossene Display.",
 
+        // MARK: Settings — window & tabs
         settingsTitle: "Vorssaint-Einstellungen",
         tabGeneral: "Allgemein",
         tabEnergy: "Energie",
@@ -126,6 +135,8 @@ extension Strings {
         previewSizeLarge: "Groß",
         previewSizeXLarge: "Sehr groß",
         settingsGroupFeatures: "Funktionen",
+
+        // MARK: Settings — advanced
         advancedResetSection: "Berechtigungen",
         advancedResetDescription: "Entfernt alle Berechtigungen, die du Vorssaint erteilt hast (Bedienungshilfen, Bildschirmaufnahme, Festplattenvollzugriff und weitere), das Anmeldeobjekt und die Regel für das geschlossene Display. Praktisch für einen Neustart oder vor dem Deinstallieren. Die App bleibt installiert.",
         advancedClearButton: "Alle Berechtigungen zurücksetzen",
@@ -141,6 +152,7 @@ extension Strings {
         advancedUninstallFailedTitle: "Deinstallation gestoppt",
         advancedUninstallFailedBody: "Vorssaint konnte eine geänderte Systemeinstellung nicht wiederherstellen: Ruhezustand, Lüfterdrehzahl, Mausbeschleunigung oder Reihenfolge der Spaces. Es wurde nichts entfernt. Versuche es erneut und erlaube die Kennwortabfrage, falls sie erscheint.",
 
+        // MARK: Settings — general
         launchAtLogin: "Beim Anmelden öffnen",
         languageLabel: "Sprache",
         menuBarSection: "Menüleiste",
@@ -149,6 +161,7 @@ extension Strings {
         hotkeyToggle: "Kurzbefehl für „Wachhalten“ aktivieren",
         hotkeyCaption: "Funktioniert in jeder App, ohne zusätzliche Berechtigungen.",
 
+        // MARK: Settings — energy
         sessionSection: "Sitzung",
         defaultDurationLabel: "Standarddauer",
         keepAwakeAutoStart: "Beim Öffnen von Vorssaint wach halten",
@@ -164,6 +177,7 @@ extension Strings {
         dimScreenOnLidCloseTitle: "Bildschirm vollständig abdunkeln",
         dimScreenOnLidCloseCaption: "Dunkelt den Bildschirm ab, sobald der Deckel geschlossen wird, und stellt die Helligkeit beim Öffnen wieder her.",
 
+        // MARK: Settings — mouse
         scrollSection: "Scrollen",
         invertMouseScroll: "Mausscrollen umkehren",
         invertMouseScrollCaption: "Kehrt die Richtung des Mausrads um.",
@@ -173,9 +187,13 @@ extension Strings {
         smoothScrollName: "Sanftes Scrollen",
         smoothScrollCaption: "Verwandelt jeden Rastschritt des Mausrads in ein kurzes, sanftes Gleiten. Das Trackpad bleibt unverändert.",
         smoothScrollStepLabel: "Scrollgeschwindigkeit",
+
+        // MARK: Settings — mouse navigation
         mouseNavigationSection: "Navigation",
         mouseNavigationEnable: "Seitentasten für Zurück und Vor verwenden",
         mouseNavigationCaption: "Wandelt die Maus-Tasten Zurück und Vor in Navigationsbefehle für Finder, Browser und kompatible Apps um.",
+
+        // MARK: Settings — middle click
         middleClickSection: "Mittelklick per Trackpad",
         middleClickEnable: "Drei-Finger-Klick als Mittelklick",
         middleClickEnableCaption: "Das Trackpad mit drei Fingern zu drücken wirkt wie ein Klick aufs Mausrad: Links im neuen Tab öffnen, Tabs schließen und alles andere, was die mittlere Taste kann.",
@@ -186,17 +204,25 @@ extension Strings {
         middleClickTapThreeFingers: "3 Finger",
         middleClickTapFourFingers: "4 Finger",
         middleClickTapCaption: "Ein leichtes Tippen mit dieser Fingerzahl, ohne zu drücken, löst ebenfalls den Mittelklick aus. Wischen zählt nie. Ist das Dreifinger-Tippen von macOS mit Nachschlagen belegt, schalte es aus, damit nicht beides zugleich auslöst.",
+
+        // MARK: Settings — quick tools
         quickToolsTab: "Schnellpanel",
         quickToolShortcutToggle: "Globaler Kurzbefehl",
+
+        // MARK: Quick tool — OCR
         ocrName: "Text vom Bildschirm kopieren",
         ocrCaption: "Wähle einen Bildschirmbereich aus und der erkannte Text wird kopiert, bereit zum Einsetzen.",
         ocrCopied: "Text kopiert",
         ocrNoText: "Kein Text gefunden",
+
+        // MARK: Quick tool — color picker
         colorPickerName: "Farbpipette",
         colorPickerCaption: "Greife die Farbe jedes Pixels auf dem Bildschirm ab und kopiere sie im gewünschten Format.",
         colorPickerFormatLabel: "Kopiertes Format",
         colorPickerBareHexToggle: "Ohne das Präfix # kopieren",
         colorPickerPickNow: "Farbe aufnehmen",
+
+        // MARK: Quick tool — microphone
         micMuteName: "Mikrofon stummschalten",
         micUnmuteName: "Mikrofon wieder aktivieren",
         micMuteCaption: "Verwendet den Stummschalter oder den Eingangslautstärkeregler jedes Mikrofons. Siri und einige Apps können dich weiterhin hören. Diese Funktion blockiert nicht jeden Zugriff auf das Mikrofon.",
@@ -206,8 +232,12 @@ extension Strings {
         micUnmutePartialHUD: "Einige Mikrofone sind noch stumm",
         micMuteMenuBarToggle: "Bei aktiver Funktion in der Menüleiste anzeigen",
         micMuteMenuBarCaption: "Das rote Mikrofon in der Menüleiste zeigt an, dass die Funktion aktiv ist. Es garantiert nicht, dass alle Apps die Audioaufnahme beenden.",
+
+        // MARK: Quick tool — paste plain text
         pastePlainName: "Als reinen Text einsetzen",
         pastePlainCaption: "Setzt Kopiertes ohne Farben, Schriften oder Formatierung ein. Das Original bleibt in der Zwischenablage.",
+
+        // MARK: Quick tool — launcher
         launcherName: "Schnellpanel",
         launcherCaption: "Ein schwebendes Panel mit deinen Lieblingswerkzeugen, per Kurzbefehl von überall aufrufbar.",
         launcherOpenNow: "Schnellpanel öffnen",
@@ -215,11 +245,16 @@ extension Strings {
         launcherEmptyState: "Alle Werkzeuge sind ausgeblendet. Über die Einstellen-Taste kommen sie zurück.",
         launcherAddSection: "Wieder hinzufügen",
         launcherKeysHint: "Pfeile navigieren, Enter öffnet, 1 bis 9 öffnen direkt",
+
+
+        // MARK: Settings — switcher
         switcherSection: "Fensterumschalter",
         switcherEnable: "Vorssaint-Umschalter verwenden",
         switcherEnableCaption: "Wechselt zwischen Apps und Fenstern, einschließlich minimierter und mehrerer Fenster derselben App.",
         switcherUsageHint: "Halte den Kurzbefehl zum Navigieren; loslassen, um das Fenster zu aktivieren. Umschalt oder ← geht zurück; W schließt das Fenster; Q beendet die App; Esc bricht ab.",
         switcherNoWindows: "Keine geöffneten Fenster",
+
+        // MARK: Settings — switcher appearance & selection
         switcherIconRowMode: "%@ mit großen Symbolen anzeigen",
         switcherIconRowModeCaption: "Zeigt ein Symbol pro App und darüber die Fenstervorschauen dieser App.",
         switcherSimpleModeCaption: "Zeigt App-Symbole und Fenstertitel, ohne Vorschauen oder Bildschirmaufnahme durch den Umschalter.",
@@ -239,6 +274,8 @@ extension Strings {
         switcherIgnoreHoverSelectionCaption: "Bewegt sich der Zeiger über Apps und Fenster, bleibt die Markierung an ihrem Platz. Ein Klick öffnet weiterhin einen Eintrag.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
+
+        // MARK: Settings — switcher window handling
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",
         switcherWindowlessAppsCaption: "Legt fest, welche laufenden Apps ganz ohne Fenster im Umschalter erscheinen.",
         switcherWindowlessAppsOff: "Nicht anzeigen",
@@ -247,6 +284,8 @@ extension Strings {
         switcherWindowlessAppsLockedFormat: "Alle laufenden Apps bleiben erreichbar, solange „%@“ eingeschaltet ist. Schalte die Option aus, um zu wählen.",
         switcherNoOpenWindow: "Kein geöffnetes Fenster",
         switcherOtherDesktop: "Anderer Schreibtisch",
+
+        // MARK: Settings — Dock preview
         dockPreviewName: "Dock Preview",
         dockPreviewEnable: "Fenster im Dock vorab anzeigen",
         dockPreviewEnableCaption: "Zeige auf eine geöffnete App im Dock, um ihre Fenster zu sehen, und klicke dann auf das gewünschte.",
@@ -280,6 +319,7 @@ extension Strings {
         dockPreviewPreviousWindow: "Vorheriges Fenster",
         dockPreviewNextWindow: "Nächstes Fenster",
 
+        // MARK: Feature — cut & paste in Finder
         cutPasteName: "Ausschneiden & Einsetzen",
         cutPasteEnable: "Dateien im Finder ausschneiden & einsetzen",
         cutPasteEnableCaption: "Verwende ⌘X zum Ausschneiden und ⌘V, um Dateien und Ordner im Finder zu bewegen.",
@@ -301,6 +341,7 @@ extension Strings {
         cutMovingTitle: "Wird bewegt…",
         cutMovingCountFormat: "%d von %d",
 
+        // MARK: Feature — quit on last window close
         autoQuitName: "Beim Schließen beenden",
         autoQuitEnable: "App beenden, wenn ihr letztes Fenster schließt",
         autoQuitEnableCaption: "Das Schließen des letzten Fensters einer App beendet sie auch.",
@@ -315,6 +356,7 @@ extension Strings {
         autoQuitExceptionsEmpty: "Keine Ausnahmen",
         autoQuitAddApp: "App hinzufügen…",
 
+        // MARK: Feature — complete app uninstaller
         uninstallerName: "Deinstallationsprogramm",
         uninstallerEnableCaption: "Entfernt eine App samt der Caches, Einstellungen, Protokolle und Rückstände, die sie hinterlässt.",
         uninstallerStep1: "Ziehe eine App in die Einstellungen oder wähle eine aus der Liste.",
@@ -372,6 +414,7 @@ extension Strings {
         uninstallerRefusedUnidentifiedFormat: "%@ kann nicht deinstalliert werden, da sich nicht feststellen lässt, um welche App es sich handelt.",
         uninstallerPickerHiddenNote: "Apps, die zu macOS gehören oder von Apple stammen, werden nicht aufgeführt.",
 
+        // MARK: Feature — URL cleaner
         urlCleanerName: "URL bereinigen",
         urlCleanerEnable: "URLs beim Kopieren bereinigen",
         urlCleanerEnableCaption: "Entfernt Tracking-Parameter aus einem Link, sobald er in der Zwischenablage landet.",
@@ -388,6 +431,7 @@ extension Strings {
         urlCleanerCopied: "Kopiert.",
         urlCleanerLocalNote: "Lokal. Kein Netzwerk.",
 
+        // MARK: Feature — Homebrew manager
         homebrewName: "Homebrew",
         homebrewEnableCaption: "Suche, installiere und entferne Formeln und Casks.",
         homebrewMissingTitle: "Homebrew nicht gefunden",
@@ -404,6 +448,8 @@ extension Strings {
         homebrewTrustTitle: "Tap noch nicht vertraut",
         homebrewTrustCaption: "Homebrew fragt jetzt nach deiner Bestätigung, bevor es Taps von Dritten verwendet. Vertraue %@, um fortzufahren.",
         homebrewTrustButton: "Vertrauen und fortfahren",
+
+        // MARK: Homebrew — package search
         homebrewSearchPlaceholder: "Pakete suchen",
         homebrewKeyboardHint: "Leertaste oder Eingabe schließt das macOS-Panel. Nutze die Suchtaste.",
         homebrewSearchButton: "Suchen",
@@ -419,6 +465,8 @@ extension Strings {
         homebrewOrphansNote: "Als Abhängigkeiten installiert, aber kein installiertes Paket braucht sie noch.",
         homebrewDependencyUpdatesFormat: "Updates für Abhängigkeiten: %d",
         homebrewNoSelection: "Wähle ein installiertes Paket oder suche ein neues.",
+
+        // MARK: Homebrew — package details & actions
         homebrewDetailsTitle: "Paketdetails",
         homebrewInstall: "Installieren",
         homebrewUninstall: "Deinstallieren",
@@ -442,6 +490,8 @@ extension Strings {
         homebrewUpdates: "Updates",
         homebrewUpdateAvailableBadge: "Update verfügbar",
         homebrewLatestVersion: "Neueste",
+
+        // MARK: Homebrew — confirmations
         homebrewConfirmInstallTitle: "Mit Homebrew installieren?",
         homebrewConfirmInstallBodyFormat: "Homebrew lädt %@ herunter und installiert es. Abhängigkeiten können ebenfalls installiert werden.",
         homebrewConfirmUninstallTitle: "Mit Homebrew deinstallieren?",
@@ -455,6 +505,8 @@ extension Strings {
         homebrewTerminalFallback: "Diese Aktion benötigt dein Terminal, um nach dem Administratorpasswort zu fragen. Vorssaint erfasst keine Passwörter.",
         homebrewLoading: "Laden…",
         homebrewSearchEmpty: "Keine Ergebnisse",
+
+        // MARK: Homebrew — operation status
         homebrewOperationInstallFormat: "%@ wird installiert",
         homebrewOperationUninstallFormat: "%@ wird deinstalliert",
         homebrewOperationUpgradeFormat: "%@ wird aktualisiert",
@@ -481,6 +533,7 @@ extension Strings {
         homebrewOperationTechnicalLog: "Technische Details",
         homebrewOperationProgressUnknown: "Homebrew hat noch keinen Prozentsatz gemeldet.",
 
+        // MARK: Feature — local media tools
         mediaName: "Medien",
         mediaEnableCaption: "Komprimiere Videos, konvertiere und bearbeite Bilder, erstelle GIFs und extrahiere Text lokal.",
         mediaLocalNote: "Lokal. Kein Netzwerk.",
@@ -488,11 +541,15 @@ extension Strings {
         mediaToolGIF: "GIF",
         mediaToolImage: "Bild",
         mediaToolText: "Text",
+
+        // MARK: Media — file selection & output
         mediaSelectFile: "Datei wählen",
         mediaDropHint: "Ziehe eine Datei hierher oder klicke zum Auswählen.",
         mediaOutput: "Ausgabe",
         mediaOutputAutomatic: "Automatisch",
         mediaChooseOutput: "Ziel",
+
+        // MARK: Media — conversion options
         mediaStartVideo: "Video komprimieren",
         mediaStartGIF: "GIF erstellen",
         mediaStartImage: "Bild bearbeiten",
@@ -522,11 +579,15 @@ extension Strings {
         mediaFormat: "Format",
         mediaStripMetadata: "Metadaten entfernen",
         mediaLoopGIF: "GIF wiederholen",
+
+        // MARK: Media — text extraction
         mediaOCRMode: "OCR",
         mediaOCRAccurate: "Genau",
         mediaOCRFast: "Schnell",
         mediaLanguageCorrection: "Sprachkorrektur",
         mediaTextOutputNote: "Extrahierter Text kann kopiert und als TXT gespeichert werden.",
+
+        // MARK: Media — results & errors
         mediaRunning: "Verarbeitung",
         mediaCompleted: "Fertig",
         mediaCancelled: "Abgebrochen.",
@@ -542,6 +603,7 @@ extension Strings {
         mediaErrorSameOutput: "Wähle ein Ziel, das nicht die Originaldatei ist.",
         mediaErrorUnsupported: "Format wird von macOS nicht unterstützt.",
 
+        // MARK: Feature — temporary shelf
         shelfName: "Ablage",
         shelfEnable: "Temporäre Ablage zum Ziehen von Dateien",
         shelfEnableCaption: "Ein schwebender Ort, um Dateien, Bilder und Text zu sammeln und später überallhin zu ziehen.",
@@ -570,6 +632,8 @@ extension Strings {
         shelfExclusionsCaption: "Schütteln und die Menüleisten-Ablage bleiben bei Ziehvorgängen aus diesen Apps aus. Kurzbefehl und Jetzt öffnen funktionieren weiter.",
         shelfPin: "Offen halten",
         shelfUnpin: "Schließen nach Verwendung erlauben",
+
+        // MARK: Feature — extra brightness
         extraBrightnessName: "Extra Helligkeit",
         extraBrightnessCaption: "Nutzt die HDR-Reserve des Displays, um über die maximale Helligkeit hinauszugehen. Verbraucht mehr Akku und der Mac kann warm werden.",
         extraBrightnessLevelLabel: "Intensität",
@@ -578,6 +642,8 @@ extension Strings {
         shelfOpenNow: "Jetzt öffnen",
         shelfNoPermission: "Benötigt keine Berechtigungen.",
         shelfMenuItem: "Ablage öffnen",
+
+        // MARK: Panel — temporary shelf contents
         shelfTitle: "Ablage",
         shelfEmpty: "Ziehe Objekte hierher",
         shelfClearAll: "Alle entfernen",
@@ -585,6 +651,8 @@ extension Strings {
         shelfSelectedFormat: "%d ausgewählt",
         shelfHint: "Klicken zum Auswählen. Zum Verwenden ziehen oder für weitere Aktionen rechtsklicken.",
         shelfItemImage: "Bild",
+
+        // MARK: Panel — temporary shelf item tooltips
         shelfTooltipItemsFormat: "%d Elemente",
         shelfTooltipItemsFew: "%d Elemente",
         shelfTooltipImageSingular: "%d Bild",
@@ -599,19 +667,25 @@ extension Strings {
         shelfTooltipLinkSingular: "%d Link",
         shelfTooltipLinkFew: "%d Links",
         shelfTooltipLinkPlural: "%d Links",
+
+        // MARK: Panel — temporary shelf actions
         shelfActionOpen: "Öffnen",
         shelfActionOpenWith: "Öffnen mit",
         shelfActionShare: "Teilen",
         shelfActionPin: "Anheften",
         shelfActionUnpin: "Loslösen",
 
+        // MARK: Panel — per-app breakdown
         breakdownMeasuring: "Wird gemessen…",
 
+        // MARK: Panel — volume mixer
         mixerSection: "Lautstärkemixer",
         mixerEmpty: "Apps, die Audio nutzen, erscheinen hier",
         mixerUnavailable: "Verfügbar ab macOS 14.4",
         mixerPermissionBody: "Um die Lautstärke je App anzupassen, erlaube „Aufnahme von Bildschirm und Systemaudio“ in den Systemeinstellungen. Audio wird nie aufgenommen.",
         mixerResetTooltip: "Auf 100 % zurücksetzen",
+
+        // MARK: Volume mixer — output devices
         mixerOutputDefault: "Standard",
         mixerOutputCurrent: "aktuell",
         mixerOutputUnavailable: "Ausgabe nicht verfügbar",
@@ -623,27 +697,37 @@ extension Strings {
         mixerSystemOutputNoDevices: "Keine Ausgabe gefunden",
         mixerSystemOutputTooltip: "Systemausgabe wählen",
         mixerSystemOutputErrorFormat: "Wechsel fehlgeschlagen: %@",
+
+        // MARK: Volume mixer — volume behavior
         mixerLowerOnHeadphonesDisconnect: "Lautstärke senken, wenn Kopfhörer getrennt werden",
         mixerLowerOnHeadphonesDisconnectCaption: "Passt die Ausgabe an, wenn kabelgebundene oder Bluetooth-Kopfhörer getrennt werden.",
         mixerHeadphonesDisconnectVolume: "Lautstärke nach Trennung",
         preciseVolumeRollerEnable: "Feinere Lautstärkeschritte verwenden",
         preciseVolumeRollerCaption: "Macht aus Lautstärkerädern und -tasten kleinere Systemschritte.",
         preciseVolumeRollerTapFailed: "Lautstärketasten konnten nicht überwacht werden.",
+
+        // MARK: Volume mixer — output switcher
         soundOutputSwitcherTitle: "Ausgabeumschalter",
         soundOutputSwitcherEnable: "Ausgaben per Kurzbefehl wechseln",
         soundOutputSwitcherCaption: "Wähle Ausgaben und nutze den Kurzbefehl für die nächste verfügbare.",
         soundOutputSwitcherDevices: "Ausgaben im Wechsel",
         soundOutputSwitcherNoAvailableSelection: "Wähle mindestens eine verfügbare Ausgabe.",
+
+        // MARK: Volume mixer — input devices
         mixerInputTitle: "Mikrofon",
         mixerInputNoDevices: "Kein Mikrofon gefunden",
         mixerInputUnavailable: "Mikrofon nicht verfügbar",
         mixerInputFallback: "Standard wird verwendet, bis dieses Mikrofon zurück ist.",
         mixerInputTooltip: "Mikrofon wählen",
         mixerInputErrorFormat: "Wechsel fehlgeschlagen: %@",
+
+        // MARK: Volume mixer — app visibility
         mixerVisibleApps: "Apps in der Liste",
         mixerAllShown: "Alle",
         mixerHiddenCountLabel: "Ausgeblendet",
         mixerHideFromList: "Aus der Liste ausblenden",
+
+        // MARK: Panel — audio device priority
         audioPrioritySection: "Priorität der Audiogeräte",
         audioPriorityOutputEnable: "Automatisch zum Ausgabegerät mit der höchsten Priorität wechseln",
         audioPriorityInputEnable: "Automatisch zum Mikrofon mit der höchsten Priorität wechseln",
@@ -655,6 +739,7 @@ extension Strings {
         audioPriorityCurrent: "Aktiv",
         audioPriorityCaption: "Geräte werden nach Priorität ausgewählt. Wird ein Gerät mit höherer Priorität verbunden, wechselt das System zu diesem Gerät. Wird das aktive Gerät getrennt, wird das nächste verfügbare Gerät ausgewählt.",
 
+        // MARK: Settings — updates
         updatesSection: "Updates",
         autoCheckToggle: "Automatisch nach Updates suchen",
         includeBetaUpdatesToggle: "Beta-Updates erhalten",
@@ -675,6 +760,7 @@ extension Strings {
         updateNeedsApplicationsBody: "Die App läuft an einem Ort, der nicht aktualisiert werden kann, etwa im Disk-Image oder an einem temporären Systemort. Ziehe Vorssaint in den Ordner „Programme“, öffne es von dort und versuche es erneut.",
         menuCheckUpdates: "Nach Updates suchen…",
 
+        // MARK: Permissions (shared by Settings & onboarding)
         permissionRequired: "Berechtigung erforderlich",
         permissionAccessibility: "Bedienungshilfen",
         permissionScreenRecording: "Bildschirmaufnahme",
@@ -683,21 +769,27 @@ extension Strings {
         permissionOpenSettings: "Systemeinstellungen öffnen…",
         permissionRequest: "Zugriff erlauben",
         permissionRestartNote: "macOS bittet nach dem Erteilen möglicherweise darum, die App erneut zu öffnen.",
+
+        // MARK: Secure input
         secureInputTitle: "Sichere Eingabe ist aktiv",
         secureInputHeldFormat: "%@ war die aktive App, als sie eingeschaltet wurde, und hält sie möglicherweise, daher kann Vorssaint nicht für dich tippen. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
         secureInputUnattributed: "Die App, die sie hält, lässt sich nicht bestimmen, daher kann Vorssaint nicht für dich tippen. Verlasse ein offenes Passwortfeld oder melde dich ab und wieder an, um sie zurückzusetzen.",
         secureInputUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden, daher kann Vorssaint nicht für dich tippen.",
         secureInputRevealFormat: "%@ anzeigen",
+
+        // MARK: Secure input — switcher
         secureInputSwitcherHeldFormat: "%@ war die aktive App, als sie eingeschaltet wurde, und hält sie möglicherweise. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse das Passwortfeld oder beende die App, um sie freizugeben.",
         secureInputSwitcherUnattributed: "Die App, die sie hält, lässt sich nicht bestimmen. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter. Verlasse ein offenes Passwortfeld oder melde dich ab und wieder an, um sie zurückzusetzen.",
         secureInputSwitcherUnidentified: "Die App, die sie hält, konnte nicht identifiziert werden. Solange die sichere Eingabe aktiv ist, verbirgt macOS deine Tastenanschläge vor dem Umschalter und ⌘Tab öffnet stattdessen den macOS-Umschalter.",
 
+        // MARK: About
         aboutDescription: "Eine Werkzeugzentrale für deinen Mac.\nEnergie, Systemüberwachung, Scrollen und ein Fensterumschalter, direkt in der Menüleiste.",
         versionPrefix: "Version",
         reviewIntro: "Einführung erneut ansehen",
         reviewHighlights: "Neuerungen ansehen",
         viewOnGitHub: "Auf GitHub ansehen",
 
+        // MARK: Onboarding
         obContinue: "Fortfahren",
         obBack: "Zurück",
         obSkipStep: "Diesen Schritt überspringen",
@@ -711,23 +803,33 @@ extension Strings {
         obWelcomeBullet3Title: "Maus und Fenster nach deinem Geschmack",
         obWelcomeBullet3Body: "Umgekehrtes Mausscrollen und ein Fensterumschalter mit Vorschaubildern.",
         obLanguageLabel: "Sprache",
+
+        // MARK: Onboarding — permissions
         obStepAccessibilityTitle: "Bedienungshilfen",
         obStepAccessibilityBody: "Erforderlich, um das Mausscrollen umzukehren und damit der Fensterumschalter auf die Tastatur reagiert.",
         obAccessibilityWhy: "Die App beobachtet nur das Mausrad und den Kurzbefehl des Umschalters. Nichts wird aufgezeichnet oder irgendwohin gesendet.",
         obStepRecordingTitle: "Bildschirmaufnahme",
         obStepRecordingBody: "Ermöglicht es dem Umschalter, echte Fenstervorschauen statt nur Symbole anzuzeigen.",
         obRecordingWhy: "Die Vorschaubilder werden im Moment erzeugt, bleiben im Speicher und verlassen deinen Mac nie. Ohne sie funktioniert der Umschalter weiterhin mit Symbolen.",
+
+        // MARK: Onboarding — monitor
         obStepMonitorTitle: "Systemüberwachung",
         obStepMonitorBody: "Das Panel zeigt die Temperaturen von CPU, GPU und Batterie, die Hardware-Auslastung und die Speicherauslastung.",
         obMonitorNoPermission: "Keine Berechtigung nötig. Die Sensoren werden direkt aus dem System gelesen.",
+
+        // MARK: Onboarding — optional features
         obStepOptionalTitle: "Optionale Funktionen",
         obStepOptionalBody: "Aktiviere jetzt, was du nutzen möchtest. Alles lässt sich später in den Einstellungen ändern.",
         obStepStatusTitle: "Überprüfung",
         obStepStatusBody: "Vergewissere dich, dass für die gewünschten Funktionen alles bereit ist.",
         obStatusRecheck: "Erneut prüfen",
+
+        // MARK: Onboarding — completion
         obStepDoneTitle: "Alles bereit!",
         obStepDoneBody: "Vorssaint kümmert sich bereits um deinen Mac.",
         obDoneHint: "Halte Ausschau nach dem schwarzen Loch in der Menüleiste, oben rechts auf dem Bildschirm.",
+
+        // MARK: Onboarding — updates & purpose
         obWhatsNewTitle: "Neu in dieser Version",
         obWhatsNewFallback: "Dieses Update enthält die neuesten Korrekturen und Verbesserungen.",
         obLanguageUpdateTitle: "Jetzt in deiner Sprache",
@@ -736,7 +838,10 @@ extension Strings {
         obPurposeBody: "Wähle eine fertige Einrichtung oder genau die Funktionen, die du nutzen möchtest.",
         obPurposeSkip: "Du kannst Funktionen später in den Einstellungen ändern.",
 
+        // MARK: Settings — monitor / menu bar metrics
         tabMonitor: "Überwachung",
+
+        // MARK: Monitor — menu bar
         monitorMenuBarSection: "In der Menüleiste",
         monitorMenuBarPreview: "Vorschau der Menüleiste",
         monitorMenuBarCaption: "Wähle, was neben dem Symbol in der Menüleiste erscheint.",
@@ -753,6 +858,8 @@ extension Strings {
         monitorInterval1: "1 Sekunde",
         monitorInterval2: "2 Sekunden",
         monitorInterval5: "5 Sekunden",
+
+        // MARK: Monitor — panel
         monitorPanelSection: "Im Panel",
         panelNavigationMode: "Panel nach Bereichen navigieren",
         panelNavigationCaption: "Zeigt jeweils einen Bereich. Wähle Liste, um alles in einem durchgehenden Scrollbereich zu sehen.",
@@ -761,6 +868,7 @@ extension Strings {
         betaBadge: "BETA",
         betaFeatureWarning: "Beta. Es können noch Fehler auftreten.",
 
+        // MARK: Panel — network
         networkSection: "Netzwerk",
         networkIPAddresses: "IP-Adressen",
         networkLocalIP: "Lokales IPv4",
@@ -771,6 +879,7 @@ extension Strings {
         networkApps: "Apps mit Netzwerkverkehr",
         networkAppsIdle: "Keine App nutzt gerade das Netzwerk",
 
+        // MARK: Panel — disk
         diskSection: "Festplatten",
         diskUsed: "belegt",
         diskFree: "frei",
@@ -806,6 +915,7 @@ extension Strings {
         diskStorageSettings: "Speicher",
         diskNoDisks: "Keine eingebundenen Laufwerke gefunden.",
 
+        // MARK: Panel — power
         powerSection: "Energie",
         powerSystem: "System",
         powerAdapter: "Netzteil",
@@ -823,6 +933,7 @@ extension Strings {
         peripheralBatteryNoDevices: "Keine Geräte gefunden",
         monitorGraphsSection: "Diagramme",
 
+        // MARK: Update notification + onboarding menu bar setup
         updateBannerTitle: "Update verfügbar",
         updateBannerAction: "Aktualisieren",
         obStepMenuBarTitle: "Werte in der Menüleiste",
@@ -844,6 +955,8 @@ extension Strings {
         memoryStyleDot: "Punkt",
         memoryStylePercent: "%",
         memoryStyleBoth: "Beides",
+
+        // MARK: System uptime, battery health, speed test
         systemUptime: "Aktiv seit",
         batteryCharge: "Ladung",
         powerHealth: "Batteriezustand",
@@ -854,6 +967,7 @@ extension Strings {
         speedTestTesting: "Wird getestet…",
         speedTestFailed: "Test fehlgeschlagen",
 
+        // MARK: Per-item panel config (Settings + onboarding)
         monitorShowInPanel: "Im Panel anzeigen",
         disclosureExpanded: "Ausgeklappt",
         disclosureCollapsed: "Eingeklappt",
@@ -871,21 +985,30 @@ extension Strings {
         monitorItemDiskTools: "Werkzeuge",
         monitorPanelConfigHint: "Öffne einen Block, um zu wählen, was er anzeigt.",
         monitorOrderHint: "Ziehen, um die Panel-Bereiche neu anzuordnen, und mit dem Auge jeden ein- oder ausblenden.",
+
+        // MARK: Onboarding — panel setup
         obStepPanelTitle: "Was im Panel erscheint",
         obStepPanelBody: "Öffne jeden Block und wähle genau, was angezeigt wird, wenn du auf das Symbol klickst.",
         obStepPanelNavigationTitle: "Panel nach Bereichen",
         obStepPanelNavigationBody: "Das Panel kann jetzt jeweils einen Bereich anzeigen. Du kannst in den Einstellungen zwischen Bereiche und Liste wechseln.",
 
+        // MARK: Cleaning mode
         cleaningMenuItem: "Reinigungsmodus",
+
+        // MARK: Cleaning mode — panel categories
         utilitiesSection: "Dienstprogramme",
         quickControlsSection: "Steuerung",
         panelCategoryWindows: "Fenster",
         panelCategoryInput: "Maus und Tastatur",
         panelCategoryFiles: "Dateien",
+
+        // MARK: Cleaning mode — window controls
         windowMaximizeName: "Fenster maximieren",
         windowMaximizeCaption: "Der grüne Knopf maximiert, ohne einen weiteren Space zu erstellen.",
         windowMaximizeActiveNow: "Grüner Knopf aktiv",
         windowMaximizeNeedsAccessibility: "Benötigt Bedienungshilfen, um zu funktionieren.",
+
+        // MARK: Cleaning mode — key debounce
         keyDebounceName: "Debounce",
         keyDebounceEnable: "Doppelte Tasten filtern",
         keyDebounceCaption: "Filtert sehr schnelle doppelte Tastendrücke.",
@@ -898,6 +1021,8 @@ extension Strings {
         keyDebounceAddKey: "Taste hinzufügen",
         keyDebounceNoOverrides: "Keine bestimmten Tasten konfiguriert.",
         keyDebounceRemoveKey: "Taste entfernen",
+
+        // MARK: Cleaning mode — overlay
         cleaningPanelCaption: "Sperrt die Tastatur, damit du sicher reinigen kannst.",
         cleaningOverlayTitle: "Tastatur zum Reinigen gesperrt",
         cleaningOverlaySubtitle: "Esc 5-mal drücken zum Entsperren",
@@ -909,14 +1034,19 @@ extension Strings {
         cleaningNeedsAxTitle: "Bedienungshilfen erforderlich",
         cleaningNeedsAxBody: "Um die Tastatur sicher zu sperren, benötigt Vorssaint die Berechtigung für Bedienungshilfen. Erteile sie in den Systemeinstellungen und versuche es erneut.",
 
+        // MARK: Support / donate
         tabSupport: "Unterstützen",
         shortcutsPageCaption: "Bearbeite hier alle globalen Kurzbefehle der auf diesem Mac installierten Funktionen. Inaktive Kurzbefehle bleiben gespeichert, werden aber nicht ausgeführt.",
         shortcutsPageTitle: "Tastaturkurzbefehle",
         settingsSearchPlaceholder: "Einstellungen durchsuchen",
+
+        // MARK: Support — donations
         donateHeading: "Hilf Vorssaint weiter zu wachsen",
         donateMessage: "Vorssaint bleibt kostenlos und lokal, ohne Werbung oder Tracking. Wenn es dir hilft, kannst du die Entwicklung nur über Buy Me a Coffee finanziell unterstützen.",
         donateButton: "Über Buy Me a Coffee unterstützen",
         donateThanks: "Danke, dass du hier bist. 🖤",
+
+        // MARK: Support — introduction
         supportIntroTitle: "Hilf Vorssaint weiter zu wachsen",
         supportIntroMessage: "Vorssaint bleibt kostenlos und lokal, ohne Werbung oder Tracking. Wenn es dir hilft, kannst du die Entwicklung nur über Buy Me a Coffee finanziell unterstützen.",
         supportIntroStarButton: "Vorssaint auf GitHub einen Stern geben",
@@ -925,27 +1055,37 @@ extension Strings {
         supportIntroCoffeeButton: "Über Buy Me a Coffee unterstützen",
         supportIntroLaterButton: "Jetzt nicht",
         supportIntroDoneButton: "Fertig",
+
+        // MARK: Support — community
         discordIntroTitle: "Die Vorssaint Community auf Discord steht noch am Anfang",
         discordIntroMessage: "Die Vorssaint Community ist neu und wächst noch. Tritt früh bei, lerne andere Nutzer kennen und hilf, einen einladenden Ort rund um die App aufzubauen.",
         discordIntroJoinButton: "Der Discord Community beitreten",
         communityIntroTitle: "Sieh alles vor allen anderen",
         communityIntroMessage: "Wer mir bereits auf X folgte, hat viele Änderungen dieses Updates vor allen anderen gesehen. Dort zeige ich Vorschauen auf kommende Neuerungen und wie sie funktionieren, damit du schon vor dem Update die Grundlagen kennst. Folge mir und sieh, was als Nächstes kommt!",
         communityIntroFollowButton: "@vorssaint auf X folgen",
+
+        // MARK: Support — Homebrew setup
         homebrewOfficialIntroTitle: "Jetzt im offiziellen Katalog von Homebrew",
         homebrewOfficialIntroMessage: "Vorssaint kann jetzt direkt aus dem offiziellen Katalog von Homebrew installiert werden.",
         homebrewOfficialIntroInstallLabel: "Neue Installation",
         homebrewOfficialIntroMigrationTitle: "Hast du den alten Tap verwendet?",
         homebrewOfficialIntroMigrationMessage: "Entferne den alten Tap einmal. Die App und deine Einstellungen bleiben erhalten.",
         homebrewOfficialIntroCopyButton: "Befehl kopieren",
+
+        // MARK: Support — update showcase
         updateShowcaseTitle: "Neues in 3.1.4",
         updateShowcaseMessage: "Sieh dir kurz die wichtigsten Verbesserungen in diesem Update an.",
         updateShowcaseUnavailable: "Das Video konnte gerade nicht geladen werden. Du kannst trotzdem fortfahren.",
         updateShowcaseRestart: "Zum Anfang",
+
+        // MARK: Support — menu bar icon
         showMenuBarIcon: "Menüleistensymbol anzeigen",
         menuBarIconStillHiddenTitle: "Das Symbol ist weiterhin verborgen",
         menuBarIconStillHiddenBody: "Das Symbol wurde neu aufgebaut, aber macOS hat ihm keinen sichtbaren Platz gegeben. In der Menüleiste ist vermutlich kein Platz mehr: Entferne einige Menüleisten-Symbole (oder schließe Apps mit langen Menüs) und versuche es erneut.",
         menuBarIconManagerHintFormat: "%@ läuft und hält das Symbol womöglich in seinem verborgenen Bereich. Suche Vorssaint dort, oder stelle %@ so ein, dass Vorssaint immer angezeigt wird.",
         menuBarIconDisallowedBody: "macOS hält Vorssaint aus der Menüleiste fern. Öffne Systemeinstellungen > Menüleiste, suche Vorssaint in der App-Liste und aktiviere „In der Menüleiste erlauben“ (Allow in the Menu Bar). Das Symbol erscheint, sobald der Schalter an ist.",
+
+        // MARK: Configurable shortcuts
         shortcutRecording: "Neuen Kurzbefehl drücken",
         shortcutReset: "Zurücksetzen",
         shortcutNone: "Keiner",
@@ -963,6 +1103,8 @@ extension Strings {
         shortcutUnavailable: "macOS hat diesen Kurzbefehl abgelehnt. Wähle einen anderen.",
         shelfShortcutToggle: "Shelf-Kurzbefehl",
         switcherUsageHintFormat: "Halte %@ zum Navigieren; loslassen, um das Fenster zu aktivieren. Umschalt oder ← geht zurück; W schließt das Fenster; Q beendet die App; Esc bricht ab.",
+
+        // MARK: Media keys
         musicBlockSection: "Medientasten",
         musicBlockTitle: "Musik nicht von selbst öffnen lassen",
         musicBlockCaption: "Blockiert den Start der Musik-App nach einer erkannten Medientaste. Benötigt Bedienungshilfen. Kopfhörerbefehle ohne erkannte Taste werden zugelassen.",
@@ -972,9 +1114,13 @@ extension Strings {
         musicBlockReplacementBlocked: "Musik und iTunes sind die blockierten Apps und können daher nicht stattdessen öffnen. Wähle eine andere App.",
         musicBlockChooseApp: "App wählen…",
         musicBlockPlayReplacement: "Nach dem Öffnen der Ersatz-App abspielen",
+
+        // MARK: Cleaner
         cleanerName: "Aufräumen",
         cleanerIntroTitle: "Räume den Mac auf",
         cleanerIntroCaption: "Sucht Reste deinstallierter Apps, Caches, Protokolle und den Papierkorb. Du prüfst alles vorher und Entferntes landet im Papierkorb.",
+
+        // MARK: Cleaner — scan & categories
         cleanerScan: "Prüfen",
         cleanerScanning: "Prüfe…",
         cleanerCleaning: "Räume auf…",
@@ -993,6 +1139,8 @@ extension Strings {
         cleanerScreenshotsCaptionFormat: "Bildschirmfotos, die du seit %d Tagen nicht geöffnet hast und die noch den Namen und Ordner von macOS tragen. Umbenannte oder verschobene erscheinen hier nie.",
         cleanerScreenshotsSettingCaption: "Die Suche listet Bildschirmfotos, die du so lange nicht geöffnet hast, nicht ausgewählt und mit ihrer Gesamtgröße.",
         cleanerScreenshotsAfterFormat: "Nach %d Tagen",
+
+        // MARK: Cleaner — results
         cleanerNothingFound: "Nichts aufzuräumen. Dein Mac ist in Ordnung.",
         cleanerClean: "Aufräumen",
         cleanerDoneNote: "Die Objekte liegen im Papierkorb und können von dort zurückgeholt werden.",
@@ -1009,6 +1157,8 @@ extension Strings {
         cleanerLeftoversCaption: "Dateien von Apps, die du deinstalliert hast.",
         cleanerOtherCachesCaption: "Sicher zu löschen, nichts geht kaputt. Apps starten einmalig langsamer und Heruntergeladenes, etwa Offline-Musik, lädt erneut.",
         cleanerCleanSizeFormat: "%@ aufräumen",
+
+        // MARK: Cleaner — schedule
         cleanerScheduleTitle: "Automatisches Aufräumen",
         cleanerScheduleOff: "Aus",
         cleanerScheduleDaily: "Täglich",
@@ -1019,10 +1169,16 @@ extension Strings {
         cleanerScheduleNextFormat: "Nächstes Aufräumen %@.",
         cleanerScheduleRanFormat: "Letztes automatisches Aufräumen %@.",
         cleanerScheduleNotifyToggle: "Nach Abschluss benachrichtigen",
+
+        // MARK: Cleaner — notifications
         cleanerNotifDenied: "Mitteilungen von Vorssaint sind im System deaktiviert.",
         cleanerNotifOpenSettings: "Mitteilungseinstellungen öffnen…",
+
+        // MARK: Settings — launch at login
         launchAtLoginNeedsApplications: "Die App läuft von einem Ort, der das Öffnen bei der Anmeldung nicht erlaubt. Ziehe Vorssaint in den Ordner Programme, öffne die App von dort und schalte die Option wieder ein.",
         launchAtLoginNeedsApproval: "Das Anmeldeobjekt ist registriert, macOS braucht aber noch deine Genehmigung. Erlaube Vorssaint in den Systemeinstellungen, sich bei der Anmeldung zu öffnen und im Hintergrund zu laufen.",
+
+        // MARK: Settings — OCR
         ocrRemoveLineBreaksToggle: "Zeilenumbrüche entfernen",
         ocrRemoveLineBreaksCaption: "Entfernt Zeilenumbrüche, damit kopierter Text als ein Absatz eingefügt wird.",
         ocrQRToggle: "QR-Codes lesen",
@@ -1031,6 +1187,8 @@ extension Strings {
         qrResultTitle: "QR-Code",
         qrResultCopy: "Kopieren",
         qrResultOpen: "Link öffnen",
+
+        // MARK: Release notes — highlights
         highlightsTitle: "Neu in diesem Update",
         highlightsTitleClipboardRedesign: "Überarbeitete Zwischenablage",
         highlightsTitleWindowLayout: "Fenster-Layout",
@@ -1047,20 +1205,38 @@ extension Strings {
         highlightsConfigure: "Einrichten",
         highlightsTry: "Ausprobieren",
         highlightsSeeAll: "Alle Änderungen ansehen",
+
+        // MARK: Settings — switcher space behavior
         switcherCurrentSpaceOnly: "Nur den aktuellen Schreibtisch anzeigen",
         switcherCurrentSpaceOnlyCaption: "Zeigt Fenster des aktuellen Schreibtischs an. Wenn Vollbildfenster angezeigt werden, erscheinen sie auch von anderen Schreibtischen.",
+
+        // MARK: Panel — temporary shelf item status
         shelfFileMissing: "Die Datei existiert nicht mehr",
+
+        // MARK: Settings — window previews
         previewSizeSmall: "Klein",
+
+        // MARK: Volume mixer — sound effects
         mixerSoundEffectsOutputTitle: "Systemtöne",
         mixerSoundEffectsOutputTooltip: "Auswählen, wo Hinweise und Toneffekte wiedergegeben werden",
+
+        // MARK: Monitor — actions
         monitorOpenActivityMonitor: "Aktivitätsanzeige öffnen",
+
+        // MARK: Settings — Dock click behavior
         dockClickHide: "Klick aufs Dock-Symbol blendet App aus",
         dockClickHideCaption: "Die aktive App wird ausgeblendet, wenn du auf ihr Dock-Symbol klickst. Ein weiterer Klick holt sie zurück.",
+
+        // MARK: Monitor — memory metric
         monitorMemoryMetricLabel: "Speicher messen als",
         memoryMetricUsed: "Genutzter Speicher",
         memoryMetricApp: "App-Speicher",
+
+        // MARK: Panel — keep awake menu
         keepAwakeRightClickToggle: "Menüleistensymbol rechtsklicken, um Wachhalten umzuschalten",
         keepAwakeRightClickToggleCaption: "Ersetzt das Kontextmenü beim Rechtsklick.",
+
+        // MARK: URL cleaner — site rules
         urlCleanerRulesTitle: "Bereinigungsregeln",
         urlCleanerRulesCaption: "Eine Website hängt diese Parameter an ihre eigenen Teilen-Links, um zu verfolgen, woher ein Link kam. Mit Haken wird der Name beim Bereinigen entfernt, ohne Haken bleibt er. Selbst hinzugefügte Namen lassen sich löschen.",
         urlCleanerRulesCoverageCaption: "Die Liste deckt die verschiedenen Teilen-Wege einer Website ab (Webseite, App, Livestream), deshalb ist sie lang; ein echter Link trägt meist nur zwei bis vier davon.",
@@ -1075,11 +1251,19 @@ extension Strings {
         urlCleanerRulesRemoveSiteButton: "Alle Regeln dieser Website ausschalten",
         urlCleanerRulesRestoreSiteButton: "Alle Regeln dieser Website einschalten",
         urlCleanerRemovedFormat: "Entfernt %@",
+
+        // MARK: Settings — switcher search
         switcherSearchPin: "Suche mit S anpinnen",
         switcherSearchPinCaption: "S startet die Suche und pinnt den Umschalter an – so tippst du keine Sonderzeichen mehr, wenn dein Kurzbefehl ⌥ nutzt, und eine Suche, die mit Q oder W beginnt, schließt das Fenster oder die App nicht mehr versehentlich.",
+
+        // MARK: Settings — scroll direction
         invertVerticalScroll: "Vertikales Scrollen umkehren",
         invertHorizontalScroll: "Horizontales Scrollen umkehren",
+
+        // MARK: Settings — horizontal scrolling
         scrollHorizontalName: "Mit gedrückter Taste horizontal scrollen",
+
+        // MARK: Settings — zoom
         zoomSection: "Zoom",
         zoomControlNote: "Control + Scrollen zoomt den App-Inhalt statt des macOS-Bildschirms.",
         pinchZoom: "Pinch-Zoom",
@@ -1088,15 +1272,23 @@ extension Strings {
         scrollHorizontalCaption: "Halten Sie nur die gewählte Zusatztaste gedrückt, um mit dem vertikalen Mausrad horizontal zu scrollen. Andere Tastenkombinationen bleiben unverändert.",
         switcherShowShortcutHints: "Kurzbefehlhinweise anzeigen",
         switcherShowShortcutHintsCaption: "Zeigt die Kurzbefehle für Apps und Fenster unter den Symbolen.",
+
+        // MARK: Uninstaller — Homebrew packages
         uninstallerHomebrewPackageFormat: "%@ wird auch aus Homebrew entfernt.",
         uninstallerHomebrewCheckFailed: "Es konnte nicht geprüft werden, ob Homebrew diese App verwaltet. Aktualisiere die Liste, um es erneut zu versuchen, oder deinstalliere sie über Homebrew.",
+
+        // MARK: Settings — temporary shelf placement
         shelfEdgeToggle: "In der Nähe eines Bildschirmrands öffnen",
         shelfEdgeCaption: "Ziehe eine Datei in Richtung Bildschirmrand, damit die Ablage kurz hervorschaut. Lass sie dort los, oder zieh zurück, und die Ablage verschwindet wieder.",
+
+        // MARK: Settings — focus follows mouse
         focusFollowsMouseName: "Fokus folgt Maus",
         focusFollowsMouseCaption: "Fokussiert das Fenster unter dem Zeiger.",
         focusFollowsMouseDelay: "Verzögerung",
         focusFollowsMouseRaise: "Fenster nach vorn bringen",
         focusFollowsMouseWaitForStop: "Warten, bis der Zeiger stillsteht",
+
+        // MARK: Settings — switcher window placement
         switcherMinimizedPlacementLabel: "Minimierte Fenster",
         switcherTreatHiddenAppsLikeMinimized: "Ausgeblendete Apps wie minimierte Fenster behandeln",
         switcherMinimizedPlacementNormal: "Normale Reihenfolge",
@@ -1110,23 +1302,36 @@ extension Strings {
         switcherScreenPlacementCaption: "Auf welchem Bildschirm der Umschalter erscheint, wenn mehrere angeschlossen sind.",
         switcherCurrentDisplayOnly: "Nur den aktuellen Bildschirm anzeigen",
         switcherCurrentDisplayOnlyCaption: "Zeigt nur Fenster auf dem Bildschirm unter dem Mauszeiger. Hat dieser Bildschirm keine Fenster, öffnet sich der Umschalter nicht.",
+
+        // MARK: Settings — smooth scrolling
         smoothScrollResponseLabel: "Reaktion",
         smoothScrollCoastLabel: "Auslauf",
+
+        // MARK: Settings — mouse acceleration
         mouseAccelerationName: "Mausbeschleunigung deaktivieren",
         mouseAccelerationCaption: "Deaktiviert die Zeigerbeschleunigung für angeschlossene Mäuse. Die vorherige Einstellung wird beim Ausschalten oder Beenden von Vorssaint wiederhergestellt.",
+
+        // MARK: Settings — linear scrolling
         linearScrollName: "Lineares Scrollen",
         linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
         linearScrollLinesLabel: "Zeilen pro Rastschritt",
+        // MARK: Settings — scroll speed
         scrollSpeedName: "Schneller scrollen mit gehaltener Taste",
         scrollSpeedCaption: "Halte nur den gewählten Modifikator beim Mausrad, um die Scrollweite zu multiplizieren. Das Trackpad bleibt unberührt.",
         scrollSpeedMultiplierLabel: "Geschwindigkeit",
+
+        // MARK: Settings — temporary shelf behavior
         shelfClearOnClose: "Beim Schließen leeren",
         shelfClearOnCloseCaption: "Leert die Ablage nur, wenn du auf die Schließen-Taste klickst. Automatisches Ausblenden und Einklappen behalten die Objekte.",
         shelfShortcutFinderSelection: "Finder-Auswahl per Kurzbefehl hinzufügen",
         shelfShortcutFinderSelectionCaption: "Ist der Finder im Vordergrund, öffnet der Kurzbefehl die Ablage bereits mit den ausgewählten Dateien. Ohne Auswahl öffnet sie sich wie gewohnt.",
+
+        // MARK: Settings — Spaces order
         spacesOrderName: "Spaces in fester Reihenfolge halten",
         spacesOrderCaption: "Verhindert, dass macOS die Spaces nach der letzten Nutzung neu anordnet, damit sie in deiner Reihenfolge bleiben. Deine vorherige Einstellung kehrt zurück, wenn du dies ausschaltest. Das Dock startet dafür eventuell einmal neu.",
+
+        // MARK: Feature — quit applications
         quitAppsName: "Apps beenden",
-        quitAppsCaption: "Listet deine geöffneten Apps auf, um sie einzeln, alle auf einmal oder alle außer der vorderen zu beenden. Zeigt immer zuerst die Liste, bevor etwas beendet wird."
+        quitAppsCaption: "Listet deine geöffneten Apps auf, um sie einzeln, alle auf einmal oder alle außer der vorderen zu beenden. Zeigt immer zuerst die Liste, bevor etwas beendet wird.",
     )
 }
