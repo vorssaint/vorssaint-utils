@@ -307,6 +307,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/ClaudeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/OhMyPiReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
@@ -319,6 +320,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/CodexAccountLimits.swift
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentOhMyPiReader.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift

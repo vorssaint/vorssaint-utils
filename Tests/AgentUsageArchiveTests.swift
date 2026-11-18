@@ -301,7 +301,7 @@ enum AgentUsageArchiveTests {
             ("AgentLiveSession", labels(sampleTurn),
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
-             ["path", "provider", "parent", "openCode", "offset", "identity", "pending", "discarding",
+             ["path", "provider", "parent", "openCode", "ohMyPi", "offset", "identity", "pending", "discarding",
               "state", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
@@ -309,7 +309,7 @@ enum AgentUsageArchiveTests {
              ["session", "project", "model", "turnOpen", "sawUsageRecords", "lastTotal", "fast",
               "codexSubagent", "codexHeaderRead", "codexRoot", "codexTotalsSession",
               "copilotTotals", "copilotRequests", "copilotRequestModels", "copilotReportedRequests",
-              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "runningCommands"])
+              "copilotTurnID", "copilotFinalResponse", "parentSession", "openCodeSessions", "ompSessions", "runningCommands"])
         ]
         for layout in layouts {
             suite.expect(layout.stored == layout.written,
