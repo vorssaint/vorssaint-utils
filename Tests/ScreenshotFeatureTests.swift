@@ -1387,10 +1387,11 @@ enum ScreenshotFeatureTests {
                 .components(separatedBy: "\n    }\n").first ?? ""
         }
         let routeStatements = serviceBody("    private func route(_ capture:")
+            .components(separatedBy: "{").dropFirst().joined(separator: "{")
             .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
         suite.expect(serviceBody("    private func teardownSurfaces() {").contains("invalidateLatestCaptureUploads()")
-                && routeStatements.dropFirst().first == "beginLatestCapture(capture)",
+                && routeStatements.first == "beginLatestCapture(capture)",
                "turning screenshots off invalidates pending shortcut uploads, and every capture starts as the latest one")
         suite.expect(serviceBody("    func syncWithPreferences() {")
                     .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),"),

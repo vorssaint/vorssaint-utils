@@ -2127,6 +2127,21 @@ def main():
                         "    func createLink(pngData:")
           + "}\n}\n")
     screenshot_service = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
+    pin_route = declaration(screenshot_service, "    private func route(")
+    pin_route = pin_route.replace("private func", "func", 1).replace("UserDefaults.standard", "defaults")
+    pin_route = pin_route.replace("ScreenshotDefaultAction.current",
+                                  '(ScreenshotDefaultAction(rawValue: defaults.string(forKey: '
+                                  'DefaultsKey.screenshotDefaultAction) ?? "") ?? .none)')
+    write("ScreenshotAutoPin.swift", "import Foundation\nextension ScreenshotAutoPinTests {\n"
+          + "final class Service: State {\n" + pin_route
+          + "".join(declaration(screenshot_service, prefix).replace("private struct", "struct", 1)
+                    for prefix in ["    private struct SaveOutcome", "    private struct AutomaticActionResult"])
+          + declaration(screenshot_service, "    private func runDefaultAction(")
+          + "}\n}\n")
+    write("ScreenshotPinZoom.swift", "import AppKit\nextension ScreenshotPinZoomTests {\n"
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotPinController.swift",
+                        "    private final class PinScrollView:").replace("private final class", "final class", 1)
+          + "}\n")
     write("ScreenshotAutoCopy.swift", "import Foundation\nextension ScreenshotAutoCopyTests {\n"
           + "@MainActor final class Service: State {\n"
           + declaration(screenshot_service, "    private func autoCopy(").replace("private func", "func", 1)

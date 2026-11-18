@@ -272,6 +272,16 @@ enum ScreenshotSupport {
     static let defaultConfirmationPreviewDuration = 3
     static let recoveryPreviewDismissInterval: TimeInterval = 12
 
+    enum CaptureKind {
+        case standard
+        case scrolling
+
+        func autoPins(in defaults: UserDefaults) -> Bool {
+            defaults.bool(forKey: self == .scrolling
+                ? DefaultsKey.screenshotScrollingAutoPin : DefaultsKey.screenshotAutoPin)
+        }
+    }
+
     struct ConfirmationPreviewPresentationPolicy: Equatable {
         let takesFocus: Bool
         let closesOnCollapse: Bool

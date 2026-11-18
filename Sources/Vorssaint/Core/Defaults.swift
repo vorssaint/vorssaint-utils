@@ -717,6 +717,8 @@ enum DefaultsKey {
     static let screenshotFileNumberStart = "screenshotFileNumberStart"
     static let screenshotFileNumberNext = "screenshotFileNumberNext"
     static let screenshotDefaultAction = "screenshotDefaultAction"
+    static let screenshotAutoPin = "screenshotAutoPin"
+    static let screenshotScrollingAutoPin = "screenshotScrollingAutoPin"
     static let screenshotIncludePointer = "screenshotIncludePointer"
     static let screenshotShowLastRegion = "screenshotShowLastRegion"
     static let screenshotHighlightWindows = "screenshotHighlightWindows"
@@ -1956,6 +1958,8 @@ enum Defaults {
         DefaultsKey.screenshotFileNumberStart: 1,
         DefaultsKey.screenshotFileNumberNext: 1,
         DefaultsKey.screenshotDefaultAction: "",
+        DefaultsKey.screenshotAutoPin: false,
+        DefaultsKey.screenshotScrollingAutoPin: false,
         DefaultsKey.screenshotIncludePointer: false,
         DefaultsKey.screenshotShowLastRegion: true,
         DefaultsKey.screenshotHighlightWindows: true,
