@@ -11,8 +11,15 @@ enum ScreenshotCountdownTests {
         var countdownRemaining = 0
         var selection: Bool?
         var selections: [ScreenCaptureTool] = []
-        func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool, showsCaptureMenu: Bool) {
+        var offered: [[ScreenCaptureTool]] = []
+        var menus: [Bool] = []
+        var targets: [ScreenshotSelectionTarget?] = []
+        func beginSelection(tools: [ScreenCaptureTool], selected: ScreenCaptureTool, showsCaptureMenu: Bool,
+                            target: ScreenshotSelectionTarget? = nil) {
             selections.append(selected)
+            offered.append(tools)
+            menus.append(showsCaptureMenu)
+            targets.append(target)
         }
     }
     class ScreenshotState {
@@ -80,5 +87,18 @@ enum ScreenshotCountdownTests {
         suite.expect(chooser.selections == [.scrolling] && screenshot.captures == 1
                      && chooser.countdown == nil && Clock.main.pending.isEmpty,
                      "each completed countdown runs exactly the requested capture and releases the next one")
+
+        defaults.set(0, forKey: DefaultsKey.screenshotDelay)
+        chooser.selections = []
+        chooser.offered = []
+        chooser.menus = []
+        chooser.targets = []
+        chooser.capture(initial: .scrolling, fromShortcut: true, target: .area)
+        chooser.capture(initial: .screenshot, fromShortcut: true, target: .window)
+        suite.expect(chooser.selections == [.screenshot, .screenshot]
+                     && chooser.offered == [[.screenshot], [.screenshot]]
+                     && chooser.menus == [false, false]
+                     && chooser.targets == [.area, .window],
+                     "the area and window shortcuts open only the screenshot tool, without the tool menu")
     }
 }
