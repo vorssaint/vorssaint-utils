@@ -93,6 +93,7 @@ enum NotchHoverTests {
         var hiddenInFullscreen = false
         var fullscreenCompact: Bool { hiddenInFullscreen && !expanded && !peeking }
         var showsSystemFeedback = true, routesNotices = true
+        var namesNewSongs = true
         /// Hidden until hover and set to show activity, as Settings has it.
         var hiddenShowsActivity = false
         var running = true, suspended = false, inside = false, hoverEmphasized = false
@@ -1548,6 +1549,18 @@ enum NotchHoverTests {
         DispatchQueue.main.advance(4.01)
         expect(!unattended.capsuleMusicTitleShown && !unattended.musicStripNamed,
                "with no pointer on it, the capsule lets the name go after its moment")
+        // New track off keeps the capsule to its cover and bars (#3573),
+        // while a rest on the cover still names the song.
+        let quiet = strip(false, capsule: true)
+        quiet.namesNewSongs = false
+        quiet.hover(true)
+        quiet.nameCapsuleSong()
+        expect(!quiet.capsuleMusicTitleShown && quiet.musicTitleWork == nil,
+               "with New track off a new song is not named in the capsule")
+        quiet.hoverMusicStrip(.cover, entered: true)
+        DispatchQueue.main.advance(NotchMusicStripLayout.namingDelay + 0.01)
+        expect(quiet.musicStripNamesSong, "with New track off a rest on the cover still names the song")
+        leave(quiet)
 
         // The song a skip held goes back to the live one, which a named strip fits.
         let releasing = strip(true)
