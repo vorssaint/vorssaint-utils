@@ -12,6 +12,30 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        piGolden(suite)
+    }
+
+    private static func piGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        for provider in [AgentProvider.pi, .omp] {
+            var state = AgentLogState(session: "s")
+            let reader = provider.reader
+            let prompt = line(#"{"type":"message","id":"u","timestamp":1790088000,"message":{"role":"user","content":"work"}}"#)
+            suite.expect(reader.parse(prompt, state: &state, now: now)
+                            == [.turnBegan(Date(timeIntervalSince1970: 1_790_088_000))],
+                         "\(provider.rawValue) reader opens a turn for a user message")
+            let reply = line(#"{"type":"message","id":"a","timestamp":1790088020,"message":{"role":"assistant","model":"unknown-model","stopReason":"stop","usage":{"input":10,"output":5,"cost":{"total":0.01}}}}"#)
+            let entries = reader.parse(reply, state: &state, now: now)
+            let records = entries.compactMap { entry -> AgentUsageRecord? in
+                if case .usage(_, let record, _) = entry { return record }
+                return nil
+            }
+            suite.expect(records.count == 1 && records.first?.provider == provider,
+                         "\(provider.rawValue) reader attributes usage to its own provider")
+            suite.expect(entries.last == .turnEnded(Date(timeIntervalSince1970: 1_790_088_020),
+                                                    completed: true, duration: nil),
+                         "\(provider.rawValue) reader ends the turn on a completed reply")
+        }
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
