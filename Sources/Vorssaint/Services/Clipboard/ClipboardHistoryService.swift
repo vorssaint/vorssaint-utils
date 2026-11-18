@@ -27,7 +27,9 @@ final class ClipboardHistoryService: ObservableObject {
             searchCache.prune(keeping: entries)
             // The result array holds full entry texts, so a cleared or edited
             // history's content must not linger in it until the next search.
-            filterCache = nil
+            filterCache.removeAll()
+            for work in deferredSearchWork.values { work.cancel() }
+            deferredSearchWork.removeAll()
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -481,35 +483,35 @@ final class ClipboardHistoryService: ObservableObject {
     /// Bumped by the `entries` didSet; lets the search cache below notice any
     /// mutation without every mutating site having to remember it.
     private var entriesStamp = 0
-    private var filterCache: (query: String, stamp: Int, imageLabel: String,
-                              result: [ClipboardHistoryEntry])?
+    private var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
     private var searchCache = ClipboardHistorySearchCache()
-    /// The search index folds only the opening of a long entry, so a match
-    /// deeper inside one is found by a second pass over the full texts of the
-    /// entries the indexed pass missed. That pass runs off the main thread
-    /// after the typing settles, and only its newest answer is applied: a
-    /// fresh keystroke bumps the generation and cancels the queued scan.
-    private var deferredSearchGeneration = 0
-    private var deferredSearchWork: DispatchWorkItem?
+    private var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
 
-    func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+    func cancelSearch(on surface: ClipboardHistorySearchSurface) {
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
+        filterCache[surface] = nil
+    }
+
+    func filteredEntries(matching query: String, surface: ClipboardHistorySearchSurface = .quick,
+                         onDeferredResults: (() -> Void)? = nil) -> [ClipboardHistoryEntry] {
         // One ranking pass over a large history of long texts costs real
         // time, and SwiftUI asks for the filtered list many times per
         // render. The last result is reused until the query, the language
         // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        if let cache = filterCache, cache.query == query,
+        if let cache = filterCache[surface], cache.query == query,
            cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
             return cache.result
         }
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
         guard !entries.isEmpty else {
             searchCache.clear()
-            filterCache = (query, entriesStamp, imageLabel, [])
+            filterCache[surface] = (query, entriesStamp, imageLabel, [])
             return []
         }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            filterCache = (query, entriesStamp, imageLabel, entries)
+            filterCache[surface] = (query, entriesStamp, imageLabel, entries)
             return entries
         }
         let candidates = searchCache.candidates(for: entries,
@@ -517,12 +519,12 @@ final class ClipboardHistoryService: ObservableObject {
                                                 imageLabel: imageLabel)
         let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
         let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
-        filterCache = (query, entriesStamp, imageLabel, result)
+        filterCache[surface] = (query, entriesStamp, imageLabel, result)
         scheduleDeferredSearch(candidates: candidates,
                                matchedIndexes: Set(ranked),
                                query: query,
                                imageLabel: imageLabel,
-                               stamp: entriesStamp)
+                               stamp: entriesStamp, surface: surface, onDeferredResults: onDeferredResults)
         return result
     }
 
@@ -534,40 +536,34 @@ final class ClipboardHistoryService: ObservableObject {
                                         matchedIndexes: Set<Int>,
                                         query: String,
                                         imageLabel: String,
-                                        stamp: Int) {
-        deferredSearchGeneration &+= 1
-        deferredSearchWork?.cancel()
-        let generation = deferredSearchGeneration
-        let snapshot = entries
-        let pendingIndexes = candidates
-            .filter { $0.isIndexTruncated && !matchedIndexes.contains($0.index) }
-            .map(\.index)
-        guard !pendingIndexes.isEmpty else { return }
-        let pending = pendingIndexes.compactMap { snapshot.indices.contains($0) ? snapshot[$0] : nil }
-        let work = DispatchWorkItem { [weak self] in
-            let found = pending.filter {
-                ClipboardHistorySearch.matches($0.searchableText(imageLabel: imageLabel), query: query)
+                                        stamp: Int, surface: ClipboardHistorySearchSurface,
+                                        onDeferredResults: (() -> Void)?) {
+        let pending = candidates.compactMap { candidate -> ClipboardHistoryEntry? in
+            guard candidate.isIndexTruncated, !matchedIndexes.contains(candidate.index) else { return nil }
+            return entries[candidate.index]
+        }
+        guard !pending.isEmpty else { return }
+        deferredSearchWork[surface] = Task.detached(priority: .utility) { [weak self] in
+            do { try await Task.sleep(nanoseconds: 150_000_000) } catch { return }
+            var found: [ClipboardHistoryEntry] = []
+            for entry in pending {
+                guard !Task.isCancelled else { return }
+                if ClipboardHistorySearch.matches(entry.searchableText(imageLabel: imageLabel), query: query) {
+                    found.append(entry)
+                }
             }
-            guard !found.isEmpty else { return }
-            DispatchQueue.main.async {
-                guard let self, self.deferredSearchGeneration == generation,
-                      self.entriesStamp == stamp,
-                      let cache = self.filterCache,
-                      cache.query == query, cache.stamp == stamp, cache.imageLabel == imageLabel
+            let added = found
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled, self.entriesStamp == stamp,
+                      let cache = self.filterCache[surface], cache.query == query, cache.imageLabel == imageLabel
                 else { return }
-                let known = Set(cache.result.map(\.id))
-                let added = found.filter { !known.contains($0.id) }
+                self.deferredSearchWork[surface] = nil
                 guard !added.isEmpty else { return }
-                self.filterCache = (cache.query, cache.stamp, cache.imageLabel, cache.result + added)
-                // The list is read from `filteredEntries` inside a view body,
-                // so the merged result only reaches the screen through a
-                // published change, the same way a new copy does.
+                self.filterCache[surface] = (query, stamp, imageLabel, cache.result + added)
                 self.objectWillChange.send()
+                onDeferredResults?()
             }
         }
-        deferredSearchWork = work
-        ClipboardHistoryDeferredSearch.queue.asyncAfter(deadline: .now() + ClipboardHistoryDeferredSearch.delay,
-                                                        execute: work)
     }
 
     func copyQuickEntry(at index: Int) {

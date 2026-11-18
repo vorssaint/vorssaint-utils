@@ -44,7 +44,7 @@ struct NotchClipboardView: View {
     private static let listSpace = "notch.clipboard.list"
 
     private var entries: [ClipboardHistoryEntry] {
-        history.filteredEntries(matching: query).filter { !pinnedOnly || $0.isPinned }
+        history.filteredEntries(matching: query, surface: .island).filter { !pinnedOnly || $0.isPinned }
     }
 
     /// Moving swaps neighbours in the list, which a search would misreport.

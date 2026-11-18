@@ -37,7 +37,7 @@ struct PanelClipboardView: View {
     }
 
     private var filteredEntries: [ClipboardHistoryEntry] {
-        history.filteredEntries(matching: query)
+        history.filteredEntries(matching: query, surface: .panel)
     }
 
     private var canReorderEntries: Bool {

@@ -792,8 +792,16 @@ enum ClipboardFeatureTests {
 
         // The limit counts grapheme clusters: a cut inside a decomposed or
         // composed Character would break the text it indexes.
+        let multilingual = String(repeating: "あ", count: 1500) + " term"
+        let multilingualCandidate = ClipboardHistorySearchCandidate(index: 0, text: multilingual, isPinned: false)
+        suite.expect(!multilingualCandidate.isIndexTruncated && multilingualCandidate.words?.contains("term") == true,
+                     "short multibyte text keeps its word boundaries after passing 4096 bytes")
+        let cut = ClipboardHistorySearchCandidate(index: 0, text: "term      remainder", isPinned: false, limit: 10)
+        let exact = ClipboardHistorySearchCandidate(index: 1, text: "term", isPinned: false)
+        suite.expect(ClipboardHistorySearch.rankedIndexes(candidates: [cut, exact], matching: "term") == [1, 0],
+                     "a trimmed prefix does not take the exact match bonus from a complete entry")
         let clusterText = String(repeating: "a👨‍👩‍👧‍👦", count: 3_000)
-        let clusterIndex = ClipboardHistoryEntry(text: clusterText).indexText(imageLabel: "Image")
+        let clusterIndex = ClipboardHistoryEntry.indexedText(clusterText).text
         suite.expect(clusterIndex.count == ClipboardHistoryEntry.indexCharacters
                      && clusterIndex.unicodeScalars.count > ClipboardHistoryEntry.indexCharacters
                      && clusterText.hasPrefix(clusterIndex),
@@ -1935,10 +1943,8 @@ enum ClipboardPreviewContract {
         var latestPasteboardEntry: ClipboardHistoryEntry?
         var entriesStamp = 0
         var searchCache = ClipboardHistorySearchCache()
-        var filterCache: (query: String, stamp: Int, imageLabel: String,
-                          result: [ClipboardHistoryEntry])?
-        var deferredSearchGeneration = 0
-        var deferredSearchWork: DispatchWorkItem?
+        var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
+        var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
         let objectWillChange = PassthroughSubject<Void, Never>()
         var pendingWrite: ((Bool) -> Void)?
         func writeToPasteboard(_ list: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
@@ -2123,9 +2129,9 @@ enum ClipboardPreviewContract {
                      "search cache retains exactly remaining pinned entry count without search")
         suite.expect(service.searchCache.candidateCount == 0,
                      "service search candidate list cleared on clearing recent history")
-        service.filterCache = ("recent", service.entriesStamp, "Image", [recentItem])
+        service.filterCache[.quick] = ("recent", service.entriesStamp, "Image", [recentItem])
         service.setEntries([pinnedItem])
-        suite.expect(service.filterCache == nil,
+        suite.expect(service.filterCache.isEmpty,
                      "history mutation drops the retained filtered result texts without a search")
 
         suite.expect(service.updateText(pinnedItem, to: "Modified Alpha content"),
@@ -2155,7 +2161,7 @@ enum ClipboardPreviewContract {
                      "production search ranks the prefix match first")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 3, "production search folds each entry exactly once")
         suite.expect(service.searchCache.candidateCount == 3, "production search populates the candidate cache")
-        suite.expect(service.filterCache?.query == "alpha", "production search caches its result")
+        suite.expect(service.filterCache[.quick]?.query == "alpha", "production search caches its result")
         let keystrokePass = service.filteredEntries(matching: "alph")
         suite.expect(keystrokePass.map(\.text) == firstPass.map(\.text),
                      "keystroke search returns the same ranking")
@@ -2164,7 +2170,7 @@ enum ClipboardPreviewContract {
         let whitespacePass = service.filteredEntries(matching: "   ")
         suite.expect(whitespacePass.count == 3, "whitespace query returns every entry")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 3, "whitespace query performs no folds")
-        suite.expect(service.filterCache?.result.count == 3, "whitespace query caches the full list")
+        suite.expect(service.filterCache[.quick]?.result.count == 3, "whitespace query caches the full list")
         let nonePass = service.filteredEntries(matching: "nomatch")
         suite.expect(nonePass.isEmpty, "unmatched query returns nothing")
         suite.expect(service.searchCache.cachedEntryCount == 3 && service.searchCache.candidateCount == 3,
@@ -2181,6 +2187,9 @@ enum ClipboardPreviewContract {
         suite.expect(editedPass.map(\.text) == ["Beta edited notes"], "search sees the edited text")
         suite.expect(service.searchCache.foldCount == foldsAtStart + 4, "only the edited entry refolds")
         searchFolding(suite)
+        if ProcessInfo.processInfo.environment["VORSSAINT_CLIPBOARD_SEARCH_SMOKE"] == "1" {
+            measureSearch(suite)
+        }
         quickSelection(suite)
         promotedSource(suite)
         sensitiveText(suite)
@@ -2261,6 +2270,40 @@ enum ClipboardPreviewContract {
                      "deleting the highlighted entry highlights the one that took its place")
     }
 
+    private static func measureSearch(_ suite: TestSuite) {
+        let service = Service()
+        let prefix = String(repeating: "alpha ", count: 2048)
+        var documents = (0..<256).map { ClipboardHistoryEntry(text: prefix + "deep target-\($0)!") }
+        service.setEntries(documents)
+        let start = ProcessInfo.processInfo.systemUptime
+        let first = service.filteredEntries(matching: "alpha")
+        let indexed = ProcessInfo.processInfo.systemUptime
+        documents[17].text += " unique edit"
+        service.setEntries(documents)
+        let edited = ProcessInfo.processInfo.systemUptime
+        var command = false, panel = false
+        _ = service.filteredEntries(matching: "unique edit", surface: .commandBar, onDeferredResults: { command = true })
+        _ = service.filteredEntries(matching: "target-93!", surface: .panel, onDeferredResults: { panel = true })
+        for step in 0..<32 { _ = service.filteredEntries(matching: "superseded-\(step)", surface: .island) }
+        let deadline = Date().addingTimeInterval(6)
+        while (!command || !panel) && Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
+        let completed = ProcessInfo.processInfo.systemUptime
+        suite.expect(first.count == documents.count && service.searchCache.foldCount == documents.count + 1,
+                     "the 256-document history refolds exactly one edit")
+        suite.expect(command && panel && service.filterCache[.commandBar]?.result.map(\.id) == [documents[17].id]
+                        && service.filterCache[.panel]?.result.map(\.id) == [documents[93].id],
+                     "parallel clipboard consumers find their own deep matches under rapid typing")
+        var deliveredAfterClear = false
+        _ = service.filteredEntries(matching: "target-10!", surface: .island, onDeferredResults: { deliveredAfterClear = true })
+        service.setEntries([])
+        RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        suite.expect(!deliveredAfterClear && service.filterCache.isEmpty && service.deferredSearchWork.isEmpty
+                         && service.searchCache.cachedEntryCount == 0,
+                     "clearing cancels all jobs and drops the saved documents and result caches")
+        print(String(format: "256 synthetic documents, initial index %.1f ms, edit %.1f ms, concurrent tail results %.1f ms",
+                     (indexed-start)*1000, (edited-indexed)*1000, (completed-edited)*1000))
+    }
+
     /// #1885: typing searches the history once per keystroke, so the folded
     /// text has to be reused between keystrokes and still rank exactly as a
     /// fresh fold would.
@@ -2313,6 +2356,10 @@ enum ClipboardPreviewContract {
         deepService.setEntries([shortNote, documentEntry])
         suite.expect(deepService.filteredEntries(matching: deepMarker).isEmpty,
                      "the indexed pass alone cannot see a match deep inside a long entry")
+        var refreshedCommandBar = false
+        _ = deepService.filteredEntries(matching: " хвост", surface: .commandBar,
+                                        onDeferredResults: { refreshedCommandBar = true })
+        _ = deepService.filteredEntries(matching: "", surface: .island)
         var deepMatches = deepService.filteredEntries(matching: deepMarker)
         let deepDeadline = Date().addingTimeInterval(5)
         while deepMatches.isEmpty && Date() < deepDeadline {
@@ -2321,6 +2368,29 @@ enum ClipboardPreviewContract {
         }
         suite.expect(deepMatches.map(\.id) == [documentEntry.id],
                      "the deferred pass appends the deep match once the typing settles")
+        while !refreshedCommandBar && Date() < deepDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.01))
+        }
+        suite.expect(refreshedCommandBar && deepService.filteredEntries(matching: " хвост", surface: .commandBar)
+                        .map(\.id) == [documentEntry.id],
+                     "the command bar and quick window both receive their deep results while the island browses")
+        var boundary = ClipboardHistoryEntry(text: String(repeating: "x", count: ClipboardHistoryEntry.indexCharacters))
+        deepService.setEntries([boundary])
+        _ = deepService.filteredEntries(matching: "boundary")
+        boundary.text += " boundary"
+        deepService.setEntries([boundary])
+        var boundaryIDs = deepService.filteredEntries(matching: "boundary").map(\.id)
+        let boundaryDeadline = Date().addingTimeInterval(3)
+        while boundaryIDs.isEmpty && Date() < boundaryDeadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+            boundaryIDs = deepService.filteredEntries(matching: "boundary").map(\.id)
+        }
+        suite.expect(boundaryIDs == [boundary.id], "appending to an exact-length index makes its suffix searchable")
+        _ = deepService.filteredEntries(matching: "absent")
+        deepService.setEntries([])
+        suite.expect(deepService.deferredSearchWork.isEmpty && deepService.filterCache.isEmpty,
+                     "clearing history cancels pending readers and releases every cached search")
+        deepService.setEntries([shortNote, documentEntry])
         suite.expect(deepService.filteredEntries(matching: "nginx").map(\.id) == [shortNote.id, documentEntry.id],
                      "an indexed match keeps its place above the deferred one")
     }
