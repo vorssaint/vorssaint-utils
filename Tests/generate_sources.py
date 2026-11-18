@@ -1142,7 +1142,7 @@ def main():
           + "static func quantizedOutputVolume(_ volume: Double, for device: AudioObjectID) -> Double? {\n"
           + "let value = Float32(volume); Hardware.queries.append(value)\n"
           + "if let quantizes = Hardware.quantizes { return quantizes(value).map(Double.init) }; return Double(value)\n}\n"
-          + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
+          + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\nvar currentOutputDeviceUID: String?\n"
           + "private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }\n"
           + "private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }\n"
           + "var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil { didSet { republishSystemOutput() } }\n"
@@ -1202,7 +1202,7 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
-                        "    private static func applyMonitorVolumeKey("])
+                        "    private func applyMonitorVolumeKey("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"
