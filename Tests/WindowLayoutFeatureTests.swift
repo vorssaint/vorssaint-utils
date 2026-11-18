@@ -239,6 +239,25 @@ enum WindowLayoutFeatureTests {
                "previous display exists and answers to its own shortcut id")
         suite.expect(WindowLayoutAction.previousDisplay.defaultShortcut == nil,
                "previous display does not claim a new system-wide combination")
+        suite.expect(WindowLayoutAction.allCases.contains(.decreaseSize)
+                && WindowLayoutAction.decreaseSize.shortcutID == 71
+                && WindowLayoutAction(shortcutID: 71) == .decreaseSize
+                && WindowLayoutAction.increaseSize.shortcutID == 72
+                && WindowLayoutAction(shortcutID: 72) == .increaseSize,
+               "window resize actions have stable shortcut ids")
+        suite.expect(WindowLayoutAction.decreaseSize.defaultShortcut
+                    == GlobalShortcut.windowLayoutDecreaseSizeDefault
+                && WindowLayoutAction.increaseSize.defaultShortcut
+                    == GlobalShortcut.windowLayoutIncreaseSizeDefault
+                && GlobalShortcut.windowLayoutDecreaseSizeDefault.keyCode == Int64(kVK_ANSI_Minus)
+                && GlobalShortcut.windowLayoutIncreaseSizeDefault.keyCode == Int64(kVK_ANSI_Equal)
+                && GlobalShortcut.windowLayoutDecreaseSizeDefault.modifiers == [.control, .option]
+                && GlobalShortcut.windowLayoutIncreaseSizeDefault.modifiers == [.control, .option]
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutDecreaseSize] as? String
+                    == GlobalShortcut.windowLayoutDecreaseSizeDefault.storageValue
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutShortcutIncreaseSize] as? String
+                    == GlobalShortcut.windowLayoutIncreaseSizeDefault.storageValue,
+               "window resize shortcuts use their registered Control-Option defaults")
         suite.expect(WindowLayoutAction.allCases.contains(.marginMaximize)
                 && WindowLayoutAction.marginMaximize.shortcutID == 55
                 && WindowLayoutAction(shortcutID: 55) == .marginMaximize,
@@ -302,6 +321,9 @@ enum WindowLayoutFeatureTests {
             suite.expect(!layoutStrings.fullScreen.isEmpty && !layoutStrings.previousDisplay.isEmpty
                     && !layoutStrings.marginMaximize.isEmpty
                     && !layoutStrings.marginPerEdge.isEmpty
+                    && !layoutStrings.decreaseSize.isEmpty
+                    && !layoutStrings.increaseSize.isEmpty
+                    && !layoutStrings.resizeStep.isEmpty
                     && !layoutStrings.centerHalf.isEmpty
                     && !layoutStrings.centerTwoThirds.isEmpty
                     && !layoutStrings.quarterRows.isEmpty
@@ -414,6 +436,54 @@ enum WindowLayoutFeatureTests {
 
         let visibleFrame = CGRect(x: 0, y: 40, width: 1440, height: 860)
         let currentWindow = CGRect(x: 200, y: 200, width: 800, height: 500)
+        let resizeDisplay = CGRect(x: 0, y: 0, width: 1000, height: 800)
+        let resizeWindow = CGRect(x: 200, y: 200, width: 600, height: 400)
+        let smallerWindow = WindowLayoutGeometry.rect(for: .decreaseSize,
+                                                     current: resizeWindow,
+                                                     visibleFrame: resizeDisplay)
+        let largerWindow = WindowLayoutGeometry.rect(for: .increaseSize,
+                                                     current: resizeWindow,
+                                                     visibleFrame: resizeDisplay)
+        suite.expect(smallerWindow == CGRect(x: 225, y: 220, width: 550, height: 360)
+                && largerWindow == CGRect(x: 175, y: 180, width: 650, height: 440),
+               "window resize actions adjust both dimensions by five percent and keep the center")
+        let largerStepWindow = WindowLayoutGeometry.rect(for: .increaseSize,
+                                                        current: resizeWindow,
+                                                        visibleFrame: resizeDisplay,
+                                                        resizeStepPercent: 10)
+        suite.expect(largerStepWindow == CGRect(x: 150, y: 160, width: 700, height: 480)
+                && WindowLayoutResizeStep.sanitizedPercent(-1) == 1
+                && WindowLayoutResizeStep.sanitizedPercent(11) == 10
+                && Defaults.registeredDefaults[DefaultsKey.windowLayoutResizeStepPercent] as? Double
+                    == WindowLayoutResizeStep.defaultPercent,
+               "the resize step preference changes the geometry and stays in its slider range")
+        let minimumSizeWindow = WindowLayoutGeometry.resizedRect(current: CGRect(x: 0, y: 0,
+                                                                                  width: 80, height: 80),
+                                                                 visibleFrame: resizeDisplay,
+                                                                 increasing: false)
+        suite.expect(minimumSizeWindow.width >= 81 && minimumSizeWindow.height >= 81
+                && WindowLayoutGeometry.rect(for: .increaseSize,
+                                             current: resizeDisplay,
+                                             visibleFrame: resizeDisplay) == resizeDisplay,
+               "window resizing keeps its minimum and stops growing at the display bounds")
+        let decreaseClampActual = CGRect(x: 225, y: 200, width: 550, height: 400)
+        let increaseClampActual = CGRect(x: 175, y: 200, width: 650, height: 400)
+        suite.expect(WindowLayoutGeometry.accepts(actualRect: decreaseClampActual,
+                                                 targetRect: smallerWindow,
+                                                 action: .decreaseSize,
+                                                 anchorTolerance: 8,
+                                                 originalRect: resizeWindow)
+                && WindowLayoutGeometry.accepts(actualRect: increaseClampActual,
+                                                targetRect: largerWindow,
+                                                action: .increaseSize,
+                                                anchorTolerance: 8,
+                                                originalRect: resizeWindow)
+                && !WindowLayoutGeometry.accepts(actualRect: resizeWindow,
+                                                 targetRect: smallerWindow,
+                                                 action: .decreaseSize,
+                                                 anchorTolerance: 8,
+                                                 originalRect: resizeWindow),
+               "window resize accepts partial system clamping only when the size changes")
         let snapVisibleFrame = CGRect(x: 0, y: 40, width: 1440, height: 835)
         let snapScreen = WindowEdgeSnapScreen(frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                               visibleFrame: snapVisibleFrame)

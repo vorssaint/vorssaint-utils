@@ -35,7 +35,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
     case bottomLeftSixth, bottomCenterSixth, bottomRightSixth
     case topLeft, topRight, bottomLeft, bottomRight
     case maximize, marginMaximize, fullScreen, center
-    case previousDisplay, nextDisplay, restore
+    case previousDisplay, nextDisplay, decreaseSize, increaseSize, restore
 
     var id: String { rawValue }
 
@@ -49,7 +49,7 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
         .topLeft, .topRight, .bottomLeft, .bottomRight,
         .maximize, .marginMaximize, .fullScreen, .center, .restore,
-        .previousDisplay, .nextDisplay,
+        .previousDisplay, .nextDisplay, .decreaseSize, .increaseSize,
     ]
 
     var supportsShortcut: Bool {
@@ -112,6 +112,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftMiddleQuarter: return 68
         case .rightMiddleQuarter: return 69
         case .rightQuarter: return 70
+        case .decreaseSize: return 71
+        case .increaseSize: return 72
         }
     }
 
@@ -157,6 +159,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .rightQuarter: return DefaultsKey.windowLayoutShortcutRightQuarter
         case .previousDisplay: return DefaultsKey.windowLayoutShortcutPreviousDisplay
         case .nextDisplay: return DefaultsKey.windowLayoutShortcutNextDisplay
+        case .decreaseSize: return DefaultsKey.windowLayoutShortcutDecreaseSize
+        case .increaseSize: return DefaultsKey.windowLayoutShortcutIncreaseSize
         case .topLeftSixth: return DefaultsKey.windowLayoutShortcutTopLeftSixth
         case .topCenterSixth: return DefaultsKey.windowLayoutShortcutTopCenterSixth
         case .topRightSixth: return DefaultsKey.windowLayoutShortcutTopRightSixth
@@ -188,6 +192,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .leftTwoThirds: return .windowLayoutLeftTwoThirdsDefault
         case .rightTwoThirds: return .windowLayoutRightTwoThirdsDefault
         case .nextDisplay: return .windowLayoutNextDisplayDefault
+        case .decreaseSize: return .windowLayoutDecreaseSizeDefault
+        case .increaseSize: return .windowLayoutIncreaseSizeDefault
         case .topLeftSixth, .topCenterSixth, .topRightSixth,
                 .bottomLeftSixth, .bottomCenterSixth, .bottomRightSixth,
                 .topThird, .middleThird, .bottomThird, .topTwoThirds, .bottomTwoThirds,
@@ -278,6 +284,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .bottomRightSixth: return text.bottomRightSixth
         case .previousDisplay: return text.previousDisplay
         case .nextDisplay: return text.nextDisplay
+        case .decreaseSize: return text.decreaseSize
+        case .increaseSize: return text.increaseSize
         }
     }
 
@@ -319,6 +327,8 @@ enum WindowLayoutAction: String, CaseIterable, Identifiable {
         case .center: return "scope"
         case .previousDisplay: return "arrow.left.to.line"
         case .nextDisplay: return "arrow.right.to.line"
+        case .decreaseSize: return "minus.square"
+        case .increaseSize: return "plus.square"
         case .restore: return "arrow.uturn.backward"
         }
     }
@@ -344,6 +354,21 @@ enum WindowLayoutMargin {
 
     static var percent: Double {
         sanitizedPercent(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutMarginPercent) as? Double
+            ?? defaultPercent)
+    }
+
+    static func sanitizedPercent(_ value: Double) -> Double {
+        guard value.isFinite else { return defaultPercent }
+        return min(max(value, percentRange.lowerBound), percentRange.upperBound)
+    }
+}
+
+enum WindowLayoutResizeStep {
+    static let defaultPercent = 5.0
+    static let percentRange = 1.0...10.0
+
+    static var percent: Double {
+        sanitizedPercent(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutResizeStepPercent) as? Double
             ?? defaultPercent)
     }
 
@@ -537,20 +562,23 @@ enum WindowLayoutGeometry {
                      visibleFrame: CGRect,
                      windowGap: CGFloat = 0,
                      screenGap: CGFloat = 0,
-                     marginPercent: Double = WindowLayoutMargin.defaultPercent) -> CGRect {
+                     marginPercent: Double = WindowLayoutMargin.defaultPercent,
+                     resizeStepPercent: Double = WindowLayoutResizeStep.defaultPercent) -> CGRect {
         // Only placements that tile against the screen edge take the screen
         // gap. The exempt actions keep their own geometry: margin maximize's
         // percentage margin, center's size clamp, and the pass-through
         // actions that return the current frame.
         let frame: CGRect
         switch action {
-        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay, .fullScreen:
+        case .marginMaximize, .center, .restore, .previousDisplay, .nextDisplay,
+                .decreaseSize, .increaseSize, .fullScreen:
             frame = visibleFrame
         default:
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
         }
         let rect = ungappedRect(for: action, current: current, visibleFrame: frame,
-                               marginPercent: marginPercent)
+                               marginPercent: marginPercent,
+                               resizeStepPercent: resizeStepPercent)
         return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
     }
 
@@ -577,7 +605,7 @@ enum WindowLayoutGeometry {
         guard windowGap > 0 else { return rect }
         switch action {
         case .maximize, .marginMaximize, .fullScreen, .center, .restore,
-                .previousDisplay, .nextDisplay:
+                .previousDisplay, .nextDisplay, .decreaseSize, .increaseSize:
             return rect
         default:
             break
@@ -606,7 +634,8 @@ enum WindowLayoutGeometry {
     private static func ungappedRect(for action: WindowLayoutAction,
                                      current: CGRect,
                                      visibleFrame: CGRect,
-                                     marginPercent: Double) -> CGRect {
+                                     marginPercent: Double,
+                                     resizeStepPercent: Double) -> CGRect {
         let halfWidth = visibleFrame.width / 2
         let halfHeight = visibleFrame.height / 2
         let thirdWidth = visibleFrame.width / 3
@@ -733,12 +762,53 @@ enum WindowLayoutGeometry {
                           height: height).integral
         case .previousDisplay, .nextDisplay:
             return current.integral
+        case .decreaseSize:
+            return resizedRect(current: current, visibleFrame: visibleFrame,
+                               increasing: false, stepPercent: resizeStepPercent)
+        case .increaseSize:
+            return resizedRect(current: current, visibleFrame: visibleFrame,
+                               increasing: true, stepPercent: resizeStepPercent)
         case .restore:
             return current.integral
         case .fullScreen:
             // Handled by the system, not by a frame.
             return current.integral
         }
+    }
+
+    /// Adjusts both dimensions in small, display-relative steps while keeping
+    /// the current center. Window sizes stay above the minimum the layout
+    /// engine accepts and growth stops at the usable display bounds.
+    static func resizedRect(current: CGRect,
+                            visibleFrame: CGRect,
+                            increasing: Bool,
+                            stepPercent: Double = WindowLayoutResizeStep.defaultPercent) -> CGRect {
+        guard visibleFrame.width > 0, visibleFrame.height > 0 else { return current.integral }
+        let minimumWidth = min(81, visibleFrame.width)
+        let minimumHeight = min(81, visibleFrame.height)
+        let fraction = CGFloat(WindowLayoutResizeStep.sanitizedPercent(stepPercent) / 100)
+        let widthStep = max(1, visibleFrame.width * fraction)
+        let heightStep = max(1, visibleFrame.height * fraction)
+
+        func adjusted(_ dimension: CGFloat,
+                      step: CGFloat,
+                      minimum: CGFloat,
+                      maximum: CGFloat) -> CGFloat {
+            if increasing {
+                guard dimension < maximum else { return dimension }
+                return min(maximum, max(minimum, dimension + step))
+            }
+            return max(minimum, dimension - step)
+        }
+
+        let width = adjusted(current.width, step: widthStep,
+                             minimum: minimumWidth, maximum: visibleFrame.width)
+        let height = adjusted(current.height, step: heightStep,
+                              minimum: minimumHeight, maximum: visibleFrame.height)
+        return CGRect(x: current.midX - width / 2,
+                      y: current.midY - height / 2,
+                      width: width,
+                      height: height).integral
     }
 
     static func anchoredRect(for action: WindowLayoutAction,
@@ -808,7 +878,7 @@ enum WindowLayoutGeometry {
         case .bottomRight:
             origin.x = targetRect.maxX - size.width
             origin.y = targetRect.minY
-        case .marginMaximize, .center:
+        case .marginMaximize, .center, .decreaseSize, .increaseSize:
             origin.x = targetRect.midX - size.width / 2
             origin.y = targetRect.midY - size.height / 2
         case .maximize, .previousDisplay, .nextDisplay, .restore, .fullScreen:
@@ -831,7 +901,8 @@ enum WindowLayoutGeometry {
     static func accepts(actualRect: CGRect,
                         targetRect: CGRect,
                         action: WindowLayoutAction,
-                        anchorTolerance: CGFloat) -> Bool {
+                        anchorTolerance: CGFloat,
+                        originalRect: CGRect? = nil) -> Bool {
         guard actualRect.width > 80, actualRect.height > 80 else { return false }
         let intersection = actualRect.intersection(targetRect)
         let overlap = area(intersection) / max(1, area(targetRect))
@@ -928,6 +999,28 @@ enum WindowLayoutGeometry {
             return overlap > 0.72
         case .restore:
             return false
+        case .decreaseSize:
+            guard let originalRect else { return false }
+            let centered = abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+            let withinRequestedBounds = actualRect.width >= targetRect.width - anchorTolerance
+                && actualRect.height >= targetRect.height - anchorTolerance
+                && actualRect.width <= originalRect.width + anchorTolerance
+                && actualRect.height <= originalRect.height + anchorTolerance
+            let shrank = actualRect.width < originalRect.width - anchorTolerance
+                || actualRect.height < originalRect.height - anchorTolerance
+            return centered && withinRequestedBounds && shrank
+        case .increaseSize:
+            guard let originalRect else { return false }
+            let centered = abs(actualRect.midX - targetRect.midX) <= anchorTolerance
+                && abs(actualRect.midY - targetRect.midY) <= anchorTolerance
+            let withinRequestedBounds = actualRect.width <= targetRect.width + anchorTolerance
+                && actualRect.height <= targetRect.height + anchorTolerance
+                && actualRect.width >= originalRect.width - anchorTolerance
+                && actualRect.height >= originalRect.height - anchorTolerance
+            let grew = actualRect.width > originalRect.width + anchorTolerance
+                || actualRect.height > originalRect.height + anchorTolerance
+            return centered && withinRequestedBounds && grew
         case .fullScreen:
             return false
         }
