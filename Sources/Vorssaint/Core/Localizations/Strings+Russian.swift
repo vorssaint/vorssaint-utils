@@ -1119,6 +1119,8 @@ extension Strings {
         linearScrollName: "Линейная прокрутка",
         linearScrollCaption: "Каждый щелчок колёсика мыши прокручивает одно и то же расстояние независимо от скорости вращения. Трекпад не меняется.",
         linearScrollLinesLabel: "Строк на щелчок",
+        linearScrollHorizontalSeparate: "Отдельная скорость по горизонтали",
+        linearScrollHorizontalLinesLabel: "Строк на щелчок по горизонтали",
         scrollSpeedName: "Быстрее прокручивать с зажатой клавишей",
         scrollSpeedCaption: "Удерживайте только выбранный модификатор при прокрутке колёсиком мыши, чтобы увеличить расстояние. Трекпад не затрагивается.",
         scrollSpeedMultiplierLabel: "Скорость",

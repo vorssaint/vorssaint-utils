@@ -1118,6 +1118,8 @@ extension Strings {
         linearScrollName: "Lineares Scrollen",
         linearScrollCaption: "Jeder Rastschritt des Mausrads scrollt dieselbe Strecke, egal wie schnell es gedreht wird. Das Trackpad bleibt unverändert.",
         linearScrollLinesLabel: "Zeilen pro Rastschritt",
+        linearScrollHorizontalSeparate: "Eigene horizontale Geschwindigkeit",
+        linearScrollHorizontalLinesLabel: "Horizontale Zeilen pro Rastschritt",
         scrollSpeedName: "Schneller scrollen mit gehaltener Taste",
         scrollSpeedCaption: "Halte nur den gewählten Modifikator beim Mausrad, um die Scrollweite zu multiplizieren. Das Trackpad bleibt unberührt.",
         scrollSpeedMultiplierLabel: "Geschwindigkeit",

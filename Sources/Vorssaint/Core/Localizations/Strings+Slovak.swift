@@ -1118,6 +1118,8 @@ extension Strings {
         linearScrollName: "Lineárne rolovanie",
         linearScrollCaption: "Každý krok kolieska myši posunie rovnakú vzdialenosť bez ohľadu na to, ako rýchlo sa točí. Trackpadu sa to netýka.",
         linearScrollLinesLabel: "Riadky na krok",
+        linearScrollHorizontalSeparate: "Samostatná vodorovná rýchlosť",
+        linearScrollHorizontalLinesLabel: "Vodorovné riadky na krok",
         scrollSpeedName: "Rýchlejšie rolovanie so stlačeným klávesom",
         scrollSpeedCaption: "Pri rolovaní kolieskom myši držte len vybraný modifikátor, aby sa vzdialenosť znásobila. Trackpad nie je ovplyvnený.",
         scrollSpeedMultiplierLabel: "Rýchlosť",

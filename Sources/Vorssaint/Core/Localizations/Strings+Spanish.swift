@@ -1118,6 +1118,8 @@ extension Strings {
         linearScrollName: "Desplazamiento lineal",
         linearScrollCaption: "Cada paso de la rueda del ratón desplaza la misma distancia, sin importar la velocidad del giro. El trackpad no cambia.",
         linearScrollLinesLabel: "Líneas por paso",
+        linearScrollHorizontalSeparate: "Velocidad horizontal independiente",
+        linearScrollHorizontalLinesLabel: "Líneas horizontales por paso",
         scrollSpeedName: "Desplazar más rápido manteniendo una tecla",
         scrollSpeedCaption: "Mantén solo el modificador elegido al girar la rueda del ratón para multiplicar la distancia. El trackpad no se ve afectado.",
         scrollSpeedMultiplierLabel: "Velocidad",

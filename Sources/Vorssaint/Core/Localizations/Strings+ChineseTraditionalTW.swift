@@ -1119,6 +1119,8 @@ extension Strings {
         linearScrollName: "線性捲動",
         linearScrollCaption: "無論轉動多快，滑鼠滾輪每一格都捲動相同的距離。觸控式軌跡板不受影響。",
         linearScrollLinesLabel: "每格行數",
+        linearScrollHorizontalSeparate: "獨立設定水平速度",
+        linearScrollHorizontalLinesLabel: "水平每格行數",
         scrollSpeedName: "按住按鍵加快捲動",
         scrollSpeedCaption: "捲動滑鼠滾輪時只按住所選修飾鍵即可倍增捲動距離。觸控式軌跡板不受影響。",
         scrollSpeedMultiplierLabel: "速度",

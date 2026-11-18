@@ -1118,6 +1118,8 @@ extension Strings {
         linearScrollName: "Scorrimento lineare",
         linearScrollCaption: "Ogni scatto della rotellina del mouse scorre la stessa distanza, a prescindere dalla velocità di rotazione. Il trackpad non cambia.",
         linearScrollLinesLabel: "Righe per scatto",
+        linearScrollHorizontalSeparate: "Velocità orizzontale separata",
+        linearScrollHorizontalLinesLabel: "Righe orizzontali per scatto",
         scrollSpeedName: "Scorri più velocemente tenendo un tasto",
         scrollSpeedCaption: "Tieni premuto solo il modificatore scelto mentre usi la rotella del mouse per moltiplicare la distanza. Il trackpad non cambia.",
         scrollSpeedMultiplierLabel: "Velocità",
