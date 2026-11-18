@@ -24,6 +24,9 @@ final class AudioInputDeviceManager: ObservableObject {
     @Published private(set) var inputDevices: [MixerInputDevice] = []
     @Published private(set) var preferredInputDeviceUID: String?
     @Published private(set) var currentInputDeviceUID: String?
+    /// Fires when the user picks a microphone through
+    /// `setCurrentInputDeviceUID`, as opposed to priority applying its list.
+    let manualInputSelections = PassthroughSubject<Void, Never>()
     @Published private(set) var effectiveInputDeviceUID: String?
     @Published private(set) var inputVolume: Double?
     @Published private(set) var preferredUnavailable = false
@@ -152,8 +155,10 @@ final class AudioInputDeviceManager: ObservableObject {
     /// the new persistent system choice, so it also supersedes any restoration
     /// record left by the singular preferred-microphone behavior. The HAL write
     /// runs off-main: a device connecting or disappearing is exactly when
-    /// CoreAudio may block.
-    func setCurrentInputDeviceUID(_ uid: String) {
+    /// CoreAudio may block. `byPriority` marks priority applying its list;
+    /// anything else is the user's pick.
+    func setCurrentInputDeviceUID(_ uid: String, byPriority: Bool = false) {
+        if !byPriority { manualInputSelections.send() }
         volumeWriteLock.withLock { volumeWriteLifetime = UUID() }
         guard listenerInstalled,
               uid != currentInputDeviceUID,

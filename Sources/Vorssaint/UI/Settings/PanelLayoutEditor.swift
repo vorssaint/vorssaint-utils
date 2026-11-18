@@ -122,7 +122,11 @@ private extension PanelSectionID {
         switch self {
         case .keepAwake: return text.sectionKeepAwake
         case .brightness: return text.sectionDisplays
-        case .mixer: return text.sectionMixer
+        case .mixer:
+            // The tab also carries the audio priority lists, and shows only
+            // them when the mixer itself is not installed.
+            guard AppFeature.audioPriority.isAvailable else { return text.sectionMixer }
+            return AppFeature.mixer.isAvailable ? text.sectionMixerWithPriority : text.sectionAudioPriority
         case .system: return text.sectionSystem
         case .network: return text.sectionNetwork
         case .disk: return text.sectionDisks

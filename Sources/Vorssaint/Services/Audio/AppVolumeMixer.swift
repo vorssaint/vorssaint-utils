@@ -84,6 +84,10 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var outputDevices: [MixerOutputDevice] = []
     @Published private(set) var currentOutputDeviceUID: String?
+    /// Fires when the user picks the system output in Vorssaint: a menu, the
+    /// output switcher shortcut or the Command Bar. Priority's own writes go
+    /// through `setPriorityOutputDeviceUID` and do not fire it.
+    let manualOutputSelections = PassthroughSubject<Void, Never>()
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
@@ -1173,7 +1177,8 @@ final class AppVolumeMixer: ObservableObject {
 
     @discardableResult
     func setUniversalOutputDeviceUID(_ uid: String) -> Bool {
-        setDefaultOutputDeviceUID(uid)
+        manualOutputSelections.send()
+        return setDefaultOutputDeviceUID(uid)
     }
 
     /// Priority changes only the normal system default. Unlike the manual

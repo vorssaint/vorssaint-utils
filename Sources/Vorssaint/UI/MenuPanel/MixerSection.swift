@@ -76,6 +76,10 @@ struct MixerSection: View {
 
             Divider()
             optionsDisclosure
+            // Settings shows audio priority on its own page.
+            if !settingsMode, AppFeature.audioPriority.isAvailable {
+                AudioPriorityDisclosure()
+            }
         }
     }
 
@@ -563,9 +567,6 @@ struct MixerOptionsControls: View {
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
-            }
-            if includeSharedAudioFeatures, AppFeature.audioPriority.isAvailable {
-                AudioPriorityDisclosure()
             }
             if AppVolumeMixer.isSupported, !listChoices.isEmpty {
                 listVisibilityFooter

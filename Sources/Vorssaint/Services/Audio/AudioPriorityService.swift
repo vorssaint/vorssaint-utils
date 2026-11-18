@@ -3,6 +3,7 @@
 
 import Combine
 import Foundation
+import os
 
 /// Automatically selects the highest-priority connected audio device.
 ///
@@ -40,7 +41,16 @@ final class AudioPriorityService: ObservableObject {
     private var unplacedOutputUIDs = Set<String>()
     private var unplacedInputUIDs = Set<String>()
     private var placementWork: DispatchWorkItem?
+    /// Devices that just connected, so a switch macOS makes to one of them a
+    /// moment later counts as part of the connect (issue #2985).
+    private var outputJoinWindow = MixerRoutingSupport.PriorityJoinWindow()
+    private var inputJoinWindow = MixerRoutingSupport.PriorityJoinWindow()
+    private var pendingOutputJoinSwitch = false
+    private var pendingInputJoinSwitch = false
     private var started = false
+
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint",
+                                    category: "audio-priority")
 
     private init() {}
 
@@ -69,6 +79,8 @@ final class AudioPriorityService: ObservableObject {
         // The published device models also change when only the default flag
         // changes. Compare eligible UID sets so a manual selection anywhere
         // remains in effect until hardware changes or the user edits priority.
+        // The one exception: macOS switching to a ranked device it just
+        // connected, a moment after the connect (see `PriorityJoinWindow`).
         AppVolumeMixer.shared.$outputDevices
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.observeOutputDevices($0) }
@@ -77,6 +89,18 @@ final class AudioPriorityService: ObservableObject {
         AudioInputDeviceManager.shared.$inputDevices
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.observeInputDevices($0) }
+            .store(in: &cancellables)
+
+        // A pick made in Vorssaint is the user's, even of a device that just
+        // connected.
+        AppVolumeMixer.shared.manualOutputSelections
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.outputJoinWindow.close() }
+            .store(in: &cancellables)
+
+        AudioInputDeviceManager.shared.manualInputSelections
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.inputJoinWindow.close() }
             .store(in: &cancellables)
 
         mergeAvailableDevicesIntoPriorityLists()
@@ -98,6 +122,10 @@ final class AudioPriorityService: ObservableObject {
         placementWork = nil
         unplacedOutputUIDs.removeAll()
         unplacedInputUIDs.removeAll()
+        outputJoinWindow = MixerRoutingSupport.PriorityJoinWindow()
+        inputJoinWindow = MixerRoutingSupport.PriorityJoinWindow()
+        pendingOutputJoinSwitch = false
+        pendingInputJoinSwitch = false
         if outputPriorityEnabled { outputPriorityEnabled = false }
         if inputPriorityEnabled { inputPriorityEnabled = false }
         AudioInputDeviceManager.shared.setInputPriorityActive(false)
@@ -332,6 +360,14 @@ final class AudioPriorityService: ObservableObject {
     /// set instead of treating every intermediate publication as hardware.
     private static let eventEnforcementDelay: TimeInterval = 0.25
 
+    /// How long after a device connects a switch macOS makes to it still
+    /// belongs to the connect. Bluetooth headsets can take a few seconds,
+    /// and their microphone can appear after their output. The time each
+    /// switch actually took is logged under the audio-priority category.
+    private static let joinWindowDuration: TimeInterval = 10
+
+    private static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
+
     private func observeOutputDevices(_ devices: [MixerOutputDevice]) {
         let availableUIDs = Set(devices.filter(\.canBeDefaultOutput).map(\.uid))
         // An empty initial publication precedes the first HAL snapshot. It is
@@ -344,6 +380,17 @@ final class AudioPriorityService: ObservableObject {
             return
         }
         pendingOutputUIDs = availableUIDs
+        if outputPriorityEnabled {
+            let claim = outputJoinWindow.claimSwitch(
+                to: devices.first(where: \.isDefault)?.uid,
+                rankedUIDs: outputPriorityUIDs,
+                listChoiceUID: MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                    orderedUIDs: outputPriorityUIDs, availableUIDs: availableUIDs),
+                at: Self.now,
+                duration: Self.joinWindowDuration)
+            Self.logJoinSwitch(claim, direction: "output", openedAt: outputJoinWindow.openedAt)
+            if claim == .reapply { pendingOutputJoinSwitch = true }
+        }
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
         scheduleEnforcement()
@@ -359,6 +406,17 @@ final class AudioPriorityService: ObservableObject {
             return
         }
         pendingInputUIDs = availableUIDs
+        if inputPriorityEnabled {
+            let claim = inputJoinWindow.claimSwitch(
+                to: devices.first(where: \.isDefault)?.uid,
+                rankedUIDs: inputPriorityUIDs,
+                listChoiceUID: MixerRoutingSupport.firstAvailablePriorityDeviceUID(
+                    orderedUIDs: inputPriorityUIDs, availableUIDs: availableUIDs),
+                at: Self.now,
+                duration: Self.joinWindowDuration)
+            Self.logJoinSwitch(claim, direction: "input", openedAt: inputJoinWindow.openedAt)
+            if claim == .reapply { pendingInputJoinSwitch = true }
+        }
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
         scheduleEnforcement()
@@ -377,12 +435,23 @@ final class AudioPriorityService: ObservableObject {
     private func enforceAvailabilityChanges() {
         guard started else { return }
         enforceDebounce = nil
-        let enforceOutput = pendingOutputPreferenceChange || (pendingOutputUIDs.map {
+        let now = Self.now
+        if let pendingOutputUIDs {
+            outputJoinWindow.open(joinedUIDs: MixerRoutingSupport.joinedDeviceUIDs(
+                previousUIDs: settledOutputUIDs, currentUIDs: pendingOutputUIDs),
+                newlySeenUIDs: unplacedOutputUIDs, at: now)
+        }
+        if let pendingInputUIDs {
+            inputJoinWindow.open(joinedUIDs: MixerRoutingSupport.joinedDeviceUIDs(
+                previousUIDs: settledInputUIDs, currentUIDs: pendingInputUIDs),
+                newlySeenUIDs: unplacedInputUIDs, at: now)
+        }
+        let enforceOutput = pendingOutputPreferenceChange || pendingOutputJoinSwitch || (pendingOutputUIDs.map {
             MixerRoutingSupport.deviceAvailabilityChanged(
                 previousUIDs: settledOutputUIDs,
                 currentUIDs: $0)
         } ?? false)
-        let enforceInput = pendingInputPreferenceChange || (pendingInputUIDs.map {
+        let enforceInput = pendingInputPreferenceChange || pendingInputJoinSwitch || (pendingInputUIDs.map {
             MixerRoutingSupport.deviceAvailabilityChanged(
                 previousUIDs: settledInputUIDs,
                 currentUIDs: $0)
@@ -393,6 +462,8 @@ final class AudioPriorityService: ObservableObject {
         pendingInputUIDs = nil
         pendingOutputPreferenceChange = false
         pendingInputPreferenceChange = false
+        pendingOutputJoinSwitch = false
+        pendingInputJoinSwitch = false
         mergeAvailableDevicesIntoPriorityLists()
         updateDeviceNames()
 
@@ -401,6 +472,20 @@ final class AudioPriorityService: ObservableObject {
         }
         if enforceInput, inputPriorityEnabled {
             enforceInputPriority()
+        }
+    }
+
+    private static func logJoinSwitch(_ claim: MixerRoutingSupport.PriorityJoinWindow.Claim,
+                                      direction: String,
+                                      openedAt: TimeInterval) {
+        let elapsed = now - openedAt
+        switch claim {
+        case .none:
+            return
+        case .reapply:
+            log.info("macOS moved the \(direction, privacy: .public) to a device \(elapsed, format: .fixed(precision: 2), privacy: .public) s after it connected; applying the list again")
+        case .late:
+            log.info("macOS moved the \(direction, privacy: .public) to a device \(elapsed, format: .fixed(precision: 2), privacy: .public) s after it connected, after the \(joinWindowDuration, format: .fixed(precision: 0), privacy: .public) s window; keeping it")
         }
     }
 
@@ -433,6 +518,6 @@ final class AudioPriorityService: ObservableObject {
         guard MixerRoutingSupport.shouldSwitchToDevice(
             targetUID: target,
             currentUID: currentUID) else { return }
-        AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target)
+        AudioInputDeviceManager.shared.setCurrentInputDeviceUID(target, byPriority: true)
     }
 }

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Combine
 import CoreAudio
 import Foundation
 
@@ -47,6 +48,7 @@ enum MixerUniversalRoutingContract {
         static var reads: [(AudioObjectID, AudioObjectPropertySelector, AudioObjectPropertyScope)] = []
         static var writes: [(AudioObjectID, AudioObjectPropertySelector)] = []
         static var writeStatus: OSStatus = noErr
+        let manualOutputSelections = PassthroughSubject<Void, Never>()
         static func objectList(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector,
                                scope: AudioObjectPropertyScope) -> [AudioObjectID] {
             reads.append((object, selector, scope))
@@ -307,11 +309,16 @@ enum MixerUniversalRoutingContract {
 
         Mixer.writeStatus = noErr
         let rapid = Mixer()
+        var announcedPicks = 0
+        let pickWatch = rapid.manualOutputSelections.sink { announcedPicks += 1 }
         suite.expect(rapid.switchToNextSoundOutput(in: ["speakers", "airpods"])
                      && rapid.switchToNextSoundOutput(in: ["speakers", "airpods"])
                      && rapid.currentOutputDeviceUID == "speakers"
                      && Mixer.writes.suffix(2).map(\.0) == [20, 10],
                      "successive shortcut presses cycle from the chosen output without waiting for a HAL refresh")
+        suite.expect(announcedPicks == 2,
+                     "each output picked in Vorssaint is announced, so audio priority keeps it (issue #2985)")
+        pickWatch.cancel()
 
         suite.expect(Mixer.runningAddress(kAudioProcessPropertyDevices).mScope == kAudioObjectPropertyScopeOutput
                      && Mixer.runningAddress(kAudioProcessPropertyIsRunningOutput).mScope == kAudioObjectPropertyScopeGlobal,

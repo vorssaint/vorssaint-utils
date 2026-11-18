@@ -930,6 +930,75 @@ enum MixerRoutingSupport {
         return previousUIDs != currentUIDs
     }
 
+    /// Devices that entered an established inventory. The first snapshot is a
+    /// baseline, so nothing joins in it.
+    static func joinedDeviceUIDs(previousUIDs: Set<String>?, currentUIDs: Set<String>) -> Set<String> {
+        guard let previousUIDs else { return [] }
+        return currentUIDs.subtracting(previousUIDs)
+    }
+
+    /// The devices that just connected, for a short time after they did.
+    ///
+    /// macOS can switch to a device it just connected (AirPods, for one) a
+    /// moment after the device appears, which is after priority has already
+    /// applied the list. That switch is part of the connect, not a choice made
+    /// by the user, so priority applies the list again. Each device gets one
+    /// such claim per connect, so priority never fights macOS over it, and
+    /// devices the list has not ranked keep the place macOS gave them.
+    struct PriorityJoinWindow: Equatable {
+        private(set) var joinedUIDs: Set<String> = []
+        private(set) var openedAt: TimeInterval = 0
+
+        /// Adds devices that just connected. A device the list has never seen
+        /// is left out: placement keeps whatever macOS picks for it. A device
+        /// arriving in stages keeps the window open from its latest arrival.
+        mutating func open(joinedUIDs: Set<String>,
+                           newlySeenUIDs: Set<String> = [],
+                           at now: TimeInterval) {
+            let uids = joinedUIDs.subtracting(newlySeenUIDs)
+            guard !uids.isEmpty else { return }
+            self.joinedUIDs.formUnion(uids)
+            openedAt = now
+        }
+
+        /// A pick made in Vorssaint itself stays, even of a device that just
+        /// connected.
+        mutating func close() {
+            joinedUIDs.removeAll()
+        }
+
+        enum Claim: Equatable {
+            /// Not a switch to a device that just connected.
+            case none
+            /// macOS finished the connect by switching: apply the list again.
+            case reapply
+            /// The switch came after the window, so it stays. Reported so the
+            /// window's length can be checked against real devices.
+            case late
+        }
+
+        /// Whether the default moving to `currentUID` belongs to a connect and
+        /// should be answered with the list's choice. Consumes the claim.
+        /// `listChoiceUID` is the device the list picks now: a switch to it,
+        /// including priority's own write, needs nothing.
+        mutating func claimSwitch(to currentUID: String?,
+                                  rankedUIDs: [String],
+                                  listChoiceUID: String?,
+                                  at now: TimeInterval,
+                                  duration: TimeInterval) -> Claim {
+            guard let currentUID, joinedUIDs.contains(currentUID) else {
+                if now - openedAt > duration { joinedUIDs.removeAll() }
+                return .none
+            }
+            guard now - openedAt <= duration else {
+                joinedUIDs.removeAll()
+                return rankedUIDs.contains(currentUID) && currentUID != listChoiceUID ? .late : .none
+            }
+            joinedUIDs.remove(currentUID)
+            return rankedUIDs.contains(currentUID) && currentUID != listChoiceUID ? .reapply : .none
+        }
+    }
+
     static func resolveInputDevice(preferredUID: String?,
                                    availableUIDs: Set<String>,
                                    currentUID: String?,

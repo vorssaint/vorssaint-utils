@@ -112,5 +112,74 @@ enum AudioPriorityTests {
             "registered priority preferences travel in settings backups once")
         suite.expect(Defaults.sanitizedAudioPriorityUIDs(["a", "b", "a", "\n"]) == ["a", "b"],
             "saved lists keep valid devices once and preserve their order")
+        joinWindow(suite)
+    }
+
+    /// Issue #2985: reconnecting AirPods while a higher-ranked microphone stays
+    /// connected left the AirPods in use, because macOS switches to them only
+    /// after priority has already applied the list.
+    private static func joinWindow(_ suite: TestSuite) {
+        typealias Window = MixerRoutingSupport.PriorityJoinWindow
+        let ranked = ["lark", "airpods", "builtin"]
+        let duration: TimeInterval = 10
+        func claim(_ window: inout Window, _ uid: String?, at now: TimeInterval,
+                   ranked: [String] = ranked, choice: String? = "lark") -> Window.Claim {
+            window.claimSwitch(to: uid, rankedUIDs: ranked, listChoiceUID: choice,
+                               at: now, duration: duration)
+        }
+
+        var window = Window()
+        window.open(joinedUIDs: ["airpods"], at: 100)
+        suite.expect(claim(&window, "airpods", at: 102) == .reapply,
+            "macOS switching to a ranked device a moment after it reconnects re-applies the list")
+        suite.expect(claim(&window, "airpods", at: 103) == .none,
+            "each reconnected device is taken back at most once, so priority cannot fight macOS")
+
+        window = Window()
+        window.open(joinedUIDs: ["airpods"], at: 100)
+        suite.expect(claim(&window, "builtin", at: 102) == .none,
+            "switching to a device that did not just connect stays a manual choice")
+        suite.expect(claim(&window, "airpods", at: 103) == .reapply,
+            "a manual choice of another device does not use up the reconnected device's claim")
+
+        window = Window()
+        window.open(joinedUIDs: ["airpods"], at: 100)
+        suite.expect(claim(&window, "airpods", at: 100 + duration + 0.1) == .late
+                && claim(&window, "airpods", at: 100 + duration + 0.2) == .none,
+            "a switch to the reconnected device after the window stays, and is reported once")
+
+        window = Window()
+        window.open(joinedUIDs: ["airpods"], at: 100)
+        suite.expect(claim(&window, "airpods", at: 101, choice: "airpods") == .none,
+            "landing on the device the list picks, including priority's own write, needs nothing")
+
+        window = Window()
+        window.open(joinedUIDs: ["headphones"], at: 100)
+        suite.expect(claim(&window, "headphones", at: 101) == .none,
+            "a device the list has never ranked is left where macOS put it")
+        window = Window()
+        window.open(joinedUIDs: ["airpods"], newlySeenUIDs: ["airpods"], at: 100)
+        suite.expect(claim(&window, "airpods", at: 104) == .none,
+            "a device seen for the first time keeps macOS's choice even once it has its place")
+
+        window = Window()
+        window.open(joinedUIDs: ["airpods"], at: 100)
+        window.close()
+        suite.expect(claim(&window, "airpods", at: 101) == .none,
+            "picking the reconnected device in Vorssaint keeps it, without a flip back")
+
+        window = Window()
+        window.open(joinedUIDs: ["airpods-output"], at: 100)
+        window.open(joinedUIDs: ["airpods"], at: 108)
+        suite.expect(claim(&window, "airpods-output", at: 110, ranked: ranked + ["airpods-output"]) == .reapply
+                && claim(&window, "airpods", at: 110) == .reapply,
+            "a device that appears in stages keeps the window open from its latest arrival")
+        suite.expect(claim(&window, nil, at: 110) == .none,
+            "no current device claims nothing")
+        suite.expect(MixerRoutingSupport.joinedDeviceUIDs(previousUIDs: ["lark", "builtin"],
+                                                          currentUIDs: ["lark", "builtin", "airpods"])
+                == ["airpods"]
+            && MixerRoutingSupport.joinedDeviceUIDs(previousUIDs: nil, currentUIDs: ["lark"]).isEmpty,
+            "only devices entering an established inventory count as joining")
     }
 }
