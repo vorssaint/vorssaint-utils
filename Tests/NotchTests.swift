@@ -3544,6 +3544,28 @@ enum NotchTests {
         suite.expect(seekable?.seekPosition(95.5) == 95.5
                && seekable?.seekPosition(-10) == 0 && seekable?.seekPosition(300) == 180,
                "scrubbing retains fractions and stays within the current track")
+        if let track = seekable?.track {
+            func reading(_ elapsed: Double) -> NotchPlayback {
+                NotchPlayback(track: track, isPlaying: true, elapsed: elapsed, duration: 180, rate: 1,
+                              sampledAt: now, canSeek: true)
+            }
+            let sent = now.addingTimeInterval(-0.5)
+            suite.expect(!reading(60.5).confirmsSeek(to: 61, from: 60, sentAt: sent, now: now)
+                   && reading(61.4).confirmsSeek(to: 61, from: 60, sentAt: sent, now: now),
+                   "a reading made before a short seek keeps the scrubbed bar, and one made after it lets go")
+            suite.expect(!reading(65).confirmsSeek(to: 61, from: 30, sentAt: sent, now: now),
+                   "a reading far from the seek does not confirm it")
+        }
+        let hold = NotchPlaybackHold()
+        suite.expect(hold.position(77.3, playing: true) == 77.3 && hold.position(76.2, playing: true) == 77.3
+               && hold.position(77.4, playing: true) == 77.4,
+               "a playing song reported a moment back holds the bar until it catches up")
+        suite.expect(hold.position(40, playing: true) == 40 && hold.position(39.5, playing: false) == 39.5,
+               "a real step back, or any step while paused, shows at once")
+        _ = hold.position(30, playing: true)
+        hold.reset()
+        suite.expect(hold.position(29, playing: true) == 29,
+               "after a scrub, a step back from the old place is not held")
         let videoReply = Data(String(decoding: playingReply, as: UTF8.self)
             .replacingOccurrences(of: "\"pid\":12", with: "\"pid\":12,\"canSkipNext\":false,\"canSkipPrevious\":true").utf8)
         let video = NotchPlayback.decode(videoReply, now: now)
