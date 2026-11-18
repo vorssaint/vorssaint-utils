@@ -98,7 +98,7 @@ final class FanControlService: ObservableObject {
         case .requiresApproval:
             SMAppService.openSystemSettingsLoginItems()
         case .enabled:
-            requestStatus()
+            if !replaceRegistrationIfNeeded() { requestStatus() }
         case .unavailable:
             error = .helperUnavailable
         case .notRegistered:
@@ -202,7 +202,7 @@ final class FanControlService: ObservableObject {
                 }
                 if let failure { self.error = failure }
                 UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-                if !AppFeature.fanControl.isAvailable {
+                if !AppFeature.fanControl.isAvailable && !AppFeature.batteryCare.isAvailable {
                     do {
                         try Self.appService.unregister()
                         UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
@@ -270,6 +270,7 @@ final class FanControlService: ObservableObject {
     /// outlives the bundle, so a silent failure here reads as success forever.
     @discardableResult
     static func restoreAndUnregisterForRemoval() -> Bool {
+        guard BatteryControlService.restoreForRemoval() else { return false }
         let service = appService
         guard service.status == .enabled else {
             guard service.status != .notRegistered else { return true }
@@ -583,6 +584,7 @@ final class FanControlService: ObservableObject {
     }
 
     private func restoreThenUnregister() {
+        if AppFeature.batteryCare.isAvailable { restoreAutomatic(); return }
         refreshAccessState()
         guard accessState != .notRegistered else { return }
         if accessState != .enabled {
@@ -606,7 +608,7 @@ final class FanControlService: ObservableObject {
             self.isWorking = false
             guard let response, response.succeeded, !response.snapshot.isCooling else { return }
             UserDefaults.standard.removeObject(forKey: DefaultsKey.fanControlRecoveryNeeded)
-            guard !AppFeature.fanControl.isAvailable else {
+            guard !AppFeature.fanControl.isAvailable, !AppFeature.batteryCare.isAvailable else {
                 self.stopIdleWorkIfPossible()
                 return
             }

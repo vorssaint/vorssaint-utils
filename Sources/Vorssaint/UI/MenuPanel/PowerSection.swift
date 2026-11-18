@@ -30,6 +30,10 @@ struct PowerSection: View {
                      supportsEditing: true,
                      resetAction: resetPanelDefaults) { editing in
             VStack(alignment: .leading, spacing: 10) {
+                if AppFeature.batteryCare.isAvailable, PowerSampler.hasInternalBattery {
+                    BatteryCarePanel()
+                    Divider()
+                }
                 if blocks(editing: editing).isEmpty {
                     Text(l10n.s.powerUnavailable)
                         .font(.system(size: 10.5))

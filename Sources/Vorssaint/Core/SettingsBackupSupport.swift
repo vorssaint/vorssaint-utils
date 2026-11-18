@@ -74,6 +74,7 @@ enum SettingsBackupSupport {
     /// Preferences stored without a registered default (absence means "use
     /// the built-in behavior"), still part of how the user set the app up.
     static let unregisteredPreferenceKeys: Set<String> = [
+        DefaultsKey.batteryCareConfiguration,
         DefaultsKey.autoQuitEnabled,
         DefaultsKey.shelfEnabled,
         DefaultsKey.finderCutPasteEnabled,
@@ -208,6 +209,7 @@ enum SettingsBackupSupport {
         // Whether the audio system let a recording hear the Mac's sound is a
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
+        DefaultsKey.batteryCareEnabled,
         DefaultsKey.fanControlRecoveryNeeded,
         DefaultsKey.fanControlHelperVersion,
         // Control left running on one Mac must not start fans on another.
@@ -332,6 +334,10 @@ enum SettingsBackupSupport {
             case DefaultsKey.textSnippets:
                 guard let data = value as? Data else { return false }
                 return (try? JSONDecoder().decode([TextSnippet].self, from: data)) != nil
+            case DefaultsKey.batteryCareConfiguration:
+                guard let data = value as? Data,
+                      let configuration = try? JSONDecoder().decode(BatteryConfiguration.self, from: data) else { return false }
+                return configuration.valid && !configuration.enabled
             case DefaultsKey.recorderEditorPresets:
                 guard let data = value as? Data else { return false }
                 return data.isEmpty || (try? JSONDecoder().decode([RecorderEditPreset].self, from: data)) != nil
