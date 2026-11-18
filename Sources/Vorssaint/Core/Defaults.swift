@@ -99,6 +99,8 @@ enum DefaultsKey {
     static let mouseButtonExceptions = "mouseButtonExceptions"
     static let middleClickExceptions = "middleClickExceptions"
     static let superKeyExceptions = "superKeyExceptions"
+    static let fnLockEnabled = "fnLockEnabled"         // per-app F1-F12 translation (issue #1227)
+    static let fnLockApps = "fnLockApps"                 // apps whose F-row is translated (issue #1227)
     static let switcherEnabled = "switcherEnabled"
     static let switcherTakeOverSystemShortcuts = "switcherTakeOverSystemShortcuts"
     // Machine state, never exported: the system shortcuts this process owns,
@@ -1307,6 +1309,8 @@ enum Defaults {
         DefaultsKey.mouseButtonExceptions: [String](),
         DefaultsKey.middleClickExceptions: [String](),
         DefaultsKey.superKeyExceptions: [String](),
+        DefaultsKey.fnLockEnabled: false,
+        DefaultsKey.fnLockApps: [String](),
         DefaultsKey.switcherEnabled: true,
         DefaultsKey.switcherTakeOverSystemShortcuts: false,
         DefaultsKey.switcherShortcut: "command:48",
