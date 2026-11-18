@@ -399,7 +399,10 @@ jobs:
 
   close-unanswered:
     name: Close the checks nobody answered
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # A fork copies the schedule but not the issues, so the job only fails there.
+    if: >-
+      github.repository == 'vorssaint/vorssaint-utils' &&
+      (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
