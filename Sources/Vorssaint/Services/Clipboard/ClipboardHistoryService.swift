@@ -835,6 +835,7 @@ final class ClipboardHistoryService: ObservableObject {
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
+        let plainText = pasteboard.string(forType: .string)
         if includeImagesFiles {
             if let paths = copiedFilePaths(from: pasteboard) {
                 if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
@@ -844,11 +845,20 @@ final class ClipboardHistoryService: ObservableObject {
                 }
                 return .files(paths)
             }
+            // A spreadsheet or rich-text copy carries the text next to a
+            // picture of it, while a screenshot or image copy has no text
+            // siblings at all: with RTF or HTML on the board the text is
+            // the content and the picture only its look. Refs #3818.
+            if ClipboardHistoryPasteboardText.prefersPlainText(types: types, plainText: plainText),
+               let text = ClipboardHistoryPasteboardText.preferredText(
+                   webURLString: webURLString(from: pasteboard), plainText: plainText) {
+                return .text(text)
+            }
             if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
         }
         guard let text = ClipboardHistoryPasteboardText.preferredText(
             webURLString: webURLString(from: pasteboard),
-            plainText: pasteboard.string(forType: .string)
+            plainText: plainText
         ) else { return nil }
         return .text(text)
     }

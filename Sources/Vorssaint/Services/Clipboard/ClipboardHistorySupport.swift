@@ -1030,6 +1030,16 @@ enum ClipboardHistoryCapturePolicy {
 }
 
 enum ClipboardHistoryPasteboardText {
+    /// Whether the board's picture is only a rendering of text it also
+    /// carries. Spreadsheet and rich-text copies put plain text next to a
+    /// picture of it, with RTF or HTML siblings saying so; a screenshot or
+    /// image copy has no such siblings, so it keeps its picture. Refs #3818.
+    static func prefersPlainText(types: [String], plainText: String?) -> Bool {
+        guard trimmed(plainText) != nil else { return false }
+        let rich = [NSPasteboard.PasteboardType.rtf, .rtfd, .html].map(\.rawValue)
+        return types.contains(where: rich.contains)
+    }
+
     static func preferredText(webURLString: String?, plainText: String?) -> String? {
         let plain = trimmed(plainText)
         if let plain,
