@@ -1770,7 +1770,6 @@ final class AppVolumeMixer: ObservableObject {
                                    lowered: lowered)
         }
 
-        let ownPid = request.ownPid
         let saved = request.savedVolumes
         let savedOutputs = request.savedOutputs
         let showFinder = request.showFinder
@@ -1781,14 +1780,63 @@ final class AppVolumeMixer: ObservableObject {
                                                subDeviceUIDs: subDeviceUIDs(of:),
                                                deviceForUID: deviceID(forUID:))
         } ?? [] : Set<AudioObjectID>()
+        let processObjects = audioProcessObjects()
+        var next = processRows(for: processObjects, request: request,
+                               availableUIDs: availableUIDs, defaultUID: defaultUID)
+        if MixerRoutingSupport.needsPersistentFinderRow(
+            showFinder: showFinder,
+            hasFinderRow: next.contains { $0.id == MixerRoutingSupport.finderBundleIdentifier }
+        ), let finder = NSRunningApplication.runningApplications(
+            withBundleIdentifier: MixerRoutingSupport.finderBundleIdentifier
+        ).first {
+            let id = MixerRoutingSupport.finderBundleIdentifier
+            next.append(MixerApp(id: id,
+                                 persistenceID: id,
+                                 ownerPid: finder.processIdentifier,
+                                 name: finder.localizedName ?? "Finder",
+                                 audioObjects: [],
+                                 isPlaying: false,
+                                 selectedOutputDeviceUID: savedOutputs[id],
+                                 effectiveOutputDeviceUID: MixerRoutingSupport.effectiveDeviceUID(
+                                    selectedUID: savedOutputs[id],
+                                    availableUIDs: availableUIDs,
+                                    defaultUID: defaultUID),
+                                 outputDeviceUnavailable: MixerRoutingSupport.selectedDeviceUnavailable(
+                                    selectedUID: savedOutputs[id],
+                                    availableUIDs: availableUIDs),
+                                 volume: saved[id] ?? 1))
+        }
+        next.sort {
+            MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
+                                                     otherName: $1.name, otherID: $1.id)
+        }
+        next = coalescingAppsWithDuplicateIDs(next)
+        next = applyingUniversalOutputRoute(to: next,
+                                            requestedUID: request.universalOutputDeviceUID,
+                                            defaultUID: defaultUID,
+                                            defaultDevices: defaultDevices,
+                                            previouslyRoutedObjects: request.previouslyRoutedObjects)
+
+        return RefreshSnapshot(defaultUID: defaultUID,
+                               systemSoundUID: systemSoundUID,
+                               outputDevices: nextOutputDevices,
+                               defaultDeviceID: defaultDevice?.audioObjectID,
+                               systemOutputVolume: systemOutputVolume,
+                               systemOutputMuted: systemOutputMuted,
+                               apps: next,
+                               processObjects: processObjects,
+                               lowered: lowered)
+    }
+
+    private static func processRows(for processObjects: [AudioObjectID], request: RefreshRequest,
+                                    availableUIDs: Set<String>, defaultUID: String?) -> [MixerApp] {
         var groups: [pid_t: [AudioObjectID]] = [:]
         var playing: Set<pid_t> = []
         var bypassed: Set<pid_t> = []
         var bundleHints: [pid_t: String] = [:]
-        let processObjects = audioProcessObjects()
         for object in processObjects {
             var pid: pid_t = -1
-            guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != ownPid else { continue }
+            guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != request.ownPid else { continue }
 
             // Show every regular app that holds an audio connection, not only
             // the ones making sound this instant, so apps are adjustable before
@@ -1839,7 +1887,7 @@ final class AppVolumeMixer: ObservableObject {
                                                      hiddenIDs: request.hiddenRowIDs) { continue }
             let isBypassed = bypassed.contains(owner)
             let route = isBypassed ? nil : storedRoute(for: identity,
-                                                       saved: savedOutputs,
+                                                       saved: request.savedOutputs,
                                                        session: request.sessionRoutes)
             next.append(MixerApp(id: identity.rowID,
                                  persistenceID: identity.persistenceID,
@@ -1859,52 +1907,10 @@ final class AppVolumeMixer: ObservableObject {
                                     selectedUID: route,
                                     availableUIDs: availableUIDs),
                                  volume: isBypassed ? 1 : (storedVolume(for: identity,
-                                                                       saved: saved,
+                                                                       saved: request.savedVolumes,
                                                                        session: request.sessionVolumes) ?? 1)))
         }
-        if MixerRoutingSupport.needsPersistentFinderRow(
-            showFinder: showFinder,
-            hasFinderRow: next.contains { $0.id == MixerRoutingSupport.finderBundleIdentifier }
-        ), let finder = NSRunningApplication.runningApplications(
-            withBundleIdentifier: MixerRoutingSupport.finderBundleIdentifier
-        ).first {
-            let id = MixerRoutingSupport.finderBundleIdentifier
-            next.append(MixerApp(id: id,
-                                 persistenceID: id,
-                                 ownerPid: finder.processIdentifier,
-                                 name: finder.localizedName ?? "Finder",
-                                 audioObjects: [],
-                                 isPlaying: false,
-                                 selectedOutputDeviceUID: savedOutputs[id],
-                                 effectiveOutputDeviceUID: MixerRoutingSupport.effectiveDeviceUID(
-                                    selectedUID: savedOutputs[id],
-                                    availableUIDs: availableUIDs,
-                                    defaultUID: defaultUID),
-                                 outputDeviceUnavailable: MixerRoutingSupport.selectedDeviceUnavailable(
-                                    selectedUID: savedOutputs[id],
-                                    availableUIDs: availableUIDs),
-                                 volume: saved[id] ?? 1))
-        }
-        next.sort {
-            MixerRoutingSupport.displayOrderedBefore(name: $0.name, id: $0.id,
-                                                     otherName: $1.name, otherID: $1.id)
-        }
-        next = coalescingAppsWithDuplicateIDs(next)
-        next = applyingUniversalOutputRoute(to: next,
-                                            requestedUID: request.universalOutputDeviceUID,
-                                            defaultUID: defaultUID,
-                                            defaultDevices: defaultDevices,
-                                            previouslyRoutedObjects: request.previouslyRoutedObjects)
-
-        return RefreshSnapshot(defaultUID: defaultUID,
-                               systemSoundUID: systemSoundUID,
-                               outputDevices: nextOutputDevices,
-                               defaultDeviceID: defaultDevice?.audioObjectID,
-                               systemOutputVolume: systemOutputVolume,
-                               systemOutputMuted: systemOutputMuted,
-                               apps: next,
-                               processObjects: processObjects,
-                               lowered: lowered)
+        return next
     }
 
     /// Runs in the HAL snapshot after rows with the same identity have been
