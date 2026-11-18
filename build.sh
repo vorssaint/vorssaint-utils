@@ -491,6 +491,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift
         Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift
         Sources/Vorssaint/Services/AutoClicker/AutoClickerButton.swift
+        Sources/Vorssaint/Services/AutoClicker/AutoClickerModels.swift
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptions.swift
         Sources/Vorssaint/Services/WindowServerSupport.swift

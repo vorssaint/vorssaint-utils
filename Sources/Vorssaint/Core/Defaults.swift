@@ -87,6 +87,12 @@ enum DefaultsKey {
     static let autoClickerButton = "autoClickerButton"
     static let autoClickerIntervalMs = "autoClickerIntervalMs"
     static let autoClickerRepeatLimit = "autoClickerRepeatLimit"
+    static let autoClickerMode = "autoClickerMode"
+    static let autoClickerTargetMode = "autoClickerTargetMode"
+    static let autoClickerTargetX = "autoClickerTargetX"
+    static let autoClickerTargetY = "autoClickerTargetY"
+    static let autoClickerMacros = "autoClickerMacros"
+    static let autoClickerSelectedMacroId = "autoClickerSelectedMacroId"
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -1304,6 +1310,12 @@ enum Defaults {
         DefaultsKey.autoClickerButton: "left",
         DefaultsKey.autoClickerIntervalMs: 100,
         DefaultsKey.autoClickerRepeatLimit: 0,
+        DefaultsKey.autoClickerMode: "single",
+        DefaultsKey.autoClickerTargetMode: "cursor",
+        DefaultsKey.autoClickerTargetX: 0.0,
+        DefaultsKey.autoClickerTargetY: 0.0,
+        DefaultsKey.autoClickerMacros: "",
+        DefaultsKey.autoClickerSelectedMacroId: "",
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
