@@ -1369,7 +1369,7 @@ def main():
           + declaration(shelf, "    struct Item:")
           + "var items: [Item] = []\nvar selection: Set<UUID> = []\n"
           + "var activeInternalDragIDs: [UUID] = []\nvar internalDragHoldsPackageContent = false\n"
-          + "var packageContentByPath: [String: Bool] = [:]\n"
+          + "static let dragFileQueue = DispatchQueue(label: \"shelf-drag-test\")\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
           + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
           + "var isPinned = false\nvar isVisible = false\nvar dockedVisible = false\n"
@@ -1378,21 +1378,24 @@ def main():
           + "func beginInteraction() {}\nfunc endInteraction() {}\n"
           + "func removeItems(_ ids: [UUID]) { removed += ids }\n"
           + "var replacements: [Item] = []\nfunc replaceItem(_ item: Item) { replacements.append(item) }\n"
-          + "func handleDeadDrag(_ items: [Item]) {}\n"
           + "func hide() { floatingClosures += 1; isVisible = false }\n"
           + "func collapseDocked() { dockedClosures += 1; dockedVisible = false }\n"
           + "".join(declaration(shelf, prefix) for prefix in [
               "    func selectedItems()", "    private func selectedItems(in",
               "    func dragItems(for items:", "    private func appendDragLeaves(",
-              "    func livingDragItems(", "    private static func resolvedBookmarkPath(",
-              "    private func rebookedItem(", "    func pasteboardWriter(",
+              "    private func item(withID id: UUID)", "    private func item(withID id: UUID,",
+              "    func dragItemsForTile(", "    struct PreparedDrag", "    func prepareDrag(",
+              "    private static func readDragFiles(", "    func finishPreparingDrag(",
+              "    private static func resolvedBookmarkPath(",
+              "    private static func rebookedItem(", "    func pasteboardWriter(",
               "    func sourceOperationMask("])
-          + declaration(shelf, "    static func packageContent(")
           + declaration(shelf, "    func beginInternalDrag(")
           + declaration(shelf, "    func internalDragMoved(")
           + declaration(shelf, "    func finishInternalDrag(")
           + declaration(shelf, "    func completeInternalDrag(")
           + "}\nfinal class Tile: TileState {\n"
+          + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func cancelDragPreparation(")
+              .replace("private func", "func", 1)
           + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func beginItemDrag(")
               .replace("private func", "func", 1)
           + "}\n}\n")
