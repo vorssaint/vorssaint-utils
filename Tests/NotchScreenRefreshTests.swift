@@ -140,6 +140,7 @@ enum NotchScreenRefreshContract {
         var mascotWantsRoom = false
         var accessibilityGranted = true
         var coversMenus = false
+        var fitsMenuBarRoom = false
         var menuSpaceTimer: Timer?
         var menuSpaceGeneration = 0
         var screenRefreshWork: DispatchWorkItem?
@@ -447,6 +448,44 @@ enum NotchScreenRefreshContract {
         covering.syncMenuSpaceMonitoring()
         suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
                "giving way to the menus again resumes the existing reader")
+
+        // Fitting beside the icons measures them even where the island may
+        // cover them, and keeps that room to cover with when the strip does
+        // not fit.
+        let fitting = Service()
+        fitting.compactActivity = true
+        fitting.coversMenus = true
+        fitting.fitsMenuBarRoom = true
+        fitting.syncMenuSpaceMonitoring()
+        let fittingEmptyBar = NotchMenuBarLayout.sideRoom(screen: fitting.geometry.screen,
+                                                         cameraWidth: fitting.geometry.cameraWidth,
+                                                         barHeight: fitting.geometry.menuBarHeight, occupied: [])
+        suite.expect(fitting.menuSpaceTimer != nil && fitting.reads == 1 && fitting.appliedRooms.isEmpty
+                     && fitting.geometry.menuBarFit == NotchMenuBarFit(coverRoom: fittingEmptyBar)
+                     && fitting.presentations == 1,
+                     "fitting beside the icons measures the menus the island may cover, and redraws once")
+        fitting.syncMenuSpaceMonitoring()
+        suite.expect(fitting.presentations == 1 && fitting.reads == 1,
+                     "an unchanged fit neither redraws nor starts a second reader")
+        fitting.coversMenus = false
+        fitting.syncMenuSpaceMonitoring()
+        suite.expect(fitting.geometry.menuBarFit == NotchMenuBarFit(coverRoom: nil),
+                     "a strip that may not cover the menus gives way where it does not fit")
+        fitting.accessibilityGranted = false
+        fitting.coversMenus = true
+        fitting.syncMenuSpaceMonitoring()
+        suite.expect(fitting.geometry.menuBarFit == nil && fitting.menuSpaceTimer == nil
+                     && fitting.appliedRooms == [fittingEmptyBar],
+                     "without Accessibility the island covers the menus as before")
+        let simulatedFit = Service()
+        simulatedFit.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
+                                              safeAreaTop: 0, cameraWidth: 0)
+        simulatedFit.compactActivity = true
+        simulatedFit.coversMenus = true
+        simulatedFit.fitsMenuBarRoom = true
+        simulatedFit.syncMenuSpaceMonitoring()
+        suite.expect(simulatedFit.geometry.menuBarFit == nil && simulatedFit.menuSpaceTimer == nil,
+                     "a simulated cutout has no camera to fit beside and keeps covering the menus")
 
         let idleSimulated = Service()
         idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),

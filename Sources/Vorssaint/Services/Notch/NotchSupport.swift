@@ -1897,6 +1897,13 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
+    /// The closed island's wings shrink to the room the menus and status
+    /// items leave beside the camera, measured with Accessibility, before it
+    /// covers them or gives way.
+    static func fitsMenuBarRoom(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchFitsMenuBarRoom) as? Bool ?? true
+    }
+
     static let defaultLowBatteryThreshold = 10
     /// Both level sliders share this scale so their knobs line up; red stops
     /// one short of the top so amber always has room above it.
@@ -2265,6 +2272,9 @@ struct NotchGeometry: Equatable {
     let outlineRoom: CGFloat
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
+    /// Set while the strip fits beside the menu bar's icons; nil keeps the
+    /// room as measured, or as an empty bar leaves it.
+    var menuBarFit: NotchMenuBarFit?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
@@ -2421,8 +2431,16 @@ struct NotchGeometry: Equatable {
         return CGRect(x: (size.width - width) / 2, y: 0, width: width, height: height)
     }
 
+    /// The room beside the camera for wings that need at least `minimum`:
+    /// as measured, or, fitted beside the icons, the room over the menus
+    /// when they do not fit and may cover them.
+    func fittedSideRoom(minimum: CGFloat) -> CGFloat {
+        guard let menuBarFit else { return compactSideRoom ?? 0 }
+        return menuBarFit.room(measured: compactSideRoom, minimum: minimum)
+    }
+
     var restingWingWidth: CGFloat {
-        let available = min(44, max(0, compactSideRoom ?? 0)).rounded(.down)
+        let available = min(44, fittedSideRoom(minimum: 44)).rounded(.down)
         return available >= 44 ? available : 0
     }
     var collapsed: CGSize {
@@ -2451,8 +2469,8 @@ struct NotchGeometry: Equatable {
     var compactMusicGeometry: NotchGeometry {
         var compact = self
         compact.allowsActivityFooter = false
-        let room = compactSideRoom ?? 0
         let wing = isNotched ? compact.compactMusicContentWing : 44
+        let room = fittedSideRoom(minimum: wing)
         compact.compactSideRoom = room.isFinite && room >= wing ? min(isNotched ? wing : 56, room) : 0
         compact.minimumWing = wing
         return compact
@@ -2512,10 +2530,13 @@ struct NotchGeometry: Equatable {
     func compactTimerGeometry(showsDownloads: Bool,
                               wing fitted: CGFloat = NotchTimerSupport.stripWingRange.upperBound) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = NotchTimerSupport.stripWingRange
         let wing = showsDownloads ? 80 : min(range.upperBound, max(range.lowerBound, fitted.isFinite ? fitted.rounded(.up) : 0))
-        compact.compactSideRoom = room.isFinite && room >= 64 ? min(wing, room) : 0
+        // Fitted beside the icons, a timer alone keeps its mark and reading
+        // down to its narrowest wing; a download beside it keeps the arrow.
+        let minimum: CGFloat = menuBarFit == nil || showsDownloads ? 64 : range.lowerBound
+        let room = fittedSideRoom(minimum: minimum)
+        compact.compactSideRoom = room.isFinite && room >= minimum ? min(wing, room) : 0
         // A wider simulated camera must not consume the timer's text budget.
         compact.minimumCompactWidth = cameraWidth + wing * 2
         // Menu changes, including full-screen transitions, must not push the
@@ -2527,7 +2548,7 @@ struct NotchGeometry: Equatable {
     /// menus leave room, its name can take a wider wing without a fixed band.
     func compactDownloadGeometry(wing: CGFloat = 56) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
+        let room = fittedSideRoom(minimum: 44)
         compact.compactSideRoom = room.isFinite && room >= 44 ? min(wing, room) : 0
         compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact
@@ -2542,12 +2563,12 @@ struct NotchGeometry: Equatable {
     var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
     func compactCalendarGeometry(wing: CGFloat, paired: Bool = false) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = Self.calendarWingRange
         let lowest = paired ? NotchTimerSupport.stripWingRange.lowerBound : range.lowerBound
         let fitted = min(range.upperBound, max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
         // The narrowest wing still drawn: a readable title, or a whole pair.
         let readable = min(fitted, range.lowerBound)
+        let room = fittedSideRoom(minimum: readable)
         compact.compactSideRoom = room.isFinite && room >= readable ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2
         compact.minimumWing = readable
@@ -2558,7 +2579,7 @@ struct NotchGeometry: Equatable {
     /// needs, so a short one leaves no band of empty black at the ends.
     func compactAgentGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
+        let room = fittedSideRoom(minimum: NotchAgentSupport.stripWingRange.lowerBound)
         let fitted = min(NotchAgentSupport.stripWingRange.upperBound,
                          max(NotchAgentSupport.stripWingRange.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= NotchAgentSupport.stripWingRange.lowerBound ? min(fitted, room) : 0
@@ -2570,8 +2591,8 @@ struct NotchGeometry: Equatable {
     /// never below it, with wings as wide as the reading needs.
     func compactWatchGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = NotchWatchSupport.stripWingRange
+        let room = fittedSideRoom(minimum: range.lowerBound)
         let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2
@@ -3157,6 +3178,43 @@ struct NotchGlassFade: Equatable {
             return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
         }
         return NotchGlassFade(solidHeight: max(start, end), range: 1)
+    }
+}
+
+/// The closed strip fitted to the menu bar's free room beside the camera.
+/// While it is set, the menus and status items are measured even when the
+/// island may cover them, and each activity's wings take the smaller of
+/// what they want and what is free, the same on both sides so the strip
+/// stays centred on the camera. Narrower wings drop what each strip shows
+/// only when there is room, such as a download's percentage or a title's
+/// end, down to the activity's own minimum: its mark and its reading. Below
+/// that, the strip takes `coverRoom` over the menus when it may cover them,
+/// and otherwise gives way as it does without fitting.
+struct NotchMenuBarFit: Equatable {
+    /// The room an unmeasured bar leaves, for a strip that may cover the
+    /// menus; nil gives way instead.
+    var coverRoom: CGFloat?
+
+    /// Smaller changes than this keep the wings where they are, so a status
+    /// item that redraws a little wider or narrower does not resize the strip.
+    static let hysteresis: CGFloat = 4
+
+    /// What a strip that needs at least `minimum` on each side may take.
+    func room(measured: CGFloat?, minimum: CGFloat) -> CGFloat {
+        let free = measured.flatMap { $0.isFinite ? max(0, $0) : nil } ?? 0
+        if free >= minimum { return free }
+        if let coverRoom, coverRoom.isFinite, coverRoom >= minimum { return coverRoom }
+        return free
+    }
+
+    /// A new reading replaces the room in use unless it is within the
+    /// hysteresis of it. A known room always replaces an unknown one, and
+    /// an unknown reading falls back to covering the menus when the strip
+    /// may, so a failed read never hides it.
+    func settledRoom(current: CGFloat?, measured: CGFloat?) -> CGFloat? {
+        guard let measured, measured.isFinite else { return coverRoom ?? measured }
+        guard let current, current.isFinite else { return measured }
+        return abs(measured - current) < Self.hysteresis ? current : measured
     }
 }
 

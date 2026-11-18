@@ -22,6 +22,73 @@ enum NotchActivityTests {
         NotchAccessoryConnectionTests.run(suite)
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
+        menuBarFitContracts(suite)
+    }
+
+    /// Fitting the strip beside the menu bar's icons: on by default, saved
+    /// with backups, wings as wide as the free room down to each activity's
+    /// minimum, then covering the menus where allowed or giving way.
+    private static func menuBarFitContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.notch-menu-bar-fit"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchFitsMenuBarRoom] as? Bool == true
+                     && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchFitsMenuBarRoom),
+                     "fitting beside the menu bar's icons starts on and travels with settings backups")
+        suite.expect(NotchSupport.fitsMenuBarRoom(in: defaults), "a missing choice fits the strip")
+        defaults.set(false, forKey: DefaultsKey.notchFitsMenuBarRoom)
+        suite.expect(!NotchSupport.fitsMenuBarRoom(in: defaults), "turning fitting off is kept")
+
+        let covering = NotchMenuBarFit(coverRoom: 600)
+        let yielding = NotchMenuBarFit(coverRoom: nil)
+        suite.expect(covering.room(measured: 50, minimum: 44) == 50 && yielding.room(measured: 50, minimum: 44) == 50,
+                     "room enough for the minimum is used as measured")
+        suite.expect(covering.room(measured: 30, minimum: 44) == 600,
+                     "a strip that does not fit covers the menus when it may")
+        suite.expect(yielding.room(measured: 30, minimum: 44) == 30,
+                     "a strip that does not fit and may not cover keeps the measured room and gives way")
+        suite.expect(covering.room(measured: nil, minimum: 44) == 600 && yielding.room(measured: .nan, minimum: 44) == 0,
+                     "an unknown room covers where allowed and otherwise leaves no wings")
+        suite.expect(covering.settledRoom(current: 50, measured: 53) == 50
+                     && covering.settledRoom(current: 50, measured: 54) == 54
+                     && covering.settledRoom(current: 50, measured: 46.5) == 50,
+                     "readings within four points keep the wings where they are")
+        suite.expect(covering.settledRoom(current: nil, measured: 51) == 51
+                     && covering.settledRoom(current: 50, measured: nil) == 600
+                     && yielding.settledRoom(current: 50, measured: nil) == nil,
+                     "a first reading always applies, and a failed one covers only where allowed")
+
+        // A 14-inch MacBook Pro camera, with the menus leaving `room` free.
+        func base(room: CGFloat?, fit: NotchMenuBarFit?) -> NotchGeometry {
+            var geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32,
+                                         cameraWidth: 185, menuBarHeight: 32, compactSideRoom: room)
+            geometry.menuBarFit = fit
+            return geometry
+        }
+        func timerWing(room: CGFloat?, fit: NotchMenuBarFit?) -> CGFloat {
+            base(room: room, fit: fit).compactTimerGeometry(showsDownloads: false, wing: 60).compactActivityWingWidth
+        }
+        suite.expect(timerWing(room: 500, fit: covering) == 60 && timerWing(room: 500, fit: nil) == 60,
+                     "with room to spare the timer keeps the wings its reading wants")
+        suite.expect(timerWing(room: 50, fit: covering) == 50 && timerWing(room: 50, fit: yielding) == 50,
+                     "fitted, the timer narrows to the free room, keeping its mark and reading")
+        suite.expect(timerWing(room: 50, fit: nil) == 0,
+                     "measured without fitting, a timer still gives way below its usual wing")
+        suite.expect(timerWing(room: 30, fit: covering) == 60,
+                     "below its narrowest wing the timer covers the menus when it may")
+        suite.expect(timerWing(room: 30, fit: yielding) == 0,
+                     "below its narrowest wing the timer gives way when it may not cover")
+        let left = base(room: 50, fit: covering).compactTimerGeometry(showsDownloads: false, wing: 60)
+        suite.expect(left.compactActivitySize.width == left.cameraWidth + 2 * 50,
+                     "both wings take the smaller side's room, so the strip stays centred on the camera")
+        let agents = base(room: 50, fit: covering).compactAgentGeometry(wing: 80).compactActivityWingWidth
+        let watch = base(room: 60, fit: covering).compactWatchGeometry(wing: 150).compactActivityWingWidth
+        let download = base(room: 30, fit: yielding).compactDownloadGeometry()
+        suite.expect(agents == 50 && watch == 60 && download.compactActivityUsesFooter,
+                     "agents and watches narrow to the room, and a download below its arrow gives way below the camera")
+        suite.expect(base(room: 30, fit: covering).restingWingWidth == 44 && base(room: 30, fit: yielding).restingWingWidth == 0,
+                     "the resting wings cover the menus or give way like an activity's")
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,

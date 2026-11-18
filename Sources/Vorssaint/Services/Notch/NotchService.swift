@@ -3476,12 +3476,24 @@ final class NotchService: ObservableObject {
         // can change just because focus moves to another app or display.
         // A display without a menu bar, beside the main one when displays
         // share Spaces, has no menus to leave room for either.
-        if running, !suspended, NotchSupport.coversMenus() || !displayHasMenuBar {
+        let emptyBarRoom = NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
+                                                       barHeight: geometry.menuBarHeight, occupied: [])
+        // Fitting beside the icons measures them even where the island may
+        // cover them, and covers them only where its strip does not fit. It
+        // needs a camera to fit beside and Accessibility to measure; without
+        // either, the choices above apply as they always have.
+        let fitting = NotchSupport.fitsMenuBarRoom() && displayHasMenuBar && geometry.isNotched
+            && AXIsProcessTrusted()
+        let fit = fitting ? NotchMenuBarFit(coverRoom: NotchSupport.coversMenus() ? emptyBarRoom : nil) : nil
+        if geometry.menuBarFit != fit {
+            geometry.menuBarFit = fit
+            if running, !suspended { refreshPresentation(animated: false) }
+        }
+        if running, !suspended, !fitting, NotchSupport.coversMenus() || !displayHasMenuBar {
             // Nothing to measure: the island keeps the room an empty bar
             // would leave it, over whatever menus and status items are there.
             stopMenuSpaceMonitoring()
-            applyMenuSpace(NotchMenuBarLayout.sideRoom(screen: geometry.screen, cameraWidth: geometry.cameraWidth,
-                                                       barHeight: geometry.menuBarHeight, occupied: []))
+            applyMenuSpace(emptyBarRoom)
             return
         }
         guard AXIsProcessTrusted() else {
@@ -3533,7 +3545,7 @@ final class NotchService: ObservableObject {
         // Settings has focus, the menu owner can briefly be nil.
         guard menuSpaceTimer != nil, !menuSpaceReading else { return }
         guard let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
-            ?? (NSApp.isActive ? getpid() : nil) else { applyMenuSpace(nil); return }
+            ?? (NSApp.isActive ? getpid() : nil) else { applyMeasuredMenuSpace(nil); return }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
@@ -3541,7 +3553,7 @@ final class NotchService: ObservableObject {
         let window = panel?.windowNumber ?? -1
         let timeout = DispatchWorkItem { [weak self] in
             guard let self, self.menuSpaceTimer != nil, self.menuSpaceReading else { return }
-            self.applyMenuSpace(nil)
+            self.applyMeasuredMenuSpace(nil)
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: timeout)
         menuSpaceQueue.async { [weak self] in
@@ -3557,9 +3569,15 @@ final class NotchService: ObservableObject {
                         ?? (NSApp.isActive ? getpid() : nil)) == pid else {
                     self.readMenuSpace(); return
                 }
-                self.applyMenuSpace(room)
+                self.applyMeasuredMenuSpace(room)
             }
         }
+    }
+
+    /// Fitted beside the icons, a reading close to the room in use keeps it,
+    /// and a failed one covers the menus where the strip may.
+    private func applyMeasuredMenuSpace(_ room: CGFloat?) {
+        applyMenuSpace(geometry.menuBarFit.map { $0.settledRoom(current: geometry.compactSideRoom, measured: room) } ?? room)
     }
 
     private func applyMenuSpace(_ room: CGFloat?) {
@@ -3637,7 +3655,10 @@ final class NotchService: ObservableObject {
         displayID = screen.notchDisplayID
         var next = baseGeometry(for: screen)
         let sameMenuBar = next.hasSameMenuBar(as: geometry)
-        if sameMenuBar { next.compactSideRoom = geometry.compactSideRoom }
+        if sameMenuBar {
+            next.compactSideRoom = geometry.compactSideRoom
+            next.menuBarFit = geometry.menuBarFit
+        }
         let access = NotchQuickAccessConfiguration.current()
         next.quickAccessBottomInset = access.hasBottom ? NotchQuickAccessLayout.gutter : 0
         // Read with the floating buttons rather than on every layout pass,
@@ -3815,7 +3836,9 @@ final class NotchService: ObservableObject {
         for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
             observe(workspace, name) { [weak self] in
                 guard let self, self.menuSpaceTimer != nil else { return }
-                self.applyMenuSpace(nil)
+                // A fitted strip keeps its wings until the new reading, so an
+                // app arriving does not flash it wide or bare.
+                if self.geometry.menuBarFit == nil { self.applyMenuSpace(nil) }
                 self.invalidateMenuSpace()
             }
         }
