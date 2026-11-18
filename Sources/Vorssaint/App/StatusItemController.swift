@@ -8,6 +8,12 @@ import Combine
 /// title and the tooltip. Click handling is delegated back to the AppDelegate.
 final class StatusItemController {
     var onLeftClick: (() -> Void)?
+    var onDelayedLeftClick: ((NSPoint) -> Void)?
+    var onQuickAction: ((StatusItemQuickAction) -> Void)?
+    private var gestureHandler: StatusItemGestureHandler?
+    /// Set while a permission reset or an uninstall has input taps down:
+    /// nothing may bring the middle-click tap back until it ends.
+    private(set) var gestureTapSuspended = false
     /// Receives the button that was clicked, so a menu can open from it
     /// while the main item is out of the bar.
     var onRightClick: ((NSStatusBarButton?) -> Void)?
@@ -100,6 +106,7 @@ final class StatusItemController {
     init() {
         installStatusItem()
         bind()
+        syncGestureMonitor()
     }
 
     /// Creates the status item and configures its button. The menu bar item is the
@@ -110,6 +117,7 @@ final class StatusItemController {
     /// applicationShouldHandleReopen) and the "Show menu bar icon" button in
     /// Settings rebuilds it.
     private func installStatusItem() {
+        cancelGesture()
         // Nothing here may touch the saved placement. 3.3.3 retired a legacy
         // 64pt offset on every launch and took working coordinates with it;
         // giving up a spot is now something only an explicit recovery does.
@@ -135,10 +143,12 @@ final class StatusItemController {
             button.target = self
             button.action = #selector(clicked)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            button.setAccessibilityIdentifier(StatusItemGestureHandler.mainButtonIdentifier)
         }
         refresh()
         syncMonitorMode()
         updateIconAppearance()
+        syncGestureMonitor()
     }
 
     /// Tears the status item down and builds a fresh one, dropping the hidden state
@@ -146,6 +156,7 @@ final class StatusItemController {
     /// sight — while keeping the spot the person arranged, which a brand new
     /// identity would throw away.
     func recreateStatusItem() {
+        cancelGesture()
         // The item goes away first: AppKit writes its placement and remembered
         // visibility back under its own name as it is removed, which would put
         // back whatever was cleared a moment earlier.
@@ -160,6 +171,7 @@ final class StatusItemController {
     /// a crowded bar can be a worse place than the one it came from, so this
     /// is only for an icon that stayed away after keeping its spot.
     func resetStatusItemPlacementIdentity() {
+        cancelGesture()
         if let statusItem { NSStatusBar.system.removeStatusItem(statusItem) }
         StatusItemPlacementSupport.bumpPlacementGeneration(in: .standard)
         installStatusItem()
@@ -232,6 +244,7 @@ final class StatusItemController {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             self.settingsSyncScheduled = false
+            self.syncGestureMonitor()
             self.syncMonitorMode()
             self.updateIconAppearance()
             self.refresh()
@@ -265,6 +278,7 @@ final class StatusItemController {
         // The controller lives for the whole process today, but tear down cleanly
         // so a future "recreate the status item" path can't leak a firing timer or
         // a block observer that outlives this instance.
+        gestureHandler?.cancel()
         titleTimer?.invalidate()
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
         for item in metricStatusItems.values {
@@ -384,6 +398,7 @@ final class StatusItemController {
                 renderedTitleLength: button.attributedTitle.length,
                 mustShowForSignal: signal || keepAwakeSignal)
         mainItemHiddenByChoice = mainItemHidden
+        if mainItemHidden { cancelGesture() }
         let keepAwakeActive = KeepAwakeManager.shared.isActive
 
         // refresh() runs on every monitor tick and lands here; re-rendering
@@ -418,11 +433,62 @@ final class StatusItemController {
     }
 
     @objc private func clicked() {
-        if NSApp.currentEvent?.type == .rightMouseUp {
+        let event = NSApp.currentEvent
+        if event?.type == .rightMouseUp {
+            cancelGesture()
             onRightClick?(statusItem.button)
+        } else if let event, event.type == .leftMouseUp, let gestureHandler,
+                  isFresh(event) || gestureHandler.tracksPress(of: event) {
+            // The handler refuses a click it cannot place on the button (an
+            // unknown frame, or a release far outside). Refusing must fall
+            // back to the normal click rather than swallow it, or the panel
+            // would become unreachable while gestures are configured.
+            if !gestureHandler.buttonClick(event) { onLeftClick?() }
         } else {
-            onLeftClick?()
+            // Accessibility activation has no mouse event of its own, so
+            // currentEvent can be a release a previous hold already handled.
+            cancelGesture()
+            onLeftClick?() // unconfigured or accessibility/keyboard activation
         }
+    }
+
+    private func isFresh(_ event: NSEvent) -> Bool {
+        (0...StatusItemAnchorSupport.statusClickFreshness)
+            .contains(ProcessInfo.processInfo.systemUptime - event.timestamp)
+    }
+
+    private func syncGestureMonitor() {
+        let settings = StatusItemGesture.Settings.saved()
+        let enabled = settings.isEnabled
+        // The mask never gains .leftMouseDown. With it, AppKit's status button
+        // tracking stops delivering the mouse-up action, which removes the one
+        // guaranteed path left after a missed monitor event — and a lost click
+        // means the panel cannot be opened at all.
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
+        if !enabled {
+            gestureHandler?.cancel()
+            gestureHandler = nil
+        } else if let gestureHandler {
+            gestureHandler.sync(settings: settings)
+        } else {
+            gestureHandler = StatusItemGestureHandler(owner: self, settings: settings)
+        }
+    }
+
+    private func cancelGesture() { gestureHandler?.cancel() }
+
+    /// Takes the middle-click tap down before a permission reset, the way the
+    /// other input taps are. MUST run on the main thread.
+    func suspendGestureTap() {
+        gestureTapSuspended = true
+        syncGestureMonitor()
+    }
+
+    /// Ends that suspension once the reset is over, or did not happen, and
+    /// lets the saved settings and the grant decide again.
+    func resumeGestureTap() {
+        gestureTapSuspended = false
+        syncGestureMonitor()
     }
 
     /// The item a right-click menu opens from: the main one while it is in

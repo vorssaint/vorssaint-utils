@@ -25,6 +25,11 @@ enum StatusItemAnchorSupport {
     /// its edge. A genuinely stale frame sits a hundred points or more away.
     static let clickDriftSlack: Double = 24
 
+    /// How long a click still counts as the click that opened the panel: the
+    /// anchor capture and the status button's own click routing both judge
+    /// freshness with this, so the two cannot drift apart.
+    static let statusClickFreshness: TimeInterval = 0.5
+
     /// How far the popover's positioning rect must shift on x so the panel
     /// anchors at the click, or nil when the click agrees with the reported
     /// frame (the healthy case, which must stay byte-for-byte untouched).

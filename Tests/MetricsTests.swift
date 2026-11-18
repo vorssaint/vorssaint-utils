@@ -150,6 +150,7 @@ struct MetricsTests {
                 QuitAppsRuntimeTests.run(suite)
                 PortManagerRefreshTests.run(suite)
             }),
+            ("status-item-gestures", { StatusItemGestureTests.run(suite) }),
             ("settings", {
                 SettingsFeatureTests.run(suite)
                 SettingsSearchCoverageTests.run(suite)
