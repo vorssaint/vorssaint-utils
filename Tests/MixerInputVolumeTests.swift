@@ -1288,5 +1288,18 @@ enum MixerInputVolumeContract {
         check(HAL.listeners.isEmpty && !stopped.isMuted && QuickToolHUD.messages.isEmpty,
               "old callbacks cannot publish, remute or reinstall listeners after teardown")
 
+        HAL.reset()
+        let removed = MicMuteService.shared
+        HAL.levels[HAL.key(10)] = 0.6
+        removed.setMuted(true)
+        DispatchQueue.drain()
+        HAL.devices = []
+        removed.unmuteForTeardown()
+        _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, removed.listenerClient)
+        DispatchQueue.drain()
+        check(removed.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "a late HAL callback for an absent claim cannot reinstall listeners after teardown")
+
+
     }
 }

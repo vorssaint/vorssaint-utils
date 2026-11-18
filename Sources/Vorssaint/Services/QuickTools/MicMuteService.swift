@@ -87,7 +87,12 @@ final class MicMuteService: ObservableObject {
                 self.callbackQueued = false
                 return pending
             }
-            if pending { self.reapplyIfNeeded() }
+            // A Core Audio delivery can already be in flight while teardown
+            // unregisters the last listener, even if an unplugged device is
+            // still recorded for restoration on a later launch.
+            if pending && (self.wantsMute || !self.installedListeners.isEmpty) {
+                self.reapplyIfNeeded()
+            }
         }
     }
 
