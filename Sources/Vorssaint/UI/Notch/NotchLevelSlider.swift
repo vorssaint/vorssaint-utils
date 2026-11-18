@@ -146,6 +146,7 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
     var scrollable = true
     var acceptsSliderScroll: Bool { scrollable && isEnabled }
     var trackingChanged: ((Bool) -> Void)?
+    private(set) var trackingMouse = false
     private var scroll = SliderScroll()
     private var scrolling = false
     private var pendingScrollEvents: [NSEvent] = []
@@ -169,6 +170,15 @@ private final class NotchLevelControl: NSSlider, SliderScrollTarget {
 
     override func mouseDown(with event: NSEvent) {
         cancelScroll()
+        guard isEnabled else { return }
+        // AppKit can send its final action after the cell stops tracking.
+        // Keep that action inside the same edit as the rest of this click.
+        trackingMouse = true
+        trackingChanged?(true)
+        defer {
+            trackingMouse = false
+            trackingChanged?(false)
+        }
         super.mouseDown(with: event)
     }
 
@@ -243,7 +253,9 @@ private final class NotchLevelCell: NSSliderCell {
         let started = super.startTracking(at: startPoint, in: controlView)
         if started {
             isTracking = true
-            trackingChanged?(true)
+            if (controlView as? NotchLevelControl)?.trackingMouse != true {
+                trackingChanged?(true)
+            }
         }
         return started
     }
@@ -252,7 +264,9 @@ private final class NotchLevelCell: NSSliderCell {
                                in controlView: NSView, mouseIsUp flag: Bool) {
         super.stopTracking(last: lastPoint, current: stopPoint, in: controlView, mouseIsUp: flag)
         isTracking = false
-        trackingChanged?(false)
+        if (controlView as? NotchLevelControl)?.trackingMouse != true {
+            trackingChanged?(false)
+        }
     }
 
     override func drawBar(inside rect: NSRect, flipped: Bool) {

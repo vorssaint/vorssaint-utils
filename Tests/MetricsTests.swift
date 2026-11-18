@@ -136,6 +136,7 @@ struct MetricsTests {
                 NotchPresentationProbeArgumentTests.run(suite)
             }),
             ("switcher-model", { SwitcherModelFeatureTests.run(suite) }),
+            ("notch-level", { NotchSliderEditingTests.run(suite) }),
             ("agents", { NotchAgentTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
@@ -275,9 +276,9 @@ struct MetricsTests {
             groups.forEach { print($0.0) }
             exit(0)
         }
-        // notch-music is a focused subset already executed by notch. Running it
-        // twice in an unfiltered pass also repeats stateful adapter fixtures.
-        for (name, body) in groups where (selected.isEmpty && name != "notch-music") || selected.contains(name) {
+        // Focused notch subsets already run within notch. Do not repeat their
+        // stateful native controls and adapter fixtures in an unfiltered pass.
+        for (name, body) in groups where (selected.isEmpty && !["notch-music", "notch-level"].contains(name)) || selected.contains(name) {
             suite.run(name, body)
         }
         suite.finish()
