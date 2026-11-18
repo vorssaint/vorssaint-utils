@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "„Bei zugeklapptem Mac weiterlaufen“ deaktiviert den Ruhezustand vollständig, solange „Wachhalten“ aktiv ist, und wird automatisch zurückgesetzt, sobald die Sitzung endet oder die App beendet wird. Nutze es am besten am Netzteil.",
         dimScreenOnLidCloseTitle: "Bildschirm vollständig abdunkeln",
         dimScreenOnLidCloseCaption: "Dunkelt den Bildschirm ab, sobald der Deckel geschlossen wird, und stellt die Helligkeit beim Öffnen wieder her.",
+        sleepNowTitle: "Ruhezustand",
+        sleepNowCaption: "Versetzt den Mac sofort in den Ruhezustand und setzt die laufende Sitzung nach dem Aufwachen fort.",
 
         scrollSection: "Scrollen",
         invertMouseScroll: "Mausscrollen umkehren",

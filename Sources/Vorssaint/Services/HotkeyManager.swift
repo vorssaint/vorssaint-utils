@@ -15,12 +15,19 @@ final class HotkeyManager: ObservableObject {
     private var hotKeyRef: EventHotKeyRef?
     private var eventHandler: EventHandlerRef?
     private var registeredShortcut: GlobalShortcut?
+    private let sleepNowHotkey = QuickToolHotkey(id: 62)
 
-    private init() {}
+    private init() {
+        sleepNowHotkey.onPress = { KeepAwakeManager.shared.sleepNow() }
+    }
 
     func syncWithPreferences() {
         setEnabled(AppFeature.keepAwake.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.hotkeyEnabled))
+        sleepNowHotkey.sync(enabled: AppFeature.keepAwake.isAvailable
+                                && UserDefaults.standard.bool(forKey: DefaultsKey.sleepNowShortcutEnabled),
+                            shortcut: GlobalShortcutRole.sleepNow.savedShortcut,
+                            storageKey: DefaultsKey.sleepNowShortcut)
     }
 
     func setEnabled(_ enabled: Bool) {

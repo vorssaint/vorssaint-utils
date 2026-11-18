@@ -325,7 +325,7 @@ enum SettingsDirectory {
                                         (.mixer, [s.mixerSection]),
                                         (.soundOutputSwitcher, [s.soundOutputSwitcherTitle]),
                                         (.audioPriority, [s.audioPrioritySection]),
-                                        (.keepAwake, [s.globalHotkeySection, s.hotkeyToggle]),
+                                        (.keepAwake, [s.globalHotkeySection, s.hotkeyToggle, s.sleepNowTitle]),
                                        ]),
                 // Searching any feature name lands here even when the feature
                 // is hidden, so the hub is always the way back.

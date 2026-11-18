@@ -122,6 +122,8 @@ struct GlobalShortcut: Equatable, Hashable {
 
     static let keepAwakeDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_K),
                                                  modifiers: [.control, .option, .command])
+    static let sleepNowDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Period),
+                                                modifiers: [.control, .option, .command])
     static let shelfDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_D),
                                              modifiers: [.control, .option, .command])
     static let switcherDefault = GlobalShortcut(keyCode: Int64(kVK_Tab),
@@ -707,6 +709,7 @@ enum ShortcutRecordingCaption {
 
 enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keepAwake
+    case sleepNow
     case shelf
     case switcher
     case switcherWindow
@@ -746,6 +749,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     var storageKey: String {
         switch self {
         case .keepAwake: return DefaultsKey.keepAwakeShortcut
+        case .sleepNow: return DefaultsKey.sleepNowShortcut
         case .shelf: return DefaultsKey.shelfShortcut
         case .switcher: return DefaultsKey.switcherShortcut
         case .switcherWindow: return DefaultsKey.switcherWindowShortcut
@@ -785,6 +789,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     var defaultShortcut: GlobalShortcut {
         switch self {
         case .keepAwake: return .keepAwakeDefault
+        case .sleepNow: return .sleepNowDefault
         case .shelf: return .shelfDefault
         case .switcher: return .switcherDefault
         case .switcherWindow: return .switcherWindowDefault
@@ -856,6 +861,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     func title(_ strings: Strings) -> String {
         switch self {
         case .keepAwake: return strings.keepAwakeTitle
+        case .sleepNow: return strings.sleepNowTitle
         case .shelf: return strings.shelfName
         case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
@@ -931,6 +937,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     var requiredEnableKeys: [String] {
         switch self {
         case .keepAwake: return [DefaultsKey.hotkeyEnabled]
+        case .sleepNow: return [DefaultsKey.sleepNowShortcutEnabled]
         case .shelf: return [DefaultsKey.shelfEnabled, DefaultsKey.shelfShortcutEnabled]
         case .switcher, .switcherWindow: return [DefaultsKey.switcherEnabled]
         case .switcherAllWindows:
@@ -973,7 +980,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     /// already dead through the service's own availability guard).
     var feature: AppFeature {
         switch self {
-        case .keepAwake: return .keepAwake
+        case .keepAwake, .sleepNow: return .keepAwake
         case .shelf: return .shelf
         case .switcher, .switcherWindow, .switcherAllWindows: return .switcher
         case .clipboard: return .clipboardHistory

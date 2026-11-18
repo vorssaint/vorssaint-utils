@@ -163,6 +163,8 @@ extension Strings {
         clamshellExplanation: "“Seguir con la tapa cerrada” desactiva por completo el reposo mientras “Mantener activo” está activo y se revierte automáticamente cuando la sesión termina o la app se cierra. Es preferible usarlo conectado a la corriente.",
         dimScreenOnLidCloseTitle: "Atenuar la pantalla del todo",
         dimScreenOnLidCloseCaption: "Atenúa la pantalla al cerrar la tapa y restaura el brillo al abrirla.",
+        sleepNowTitle: "Reposo ahora",
+        sleepNowCaption: "Pone el Mac en reposo de inmediato y reanuda la sesión actual al activarse.",
 
         scrollSection: "Desplazamiento",
         invertMouseScroll: "Invertir el desplazamiento del ratón",

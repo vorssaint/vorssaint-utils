@@ -150,6 +150,10 @@ enum PreferencesFeatureTests {
                "global hotkey is on for clean installs")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeShortcut] as? String == "control+option+command:40",
                "keep awake shortcut defaults to Ctrl+Opt+Cmd+K")
+        suite.expect(registeredDefaults[DefaultsKey.sleepNowShortcutEnabled] as? Bool == false
+                && GlobalShortcutRole.sleepNow.requiredEnableKeys == [DefaultsKey.sleepNowShortcutEnabled]
+                && GlobalShortcutRole.sleepNow.feature == .keepAwake,
+               "the Sleep now shortcut is opt-in and belongs to Keep Awake")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeIconTint] as? String == KeepAwakeIconTint.orange.rawValue,
                "keep-awake active icon tint defaults to orange")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeActiveIcon] as? String == KeepAwakeActiveIcon.vorssaint.rawValue,

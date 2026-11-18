@@ -117,6 +117,10 @@ extension KeepAwakeLidSleepContract {
             (status, output ?? "SleepDisabled \(Sudoers.disabled ? 1 : 0)")
         }
     }
+    enum NSSound {
+        static var beeps = 0
+        static func beep() { beeps += 1 }
+    }
     static var onSleep: (() -> Void)?
     static func drain() {
         for _ in 0..<30 {
@@ -628,5 +632,74 @@ enum KeepAwakeClamshellTests {
         C.AdminShell.answer(true); C.drain()
         expect(!C.Sudoers.disabled && !C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag),
                "late setup probes cannot resurrect the override cleared by authorized restore")
+
+        let sleepNow = active(); sleepNow.sessionTrigger = .automation; sleepNow.matchingConditions = [.power]
+        C.BrightnessService.lid = false; C.policy = false; C.results = [1, 0]
+        sleepNow.sleepNow()
+        expect(sleepNow.isActive && sleepNow.sessionPausedForScreenLock && !sleepNow.assertionsHeld
+               && !sleepNow.automationSuppressedUntilConditionsClear && C.calls == 0,
+               "Sleep now pauses an automatic session and waits for the closed-lid restore")
+        C.drain()
+        expect(C.calls == 1 && !C.Sudoers.disabled,
+               "Sleep now requests sleep once the restore succeeds, whatever the lid and lid policy say")
+        C.DispatchQueue.main.advance()
+        expect(C.calls == 2, "a refused Sleep now retries while powerd catches up with the cleared flag")
+        sleepNow.resumeAfterSleepNow(); C.drain()
+        expect(sleepNow.isActive && !sleepNow.sessionPausedForScreenLock && sleepNow.assertionsHeld
+               && sleepNow.clamshellActive && C.Sudoers.disabled,
+               "waking resumes the paused session with closed-lid mode")
+        sleepNow.deactivate(reason: .manual); C.drain()
+
+        let lockedOnWake = active(); let wakeEnd = Date().addingTimeInterval(600); lockedOnWake.endDate = wakeEnd
+        C.UserDefaults.standard.set(true, forKey: C.DefaultsKey.keepAwakePauseWhenLocked)
+        lockedOnWake.sleepNow(); C.drain()
+        lockedOnWake.screenLocked = true; lockedOnWake.syncSessionWithScreenLock()
+        lockedOnWake.resumeAfterSleepNow(); C.drain()
+        expect(lockedOnWake.isActive && lockedOnWake.sessionPausedForScreenLock
+               && !lockedOnWake.assertionsHeld && !lockedOnWake.clamshellActive,
+               "a screen locked on wake keeps the Sleep now pause until unlock")
+        lockedOnWake.screenLocked = false; lockedOnWake.syncSessionWithScreenLock(); C.drain()
+        expect(lockedOnWake.assertionsHeld && lockedOnWake.clamshellActive && lockedOnWake.endDate == wakeEnd,
+               "unlocking resumes the session with its original end time")
+        lockedOnWake.deactivate(reason: .manual); C.drain()
+
+        let expired = active(); expired.endDate = Date().addingTimeInterval(-1)
+        expired.sleepNow(); C.drain()
+        expired.resumeAfterSleepNow(); C.drain()
+        expect(!expired.isActive && !expired.clamshellActive && !C.Sudoers.disabled,
+               "a timed session whose end passed during sleep ends on wake")
+
+        let cancelled = active()
+        cancelled.sleepNow()
+        cancelled.activate(minutes: 15); C.drain()
+        expect(C.calls == 0 && cancelled.isActive && cancelled.clamshellActive
+               && !cancelled.sessionPausedForScreenLock,
+               "a session started before the restore finishes cancels the pending Sleep now")
+        cancelled.deactivate(reason: .manual); C.drain()
+
+        let sleepNowFailed = active(); C.Sudoers.results = [false, true]
+        sleepNowFailed.sleepNow(); C.drain()
+        C.AdminShell.answer(false); C.drain()
+        expect(C.calls == 0 && C.NSSound.beeps == 1 && sleepNowFailed.isActive
+               && !sleepNowFailed.sessionPausedForScreenLock && sleepNowFailed.assertionsHeld,
+               "a failed restore beeps, never requests sleep and resumes the session")
+        sleepNowFailed.deactivate(reason: .manual); C.drain(); C.AdminShell.answer(false); C.drain()
+
+        let stillDisabled = C.reset()
+        C.UserDefaults.standard.set(true, forKey: C.DefaultsKey.sleepDisabledFlag)
+        stillDisabled.sleepNow()
+        expect(C.calls == 0 && C.NSSound.beeps == 1, "Sleep now beeps while sleep is still disabled")
+
+        let sleepNowPlain = C.reset(); sleepNowPlain.isActive = true; C.BrightnessService.lid = false
+        sleepNowPlain.sleepNow()
+        expect(sleepNowPlain.isActive && sleepNowPlain.sessionPausedForScreenLock && C.calls == 1,
+               "without closed-lid mode Sleep now pauses the session and sleeps right away")
+
+        let sleepRefused = C.reset(); sleepRefused.isActive = true; sleepRefused.assertionsHeld = true; C.results = [1]
+        sleepRefused.sleepNow()
+        for _ in 0..<9 { C.DispatchQueue.main.advance() }
+        expect(C.calls == 10 && sleepRefused.isActive && !sleepRefused.sessionPausedForScreenLock
+               && sleepRefused.assertionsHeld,
+               "a sleep refused to the end resumes the session")
     }
 }
