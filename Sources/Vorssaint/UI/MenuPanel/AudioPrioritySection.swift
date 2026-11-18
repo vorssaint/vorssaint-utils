@@ -210,18 +210,19 @@ private struct PriorityDeviceList: View {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 22)
+                        .frame(width: 22, height: 22)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .help(l10n.s.audioPriorityRemove)
                 .accessibilityLabel(l10n.s.audioPriorityRemove)
+                .accessibilityValue(name)
             }
 
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary)
-                .frame(width: 16, height: 22)
+                .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .font(.system(size: 9, weight: .semibold))

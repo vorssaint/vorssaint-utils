@@ -235,9 +235,9 @@ final class AudioPriorityService: ObservableObject {
                 currentUID: mixer.currentOutputDeviceUID,
                 tier: outputTier))
         } else {
-            storeOutputPriorityUIDs(MixerRoutingSupport.mergingPriorityDevicesByName(
+            storeOutputPriorityUIDs(MixerRoutingSupport.rebindingAirPlayOutputs(
                 outputPriorityUIDs,
-                connected: outputs.map { (uid: $0.uid, name: $0.name) },
+                connected: outputs.map { (uid: $0.uid, name: $0.name, isAirPlay: $0.isAirPlay) },
                 storedNames: deviceNames))
             unplacedOutputUIDs.subtract(outputPriorityUIDs)
             let unseen = outputs.map(\.uid).filter { !outputPriorityUIDs.contains($0) }
@@ -252,11 +252,6 @@ final class AudioPriorityService: ObservableObject {
                 currentUID: inputManager.currentInputDeviceUID,
                 tier: inputTier))
         } else {
-            storeInputPriorityUIDs(MixerRoutingSupport.mergingPriorityDevicesByName(
-                inputPriorityUIDs,
-                connected: inputManager.inputDevices.map { (uid: $0.uid, name: $0.name) },
-                storedNames: deviceNames))
-            unplacedInputUIDs.subtract(inputPriorityUIDs)
             let unseen = inputManager.inputDevices.map(\.uid).filter { !inputPriorityUIDs.contains($0) }
             unplacedInputUIDs.formUnion(unseen)
             if !unseen.isEmpty { schedulePlacement() }

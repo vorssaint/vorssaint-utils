@@ -912,60 +912,42 @@ enum MixerRoutingSupport {
         return placed
     }
 
-    /// Matches devices by name when their UID changes. An AirPlay receiver,
-    /// such as another Mac, can come back with a new UID on every reconnect.
-    /// Without this step each reconnect adds another entry with the same name.
-    ///
-    /// A connected device the list does not hold yet takes the place of the
-    /// first disconnected entry stored under its name. When several entries
-    /// share a name, the first one keeps its slot and a connected member moves
-    /// into it. The other disconnected members go. Connected devices that
-    /// share a name, such as two identical USB interfaces, all stay.
-    static func mergingPriorityDevicesByName(_ list: [String],
-                                             connected: [(uid: String, name: String)],
-                                             storedNames: [String: String]) -> [String] {
-        var connectedNames: [String: String] = [:]
-        for device in connected where connectedNames[device.uid] == nil {
-            connectedNames[device.uid] = device.name
-        }
-        func name(of uid: String) -> String? {
-            guard let raw = connectedNames[uid] ?? storedNames[uid] else { return nil }
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
-        }
-        func isConnected(_ uid: String) -> Bool { connectedNames[uid] != nil }
+    /// The reported AirPlay session UIDs have the form <receiver UUID>-<session number>-Audio.
+    /// Unknown UID formats stay separate and can be removed manually.
+    private static func airPlayReceiverID(in uid: String) -> UUID? {
+        guard uid.hasSuffix("-Audio") else { return nil }
+        let session = uid.dropLast("-Audio".count)
+        guard let separator = session.lastIndex(of: "-") else { return nil }
+        let receiver = session[..<separator]
+        let number = session[session.index(after: separator)...]
+        guard receiver.utf8.count == 36, !number.isEmpty,
+              number.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+        return UUID(uuidString: String(receiver))
+    }
 
-        var rebound = list
-        for device in connected where !rebound.contains(device.uid) {
-            guard let deviceName = name(of: device.uid),
-                  let slot = rebound.firstIndex(where: { !isConnected($0) && name(of: $0) == deviceName })
-            else { continue }
-            rebound[slot] = device.uid
-        }
-
-        var membersByName: [String: [String]] = [:]
-        for uid in rebound {
-            if let entryName = name(of: uid) { membersByName[entryName, default: []].append(uid) }
-        }
-        var result: [String] = []
-        var placed = Set<String>()
-        var startedNames = Set<String>()
-        for uid in rebound {
-            guard let entryName = name(of: uid),
-                  let members = membersByName[entryName], members.count > 1 else {
-                result.append(uid)
-                continue
-            }
-            if startedNames.insert(entryName).inserted {
-                let lead = members.first(where: isConnected) ?? uid
-                result.append(lead)
-                placed.insert(lead)
-            } else if isConnected(uid), !placed.contains(uid) {
-                result.append(uid)
-                placed.insert(uid)
+    /// Only a currently connected AirPlay output can reclaim a saved slot. Require
+    /// the same receiver UUID and name, and leave ambiguous live sessions untouched.
+    static func rebindingAirPlayOutputs(_ list: [String],
+                                        connected: [(uid: String, name: String, isAirPlay: Bool)],
+                                        storedNames: [String: String]) -> [String] {
+        var live: [UUID: (uid: String, name: String)] = [:]
+        var ambiguous = Set<UUID>()
+        for device in connected {
+            guard let receiver = airPlayReceiverID(in: device.uid) else { continue }
+            if !device.isAirPlay || device.name.isEmpty || live[receiver] != nil {
+                ambiguous.insert(receiver)
+            } else {
+                live[receiver] = (device.uid, device.name)
             }
         }
-        return result
+        guard !live.isEmpty else { return list }
+        var placed = Set<UUID>()
+        return list.compactMap { uid in
+            guard let receiver = airPlayReceiverID(in: uid), !ambiguous.contains(receiver),
+                  let device = live[receiver], device.uid == uid || storedNames[uid] == device.name
+            else { return uid }
+            return placed.insert(receiver).inserted ? device.uid : nil
+        }
     }
 
     /// Whether a CoreAudio write should be requested: only when the target

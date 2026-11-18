@@ -43,43 +43,38 @@ enum AudioPriorityTests {
             == ["offline", "speakers"],
             "a device the list already ranks keeps its place")
         let imac = "Jimmy's iMac"
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["speakers", "airplay-old", "display"],
-            connected: [(uid: "speakers", name: "Speakers"), (uid: "airplay-new", name: imac)],
-            storedNames: ["airplay-old": imac, "display": "Display"])
-            == ["speakers", "airplay-new", "display"],
-            "an AirPlay device that reconnects with a new UID takes its old slot instead of adding an entry")
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["airplay-1", "speakers", "airplay-2", "airplay-3", "airplay-4"],
-            connected: [(uid: "speakers", name: "Speakers"), (uid: "airplay-4", name: imac)],
-            storedNames: ["airplay-1": imac, "airplay-2": imac, "airplay-3": imac])
-            == ["airplay-4", "speakers"],
-            "existing duplicates collapse into the highest slot, held by the connected device")
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["airplay-1", "speakers", "airplay-2"],
-            connected: [(uid: "speakers", name: "Speakers")],
-            storedNames: ["airplay-1": imac, "airplay-2": imac])
-            == ["airplay-1", "speakers"],
-            "disconnected duplicates keep only the highest entry")
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["usb-a", "speakers", "usb-b"],
-            connected: [(uid: "usb-a", name: "USB Audio"), (uid: "speakers", name: "Speakers"),
-                        (uid: "usb-b", name: "USB Audio")],
-            storedNames: [:])
-            == ["usb-a", "speakers", "usb-b"],
-            "two connected devices with the same name both keep their places")
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["speakers", "offline"],
-            connected: [(uid: "speakers", name: "Speakers"), (uid: "headphones", name: "Headphones")],
-            storedNames: ["offline": "Display"])
-            == ["speakers", "offline"],
-            "a device with a new name is left for normal placement")
-        suite.expect(MixerRoutingSupport.mergingPriorityDevicesByName(
-            ["speakers", "unnamed"],
-            connected: [(uid: "speakers", name: "Speakers"), (uid: "other", name: " ")],
-            storedNames: [:])
-            == ["speakers", "unnamed"],
-            "entries without a known name are never matched")
+        let receiver = "E8C4B808-3A80-4A04-A1C2-61F7A8526DF9"
+        let older = "\(receiver)-1-Audio"
+        let previous = "\(receiver)-15-Audio"
+        let current = "\(receiver)-123-Audio"
+        let other = "9620E146-7914-4CA3-876D-B0199343C994-1-Audio"
+        let ranked = [older, "speakers", previous, other]
+        let names = [older: imac, previous: imac, other: imac]
+        typealias Output = (uid: String, name: String, isAirPlay: Bool)
+        func rebound(_ list: [String], _ devices: [Output]) -> [String] {
+            MixerRoutingSupport.rebindingAirPlayOutputs(list, connected: devices, storedNames: names)
+        }
+        let live: Output = (current, imac, true)
+        suite.expect(rebound(ranked, [live]) == [current, "speakers", other],
+                     "a reconnected AirPlay receiver reclaims its highest rank while a namesake keeps its place")
+        suite.expect(rebound(ranked + [current], [live]) == [current, "speakers", other],
+                     "a live session already ranked lower moves to the oldest slot without duplication")
+        suite.expect(rebound(ranked, []) == ranked,
+                     "an empty device list at startup never prunes offline entries")
+        suite.expect(rebound(ranked, [(current, imac, false)]) == ranked,
+                     "even a matching name and session-like UID cannot merge a non-AirPlay output")
+        suite.expect(rebound(ranked, [(current, "Other receiver", true)]) == ranked,
+                     "a mismatched receiver name leaves its saved priority alone")
+        suite.expect(rebound(ranked, [live, (previous, imac, true)]) == ranked,
+                     "two sessions still connected at once are ambiguous and keep their positions")
+        let usb = ["usb-a", "speakers", "usb-b"]
+        suite.expect(rebound(usb, [("usb-b", "USB Audio", false)]) == usb,
+                     "one of two same-named interfaces unplugging cannot reorder the other")
+        for unknown in ["airplay-204-Audio", "\(receiver)--Audio", "\(receiver)-word-Audio",
+                        "\(receiver)-1-Audio-more"] {
+            suite.expect(rebound(ranked, [(unknown, imac, true)]) == ranked,
+                         "unknown session format leaves manual ordering intact: \(unknown)")
+        }
         suite.expect(MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeBuiltIn) == .builtIn
                 && MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeVirtual) == .virtual
                 && MixerRoutingSupport.PriorityTier(transportType: kAudioDeviceTransportTypeAggregate) == .virtual
