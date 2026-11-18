@@ -359,6 +359,12 @@ enum SettingsFeatureTests {
             }, "backup dispatch precedes every startup handler with side effects")
 
         let backupKeys = SettingsBackupSupport.exportKeys()
+        let shortcutBackup = SettingsBackupSupport.payload(appVersion: "test") { key in
+            key == DefaultsKey.notchLauncherEntries ? Data("private shortcut targets".utf8) : nil
+        }
+        suite.expect(!backupKeys.contains(DefaultsKey.notchLauncherEntries)
+                     && SettingsBackupSupport.sanitizedSettings(from: shortcutBackup)?[DefaultsKey.notchLauncherEntries] == nil,
+                     "portable settings never contain shortcut URLs, local paths or bookmarks")
         for reserved in [false, true] {
             let backup = SettingsBackupSupport.payload(appVersion: "test") { key in
                 key == DefaultsKey.windowReserveStageManagerSpace ? reserved : nil
