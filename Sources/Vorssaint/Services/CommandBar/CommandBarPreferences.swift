@@ -421,3 +421,66 @@ enum CommandBarPreferences {
                        y: min(max(wanted.y, minY), maxY))
     }
 }
+
+enum CommandBarReturnModifier: String, CaseIterable, Identifiable {
+    case option
+    case shift
+    case control
+
+    var id: String { rawValue }
+
+    var glyph: String {
+        switch self {
+        case .option: return "⌥"
+        case .shift: return "⇧"
+        case .control: return "⌃"
+        }
+    }
+}
+
+enum CommandBarReturnAction: Equatable {
+    case bringHere
+    case newInstance
+}
+
+struct CommandBarReturnHint: Equatable {
+    let action: CommandBarReturnAction
+    let modifier: CommandBarReturnModifier?
+}
+
+struct CommandBarReturnKeys: Equatable {
+    let bringsHere: Bool
+    let newInstance: CommandBarReturnModifier?
+
+    init(bringsHere: Bool, newInstance: CommandBarReturnModifier?) {
+        self.bringsHere = bringsHere
+        self.newInstance = newInstance
+    }
+
+    init(defaults: UserDefaults = .standard) {
+        let newInstance = defaults.bool(forKey: DefaultsKey.commandBarNewInstanceEnabled)
+            ? defaults.string(forKey: DefaultsKey.commandBarNewInstanceModifier)
+                .flatMap(CommandBarReturnModifier.init(rawValue:)) ?? .shift
+            : nil
+        self.init(bringsHere: defaults.bool(forKey: DefaultsKey.commandBarBringWindowHere),
+                  newInstance: newInstance)
+    }
+
+    var travelsWindows: Bool { bringsHere }
+
+    func action(for modifier: CommandBarReturnModifier?) -> CommandBarReturnAction? {
+        guard let modifier else { return bringsHere ? .bringHere : nil }
+        return modifier == newInstance ? .newInstance : nil
+    }
+
+    func hints(windowIsElsewhere: Bool, canMoveHere: Bool, appIsRunning: Bool) -> [CommandBarReturnHint] {
+        var hints: [CommandBarReturnHint] = []
+        if bringsHere, windowIsElsewhere, canMoveHere {
+            hints.append(CommandBarReturnHint(action: .bringHere, modifier: nil))
+        }
+        if let newInstance, appIsRunning {
+            hints.append(CommandBarReturnHint(action: .newInstance, modifier: newInstance))
+        }
+        return hints
+    }
+}

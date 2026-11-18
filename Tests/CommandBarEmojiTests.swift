@@ -72,6 +72,8 @@ enum CommandBarEmojiContract {
         var usageCache: [String: CommandBarUse] = [:]
         var queryWhenRun = ""
         var selectionWhenRun = ""
+        var runScreen: Int?
+        let barScreen: Int? = nil
         var selectedText = ""
         var farewell = NotchMascotMood.idle
         init() {
