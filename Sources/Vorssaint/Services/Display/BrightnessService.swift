@@ -255,6 +255,7 @@ final class BrightnessService: ObservableObject {
     /// Retries spent per path since the last wake or display change. Touched
     /// only on the work queue.
     private var ddcRetryAttempts: [String: Int] = [:]
+    private var serviceDiscoveryRetries = BrightnessSupport.ServiceDiscoveryRetries()
     /// The scan waiting to read a failed monitor again. Main thread only.
     private var ddcRetry: DispatchWorkItem?
     /// Uptime of the last rescan a volume key started. Main thread only.
@@ -2141,6 +2142,7 @@ final class BrightnessService: ObservableObject {
         workQueue.async { [weak self] in
             self?.recheckedWriteOnlyPaths = []
             self?.ddcRetryAttempts = [:]
+            self?.serviceDiscoveryRetries = .init()
         }
     }
 
@@ -2213,7 +2215,7 @@ final class BrightnessService: ObservableObject {
         var newRoutes: [CGDirectDisplayID: Route] = [:]
         var ddcCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         let probesAudio = wantsMonitorVolume
-        var speakerCandidates: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
+        var externalDisplays: [(index: Int, identity: BrightnessSupport.DisplayIdentity)] = []
         var newAudioRoutes: [CGDirectDisplayID: AudioRoute] = [:]
         var externalNames: [(id: UInt32, name: String)] = []
         var virtualIDs = Set<CGDirectDisplayID>()
@@ -2235,9 +2237,10 @@ final class BrightnessService: ObservableObject {
             }
             let isBuiltIn = CGDisplayIsBuiltin(id) != 0
             let name = Self.displayName(id, info: info, screenNames: screenNames)
-            if probesAudio, !isBuiltIn {
-                externalNames.append((id, name))
-                speakerCandidates.append((built.count, Self.displayIdentity(id, info: info)))
+            let externalIdentity = isBuiltIn ? nil : Self.displayIdentity(id, info: info)
+            if let externalIdentity {
+                externalDisplays.append((built.count, externalIdentity))
+                if probesAudio { externalNames.append((id, name)) }
             }
             let isActive = activeTopology.contains(id)
 
@@ -2281,8 +2284,8 @@ final class BrightnessService: ObservableObject {
                 }
                 continue
             }
-            guard !isBuiltIn else { continue }
-            ddcCandidates.append((built.count, Self.displayIdentity(id, info: info)))
+            guard let externalIdentity else { continue }
+            ddcCandidates.append((built.count, externalIdentity))
             // Placeholder; the DDC pass below fills brightness and route.
             built.append(BrightnessDisplay(id: id, name: name, isBuiltIn: false,
                                            method: .ddc, isActive: true,
@@ -2309,6 +2312,7 @@ final class BrightnessService: ObservableObject {
                 audioRoutes.removeAll()
                 recheckedWriteOnlyPaths = []
                 ddcRetryAttempts = [:]
+                serviceDiscoveryRetries = .init()
             }
             // The power control only becomes safe when it sees the new active
             // set. Brightness routes remain untouched until probing finishes.
@@ -2348,6 +2352,7 @@ final class BrightnessService: ObservableObject {
         // remaining displays and read each matched monitor's brightness.
         // Whatever ends up without a live DDC channel falls back to gamma
         // dimming, so every real display keeps a working slider.
+        let speakerCandidates = probesAudio ? externalDisplays : []
         let services = BrightnessBridge.ddcAvailable && (!ddcCandidates.isEmpty || !speakerCandidates.isEmpty)
             ? Self.externalServices() : []
         var softwareIndices = Set(ddcCandidates.map(\.index))
@@ -2360,20 +2365,9 @@ final class BrightnessService: ObservableObject {
         // probed a monitor that answered on every launch after it.
         var unserved = services.isEmpty ? ddcCandidates : []
         if !ddcCandidates.isEmpty, !services.isEmpty {
-            var scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)] = []
-            for candidate in ddcCandidates {
-                for service in services {
-                    scores.append((candidate.index, service.identity.ordinal,
-                                   BrightnessSupport.matchScore(service: service.identity,
-                                                                display: candidate.identity)))
-                }
-            }
-            var assignment = BrightnessSupport.assignServices(scores: scores)
-            // One display and one service left unmatched can only belong to
-            // each other (EDID data is sometimes too sparse to score).
-            if assignment.isEmpty, ddcCandidates.count == 1, services.count == 1 {
-                assignment = [ddcCandidates[0].index: services[0].identity.ordinal]
-            }
+            let assignment = BrightnessSupport.brightnessServices(
+                displays: externalDisplays, candidates: Set(ddcCandidates.map(\.index)),
+                services: services.map(\.identity))
             for candidate in ddcCandidates {
                 guard let ordinal = assignment[candidate.index],
                       let matched = services.first(where: { $0.identity.ordinal == ordinal }) else {
@@ -2381,8 +2375,7 @@ final class BrightnessService: ObservableObject {
                     continue
                 }
                 let id = built[candidate.index].id
-                ddcRetryAttempts[BrightnessSupport.serviceMissKey(
-                    displayFingerprint: Self.displayFingerprint(id))] = nil
+                serviceDiscoveryRetries.found(id)
                 let ioDisplayLocation = candidate.identity.ioDisplayLocation.flatMap {
                     $0.isEmpty ? nil : $0
                 } ?? matched.identity.ioDisplayLocation
@@ -2412,6 +2405,19 @@ final class BrightnessService: ObservableObject {
                     probe = ddcProbe(BrightnessSupport.luminanceCode, for: id, service: matched.service,
                                      chip: matched.chipAddress, classifyingChannel: true)
                     Self.log.log("ddc probe display \(id): \(String(describing: probe), privacy: .public)")
+                }
+                let keepDim = stateLock.withLock {
+                    BrightnessSupport.keepsSoftwareDimOnDiscovery(
+                        previouslySoftware: routes[id]?.method == .software,
+                        dimmed: dimmedDisplays.contains(id) && gammaBaselines[id]?.fingerprint == Self.displayFingerprint(id),
+                        pending: pendingLevels[id]?.value)
+                }
+                if keepDim, probe != .dead {
+                    // Keep the current picture and expose the existing switch
+                    // back to hardware now that the transport is available.
+                    forcedSoftwareIDs.insert(id)
+                    softwarePathKeys[id] = pathKey
+                    continue
                 }
                 switch probe {
                 case .replied(let current, let maximum):
@@ -2503,14 +2509,9 @@ final class BrightnessService: ObservableObject {
             let ordinals = services.map { String($0.identity.ordinal) }.joined(separator: ",")
             for candidate in unserved {
                 let id = built[candidate.index].id
-                let key = BrightnessSupport.serviceMissKey(displayFingerprint: Self.displayFingerprint(id))
-                let attempt = (ddcRetryAttempts[key] ?? 0) + 1
-                let delay = BrightnessSupport.serviceMissRetryDelay(attempt: attempt)
-                if let delay {
-                    ddcRetryAttempts[key] = attempt
-                    retryDelay = min(retryDelay ?? delay, delay)
-                }
-                let retry = delay.map { "retry \(attempt) in \($0)s" } ?? "no retry left"
+                let delay = serviceDiscoveryRetries.missing(id, now: ProcessInfo.processInfo.systemUptime)
+                if let delay { retryDelay = min(retryDelay ?? delay, delay) }
+                let retry = delay.map { "retry in \($0)s" } ?? "no retry left"
                 Self.log.log("ddc no service for display \(id): \(services.count) external service(s) [\(ordinals, privacy: .public)], \(ddcCandidates.count) candidate(s); \(retry, privacy: .public)")
             }
         }
@@ -2895,7 +2896,7 @@ final class BrightnessService: ObservableObject {
         return success
     }
 
-    private enum DDCProbe {
+    private enum DDCProbe: Equatable {
         case replied(current: UInt16, maximum: UInt16)
         case writeOnly
         case dead

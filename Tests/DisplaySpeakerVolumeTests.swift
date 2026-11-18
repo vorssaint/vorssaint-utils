@@ -305,17 +305,53 @@ enum DisplaySpeakerVolumeTests {
         suite.expect(BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: false, repliedThisSession: true) == nil
                      && BrightnessSupport.ddcRetryDelay(attempt: 1, probesAudio: true, repliedThisSession: false) == nil,
                      "a failed read is retried only while speakers are wanted and the monitor answered this session")
-        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 1) == 2
-                     && BrightnessSupport.serviceMissRetryDelay(attempt: 2) == 5
-                     && BrightnessSupport.serviceMissRetryDelay(attempt: 3) == 15,
-                     "a monitor the scan found no DDC service for is scanned again after about 2, 5 and 15 seconds")
-        suite.expect(BrightnessSupport.serviceMissRetryDelay(attempt: 0) == nil
-                     && BrightnessSupport.serviceMissRetryDelay(attempt: 4) == nil,
-                     "software dimming stands once the third scan finds no service")
-        suite.expect(BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1")
-                     != BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:2")
-                     && !BrightnessSupport.serviceMissKey(displayFingerprint: "4268:16590:1").hasPrefix("audio:"),
-                     "each monitor keeps its own service retry budget, apart from speaker retries")
+        var discovery = BrightnessSupport.ServiceDiscoveryRetries()
+        suite.expect(discovery.missing(7, now: 0) == 2 && discovery.missing(8, now: 0) == 2,
+                     "identical monitors at separate display IDs get separate retry deadlines")
+        discovery.found(7)
+        for tick in [0.0, 0.25, 0.5, 1.5] {
+            suite.expect(discovery.missing(8, now: tick) == 2 - tick,
+                         "early panel refreshes retain the first scheduled deadline")
+            discovery.found(7)
+        }
+        suite.expect(discovery.missing(8, now: 2) == 5 && discovery.missing(8, now: 7) == 15
+                     && discovery.missing(8, now: 22) == nil && discovery.missing(8, now: 500) == nil,
+                     "a healthy twin cannot replenish a missing monitor's three timed scans")
+        discovery.found(8)
+        suite.expect(discovery.missing(8, now: 501) == 2, "a recovered connection can start a new retry sequence")
+
+        var native = BrightnessSupport.DisplayIdentity()
+        native.productName = "Native panel"
+        var hdmi = BrightnessSupport.DisplayIdentity()
+        hdmi.productName = "HDMI panel"
+        var nativeEndpoint = BrightnessSupport.ServiceIdentity()
+        nativeEndpoint.productName = "Native panel"
+        nativeEndpoint.ordinal = 3
+        let desk = [(index: 0, identity: native), (index: 1, identity: hdmi)]
+        suite.expect(BrightnessSupport.brightnessServices(displays: desk, candidates: [1], services: [nativeEndpoint]).isEmpty,
+                     "the DDC service of a native display cannot prematurely end HDMI discovery")
+        var hdmiEndpoint = BrightnessSupport.ServiceIdentity()
+        hdmiEndpoint.productName = "HDMI panel"
+        hdmiEndpoint.ordinal = 4
+        suite.expect(BrightnessSupport.brightnessServices(displays: desk, candidates: [1],
+                        services: [nativeEndpoint, hdmiEndpoint]) == [1: 4]
+                     && BrightnessSupport.brightnessServices(displays: [(1, hdmi)], candidates: [1],
+                        services: [.init()]) == [1: 0],
+                     "the recovered HDMI reaches its own service and a genuinely lone sparse endpoint still works")
+        var firstTwin = hdmi, secondTwin = hdmi
+        firstTwin.ioDisplayLocation = "port-a"
+        secondTwin.ioDisplayLocation = "port-b"
+        hdmiEndpoint.ioDisplayLocation = "port-a"
+        suite.expect(BrightnessSupport.brightnessServices(displays: [(0, firstTwin), (1, secondTwin)],
+                        candidates: [0, 1], services: [hdmiEndpoint]) == [0: 4],
+                     "one service behind identical EDIDs belongs only to the matching physical connection")
+        suite.expect(BrightnessSupport.keepsSoftwareDimOnDiscovery(previouslySoftware: true,
+                        dimmed: true, pending: nil)
+                     && BrightnessSupport.keepsSoftwareDimOnDiscovery(previouslySoftware: true,
+                        dimmed: false, pending: 0.25)
+                     && !BrightnessSupport.keepsSoftwareDimOnDiscovery(previouslySoftware: true,
+                        dimmed: false, pending: nil),
+                     "a recovered service preserves both applied and queued dimming while an untouched panel moves to DDC")
         suite.expect(BrightnessSupport.rescansForVolumeKey(hasTarget: false, displayOwnsOutput: true,
                         now: 100, lastRescan: nil)
                      && !BrightnessSupport.rescansForVolumeKey(hasTarget: true, displayOwnsOutput: true,

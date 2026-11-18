@@ -274,22 +274,27 @@ enum BrightnessSupport {
         return ddcRetryDelays[attempt - 1]
     }
 
-    /// How long to wait before scanning again for a monitor the DDC pass
-    /// found no service for, or nil once the retries are spent. A missing
-    /// service is not a verdict on the monitor: one launch has been seen
-    /// finding none for a monitor that answered on every launch after it,
-    /// and without a retry it kept software dimming until the next wake or
-    /// topology change. A monitor that truly has no DDC service costs three
-    /// extra scans. `attempt` counts from 1.
-    static func serviceMissRetryDelay(attempt: Int) -> TimeInterval? {
-        guard attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
-        return ddcRetryDelays[attempt - 1]
+    /// Each online display has its own deadlines, even if its EDID is shared
+    /// with another panel. Opening Settings can probe early without spending
+    /// another scheduled attempt.
+    struct ServiceDiscoveryRetries {
+        private var deadlines: [UInt32: (attempt: Int, due: TimeInterval)] = [:]
+
+        mutating func found(_ display: UInt32) { deadlines[display] = nil }
+
+        mutating func missing(_ display: UInt32, now: TimeInterval) -> TimeInterval? {
+            if let previous = deadlines[display], now < previous.due { return previous.due - now }
+            let attempt = deadlines[display]?.attempt ?? 0
+            guard ddcRetryDelays.indices.contains(attempt) else { return nil }
+            let delay = ddcRetryDelays[attempt]
+            deadlines[display] = (attempt + 1, now + delay)
+            return delay
+        }
     }
 
-    /// The retry budget key for a monitor that found no DDC service, kept
-    /// apart from probe and speaker keys, which need a matched service.
-    static func serviceMissKey(displayFingerprint: String) -> String {
-        "service:" + displayFingerprint
+    static func keepsSoftwareDimOnDiscovery(previouslySoftware: Bool,
+                                             dimmed: Bool, pending: Double?) -> Bool {
+        previouslySoftware && (dimmed || pending.map { $0 < 0.999 } == true)
     }
 
     static let volumeKeyRescanInterval: TimeInterval = 10
@@ -1119,6 +1124,36 @@ enum BrightnessSupport {
             score += 1
         }
         return score
+    }
+
+    /// Native and inactive external displays also own their DDC services.
+    /// Reserve their matches even though they do not need a brightness probe.
+    static func brightnessServices(displays: [(index: Int, identity: DisplayIdentity)],
+                                   candidates: Set<Int>, services: [ServiceIdentity]) -> [Int: Int] {
+        let scores = displays.flatMap { display in
+            services.map { service in
+                let serial = display.identity.serialNumber ?? 0
+                let conflict = serial != 0 && service.serialNumber != 0 && serial != service.serialNumber
+                let score = conflict ? 0 : matchScore(service: service, display: display.identity,
+                                                       requireIdentity: displays.count > 1)
+                return (displayIndex: display.index, serviceOrdinal: service.ordinal, score: score)
+            }
+        }
+        let usable = scores.filter { pair in
+            candidates.contains(pair.displayIndex) && pair.score > 0
+                && !scores.contains { other in
+                    other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex
+                        && other.score >= pair.score
+                }
+        }
+        let assigned = assignServices(scores: usable)
+        if assigned.isEmpty, displays.count == 1, services.count == 1, let display = displays.first,
+           candidates.contains(display.index), let service = services.first {
+            if let serial = display.identity.serialNumber, serial != 0, service.serialNumber != 0,
+               serial != service.serialNumber { return [:] }
+            return [display.index: service.ordinal]
+        }
+        return assigned
     }
 
     /// Greedy assignment, best scores first: each display and each service is
