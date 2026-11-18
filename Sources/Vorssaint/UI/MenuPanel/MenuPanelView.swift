@@ -2996,13 +2996,29 @@ struct KeepAwakeCard: View {
     }
 
     private var mouseJiggleIntervalRow: some View {
-        HStack(spacing: 8) {
-            Text(l10n.s.keepAwakeMouseJiggleInterval)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 0)
-            KeepAwakeMouseJiggleIntervalPicker(selection: $keepAwakeMouseJiggleInterval)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Text(l10n.s.keepAwakeMouseJiggleInterval)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Text(KeepAwakeMouseJiggleIntervalLabel.text(forMinutes: keepAwakeMouseJiggleInterval))
+                    .font(.system(size: 11, weight: .semibold))
+                    .monospacedDigit()
+            }
+            Slider(value: keepAwakeMouseJiggleIntervalBinding,
+                   in: Double(Defaults.keepAwakeMouseJiggleIntervalRange.lowerBound)
+                       ... Double(Defaults.keepAwakeMouseJiggleIntervalRange.upperBound),
+                   step: 1)
+                .controlSize(.small)
         }
+    }
+
+    private var keepAwakeMouseJiggleIntervalBinding: Binding<Double> {
+        Binding(
+            get: { Double(Defaults.sanitizedKeepAwakeMouseJiggleInterval(keepAwakeMouseJiggleInterval)) },
+            set: { keepAwakeMouseJiggleInterval = Int($0) }
+        )
     }
 
     private var mouseJiggleNeedsAccessibility: Bool {
@@ -3259,22 +3275,10 @@ struct KeepAwakeChipStyle: ButtonStyle {
     }
 }
 
-struct KeepAwakeMouseJiggleIntervalPicker: View {
-    @Binding var selection: Int
-
-    var body: some View {
-        Picker("", selection: $selection) {
-            ForEach(Defaults.allowedKeepAwakeMouseJiggleIntervals, id: \.self) { minutes in
-                Text(Self.label(for: minutes)).tag(minutes)
-            }
-        }
-        .labelsHidden()
-        .pickerStyle(.menu)
-        .controlSize(.small)
-        .fixedSize()
-    }
-
-    static func label(for minutes: Int) -> String {
+/// The "N min" readout shown beside the mouse-jiggle interval slider, on both
+/// the full Settings page and this compact panel.
+enum KeepAwakeMouseJiggleIntervalLabel {
+    static func text(forMinutes minutes: Int) -> String {
         "\(minutes) min"
     }
 }
