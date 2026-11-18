@@ -212,6 +212,8 @@ struct CommandBarView: View {
     }
 
     private func focusSearch() {
+        guard isShown else { return }
+        searchFocused = false
         DispatchQueue.main.async { if isShown { searchFocused = true } }
     }
 
