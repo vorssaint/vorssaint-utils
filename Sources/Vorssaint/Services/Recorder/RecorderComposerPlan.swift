@@ -24,6 +24,7 @@ extension RecorderComposer {
                          frameRate: Int,
                          duration: Double,
                          outputScale: CGFloat = 1,
+                         outputSize: CGSize? = nil,
                          outputFormat: RecorderSupport.ExportFormat = .video) -> Plan? {
         guard sourceSize.width > 0, sourceSize.height > 0, duration > 0 else { return nil }
 
@@ -40,6 +41,9 @@ extension RecorderComposer {
         if outputFormat == .gif {
             canvas = RecorderSupport.gifOutputSize(source: fullCanvas,
                 scalePercent: Int((scale * 100).rounded()))
+        } else if let outputSize {
+            // Preserve the video export planner's selected resolution.
+            canvas = RecorderSupport.evenSize(outputSize)
         } else {
             canvas = scale == 1 ? fullCanvas : RecorderSupport.evenSize(
                 CGSize(width: fullCanvas.width * scale, height: fullCanvas.height * scale))

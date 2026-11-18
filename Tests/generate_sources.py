@@ -2824,8 +2824,10 @@ def main():
           + declaration(recorder, "struct RecorderEditorExportSelection")
           + declaration(recorder, "final class RecorderClipboardPublication:")
           + "final class RecorderExportControlsFixture {\nvar document = RecorderEditDocument()\nvar isExporting = false\nvar sourceSize = CGSize(width: 1920, height: 1080)\n"
+          + "var sourceFrameRate = 60\nvar duration = 20.0\nvar audioSources: Set<RecorderAudioSource> = []\n"
           + "".join(declaration(recorder, prefix) for prefix in [
               "    var exportSize:", "    var exportCanvasSize:", "    func exportSize(for",
+              "    func videoExportPlan(for",
               "    func setExportFormat(", "    func setGIFScalePercent(", "    func setGIFFrameRate(",
               "    func beginClipboardPublication()", "    func completeClipboardPublication(", "    func cancelExport()"])
           + "var clipboardPublication: RecorderClipboardPublication?\nvar exporter: RecorderExporter?\nvar shareTask: Task<Void, Never>?\n"
