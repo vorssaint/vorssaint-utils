@@ -929,30 +929,33 @@ enum FeatureCatalogTests {
             for: URL(fileURLWithPath: "/Volumes/Installer/Example.app"),
             applicationsURLs: []) == nil,
             "missing application-domain resolutions fail closed")
-        // Images a script mounts for itself are not offered (#3592).
-        let testDownloads = URL(fileURLWithPath: "/Users/test/Downloads", isDirectory: true)
-        func offers(_ path: String, browsable: Bool = true, quarantined: Bool = false,
-                    downloads: URL? = testDownloads) -> Bool {
-            DiskImageInstallerSupport.offersInstall(volumeIsBrowsable: browsable, imageIsQuarantined: quarantined,
-                                                    imageURL: URL(fileURLWithPath: path), downloadsURL: downloads)
-        }
-        suite.expect(offers("/Users/test/Projects/build/App.dmg", quarantined: true),
-               "a downloaded image is offered wherever it was saved")
-        suite.expect(offers("/Users/test/Downloads/App.dmg")
-                && offers("/Users/test/Downloads/Apps/App.dmg"),
-               "an image in Downloads is offered without a quarantine attribute")
-        suite.expect(!offers("/Users/test/Projects/build/App.dmg")
-                && !offers("/private/tmp/App.dmg"),
-               "an image a build script made itself is not offered")
-        suite.expect(!offers("/Users/test/DownloadsBackup/App.dmg") && !offers("/Users/test/Downloads"),
-               "only what is inside Downloads counts as being there")
-        suite.expect(!offers("/Users/test/Downloads/App.dmg", browsable: false, quarantined: true),
-               "a -nobrowse mount is never offered")
-        suite.expect(!offers("/Users/test/Downloads/App.dmg", downloads: nil)
-                && offers("/Users/test/Downloads/App.dmg", quarantined: true, downloads: nil),
-               "without a Downloads folder only a quarantined image is offered")
         let installerFixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorss-installer-\(UUID().uuidString)", isDirectory: true)
+        do {
+            let fm = FileManager.default
+            defer { try? fm.removeItem(at: installerFixture) }
+            let excluded = installerFixture.appendingPathComponent("build", isDirectory: true)
+            let scratch = installerFixture.appendingPathComponent("scratch", isDirectory: true)
+            try fm.createDirectory(at: excluded, withIntermediateDirectories: true)
+            let alias = installerFixture.appendingPathComponent("linked-build")
+            try fm.createSymbolicLink(at: alias, withDestinationURL: excluded)
+            let marker = excluded.appendingPathComponent(".vorssaint-no-install")
+            try Data().write(to: marker)
+            func offers(_ relative: String, browsable: Bool? = true) -> Bool {
+                DiskImageInstallerSupport.offersInstall(volumeIsBrowsable: browsable,
+                    imageURL: installerFixture.appendingPathComponent(relative), temporaryDirectories: [scratch])
+            }
+            suite.expect(!offers("build/nested/App.dmg") && !offers("linked-build/App.dmg")
+                         && !offers("scratch/App.dmg"), "excluded and temporary directories include their descendants and aliases")
+            suite.expect(offers("build-backup/App.dmg") && offers("scratchpad/App.dmg") && offers("Desktop/App.dmg"),
+                         "similarly named siblings and manual images remain available")
+            suite.expect(!offers("Desktop/App.dmg", browsable: false) && !offers("Desktop/App.dmg", browsable: nil),
+                         "hidden mounts and mounts with unknown visibility are not offered")
+            try fm.removeItem(at: marker)
+            suite.expect(offers("build/nested/App.dmg"), "removing a folder exclusion restores its manual installs")
+        } catch {
+            suite.expect(false, "could not create the disk image exclusion fixture: \(error)")
+        }
         let installerFM = InstallerFileManager(root: installerFixture)
         let installerApp = URL(fileURLWithPath: "/Volumes/Installer/Example.app")
         let missingUserDestination = installerFM.userApplications!

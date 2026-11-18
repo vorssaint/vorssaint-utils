@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Darwin
 import Foundation
 
 enum DiskImageInstallerSupport {
@@ -30,20 +31,29 @@ enum DiskImageInstallerSupport {
         return url
     }
 
-    /// Build, signing and notarization scripts mount their own images with
-    /// `hdiutil`, and installing from one of those would copy an unfinished
-    /// app and trash the image the script is about to ship (#3592). The mount
-    /// itself does not say who asked for it, so the image has to: a download
-    /// carries the quarantine attribute, and a file in Downloads is one the
-    /// user fetched even when the tool that did it set none. A `-nobrowse`
-    /// mount is never one the user meant to see.
-    static func offersInstall(volumeIsBrowsable: Bool, imageIsQuarantined: Bool,
-                              imageURL: URL, downloadsURL: URL?) -> Bool {
-        guard volumeIsBrowsable else { return false }
-        if imageIsQuarantined { return true }
+    /// A mount notification does not identify its initiator. Build scripts can
+    /// opt their output tree out without changing how other images are opened.
+    static func offersInstall(volumeIsBrowsable: Bool?, imageURL: URL, temporaryDirectories: [URL]) -> Bool {
+        guard volumeIsBrowsable == true else { return false }
+        let imagePath = normalizedPath(imageURL.path)
+        guard !temporaryDirectories.contains(where: { imagePath.hasPrefix(normalizedPath($0.path) + "/") })
+        else { return false }
+
+        var directory = URL(fileURLWithPath: imagePath).deletingLastPathComponent()
+        while directory.path != "/" {
+            let marker = directory.appendingPathComponent(".vorssaint-no-install")
+            if FileManager.default.fileExists(atPath: marker.path) { return false }
+            directory.deleteLastPathComponent()
+        }
+        return true
+    }
+
+    /// Used only for the cleanup checkbox. Neither Downloads nor quarantine
+    /// establishes who mounted the image.
+    static func hasDownloadOrigin(_ imageURL: URL, downloadsURL: URL?) -> Bool {
+        if imageURL.path.withCString({ getxattr($0, "com.apple.quarantine", nil, 0, 0, 0) }) > 0 { return true }
         guard let downloadsURL else { return false }
-        let downloads = normalizedPath(downloadsURL.path)
-        return normalizedPath(imageURL.path).hasPrefix(downloads + "/")
+        return normalizedPath(imageURL.path).hasPrefix(normalizedPath(downloadsURL.path) + "/")
     }
 
     static func applicationsDomain(useUserApplications: Bool) -> FileManager.SearchPathDomainMask {
