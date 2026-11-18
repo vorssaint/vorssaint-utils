@@ -415,7 +415,11 @@ def main():
               "    private func recordDiscoveredTopology(", "    private func discardReplacedDisplay(",
               "    private func displaysWillSleep(", "    private func displaysWokeUp(",
               "    private func reapplyManagedDisplayDisables(", "    private func observeScreenUnlock(",
-              "    private func screensChanged("])
+              "    private func syncAutomaticBuiltInDisplay(", "    private func disableBuiltInDisplayIfReady(",
+              "    private func cancelWakeDisableChecks(",
+              "    private func checkWakeDisable(", "    private func scheduleWakeDisableCheck(",
+              "    private func screensChanged("]).replace(
+                  "func commitDisplayToggle(", "@discardableResult\n    func commitDisplayToggle(")
           + "}\n}\n")
     write("BrightnessStep.swift", "import CoreGraphics\nimport Foundation\nimport os\n"
           + "extension BrightnessStepTests {\n"
