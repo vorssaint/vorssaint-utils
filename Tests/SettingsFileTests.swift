@@ -60,6 +60,10 @@ enum SettingsFileTests {
             // including volumes the file holds as gains rather than positions.
             defaults.set(["com.example.player": 0.4], forKey: DefaultsKey.appVolumes)
             defaults.set(true, forKey: DefaultsKey.appVolumesArePositions)
+            let savedPresets = ScreenshotSupport.encodedWatermarkPresets([
+                .init(kind: .image, imagePath: "/local/logo.png"), .init(kind: .text, text: "Work"),
+            ])
+            defaults.set(savedPresets, forKey: DefaultsKey.screenshotWatermarkPresets)
             suite.expect(Backup.write(to: link, from: defaults),
                          "saving to the settings file replaces the earlier snapshot")
             let beforeLaunch = defaults.persistentDomain(forName: domain) ?? [:]
@@ -76,6 +80,8 @@ enum SettingsFileTests {
             suite.expect(defaults.string(forKey: DefaultsKey.appearance) == "dark"
                          && (defaults.dictionary(forKey: DefaultsKey.appVolumes)?["com.example.player"] as? Double) == 0.4,
                          "restoring a different setting leaves matching mixer positions exactly as saved")
+            suite.expect(defaults.string(forKey: DefaultsKey.screenshotWatermarkPresets) == savedPresets,
+                         "restoring another setting keeps local and portable watermark presets in their original order")
             let ordered = #"{"name":"Test","style":{"a":0,"b":1}}"#
             let reordered = #"{"style":{"b":1,"a":0},"name":"Test"}"#
             let different = #"{"style":{"b":2,"a":0},"name":"Test"}"#

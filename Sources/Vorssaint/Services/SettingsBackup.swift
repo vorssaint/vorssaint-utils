@@ -254,17 +254,23 @@ enum SettingsBackup {
         if settings[DefaultsKey.mediaImageWatermarkKind] != nil { comparisonKeys.insert(DefaultsKey.mediaImageWatermarkText) }
         let local = comparisonKeys.reduce(into: [String: Any]()) { $0[$1] = defaults.object(forKey: $1) }
         let portable = SettingsBackupSupport.portableSettings(local)
-        let changed = settings.filter { !SettingsBackupSupport.matchesPortableValue($0.value, local: portable[$0.key], key: $0.key) }
+        var changed = settings.filter { key, value in
+            !SettingsBackupSupport.matchesPortableValue(value, local: portable[key], key: key)
+        }
+        // Treat mixer values and their units as one declaration. A file that
+        // explicitly stores slider positions can compare them without a gain conversion.
+        if let positions = settings[DefaultsKey.appVolumesArePositions] as? Bool, positions,
+           local[DefaultsKey.appVolumesArePositions] as? Bool == true,
+           settings[DefaultsKey.appVolumes] as? NSDictionary == local[DefaultsKey.appVolumes] as? NSDictionary {
+            changed.removeValue(forKey: DefaultsKey.appVolumes)
+            changed.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        } else if changed[DefaultsKey.appVolumes] != nil || changed[DefaultsKey.appVolumesArePositions] != nil {
+            changed[DefaultsKey.appVolumes] = settings[DefaultsKey.appVolumes]
+            changed[DefaultsKey.appVolumesArePositions] = settings[DefaultsKey.appVolumesArePositions]
+        }
         if !changed.isEmpty {
-            var incoming = SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local)
-            // Do not round-trip already matching slider positions through audio gains
-            // when a different preference in the same file changes.
-            if changed[DefaultsKey.appVolumes] == nil && changed[DefaultsKey.appVolumesArePositions] == nil {
-                incoming.removeValue(forKey: DefaultsKey.appVolumes)
-                incoming.removeValue(forKey: DefaultsKey.appVolumesArePositions)
-            }
-            apply(settings: incoming,
-                  replacingMissing: false, in: defaults)
+            let incoming = SettingsBackupSupport.keepingLocalMediaLogos(changed, local: local)
+            apply(settings: incoming, replacingMissing: false, in: defaults)
             if incoming[DefaultsKey.appVolumes] != nil {
                 Defaults.migrateAppVolumesToPositions(in: defaults)
             }
