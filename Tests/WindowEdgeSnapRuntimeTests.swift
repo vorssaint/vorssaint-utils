@@ -141,6 +141,10 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowEdgeSnapSupport {
         static var isSystemTilingEnabled = false
+        static var optionTilingEnabled = true
+        static func systemTilingEnabledForDrag(optionHeld: Bool) -> Bool {
+            isSystemTilingEnabled || (optionHeld && optionTilingEnabled)
+        }
         static var isSystemTopWindowOverviewDragEnabled = false
         static func needsSizeRestore(from snapped: CGSize, to restore: CGSize) -> Bool {
             EdgeSnapGeometry.needsSizeRestore(from: snapped, to: restore)
@@ -282,6 +286,7 @@ enum WindowEdgeSnapRuntimeTests {
         var edgeSnapPressOrigin: CGPoint?
         var edgeSnapPressCandidate: WindowServerWindowCandidate?
         var edgeSnapSequenceSuppressed = false
+        var edgeSnapSystemDrag = WindowEdgeSnapSystemDrag.idle
         var edgeSnapResolveAttempts = 0
         var edgeSnapLastResolveAt: TimeInterval = 0
         var edgeSnapDrag: WindowEdgeSnapDrag?
@@ -442,6 +447,7 @@ enum WindowEdgeSnapRuntimeTests {
         positionAccepted = true
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
+        WindowEdgeSnapSupport.optionTilingEnabled = true
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
         DispatchQueue.main.jobs.removeAll()
         DispatchQueue.main.timers.removeAll()
@@ -923,6 +929,32 @@ enum WindowEdgeSnapRuntimeTests {
         suite.expect(previewedWhileHeld && mainAXWhileHeld == 0 && titleBar.placements
                         == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
                      "a window dragged to an edge previews the zone, snaps on release and keeps its starting frame for Restore")
+
+        for optionAtPress in [true, false] {
+            reset()
+            let host = Host()
+            if !optionAtPress { pressAndTrack(host) }
+            let option = event(.leftMouseDown, at: pressPoint)
+            option.flags = .maskAlternate
+            _ = host.observeEdgeSnapEvent(type: optionAtPress ? .leftMouseDown : .flagsChanged, event: option)
+            DispatchQueue.main.drain()
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(!host.previewShown && host.placements.isEmpty,
+                         "an Option gesture belongs to macOS until mouse-up even after Option is released")
+
+            currentFrame = initialFrame
+            send(host, .leftMouseDown, pressPoint)
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(host.placements.count == 1, "the next unmodified drag can snap")
+        }
 
         reset()
         zoneActions = "right=rightThird"
