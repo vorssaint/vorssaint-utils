@@ -45,9 +45,14 @@ final class MicMuteService: ObservableObject {
     /// state it is replacing: read from the flag, a mute still being applied
     /// looked like "unmuted, with claims to release" and was silently undone.
     private var wantsMute = UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
-    /// Main thread. A re-assert is already on its way, so further changes
-    /// until it runs are covered by it.
-    private var reapplyScheduled = false
+    /// Core Audio may call from multiple threads. A burst only needs one
+    /// handoff to main, and all sweeps are still serialized on halQueue.
+    private let callbackLock = NSLock()
+    private var callbackQueued = false
+    /// Main thread. While a sweep is outstanding, keep one follow-up for
+    /// changes it may already have read past.
+    private var applyInFlight = false
+    private var reapplyPending = false
     private let inputVolumeLock = NSLock()
     private var inputVolumeBlocked = false
     private var inputVolumeLifetime = UUID()
@@ -64,20 +69,25 @@ final class MicMuteService: ObservableObject {
     private static let listenerCallback: AudioObjectPropertyListenerProc = { _, _, _, client in
         guard let client else { return noErr }
         let service = Unmanaged<MicMuteService>.fromOpaque(client).takeUnretainedValue()
-        DispatchQueue.main.async { service.scheduleReapply() }
+        service.scheduleReapply()
         return noErr
     }
 
-    /// One sweep covers every device, so a burst of changes needs only one.
-    /// A sweep writes several controls and each posts its own change, and an
-    /// app that keeps moving a microphone's gain posts at whatever rate it
-    /// writes; both now cost at most one sweep per interval.
     private func scheduleReapply() {
-        guard !reapplyScheduled else { return }
-        reapplyScheduled = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + MicMuteSupport.reapplyCoalescingInterval) { [weak self] in
-            self?.reapplyScheduled = false
-            self?.reapplyIfNeeded()
+        let needsHandoff = callbackLock.withLock {
+            if callbackQueued { return false }
+            callbackQueued = true
+            return true
+        }
+        guard needsHandoff else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let pending = self.callbackLock.withLock {
+                let pending = self.callbackQueued
+                self.callbackQueued = false
+                return pending
+            }
+            if pending { self.reapplyIfNeeded() }
         }
     }
 
@@ -97,20 +107,17 @@ final class MicMuteService: ObservableObject {
                                                   storageKey: DefaultsKey.micMuteShortcut)
 
         if available {
-            if wantsMute {
-                apply(muted: true, announce: false)
-            } else if hasOutstandingClaims {
-                // A device this app silenced and never got to release: it
-                // was away at the unmute, or the app went down. Its level
-                // comes back now if it is here, else when it returns.
-                apply(muted: false, announce: false)
-            }
-            isMuted = wantsMute
+            if !applyInFlight { isMuted = wantsMute }
+            reapplyIfNeeded()
         } else {
             // Switching the feature off must not strand a muted microphone
             // with no control left to unmute it.
             if wantsMute || hasOutstandingClaims {
-                apply(muted: false, announce: false)
+                if wantsMute {
+                    apply(muted: false, announce: false)
+                } else {
+                    reapplyIfNeeded()
+                }
                 UserDefaults.standard.set(false, forKey: DefaultsKey.micMuteActive)
             }
             isMuted = false
@@ -143,7 +150,7 @@ final class MicMuteService: ObservableObject {
     }
 
     func toggle() {
-        setMuted(!isMuted)
+        setMuted(!wantsMute)
     }
 
     func setMuted(_ muted: Bool) {
@@ -173,15 +180,17 @@ final class MicMuteService: ObservableObject {
         let defaults = UserDefaults.standard
         // A mute still being applied has not reached the flag yet, and a claim
         // is a device this app owes its level back whatever the flag says.
-        guard wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims else { return }
+        let mustRestore = wantsMute || defaults.bool(forKey: DefaultsKey.micMuteActive) || hasOutstandingClaims
+        guard mustRestore || applyInFlight else { return }
         // Any sweep still in flight loses its right to publish, and this one
         // runs behind it on the same serial queue.
         applyGeneration += 1
+        applyInFlight = false
+        reapplyPending = false
         wantsMute = false
-        _ = halQueue.sync {
-            let outcome = Self.sweep(muted: false)
+        halQueue.sync {
+            if mustRestore || self.hasOutstandingClaims { _ = Self.sweep(muted: false) }
             self.removeDeviceListeners()
-            return outcome
         }
         defaults.set(false, forKey: DefaultsKey.micMuteActive)
         isMuted = false
@@ -190,6 +199,7 @@ final class MicMuteService: ObservableObject {
             inputVolumeLifetime = UUID()
         }
         removeListeners()
+        callbackLock.withLock { callbackQueued = false }
     }
 
     /// Silently re-asserts the wanted state; used when the set of input
@@ -197,6 +207,10 @@ final class MicMuteService: ObservableObject {
     /// change is the moment a device this app still has to release may have
     /// come back.
     private func reapplyIfNeeded() {
+        if applyInFlight {
+            reapplyPending = true
+            return
+        }
         if wantsMute {
             apply(muted: true, announce: false)
         } else if hasOutstandingClaims {
@@ -209,6 +223,8 @@ final class MicMuteService: ObservableObject {
     /// Hands the sweep to the audio queue and keeps the published state, the
     /// wanted state and the HUD on the main thread, where they belong.
     private func apply(muted: Bool, announce: Bool) {
+        applyInFlight = true
+        reapplyPending = false
         wantsMute = muted
         inputVolumeLock.withLock {
             inputVolumeBlocked = muted
@@ -278,6 +294,15 @@ final class MicMuteService: ObservableObject {
     /// Main thread. Publishes one sweep.
     private func finish(_ outcome: MuteOutcome, muted: Bool, announce: Bool, generation: Int) {
         guard generation == applyGeneration else { return }
+        applyInFlight = false
+        // A listener cannot supersede a manual action or swallow its warning.
+        // Publish the result first, then recheck the latest desired state.
+        defer {
+            if reapplyPending {
+                reapplyPending = false
+                reapplyIfNeeded()
+            }
+        }
         if outcome.applied {
             if isMuted != muted { isMuted = muted }
             if UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) != muted {

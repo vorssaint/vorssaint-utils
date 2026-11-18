@@ -24,11 +24,6 @@ enum MicMuteSupport {
     /// Devices without a readable stream layout still get the stereo pair
     /// tried, the way the mute used to.
     static let minimumChannelCount = 2
-    /// How long a device change waits for the ones that follow it before the
-    /// mute is re-asserted. Short enough that a raised gain is undone before
-    /// anyone speaks into it, long enough that the changes posted by one
-    /// sweep's own writes are answered by a single sweep.
-    static let reapplyCoalescingInterval: TimeInterval = 0.1
     /// CoreAudio's master element. Kept as a number so this file stays
     /// free of the HAL import the tests do not need.
     static let masterElement: UInt32 = 0

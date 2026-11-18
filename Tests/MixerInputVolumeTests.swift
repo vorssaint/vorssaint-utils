@@ -13,9 +13,13 @@ enum MixerInputVolumeContract {
         static let main = DispatchQueue(label: "main", qos: .default)
         static var queues: [DispatchQueue] = []
         var work: [() -> Void] = []
+        var timedEnqueues = 0
         init(label: String, qos: DispatchQoS) { Self.queues.append(self) }
         func async(execute: @escaping () -> Void) { work.append(execute) }
-        func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) { work.append(execute) }
+        func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) {
+            timedEnqueues += 1
+            work.append(execute)
+        }
         func sync<T>(execute: () -> T) -> T {
             while !work.isEmpty { run() }
             return execute()
@@ -1231,9 +1235,58 @@ enum MixerInputVolumeContract {
               "a burst of device changes is answered by one sweep")
         check(UserDefaults.standard.writtenKeys.isEmpty,
               "a re-assert that finds everything muted writes no preferences")
+        let service = MicMuteService.shared
+        let timersBefore = DispatchQueue.main.timedEnqueues
         HAL.levels[HAL.key(10)] = 0.5
-        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, MicMuteService.shared.listenerClient)
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        DispatchQueue.main.run()
+        check(DispatchQueue.main.timedEnqueues == timersBefore && service.halQueue.work.count == 1,
+              "the first callback queues an audio sweep immediately, without a mute delay")
+        let firstSweep = service.applyGeneration
+        // Let main handle each arrival separately while the audio queue is busy.
+        for _ in 0..<8 {
+            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+            DispatchQueue.main.run()
+        }
+        check(service.applyGeneration == firstSweep && service.halQueue.work.count == 1,
+              "a busy audio queue never accumulates additional listener sweeps")
+        service.halQueue.run()
+        HAL.levels[HAL.key(10)] = 0.75
         DispatchQueue.drain()
-        check(HAL.levels[HAL.key(10)] == 0, "a coalesced re-assert still silences a raised gain")
+        check(service.applyGeneration == firstSweep + 1 && HAL.levels[HAL.key(10)] == 0,
+              "one trailing sweep covers changes the busy sweep missed")
+
+        HAL.writeFails.insert(HAL.key(10))
+        QuickToolHUD.messages = []
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        service.setMuted(false)
+        DispatchQueue.main.run()
+        service.syncWithPreferences()
+        DispatchQueue.drain()
+        check(QuickToolHUD.messages == ["unmute partial"] && service.isMuted && service.hasOutstandingClaims,
+              "an older device notification or preference sync cannot hide a failed manual unmute")
+        HAL.writeFails = []
+        service.setMuted(false)
+        DispatchQueue.drain()
+        check(!service.isMuted && HAL.levels[HAL.key(10)] == 0.5,
+              "a later manual retry restores the original input gain")
+
+        HAL.reset()
+        let stopped = MicMuteService.shared
+        HAL.levels[HAL.key(10)] = 0.65
+        HAL.mute[20] = 1
+        HAL.devices = [10, 20]
+        stopped.toggle()
+        stopped.toggle()
+        check(!stopped.wantsMute, "a second toggle cancels a mute that is still on the audio queue")
+        QuickToolHUD.messages = []
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, stopped.listenerClient)
+        stopped.unmuteForTeardown()
+        check(stopped.halQueue.work.isEmpty && HAL.levels[HAL.key(10)] == 0.65 && HAL.mute[20] == 1,
+              "teardown drains a queued mute and unmute without opening a user-muted input")
+        DispatchQueue.drain()
+        check(HAL.listeners.isEmpty && !stopped.isMuted && QuickToolHUD.messages.isEmpty,
+              "old callbacks cannot publish, remute or reinstall listeners after teardown")
+
     }
 }
