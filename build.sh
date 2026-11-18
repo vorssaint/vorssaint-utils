@@ -327,6 +327,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift
         Sources/Vorssaint/Services/Notch/NotchKeepAwakeSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSupport.swift
+        Sources/Vorssaint/Services/Notch/Shortcuts/IslandLauncherSupport.swift
         Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
@@ -587,6 +588,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/PointerDisplayStrings.swift
         Sources/Vorssaint/Core/GraphScaleStrings.swift
         Sources/Vorssaint/Core/NotchLowBatteryStrings.swift
+        Sources/Vorssaint/Core/NotchShortcutStrings.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningUnlockCounter.swift
         Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift

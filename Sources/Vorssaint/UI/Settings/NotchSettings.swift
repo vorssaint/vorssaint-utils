@@ -229,6 +229,7 @@ struct NotchSettings: View {
             NotchLayoutEditor(configuration: access, size: $size, width: $customWidth, height: $customHeight) {
                 selectedModule = .controls; tab = .content
             }
+            NotchLauncherSettings()
             SettingsCard(title: text.size) {
                 HStack(spacing: 10) {
                     choice(text.compact, symbol: "rectangle.compress.vertical", selected: size == NotchSize.compact.rawValue) { size = NotchSize.compact.rawValue }

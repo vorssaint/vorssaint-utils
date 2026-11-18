@@ -2314,6 +2314,42 @@ enum NotchTests {
                      && NotchControlItem.mixer.setupRequirement == .page(.mixer, feature: .mixer)
                      && NotchControlItem.speedTest.setupRequirement == .page(.system, feature: .monitorNetwork),
                      "page-gated controls lead to their island section or the required feature")
+        let savedLauncherLayout = defaults.object(forKey: DefaultsKey.notchQuickAccessLayout)
+        let savedLauncherEntries = defaults.object(forKey: DefaultsKey.notchLauncherEntries)
+        let launcherEntry = IslandLauncherEntry(name: "Test Game", path: "/Applications/Test Game.app")
+        let appAction = NotchQuickAction.application(launcherEntry.id)
+        defaults.set(try? JSONEncoder().encode([launcherEntry]), forKey: DefaultsKey.notchLauncherEntries)
+        suite.expect(NotchQuickAction(id: appAction.id) == appAction && appAction.isAvailable(in: defaults),
+                     "a saved app round-trips as its own available side-button action")
+        let appLayout = NotchQuickAccessConfiguration(side: .right, actions: [.settings, appAction])
+        defaults.set(appLayout.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(NotchQuickAccessConfiguration.stored(in: defaults).actions == [.settings, appAction],
+                     "individual app icons preserve the existing settings button and saved layout")
+        let namedButton = NotchQuickButton(action: appAction, side: .right, label: "My game")
+        let labelledLayout = NotchQuickAccessConfiguration(buttons: [namedButton])
+        let movedButton = labelledLayout.placingApplication(launcherEntry.id, on: .left)?.buttons.first
+        suite.expect(movedButton?.id == namedButton.id && movedButton?.label == "My game" && movedButton?.side == .left,
+                     "moving an app shortcut preserves its button identity and custom label")
+        let fullLayout = NotchQuickAccessConfiguration(side: .left, actions: [.settings, .explore, .pin])
+        suite.expect(fullLayout.placingApplication(launcherEntry.id, on: .left) == nil
+                     && fullLayout.buttons.count == 3,
+                     "placing a shortcut on a full side refuses without losing existing buttons")
+        suite.expect(labelledLayout.placingApplication(launcherEntry.id, on: nil)?.buttons.isEmpty == true
+                     && NotchQuickAction(id: "emr.app." + launcherEntry.id.uuidString) == appAction,
+                     "unplacing a shortcut and reading legacy action IDs preserve compatibility")
+        let websiteEntry = IslandLauncherEntry(name: "Example", path: "", website: "https://example.com/docs")
+        let websiteAction = NotchQuickAction.application(websiteEntry.id)
+        defaults.set(try? JSONEncoder().encode([launcherEntry, websiteEntry]), forKey: DefaultsKey.notchLauncherEntries)
+        let mixedLayout = NotchQuickAccessConfiguration(side: .right, actions: [.settings, appAction, websiteAction])
+        defaults.set(mixedLayout.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
+        suite.expect(websiteAction.isAvailable(in: defaults) && NotchQuickAction(id: websiteAction.id) == websiteAction
+                     && NotchQuickAccessConfiguration.stored(in: defaults).actions == [.settings, appAction, websiteAction],
+                     "website actions coexist with existing apps and settings using stable saved shortcut IDs")
+        defaults.set(Data(), forKey: DefaultsKey.notchLauncherEntries)
+        suite.expect(!appAction.isAvailable(in: defaults) && NotchQuickAction(id: "emr.app.invalid") == nil,
+                     "missing and malformed app references cannot launch arbitrary targets")
+        defaults.set(savedLauncherLayout, forKey: DefaultsKey.notchQuickAccessLayout)
+        defaults.set(savedLauncherEntries, forKey: DefaultsKey.notchLauncherEntries)
         defaults.set("panel,panel,unknown,speedTest", forKey: DefaultsKey.notchControlOrder)
         defaults.set("volume,screenshot", forKey: DefaultsKey.notchHiddenControls)
         let controls = NotchSupport.controls(in: defaults)

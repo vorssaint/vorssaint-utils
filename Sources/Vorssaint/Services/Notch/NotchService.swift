@@ -241,7 +241,7 @@ final class NotchService: ObservableObject {
     /// activates. It leaves on its own timer or on a click elsewhere.
     private var keepsWorkingSurface: Bool { keepsSurfaceOnClick || showsCapturePreview }
     private var keepsSurfaceOnClick: Bool {
-        pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
+        pinned || trackingMenu || IslandLauncherService.shared.isChoosing || NSApp.modalWindow != nil || panel?.attachedSheet != nil
             || NotchLyricsService.shared.isImporting
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.
@@ -1908,6 +1908,10 @@ final class NotchService: ObservableObject {
         switch action {
         case .explore: toggleSections()
         case .settings: openSettings()
+        case .application(let id):
+            if let entry = IslandLauncherService.shared.entries.first(where: { $0.id == id }) {
+                perform { IslandLauncherService.shared.launch(entry) }
+            }
         case .pin: pinned.toggle()
         case .module(let module): select(module)
         case .control(let item):

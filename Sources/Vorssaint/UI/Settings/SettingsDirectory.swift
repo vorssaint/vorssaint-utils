@@ -247,6 +247,7 @@ enum SettingsDirectory {
         let notchCalendar = FeatureStrings.notchCalendar(language)
         let notchAgents = FeatureStrings.notchAgents(language)
         let notchLowBattery = NotchLowBatteryStrings.localized(language)
+        let shortcuts = NotchShortcutStrings.localized(language)
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
         if #available(macOS 26.0, *) {
@@ -264,6 +265,7 @@ enum SettingsDirectory {
         let tintedBattery = batteryRest && state.on(DefaultsKey.notchLowBatteryTint)
         let islandTerms: [SettingsSearchTerms] = [
             .init([notchEditor.layout, notch.size, notch.translucentBackground, notch.showOutline], notch: .layout),
+            .init([shortcuts.title, shortcuts.addApp, shortcuts.addWebsite, shortcuts.fromCrossOver], notch: .layout),
             .init([notch.width, notch.maximumHeight], notch: .layout, when: state.customSize),
             .init([notch.cameraFit, notch.hideMenuBarGap, notch.width, notch.height],
                   notch: .layout, when: state.hardware.notchedDisplay),
