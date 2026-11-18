@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<!-- Replaced with a real app group for Developer ID builds; kept for local
+	     builds, where the extension shares the app's Application Support
+	     folder through this narrow exception instead. -->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>com.vorssaint.utils.widgets</string>
+	</array>
+	<key>com.apple.security.temporary-exception.files.home-relative-path.read-write</key>
+	<array>
+		<string>/Library/Application Support/com.vorssaint.utils/</string>
+	</array>
+</dict>
+</plist>

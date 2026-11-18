@@ -190,6 +190,13 @@ rm -rf "$HOME/Library/Saved Application State/$BUNDLE.savedState"
 # here; the in-app uninstall takes them, so this path must not keep them.
 rm -rf "$HOME/Library/Application Support/$BUNDLE"
 rm -rf "$HOME/Library/Caches/$BUNDLE"
+# Desktop widgets keep their last snapshot in the app's Application Support
+# folder on local builds (removed above) and in the app group on Developer ID
+# builds. Both are under $HOME, so this uninstaller is the only thing that
+# removes them.
+rm -rf "$HOME/Library/Containers/$BUNDLE.widget"
+rm -rf "$HOME/Library/Group Containers/$BUNDLE.widgets"
+rm -rf "$HOME/Library/Group Containers/"*".$BUNDLE.widgets"(N)
 # Written by URLSession on the app's behalf, so they exist without the app ever
 # naming the path; `defaults delete` does not reach them either.
 rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.binarycookies"
