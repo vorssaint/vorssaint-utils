@@ -457,7 +457,8 @@ enum SettingsDirectory {
                                        ], terms: [
                                         .init([s.dockPreviewOpenDelay, s.dockPreviewBackgroundOpacity,
                                                s.dockPreviewQuitAppOnClose, s.dockPreviewKeepDockVisible,
-                                               s.dockPreviewOrderByCreation, s.switcherCurrentSpaceOnly], feature: .dockPreview,
+                                               s.dockPreviewOrderByCreation, s.switcherCurrentSpaceOnly,
+                                               s.dockPreviewPeekWindows], feature: .dockPreview,
                                               when: state.on(DefaultsKey.dockPreviewEnabled)),
                                        ]),
                 SettingsDirectoryItem(page: .windowLayout,
