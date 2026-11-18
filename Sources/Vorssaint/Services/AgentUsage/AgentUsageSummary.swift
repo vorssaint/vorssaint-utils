@@ -89,7 +89,8 @@ struct AgentUsageSnapshot: Equatable {
     var periods: [AgentPeriod: AgentPeriodUsage] = [:]
     /// Oldest first, ending with today.
     var days: [AgentBucket] = []
-    /// Today's hours, from midnight.
+    /// Today's hours, from midnight. One per local hour, 23 or 25 when
+    /// daylight saving changes the length of the day.
     var hours: [AgentBucket] = []
     var limits: [AgentProvider: AgentLimits] = [:]
     var plans: [AgentProvider: AgentPlan] = [:]
@@ -127,7 +128,16 @@ enum AgentUsageSummary {
             calendar.date(byAdding: .day, value: -$0, to: today)
         }
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
-        let hourStarts: [Date] = (0..<24).compactMap { calendar.date(byAdding: .hour, value: $0, to: today) }
+        // Every hour that starts before the next midnight. A fixed 24 elapsed
+        // hours runs into the next day when the clocks spring forward, and
+        // stops an hour early when they fall back.
+        var hourStarts: [Date] = []
+        var hour = today
+        while hour < tomorrow {
+            hourStarts.append(hour)
+            guard let next = calendar.date(byAdding: .hour, value: 1, to: hour), next > hour else { break }
+            hour = next
+        }
         var days = starts.map { AgentBucket(start: $0) }
         var hours = hourStarts.map { AgentBucket(start: $0) }
         var periods: [AgentPeriod: AgentPeriodUsage] = [:]
