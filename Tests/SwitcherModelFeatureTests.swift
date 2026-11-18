@@ -2870,6 +2870,15 @@ enum SwitcherModelFeatureTests {
                                                                    current: 501, isOwnApp: ownApp) == nil,
                "a desktop switch while the panel is open drops the remembered app")
 
+        suite.expect(StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: 26),
+               "the panel's activation click does not dismiss it")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 31, panelWindowNumber: 26),
+               "clicking an overlapping window still dismisses the panel")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 0, panelWindowNumber: 0),
+               "an event without an identified window cannot claim the panel's click")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: nil),
+               "an unavailable panel cannot claim another window's click")
+
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
         MenuPanelKeyTests.run(suite)
 

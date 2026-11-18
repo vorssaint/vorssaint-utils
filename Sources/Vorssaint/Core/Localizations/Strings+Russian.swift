@@ -653,6 +653,7 @@ extension Strings {
         audioPriorityMoveUp: "Вверх",
         audioPriorityMoveDown: "Вниз",
         audioPriorityUnavailable: "Недоступно",
+        audioPriorityRemove: "Удалить",
         audioPriorityCurrent: "Активно",
         audioPriorityCaption: "Устройства выбираются в порядке приоритета. При подключении устройства с более высоким приоритетом система переключается на него. При отключении активного устройства выбирается следующее доступное.",
 
