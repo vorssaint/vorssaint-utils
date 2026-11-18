@@ -32,6 +32,8 @@ struct MonitorPanelConfig: View {
     @AppStorage(DefaultsKey.monitorNetTotals) private var netTotals = true
     @AppStorage(DefaultsKey.monitorNetTest) private var netTest = true
     @AppStorage(DefaultsKey.monitorNetAddresses) private var netAddresses = true
+    @AppStorage(DefaultsKey.monitorNetTMobile) private var netTMobile = false
+    @State private var configuringTMobile = false
 
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorDiskUsage) private var diskUsage = true
@@ -152,6 +154,9 @@ struct MonitorPanelConfig: View {
             itemTile(l10n.s.monitorItemNetTotals, symbol: "sum", value: $netTotals, available: available)
             itemTile(l10n.s.networkIPAddresses, symbol: "network", value: $netAddresses, available: available)
             itemTile(l10n.s.monitorItemNetTest, symbol: "gauge.with.needle", value: $netTest, available: available)
+            itemTile(TMobileGatewayStrings.localized(l10n.language).title,
+                     symbol: "antenna.radiowaves.left.and.right", value: $netTMobile, available: available,
+                     options: AnyView(TMobileGatewayAddressEditor()))
         case .disk:
             itemTile(l10n.s.monitorItemDiskUsage, symbol: "internaldrive", value: $diskUsage, available: available)
             itemTile(l10n.s.monitorItemDiskActivity, symbol: "arrow.up.arrow.down", value: $diskActivity, available: available,
@@ -231,6 +236,15 @@ struct MonitorPanelConfig: View {
                 Toggle(l10n.s.monitorItemNetTotals, isOn: $netTotals)
                 Toggle(l10n.s.networkIPAddresses, isOn: $netAddresses)
                 Toggle(l10n.s.monitorItemNetTest, isOn: $netTest)
+                Toggle(TMobileGatewayStrings.localized(l10n.language).enable, isOn: $netTMobile)
+                if netTMobile {
+                    Button(TMobileGatewayStrings.localized(l10n.language).configure) {
+                        configuringTMobile = true
+                    }
+                    .popover(isPresented: $configuringTMobile) {
+                        TMobileGatewayAddressEditor()
+                    }
+                }
             }
         }
         if AppFeature.monitorDisk.isAvailable {

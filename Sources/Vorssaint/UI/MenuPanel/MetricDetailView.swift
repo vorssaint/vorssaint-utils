@@ -102,7 +102,7 @@ extension MenuBarMetric {
             return .gpu
         case .memory:
             return .memory
-        case .network:
+        case .network, .tMobile:
             return .network
         case .diskUsage, .diskActivity:
             return .disk
@@ -165,6 +165,9 @@ struct MetricDetailView: View {
             summaryCard
             detailCard
             if kind == .network {
+                if MenuBarMetric.enabled(in: .standard).contains(where: \.isTMobileGateway) {
+                    TMobileGatewayBlock(isVisible: .constant(true), editing: false).panelCard()
+                }
                 speedTestCard
             }
             if kind.processKind != nil {

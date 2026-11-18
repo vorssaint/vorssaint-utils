@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 "NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra seus próximos compromissos na parte superior da tela. Os eventos do calendário ficam neste Mac.";
+
+/* macOS Local Network permission prompt. */
+"NSLocalNetworkUsageDescription" = "O Vorssaint lê o sinal e o status de conexão do seu gateway T-Mobile apenas quando você ativa este recurso. As leituras do gateway ficam neste Mac.";
