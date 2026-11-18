@@ -1142,14 +1142,14 @@ enum ScreenshotFeatureTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
-                && ScreenCaptureTool.matchingShortcut("1") == .screenshot
-                && ScreenCaptureTool.matchingShortcut("2") == .recording
-                && ScreenCaptureTool.matchingShortcut("3") == .text
-                && ScreenCaptureTool.matchingShortcut("4") == .color
-                && ScreenCaptureTool.matchingShortcut("5") == .scrolling
-                && ScreenCaptureTool.matchingShortcut("6") == nil,
-               "number keys select the same capture mode shown in the chooser")
+        let captureTools = ScreenCaptureTool.allCases
+        let withoutText = captureTools.filter { $0 != .text }
+        suite.expect(captureTools.compactMap { $0.shortcutKey(in: captureTools) } == ["1", "2", "3", "4", "5"]
+                && withoutText.compactMap { $0.shortcutKey(in: withoutText) } == ["1", "2", "3", "4"]
+                && ScreenCaptureTool.matchingShortcut("3", in: withoutText) == .color
+                && ScreenCaptureTool.matchingShortcut("4", in: withoutText) == .scrolling
+                && ScreenCaptureTool.matchingShortcut("5", in: withoutText) == nil,
+               "number keys follow available capture tools without gaps")
         suite.expect(ScreenCaptureTool.available(isAvailable: { $0 == .screenshot })
                 == [.screenshot, .scrolling]
                 && ScreenCaptureTool.scrolling.feature == .screenshot,

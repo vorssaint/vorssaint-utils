@@ -22,19 +22,14 @@ enum ScreenCaptureTool: String, CaseIterable {
             : feature.settingsDestination
     }
 
-    var shortcutKey: String {
-        switch self {
-        case .screenshot: return "1"
-        case .recording: return "2"
-        case .text: return "3"
-        case .color: return "4"
-        case .scrolling: return "5"
-        }
+    func shortcutKey(in availableTools: [ScreenCaptureTool]) -> String? {
+        availableTools.firstIndex(of: self).map { String($0 + 1) }
     }
 
-    static func matchingShortcut(_ characters: String?) -> ScreenCaptureTool? {
-        guard let characters else { return nil }
-        return allCases.first { $0.shortcutKey == characters }
+    static func matchingShortcut(_ characters: String?, in availableTools: [ScreenCaptureTool]) -> ScreenCaptureTool? {
+        guard let characters, let number = Int(characters),
+              (1...availableTools.count).contains(number) else { return nil }
+        return availableTools[number - 1]
     }
 
     var feature: AppFeature {
