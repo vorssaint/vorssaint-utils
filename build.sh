@@ -591,6 +591,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/CleaningMode/CleaningMouseReleaseGate.swift
         Sources/Vorssaint/Services/Display/ExtraBrightnessSupport.swift
         Sources/Vorssaint/Services/Display/BrightnessSupport.swift
+        Sources/Vorssaint/Services/Display/BetterDisplayOSDSupport.swift
         Sources/Vorssaint/Services/Display/MonitorVolumeKeySettings.swift
         Sources/Vorssaint/Services/Display/LidDimmingSupport.swift
         Sources/Vorssaint/Services/Cleaner/CleanerSupport.swift
