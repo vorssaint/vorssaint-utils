@@ -476,7 +476,7 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"), (.deepseek, ".dsh/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -499,6 +499,10 @@ struct AgentLogRoot: Equatable {
         let prefix = url.path + "/"
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
+        if provider == .deepseek {
+            let name = (path as NSString).lastPathComponent
+            return name == "session.v4.jsonl" || name == "session.v4.jsonl.zstd"
+        }
         guard path.hasSuffix(".jsonl") else { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
@@ -693,7 +697,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
-        return path.hasSuffix(".jsonl")
+        return path.hasSuffix(".jsonl") || path.hasSuffix(".jsonl.zstd")
     }
 
     /// A hash of the log's first and last few kilobytes before `offset`, and
@@ -761,7 +765,7 @@ enum AgentLogReader {
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
                                                                   options: [.skipsPackageDescendants]) else { continue }
-            for case let url as URL in enumerator where url.path.hasSuffix(".jsonl") {
+            for case let url as URL in enumerator where isLog(url.path) {
                 include(url, from: root)
             }
         }
@@ -777,6 +781,10 @@ enum AgentLogReader {
                              shouldContinue: () -> Bool = { true },
                              including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         guard shouldContinue() else { return }
+        if cursor.provider == .deepseek, cursor.path.hasSuffix(".zstd") {
+            AgentDeepSeekLogReader.readAppended(cursor, shouldContinue: shouldContinue, line: line)
+            return
+        }
         if cursor.provider == .opencode {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
