@@ -219,11 +219,16 @@ final class DiskImageInstallerService {
     private func beginInstall(_ candidate: Candidate, strings: DiskImageInstallerStrings,
                               trashingDownload trashesDownload: Bool, revealingApp revealsApp: Bool,
                               useUserApplications usesUserApplications: Bool) {
-        showProgress(for: candidate, strings: strings)
+        let progress = DiskImageInstallProgress()
+        showProgress(for: candidate, strings: strings, progress: progress)
 
         workQueue.async { [weak self] in
+            let report: (Double) -> Void = { fraction in
+                DispatchQueue.main.async { progress.fraction = max(progress.fraction, fraction) }
+            }
             let result = self?.install(candidate, trashingDownload: trashesDownload,
-                                       useUserApplications: usesUserApplications)
+                                       useUserApplications: usesUserApplications,
+                                       progress: report)
                 ?? InstallResult(outcome: .failed(.copy), destinationURL: nil)
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -240,8 +245,10 @@ final class DiskImageInstallerService {
 
     /// Copying and verifying take a few seconds with nothing else on screen,
     /// which reads as a failure. A quiet floating card keeps the wait honest.
-    private func showProgress(for candidate: Candidate, strings: DiskImageInstallerStrings) {
+    private func showProgress(for candidate: Candidate, strings: DiskImageInstallerStrings,
+                              progress: DiskImageInstallProgress) {
         let host = NSHostingController(rootView: DiskImageInstallProgressView(
+            progress: progress,
             icon: NSWorkspace.shared.icon(forFile: candidate.appURL.path),
             message: String(format: strings.installingFormat, candidate.displayName)))
         host.view.layoutSubtreeIfNeeded()
@@ -291,7 +298,8 @@ final class DiskImageInstallerService {
     }
 
     private func install(_ candidate: Candidate, trashingDownload: Bool,
-                         useUserApplications: Bool) -> InstallResult {
+                         useUserApplications: Bool,
+                         progress: @escaping (Double) -> Void) -> InstallResult {
         let fm = FileManager.default
         let applicationsDomain = DiskImageInstallerSupport.applicationsDomain(
             useUserApplications: useUserApplications)
@@ -329,14 +337,17 @@ final class DiskImageInstallerService {
                                                                  isDirectory: true)
         // Carrying the mounted image's quarantine over leaves the installed app eligible for
         // path randomization, so macOS runs it from a read-only random location instead of
-        // Applications. The checks below are the same assessment that flag defers to.
-        let copy = Self.run("/usr/bin/ditto", arguments: [
-            "--rsrc", "--extattr", "--acl", "--noqtn",
-            candidate.appURL.path, stagedApp.path,
-        ])
-        guard copy.status == 0, Self.validBundle(at: stagedApp) else {
+        // Applications. The checks below run the same assessment quarantine would defer to
+        // first launch.
+        // Copying is the only step that can report as it goes, so it fills almost all of the
+        // bar; verification and the move only take it the last few percent.
+        let copyShare = 0.95
+        guard Self.copyBundle(from: candidate.appURL, to: stagedApp, onProgress: {
+            progress($0 * copyShare)
+        }), Self.validBundle(at: stagedApp) else {
             return InstallResult(outcome: .failed(.copy), destinationURL: destinationURL)
         }
+        progress(copyShare)
         guard Self.gatekeeperAccepts(stagedApp) else {
             return InstallResult(outcome: .failed(.verification), destinationURL: destinationURL)
         }
@@ -358,6 +369,7 @@ final class DiskImageInstallerService {
         } catch {
             return InstallResult(outcome: .failed(.copy), destinationURL: destinationURL)
         }
+        progress(1)
 
         do {
             try NSWorkspace.shared.unmountAndEjectDevice(at: candidate.mountURL)
@@ -447,6 +459,69 @@ final class DiskImageInstallerService {
         return run("/usr/sbin/spctl", arguments: ["-a", "-t", "exec", appURL.path]).status == 0
     }
 
+    /// Copies the bundle's data, metadata, ACLs and extended attributes, except quarantine,
+    /// and reports the copied fraction (0...1) from copyfile's own byte counts.
+    private static func copyBundle(from source: URL, to destination: URL,
+                                   onProgress: @escaping (Double) -> Void) -> Bool {
+        let progress = BundleCopyProgress(totalBytes: regularFileBytes(in: source),
+                                          onProgress: onProgress)
+        guard let state = copyfile_state_alloc() else { return false }
+        defer { copyfile_state_free(state) }
+        let callback: copyfile_callback_t = { what, stage, state, sourcePath, destinationPath, context in
+            guard let context else { return COPYFILE_CONTINUE }
+            let progress = Unmanaged<BundleCopyProgress>.fromOpaque(context).takeUnretainedValue()
+            if what == COPYFILE_RECURSE_ERROR || stage == COPYFILE_ERR { return COPYFILE_QUIT }
+            switch (what, stage) {
+            case (COPYFILE_RECURSE_FILE, COPYFILE_START):
+                progress.startFile()
+            case (COPYFILE_COPY_DATA, COPYFILE_PROGRESS):
+                var copied: off_t = 0
+                if copyfile_state_get(state, UInt32(COPYFILE_STATE_COPIED), &copied) == 0 {
+                    progress.fileCopied(Int64(copied))
+                }
+            case (COPYFILE_RECURSE_FILE, COPYFILE_FINISH):
+                // Small files may finish without a progress callback.
+                var info = stat()
+                if let sourcePath, lstat(sourcePath, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG {
+                    progress.fileCopied(Int64(info.st_size))
+                }
+                // copyfile applies quarantine separately from other extended attributes,
+                // so it can't be skipped there; remove it from each finished item instead.
+                if let destinationPath {
+                    removexattr(destinationPath, "com.apple.quarantine", XATTR_NOFOLLOW)
+                }
+            case (COPYFILE_RECURSE_DIR_CLEANUP, COPYFILE_FINISH):
+                if let destinationPath {
+                    removexattr(destinationPath, "com.apple.quarantine", XATTR_NOFOLLOW)
+                }
+            default:
+                break
+            }
+            return COPYFILE_CONTINUE
+        }
+        return withExtendedLifetime(progress) {
+            copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CB),
+                               unsafeBitCast(callback, to: UnsafeRawPointer.self))
+            copyfile_state_set(state, UInt32(COPYFILE_STATE_STATUS_CTX),
+                               Unmanaged.passUnretained(progress).toOpaque())
+            return copyfile(source.path, destination.path, state,
+                            copyfile_flags_t(COPYFILE_ALL | COPYFILE_RECURSIVE | COPYFILE_NOFOLLOW)) == 0
+        }
+    }
+
+    private static func regularFileBytes(in directory: URL) -> Int64 {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey]
+        guard let enumerator = FileManager.default.enumerator(at: directory,
+                                                              includingPropertiesForKeys: keys) else { return 0 }
+        var bytes: Int64 = 0
+        for case let url as URL in enumerator {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)),
+                  values.isRegularFile == true else { continue }
+            bytes += Int64(values.fileSize ?? 0)
+        }
+        return bytes
+    }
+
     private static func fileIdentity(at url: URL) -> FileIdentity? {
         var info = stat()
         guard url.path.withCString({ lstat($0, &info) }) == 0,
@@ -473,7 +548,43 @@ final class DiskImageInstallerService {
     }
 }
 
+/// Running byte count for `copyBundle`. copyfile calls back on the copying thread only.
+private final class BundleCopyProgress {
+    private let totalBytes: Double
+    private let onProgress: (Double) -> Void
+    private var copiedBytes: Int64 = 0
+    private var currentFileBytes: Int64 = 0
+    private var reported = 0.0
+
+    init(totalBytes: Int64, onProgress: @escaping (Double) -> Void) {
+        self.totalBytes = Double(max(totalBytes, 1))
+        self.onProgress = onProgress
+    }
+
+    func startFile() {
+        currentFileBytes = 0
+    }
+
+    /// `bytes` is how much of the current file is copied so far.
+    func fileCopied(_ bytes: Int64) {
+        guard bytes > currentFileBytes else { return }
+        copiedBytes += bytes - currentFileBytes
+        currentFileBytes = bytes
+        let fraction = min(Double(copiedBytes) / totalBytes, 1)
+        // Half-percent steps keep the bar smooth without flooding the main queue.
+        if fraction - reported >= 0.005 || fraction == 1 {
+            reported = fraction
+            onProgress(fraction)
+        }
+    }
+}
+
+private final class DiskImageInstallProgress: ObservableObject {
+    @Published var fraction: Double = 0
+}
+
 private struct DiskImageInstallProgressView: View {
+    @ObservedObject var progress: DiskImageInstallProgress
     let icon: NSImage
     let message: String
 
@@ -487,8 +598,9 @@ private struct DiskImageInstallProgressView: View {
                     .font(.system(size: 13, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
-                ProgressView()
+                ProgressView(value: min(max(progress.fraction, 0), 1))
                     .progressViewStyle(.linear)
+                    .animation(.linear(duration: 0.15), value: progress.fraction)
                     .controlSize(.small)
             }
             .frame(width: 220, alignment: .leading)
@@ -502,6 +614,7 @@ private struct DiskImageInstallProgressView: View {
         )
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(message)
+        .accessibilityValue(String(format: "%d%%", Int((progress.fraction * 100).rounded())))
     }
 }
 
