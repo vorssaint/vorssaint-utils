@@ -1761,8 +1761,13 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             try file.data.write(to: url, options: .atomic)
             ScreenshotSupport.markAsScreenCapture(url)
             model.markExported()
+            // With automatic copy on, the saved file goes to the clipboard
+            // too, as Save and copy does for an unedited capture.
+            let copied = ScreenshotSupport.automaticCopyIsOn()
+                && Self.copyFile(url, payload: Self.clipboardPayload(from: export))
+            let format = copied ? strings.savedAndCopiedHUDFormat : strings.savedHUDFormat
             QuickToolHUD.show(icon: "camera.viewfinder",
-                              message: String(format: strings.savedHUDFormat,
+                              message: String(format: format,
                                               url.deletingLastPathComponent().lastPathComponent))
             window?.close()
         } catch {

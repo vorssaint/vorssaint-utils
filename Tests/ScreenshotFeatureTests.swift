@@ -926,6 +926,23 @@ enum ScreenshotFeatureTests {
                 == [.none, .save, .save, .none, .edit]
                 && ScreenshotDefaultAction.allCases.allSatisfy { !$0.withoutCopy.copiesToClipboard },
                "turning automatic copy off drops only the copy half of the after-capture action")
+        let editorSaveDomain = "com.vorssaint.tests.screenshot-editor-save.\(UUID().uuidString)"
+        let editorSaveDefaults = UserDefaults(suiteName: editorSaveDomain)!
+        defer { editorSaveDefaults.removePersistentDomain(forName: editorSaveDomain) }
+        func editorSaveCopies(toggle: Bool, action: ScreenshotDefaultAction) -> Bool {
+            editorSaveDefaults.set(toggle, forKey: DefaultsKey.screenshotCopyToClipboard)
+            editorSaveDefaults.set(action.rawValue, forKey: DefaultsKey.screenshotDefaultAction)
+            return ScreenshotSupport.automaticCopyIsOn(in: editorSaveDefaults)
+        }
+        suite.expect(!ScreenshotSupport.automaticCopyIsOn(in: editorSaveDefaults)
+                && editorSaveCopies(toggle: true, action: .none)
+                && editorSaveCopies(toggle: true, action: .edit)
+                && editorSaveCopies(toggle: false, action: .saveAndCopy)
+                && editorSaveCopies(toggle: false, action: .copy)
+                && !editorSaveCopies(toggle: false, action: .save)
+                && !editorSaveCopies(toggle: false, action: .edit)
+                && !editorSaveCopies(toggle: false, action: .none),
+               "saving from the editor copies exactly when automatic copy reads on in Settings")
         suite.expect(ScreenshotSupport.confirmationPreviewDurations.contains(1)
                 && ScreenshotSupport.confirmationPreviewDurations.contains(
                     ScreenshotSupport.defaultConfirmationPreviewDuration)
