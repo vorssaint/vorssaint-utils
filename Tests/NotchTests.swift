@@ -1105,6 +1105,15 @@ enum NotchTests {
                         notification: NotchNotificationContent(app: app, title: title, subtitle: subtitle, body: body),
                         notificationID: UUID())
         }
+        // The layout selector's right side grows with each code it lists, and
+        // a lone source keeps the plain notice.
+        var layouts = NotchNotice(event: .inputSource, title: "EN", detail: "ABC", symbol: "keyboard")
+        let plain = layouts.preferredWings.trailing
+        layouts.choices = ["EN", "ES"]
+        let two = layouts.preferredWings.trailing
+        layouts.choices = ["EN", "ES", "HE", "RU"]
+        suite.expect(two > plain - 1 && layouts.preferredWings.trailing > two,
+                     "the layout selector widens with every source it lists")
         let short = banner("Alex", "done")
         let fitted = [short, banner("Verification code", "Your code is 482913"),
                       banner(app: "Reminders", "", "Stand up"), banner("Alex", "ok\nsee you at the station"),
