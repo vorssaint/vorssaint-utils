@@ -18,6 +18,7 @@ struct NotchAgentStrings {
     let today: String
     let week: String
     let month: String
+    let allTime: String
     let session: String
     let weekly: String
     let estimated: String
@@ -131,6 +132,7 @@ struct NotchAgentStrings {
         case .today: return today
         case .week: return week
         case .month: return month
+        case .allTime: return allTime
         }
     }
 
@@ -203,6 +205,7 @@ extension NotchAgentStrings {
         today: "Today",
         week: "7 days",
         month: "30 days",
+        allTime: "All time",
         session: "Session",
         weekly: "Week",
         estimated: "Estimated from this Mac",
@@ -302,6 +305,7 @@ extension NotchAgentStrings {
         today: "Сьогодні",
         week: "7 днів",
         month: "30 днів",
+        allTime: "За весь час",
         session: "Сеанс",
         weekly: "Тиждень",
         estimated: "Оцінка за даними цього Mac",
@@ -401,6 +405,7 @@ extension NotchAgentStrings {
         today: "Hoje",
         week: "7 dias",
         month: "30 dias",
+        allTime: "Todo o período",
         session: "Sessão",
         weekly: "Semana",
         estimated: "Estimado a partir deste Mac",
@@ -500,6 +505,7 @@ extension NotchAgentStrings {
         today: "Hoy",
         week: "7 días",
         month: "30 días",
+        allTime: "Todo el tiempo",
         session: "Sesión",
         weekly: "Semana",
         estimated: "Estimado desde este Mac",
@@ -599,6 +605,7 @@ extension NotchAgentStrings {
         today: "Dnes",
         week: "7 dní",
         month: "30 dní",
+        allTime: "Celé obdobie",
         session: "Relácia",
         weekly: "Týždeň",
         estimated: "Odhadnuté z tohto Macu",
@@ -698,6 +705,7 @@ extension NotchAgentStrings {
         today: "Heute",
         week: "7 Tage",
         month: "30 Tage",
+        allTime: "Gesamter Zeitraum",
         session: "Sitzung",
         weekly: "Woche",
         estimated: "Geschätzt anhand dieses Macs",
@@ -797,6 +805,7 @@ extension NotchAgentStrings {
         today: "Aujourd’hui",
         week: "7 jours",
         month: "30 jours",
+        allTime: "Depuis le début",
         session: "Session",
         weekly: "Semaine",
         estimated: "Estimé depuis ce Mac",
@@ -896,6 +905,7 @@ extension NotchAgentStrings {
         today: "Oggi",
         week: "7 giorni",
         month: "30 giorni",
+        allTime: "Dall’inizio",
         session: "Sessione",
         weekly: "Settimana",
         estimated: "Stimato da questo Mac",
@@ -995,6 +1005,7 @@ extension NotchAgentStrings {
         today: "Сегодня",
         week: "7 дней",
         month: "30 дней",
+        allTime: "За всё время",
         session: "Сессия",
         weekly: "Неделя",
         estimated: "Оценка по этому Mac",
@@ -1094,6 +1105,7 @@ extension NotchAgentStrings {
         today: "Bugün",
         week: "7 gün",
         month: "30 gün",
+        allTime: "Tüm zamanlar",
         session: "Oturum",
         weekly: "Hafta",
         estimated: "Bu Mac’e göre tahmin",
@@ -1193,6 +1205,7 @@ extension NotchAgentStrings {
         today: "今日",
         week: "7日間",
         month: "30日間",
+        allTime: "全期間",
         session: "セッション",
         weekly: "週",
         estimated: "このMacの記録から推定",
@@ -1292,6 +1305,7 @@ extension NotchAgentStrings {
         today: "오늘",
         week: "7일",
         month: "30일",
+        allTime: "전체 기간",
         session: "세션",
         weekly: "주간",
         estimated: "이 Mac의 기록으로 추정",
@@ -1391,6 +1405,7 @@ extension NotchAgentStrings {
         today: "今天",
         week: "7 天",
         month: "30 天",
+        allTime: "全部时间",
         session: "会话",
         weekly: "本周",
         estimated: "根据这台 Mac 估算",
@@ -1490,6 +1505,7 @@ extension NotchAgentStrings {
         today: "今天",
         week: "7 天",
         month: "30 天",
+        allTime: "全部時間",
         session: "工作階段",
         weekly: "本週",
         estimated: "依這台 Mac 估算",
@@ -1589,6 +1605,7 @@ extension NotchAgentStrings {
         today: "今天",
         week: "7 天",
         month: "30 天",
+        allTime: "全部時間",
         session: "工作階段",
         weekly: "本週",
         estimated: "按這部 Mac 估算",

@@ -4,15 +4,22 @@
 import Foundation
 
 enum AgentPeriod: String, CaseIterable, Identifiable {
-    case today, week, month
+    case today, week, month, allTime
 
     var id: String { rawValue }
-    var days: Int {
+    /// Nil means the period has no age cutoff.
+    var days: Int? {
         switch self {
         case .today: return 1
         case .week: return 7
         case .month: return 30
+        case .allTime: return nil
         }
+    }
+
+    func contains(day: Int, lastDay: Int) -> Bool {
+        guard let days else { return true }
+        return day > lastDay - days
     }
 }
 
@@ -102,6 +109,22 @@ struct AgentUsageSnapshot: Equatable {
     var seen: Set<AgentProvider> = []
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
+    /// At most thirty bars across the complete history, preserving provider totals.
+    func trendBuckets(_ period: AgentPeriod) -> [AgentBucket] {
+        if period == .today { return hours }
+        if let count = period.days { return Array(days.suffix(count)) }
+        let history = Array(days.drop(while: { $0.byProvider.isEmpty }))
+        let daysPerBar = max(1, (history.count + 29) / 30)
+        var result: [AgentBucket] = []
+        for index in history.indices {
+            if index % daysPerBar == 0 { result.append(AgentBucket(start: history[index].start)) }
+            for (provider, total) in history[index].byProvider {
+                result[result.count - 1].byProvider[provider, default: AgentTotals()] += total
+            }
+        }
+        return result
+    }
+
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
 }
 
@@ -123,9 +146,7 @@ enum AgentUsageSummary {
         snapshot.seen = Set(snapshot.limits.keys).union(snapshot.live.map(\.provider))
 
         let today = calendar.startOfDay(for: now)
-        let starts: [Date] = (0..<AgentUsageSnapshot.dayCount).reversed().compactMap {
-            calendar.date(byAdding: .day, value: -$0, to: today)
-        }
+        let starts = dayStarts(records: records, providers: providers, now: now, calendar: calendar)
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
         let hourStarts: [Date] = (0..<24).compactMap { calendar.date(byAdding: .hour, value: $0, to: today) }
         var days = starts.map { AgentBucket(start: $0) }
@@ -163,7 +184,7 @@ enum AgentUsageSummary {
                 names[record.model] = name
             }
             let modelID = record.provider.rawValue + ":" + name
-            for period in AgentPeriod.allCases where day > lastDay - period.days {
+            for period in AgentPeriod.allCases where period.contains(day: day, lastDay: lastDay) {
                 periods[period, default: AgentPeriodUsage()].total.add(record)
                 periods[period, default: AgentPeriodUsage()].byProvider[record.provider, default: AgentTotals()].add(record)
                 models[period, default: [:]][modelID, default: AgentShare(
@@ -200,6 +221,17 @@ enum AgentUsageSummary {
         snapshot.hours = hours
         snapshot.claudeBlock = currentBlock(claude, now: now)
         return snapshot
+    }
+
+    /// Keep the activity map's minimum span, but never discard older usage.
+    static func dayStarts(records: [AgentUsageRecord], providers: Set<AgentProvider>,
+                          now: Date, calendar: Calendar) -> [Date] {
+        let today = calendar.startOfDay(for: now)
+        let oldest = records.lazy.filter { providers.contains($0.provider) && $0.date <= now }
+            .map(\.date).min() ?? today
+        let count = max(AgentUsageSnapshot.dayCount,
+                        (calendar.dateComponents([.day], from: calendar.startOfDay(for: oldest), to: today).day ?? 0) + 1)
+        return (0..<count).reversed().compactMap { calendar.date(byAdding: .day, value: -$0, to: today) }
     }
 
     /// Whether a snapshot reads differently at `now` with nothing new read:
@@ -288,7 +320,10 @@ final class AgentUsageSummaryCache {
                   providers: Set<AgentProvider>, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         accumulatedRecords = 0
-        let rebuild = history == nil || self.calendar != calendar || self.providers != providers
+        let olderHistory = changes.keys.contains { position in
+            providers.contains(records[position].provider) && records[position].date < (starts.first ?? .distantPast)
+        }
+        let rebuild = olderHistory || history == nil || self.calendar != calendar || self.providers != providers
             || now < lastTime || !calendar.isDate(lastTime, inSameDayAs: now)
         if rebuild {
             self.calendar = calendar
@@ -299,7 +334,8 @@ final class AgentUsageSummaryCache {
             recentPositions.removeAll(keepingCapacity: true)
             history = AgentUsageSummary.snapshot(records: [], limits: [:], live: [], plans: [:],
                                                  providers: providers, now: now, calendar: calendar)
-            starts = history!.days.map(\.start)
+            starts = AgentUsageSummary.dayStarts(records: records, providers: providers, now: now, calendar: calendar)
+            history!.days = starts.map { AgentBucket(start: $0) }
             hourStarts = history!.hours.map(\.start)
             let today = calendar.startOfDay(for: now)
             tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
@@ -384,7 +420,7 @@ final class AgentUsageSummaryCache {
         let name = names[record.model] ?? AgentPricing.displayName(record.model)
         names[record.model] = name
         let modelID = record.provider.rawValue + ":" + name
-        for period in AgentPeriod.allCases where day > starts.count - 1 - period.days {
+        for period in AgentPeriod.allCases where period.contains(day: day, lastDay: starts.count - 1) {
             history!.periods[period]!.total += delta
             history!.periods[period]!.byProvider[record.provider, default: AgentTotals()] += delta
             models[period, default: [:]][modelID, default: AgentShare(

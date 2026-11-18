@@ -687,7 +687,7 @@ private struct NotchAgentTrendCard: View {
     @Environment(\.locale) private var locale
 
     private var buckets: [AgentBucket] {
-        period == .today ? snapshot.hours : Array(snapshot.days.suffix(period.days))
+        snapshot.trendBuckets(period)
     }
 
     var body: some View {
@@ -708,10 +708,21 @@ private struct NotchAgentTrendCard: View {
     }
 
     private func caption(byCost: Bool) -> String {
-        if let hovered, let bucket = buckets.first(where: { $0.start == hovered }) {
+        let buckets = self.buckets
+        if let hovered, let index = buckets.firstIndex(where: { $0.start == hovered }) {
+            let bucket = buckets[index]
             // A pointed-at bar reads its tokens beside its cost.
             let tokens = byCost ? " · " + value(bucket.total, byCost: false) : ""
-            return label(bucket.start, long: true) + " · " + value(bucket.total, byCost: byCost) + tokens
+            var span = label(bucket.start, long: true)
+            if period == .allTime {
+                let end = index + 1 < buckets.count
+                    ? Calendar.current.date(byAdding: .day, value: -1, to: buckets[index + 1].start) ?? bucket.start
+                    : snapshot.now
+                if !Calendar.current.isDate(bucket.start, inSameDayAs: end) {
+                    span += " – " + label(end, long: true)
+                }
+            }
+            return span + " · " + value(bucket.total, byCost: byCost) + tokens
         }
         return text.period(period) + " · " + value(snapshot.usage(period).total, byCost: byCost)
     }
@@ -722,6 +733,7 @@ private struct NotchAgentTrendCard: View {
 
     private func label(_ date: Date, long: Bool) -> String {
         if period == .today { return date.formatted(.dateTime.hour().locale(locale)) }
+        if period == .allTime { return date.formatted(.dateTime.day().month(.abbreviated).year().locale(locale)) }
         if period == .week, !long { return date.formatted(.dateTime.weekday(.narrow).locale(locale)) }
         return date.formatted(.dateTime.day().month(.abbreviated).locale(locale))
     }
@@ -808,18 +820,20 @@ private struct NotchAgentActivityCard: View {
     @State private var hovered: Date?
     @Environment(\.locale) private var locale
 
+    private var days: [AgentBucket] { Array(snapshot.days.suffix(AgentUsageSnapshot.dayCount)) }
+
     /// Days in a row with any use, counting today only once it has some.
     private var streak: Int {
         var count = 0
-        for day in snapshot.days.reversed() {
+        for day in days.reversed() {
             if day.total.requests > 0 { count += 1 }
-            else if count > 0 || day.id != snapshot.days.last?.id { break }
+            else if count > 0 || day.id != days.last?.id { break }
         }
         return count
     }
 
     var body: some View {
-        let byCost = snapshot.days.allSatisfy { $0.total.unpriced == 0 }
+        let byCost = days.allSatisfy { $0.total.unpriced == 0 }
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
@@ -834,9 +848,9 @@ private struct NotchAgentActivityCard: View {
                     }
                 }
                 GeometryReader { proxy in
-                    let map = NotchAgentHeatmap.width(height: proxy.size.height, days: snapshot.days)
+                    let map = NotchAgentHeatmap.width(height: proxy.size.height, days: days)
                     HStack(alignment: .top, spacing: 14) {
-                        NotchAgentHeatmap(days: snapshot.days, byCost: byCost, hovered: $hovered)
+                        NotchAgentHeatmap(days: days, byCost: byCost, hovered: $hovered)
                             .frame(width: map, height: proxy.size.height)
                         figures(byCost: byCost)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -849,16 +863,16 @@ private struct NotchAgentActivityCard: View {
     /// The total for the whole map, its active days and its busiest day; a
     /// hovered day takes the place of the busiest one.
     private func figures(byCost: Bool) -> some View {
-        let active = snapshot.days.filter { $0.total.requests > 0 }
+        let active = days.filter { $0.total.requests > 0 }
         let busiest = active.max { $0.total.weight(byCost: byCost) < $1.total.weight(byCost: byCost) }
-        let pointed = hovered.flatMap { date in snapshot.days.first { $0.start == date } }
+        let pointed = hovered.flatMap { date in days.first { $0.start == date } }
         return VStack(alignment: .leading, spacing: 2) {
-            Text(value(snapshot.days.reduce(into: AgentTotals()) { $0 += $1.total }, byCost: byCost))
+            Text(value(days.reduce(into: AgentTotals()) { $0 += $1.total }, byCost: byCost))
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(AgentFormat.span(days: snapshot.days.count, locale: locale))
+            Text(AgentFormat.span(days: days.count, locale: locale))
                 .font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 4)
             figure(text.activeDays, "\(active.count)")
