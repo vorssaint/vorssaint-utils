@@ -2155,13 +2155,18 @@ enum SwitcherSupport {
     /// pass true only when no Carbon stand-in is registered, and asking for
     /// nothing then keeps ⌘Tab working instead of leaving it dead until the
     /// app holding it lets go.
+    ///
+    /// A game's own exclusive full screen hands the keys back the same way
+    /// (`frontmostAppRaisesFullscreen`): the switcher's panel would open
+    /// beneath the game, and macOS's switcher still leaves such a game.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
+                                exclusiveFullscreen: Bool = false,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 allWindowsShortcut: GlobalShortcut? = nil,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
-        guard !secureInputEnabled else { return [] }
+        guard !secureInputEnabled, !exclusiveFullscreen else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
@@ -2172,6 +2177,29 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    /// A game in its own exclusive full screen raises one window above normal
+    /// windows over the whole display; SDL and GLFW use the shielding level.
+    /// The switcher's panel sits at the status bar level, beneath such a
+    /// window, while macOS's own switcher is switched off for as long as the
+    /// switcher holds its keys, so ⌘Tab did nothing visible in League of
+    /// Legends (issue #2636). True when the frontmost app covers a display
+    /// that way, so the keys go back to macOS while it does. A window in a
+    /// macOS full-screen Space or a borderless game window stays at level 0
+    /// and never qualifies, nor does a raised window that covers only part of
+    /// a display, such as a tooltip, or one raised by another app, such as
+    /// the Dock. Any raised level counts, as GLFW stays just above the menu
+    /// bar, so a Keynote slideshow or a kiosk app also gets the macOS
+    /// switcher while it is in front: degraded to native, never a dead key.
+    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo],
+                                             frontmostPID: pid_t?, ownPID: pid_t,
+                                             displays: [CGRect]) -> Bool {
+        guard let frontmostPID, frontmostPID != ownPID else { return false }
+        return windows.contains { window in
+            window.ownerPID == frontmostPID && window.layer > 0 && window.alpha > 0
+                && displays.contains { NotchAppFullscreen.covers(window.bounds, $0) }
+        }
     }
 
     static func secureInputHotKeysWanted(canStartSession: Bool, capturingShortcut: Bool,
