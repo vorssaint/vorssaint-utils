@@ -2552,6 +2552,7 @@ def main():
           + "func syncScreenLockMonitoring() {}\nfunc applyAssertions() { assertionsHeld = true }\n"
           + "func releaseAssertions() { assertionsHeld = false }\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"
+          + "var lidClosedOnBatterySince: Date?\nfunc checkClamshellBatteryLimit() {}\n"
           + "static func lidSleepIsAllowed() -> Bool { KeepAwakeAutomationSupport.lidSleepIsAllowed("
           + "systemAllowsSleep: policy, externalDisplayConnected: externalDisplay, "
           + "connectedToPower: connectedToPower, assertions: assertions) }\n"

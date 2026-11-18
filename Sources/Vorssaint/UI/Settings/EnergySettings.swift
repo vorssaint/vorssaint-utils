@@ -28,6 +28,7 @@ struct EnergySettings: View {
     @AppStorage(DefaultsKey.bluetoothSleepRestoreOnWake) private var bluetoothSleepRestoreOnWake = true
     @AppStorage(DefaultsKey.defaultDuration) private var defaultDuration = 0
     @AppStorage(DefaultsKey.batteryLimit) private var batteryLimit = 10
+    @AppStorage(DefaultsKey.clamshellBatteryLimit) private var clamshellBatteryLimit = 0
     @AppStorage(DefaultsKey.keepAwakeAutoStart) private var keepAwakeAutoStart = false
     @AppStorage(DefaultsKey.keepAwakeRightClickToggle) private var keepAwakeRightClickToggle = false
     @AppStorage(DefaultsKey.keepAwakeAllowDisplaySleep) private var keepAwakeAllowDisplaySleep = false
@@ -287,6 +288,19 @@ struct EnergySettings: View {
                         .labelsHidden()
                 }
                 .padding(.leading, settingsRowTextInset)
+                if PowerSampler.hasInternalBattery {
+                    SettingsRow(symbol: "battery.50percent", title: l10n.s.clamshellBatteryLimitTitle,
+                                caption: l10n.s.clamshellBatteryLimitCaption) {
+                        Picker(l10n.s.clamshellBatteryLimitTitle, selection: $clamshellBatteryLimit) {
+                            ForEach(Defaults.allowedClamshellBatteryLimits, id: \.self) { minutes in
+                                Text(minutes == 0 ? l10n.s.batteryNever : "\(minutes) min").tag(minutes)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .labelsHidden()
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                }
             }
         }
     }
