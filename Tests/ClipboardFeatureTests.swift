@@ -800,6 +800,20 @@ enum ClipboardFeatureTests {
         let exact = ClipboardHistorySearchCandidate(index: 1, text: "term", isPinned: false)
         suite.expect(ClipboardHistorySearch.rankedIndexes(candidates: [cut, exact], matching: "term") == [1, 0],
                      "a trimmed prefix does not take the exact match bonus from a complete entry")
+        let padding = String(repeating: "z", count: 4200)
+        let rankCases: [(texts: [String], pinned: Int?, query: String, order: [Int])] = [
+            ([padding + " xneedlez", "a xneedlez"], 0, "needle", [0, 1]),
+            (["a xneedlez", "a needle " + padding], nil, "needle", [1, 0]),
+            ([padding + " alpha zz beta", padding + " alpha beta"], nil, "alpha beta", [1, 0])
+        ]
+        for example in rankCases {
+            let candidates = example.texts.enumerated().map {
+                ClipboardHistorySearchCandidate(index: $0.offset, text: $0.element, isPinned: $0.offset == example.pinned)
+            }
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: example.query,
+                                                                completeText: { example.texts[$0] })
+            suite.expect(complete == example.order, "deep results preserve pin, word and contiguous phrase ranking")
+        }
         let clusterText = String(repeating: "a👨‍👩‍👧‍👦", count: 3_000)
         let clusterIndex = ClipboardHistoryEntry.indexedText(clusterText).text
         suite.expect(clusterIndex.count == ClipboardHistoryEntry.indexCharacters
