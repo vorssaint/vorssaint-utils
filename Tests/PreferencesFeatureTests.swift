@@ -126,6 +126,10 @@ enum PreferencesFeatureTests {
                "right-click Keep Awake preference follows settings backups")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeAllowDisplaySleep),
                "display sleep preference follows settings backups")
+        suite.expect(registeredDefaults[DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked] as? Bool == false,
+               "limiting display sleep to the lock is opt-in")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakeAllowDisplaySleepOnlyWhenLocked),
+               "the display sleep lock limit follows settings backups")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeExternalDisplay] as? Bool == false,
                "external-display Keep Awake is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
@@ -341,6 +345,36 @@ enum PreferencesFeatureTests {
         ), "the Keep Awake lock guard accepts the session dictionary's numeric bridge")
         suite.expect(!KeepAwakeAutomationSupport.isScreenLocked(sessionDictionary: nil),
                "an unreadable lock state does not strand Keep Awake in a pause")
+        suite.expect(!KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: false, onlyWhenLocked: false, screenLocked: false
+        ) && !KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: false, onlyWhenLocked: false, screenLocked: true
+        ), "Keep Awake holds the display on by default, locked or not")
+        suite.expect(KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: true, onlyWhenLocked: false, screenLocked: false
+        ) && KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: true, onlyWhenLocked: false, screenLocked: true
+        ), "plain display sleep still applies while the Mac is in use")
+        suite.expect(!KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: true, onlyWhenLocked: true, screenLocked: false
+        ), "display sleep limited to the lock keeps the display on while the Mac is in use")
+        suite.expect(KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: true, onlyWhenLocked: true, screenLocked: true
+        ), "display sleep limited to the lock lets a locked Mac's display sleep")
+        suite.expect(!KeepAwakeAutomationSupport.allowsDisplaySleep(
+            allowDisplaySleep: false, onlyWhenLocked: true, screenLocked: true
+        ), "a leftover lock limit does not allow display sleep on its own")
+        suite.expect(KeepAwakeAutomationSupport.needsScreenLockMonitoring(
+            pauseWhenLocked: false, allowDisplaySleep: true, displaySleepOnlyWhenLocked: true
+        ), "display sleep limited to the lock watches the lock without the pause option")
+        suite.expect(KeepAwakeAutomationSupport.needsScreenLockMonitoring(
+            pauseWhenLocked: true, allowDisplaySleep: false, displaySleepOnlyWhenLocked: false
+        ), "pausing on lock still watches the lock")
+        suite.expect(!KeepAwakeAutomationSupport.needsScreenLockMonitoring(
+            pauseWhenLocked: false, allowDisplaySleep: true, displaySleepOnlyWhenLocked: false
+        ) && !KeepAwakeAutomationSupport.needsScreenLockMonitoring(
+            pauseWhenLocked: false, allowDisplaySleep: false, displaySleepOnlyWhenLocked: true
+        ), "no lock option in effect leaves the lock unobserved")
         let cal = Calendar.current
         let now10 = cal.date(from: DateComponents(
             year: 2026, month: 1, day: 15, hour: 10, minute: 0))!

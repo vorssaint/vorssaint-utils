@@ -44,6 +44,22 @@ enum KeepAwakeAutomationSupport {
         }
     }
 
+    /// Whether a running session lets the display follow its normal sleep
+    /// timer. "Only when locked" narrows the permission; on its own it does
+    /// nothing, so turning display sleep off keeps the display on everywhere.
+    static func allowsDisplaySleep(allowDisplaySleep: Bool, onlyWhenLocked: Bool,
+                                   screenLocked: Bool) -> Bool {
+        guard allowDisplaySleep else { return false }
+        return !onlyWhenLocked || screenLocked
+    }
+
+    /// The screen-lock observers are needed by either option that reacts to
+    /// the lock: pausing the session, or display sleep limited to the lock.
+    static func needsScreenLockMonitoring(pauseWhenLocked: Bool, allowDisplaySleep: Bool,
+                                          displaySleepOnlyWhenLocked: Bool) -> Bool {
+        pauseWhenLocked || (allowDisplaySleep && displaySleepOnlyWhenLocked)
+    }
+
     static func isScreenLocked(sessionDictionary: [String: Any]?) -> Bool {
         guard let value = sessionDictionary?[screenLockedKey] else { return false }
         if let locked = value as? Bool { return locked }
