@@ -912,6 +912,44 @@ enum MixerRoutingSupport {
         return placed
     }
 
+    /// The reported AirPlay session UIDs have the form <receiver UUID>-<session number>-Audio.
+    /// Unknown UID formats stay separate and can be removed manually.
+    private static func airPlayReceiverID(in uid: String) -> UUID? {
+        guard uid.hasSuffix("-Audio") else { return nil }
+        let session = uid.dropLast("-Audio".count)
+        guard let separator = session.lastIndex(of: "-") else { return nil }
+        let receiver = session[..<separator]
+        let number = session[session.index(after: separator)...]
+        guard receiver.utf8.count == 36, !number.isEmpty,
+              number.utf8.allSatisfy({ (48...57).contains($0) }) else { return nil }
+        return UUID(uuidString: String(receiver))
+    }
+
+    /// Only a currently connected AirPlay output can reclaim a saved slot. Require
+    /// the same receiver UUID and name, and leave ambiguous live sessions untouched.
+    static func rebindingAirPlayOutputs(_ list: [String],
+                                        connected: [(uid: String, name: String, isAirPlay: Bool)],
+                                        storedNames: [String: String]) -> [String] {
+        var live: [UUID: (uid: String, name: String)] = [:]
+        var ambiguous = Set<UUID>()
+        for device in connected {
+            guard let receiver = airPlayReceiverID(in: device.uid) else { continue }
+            if !device.isAirPlay || device.name.isEmpty || live[receiver] != nil {
+                ambiguous.insert(receiver)
+            } else {
+                live[receiver] = (device.uid, device.name)
+            }
+        }
+        guard !live.isEmpty else { return list }
+        var placed = Set<UUID>()
+        return list.compactMap { uid in
+            guard let receiver = airPlayReceiverID(in: uid), !ambiguous.contains(receiver),
+                  let device = live[receiver], device.uid == uid || storedNames[uid] == device.name
+            else { return uid }
+            return placed.insert(receiver).inserted ? device.uid : nil
+        }
+    }
+
     /// Whether a CoreAudio write should be requested: only when the target
     /// exists and differs from the current default. Avoids redundant writes
     /// when the desired device is already active.
