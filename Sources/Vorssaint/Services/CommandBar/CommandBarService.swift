@@ -952,7 +952,7 @@ final class CommandBarService: ObservableObject {
 
     /// The chip order. Fixed, so the row never reshuffles under a pointer.
     private static let chipOrder: [CommandBarSource] = [
-        .actions, .apps, .clipboard, .windows, .menus, .settingsPages, .macSettings,
+        .actions, .apps, .files, .clipboard, .windows, .menus, .settingsPages, .macSettings,
         .snippets, .emoji, .folders, .links,
     ]
 
@@ -1047,7 +1047,11 @@ final class CommandBarService: ObservableObject {
             }
         case .killProcess:
             return AppFeature.killProcess.isAvailable
-        case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files:
+        case .files:
+            // Decided by the saved list, not by the folders resolved in the
+            // background, for the same reason as the loads above.
+            return fileScopesConfigured
+        case .quitApps, .uninstallApps, .answers, .calculator, .selection:
             return false
         }
     }
@@ -1145,6 +1149,9 @@ final class CommandBarService: ObservableObject {
     /// never shows. Resolving reads the home folder, which is far too much to
     /// do on a keystroke and never changes between two of them.
     private var fileScopeCache: [String] = []
+    /// Files is switched on with a non-empty folder list, so its chip can
+    /// show before the folders behind it have been resolved.
+    private var fileScopesConfigured = false
     private var fileIgnoreCache: [String] = []
     private var fileSearchPreferenceSignature: String?
     private var fileScopeLoadGeneration = 0
@@ -1179,12 +1186,14 @@ final class CommandBarService: ObservableObject {
         let loadGeneration = fileScopeLoadGeneration
         fileSearch.reset()
         fileScopeCache = []
+        fileScopesConfigured = false
         fileIgnoreCache = enabled
             ? CommandBarFileSearchSupport.shippedIgnores
                 + CommandBarFileSearchSupport.decodeList(ignoresRaw)
             : []
         let saved = CommandBarFileSearchSupport.decodeList(scopesRaw)
         guard enabled, !saved.isEmpty else { return }
+        fileScopesConfigured = true
         let home = NSHomeDirectory()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let children = (try? FileManager.default.contentsOfDirectory(atPath: home)) ?? []
@@ -1737,6 +1746,14 @@ final class CommandBarService: ObservableObject {
         // no answer row, no caps per kind, just the ranking over one list.
         if let category = activeCategory {
             scriptRunner.cancelPending()
+            // Inside Files the field is a file search and nothing else, with
+            // every answer listed in Spotlight's or the sort's order: the
+            // place to go when the mixed list could only show a few.
+            if category == .files {
+                let hidden = hiddenCache
+                return requestFileRows(for: trimmed, bar: bar)
+                    .filter { !hidden.contains($0.stableKey) }
+            }
             // A search inside one category is not a search for files, so any
             // pending one goes: it would land on a list that has no room for
             // it and refresh the bar for nothing.
@@ -1841,18 +1858,21 @@ final class CommandBarService: ObservableObject {
         // Files, once the person has named a folder to look in. Asked for
         // rather than waited on: the answer lands a moment later and refreshes
         // the list, the way a saved script's answer does.
-        var fileRows: [CommandBarEntry] = []
-        if isEnabled(.files), !fileScopeCache.isEmpty {
-            if let paths = fileSearch.cachedPaths(for: trimmed) {
-                fileSearch.cancelPending()
-                fileRows = CommandBarCatalog.fileEntries(paths, bar: bar)
-            } else {
-                fileSearch.schedule(query: trimmed,
-                                    scopes: fileScopeCache,
-                                    patterns: fileIgnoreCache)
-            }
-        } else {
-            fileSearch.cancelPending()
+        let fileRows = requestFileRows(for: trimmed, bar: bar)
+
+        // `ext:pdf`, `size:>10mb` or a folder word like `Code/` is a request
+        // for files and nothing else. No other row could match those words, and
+        // the title ranking would throw out "report.pdf" for not containing
+        // "ext:pdf", so the files stand on their own in the order Spotlight
+        // and the sort gave them.
+        if isEnabled(.files), !fileScopeCache.isEmpty,
+           CommandBarFileSearchSupport.listsOnlyFiles(trimmed) {
+            // An answer worked out from the same text still leads, the way
+            // it does in the mixed list: the files never hide it.
+            let leading = [answer, openURL, scriptAnswer].compactMap { $0 }
+            let hidden = hiddenCache
+            let files = fileRows.filter { !hidden.contains($0.stableKey) }
+            return leading + files
         }
 
         // "brilho 40" is a command with a value; "code 1234" is a search for
@@ -2005,7 +2025,34 @@ final class CommandBarService: ObservableObject {
                 rowTitles: result.map(\.title), query: trimmed))
             if result.count > 12 { result.removeLast() }
         }
+        // The mixed list shows a few files at most. When more were found, the
+        // last row says how many and opens Files with the same words typed.
+        let shownFiles = result.lazy.filter { $0.id.hasPrefix("file.") }.count
+        let foundFiles = fileRows.lazy.filter { !hidden.contains($0.stableKey) }.count
+        if foundFiles > shownFiles {
+            result.append(CommandBarCatalog.showAllFilesEntry(
+                count: foundFiles,
+                isCapped: fileRows.count >= CommandBarFileSearchSupport.resultLimit,
+                bar: bar) { [weak self] in self?.setCategory(.files) })
+        }
         return result
+    }
+
+    /// The file rows for this query, or none yet. An answer not in hand is
+    /// asked for and lands a moment later with a refresh, the way a saved
+    /// script's answer does.
+    private func requestFileRows(for trimmed: String,
+                                 bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
+        guard isEnabled(.files), !fileScopeCache.isEmpty else {
+            fileSearch.cancelPending()
+            return []
+        }
+        if let paths = fileSearch.cachedPaths(for: trimmed) {
+            fileSearch.cancelPending()
+            return CommandBarCatalog.fileEntries(paths, bar: bar)
+        }
+        fileSearch.schedule(query: trimmed, scopes: fileScopeCache, patterns: fileIgnoreCache)
+        return []
     }
 
     // MARK: - Selection
