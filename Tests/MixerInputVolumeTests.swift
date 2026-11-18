@@ -1228,6 +1228,7 @@ enum MixerInputVolumeContract {
         var now: TimeInterval = 10
         MicMuteService.shared = MicMuteService(uptime: { now })
         let retryService = MicMuteService.shared
+        HAL.uids[10] = "MSLoopbackDriverDevice_UID"
         HAL.devices = [10, 20]
         HAL.levels[HAL.key(10)] = 0.5
         HAL.levels[HAL.key(20)] = 0.75
@@ -1320,6 +1321,7 @@ enum MixerInputVolumeContract {
         now = 40
         MicMuteService.shared = MicMuteService(uptime: { now })
         HAL.uids = [10: "first input"]
+        HAL.virtual = [10]
         HAL.levels[HAL.key(10)] = 0.5
         HAL.ignoredWrites = [HAL.key(10)]
         MicMuteService.shared.setMuted(true)
@@ -1343,6 +1345,7 @@ enum MixerInputVolumeContract {
         HAL.reset()
         now = 50
         MicMuteService.shared = MicMuteService(uptime: { now })
+        HAL.virtual = [10]
         HAL.levels[HAL.key(10)] = 0.5
         HAL.ignoredWrites = [HAL.key(10)]
         MicMuteService.shared.setMuted(true)
@@ -1366,6 +1369,18 @@ enum MixerInputVolumeContract {
         check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil
                 && HAL.levels[HAL.key(10)] == 0.2,
               "teardown cancels retries even when the audio driver refuses restoration")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.ignoreWrites = true
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        for _ in 0..<5 { changed(10) }
+        check(MicMuteService.shared.retryDeadline == nil && HAL.writes.filter { $0 == HAL.key(10) }.count == 6,
+              "an unclassified or physical microphone never enters virtual-driver backoff")
+        HAL.ignoreWrites = false
+        changed(10)
+        check(HAL.levels[HAL.key(10)] == 0, "a slow physical microphone is silenced on its next change")
 
         HAL.reset()
         HAL.levels[HAL.key(10)] = 0.5

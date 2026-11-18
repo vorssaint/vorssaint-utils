@@ -393,7 +393,7 @@ final class MicMuteService: ObservableObject {
             // gain change must not keep writing this unresponsive control.
             let retry = retries[device.uid]
             if let retry, retry.deviceID == device.id, let deadline = retry.deadline, now < deadline,
-               !retry.onlyWhileIdle || isIdleVirtualInput(device.id) {
+               isVirtualInput(device), !retry.onlyWhileIdle || isIdleInput(device.id) {
                 outcome.retries[device.uid] = retry
                 outcome.applied = true
                 outcome.failed = true
@@ -453,11 +453,9 @@ final class MicMuteService: ObservableObject {
                 // notify. Count their successive writes until a later sweep
                 // finds them quiet. Ordinary gain adjustments on physical
                 // microphones are reasserted immediately.
-                let needsRetry = !quiet && (changed || retry != nil)
-                let wroteIdleVirtual = quiet && changed && isIdleVirtualInput(device.id)
-                if needsRetry || wroteIdleVirtual {
+                if (changed || retry != nil) && isVirtualInput(device) && (!quiet || isIdleInput(device.id)) {
                     outcome.retries[device.uid] = MicMuteSupport.Retry(
-                        deviceID: device.id, onlyWhileIdle: wroteIdleVirtual, previous: retry, now: now)
+                        deviceID: device.id, onlyWhileIdle: quiet, previous: retry, now: now)
                 }
             } else {
                 if quiet { outcome.applied = true }
@@ -587,12 +585,18 @@ final class MicMuteService: ObservableObject {
         return sawVolume || muteSwitchValue(of: device) == 1
     }
 
-    private static func isIdleVirtualInput(_ device: AudioDeviceID) -> Bool {
+    private static func isVirtualInput(_ device: InputDevice) -> Bool {
+        // This is the loopback UID from the Teams report. Other drivers must
+        // identify their transport as virtual before writes can be deferred.
+        if device.uid == "MSLoopbackDriverDevice_UID" { return true }
         var transport: UInt32 = 0
-        var running: UInt32 = 0
-        return read(device, kAudioDevicePropertyTransportType, &transport)
+        return read(device.id, kAudioDevicePropertyTransportType, &transport)
             && transport == kAudioDeviceTransportTypeVirtual
-            && read(device, kAudioDevicePropertyDeviceIsRunningSomewhere, &running) && running == 0
+    }
+
+    private static func isIdleInput(_ device: AudioDeviceID) -> Bool {
+        var running: UInt32 = 0
+        return read(device, kAudioDevicePropertyDeviceIsRunningSomewhere, &running) && running == 0
     }
 
     /// Every device that can capture audio, skipping the app's own mixing
