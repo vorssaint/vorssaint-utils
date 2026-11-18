@@ -81,6 +81,113 @@ enum MixerFeatureTests {
                         "importing that backup here puts the sliders back where they were")
             curveDefaults.removePersistentDomain(forName: curveSuite)
         }
+        // A mute is a state of its own: the level stays, the app plays nothing.
+        suite.expect(MixerRoutingSupport.effectiveVolume(1, isMuted: true) == 0
+                     && MixerRoutingSupport.effectiveVolume(1.5, isMuted: true) == 0,
+                     "a muted app plays nothing, even at 100% or boosted")
+        suite.expect(MixerRoutingSupport.effectiveVolume(0.44, isMuted: false) == 0.44
+                     && MixerRoutingSupport.effectiveVolume(1.5, isMuted: false) == 1.5
+                     && MixerRoutingSupport.effectiveVolume(0, isMuted: false) == 0,
+                     "an app that is not muted plays its own level, boost and zero included")
+        suite.expect(MixerRoutingSupport.rowIsMuted(savedMute: true, isBypassed: false)
+                     && !MixerRoutingSupport.rowIsMuted(savedMute: false, isBypassed: false),
+                     "a row is muted exactly when its mute was saved")
+        suite.expect(!MixerRoutingSupport.rowIsMuted(savedMute: true, isBypassed: true),
+                     "an app that manages its own audio is never muted, even with a mute saved for it")
+        suite.expect(MixerRoutingSupport.sanitizedMutedApps(["com.example.Player", " Wine Game ", "com.example.Player"])
+                        == ["com.example.Player", "Wine Game"],
+                     "saved mutes read back as the persistence ids they were saved under")
+        let foreignMutes: [Any] = [42, "", "   ", "bad\nid", String(repeating: "x", count: 513),
+                                   ["com.example.Player": true], NSNull()]
+        suite.expect(MixerRoutingSupport.sanitizedMutedApps(foreignMutes).isEmpty,
+                     "a hand-edited or foreign mute list keeps only app ids")
+        suite.expect(MixerRoutingSupport.volumeAccessibilityValue(percent: 44, isMuted: true, mutedText: "Muted")
+                        == "44%, Muted",
+                     "VoiceOver reads a muted app's level and that it is muted")
+        suite.expect(MixerRoutingSupport.volumeAccessibilityValue(percent: 44, isMuted: false, mutedText: "Muted") == "44%"
+                     && MixerRoutingSupport.volumeAccessibilityValue(percent: 0, isMuted: false, mutedText: "Muted") == "0%",
+                     "an app that is not muted reads only its level, even at 0%")
+        suite.expect(MixerRoutingSupport.volumeAccessibilityValue(percent: 44, isMuted: true,
+                                                                  mutedText: Strings.enUS.mixerMutedValue) == "44%, Muted"
+                     && MixerRoutingSupport.volumeAccessibilityValue(percent: 44, isMuted: true,
+                                                                     mutedText: Strings.es.mixerMutedValue) == "44%, Silenciada",
+                     "VoiceOver reads 44%, Muted in English and 44%, Silenciada in Spanish")
+        suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.appMutes,
+                                                                        DefaultsKey.appMutesAreSeparate]),
+                     "saved mutes and their format travel with the volumes in a backup")
+        suite.expect((Defaults.registeredDefaults[DefaultsKey.appMutesAreSeparate] as? Bool) == false
+                     && SettingsBackupSupport.valueLooksRight(DefaultsKey.appMutesAreSeparate, true)
+                     && !SettingsBackupSupport.valueLooksRight(DefaultsKey.appMutesAreSeparate, "true")
+                     && !SettingsBackupSupport.valueLooksRight(DefaultsKey.appMutesAreSeparate, 1),
+                     "an imported mute marker must be a boolean, so the text \"true\" or 1 cannot skip the migration")
+        let jumpSuite = "vorss.tests.mixer.mutejump"
+        if let jumpDefaults = UserDefaults(suiteName: jumpSuite) {
+            jumpDefaults.removePersistentDomain(forName: jumpSuite)
+            // Saved by a build from before the loudness curve: gains, no format marker.
+            jumpDefaults.set(["com.example.faint": 0.000004, "com.example.silent": 0.0000001],
+                             forKey: DefaultsKey.appVolumes)
+            Defaults.migrateAppVolumesToPositions(in: jumpDefaults)
+            Defaults.migrateMutedAppVolumes(in: jumpDefaults)
+            let jumpVolumes = jumpDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            let jumpMutes = MixerRoutingSupport.sanitizedMutedApps(jumpDefaults.array(forKey: DefaultsKey.appMutes) ?? [])
+            suite.expect(jumpMutes == ["com.example.silent"]
+                         && abs((jumpVolumes["com.example.faint"] ?? -1) - 0.002) < 1e-9,
+                         "an update from before the loudness curve converts gains, then mutes positions up to 0.001")
+            jumpDefaults.removePersistentDomain(forName: jumpSuite)
+        }
+        let defaultsCode = (try? String(contentsOfFile: "Sources/Vorssaint/Core/Defaults.swift", encoding: .utf8)) ?? ""
+        suite.expect(defaultsCode.contains("        migrateAppVolumesToPositions(in: defaults)\n"
+                                           + "        migrateMutedAppVolumes(in: defaults)\n"),
+                     "a launch reads old gains as slider positions before it turns the quietest into mutes")
+        let muteSuite = "vorss.tests.mixer.mutes"
+        if let muteDefaults = UserDefaults(suiteName: muteSuite) {
+            muteDefaults.removePersistentDomain(forName: muteSuite)
+            func savedMutes() -> Set<String> {
+                MixerRoutingSupport.sanitizedMutedApps(muteDefaults.array(forKey: DefaultsKey.appMutes) ?? [])
+            }
+            func savedVolumes() -> [String: Double] {
+                muteDefaults.dictionary(forKey: DefaultsKey.appVolumes) as? [String: Double] ?? [:]
+            }
+            muteDefaults.set(["com.example.silent": 0.0, "com.example.faint": 0.0005, "com.example.edge": 0.001,
+                              "com.example.quiet": 0.0011, "com.example.loud": 0.44],
+                             forKey: DefaultsKey.appVolumes)
+            muteDefaults.set(["com.example.earlier"], forKey: DefaultsKey.appMutes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect(savedMutes() == ["com.example.earlier", "com.example.silent", "com.example.faint",
+                                          "com.example.edge"]
+                         && savedVolumes() == ["com.example.quiet": 0.0011, "com.example.loud": 0.44],
+                         "an app saved at 0.1% or less becomes muted at 100%, keeping the mutes already saved")
+            muteDefaults.set(["com.example.quiet": 0.0011, "com.example.later": 0.0], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect(savedVolumes()["com.example.later"] == 0 && !savedMutes().contains("com.example.later"),
+                         "a level set to 0% after the update stays a level")
+            muteDefaults.removeObject(forKey: DefaultsKey.appMutesAreSeparate)
+            muteDefaults.set(["com.example.restored": 0.0], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect(savedMutes().contains("com.example.restored") && savedVolumes().isEmpty,
+                         "a backup restored from before the change has its mutes moved on the next launch")
+            // A new install has nothing to move, but the update still counts as done.
+            muteDefaults.removePersistentDomain(forName: muteSuite)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            muteDefaults.set(["com.example.later": 0.0], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect(savedVolumes()["com.example.later"] == 0 && !savedMutes().contains("com.example.later"),
+                         "on a new install, a level set to 0% before the first relaunch stays a level")
+            muteDefaults.removePersistentDomain(forName: muteSuite)
+            muteDefaults.set(["com.example.quiet": 0.0011, "com.example.loud": 0.44], forKey: DefaultsKey.appVolumes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect(muteDefaults.object(forKey: DefaultsKey.appMutes) == nil,
+                         "an update with no level to move leaves no mute list behind")
+            // Eight ids: a Set's order changes with every process, and four unsorted ones would pass by chance.
+            muteDefaults.removePersistentDomain(forName: muteSuite)
+            let eightIDs = ["com.example.h", "com.example.c", "com.example.f", "com.example.a",
+                            "com.example.g", "com.example.b", "com.example.e", "com.example.d"]
+            muteDefaults.set(Dictionary(uniqueKeysWithValues: eightIDs.map { ($0, 0.0) }), forKey: DefaultsKey.appVolumes)
+            Defaults.migrateMutedAppVolumes(in: muteDefaults)
+            suite.expect((muteDefaults.array(forKey: DefaultsKey.appMutes) as? [String]) == eightIDs.sorted(),
+                         "the saved mute list is a sorted list of ids")
+            muteDefaults.removePersistentDomain(forName: muteSuite)
+        }
         suite.expectClose(MixerRoutingSupport.volumeFraction(fromPercentageText: "40",
                                                        maximumPercent: 200) ?? -1,
                     0.4,
@@ -540,53 +647,78 @@ enum MixerFeatureTests {
 
         suite.expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                  volume: 1,
+                                                 isMuted: false,
                                                  selectedOutputDeviceUID: nil,
                                                  hideInactiveApps: false),
                "the inactive-app filter changes nothing until the user enables it")
         suite.expect(!MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                   volume: 1,
+                                                  isMuted: false,
                                                   selectedOutputDeviceUID: nil,
                                                   hideInactiveApps: true),
                "an idle uncustomized mixer app can be hidden")
         suite.expect(MixerRoutingSupport.shouldShowApp(isPlaying: true,
                                                  volume: 1,
+                                                 isMuted: false,
                                                  selectedOutputDeviceUID: nil,
                                                  hideInactiveApps: true),
                "a playing mixer app remains visible")
         suite.expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                  volume: 0.75,
+                                                 isMuted: false,
                                                  selectedOutputDeviceUID: nil,
                                                  hideInactiveApps: true)
                 && MixerRoutingSupport.shouldShowApp(isPlaying: false,
                                                      volume: 1,
+                                                     isMuted: false,
                                                      selectedOutputDeviceUID: "ExternalDisplay",
                                                      hideInactiveApps: true),
                "custom volume and output choices keep inactive mixer apps visible")
+        suite.expect(MixerRoutingSupport.shouldShowApp(isPlaying: false,
+                                                 volume: 1,
+                                                 isMuted: true,
+                                                 selectedOutputDeviceUID: nil,
+                                                 hideInactiveApps: true),
+               "a muted app at 100% stays visible while inactive apps are hidden")
 
         // Issue #296. A tap mutes the app on the real output, so which build
         // may be installed, when an engine is allowed to go away and who may
         // be tapped at all decide whether an app suddenly plays at full
         // volume, plays twice as loud, or goes silent.
         suite.expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                   savedMute: false,
                                                    savedRouteUID: nil,
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "an app with no saved volume and no saved route is never tapped")
         suite.expect(!MixerRoutingSupport.rowMayBeTapped(savedVolume: 1,
+                                                   savedMute: false,
                                                    savedRouteUID: nil,
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a row saved at 100 percent is never tapped")
         suite.expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                   savedMute: false,
                                                    savedRouteUID: "BuiltInSpeakerDevice",
                                                    defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a user-selected device is a routing request even when it is already the default")
         suite.expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: 0.4,
+                                                  savedMute: false,
                                                   savedRouteUID: nil,
                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a row the user turned down is tapped")
         suite.expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                  savedMute: false,
                                                   savedRouteUID: "ExternalDisplay",
                                                   defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
                "a row routed to another output is tapped")
+        suite.expect(MixerRoutingSupport.rowMayBeTapped(savedVolume: nil,
+                                                  savedMute: true,
+                                                  savedRouteUID: nil,
+                                                  defaultOutputDeviceUID: "BuiltInSpeakerDevice")
+                && MixerRoutingSupport.rowMayBeTapped(savedVolume: 1,
+                                                      savedMute: true,
+                                                      savedRouteUID: nil,
+                                                      defaultOutputDeviceUID: "BuiltInSpeakerDevice"),
+               "a muted app at 100% with no route of its own is tapped, so it can be silenced")
 
         var mixerBuilds = MixerEngineBuilds()
         suite.expect(mixerBuilds.isEmpty, "a mixer with nothing being built has no builds in flight")
@@ -798,10 +930,23 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
-        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
+        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 4
                      && !mixerCode.contains("Float(app.volume)")
                      && !mixerCode.contains("Float(latestApp.volume)"),
                      "every engine plays an app's slider through the same loudness curve")
+        // No whitespace at all: spacing, `forVolume : x` or a line break cannot hide the read.
+        let unspacedMixerCode = mixerCode.filter { !$0.isWhitespace }
+        suite.expect(!unspacedMixerCode.contains("gain(forVolume:app.volume)")
+                     && !unspacedMixerCode.contains("gain(forVolume:latestApp.volume)")
+                     && !unspacedMixerCode.contains("volume:app.volume,"),
+                     "no engine plays a muted app at its saved level")
+        // The suite compiles the mute rules but not the code that feeds them a refresh:
+        // the snapshot read, the refresh request, the end of a session and the Finder row.
+        suite.expect(mixerCode.contains("session: request.sessionMutes),")
+                     && mixerCode.contains("            sessionMutes: sessionMutes,\n")
+                     && mixerCode.contains("        sessionMutes.removeAll()\n")
+                     && mixerCode.contains("isMuted: request.savedMutes.contains(id)"),
+                     "saved and session mutes reach every refresh, end with the session and mute the Finder row")
         let levelWatch = mixerCode.range(of: "final class LevelCompensationWatch")
             .flatMap { start in
                 mixerCode.range(of: "\n}\n", range: start.upperBound..<mixerCode.endIndex)
