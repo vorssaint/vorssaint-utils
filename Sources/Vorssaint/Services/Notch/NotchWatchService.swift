@@ -339,7 +339,7 @@ final class NotchWatchService: ObservableObject {
             let source = Self.scaledForRecognition(area) ?? area
             switch ScreenTextService.outcome(for: source, detectQRCodes: false, removeLineBreaks: false,
                                              fallbackLanguages: languages) {
-            case .text(let text): return (area, text)
+            case .text(let text, _): return (area, text)
             case .qr, .empty: return (area, "")
             }
         }.value
