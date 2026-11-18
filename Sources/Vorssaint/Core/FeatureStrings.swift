@@ -213,7 +213,12 @@ extension ClipboardFeatureStrings {
         historyLayout: "기록 레이아웃",
         historyLayoutCards: "카드",
         historyLayoutList: "목록",
-        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시"
+        showSourceAppIconsInList: "목록 보기에 원본 앱 아이콘 표시",
+        transformText: "텍스트 변환",
+        uppercase: "대문자",
+        lowercase: "소문자",
+        titleCase: "첫 글자만 대문자",
+        sentenceCase: "문장 시작만 대문자"
     )
 }
 
@@ -539,6 +544,11 @@ struct ClipboardFeatureStrings {
     let historyLayoutCards: String
     let historyLayoutList: String
     let showSourceAppIconsInList: String
+    let transformText: String
+    let uppercase: String
+    let lowercase: String
+    let titleCase: String
+    let sentenceCase: String
 
     static let enUS = ClipboardFeatureStrings(
         title: "Clipboard",
@@ -603,7 +613,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "History layout",
         historyLayoutCards: "Cards",
         historyLayoutList: "List",
-        showSourceAppIconsInList: "Show source app icons in list view"
+        showSourceAppIconsInList: "Show source app icons in list view",
+        transformText: "Transform Text",
+        uppercase: "UPPERCASE",
+        lowercase: "lowercase",
+        titleCase: "Title Case",
+        sentenceCase: "Sentence case"
     )
 
     static let ptBR = ClipboardFeatureStrings(
@@ -669,7 +684,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout do histórico",
         historyLayoutCards: "Cartões",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista"
+        showSourceAppIconsInList: "Mostrar ícones dos apps de origem na lista",
+        transformText: "Transformar texto",
+        uppercase: "MAIÚSCULAS",
+        lowercase: "minúsculas",
+        titleCase: "Iniciais Maiúsculas",
+        sentenceCase: "Capitalização de frase"
     )
 
     static let tr = ClipboardFeatureStrings(
@@ -735,7 +755,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Geçmiş yerleşimi",
         historyLayoutCards: "Kartlar",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster"
+        showSourceAppIconsInList: "Liste görünümünde kaynak uygulama simgelerini göster",
+        transformText: "Metni Dönüştür",
+        uppercase: "BÜYÜK HARF",
+        lowercase: "küçük harf",
+        titleCase: "Baş Harfler Büyük",
+        sentenceCase: "Cümle Düzeni"
     )
 
     static let ru = ClipboardFeatureStrings(
@@ -801,7 +826,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Макет истории",
         historyLayoutCards: "Карточки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показывать значки исходных приложений в списке"
+        showSourceAppIconsInList: "Показывать значки исходных приложений в списке",
+        transformText: "Преобразовать текст",
+        uppercase: "ПРОПИСНЫЕ",
+        lowercase: "строчные",
+        titleCase: "Каждое Слово С Заглавной",
+        sentenceCase: "Как в предложении"
     )
 
     static let es = ClipboardFeatureStrings(
@@ -867,7 +897,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Diseño del historial",
         historyLayoutCards: "Tarjetas",
         historyLayoutList: "Lista",
-        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista"
+        showSourceAppIconsInList: "Mostrar iconos de las apps de origen en la lista",
+        transformText: "Transformar texto",
+        uppercase: "MAYÚSCULAS",
+        lowercase: "minúsculas",
+        titleCase: "Iniciales Mayúsculas",
+        sentenceCase: "Tipo frase"
     )
 
     static let sk = ClipboardFeatureStrings(
@@ -933,7 +968,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Rozloženie histórie",
         historyLayoutCards: "Karty",
         historyLayoutList: "Zoznam",
-        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname"
+        showSourceAppIconsInList: "Zobraziť ikony zdrojových aplikácií v zozname",
+        transformText: "Transformovať text",
+        uppercase: "VEĽKÉ PÍSMENÁ",
+        lowercase: "malé písmená",
+        titleCase: "Veľké Začiatočné Písmená",
+        sentenceCase: "Ako vo vete"
     )
 
     static let de = ClipboardFeatureStrings(
@@ -999,7 +1039,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Verlaufslayout",
         historyLayoutCards: "Karten",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen"
+        showSourceAppIconsInList: "Symbole der Quell-Apps in der Liste anzeigen",
+        transformText: "Text umwandeln",
+        uppercase: "GROSSBUCHSTABEN",
+        lowercase: "kleinbuchstaben",
+        titleCase: "Erste Buchstaben Groß",
+        sentenceCase: "Satzanfang groß"
     )
 
     static let fr = ClipboardFeatureStrings(
@@ -1065,7 +1110,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Disposition de l’historique",
         historyLayoutCards: "Cartes",
         historyLayoutList: "Liste",
-        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste"
+        showSourceAppIconsInList: "Afficher les icônes des apps sources dans la liste",
+        transformText: "Transformer le texte",
+        uppercase: "MAJUSCULES",
+        lowercase: "minuscules",
+        titleCase: "Initiales En Majuscules",
+        sentenceCase: "Casse de phrase"
     )
 
     static let it = ClipboardFeatureStrings(
@@ -1131,7 +1181,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "Layout cronologia",
         historyLayoutCards: "Schede",
         historyLayoutList: "Elenco",
-        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco"
+        showSourceAppIconsInList: "Mostra le icone delle app di origine nell’elenco",
+        transformText: "Trasforma testo",
+        uppercase: "MAIUSCOLE",
+        lowercase: "minuscole",
+        titleCase: "Iniziali Maiuscole",
+        sentenceCase: "Tipo frase"
     )
 
     static let ja = ClipboardFeatureStrings(
@@ -1197,7 +1252,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "履歴のレイアウト",
         historyLayoutCards: "カード",
         historyLayoutList: "リスト",
-        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示"
+        showSourceAppIconsInList: "リストにコピー元のアプリのアイコンを表示",
+        transformText: "テキストを変換",
+        uppercase: "大文字",
+        lowercase: "小文字",
+        titleCase: "先頭を大文字",
+        sentenceCase: "文頭のみ大文字"
     )
 
     static let zhHans = ClipboardFeatureStrings(
@@ -1263,7 +1323,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "历史布局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中显示来源应用图标"
+        showSourceAppIconsInList: "在列表中显示来源应用图标",
+        transformText: "转换文本",
+        uppercase: "全部大写",
+        lowercase: "全部小写",
+        titleCase: "首字母大写",
+        sentenceCase: "句首大写"
     )
 
     static let zhTW = ClipboardFeatureStrings(
@@ -1329,7 +1394,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿紀錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        transformText: "轉換文字",
+        uppercase: "全部大寫",
+        lowercase: "全部小寫",
+        titleCase: "首字母大寫",
+        sentenceCase: "句首大寫"
     )
 
     static let zhHK = ClipboardFeatureStrings(
@@ -1395,7 +1465,12 @@ struct ClipboardFeatureStrings {
         historyLayout: "剪貼簿記錄佈局",
         historyLayoutCards: "卡片",
         historyLayoutList: "列表",
-        showSourceAppIconsInList: "在列表中顯示來源 App 圖示"
+        showSourceAppIconsInList: "在列表中顯示來源 App 圖示",
+        transformText: "轉換文字",
+        uppercase: "全部大寫",
+        lowercase: "全部小寫",
+        titleCase: "首字母大寫",
+        sentenceCase: "句首大寫"
     )
 }
 
@@ -3266,7 +3341,12 @@ extension ClipboardFeatureStrings {
         historyLayout: "Розкладка історії",
         historyLayoutCards: "Картки",
         historyLayoutList: "Список",
-        showSourceAppIconsInList: "Показувати значки вихідних програм у списку"
+        showSourceAppIconsInList: "Показувати значки вихідних програм у списку",
+        transformText: "Перетворити текст",
+        uppercase: "Усе великими літерами",
+        lowercase: "Усе малими літерами",
+        titleCase: "Великі перші літери",
+        sentenceCase: "Як у реченні"
     )
 }
 

@@ -26,6 +26,7 @@ struct MetricsTests {
             ("clipboard", {
                 ClipboardFeatureTests.run(suite)
                 PastePlainTests.run(suite)
+                ClipboardTextCaseTransformTests.run(suite)
             }),
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)

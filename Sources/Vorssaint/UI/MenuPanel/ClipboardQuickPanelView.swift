@@ -724,6 +724,15 @@ private struct QuickEntryView: View, Equatable {
         Button(text.copy) {
             history.copyOnlyQuickEntry(entry)
         }
+        if entry.kind == .text {
+            Menu(text.transformText) {
+                ForEach(ClipboardTextCaseTransform.allCases, id: \.self) { transform in
+                    Button(transform.menuTitle(text)) {
+                        history.copyOnlyQuickEntry(ClipboardHistoryEntry(text: transform.apply(entry.text)))
+                    }
+                }
+            }
+        }
         Divider()
         Button(entry.isPinned ? text.unpin : text.pin) {
             history.togglePin(entry)
