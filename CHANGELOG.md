@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Watch can pick which alert sound to play, and optionally keep repeating it for up to five minutes until you open Watch or stop it. Useful when a single ding is easy to miss, like waiting for concert tickets. Settings → Dynamic Island → Content → Watch.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

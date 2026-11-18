@@ -164,6 +164,26 @@ enum NotchWatchSupport {
             && NotchSupport.modules(in: defaults).contains(.watch)
     }
 
+    static func isSoundEnabled(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchWatchSound) as? Bool ?? true
+    }
+
+    /// A single ding is easy to miss when you are waiting on something
+    /// important; repeating uses the same budget as a finished timer.
+    static func repeatsSound(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.notchWatchSoundRepeat)
+    }
+
+    /// The alert sound the stored preference resolves to. A name from
+    /// another Mac, or one this macOS no longer ships, falls back so the
+    /// toggle cannot stay on while playback is silent.
+    static func resolvedSoundName(in defaults: UserDefaults = .standard) -> String {
+        TextSnippetSupport.resolvedSoundName(
+            stored: defaults.string(forKey: DefaultsKey.notchWatchSoundName),
+            fallback: Defaults.defaultNotchWatchSoundName)
+            ?? Defaults.defaultNotchWatchSoundName
+    }
+
     /// For comparing and finding words: no case, accents or extra spaces.
     static func normalized(_ text: String) -> String {
         text.folding(options: [.caseInsensitive, .diacriticInsensitive, .widthInsensitive], locale: nil)

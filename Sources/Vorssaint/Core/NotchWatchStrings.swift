@@ -33,6 +33,10 @@ struct NotchWatchStrings {
     let closedNotice: String
     let sinceFormat: String
     let sound: String
+    let soundPicker: String
+    let soundUnavailable: String
+    let soundRepeat: String
+    let soundRepeatCaption: String
 
     func condition(_ condition: NotchWatchCondition) -> String {
         switch condition {
@@ -88,7 +92,11 @@ extension FeatureStrings {
             reachedFormat: "It reached %@",
             closedNotice: "The window closed",
             sinceFormat: "Watching since %@",
-            sound: "Play a sound")
+            sound: "Play a sound",
+            soundPicker: "Sound",
+            soundUnavailable: "Sound unavailable",
+            soundRepeat: "Keep repeating",
+            soundRepeatCaption: "Until you open Watch or stop it, for up to five minutes. Handy when one ding is easy to miss.")
         case .ptBR: return NotchWatchStrings(
             title: "Observar",
             description: "Transforme qualquer parte de qualquer janela em uma atividade ao vivo no Dynamic Island, com aviso quando mudar, terminar ou mostrar o que você espera.",
@@ -118,7 +126,11 @@ extension FeatureStrings {
             reachedFormat: "Chegou a %@",
             closedNotice: "A janela fechou",
             sinceFormat: "Observando desde %@",
-            sound: "Tocar um som")
+            sound: "Tocar um som",
+            soundPicker: "Som",
+            soundUnavailable: "Som indisponível",
+            soundRepeat: "Continuar repetindo",
+            soundRepeatCaption: "Até você abrir Observar ou parar, por até cinco minutos. Útil quando um único toque é fácil de perder.")
         case .es: return NotchWatchStrings(
             title: "Observar",
             description: "Convierte cualquier parte de cualquier ventana en una actividad en directo en el Dynamic Island, con un aviso cuando cambie, termine o muestre lo que esperas.",
@@ -148,7 +160,11 @@ extension FeatureStrings {
             reachedFormat: "Ha llegado a %@",
             closedNotice: "La ventana se cerró",
             sinceFormat: "Observando desde las %@",
-            sound: "Reproducir un sonido")
+            sound: "Reproducir un sonido",
+            soundPicker: "Sonido",
+            soundUnavailable: "Sonido no disponible",
+            soundRepeat: "Seguir repitiendo",
+            soundRepeatCaption: "Hasta que abras Observar o lo detengas, durante cinco minutos como máximo. Útil cuando un solo aviso es fácil de pasar por alto.")
         case .sk: return NotchWatchStrings(
             title: "Sledovať",
             description: "Premeňte ľubovoľnú časť ľubovoľného okna na živú aktivitu v Dynamic Island s upozornením, keď sa zmení, skončí alebo ukáže, na čo čakáte.",
@@ -178,7 +194,11 @@ extension FeatureStrings {
             reachedFormat: "Dosiahlo %@",
             closedNotice: "Okno sa zatvorilo",
             sinceFormat: "Sleduje sa od %@",
-            sound: "Prehrať zvuk")
+            sound: "Prehrať zvuk",
+            soundPicker: "Zvuk",
+            soundUnavailable: "Zvuk nie je k dispozícii",
+            soundRepeat: "Opakovať ďalej",
+            soundRepeatCaption: "Kým neotvoríte Sledovať alebo to nezastavíte, najviac päť minút. Hodí sa, keď jedno pípnutie ľahko prehliadnete.")
         case .de: return NotchWatchStrings(
             title: "Beobachten",
             description: "Mach jeden Teil eines beliebigen Fensters zu einer Live-Aktivität im Dynamic Island, mit Hinweis, wenn er sich ändert, fertig ist oder zeigt, worauf du wartest.",
@@ -208,7 +228,11 @@ extension FeatureStrings {
             reachedFormat: "Hat %@ erreicht",
             closedNotice: "Das Fenster wurde geschlossen",
             sinceFormat: "Beobachtet seit %@",
-            sound: "Ton abspielen")
+            sound: "Ton abspielen",
+            soundPicker: "Ton",
+            soundUnavailable: "Ton nicht verfügbar",
+            soundRepeat: "Weiter wiederholen",
+            soundRepeatCaption: "Bis du Beobachten öffnest oder beendest, höchstens fünf Minuten. Hilfreich, wenn ein einzelner Ton leicht untergeht.")
         case .fr: return NotchWatchStrings(
             title: "Surveiller",
             description: "Transformez n’importe quelle partie d’une fenêtre en activité en direct dans le Dynamic Island, avec une alerte quand elle change, se termine ou affiche ce que vous attendez.",
@@ -238,7 +262,11 @@ extension FeatureStrings {
             reachedFormat: "Elle a atteint %@",
             closedNotice: "La fenêtre s’est fermée",
             sinceFormat: "Surveillée depuis %@",
-            sound: "Jouer un son")
+            sound: "Jouer un son",
+            soundPicker: "Son",
+            soundUnavailable: "Son indisponible",
+            soundRepeat: "Continuer à répéter",
+            soundRepeatCaption: "Jusqu’à ce que vous ouvriez Surveiller ou l’arrêtiez, pendant cinq minutes au plus. Utile quand un seul bip passe facilement inaperçu.")
         case .it: return NotchWatchStrings(
             title: "Osserva",
             description: "Trasforma qualsiasi parte di qualsiasi finestra in un’attività dal vivo nel Dynamic Island, con un avviso quando cambia, finisce o mostra ciò che aspetti.",
@@ -268,7 +296,11 @@ extension FeatureStrings {
             reachedFormat: "È arrivata a %@",
             closedNotice: "La finestra si è chiusa",
             sinceFormat: "Osservata dalle %@",
-            sound: "Riproduci un suono")
+            sound: "Riproduci un suono",
+            soundPicker: "Suono",
+            soundUnavailable: "Suono non disponibile",
+            soundRepeat: "Continua a ripetere",
+            soundRepeatCaption: "Finché non apri Osserva o lo interrompi, per al massimo cinque minuti. Utile quando un solo suono è facile da perdere.")
         case .ru: return NotchWatchStrings(
             title: "Наблюдение",
             description: "Превратите любую часть любого окна в живую активность в Dynamic Island с оповещением, когда она изменится, завершится или покажет то, чего вы ждёте.",
@@ -298,7 +330,11 @@ extension FeatureStrings {
             reachedFormat: "Дошло до %@",
             closedNotice: "Окно закрылось",
             sinceFormat: "Наблюдение с %@",
-            sound: "Воспроизвести звук")
+            sound: "Воспроизвести звук",
+            soundPicker: "Звук",
+            soundUnavailable: "Звук недоступен",
+            soundRepeat: "Повторять дальше",
+            soundRepeatCaption: "Пока вы не откроете Наблюдение или не остановите его, не дольше пяти минут. Полезно, когда один сигнал легко пропустить.")
         case .tr: return NotchWatchStrings(
             title: "İzle",
             description: "Herhangi bir pencerenin herhangi bir bölümünü Dynamic Island’da canlı bir etkinliğe dönüştürün. Değiştiğinde, bittiğinde ya da beklediğinizi gösterdiğinde haber verir.",
@@ -328,7 +364,11 @@ extension FeatureStrings {
             reachedFormat: "Ulaştı: %@",
             closedNotice: "Pencere kapandı",
             sinceFormat: "İzleniyor, başlangıç: %@",
-            sound: "Ses çal")
+            sound: "Ses çal",
+            soundPicker: "Ses",
+            soundUnavailable: "Ses kullanılamıyor",
+            soundRepeat: "Tekrarlamaya devam et",
+            soundRepeatCaption: "İzle’yi açana veya durdurana kadar, en fazla beş dakika. Tek bir ses kolay kaçabildiğinde işe yarar.")
         case .ja: return NotchWatchStrings(
             title: "ウォッチ",
             description: "どのウインドウのどの部分でも Dynamic Island のライブアクティビティにして、変化したとき、終わったとき、待っている内容が表示されたときに知らせます。",
@@ -358,7 +398,11 @@ extension FeatureStrings {
             reachedFormat: "%@ に達しました",
             closedNotice: "ウインドウが閉じました",
             sinceFormat: "%@ からウォッチ中",
-            sound: "サウンドを再生")
+            sound: "サウンドを再生",
+            soundPicker: "サウンド",
+            soundUnavailable: "サウンドを利用できません",
+            soundRepeat: "繰り返し続ける",
+            soundRepeatCaption: "ウォッチを開くか停止するまで、最大5分間。ワンショットの音を聞き逃しやすいときに便利です。")
         case .ko: return NotchWatchStrings(
             title: "지켜보기",
             description: "어떤 윈도우의 어떤 부분이든 Dynamic Island의 실시간 현황으로 만들고, 바뀌거나 끝나거나 기다리던 내용이 나타나면 알려 줍니다.",
@@ -388,7 +432,11 @@ extension FeatureStrings {
             reachedFormat: "%@에 도달함",
             closedNotice: "윈도우가 닫혔습니다",
             sinceFormat: "%@부터 지켜보는 중",
-            sound: "사운드 재생")
+            sound: "사운드 재생",
+            soundPicker: "사운드",
+            soundUnavailable: "사용할 수 없는 사운드",
+            soundRepeat: "계속 반복",
+            soundRepeatCaption: "지켜보기를 열거나 멈출 때까지, 최대 5분. 한 번의 알림음을 놓치기 쉬울 때 유용합니다.")
         case .uk: return NotchWatchStrings(
             title: "Спостереження",
             description: "Перетворіть будь-яку частину будь-якого вікна на живу активність у Dynamic Island зі сповіщенням, коли вона зміниться, завершиться або покаже те, на що ви чекаєте.",
@@ -418,7 +466,11 @@ extension FeatureStrings {
             reachedFormat: "Досягло %@",
             closedNotice: "Вікно закрилося",
             sinceFormat: "Спостереження з %@",
-            sound: "Відтворити звук")
+            sound: "Відтворити звук",
+            soundPicker: "Звук",
+            soundUnavailable: "Звук недоступний",
+            soundRepeat: "Продовжувати повторювати",
+            soundRepeatCaption: "Поки ви не відкриєте Спостереження або не зупините його, щонайбільше п’ять хвилин. Корисно, коли один сигнал легко пропустити.")
         case .zhHans: return NotchWatchStrings(
             title: "观察",
             description: "把任意窗口的任意部分变成Dynamic Island中的实时活动，在它变化、完成或出现你等待的内容时提醒你。",
@@ -448,7 +500,11 @@ extension FeatureStrings {
             reachedFormat: "已达到 %@",
             closedNotice: "窗口已关闭",
             sinceFormat: "自 %@ 起观察",
-            sound: "播放声音")
+            sound: "播放声音",
+            soundPicker: "声音",
+            soundUnavailable: "声音不可用",
+            soundRepeat: "持续重复",
+            soundRepeatCaption: "直到你打开观察或停止，最长五分钟。单次提示声容易错过时很有用。")
         case .zhTW: return NotchWatchStrings(
             title: "觀察",
             description: "把任何視窗的任何部分變成Dynamic Island中的即時動態，在它變化、完成或出現你等待的內容時提醒你。",
@@ -478,7 +534,11 @@ extension FeatureStrings {
             reachedFormat: "已達到 %@",
             closedNotice: "視窗已關閉",
             sinceFormat: "自 %@ 起觀察",
-            sound: "播放聲音")
+            sound: "播放聲音",
+            soundPicker: "聲音",
+            soundUnavailable: "聲音無法使用",
+            soundRepeat: "持續重複",
+            soundRepeatCaption: "直到你開啟觀察或停止，最長五分鐘。單次提示音容易錯過時很有用。")
         case .zhHK: return NotchWatchStrings(
             title: "觀察",
             description: "把任何視窗的任何部分變成Dynamic Island中的即時動態，在它變化、完成或出現你等待的內容時提醒你。",
@@ -508,7 +568,11 @@ extension FeatureStrings {
             reachedFormat: "已達到 %@",
             closedNotice: "視窗已關閉",
             sinceFormat: "自 %@ 起觀察",
-            sound: "播放聲音")
+            sound: "播放聲音",
+            soundPicker: "聲音",
+            soundUnavailable: "聲音無法使用",
+            soundRepeat: "持續重複",
+            soundRepeatCaption: "直到你開啟觀察或停止，最長五分鐘。單次提示音容易錯過時很有用。")
         }
     }
 }
