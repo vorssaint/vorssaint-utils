@@ -15,14 +15,25 @@ enum ClipboardCaptureRestoreTests {
             static let shared = Sources()
             var excluded = false
             var bundleID = "com.example.editor"
+            var lastRemote = false
             func setHistoryRunning(_ running: Bool) {}
             func sourceSinceLastCheck(declared: String?, remote: Bool,
                                       historyPanelIsKey: Bool, historyPanelClosing: Bool)
                 -> (excluded: Bool, bundleID: String?, fromHistoryPanel: Bool) {
-                (excluded, bundleID, false)
+                lastRemote = remote
+                return (excluded, bundleID, false)
             }
         }
         typealias ClipboardIgnoredApps = Sources
+        enum ClipboardFileStore {
+            struct Batch {
+                let references: [ClipboardHistoryFileReference]
+                func finish(keeping: Bool) {}
+            }
+            static func persist(_ files: [ClipboardCapturedFile],
+                                previous: [ClipboardHistoryFileReference],
+                                completion: @escaping (Batch) -> Void) {}
+        }
         final class Lane {
             static let shared = Lane()
             var defersDelivery = false
@@ -46,12 +57,16 @@ enum ClipboardCaptureRestoreTests {
         static let pasteboardTimeout: TimeInterval = 5
         // Rich payload decoding is covered elsewhere; this fixture exercises
         // the production metadata and text path with images/files disabled.
-        static func copiedFilePaths(from board: AppKit.NSPasteboard) -> [String]? { nil }
+        static func copiedFileURLs(from board: AppKit.NSPasteboard) -> [URL]? {
+            guard let urls = board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL],
+                  !urls.isEmpty else { return nil }
+            return urls
+        }
         static func copiedPNGImage(from board: AppKit.NSPasteboard)
             -> (data: Data, width: Int, height: Int)? { nil }
         static func webURLString(from board: AppKit.NSPasteboard) -> String? { nil }
         static func sha256Hex(_ data: Data) -> String { data.base64EncodedString() }
-        func promoteFiles(_ paths: [String], source: String?, keepsSource: Bool) {
+        func promoteFiles(_ paths: [String], resources: [ClipboardCapturedFile] = [], source: String?, keepsSource: Bool) {
             preconditionFailure("file capture is outside this text fixture")
         }
         func promoteImage(_ image: (data: Data, width: Int, height: Int), source: String?, keepsSource: Bool) {
@@ -65,6 +80,7 @@ enum ClipboardCaptureRestoreTests {
         defer {
             board.releaseGlobally()
             Fixture.UserDefaults.standard.skipSensitive = false
+            Fixture.UserDefaults.standard.includeImagesFiles = false
             Fixture.Lane.shared.pending = nil
             Fixture.Lane.shared.defersDelivery = false
         }
@@ -188,5 +204,48 @@ enum ClipboardCaptureRestoreTests {
         Fixture.Lane.shared.pending?()
         suite.expect(stopped.entries.map(\.text) == ["A"] && stopped.latestPasteboardEntry == nil,
                      "a delayed capture cannot restore or record content after history stops")
+        Fixture.Lane.shared.defersDelivery = false
+        Fixture.Lane.shared.pending = nil
+        baselineFiles(suite, board: board)
     }
+
+    private static func baselineFiles(_ suite: TestSuite, board: AppKit.NSPasteboard) {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("baseline-\(UUID()).pdf")
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            Fixture.UserDefaults.standard.includeImagesFiles = false
+            Fixture.Sources.shared.excluded = false
+        }
+        do {
+            try Data("%PDF-1.4\noriginal copy\n".utf8).write(to: url)
+            var original = ClipboardHistoryEntry(text: "", copiedAt: .distantPast, pinnedAt: .distantPast,
+                                                 kind: .files, filePaths: [url.path])
+            original.sourceBundleID = "com.tencent.xinWeChat"
+            let other = ClipboardHistoryEntry(text: "another saved entry")
+            Fixture.UserDefaults.standard.includeImagesFiles = true
+            for excluded in [false, true] {
+                board.clearContents()
+                board.writeObjects([url as NSURL])
+                board.setString("com.example.current", forType: .source)
+                if excluded { board.setString("1", forType: .remoteClipboard) }
+                Fixture.Sources.shared.excluded = excluded
+                let service = Service()
+                service.setEntries([other, original])
+                var notices = 0
+                let subscription = service.capturedEntry.sink { _ in notices += 1 }
+                service.captureIfChanged()
+                let repaired = service.entries[1]
+                suite.expect(service.entries.map(\.id) == [other.id, original.id]
+                             && repaired.copiedAt == original.copiedAt && repaired.pinnedAt == original.pinnedAt
+                             && repaired.sourceBundleID == original.sourceBundleID && notices == 0,
+                             "baseline file access repair preserves history identity, order, timing, source and notices")
+                suite.expect(excluded ? repaired.fileReferences.isEmpty : repaired.fileReferences.first?.bookmark != nil,
+                             "baseline repairs access only after the current source passes exclusions")
+                suite.expect(Fixture.Sources.shared.lastRemote == excluded,
+                             "baseline file admission checks remote clipboard metadata before retaining contents")
+                subscription.cancel()
+            }
+        } catch { suite.expect(false, "baseline file fixture: \(error)") }
+    }
+
 }

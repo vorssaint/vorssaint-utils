@@ -183,6 +183,16 @@ enum ClipboardHistoryEntryKind: String, Codable {
     case files
 }
 
+/// Durable access to a copied file. Paths remain its display and deduplication
+/// identity; a bookmark can follow a moved original, and a private snapshot
+/// preserves a regular file whose source app later removes it.
+struct ClipboardHistoryFileReference: Codable, Equatable {
+    let path: String
+    var bookmark: Data?
+    var snapshotDirectory: String?
+}
+
+
 struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let id: UUID
     /// The content for text entries; empty for images and files, whose display
@@ -193,6 +203,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     let kind: ClipboardHistoryEntryKind
     /// Absolute paths for `.files` entries, in the order they were copied.
     let filePaths: [String]
+    var fileReferences: [ClipboardHistoryFileReference]
     /// PNG file name inside the clipboard image store for `.image` entries.
     let imageFile: String?
     /// SHA-256 of the PNG data, so re-copying the same image refreshes the
@@ -211,6 +222,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
          pinnedAt: Date? = nil,
          kind: ClipboardHistoryEntryKind = .text,
          filePaths: [String] = [],
+         fileReferences: [ClipboardHistoryFileReference] = [],
          imageFile: String? = nil,
          imageHash: String? = nil,
          imageWidth: Int? = nil,
@@ -221,6 +233,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         self.pinnedAt = pinnedAt
         self.kind = kind
         self.filePaths = filePaths
+        self.fileReferences = fileReferences
         self.imageFile = imageFile
         self.imageHash = imageHash
         self.imageWidth = imageWidth
@@ -319,7 +332,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
-        case sourceBundleID
+        case sourceBundleID, fileReferences
     }
 
     init(from decoder: Decoder) throws {
@@ -331,6 +344,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         // Histories written before images and files existed decode as text.
         kind = try container.decodeIfPresent(ClipboardHistoryEntryKind.self, forKey: .kind) ?? .text
         filePaths = try container.decodeIfPresent([String].self, forKey: .filePaths) ?? []
+        fileReferences = try container.decodeIfPresent([ClipboardHistoryFileReference].self, forKey: .fileReferences) ?? []
         imageFile = try container.decodeIfPresent(String.self, forKey: .imageFile)
         imageHash = try container.decodeIfPresent(String.self, forKey: .imageHash)
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)

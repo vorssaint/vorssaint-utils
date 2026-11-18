@@ -34,6 +34,7 @@ struct NotchClipboardView: View {
     /// pointer left until it closes.
     @State private var dwell: (id: UUID, task: Task<Void, Never>)?
     @State private var closing: (id: UUID, task: Task<Void, Never>)?
+    @State private var clipboardDragging = false
     /// The entry the arrow keys have rested on long enough to open, once they have moved.
     @State private var keyExpandedID: UUID?
     @State private var keysMoved = false
@@ -298,6 +299,7 @@ struct NotchClipboardView: View {
     /// moment after the pointer leaves it. Only coming back to that entry
     /// keeps it open; resting on another one or leaving the list closes it.
     private func hover(_ entry: ClipboardHistoryEntry, _ inside: Bool) {
+        guard !clipboardDragging else { return }
         guard !preview, !comfortable else { return }
         if inside {
             if closing?.id == entry.id {
@@ -327,6 +329,29 @@ struct NotchClipboardView: View {
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) { expandedID = nil }
             })
         }
+    }
+
+    /// Freeze the native source as soon as the mouse is pressed; a dwell
+    /// must not replace a compact row before it reaches the drag threshold.
+    private func cancelCardDwell() {
+        dwell?.task.cancel()
+        dwell = nil
+        closing?.task.cancel()
+        closing = nil
+    }
+
+    /// Keep an expanded compact card alive until AppKit finishes its drag.
+    private func setDragging(_ active: Bool) {
+        clipboardDragging = active
+        dwell?.task.cancel()
+        dwell = nil
+        closing?.task.cancel()
+        closing = nil
+        if !active {
+            hoveredID = nil
+            expandedID = nil
+        }
+        service.setClipboardDragging(active)
     }
 
     /// The icon of the app the entry was copied from, or the kind of entry when that is unknown.
@@ -389,6 +414,8 @@ struct NotchClipboardView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(lifts: false))
+            .clipboardHistoryDragSource(entry, activate: { activate(entry) },
+                                        pressed: cancelCardDwell, draggingChanged: setDragging)
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             if active {
                 HStack(spacing: 2) {
@@ -441,6 +468,8 @@ struct NotchClipboardView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(lifts: false))
+            .clipboardHistoryDragSource(entry, activate: { activate(entry) },
+                                        pressed: cancelCardDwell, draggingChanged: setDragging)
             .help(permissions.accessibility ? text.clickRowShortcut : text.copy)
             HStack(spacing: 5) {
                 sourceBadge(entry)
@@ -618,34 +647,29 @@ struct NotchClipboardView: View {
                     .frame(maxWidth: .infinity, alignment: .topLeading)
             }
         case .files:
-            // One image file shows itself; anything else reads as its name
-            // or its count, the way the panel lists files.
-            if entry.filePaths.count == 1, let path = entry.filePaths.first,
-               ClipboardImageStore.isImageFile(atPath: path) {
-                thumbnail(ClipboardThumbnailImage(source: .file(path: path),
-                                                  failureText: entry.fileNames.first ?? entry.preview),
-                          compact: compact)
-                    .help(path)
+            if compact {
+                searchText(entry.filePaths.count == 1
+                               ? (entry.fileNames.first ?? entry.preview)
+                               : String(format: text.fileCountFormat, entry.filePaths.count),
+                           matching: entry.filePaths.count == 1 ? searchTokens : [])
+                    .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             } else {
-                // A count of several files is no text the search reads.
-                let name = searchText(entry.filePaths.count == 1
-                                          ? (entry.fileNames.first ?? entry.preview)
-                                          : String(format: text.fileCountFormat, entry.filePaths.count),
-                                      matching: entry.filePaths.count == 1 ? searchTokens : [])
-                // A compact row leads with the files' own icon already, and
-                // opened it keeps that icon rather than becoming a folder.
-                Group {
-                    if compact {
-                        name
-                    } else {
-                        Label { name } icon: { if open { leadingIcon(entry) } else { Image(systemName: "folder") } }
+                VStack(alignment: .leading, spacing: 6) {
+                    if entry.filePaths.count == 1 {
+                        thumbnail(ClipboardFileThumbnail(entry: entry), compact: false)
+                    }
+                    HStack(spacing: 6) {
+                        leadingIcon(entry)
+                        searchText(entry.filePaths.count == 1
+                                       ? (entry.fileNames.first ?? entry.preview)
+                                       : String(format: text.fileCountFormat, entry.filePaths.count),
+                                   matching: entry.filePaths.count == 1 ? searchTokens : [])
+                            .font(.system(size: 12)).lineLimit(1).truncationMode(.middle)
                     }
                 }
-                .font(.system(size: 12))
-                .lineLimit(compact ? 1 : 2)
-                .truncationMode(.middle)
-                .frame(maxWidth: .infinity, alignment: .topLeading)
-                .help(entry.filePaths.joined(separator: "\n"))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                .help(entry.preview)
             }
         case .text:
             HStack(alignment: .firstTextBaseline, spacing: 7) {
@@ -744,22 +768,6 @@ private enum ClipboardSourceApps {
         let app = App(name: InstalledApps.name(for: bundleID), icon: NSWorkspace.shared.icon(forFile: url.path))
         cache[bundleID] = app
         return app
-    }
-}
-
-/// The icon Finder shows for an entry's files, looked up once per set of
-/// paths: the page draws its rows again whenever the pointer moves between them.
-@MainActor
-private enum ClipboardFileIcons {
-    private static var cache: [[String]: NSImage] = [:]
-
-    static func icon(for paths: [String]) -> NSImage? {
-        if let cached = cache[paths] { return cached }
-        guard let icon = NSWorkspace.shared.icon(forFiles: paths) else { return nil }
-        // Entries come and go over days; a full cache starts again.
-        if cache.count >= 256 { cache.removeAll() }
-        cache[paths] = icon
-        return icon
     }
 }
 
