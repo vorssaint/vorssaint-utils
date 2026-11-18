@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, diskAnalyzer
 
     var id: String { rawValue }
 
@@ -582,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .diskAnalyzer: return .diskAnalyzer
         }
     }
 }
@@ -618,7 +619,9 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityDiskAnalyzer) private var showDiskAnalyzer = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
+    @ObservedObject private var diskAnalyzer = DiskAnalyzerService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
     @State private var draggingItem: UtilityPanelItem?
@@ -676,6 +679,11 @@ struct UtilitiesSection: View {
                     PanelInteractionState.shared.viewKeepsPopoverOpen = false
                     showPortManagerPanel = false
                 }
+            } else if diskAnalyzer.isPresentedInUtilities {
+                PanelDiskAnalyzerView {
+                    PanelInteractionState.shared.viewKeepsPopoverOpen = false
+                    diskAnalyzer.setPresentedInUtilities(false)
+                }
             } else {
                 PanelRowGroup(items: items(editing: editing), showsDragHandles: editing) { item in
                     PanelReorderableItem(item: item,
@@ -694,9 +702,15 @@ struct UtilitiesSection: View {
         .onChange(of: hostedSettingsPage) { _, page in
             PanelInteractionState.shared.hostedSettingsPage = page
         }
+        .onChange(of: diskAnalyzer.panelPresentationID) { _, id in
+            guard id > 0, features.isAvailable(.diskAnalyzer) else { return }
+            diskAnalyzer.setPresentedInUtilities(true)
+        }
         .onDisappear {
             // Another section, or a metric, replacing this one takes the
             // tool off screen with it; a closed panel does not, and keeps it.
+            // Do not clear Disk Analyzer presentation here: island resizes
+            // recreate this section and must keep the taller results layout.
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
             PanelInteractionState.shared.hostedSettingsPage = nil
         }
@@ -717,6 +731,7 @@ struct UtilitiesSection: View {
         if showWindowLayoutPanel { return .windowLayout }
         if showAppUpdatesPanel { return .appUpdates }
         if showPortManagerPanel { return .portManager }
+        if diskAnalyzer.isPresentedInUtilities { return .diskAnalyzer }
         return nil
     }
 
@@ -727,6 +742,7 @@ struct UtilitiesSection: View {
         showUninstaller || showCleanerPanel || showURLCleaner || showHomebrewPanel
             || showMediaPanel || showClipboardPanel || showRecentCapturesPanel
             || showWindowLayoutPanel || showAppUpdatesPanel || showPortManagerPanel
+            || diskAnalyzer.isPresentedInUtilities
     }
 
     /// Homebrew browsing behaves like an ordinary popover. Other hosted tools
@@ -782,6 +798,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .diskAnalyzer: return showDiskAnalyzer
         }
     }
 
@@ -1026,6 +1043,14 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .diskAnalyzer:
+            UtilityActionButton(title: FeatureStrings.diskAnalyzer(l10n.language).pageTitle,
+                                caption: FeatureStrings.diskAnalyzer(l10n.language).panelCaption,
+                                systemImage: "square.grid.3x3.fill",
+                                isEditing: editing,
+                                showsDragHandle: true,
+                                visibility: $showDiskAnalyzer,
+                                action: { diskAnalyzer.setPresentedInUtilities(true) })
         }
     }
 
@@ -1103,6 +1128,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showDiskAnalyzer = true
     }
 
     private func grantAccessibility() {

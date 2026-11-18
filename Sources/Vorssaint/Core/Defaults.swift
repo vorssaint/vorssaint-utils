@@ -341,6 +341,12 @@ enum DefaultsKey {
     static let killProcessGroupRelated = "killProcessGroupRelated"
     static let killProcessSortBy = "killProcessSortBy" // cpu | memory | name | pid
     static let killProcessSortAscending = "killProcessSortAscending"
+    static let diskAnalyzerIncludeHidden = "diskAnalyzerIncludeHidden"
+    static let diskAnalyzerConfirmTrash = "diskAnalyzerConfirmTrash"
+    static let diskAnalyzerShowItemList = "diskAnalyzerShowItemList"
+    static let diskAnalyzerNestingDepth = "diskAnalyzerNestingDepth"
+    static let diskAnalyzerLastRootPath = "diskAnalyzerLastRootPath"
+    static let panelUtilityDiskAnalyzer = "panelUtilityDiskAnalyzer"
     static let panelUtilityCleaner = "panelUtilityCleaner"
     static let panelUtilityHomebrew = "panelUtilityHomebrew"
     static let homebrewGroupDependencies = "homebrewGroupDependencies"
@@ -1628,6 +1634,11 @@ enum Defaults {
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",
         DefaultsKey.killProcessSortAscending: false,
+        DefaultsKey.diskAnalyzerIncludeHidden: false,
+        DefaultsKey.diskAnalyzerConfirmTrash: true,
+        DefaultsKey.diskAnalyzerShowItemList: true,
+        DefaultsKey.diskAnalyzerNestingDepth: 3,
+        DefaultsKey.panelUtilityDiskAnalyzer: true,
         DefaultsKey.panelUtilityCleaner: true,
         DefaultsKey.panelUtilityHomebrew: true,
         DefaultsKey.homebrewGroupDependencies: true,

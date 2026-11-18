@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Disk Storage Map grows the Dynamic Island when a scan has results, so the map stays fully visible and only the file list scrolls.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary
