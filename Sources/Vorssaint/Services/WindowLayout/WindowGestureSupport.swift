@@ -636,7 +636,10 @@ enum WindowEdgeSnapSupport {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
         return systemTilingEnabled(
-            valueFor: { key in defaults.object(forKey: key) as? Bool },
+            valueFor: { key in
+                guard defaults.object(forKey: key) != nil else { return nil }
+                return defaults.bool(forKey: key)
+            },
             displaysSpan: displaysSpan(spacesPreference("spans-displays")),
             optionHeld: optionHeld
         )
