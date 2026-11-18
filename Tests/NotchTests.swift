@@ -3633,8 +3633,41 @@ enum NotchTests {
                                                                  DefaultsKey.notchCalendarCountdownLead,
                                                                  DefaultsKey.notchCalendarTimeLeft,
                                                                  DefaultsKey.notchCalendarWeekNumbers,
+                                                                 DefaultsKey.notchCalendarWeekLayout,
                                                                  AppFeature.notchCalendar.availabilityKey]),
                "calendar preferences travel in backup")
+        // The week down the side is a choice. An island that never had it, or
+        // a value written by something else, keeps the strip across the top.
+        suite.expect(NotchCalendarWeekLayout.current(in: defaults) == .horizontal
+                     && NotchCalendarWeekLayout(stored: nil) == .horizontal
+                     && NotchCalendarWeekLayout(stored: "sideways") == .horizontal
+                     && NotchCalendarWeekLayout(stored: "vertical") == .vertical,
+                     "the calendar week layout starts horizontal and only a known value moves it")
+        defaults.set(NotchCalendarWeekLayout.vertical.rawValue, forKey: DefaultsKey.notchCalendarWeekLayout)
+        suite.expect(NotchCalendarWeekLayout.current(in: defaults) == .vertical,
+                     "the calendar week layout can be set to vertical")
+        defaults.set(NotchCalendarWeekLayout.horizontal.rawValue, forKey: DefaultsKey.notchCalendarWeekLayout)
+        // Seven days share the page's height without passing it, and stay
+        // readable on the shortest page that offers them at all.
+        for height in [NotchLayout.calendarDayRailMinimumHeight, 180, 264, NotchSize.heightRange.upperBound] {
+            let cell = NotchLayout.calendarDayRailCellHeight(height: height)
+            let circle = NotchLayout.calendarDayRailCircle(cellHeight: cell)
+            suite.expect(cell * 7 <= height && cell >= 20,
+                         "seven days down the side fit a \(Int(height))-point page at \(Int(cell)) points each")
+            // The number's circle is bounded by the column as well as the day,
+            // so no day is drawn past the rule between the week and the agenda.
+            suite.expect(circle > 0 && circle <= cell - 2
+                         && NotchLayout.calendarDayRailLetterWidth + circle + NotchLayout.calendarDayRailDotWidth
+                         + NotchLayout.calendarDayRailCellSpacing * 2 <= NotchLayout.calendarDayRailWidth,
+                         "a day of the column keeps its letter, circle and dots inside "
+                         + "\(Int(NotchLayout.calendarDayRailWidth)) points at \(Int(cell)) points tall")
+        }
+        // The column and the rule beside it leave the agenda most of the
+        // narrowest island, which is the point of moving the week off the top.
+        let narrowestPage = NotchSize.widthRange.lowerBound - NotchLayout.horizontalInset * 2
+        suite.expect(narrowestPage - NotchLayout.calendarDayRailWidth
+                     - NotchLayout.calendarDayRailSpacing - 1 > narrowestPage / 2,
+                     "the week down the side leaves the agenda more than half the narrowest island")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchCalendarExcluded),
                      "hidden calendars travel in backup")
         suite.expect(NotchCalendarSupport.excludedCalendars(in: defaults).isEmpty,
@@ -3980,8 +4013,9 @@ enum NotchTests {
                && !weekNumberView.contains(".accessibilityHidden(true)"),
                "both month grids give VoiceOver each row's week number")
         suite.expect(!monthView.contains("Text(date, format: .dateTime.day())")
-               && monthView.components(separatedBy: "Text(calendar.component(.day, from: date), format: .number)").count == 4,
-               "the month grid, the week strip and the short month show each day's number without 日 or 일")
+               && monthView.components(separatedBy: "Text(calendar.component(.day, from: date), format: .number)").count == 5,
+               "the month grid, the week strip, the day rail and the short month show each day's number "
+               + "without 日 or 일")
         let march = NotchCalendarSupport.monthDays(containing: date(2026, 3, 15), calendar: calendar)
         suite.expect(march.contains(date(2026, 3, 8)) && march.contains(date(2026, 3, 9))
                && date(2026, 3, 9).timeIntervalSince(date(2026, 3, 8)) == 23 * 3600,

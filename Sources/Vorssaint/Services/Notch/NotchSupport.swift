@@ -356,6 +356,35 @@ enum NotchLayout {
         min(30, max(16, ((height - calendarMonthWeekdayHeight) / 6).rounded(.down)))
     }
 
+    /// The week down the side of the calendar page: seven days in a column
+    /// narrow enough to leave the agenda most of the island's width. A day
+    /// holds its weekday letter, the number in its circle and a dot for each
+    /// of up to three calendars, all on one line.
+    static let calendarDayRailWidth: CGFloat = 48
+    /// Between that column and the agenda, where the rule between them sits.
+    static let calendarDayRailSpacing: CGFloat = 12
+    /// A day of the column, sized to the page: tall enough to read, never so
+    /// tall that seven of them pass the island's height.
+    static func calendarDayRailCellHeight(height: CGFloat) -> CGFloat {
+        min(32, max(20, (height / 7).rounded(.down)))
+    }
+    /// Seven days at their shortest. A page shorter than this keeps the week
+    /// across the top, where it costs one row instead of seven.
+    static var calendarDayRailMinimumHeight: CGFloat { 20 * 7 }
+    /// A day's parts across the column, with a gap between each. The letter
+    /// keeps a column of its own so the circles line up under each other
+    /// whatever width a language's letter takes, and the dots a column the
+    /// width of one dot.
+    static let calendarDayRailLetterWidth: CGFloat = 13
+    static let calendarDayRailDotWidth: CGFloat = 3
+    static let calendarDayRailCellSpacing: CGFloat = 3
+    /// The day's circle, which the column's width bounds as well as the
+    /// day's height, so a number can never be drawn past the rule beside it.
+    static func calendarDayRailCircle(cellHeight: CGFloat) -> CGFloat {
+        min(calendarDayRailWidth - calendarDayRailLetterWidth - calendarDayRailDotWidth
+            - calendarDayRailCellSpacing * 2, min(24, cellHeight - 2))
+    }
+
     /// The preview fills the page. A wide strip crops the camera to 16:9 and a
     /// narrow, tall island to 4:3, so a face stays in frame on either.
     static func cameraPreviewSize(in size: CGSize) -> CGSize {
