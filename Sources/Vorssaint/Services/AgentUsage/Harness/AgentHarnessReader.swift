@@ -28,6 +28,15 @@ extension AgentProvider {
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
         case .commandcode: CommandCodeReader()
+        case .antigravity: AccountOnlyReader(provider: self)
         }
     }
+}
+
+/// For the agents known only by their plan limits, which they report from the
+/// account rather than into a log: there is nothing to parse.
+struct AccountOnlyReader: AgentHarnessReader {
+    let provider: AgentProvider
+
+    func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] { [] }
 }

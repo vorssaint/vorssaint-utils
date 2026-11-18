@@ -86,6 +86,8 @@ final class AgentUsageService: ObservableObject {
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
     private var store = AgentUsageStore()
+    private var localActivity: [AgentProvider: Date] = [:]
+    private var localTurns: [AgentProvider: [AgentTurn]] = [:]
     private var cursors: [String: AgentLogCursor] = [:]
     private var watcher: AgentLogWatcher?
     private var watchedRoots: [AgentLogRoot] = []
@@ -180,6 +182,7 @@ final class AgentUsageService: ObservableObject {
             guard readerSession >= 0 else { return }
             watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
             filesChanged([], rescan: true)
+            readLocalActivities()
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
             schedulePublish()
@@ -298,6 +301,9 @@ final class AgentUsageService: ObservableObject {
             readerClaudeProfile = claudeProfile
             store = AgentUsageStore()
             cursors.removeAll()
+            localActivity.removeAll()
+            localTurns.removeAll()
+            readLocalActivities()
             // Prices first, so the first read is already priced.
             loadPrices()
             // Keep the loading state until all initial history has been read.
@@ -414,7 +420,8 @@ final class AgentUsageService: ObservableObject {
     /// Never create a timer here: late work after pause or stop must stay idle.
     private func syncPolling(now: Date = Date()) {
         guard let poller else { return }
-        let wanted = !store.turns.isEmpty || !store.waiting.isEmpty
+        let hasRunningLocalTurn = localTurns.values.contains { turns in turns.contains { $0.running } }
+        let wanted = !store.turns.isEmpty || !store.waiting.isEmpty || hasRunningLocalTurn
             || cursors.values.contains { now.timeIntervalSince($0.modified) < Self.pollWindow }
         guard wanted != polling else { return }
         polling = wanted
@@ -607,6 +614,7 @@ final class AgentUsageService: ObservableObject {
             }
             readClaudePlan()
             readClaudeApp(now: now)
+            readLocalActivities()
             checkLimits()
             reportRenewals(now: now)
             if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
@@ -627,13 +635,15 @@ final class AgentUsageService: ObservableObject {
         let claudeOrganization: String?
         let claudeIdentity: ClaudeAccountProfile.Identity?
         let claudeApp: [AgentClaudeAppUsage.Sample]
+        let localActivity: [AgentProvider: Date]
+        let localTurns: [AgentProvider: [AgentTurn]]
     }
 
     /// Runs on `queue`.
     private var inputs: Inputs {
         Inputs(records: store.records.count, turns: store.turns, limits: store.limits, codexPlan: store.codexPlan,
                claudePlan: claudePlan, claudeOrganization: claudeOrganization, claudeIdentity: claudeIdentity,
-               claudeApp: claudeAppSamples)
+               claudeApp: claudeAppSamples, localActivity: localActivity, localTurns: localTurns)
     }
 
     /// Runs on `queue` and hands the finished snapshot to the main thread.
@@ -643,7 +653,35 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        for (provider, date) in localActivity where enabled.contains(provider) {
+            next.lastActivity[provider] = max(next.lastActivity[provider] ?? .distantPast, date)
+            next.seen.insert(provider)
+        }
+        for (provider, turns) in localTurns where enabled.contains(provider) {
+            let finished = turns.filter { !$0.running }
+            if !finished.isEmpty {
+                next.turns[provider] = finished
+                next.seen.insert(provider)
+            }
+            for running in turns where running.running {
+                let liveSession = AgentLiveSession(
+                    id: running.conversation,
+                    provider: provider,
+                    started: running.start,
+                    lastActivity: max(running.end, localActivity[provider] ?? running.end),
+                    model: "",
+                    project: "",
+                    tokens: AgentTokens(),
+                    cost: 0
+                )
+                next.live.append(liveSession)
+                next.seen.insert(provider)
+            }
+        }
+        if !next.live.isEmpty {
+            next.live.sort { $0.started < $1.started }
+        }
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -799,6 +837,41 @@ final class AgentUsageService: ObservableObject {
             store.setLimits(latest)
         } else {
             store.clearLimits(.claude)
+        }
+    }
+
+    /// Reads latest mtime and chat turns of local session files for providers without usage logs. Runs on `queue`.
+    private func readLocalActivities() {
+        guard readerSession >= 0 else { return }
+        localActivity.removeValue(forKey: .commandcode)
+        localTurns.removeValue(forKey: .commandcode)
+        let now = Date()
+        for provider in [AgentProvider.antigravity] {
+            guard enabled.contains(provider) else {
+                localActivity.removeValue(forKey: provider)
+                localTurns.removeValue(forKey: provider)
+                AgentAntigravityUsage.clearCache()
+                let files = Set(store.records.filter { $0.provider == .antigravity }.map { "antigravity:\($0.session)" })
+                for file in files { store.forget(file: file) }
+                continue
+            }
+            let roots = AgentLocalActivity.defaultRoots(for: provider, home: home)
+            let turns = AgentTurnReader.readTurns(for: provider, roots: roots, now: now)
+            localTurns[provider] = turns
+            localActivity[provider] = turns.map(\.end).max() ?? AgentLocalActivity.latestActivity(for: provider, roots: roots)
+
+            let records = AgentAntigravityUsage.readRecords(home: home, now: now)
+            let grouped = Dictionary(grouping: records, by: { $0.record.session })
+            for (session, items) in grouped {
+                let entries = items.map {
+                    AgentLogEntry.usage(
+                        key: $0.key,
+                        record: $0.record,
+                        billable: AgentBillable(tokens: $0.record.tokens, isAggregate: false)
+                    )
+                }
+                store.apply(entries, file: "antigravity:\(session)", provider: .antigravity, tracksTurns: false, modified: now, now: now)
+            }
         }
     }
 

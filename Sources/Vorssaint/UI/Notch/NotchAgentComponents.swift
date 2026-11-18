@@ -13,6 +13,7 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .commandcode: return Color(red: 0.95, green: 0.68, blue: 0.25)
+        case .antigravity: return Color(red: 0.66, green: 0.47, blue: 0.95)
         }
     }
 }
@@ -352,7 +353,7 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
-        // Terminal tool: a drawn mark, no desktop app to borrow one from.
+        // Terminal tools: a drawn mark, no desktop app to borrow one from.
         if let drawn = AgentDrawnMarks.image(for: provider) { return .template(drawn) }
         for identifier in provider.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
@@ -378,8 +379,8 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
-        // Terminal tool: no desktop app whose icon could stand in.
-        case .commandcode: return []
+        // Terminal tools: no desktop app whose icon could stand in.
+        case .commandcode, .antigravity: return []
         }
     }
 
@@ -395,7 +396,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
-        case .commandcode: return []
+        case .commandcode, .antigravity: return []
         }
     }
 }

@@ -68,6 +68,8 @@ enum AgentUsageReadTests {
         var readerCancellation: Cancellation? = Cancellation()
         var cursors: [String: AgentLogCursor] = [:]
         var store = AgentUsageStore()
+        var localActivity: [AgentProvider: Date] = [:]
+        var localTurns: [AgentProvider: [AgentTurn]] = [:]
         var enabled: Set<AgentProvider> = []
         var readerClaudeProfile = ClaudeAccountProfile()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
@@ -83,6 +85,7 @@ enum AgentUsageReadTests {
         func closeEndedTurns(_ roots: [AgentLogRoot], atLaunch: Bool) {}
         func readClaudePlan() {}
         func readClaudeApp(now: Date) {}
+        func readLocalActivities() {}
         func watch(_ roots: [AgentLogRoot]) { watchedRoots = roots }
         func startPolling() {}
         func syncPolling() {}
@@ -146,7 +149,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
-                case .commandcode: break
+                case .commandcode, .antigravity: break
                 }
             }
             if provider == .copilot {

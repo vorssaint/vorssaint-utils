@@ -1,0 +1,1 @@
+{"conversation_id":"","status":"SUCCESS","response":"usage text","duration_seconds":0,"num_turns":0,"usage":{"input_tokens":0,"output_tokens":0,"thinking_tokens":0,"cache_read_tokens":0,"total_tokens":0},"command":{"name":"usage","data":{"description":"Quota for the account.","groups":[]}}}

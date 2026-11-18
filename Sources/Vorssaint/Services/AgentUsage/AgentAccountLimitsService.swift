@@ -3,10 +3,16 @@
 
 import Foundation
 
-/// Asks Command Code how much of its plan is left, at most every five
-/// minutes, and hands the answer to `AgentUsageService`, which keeps it with
-/// the others, warns on it and shows it. Nothing runs while the section or
-/// the agent is off. After a failure it waits for a deliberate check.
+/// Asks the agents known only by their plan limits (Command Code and
+/// Antigravity) how much of their plan is left, and hands each answer to
+/// `AgentUsageService`, which keeps it with the others, warns on it and shows
+/// it. Nothing runs while the section or the agent is off.
+///
+/// - Command Code: one request set at most every five minutes.
+/// - Antigravity: runs `agy`, which costs more than a request, so at most
+///   every fifteen minutes and only while its page shows or on a deliberate
+///   check. After any failure it waits for such a check: a keychain question
+///   the person declined is not asked again by itself.
 ///
 /// Main thread, except the work, which runs on its own queue.
 final class AgentAccountLimitsService {
@@ -27,7 +33,7 @@ final class AgentAccountLimitsService {
 
     private init() {}
 
-    private static let covered: [AgentProvider] = [.commandcode]
+    private static let covered: [AgentProvider] = [.commandcode, .antigravity]
 
     /// The preferences changed, or the island came back.
     func synchronize() {
@@ -88,6 +94,9 @@ final class AgentAccountLimitsService {
             // Away from the page, only as often as the notices need.
             let gap = visible ? AgentCommandCodeAccount.minimumGap : max(Self.backgroundGap, AgentCommandCodeAccount.minimumGap)
             return now.timeIntervalSince(asked[provider] ?? .distantPast) >= gap
+        case .antigravity:
+            guard visible || forced else { return false }
+            return now.timeIntervalSince(asked[provider] ?? .distantPast) >= AgentAntigravityAccount.minimumGap
         default:
             return false
         }
@@ -101,6 +110,7 @@ final class AgentAccountLimitsService {
             let reading: AgentLimits?
             switch provider {
             case .commandcode: reading = Self.commandCode(now: now)
+            case .antigravity: reading = Self.antigravity(now: now)
             default: reading = nil
             }
             DispatchQueue.main.async {
@@ -125,6 +135,14 @@ final class AgentAccountLimitsService {
         guard case .success(let key) = AgentCommandCodeAccount.apiKey(authFile: auth, installed: installed),
               case .success(let summary) = AgentCommandCodeAccount.check(key: key, now: now, fetch: fetch) else { return nil }
         return summary.limits
+    }
+
+    private static func antigravity(now: Date) -> AgentLimits? {
+        guard AgentAntigravityAccount.executable() != nil else { return nil }
+        guard case .success(let limits) = AgentAntigravityAccount.check(
+            keychain: AgentAntigravityAccount.readKeychain(), now: now, run: { AgentAntigravityAccount.runProgram($0) })
+        else { return nil }
+        return limits
     }
 
     /// One request, answered or not. The key goes only where `request` sent it.

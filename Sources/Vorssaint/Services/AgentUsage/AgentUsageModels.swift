@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot, commandcode
+    case claude, codex, opencode, copilot, commandcode, antigravity
 
     var id: String { rawValue }
 
@@ -17,6 +17,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
         case .commandcode: return "Command Code"
+        case .antigravity: return "Antigravity"
         }
     }
 
@@ -27,11 +28,16 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .opencode: return "terminal"
         case .copilot: return "infinity"
         case .commandcode: return "command"
+        case .antigravity: return "arrow.up.circle"
         }
     }
 
     /// Whether the provider records a plan allowance in its local logs.
     var reportsLimits: Bool { self != .copilot }
+
+    /// Whether the provider writes session logs the island can read. The
+    /// others are known only by their plan limits, asked of the account.
+    var writesLogs: Bool { self != .antigravity }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
@@ -152,6 +158,30 @@ struct AgentLiveSession: Equatable, Identifiable {
     var project: String
     var tokens: AgentTokens
     var cost: Double
+}
+
+/// A turn an agent completed or is working on, derived from its local chat files.
+struct AgentTurn: Equatable {
+    let provider: AgentProvider
+    let conversation: String
+    let start: Date
+    let end: Date
+    let running: Bool
+    let endedCleanly: Bool
+
+    init(provider: AgentProvider,
+         conversation: String,
+         start: Date,
+         end: Date,
+         running: Bool,
+         endedCleanly: Bool = false) {
+        self.provider = provider
+        self.conversation = conversation
+        self.start = start
+        self.end = end
+        self.running = running
+        self.endedCleanly = endedCleanly
+    }
 }
 
 /// Something worth a moment in the closed island.

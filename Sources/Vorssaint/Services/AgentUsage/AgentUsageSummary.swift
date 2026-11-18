@@ -98,10 +98,17 @@ struct AgentUsageSnapshot: Equatable {
     /// The last half hour, scaled to an hour.
     var burnRate: [AgentProvider: AgentTotals] = [:]
     var lastActivity: [AgentProvider: Date] = [:]
+    var turns: [AgentProvider: [AgentTurn]] = [:]
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
+    /// The fullest plan window of an agent known only by its limits, which
+    /// leaves no log to say when it was last used.
+    func peakUsedFraction(_ provider: AgentProvider) -> Double? {
+        guard !provider.writesLogs else { return nil }
+        return limits[provider]?.windows.map(\.usedFraction).max()
+    }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
 }
 
