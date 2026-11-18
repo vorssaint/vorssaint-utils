@@ -8,7 +8,8 @@ import ApplicationServices
 /// Run off-main. Missing geometry fails closed rather than covering a menu.
 enum NotchMenuBarSpace {
     static func measure(pid: pid_t, geometry: NotchGeometry, primaryTop: CGFloat,
-                        ownWindow: Int, hasAccessibility: () -> Bool = AXIsProcessTrusted) -> CGFloat? {
+                        ownWindow: Int, gapWindow: Int = -1,
+                        hasAccessibility: () -> Bool = AXIsProcessTrusted) -> CGFloat? {
         guard hasAccessibility() else { return nil }
         let reader = NotchMenuBarAXReader(primaryTop: primaryTop)
         let app = AXUIElementCreateApplication(pid)
@@ -19,7 +20,7 @@ enum NotchMenuBarSpace {
         var statusItems: [CGRect] = []
         guard let windows = CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]] else { return nil }
         for window in windows {
-            guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow,
+            guard let number = window[kCGWindowNumber as String] as? Int, number != ownWindow, number != gapWindow,
                   let layer = window[kCGWindowLayer as String] as? Int,
                   layer >= Int(CGWindowLevelForKey(.statusWindow)),
                   layer <= Int(CGWindowLevelForKey(.statusWindow)) + 1,

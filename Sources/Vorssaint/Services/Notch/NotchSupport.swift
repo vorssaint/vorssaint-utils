@@ -3218,6 +3218,55 @@ struct NotchMenuBarFit: Equatable {
     }
 }
 
+/// An empty status item placed under the island, so the status items that
+/// would sit there are laid out to its left. Like menu bar managers, it is
+/// placed by writing its preferred position before it is created: macOS
+/// orders status items by that value, in points from the right edge of the
+/// display, and only reads it when the item appears.
+struct NotchMenuBarGap: Equatable {
+    static let autosaveName = "VorssaintNotchMenuBarGap"
+    /// Room kept past each end of the island. It exceeds the clearance the
+    /// menu measurement keeps from a status item, so the items laid out
+    /// beside the gap leave the wings their full width.
+    static let margin: CGFloat = 10
+    /// Smaller changes keep the gap where it is, since a new one lays out
+    /// the whole menu bar again.
+    static let recreateThreshold: CGFloat = 8
+
+    /// Points from the display's right edge to the gap's right end.
+    var position: CGFloat
+    var length: CGFloat
+
+    /// The gap under an island `width` wide, centred on the display and
+    /// moved `surfaceShift` toward a wider side. Beside a physical camera
+    /// `notchWidth` is the island's camera: the gap starts just past it, as
+    /// macOS hides a status item that reaches into the notch, and the items
+    /// it moves go behind the notch as on any full bar. Nil when there is
+    /// nothing to clear.
+    static func under(island width: CGFloat, surfaceShift: CGFloat = 0, screen: CGRect,
+                      notchWidth: CGFloat? = nil) -> NotchMenuBarGap? {
+        guard width.isFinite, width > 0, surfaceShift.isFinite, screen.width > 0 else { return nil }
+        let right = min(screen.maxX, screen.midX + surfaceShift + width / 2 + margin)
+        let left = notchWidth.map { screen.midX + max(0, $0) / 2 + 1 }
+            ?? max(screen.minX, screen.midX + surfaceShift - width / 2 - margin)
+        guard right > left else { return nil }
+        return NotchMenuBarGap(position: (screen.maxX - right).rounded(.down), length: (right - left).rounded(.up))
+    }
+
+    /// Only for an island hanging in the menu bar of its display while it
+    /// shows there. Beside a physical camera it clears only what reaches
+    /// past the housing; elsewhere the island itself sits on the items.
+    static func shows(enabled: Bool, presenting: Bool, hidden: Bool, floats: Bool, displayHasMenuBar: Bool,
+                      isNotched: Bool, islandWidth: CGFloat, cameraWidth: CGFloat) -> Bool {
+        guard enabled, presenting, !hidden, !floats, displayHasMenuBar, islandWidth.isFinite else { return false }
+        return isNotched ? islandWidth > cameraWidth + 1 : islandWidth > 0
+    }
+
+    func needsRecreating(for wanted: NotchMenuBarGap) -> Bool {
+        abs(wanted.position - position) > Self.recreateThreshold || abs(wanted.length - length) > Self.recreateThreshold
+    }
+}
+
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
 /// Unknown/occupied camera space is distinct from a known zero-width wing.
 enum NotchMenuBarLayout {

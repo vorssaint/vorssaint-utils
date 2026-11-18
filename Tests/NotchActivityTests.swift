@@ -23,6 +23,7 @@ enum NotchActivityTests {
         PeripheralBatteryLifecycleTests.run(suite)
         gateContracts(suite)
         menuBarFitContracts(suite)
+        menuBarGapContracts(suite)
     }
 
     /// Fitting the strip beside the menu bar's icons: on by default, saved
@@ -89,6 +90,50 @@ enum NotchActivityTests {
                      "agents and watches narrow to the room, and a download below its arrow gives way below the camera")
         suite.expect(base(room: 30, fit: covering).restingWingWidth == 44 && base(room: 30, fit: yielding).restingWingWidth == 0,
                      "the resting wings cover the menus or give way like an activity's")
+    }
+
+    /// The empty status item under the island: placed by its position from
+    /// the display's right edge, as wide as the island plus a margin, kept
+    /// right of a physical camera, and moved only past its threshold.
+    private static func menuBarGapContracts(_ suite: TestSuite) {
+        let plain = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        let gap = NotchMenuBarGap.under(island: 300, screen: plain)
+        suite.expect(gap == NotchMenuBarGap(position: 800, length: 320),
+                     "the gap spans the island and a margin on each side, placed from the display's right edge")
+        suite.expect(NotchMenuBarGap.under(island: 300, surfaceShift: 20, screen: plain)?.position == 780,
+                     "an island reaching toward one side moves its gap with it")
+        let offset = CGRect(x: 1920, y: 0, width: 1920, height: 1080)
+        suite.expect(NotchMenuBarGap.under(island: 300, screen: offset) == gap,
+                     "the position counts from the edge of the island's own display")
+        suite.expect(NotchMenuBarGap.under(island: 5000, screen: plain) == NotchMenuBarGap(position: 0, length: 1920),
+                     "a gap never reaches past the display")
+        let notched = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        suite.expect(NotchMenuBarGap.under(island: 300, screen: notched, notchWidth: 185)
+                     == NotchMenuBarGap(position: 596, length: 67),
+                     "beside a physical camera the gap starts past the notch, where macOS keeps status items")
+        suite.expect(NotchMenuBarGap.under(island: 0, screen: plain) == nil
+                     && NotchMenuBarGap.under(island: .nan, screen: plain) == nil,
+                     "an island with no width clears nothing")
+
+        func shows(enabled: Bool = true, presenting: Bool = true, hidden: Bool = false, floats: Bool = false,
+                   displayHasMenuBar: Bool = true, isNotched: Bool = false, islandWidth: CGFloat = 300) -> Bool {
+            NotchMenuBarGap.shows(enabled: enabled, presenting: presenting, hidden: hidden, floats: floats,
+                                  displayHasMenuBar: displayHasMenuBar, isNotched: isNotched,
+                                  islandWidth: islandWidth, cameraWidth: 185)
+        }
+        suite.expect(shows() && shows(isNotched: true), "an island in the menu bar keeps its gap")
+        suite.expect(!shows(enabled: false) && !shows(presenting: false) && !shows(hidden: true),
+                     "the setting off, a stopped island or a hidden one keeps no gap")
+        suite.expect(!shows(floats: true) && !shows(displayHasMenuBar: false),
+                     "a floating capsule or a display without the menu bar keeps no gap")
+        suite.expect(!shows(isNotched: true, islandWidth: 185) && shows(isNotched: true, islandWidth: 290),
+                     "an island no wider than the notch leaves the status items where they are")
+
+        let placed = NotchMenuBarGap(position: 800, length: 320)
+        suite.expect(!placed.needsRecreating(for: NotchMenuBarGap(position: 806, length: 328))
+                     && placed.needsRecreating(for: NotchMenuBarGap(position: 791, length: 320))
+                     && placed.needsRecreating(for: NotchMenuBarGap(position: 800, length: 329)),
+                     "the gap moves only past eight points, so the bar is not laid out again for a reading")
     }
 
     /// Keep Awake as an activity: off until turned on, gated like the others,
