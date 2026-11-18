@@ -932,6 +932,9 @@ enum DefaultsKey {
     static let notchAgentsLiveActivity = "notchAgentsLiveActivity"
     static let notchAgentsReadout = "notchAgentsReadout"
     static let notchAgentsFinishAlert = "notchAgentsFinishAlert"
+    // Claude waiting on its person: the strip and row signal, and its notice.
+    static let notchAgentsNeedsInput = "notchAgentsNeedsInput"
+    static let notchAgentsNeedsInputAlert = "notchAgentsNeedsInputAlert"
     static let notchAgentsFinishMinimum = "notchAgentsFinishMinimum"
     static let notchAgentsLimitAlert = "notchAgentsLimitAlert"
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
@@ -1540,6 +1543,8 @@ enum Defaults {
         DefaultsKey.notchAgentsLiveActivity: true,
         DefaultsKey.notchAgentsReadout: NotchAgentReadout.elapsed.rawValue,
         DefaultsKey.notchAgentsFinishAlert: true,
+        DefaultsKey.notchAgentsNeedsInput: true,
+        DefaultsKey.notchAgentsNeedsInputAlert: true,
         DefaultsKey.notchAgentsFinishMinimum: NotchAgentSupport.defaultFinishMinimum,
         DefaultsKey.notchAgentsLimitAlert: true,
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,

@@ -259,6 +259,7 @@ enum NotchPresentationRefreshContract {
         }
         var surfaceShift: CGFloat = 0
         var musicStripFitsInPlace = false
+        var agentStripFitsInPlace = false
         var musicStripShowsControl = false
         var namedMusicWings: NotchNoticeWings?
         var musicStripNamesSong = false
@@ -323,6 +324,24 @@ enum NotchPresentationRefreshContract {
         strip.refreshPresentation()
         suite.expect(strip.windowHost?.steady == false && !strip.musicStripFitsInPlace,
                      "a request left over when the strip is gone never steadies another activity")
+
+        // The agent strip trading "Needs you" for its reading eases the same way.
+        let agents = Service()
+        agents.expanded = false
+        agents.compactActivityIsVisible = true
+        agents.compactActivity = .agents
+        agents.refreshPresentation(animated: false)
+        agents.agentStripFitsInPlace = true
+        agents.refreshPresentation()
+        suite.expect(agents.windowHost?.steady == true && !agents.agentStripFitsInPlace,
+                     "the agent strip fitting a new reading eases to its width once, without a swing")
+        agents.refreshPresentation()
+        suite.expect(agents.windowHost?.steady == false, "the agent strip's later refreshes move as usual")
+        agents.compactActivity = .timer
+        agents.agentStripFitsInPlace = true
+        agents.refreshPresentation()
+        suite.expect(agents.windowHost?.steady == false && !agents.agentStripFitsInPlace,
+                     "a left-over agent request never steadies another activity")
 
         let capsule = Service()
         capsule.expanded = false
