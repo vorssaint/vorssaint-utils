@@ -163,7 +163,6 @@ private struct NotchEditablePercent: View {
     @Binding var editingID: String?
     let label: String
     var tint: Color = .secondary
-    var boosting = false
     var width: CGFloat = 40
     var height: CGFloat = 18
     let commit: (Double) -> Void
@@ -172,19 +171,69 @@ private struct NotchEditablePercent: View {
     var body: some View {
         EditableVolumePercent(currentPercent: percent, maximumPercent: maximum, width: width, height: height,
                               editorID: editorID, editingID: $editingID, accessibilityLabel: label) {
-            HStack(spacing: 1) {
-                if boosting {
-                    Image(systemName: "bolt.fill").font(.system(size: 7, weight: .bold)).foregroundStyle(tint)
-                }
-                Text("\(percent)%")
-                    .font(.system(size: height > 18 ? 12 : 10, weight: .medium)).monospacedDigit()
-                    .foregroundStyle(tint)
-                    .contentTransition(.numericText())
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: percent)
-            }
-            .frame(maxWidth: .infinity, minHeight: height)
+            Text("\(percent)%")
+                .font(.system(size: height > 18 ? 12 : 10, weight: .medium)).monospacedDigit()
+                .foregroundStyle(tint)
+                .contentTransition(.numericText())
+                .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: percent)
+                // A boost's orange fades in and out with the speaker's.
+                .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: tint)
+                .frame(maxWidth: .infinity, minHeight: height)
         } onCommit: { commit($0) }
         .frame(height: height)
+    }
+}
+
+/// A fader's speaker: `speaker.wave.3.fill` with each wave faded on its own,
+/// so moving between thirds of the fader fades just the wave that changes.
+/// Muted, the waves fade out and the struck-out speaker fades in over the
+/// same spot: both symbols start their speaker at the same place from the
+/// left, and the frame stays the width of all three waves, so nothing moves.
+private struct NotchFaderSpeaker: View {
+    let waves: Int
+    let muted: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            ForEach(1...3, id: \.self) { wave in
+                Image(systemName: "speaker.wave.3.fill")
+                    .mask { NotchSpeakerWaveZone(wave: wave) }
+                    .opacity(muted ? 0 : MixerRoutingSupport.speakerWaveOpacity(wave, third: waves))
+            }
+            Image(systemName: "speaker.slash.fill")
+                .opacity(muted ? 1 : 0)
+        }
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: waves)
+        .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
+    }
+}
+
+/// The part of `speaker.wave.3.fill` that holds one wave, with the speaker
+/// going with the first. The waves are arcs around one centre, so rings
+/// between them part them cleanly. Measured as fractions of the symbol's
+/// width at 12 and 15 points, medium weight, which the mixer uses; the bounds
+/// sit in the middle of the gaps between waves at both sizes.
+private struct NotchSpeakerWaveZone: Shape {
+    static let center = 0.405
+    static let firstGap = 0.25
+    static let secondGap = 0.40
+    let wave: Int
+
+    func path(in rect: CGRect) -> Path {
+        let center = CGPoint(x: rect.minX + rect.width * Self.center, y: rect.midY)
+        func circle(_ radius: Double) -> Path {
+            let r = rect.width * radius
+            return Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: r * 2, height: r * 2))
+        }
+        let everything = Path(rect.insetBy(dx: -rect.width, dy: -rect.height))
+        let right = Path(CGRect(x: center.x, y: rect.minY - rect.height,
+                                width: rect.maxX - center.x + rect.width, height: rect.height * 3))
+        switch wave {
+        case 3...: return right.subtracting(circle(Self.secondGap))
+        case 2: return right.intersection(circle(Self.secondGap).subtracting(circle(Self.firstGap)))
+        default: return everything.subtracting(right.subtracting(circle(Self.firstGap)))
+        }
     }
 }
 
@@ -211,11 +260,9 @@ private struct NotchMasterFader: View {
             Button {
                 if let muted = mixer.systemOutputMuted { adjustOutput(muted: !muted) }
             } label: {
-                Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                NotchFaderSpeaker(waves: MixerRoutingSupport.speakerWaves(volume: level ?? 0, maximum: 1), muted: muted)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(muted ? Color.red : Color.white)
-                    .contentTransition(.symbolEffect(.replace))
-                    .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: muted)
                     .frame(width: 32, height: 32)
                     .contentShape(Circle())
             }
@@ -492,6 +539,7 @@ private struct NotchAppFader: View {
     let moveForward: (() -> Void)?
     @ObservedObject private var mixer = AppVolumeMixer.shared
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var strings: MixerFeatureStrings { FeatureStrings.mixer(l10n.language) }
     private var percent: Int { MixerRoutingSupport.displayPercent(forVolume: app.volume) }
     private var sharingStrings: MixerScreenSharingStrings { .localized(l10n.language) }
@@ -533,7 +581,7 @@ private struct NotchAppFader: View {
                 NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
                                      label: app.name, tint: boosting ? .orange : .secondary,
-                                     boosting: boosting, height: 28) {
+                                     height: 28) {
                     mixer.setVolume($0, for: app)
                 }
                 .frame(maxWidth: .infinity)
@@ -553,9 +601,14 @@ private struct NotchAppFader: View {
                 }
                 .overlay(alignment: .trailing) {
                     Button { mixer.toggleMute(app) } label: {
-                        Image(systemName: muted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                        // The speaker matches the boost's orange, as the
+                        // percent beside it does, fading into it.
+                        NotchFaderSpeaker(waves: MixerRoutingSupport.speakerWaves(volume: app.volume,
+                                                                                  maximum: AppVolumeMixer.maxVolume),
+                                          muted: muted)
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(muted ? Color.red : Color.secondary)
+                            .foregroundStyle(muted ? Color.red : boosting ? Color.orange : Color.secondary)
+                            .animation(reduceMotion ? nil : .smooth(duration: 0.24), value: boosting)
                             .frame(width: 28, height: 28)
                             .contentShape(Rectangle())
                     }
