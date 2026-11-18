@@ -3,6 +3,29 @@
 
 import AppKit
 
+/// WindowServer can deliver on a worker queue while the feature stops on main.
+final class SwitcherNotificationLifetime {
+    private let lock = NSLock()
+    private var active: UUID?
+    var current: UUID? { lock.withLock { active } }
+    func start() { lock.withLock { active = UUID() } }
+    func stop() { lock.withLock { active = nil } }
+}
+
+struct SwitcherWindowWatch {
+    private var accepted: Set<CGWindowID>?
+
+    mutating func update(to ids: Set<CGWindowID>, request: (Set<CGWindowID>) -> Bool) -> Bool {
+        if accepted == ids { return true }
+        guard request(ids) else {
+            accepted = nil
+            return false
+        }
+        accepted = ids
+        return true
+    }
+}
+
 /// Bridges private WindowServer notifications to switcher events on main.
 final class SwitcherWindowEvents {
     static let shared = SwitcherWindowEvents()
@@ -37,7 +60,8 @@ final class SwitcherWindowEvents {
     }
     private var handler: ((Event) -> Void)?
     private var registered = Set<Notification>()
-    private var watched: Set<CGWindowID> = []
+    private let lifetime = SwitcherNotificationLifetime()
+    private var watchState = SwitcherWindowWatch()
 
     private static func symbol(_ name: String) -> UnsafeMutableRawPointer? {
         dlsym(UnsafeMutableRawPointer(bitPattern: -2), name)
@@ -61,7 +85,8 @@ final class SwitcherWindowEvents {
 
     // WindowServer calls off-main; copy the window ID before its payload expires.
     private static let notificationCallback: NotificationCallback = { event, data, length, _, _ in
-        guard let notification = Notification(rawValue: event) else { return }
+        let owner = SwitcherWindowEvents.shared
+        guard let generation = owner.lifetime.current, let notification = Notification(rawValue: event) else { return }
         var windowID: CGWindowID = 0
         if let data, length >= MemoryLayout<CGWindowID>.size {
             memcpy(&windowID, data, MemoryLayout<CGWindowID>.size)
@@ -76,7 +101,8 @@ final class SwitcherWindowEvents {
             decoded = .changed(windowID)
         }
         DispatchQueue.main.async {
-            SwitcherWindowEvents.shared.handler?(decoded)
+            guard owner.lifetime.current == generation else { return }
+            owner.handler?(decoded)
         }
     }
 
@@ -86,6 +112,7 @@ final class SwitcherWindowEvents {
 
     func start(handler: @escaping (Event) -> Void) -> Bool {
         self.handler = handler
+        lifetime.start()
         guard connection != 0, let registerNotification, requestWindowNotifications != nil else { return false }
         for notification in Notification.allCases where !registered.contains(notification) {
             if registerNotification(connection, Self.notificationCallback, notification.rawValue, nil) == .success {
@@ -95,17 +122,20 @@ final class SwitcherWindowEvents {
         return registered.count == Notification.allCases.count
     }
 
-    func watch(_ windowIDs: Set<CGWindowID>) {
-        guard handler != nil, windowIDs != watched, let requestWindowNotifications else { return }
-        watched = windowIDs
-        var windows = Array(windowIDs)
-        // This API replaces the entire watched set, including when clearing it.
-        windows.withUnsafeMutableBufferPointer { buffer in
-            _ = requestWindowNotifications(connection, buffer.baseAddress, Int32(buffer.count))
+    @discardableResult
+    func watch(_ windowIDs: Set<CGWindowID>) -> Bool {
+        guard let requestWindowNotifications else { return false }
+        let connection = self.connection
+        return watchState.update(to: windowIDs) { ids in
+            var windows = Array(ids)
+            return windows.withUnsafeMutableBufferPointer { buffer in
+                requestWindowNotifications(connection, buffer.baseAddress, Int32(buffer.count)) == .success
+            }
         }
     }
 
     func stop() {
+        lifetime.stop()
         watch([])
         handler = nil
     }

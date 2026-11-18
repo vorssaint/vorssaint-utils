@@ -38,6 +38,20 @@ enum SwitcherRememberedSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        let lifetime = SwitcherNotificationLifetime()
+        lifetime.start()
+        let queued = lifetime.current
+        lifetime.stop()
+        suite.expect(queued != nil && lifetime.current == nil, "a stopped switcher has no event lifetime to enqueue")
+        lifetime.start()
+        suite.expect(lifetime.current != queued, "work queued before disabling cannot deliver into a new session")
+        var watch = SwitcherWindowWatch()
+        var requests = 0
+        let failed = watch.update(to: [4]) { _ in requests += 1; return false }
+        let retried = watch.update(to: [4]) { _ in requests += 1; return true }
+        let unchanged = watch.update(to: [4]) { _ in requests += 1; return false }
+        suite.expect(!failed && retried && unchanged && requests == 2,
+                     "a rejected notification subscription retries and an accepted subscription is reused")
         var spaces = SwitcherInventorySpaces()
         _ = spaces.changed(to: [1], notified: false)
         let inFlightRevision = spaces.revision

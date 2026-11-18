@@ -199,6 +199,10 @@ def main():
     write("SwitcherRememberedSelection.swift", "import AppKit\nimport ApplicationServices\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "struct SwitcherInventorySpaces {")
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
+                        "final class SwitcherNotificationLifetime {")
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
+                        "struct SwitcherWindowWatch {")
           + "extension SwitcherRememberedSelectionTests.Selection {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowSelection.swift",
                         "    static func contains(")

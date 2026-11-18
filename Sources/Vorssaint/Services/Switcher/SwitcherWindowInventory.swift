@@ -23,6 +23,7 @@ final class SwitcherWindowInventory {
     private var refreshInFlight = false
     private var spaces = SwitcherInventorySpaces()
     private var fallbackTimer: Timer?
+    private var observesWindowEvents = false
     private var needsFullRefresh = false
     private var pendingPIDs: Set<pid_t> = []
     private var pendingWindowIDs: Set<CGWindowID> = []
@@ -41,10 +42,8 @@ final class SwitcherWindowInventory {
         guard lifetime == nil else { return }
         lifetimeLock.withLock { lifetime = UUID() }
         titles.onChange = { [weak self] pid in self?.invalidate(pid: pid) }
-        let observingWindows = SwitcherWindowEvents.shared.start { [weak self] event in self?.receive(event) }
-        if !observingWindows {
-            fallbackTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.invalidate() }
-        }
+        observesWindowEvents = SwitcherWindowEvents.shared.start { [weak self] event in self?.receive(event) }
+        setFallbackPolling(!observesWindowEvents)
         _ = spaces.changed(to: SpaceWindowBridge.topology()?.visibleSpaces, notified: false)
         let center = NSWorkspace.shared.notificationCenter
         let notifications = [NSWorkspace.didLaunchApplicationNotification,
@@ -78,10 +77,18 @@ final class SwitcherWindowInventory {
         refresh()
     }
 
+    private func setFallbackPolling(_ needed: Bool) {
+        if !needed {
+            fallbackTimer?.invalidate()
+            fallbackTimer = nil
+        } else if fallbackTimer == nil {
+            fallbackTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.invalidate() }
+        }
+    }
+
     func stop() {
         lifetimeLock.withLock { lifetime = nil }
-        fallbackTimer?.invalidate()
-        fallbackTimer = nil
+        setFallbackPolling(false)
         spaces = SwitcherInventorySpaces()
         pendingRefresh?.cancel()
         pendingRefresh = nil
@@ -300,7 +307,8 @@ final class SwitcherWindowInventory {
         let currentIDs = Set(updated.items.compactMap(\.windowID))
         updated.accessibilityElements = updated.accessibilityElements.filter { currentIDs.contains($0.key) }
         remembered = updated
-        SwitcherWindowEvents.shared.watch(updated.observedWindowIDs.subtracting(destroyedDuringRefresh))
+        let watching = SwitcherWindowEvents.shared.watch(updated.observedWindowIDs.subtracting(destroyedDuringRefresh))
+        setFallbackPolling(!observesWindowEvents || !watching)
         titles.update(updated.accessibilityElements)
         isReady = true
         onReady?()
