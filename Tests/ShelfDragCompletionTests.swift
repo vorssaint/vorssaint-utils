@@ -345,16 +345,19 @@ enum ShelfDragCompletionTests {
                     && batchService.sourceOperationMask(for: .outsideApplication) == .copy,
                    "a mixed batch protects its package content while retaining every leaf")
             batchService.completeInternalDrag(dropAccepted: false)
-            let ordinary = item(plain)
+            // The earlier bookmark scenarios moved plain into and then out of
+            // the package. Its current, ordinary path is exported.
+            let ordinary = item(exported)
             let web = Context.Service.Item(payload: .link(URL(string: "https://example.com")!),
                                            title: "link", icon: NSImage(), isImage: false)
             batchService.items = [ordinary, note, web]
             batchService.selection = [ordinary.id, note.id, web.id]
             let ordinaryTile = Context.Tile(item: ordinary)
             beginAndWait(ordinaryTile)
-            suite.expect(ordinaryTile.draggedIDs == [ordinary.id, note.id, web.id]
-                    && batchService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
-                   "a text or link next to an ordinary file does not remove its move operation")
+            suite.expect(ordinaryTile.draggedIDs == [ordinary.id, note.id, web.id],
+                         "a mixed drag preserves all three live items and their order")
+            suite.expect(batchService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
+                         "a text or link next to an ordinary file does not remove its move operation")
             batchService.completeInternalDrag(dropAccepted: false)
 
             let missing = item(root.appendingPathComponent("missing"))
