@@ -9,6 +9,7 @@ enum NotchActivityTests {
     static func run(_ suite: TestSuite) {
         timerContracts(suite)
         alertContracts(suite)
+        alertSoundContracts(suite)
         lowBatteryContracts(suite)
         pomodoroContracts(suite)
         stopwatchContracts(suite)
@@ -155,6 +156,44 @@ enum NotchActivityTests {
         suite.expect(NotchSupport.menuBarBatteryWarning(percent: 10, externalConnected: false, in: defaults) == .none
                      && NotchSupport.batteryWarning(percent: 10, externalConnected: false, in: defaults) == .low,
                      "the menu bar can keep its usual color while the island warns")
+    }
+
+    /// The alarm rings with the chosen sound, from the ringtones or the alert
+    /// sounds, and a choice this Mac cannot play falls back to Glass.
+    private static func alertSoundContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.timer-sound"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        let available = ["ringtone:Radar", "Glass", "Hero"]
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchTimerSoundName] as? String == "Glass"
+               && SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchTimerSoundName),
+               "the alarm keeps Glass by default and its sound travels with settings backups")
+        suite.expect(NotchTimerSupport.soundName(in: defaults, available: available) == "Glass",
+               "with no choice made, the alarm rings with Glass as before")
+        defaults.set("ringtone:Radar", forKey: DefaultsKey.notchTimerSoundName)
+        suite.expect(NotchTimerSupport.soundName(in: defaults, available: available) == "ringtone:Radar",
+               "a chosen ringtone is the one that rings")
+        defaults.set("Hero", forKey: DefaultsKey.notchTimerSoundName)
+        suite.expect(NotchTimerSupport.soundName(in: defaults, available: available) == "Hero",
+               "a chosen alert sound is the one that rings")
+        defaults.set("ringtone:Gone", forKey: DefaultsKey.notchTimerSoundName)
+        suite.expect(NotchTimerSupport.soundName(in: defaults, available: available) == "Glass",
+               "a tone this Mac does not have falls back to Glass instead of going silent")
+
+        let ids = NotchTimerSound.ringtoneIDs(fromFiles: ["Radar.m4r", "Reflection.m4r", "Reflection-EncoreInfinitum.m4r",
+                                                          "Arpeggio-EncoreInfinitum.m4r", "Notes.txt", "Apex.M4R"])
+        suite.expect(ids == ["ringtone:Apex", "ringtone:Arpeggio-EncoreInfinitum", "ringtone:Radar", "ringtone:Reflection"],
+               "ringtones are listed by name, with each newer edition shown once and other files left out")
+        suite.expect(ids.map { NotchTimerSound.title(for: $0, language: .enUS) } == ["Apex", "Arpeggio", "Radar", "Reflection"],
+               "ringtones show the names macOS gives them")
+        suite.expect(NotchTimerSound.url(for: "ringtone:Radar").path
+                == NotchTimerSound.ringtonesPath + "/Radar.m4r"
+               && NotchTimerSound.url(for: "Glass") == TextSnippetSupport.soundFileURL(for: "Glass"),
+               "a ringtone plays from the tone library and an alert sound from the system sounds")
+        suite.expect(NotchTimerSound.title(for: "Tink", language: .enUS)
+                == AlertSoundStrings.displayName(for: "Tink", language: .enUS),
+               "alert sounds keep the names Sound settings shows")
     }
 
     private static func alertContracts(_ suite: TestSuite) {
