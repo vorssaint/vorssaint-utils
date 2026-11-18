@@ -6,6 +6,10 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The Dynamic Island's AI usage now tracks Command Code: its usage from the local session logs, plus its 5-hour, weekly and credit plan limits. It can be turned off in the island's AI settings, and it gets its own mark.
+- The Dynamic Island's AI usage now tracks Antigravity: its usage, turns and timers, plus its model quotas through its `agy` command line tool. It can be turned off in the island's AI settings, and it gets its own mark.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

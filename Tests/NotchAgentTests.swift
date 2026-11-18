@@ -25,6 +25,7 @@ enum NotchAgentTests {
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
         limits(suite)
+        restingNote(suite)
         strip(suite)
         NotchAgentLimitReadingTests.run(suite)
         liveTurns(suite)
@@ -39,6 +40,12 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
+        CommandCodeLimitsTests.run(suite)
+        AntigravityLimitsTests.run(suite)
+        AgentLocalActivityTests.run(suite)
+        AgentTurnTests.run(suite)
+        AntigravityUsageTests.run(suite)
+        CommandCodeUsageTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)
@@ -71,6 +78,21 @@ enum NotchAgentTests {
     }
 
     // MARK: Pricing
+
+    /// An agent without logs shows its fullest plan window where others show a last use.
+    private static func restingNote(_ suite: TestSuite) {
+        let now = Date()
+        func window(_ id: String, _ used: Double) -> AgentLimitWindow {
+            AgentLimitWindow(id: id, kind: .other, minutes: nil, scope: nil, usedPercent: used, resetsAt: nil)
+        }
+        var snapshot = AgentUsageSnapshot()
+        snapshot.limits[.antigravity] = AgentLimits(provider: .antigravity, windows: [window("a", 20), window("b", 64)],
+                                                    observedAt: now, source: .account)
+        snapshot.limits[.codex] = AgentLimits(provider: .codex, windows: [window("c", 90)], observedAt: now, source: .sessionLog)
+        suite.expect(snapshot.peakUsedFraction(.antigravity) == 0.64, "an agent without logs shows its fullest window")
+        suite.expect(snapshot.peakUsedFraction(.commandcode) == nil, "an agent with logs keeps its last use")
+        suite.expect(snapshot.peakUsedFraction(.codex) == nil, "an agent with logs keeps its last use")
+    }
 
     private static func pricing(_ suite: TestSuite) {
         var billable = AgentBillable(tokens: AgentTokens(input: 1000, cacheWrite: 10_000, cacheRead: 100_000, output: 2000))
@@ -3169,11 +3191,15 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .commandcode, .antigravity], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .commandcode, .antigravity], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .commandcode, .antigravity],
+                     "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsCommandCode)
+        defaults.set(false, forKey: DefaultsKey.notchAgentsAntigravity)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "the limits-only agents keep their own preferences")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)

@@ -22,6 +22,7 @@ enum AgentUsagePollingTests {
         static let pollWindow: TimeInterval = 30 * 60
         var store = Store()
         var cursors: [String: Cursor] = [:]
+        var localTurns: [AgentProvider: [AgentTurn]] = [:]
         var poller: Timer? = Timer()
         var polling = false
     }
