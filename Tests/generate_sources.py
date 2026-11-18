@@ -326,9 +326,15 @@ def main():
           "import AppKit\nextension ScreenshotCanvasModelTests {\nfinal class Host: Fixture {\n"
           + "".join(declaration(editor, prefix) for prefix in [
               "    func pasteImage(", "    func commitCanvasExpansion(",
-              "    private func registerUndo()", "    func undo()", "    func redo()",
+              "    private func registerUndo(", "    private func trimHistory(",
+              "    func applyCrop()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
-              "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest("])
+              "    func cancelCanvasExpansion()", "    func leaveCanvasExpansion()", "    func hitTest(",
+              "    func beginDrag(", "    func continueDrag(", "    func endDrag(",
+              "    private func finishDrawing(", "    private func updateDraft(",
+              "    func selectedAnnotationOwns(", "    private func selectExistingAnnotation(",
+              "    private func beginSelectDrag(", "    private func finishSelectDrag(",
+              "    private func syncControls(", "    func wordIndex("])
           + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
           + "}\n}\n")
     write("ScreenshotEditorPaste.swift",
@@ -519,6 +525,8 @@ def main():
           + "extension ScreenshotAttachedCaptureTests {\nenum Engine {\n"
           + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
                         "    private static func composeAttached(").replace("private static", "static", 1)
+          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
+                        "    static func captureIndependentWindow(")
           + "}\n}\n")
     write("ScratchpadExport.swift", "import AppKit\nimport Foundation\n"
           + "extension ScratchpadExportContract {\nfinal class Service: Fixture {\n"
@@ -587,11 +595,14 @@ def main():
                     .replace("private static var", "static var", 1)
                     .replace("private func", "func", 1) for prefix in [
                         "    static func recoverIfNeeded(", "    func syncWithPreferences(",
-                        "    func returnToSystem(", "    func resumePreferenceDidChange(",
+                        "    func returnToSystem(", "    func forgetResume(", "    func resumePreferenceDidChange(",
                         "    private static var resumableConfiguration:", "    private func resume(",
                         "    private static var helperAwaitsRegistration:",
                         "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
-                        "    @objc private func workspaceDidWake("])
+                        "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
+                        "    private func beginResume(", "    private func cancelResumeRetry(",
+                        "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
+                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:"])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
@@ -1087,6 +1098,7 @@ def main():
           + "extension MixerUniversalRoutingContract.Mixer {\n"
           + "".join(declaration(mixer, prefix).replace("private ", "", 1) for prefix in [
               "    private var universalOutputDeviceUID:",
+              "    private static func processRows(", "    func setVolume(", "    private func persistVolume(",
               "    private static func applyingUniversalOutputRoute(",
               "    private static func coalescingAppsWithDuplicateIDs(",
               "    private static func runningAddress(",
@@ -1369,6 +1381,7 @@ def main():
           + declaration(shelf, "    struct Item:")
           + "var items: [Item] = []\nvar selection: Set<UUID> = []\n"
           + "var activeInternalDragIDs: [UUID] = []\nvar internalDragHoldsPackageContent = false\n"
+          + "static let dragFileQueue = DispatchQueue(label: \"shelf-drag-test\")\n"
           + "weak var internalDragWindow: NSWindow?\nvar internalDragWasMerged = false\n"
           + "var panel: NSWindow?\nvar dockedPanel: NSWindow?\n"
           + "var isPinned = false\nvar isVisible = false\nvar dockedVisible = false\n"
@@ -1377,20 +1390,24 @@ def main():
           + "func beginInteraction() {}\nfunc endInteraction() {}\n"
           + "func removeItems(_ ids: [UUID]) { removed += ids }\n"
           + "var replacements: [Item] = []\nfunc replaceItem(_ item: Item) { replacements.append(item) }\n"
-          + "func handleDeadDrag(_ items: [Item]) {}\n"
           + "func hide() { floatingClosures += 1; isVisible = false }\n"
           + "func collapseDocked() { dockedClosures += 1; dockedVisible = false }\n"
           + "".join(declaration(shelf, prefix) for prefix in [
               "    func selectedItems()", "    private func selectedItems(in",
               "    func dragItems(for items:", "    private func appendDragLeaves(",
-              "    func livingDragItems(", "    private static func resolvedBookmarkPath(",
-              "    private func rebookedItem(", "    func pasteboardWriter(",
+              "    private func item(withID id: UUID)", "    private func item(withID id: UUID,",
+              "    func dragItemsForTile(", "    struct PreparedDrag", "    func prepareDrag(",
+              "    private static func readDragFiles(", "    func finishPreparingDrag(",
+              "    private static func resolvedBookmarkPath(",
+              "    private static func rebookedItem(", "    func pasteboardWriter(",
               "    func sourceOperationMask("])
           + declaration(shelf, "    func beginInternalDrag(")
           + declaration(shelf, "    func internalDragMoved(")
           + declaration(shelf, "    func finishInternalDrag(")
           + declaration(shelf, "    func completeInternalDrag(")
           + "}\nfinal class Tile: TileState {\n"
+          + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func cancelDragPreparation(")
+              .replace("private func", "func", 1)
           + declaration("Sources/Vorssaint/UI/Shelf/ShelfTilesView.swift", "    private func beginItemDrag(")
               .replace("private func", "func", 1)
           + "}\n}\n")
@@ -2204,6 +2221,7 @@ def main():
         "    private func repeatLastRegion()",
         "    fileprivate func confirmWindow(",
         "    fileprivate func confirmRegion(",
+        "    private func finishFrozenCrop(",
         "    fileprivate func confirmColor(",
     ]
     write("ScreenshotSelectionRefresh.swift", "import Foundation\nimport AppKit\nimport SwiftUI\n"
