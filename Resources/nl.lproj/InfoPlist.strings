@@ -1,0 +1,24 @@
+/* macOS Automation permission prompt. */
+"NSAppleEventsUsageDescription" = "Vorssaint gebruikt Automatisering om bestanden te verplaatsen, onderdelen naar de prullenmand te verplaatsen, gevraagde opdrachten te openen en het afspelen in je media-apps te bedienen.";
+
+/* macOS Screen & System Audio Recording permission prompt. */
+"NSAudioCaptureUsageDescription" = "Vorssaint gebruikt de audio van elke app om het volume in de mixer aan te passen, de muziekbalken van Dynamic Island te laten bewegen en het geluid van de Mac op te nemen in schermopnamen die je start. Niets verlaat je Mac.";
+
+/* macOS Bluetooth permission prompt. */
+"NSBluetoothAlwaysUsageDescription" = "Vorssaint gebruikt Bluetooth alleen om het batterijniveau van verbonden randapparaten te lezen. Niets verlaat je Mac.";
+
+/* macOS Microphone permission prompt. */
+"NSMicrophoneUsageDescription" = "Vorssaint neemt je microfoon alleen op wanneer je deze inschakelt voor een schermopname. De audio blijft op je Mac, tenzij je ervoor kiest een tijdelijke link aan te maken.";
+
+/* macOS Camera permission prompt. */
+"NSCameraUsageDescription" = "Vorssaint toont je camera alleen in het voorvertoningsvenster dat je opent, zodat je vóór een gesprek kunt zien hoe je eruitziet. Er wordt niets opgenomen en niets verlaat je Mac.";
+
+/* macOS Downloads folder permission prompt. */
+"NSDownloadsFolderUsageDescription" = "Vorssaint controleert lokale metagegevens in Downloads om alleen bevestigde WhatsApp-bestanden die je kiest te bekijken, te ordenen of naar de prullenmand te verplaatsen. De opruimfunctie zoekt hier ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+
+/* macOS user-selected organizer destination prompts. */
+"NSDesktopFolderUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een doelmap die je uitdrukkelijk kiest. De opruimfunctie zoekt hier ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSDocumentsFolderUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een doelmap die je uitdrukkelijk kiest. De opruimfunctie zoekt hier ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSNetworkVolumesUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een doelmap die je uitdrukkelijk kiest. De opruimfunctie zoekt hier ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSRemovableVolumesUsageDescription" = "Vorssaint ordent bevestigde WhatsApp-downloads in een doelmap die je uitdrukkelijk kiest. De opruimfunctie zoekt hier ook naar vergeten schermafbeeldingen als je die hier bewaart.";
+"NSCalendarsFullAccessUsageDescription" = "Toon je komende afspraken in de inkeping. Agenda-afspraken blijven op deze Mac.";

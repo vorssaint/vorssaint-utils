@@ -18,6 +18,7 @@ extension FeatureStrings {
     static func switcherAppRules(_ language: AppLanguage) -> SwitcherAppRulesStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -46,6 +47,17 @@ extension SwitcherAppRulesStrings {
         windowsOnly: "Windows only",
         hidden: "Never show",
         caption: "Choose how each app appears. Apps without a rule use the choice above."
+    )
+
+    static let nl = SwitcherAppRulesStrings(
+        listTitle: "Regels per app",
+        addButton: "Voeg een app toe…",
+        removeButton: "Verwijder",
+        behaviorLabel: "Gedrag wisselaar",
+        showWithoutWindows: "Toon zonder vensters",
+        windowsOnly: "Alleen vensters",
+        hidden: "Toon nooit",
+        caption: "Kies hoe elke app verschijnt. Apps zonder regel gebruiken de bovenstaande keuze."
     )
 
     static let ptBR = SwitcherAppRulesStrings(

@@ -24,6 +24,13 @@ extension FeatureStrings {
             sounds: "Lock and unlock sounds",
             soundsHint: "Play the macOS padlock sound when your Mac locks and unlocks.",
             working: "Working")
+        case .nl: return NotchLockScreenStrings(
+            title: "Toegangsscherm",
+            show: "Toon op het toegangsscherm",
+            showHint: "Muziek en Dynamic Island-activiteiten, zoals een timer, AI-agenten, downloads en je volgende afspraak, verschijnen boven het wachtwoordveld. Iedereen die je scherm kan zien, kan ze lezen.",
+            sounds: "Vergrendel- en ontgrendelgeluiden",
+            soundsHint: "Speel het macOS-hangslotgeluid af wanneer je Mac vergrendelt en ontgrendelt.",
+            working: "Bezig")
         case .ptBR: return NotchLockScreenStrings(
             title: "Tela Bloqueada",
             show: "Mostrar na Tela Bloqueada",

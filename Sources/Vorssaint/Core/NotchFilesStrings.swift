@@ -42,6 +42,23 @@ extension FeatureStrings {
             optimizeMedia: "Optimize media",
             optimizeDropHint: "Drag images or one video onto the island, then drop on Optimize media to choose how to save a copy.",
             resumeMedia: "Return to media")
+        case .nl: return NotchFilesStrings(
+            archive: "Maak ZIP",
+            archiveHint: "Elk geselecteerd onderdeel wordt als apart ZIP-bestand bewaard. Originelen blijven ongewijzigd.",
+            saved: "Bewaard",
+            downloadsTitle: "Downloads",
+            downloadsDescription: "Bekijk bestanden die binnenkomen in een gekozen map, direct in Dynamic Island.",
+            downloadsHint: "Kies de map waarin je browser downloads bewaart. Alleen die map wordt gevolgd.",
+            chooseFolder: "Kies map…",
+            folderUnavailable: "Deze map is niet beschikbaar. Kies de map opnieuw om de toegang te herstellen.",
+            waiting: "Geen bestanden in deze map",
+            inProgress: "Downloaden",
+            totalUnknown: "Totale grootte niet beschikbaar",
+            completed: "Download voltooid",
+            clearFolder: "Vergeet map",
+            optimizeMedia: "Optimaliseer media",
+            optimizeDropHint: "Sleep afbeeldingen of één video naar het eiland en zet ze op ‘Optimaliseer media’ om te kiezen hoe je een kopie bewaart.",
+            resumeMedia: "Terug naar media")
         case .ptBR: return NotchFilesStrings(
             archive: "Criar ZIP",
             archiveHint: "Cada item selecionado vira um ZIP separado. Os originais são preservados.",

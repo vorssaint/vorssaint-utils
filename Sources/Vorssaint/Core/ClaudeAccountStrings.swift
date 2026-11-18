@@ -24,6 +24,13 @@ extension FeatureStrings {
             unknownAccount: "No account identified in this profile.",
             noLimits: "Claude Code has not returned limits for this account yet.",
             signInHelp: "How to sign in to another Claude account")
+        case .nl: return ClaudeAccountStrings(
+            title: "Claude-account", defaultAccount: "Standaardaccount", chooseFolder: "Kies accountmap…",
+            explanation: "Kies een profiel dat al is ingelogd bij Claude Code. Het gebruik komt uit de sessies van dat profiel en Claude Code controleert de limieten van het account. Deze keuze wijzigt het account in je andere apps niet.",
+            invalidFolder: "Kies een bestaande Claude Code-profielmap die van jou is en een eigen .claude.json-bestand bevat. Anderen mogen niet in de map kunnen schrijven en het bestand mag geen koppeling zijn.",
+            unknownAccount: "Geen account herkend in dit profiel.",
+            noLimits: "Claude Code heeft nog geen limieten voor dit account teruggegeven.",
+            signInHelp: "Inloggen met een ander Claude-account")
         case .ptBR: return ClaudeAccountStrings(
             title: "Conta do Claude", defaultAccount: "Conta padrão", chooseFolder: "Escolher pasta da conta…",
             explanation: "Escolha um perfil já conectado ao Claude Code. O uso vem das sessões desse perfil, e o Claude Code consulta os limites da conta. Essa escolha não altera a conta nos outros aplicativos.",

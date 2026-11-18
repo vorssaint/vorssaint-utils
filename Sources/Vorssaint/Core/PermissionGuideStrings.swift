@@ -27,6 +27,7 @@ extension FeatureStrings {
     static func permissionGuide(_ language: AppLanguage) -> PermissionGuideStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -84,6 +85,19 @@ extension PermissionGuideStrings {
         staleHint: "Already on in that list? That entry belongs to an earlier copy of the app. Start over to replace it.",
         startOver: "Start over",
         relaunch: "Relaunch to apply"
+    )
+
+    static let nl = PermissionGuideStrings(
+        title: "Nog één stap",
+        stepOpen: "macOS heeft Systeeminstellingen bij de juiste lijst geopend.",
+        stepToggle: "Schakel Vorssaint in die lijst in.",
+        stepReturn: "Kom terug. Deze kaart merkt het vanzelf.",
+        waiting: "Wachten op toestemming…",
+        granted: "Toestemming verleend!",
+        closeHelp: "Sluit",
+        staleHint: "Staat Vorssaint al aan in die lijst? Die vermelding hoort bij een eerdere kopie van de app. Begin opnieuw om deze te vervangen.",
+        startOver: "Begin opnieuw",
+        relaunch: "Herstart om toe te passen"
     )
 
     static let ptBR = PermissionGuideStrings(

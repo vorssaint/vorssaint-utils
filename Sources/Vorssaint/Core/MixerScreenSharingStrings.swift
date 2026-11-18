@@ -12,6 +12,10 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "Allow volume control",
             protectedCaption: "Volume control is off to prevent echo when sharing audio.",
             sharingWarning: "Turn off volume control before sharing audio to avoid echo.")
+        case .nl: return .init(
+            allowVolumeControl: "Sta volumeregeling toe",
+            protectedCaption: "Volumeregeling staat uit om echo bij het delen van audio te voorkomen.",
+            sharingWarning: "Schakel volumeregeling uit voordat je audio deelt om echo te voorkomen.")
         case .ptBR: return .init(
             allowVolumeControl: "Permitir controle de volume",
             protectedCaption: "O controle de volume está desativado para evitar eco ao compartilhar áudio.",

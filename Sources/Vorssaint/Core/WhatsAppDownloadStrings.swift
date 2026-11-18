@@ -48,6 +48,7 @@ struct WhatsAppDownloadStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -108,6 +109,49 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "%1$d files (%2$@) moved to the Trash. %3$d failed.",
         scanFailed: "Downloads could not be scanned. Check Files & Folders in System Settings.",
         manageButton: "Manage…"
+    )
+
+    static let nl = WhatsAppDownloadStrings(
+        title: "WhatsApp-downloads",
+        hubDescription: "Houdt WhatsApp-bestanden in Downloads onder controle",
+        intro: "Vindt bestanden waarvan macOS bevestigt dat ze uit WhatsApp komen. Bestandsinhoud en chats worden nooit gelezen.",
+        automatic: "Ruim automatisch op",
+        automaticCaption: "Controleert eenmaal per dag en verplaatst passende bestanden ouder dan je limiet naar de prullenmand.",
+        folder: "Gevolgde map",
+        accessReady: "Downloads is toegankelijk",
+        accessDenied: "Vorssaint heeft geen toegang tot Downloads. Sta dit toe bij ‘Bestanden en mappen’.",
+        fileTypes: "Bestandstypen",
+        allTypes: "Alles",
+        image: "Afbeeldingen",
+        video: "Video’s",
+        audio: "Audio en spraakberichten",
+        document: "Documenten",
+        archive: "Archieven",
+        other: "Overige",
+        retention: "Bewaar gedurende",
+        retentionCaption: "Recent gewijzigde bestanden wachten opnieuw de volledige periode.",
+        daysFormat: "%d dagen",
+        manualIntro: "Scan op elk moment. De eerste selectie volgt je typen en leeftijdslimiet. Je kunt elk bevestigd bestand bekijken.",
+        noFiles: "Geen bevestigde WhatsApp-bestanden gevonden in Downloads.",
+        resultsFormat: "%1$d bevestigde bestanden · %2$@",
+        selectRules: "Selecteer volgens mijn regels",
+        cleanSelectedFormat: "Verplaats %1$d naar prullenmand · %2$@",
+        keep: "Behoud",
+        manageAgain: "Beheer opnieuw",
+        activity: "Activiteit",
+        neverRun: "Er is nog niet opgeruimd.",
+        lastRunFormat: "Laatste opruiming %@: %d bestanden · %@ · %d mislukt",
+        nextRunFormat: "Volgende automatische controle %@.",
+        firstTitle: "Wat gebeurt er met bestaande bestanden?",
+        firstMessageFormat: "%d bestaande bestanden voldoen al aan je regels. Kies of de automatisering deze ook mag beheren of alleen toekomstige downloads.",
+        futureOnly: "Alleen toekomstige downloads",
+        includeExisting: "Neem bestaande bestanden mee",
+        trashNote: "Bestanden worden naar de prullenmand verplaatst en blijven herstelbaar totdat je deze leegt.",
+        localNote: "Alleen lokale bestandsmetagegevens worden gecontroleerd. Vorssaint leest nooit chats of bestandsinhoud.",
+        notificationTitle: "WhatsApp opruimen",
+        notificationFormat: "%1$d bestanden (%2$@) naar de prullenmand verplaatst. %3$d mislukt.",
+        scanFailed: "Downloads kon niet worden gescand. Controleer ‘Bestanden en mappen’ in Systeeminstellingen.",
+        manageButton: "Beheer…"
     )
 
     static let es = WhatsAppDownloadStrings(
@@ -509,6 +553,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
             firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
             notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
+        case .nl: return OperationalStrings(
+            automaticCaption: nl.automaticCaption, retentionCaption: nl.retentionCaption,
+            manualIntro: nl.manualIntro, resultsFormat: nl.resultsFormat,
+            selectRules: nl.selectRules, cleanSelectedFormat: nl.cleanSelectedFormat,
+            lastRunFormat: nl.lastRunFormat, nextRunFormat: nl.nextRunFormat,
+            firstMessageFormat: nl.firstMessageFormat, localNote: nl.localNote,
+            notificationFormat: nl.notificationFormat, scanFailed: nl.scanFailed, manageButton: nl.manageButton)
         case .ptBR: return OperationalStrings(
             automaticCaption: ptBR.automaticCaption, retentionCaption: ptBR.retentionCaption,
             manualIntro: ptBR.manualIntro, resultsFormat: ptBR.resultsFormat,

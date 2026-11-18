@@ -1110,6 +1110,7 @@ enum ClipboardFeatureTests {
 
         let featureTitles: [(AppLanguage, String, String, String, String)] = [
             (.enUS, "Clipboard", "Window layout", "Utilities", "Alerts"),
+            (.nl, "Klembord", "Vensterindeling", "Hulpprogramma’s", "Waarschuwingen"),
             (.ptBR, "Clipboard", "Layout de janelas", "Utilitários", "Alertas"),
             (.tr, "Pano", "Pencere yerleşimi", "Araçlar", "Uyarılar"),
             (.es, "Portapapeles", "Diseño de ventanas", "Utilidades", "Alertas"),

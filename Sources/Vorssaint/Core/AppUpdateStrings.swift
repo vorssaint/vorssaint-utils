@@ -62,6 +62,7 @@ extension FeatureStrings {
     static func appUpdates(_ language: AppLanguage) -> AppUpdateStrings {
         switch language {
         case .enUS: return .enUS
+        case .nl: return .nl
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -133,6 +134,60 @@ extension AppUpdateStrings {
         noVisibleUpdates: "No updates outside your rules",
         uncomparableVersions: "Versions not compared",
         uncomparableVersionsNote: "No update is shown when an app’s own version can’t be compared with the catalog. Check for updates in the app itself."
+    )
+
+    static let nl = AppUpdateStrings(
+        pageTitle: "App-updates",
+        hubDescription: "Zoek en installeer updates voor je apps",
+        caption: "Zoekt naar nieuwere versies van de apps op deze Mac en helpt je elke update via de oorspronkelijke bron te voltooien.",
+        panelCaption: "Bekijk voor welke apps een nieuwere versie beschikbaar is",
+        checkNow: "Zoek nu",
+        checking: "Zoeken",
+        lastCheckFormat: "Laatst gecontroleerd %@",
+        neverChecked: "Nog niet gecontroleerd",
+        upToDate: "Geen updates gevonden",
+        partialUpToDate: "Geen updates gevonden bij deze gedeeltelijke controle",
+        coverageNote: "Controleert de oorspronkelijke bronnen van geïnstalleerde apps en een openbare catalogus. Updates worden via de oorspronkelijke bron geïnstalleerd.",
+        selectAll: "Selecteer alles",
+        clearSelection: "Wis",
+        updateSelectedFormat: "Werk %d bij",
+        updateOne: "Werk bij",
+        openAppStore: "Open de App Store",
+        appStoreBadge: "App Store",
+        storeHint: "Opent de App Store, waar deze update wordt geïnstalleerd",
+        frequencyLabel: "Controleer op de achtergrond",
+        frequencyOff: "Uit",
+        frequencyDaily: "Elke dag",
+        frequencyWeekly: "Elke week",
+        nextCheckFormat: "Volgende controle %@",
+        notifyToggle: "Meld wanneer een app een update heeft",
+        includeStoreToggle: "Neem apps uit de App Store mee",
+        includeStoreCaption: "Controleert winkelversies voor de regio van deze Mac. Apple installeert deze updates.",
+        packageMissing: "Homebrew is niet geïnstalleerd. Apps kunnen hier nog niet worden bijgewerkt.",
+        notificationBodyFormat: "Voor %@ apps is een nieuwere versie beschikbaar.",
+        notificationBodyOne: "Voor één app is een nieuwere versie beschikbaar.",
+        showInPanel: "Toon in paneel",
+        homebrewBadge: "Homebrew",
+        sourcesTitle: "Bronnen",
+        includeHomebrewToggle: "Neem Homebrew-apps mee",
+        onlineBadge: "Online",
+        openApp: "Open",
+        openAppHint: "Opent de app zodat de eigen updater de update kan voltooien",
+        includeOnlineToggle: "Neem andere geïnstalleerde apps mee",
+        includeOnlineCaption: "Controleert waar mogelijk rechtstreeks bij appontwikkelaars en gebruikt daarna een openbare catalogus. De eigen updater van de app installeert de update.",
+        incompleteCheck: "Controle onvolledig",
+        onlineUnavailable: "De onlinecontrole kon niet worden voltooid. Andere resultaten worden wel getoond.",
+        skipVersionFormat: "Sla versie %@ over",
+        excludeApp: "Controleer deze app niet",
+        rulesTitle: "Update-uitzonderingen",
+        addException: "Voeg een app toe die niet moet worden gecontroleerd",
+        skippedVersionFormat: "Versie %@ overgeslagen",
+        excludedApp: "Wordt niet gecontroleerd totdat deze regel is verwijderd",
+        removeRule: "Verwijder",
+        rulesHint: "Als je een versie overslaat, worden nieuwere versies nog wel aangeboden. Verwijder je een app-uitzondering, klik dan op ‘Zoek nu’ om de resultaten te vernieuwen.",
+        noVisibleUpdates: "Geen updates binnen je regels",
+        uncomparableVersions: "Versies niet vergeleken",
+        uncomparableVersionsNote: "Er wordt geen update getoond als de eigen versie van een app niet met de catalogus kan worden vergeleken. Zoek in de app zelf naar updates."
     )
 
     static let ptBR = AppUpdateStrings(
