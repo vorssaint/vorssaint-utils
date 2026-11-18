@@ -64,11 +64,15 @@ enum CommandBarExtras {
         /// are confirmed on the row before anything happens.
         var needsConfirmation: Bool { self != .sleep }
 
+        /// Without "with state saving preference", System Events always saves
+        /// state, so windows reopen after login even when the person turned
+        /// "Reopen windows when logging back in" off (see SystemEvents.sdef).
+        /// "log out" takes no such parameter.
         fileprivate var appleScript: String? {
             switch self {
             case .sleep: return nil
-            case .restart: return "tell application \"System Events\" to restart"
-            case .shutDown: return "tell application \"System Events\" to shut down"
+            case .restart: return "tell application \"System Events\" to restart with state saving preference"
+            case .shutDown: return "tell application \"System Events\" to shut down with state saving preference"
             case .logOut: return "tell application \"System Events\" to log out"
             }
         }
