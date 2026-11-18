@@ -211,6 +211,26 @@ enum PreferencesFeatureTests {
             selectedBundleIDs: ["com.example.app", "com.other.app"],
             runningBundleIDs: ["com.helper", "com.example.app"]
         ), "any selected app that is running matches, focused or not")
+        let armed = Date(timeIntervalSinceReferenceDate: 0)
+        let pastGrace = armed.addingTimeInterval(KeepAwakeAutomationSupport.agentsQuietGrace)
+        suite.expect(KeepAwakeAutomationSupport.agentWait(quietSince: armed, loaded: true, working: false,
+                                                          now: pastGrace).finished,
+               "an agents session ends once nothing has worked for the grace")
+        suite.expect(!KeepAwakeAutomationSupport.agentWait(quietSince: armed, loaded: true, working: false,
+                                                           now: pastGrace.addingTimeInterval(-1)).finished,
+               "an agents session waits out the whole grace")
+        let busy = KeepAwakeAutomationSupport.agentWait(quietSince: armed, loaded: true, working: true, now: pastGrace)
+        suite.expect(!busy.finished && busy.quietSince == pastGrace,
+               "a working agent restarts the grace")
+        suite.expect(!KeepAwakeAutomationSupport.agentWait(quietSince: armed, loaded: false, working: false,
+                                                           now: pastGrace).finished,
+               "readings that never loaded never end an agents session or shut the Mac down")
+        suite.expect(KeepAwakeAutomationSupport.agentsWorking(["a"], following: nil)
+                     && !KeepAwakeAutomationSupport.agentsWorking([], following: nil),
+               "an agents session that follows no task waits on any agent")
+        suite.expect(!KeepAwakeAutomationSupport.agentsWorking(["b"], following: "a")
+                     && KeepAwakeAutomationSupport.agentsWorking(["b", "a"], following: "a"),
+               "an agents session that follows a task waits on that task alone")
         let combinedKeepAwakeConditions = KeepAwakeAutomationSupport.matchingConditions(
             externalDisplayEnabled: true,
             externalDisplayConnected: true,
