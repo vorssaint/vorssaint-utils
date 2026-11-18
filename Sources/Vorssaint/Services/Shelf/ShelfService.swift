@@ -1054,6 +1054,10 @@ final class ShelfService: ObservableObject {
                 ShelfService.shared.selectAllVisibleItems()
                 return true
             }
+            if modifiers == [.command], event.charactersIgnoringModifiers?.lowercased() == "v" {
+                ShelfService.shared.pasteFromClipboard()
+                return true
+            }
             return super.performKeyEquivalent(with: event)
         }
 
@@ -1628,6 +1632,38 @@ final class ShelfService: ObservableObject {
         alert.informativeText = body
         alert.addButton(withTitle: ShelfPromiseDeliveryStrings.localized(L10n.shared.language).okButton)
         // A failed background delivery must not steal focus from another app.
+        if let window = panel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else if let window = dockedPanel, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else if let window = NotchService.shared.presentationWindow, window.isVisible {
+            alert.beginSheetModal(for: window)
+        } else {
+            alert.runModal()
+        }
+    }
+
+    func pasteFromClipboard() {
+        ClipboardImportService.shared.pasteIntoCurrentShelf { [weak self] outcome in
+            guard let self else { return }
+            if case let .failed(reason) = outcome {
+                self.reportClipboardPasteProblem(reason)
+            }
+        }
+    }
+
+    private func reportClipboardPasteProblem(_ reason: ClipboardImportFailure) {
+        let strings = ClipboardImportStrings.localized(L10n.shared.language)
+        let body: String
+        switch reason {
+        case .empty: body = strings.emptyBody
+        case .incompatible: body = strings.incompatibleBody
+        }
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = strings.title
+        alert.informativeText = body
+        alert.addButton(withTitle: strings.okButton)
         if let window = panel, window.isVisible {
             alert.beginSheetModal(for: window)
         } else if let window = dockedPanel, window.isVisible {

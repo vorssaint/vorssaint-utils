@@ -115,6 +115,7 @@ struct MediaWorkspaceView: View {
         nonmutating set { workspace.outputWasChosenManually = newValue }
     }
     @State private var isDropTargeted = false
+    @FocusState private var isPasteTargetFocused: Bool
     @State private var localMessage: String?
     @State private var mediaDefaultsTask: Task<Void, Never>?
     @State private var videoImportTask: Task<Void, Never>?
@@ -203,6 +204,12 @@ struct MediaWorkspaceView: View {
 
     var body: some View {
         layout
+        .focusable()
+        .focused($isPasteTargetFocused)
+        .focusEffectDisabled()
+        .onPasteCommand(of: [.fileURL, .image, .png, .tiff]) { _ in
+            pasteFromClipboard()
+        }
         .onAppear {
             if !workspace.loadedInitialInputs {
                 workspace.loadedInitialInputs = true
@@ -214,6 +221,7 @@ struct MediaWorkspaceView: View {
             } else {
                 applyMediaDefaults(for: inputURL, tool: selectedTool, replacingInput: false)
             }
+            DispatchQueue.main.async { isPasteTargetFocused = true }
         }
         .onChange(of: currentImageOptions) { oldOptions, newOptions in
             guard selectedTool == .imageCompressor else { return }
@@ -371,6 +379,13 @@ struct MediaWorkspaceView: View {
     private var fileCard: some View {
         VStack(alignment: .leading, spacing: 9) {
             inputDropTarget
+
+            Button {
+                pasteFromClipboard()
+            } label: {
+                Label(l10n.s.menuPaste, systemImage: "doc.on.clipboard")
+            }
+            .controlSize(.small)
 
             HStack(spacing: 7) {
                 Text(l10n.s.mediaOutput)
@@ -1394,17 +1409,48 @@ struct MediaWorkspaceView: View {
         }
         group.notify(queue: .main) {
             let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
-            let accepted = urls.filter { url in
-                let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-                return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
-            }
-            if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+            guard let inputs = MediaSupport.pasteAcceptedInputs(
+                urls,
+                inputTypes: inputTypes,
+                allowsMultiple: selectedTool == .imageCompressor,
+                contentType: { try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType }
+            ) else {
                 media.rejectUnsupportedInput()
-            } else {
-                setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+                return
             }
+            setInputs(inputs)
         }
         return true
+    }
+
+    private func pasteFromClipboard() {
+        ClipboardImportService.shared.fetchSnapshot { result in
+            switch result {
+            case let .compatible(board):
+                defer { board.releaseGlobally() }
+                let urls = ShelfService.shared.fileURLs(from: board)
+                if urls.isEmpty, let imageURL = ClipboardImportService.materializedImageURL(from: board) {
+                    acceptPastedURLs([imageURL])
+                } else {
+                    acceptPastedURLs(urls)
+                }
+            case .empty, .incompatible:
+                media.rejectUnsupportedInput()
+            }
+        }
+    }
+
+    private func acceptPastedURLs(_ urls: [URL]) {
+        guard let inputs = MediaSupport.pasteAcceptedInputs(
+            urls,
+            inputTypes: inputTypes,
+            allowsMultiple: selectedTool == .imageCompressor,
+            contentType: { try? $0.resourceValues(forKeys: [.contentTypeKey]).contentType }
+        ) else {
+            media.rejectUnsupportedInput()
+            return
+        }
+        setInputs(inputs)
     }
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
