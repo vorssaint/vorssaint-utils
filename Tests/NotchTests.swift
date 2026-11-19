@@ -1266,6 +1266,32 @@ enum NotchTests {
         }
     }
 
+    private static func menuSpaceOverlapContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let barHeight: CGFloat = 24
+        let island = CGRect(x: 692, y: screen.maxY - barHeight, width: 56, height: barHeight)
+        suite.expect(NotchMenuBarLayout.isClickableStatusItem(width: 33, height: 24, alpha: 1,
+                                                              screen: screen, barHeight: barHeight),
+                     "an expanded Ice item is a click target")
+        suite.expect(!NotchMenuBarLayout.isClickableStatusItem(width: 5016, height: 24, alpha: 1,
+                                                               screen: screen, barHeight: barHeight),
+                     "Ice's screen-wide hidden divider never counts as a click target")
+        suite.expect(!NotchMenuBarLayout.isClickableStatusItem(width: 33, height: 24, alpha: 0,
+                                                               screen: screen, barHeight: barHeight),
+                     "a transparent status window cannot block the island")
+        suite.expect(!NotchMenuBarLayout.isClickableStatusItem(width: 33, height: 24, alpha: 1,
+                                                               screen: screen, barHeight: 0),
+                     "a window taller than the menu bar is not a status item")
+        let expandedItem = CGRect(x: 700, y: screen.maxY - barHeight, width: 33, height: barHeight)
+        let clearItem = CGRect(x: 817, y: screen.maxY - barHeight, width: 33, height: barHeight)
+        suite.expect(NotchMenuBarLayout.statusItemOverlaps(island, statusItems: [expandedItem]),
+                     "an item in the island's footprint is detected")
+        suite.expect(!NotchMenuBarLayout.statusItemOverlaps(island, statusItems: [clearItem]),
+                     "the gap beside the island stays free")
+        suite.expect(!NotchMenuBarLayout.statusItemOverlaps(island, statusItems: []),
+                     "an empty bar never hides the island")
+    }
+
     private static func menuBarHeightContracts(_ suite: TestSuite) {
         var measurements = NotchMenuBarMeasurements()
         let screen = CGRect(x: -1440, y: -900, width: 1440, height: 900)
@@ -1776,6 +1802,7 @@ enum NotchTests {
         simulatedMenuBoundsContracts(suite)
         simulatedDisplayContracts(suite)
         menuSpaceReuseContracts(suite)
+        menuSpaceOverlapContracts(suite)
         menuBarHeightContracts(suite)
         physicalStripContracts(suite)
         cameraFitContracts(suite)
