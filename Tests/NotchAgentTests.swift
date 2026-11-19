@@ -19,6 +19,7 @@ enum NotchAgentTests {
         offlineTurns(suite)
         codexParsing(suite)
         openCodeParsing(suite)
+        AgentOpenCodeServerTests.run(suite)
         CopilotAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
@@ -113,6 +114,18 @@ enum NotchAgentTests {
                         && AgentPricing.price(for: "codex-auto-review") == nil
                         && AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 10)), model: "gpt-reserve").cost == nil,
                      "an unlisted model or sibling has no price rather than a borrowed one")
+        suite.expectClose(AgentPricing.cost(AgentBillable(tokens: AgentTokens(input: 1_000_000, cacheRead: 1_000_000, output: 1_000_000)),
+                                            model: "deepseek-v4.1-flash").cost ?? -1, 0.753,
+                          "OpenCode Go's models carry the published Console rates", tol: 0.000001)
+        suite.expect(AgentPricing.price(for: "kimi-k3")?.input == 3 && AgentPricing.price(for: "mimo-v2.6-pro")?.output == 0.87
+                        && AgentPricing.price(for: "space-bunny")?.cacheWrite == 0,
+                     "an OpenCode model with its own cache write rate keeps it")
+        suite.expect(AgentPricing.price(for: "deepseek-v4.1-flash-free") == nil
+                        && AgentPricing.price(for: "glm-5.3-flash-free") == nil
+                        && AgentPricing.price(for: "muse-spark-1.3-contributor-free") == nil
+                        && AgentPricing.price(for: "space-bunny-free") == nil
+                        && AgentPricing.price(for: "deepseek-v4.1-flash") != nil,
+                     "a free variant never inherits the paid rate of the model it extends")
         // Sonnet 5.5 now has published prices: https://platform.claude.com/docs/en/models/sonnet-5-5/overview
         suite.expect(AgentPricing.price(for: "claude-opus-5-6") == nil && AgentPricing.price(for: "claude-sonnet-5-6") == nil
                         && AgentPricing.price(for: "claude-opus-6") == nil && AgentPricing.price(for: "gpt-7") == nil
