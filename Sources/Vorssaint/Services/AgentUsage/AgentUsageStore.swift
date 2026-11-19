@@ -395,7 +395,7 @@ final class AgentUsageStore {
             Saved.Record(key: keys[$0], record: records[$0], billable: billables[$0], sources: sources[$0])
         }
         return Saved(records: kept,
-                     limits: limits.values.sorted { $0.provider.rawValue < $1.provider.rawValue },
+                     limits: limits.values.filter { $0.provider != .muse }.sorted { $0.provider.rawValue < $1.provider.rawValue },
                      codexPlan: codexPlan, codexPlanObserved: codexPlanObserved,
                      turns: turns.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id },
                      waiting: waiting.values.filter { $0.provider != .opencode }.sorted { $0.id < $1.id })

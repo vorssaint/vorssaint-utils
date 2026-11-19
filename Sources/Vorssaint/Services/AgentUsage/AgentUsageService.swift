@@ -71,6 +71,9 @@ final class AgentUsageService: ObservableObject {
     /// When the list on disk was downloaded; nil until the queue has looked.
     private var pricesSaved: Date?
     private let claudeAccountQueue = DispatchQueue(label: "com.vorssaint.claude-limits", qos: .utility)
+    private let museQueue = DispatchQueue(label: "com.vorssaint.muse-limits", qos: .utility)
+    private var museRequest: BoundedProcessCancellation?
+    private var museAttempted = Date.distantPast
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
     /// Checks in a row that Claude Code did not answer, counted again from
@@ -147,6 +150,7 @@ final class AgentUsageService: ObservableObject {
         }
         syncPrices()
         refreshClaudeLimits()
+        refreshMuseLimits()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -160,6 +164,8 @@ final class AgentUsageService: ObservableObject {
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
+        museRequest?.cancel()
+        museRequest = nil
         timer?.invalidate()
         timer = nil
         queue.async { [self] in
@@ -194,6 +200,9 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         running = false
         cancelClaudeLimits()
+        museRequest?.cancel()
+        museRequest = nil
+        museAttempted = .distantPast
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
@@ -255,6 +264,7 @@ final class AgentUsageService: ObservableObject {
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
+        refreshMuseLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             readClaudePlan()
@@ -498,7 +508,8 @@ final class AgentUsageService: ObservableObject {
     /// working turn with it.
     @discardableResult
     private func read(_ path: String, provider: AgentProvider) -> Bool {
-        guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
+        guard let cancellation = readerCancellation, !cancellation.isCancelled,
+              let reader = provider.reader else { return false }
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
             return store.forget(file: path)
@@ -510,7 +521,7 @@ final class AgentUsageService: ObservableObject {
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
-            let entries = provider.reader.parse(line, state: &cursor.state, now: now)
+            let entries = reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
@@ -522,7 +533,7 @@ final class AgentUsageService: ObservableObject {
                                        parent: parent, modified: cursor.modified, now: now)
             finished.forEach(report)
         }
-        if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
+        if reader.readsFullHistoryFirst && cursor.offset == 0 {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
             AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
@@ -579,6 +590,7 @@ final class AgentUsageService: ObservableObject {
         guard running else { return }
         syncPrices()
         refreshClaudeLimits()
+        refreshMuseLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()
@@ -720,6 +732,36 @@ final class AgentUsageService: ObservableObject {
     }
 
     // MARK: Plans and limits
+
+    private func refreshMuseLimits(pageShows: Bool = false) {
+        let now = Date()
+        guard running, !paused, online, providers.contains(.muse), museRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows),
+              now.timeIntervalSince(museAttempted) >= AgentMuseUsage.interval else { return }
+        museAttempted = now
+        let request = BoundedProcessCancellation()
+        museRequest = request
+        let session = self.session
+        let home = self.home
+        museQueue.async { [weak self] in
+            let reading = AgentMuseUsage.read(home: home, cancellation: request)
+            DispatchQueue.main.async {
+                guard let self, self.running, !self.paused, self.session == session,
+                      self.museRequest === request else { return }
+                self.museRequest = nil
+                if let reading {
+                    self.noteLimits(reading)
+                } else {
+                    self.queue.async {
+                        guard self.readerSession == session, self.store.limits[.muse] != nil else { return }
+                        self.store.clearLimits(.muse)
+                        self.checkLimits()
+                        self.schedulePublish()
+                    }
+                }
+            }
+        }
+    }
 
     /// The plan and visible identity come from Claude Code's profile. Other
     /// fields are discarded, and the identity stays out of the usage archive.

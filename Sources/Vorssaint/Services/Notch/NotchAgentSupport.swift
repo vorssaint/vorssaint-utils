@@ -85,7 +85,7 @@ enum NotchAgentSupport {
 
     static func providers(in defaults: UserDefaults = .standard) -> [AgentProvider] {
         AgentProvider.allCases.filter {
-            defaults.object(forKey: key(for: $0)) as? Bool ?? true
+            defaults.object(forKey: key(for: $0)) as? Bool ?? ($0 != .muse)
         }
     }
 
@@ -95,6 +95,7 @@ enum NotchAgentSupport {
         case .codex: return DefaultsKey.notchAgentsCodex
         case .opencode: return DefaultsKey.notchAgentsOpenCode
         case .copilot: return DefaultsKey.notchAgentsCopilot
+        case .muse: return DefaultsKey.notchAgentsMuse
         }
     }
 
@@ -149,7 +150,7 @@ enum NotchAgentSupport {
         case .session: kind = .session
         case .weekly: kind = .weekly
         }
-        return limits?.windows.first { $0.kind == kind && $0.scope == nil }.map { AgentLimitSupport.current($0, at: now) }
+        return AgentLimitSupport.currentWindows(limits, now: now).first { $0.kind == kind && $0.scope == nil }
     }
 
     /// The resting island's allowance across every account: the most spent
@@ -354,7 +355,7 @@ enum NotchAgentSupport {
     static func limitsAreStale(_ limits: AgentLimits?, provider: AgentProvider, account: Bool, now: Date) -> Bool {
         guard let limits else { return false }
         let age = now.timeIntervalSince(limits.observedAt)
-        if account { return age >= accountStaleness }
+        if account || provider == .muse { return age >= accountStaleness }
         return provider == .claude && age >= AgentClaudeAppUsage.freshness
     }
 

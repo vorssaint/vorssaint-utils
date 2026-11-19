@@ -429,8 +429,17 @@ enum AgentLimitSupport {
 
     /// The window that will stop work first: the most spent, and on a tie the
     /// one renewing last.
+    static func currentWindows(_ limits: AgentLimits?, now: Date) -> [AgentLimitWindow] {
+        guard let limits else { return [] }
+        return limits.windows.compactMap { window in
+            // Muse's next balance must come from a fresh web reading.
+            if limits.provider == .muse, let reset = window.resetsAt, reset <= now { return nil }
+            return current(window, at: now)
+        }
+    }
+
     static func binding(_ limits: AgentLimits?, now: Date) -> AgentLimitWindow? {
-        limits?.windows.map { current($0, at: now) }.max {
+        currentWindows(limits, now: now).max {
             $0.usedPercent != $1.usedPercent ? $0.usedPercent < $1.usedPercent
                 : ($0.resetsAt ?? .distantPast) < ($1.resetsAt ?? .distantPast)
         }

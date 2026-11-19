@@ -21,12 +21,13 @@ extension AgentHarnessReader {
 
 extension AgentProvider {
     /// The reader that parses this provider's logs.
-    var reader: any AgentHarnessReader {
+    var reader: (any AgentHarnessReader)? {
         switch self {
         case .claude: ClaudeReader()
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .muse: nil
         }
     }
 }
