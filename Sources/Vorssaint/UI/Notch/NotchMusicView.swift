@@ -281,6 +281,21 @@ struct NotchMusicView: View {
                         .font(.system(size: 14, weight: .semibold))
                         .lineLimit(1)
                         .help(playback.track.title ?? text.mediaNowPlaying)
+                        .notchExpansionTap(id: "music.track")
+                        .notchExpandable(id: "music.track", title: text.mediaNowPlaying) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(playback.track.title ?? text.mediaNowPlaying)
+                                    .font(.system(size: 16, weight: .semibold))
+                                if let artist = playback.track.artist, !artist.isEmpty {
+                                    Text(artist).foregroundStyle(.secondary)
+                                }
+                                if let album = playback.track.album, !album.isEmpty {
+                                    Text(album).foregroundStyle(.secondary)
+                                }
+                            }
+                            .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
+                        }
                     Text(service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
                          : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
                         .font(.system(size: 13))
