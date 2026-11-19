@@ -423,6 +423,7 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
                                                      s.switcherIgnoreHoverSelection,
+                                                     s.switcherTabStepsThroughWindows,
                                                      FeatureStrings.switcherShortcuts(language).allWindows,
                                                      s.switcherWindowlessApps,
                                                      s.switcherMaxColumns,
