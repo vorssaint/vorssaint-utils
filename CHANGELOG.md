@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 This update improves microphone muting, display controls, window switching, clipboard history and screenshots.
 
 ### Added
+- AI Agents can explicitly enable Oh My Pi session activity, tokens, API value and live work, with a separate plan-limits card for every account reported by `omp usage`.
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 
 ### Changed

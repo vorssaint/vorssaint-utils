@@ -39,6 +39,8 @@ enum NotchAgentTests {
         AgentClaudeServerTests.run(suite)
         ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
+        KimiUsageTests.run(suite)
+        OMPUsageTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)
@@ -3169,11 +3171,19 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .kimi],
+                     "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .kimi],
+                     "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .kimi], "multiple agents can be left out")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsKimi)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Kimi keeps its own preference")
+        defaults.set(true, forKey: DefaultsKey.notchAgentsOMP)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .omp], "Oh My Pi can be enabled explicitly")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsOMP)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "Oh My Pi keeps its own opt-in preference")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
         defaults.set(NotchAgentLimitFocus.weekly.rawValue, forKey: DefaultsKey.notchAgentsLimitFocus)
@@ -3187,12 +3197,14 @@ enum NotchAgentTests {
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
                     DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsKimi, DefaultsKey.notchAgentsOMP, DefaultsKey.notchAgentsKimiRegion,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
                     DefaultsKey.notchAgentsLimitThreshold, DefaultsKey.notchAgentsDailyBudget, DefaultsKey.notchAgentsPriceUpdates]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil } && SettingsBackupSupport.exportKeys().isSuperset(of: keys)
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsEnabled] as? Bool == false
+                        && Defaults.registeredDefaults[DefaultsKey.notchAgentsOMP] as? Bool == false
                         && Defaults.registeredDefaults[DefaultsKey.notchAgentsPriceUpdates] as? Bool == true,
                      "AI preferences travel in backups, with Agents opt-in and prices kept current when enabled")
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
@@ -3205,12 +3217,17 @@ enum NotchAgentTests {
         let limits = NotchAgentTile(card: .limits, provider: .claude)
         let codex = NotchAgentTile(card: .limits, provider: .codex)
         let copilot = NotchAgentTile(card: .limits, provider: .copilot)
+        let kimi = NotchAgentTile(card: .limits, provider: .kimi, accountID: "cli")
         let spend = NotchAgentTile(card: .spend, provider: nil)
         let trend = NotchAgentTile(card: .trend, provider: nil)
-        suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot])
-                        == [limits, codex, trend] && !AgentProvider.copilot.reportsLimits
+        suite.expect(NotchAgentSupport.tiles(cards: [.limits, .trend], providers: [.claude, .codex, .copilot, .kimi])
+                        == [limits, codex, kimi, trend] && !AgentProvider.copilot.reportsLimits
                         && !NotchAgentSupport.tiles(cards: [.limits], providers: [.copilot]).contains(copilot),
-                     "only agents whose local logs report plan allowances get a limits card")
+                     "agents with a local or account allowance get a limits card, unlike Copilot")
+        let ompTiles = NotchAgentSupport.tiles(cards: [.limits], providers: [.omp], ompAccounts: ["a", "b"])
+        suite.expect(ompTiles.map(\.accountID) == ["a", "b"] && ompTiles.allSatisfy { $0.provider == .omp }
+                        && NotchAgentSupport.tiles(cards: [.limits], providers: [.omp]).map(\.accountID) == ["cli"],
+                     "each Oh My Pi account gets a limits card, with one placeholder before the first report")
         let resets = NotchAgentTile(card: .resets, provider: .codex)
         suite.expect(NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .codex, .copilot]) == [resets, spend]
                         && NotchAgentSupport.tiles(cards: [.resets, .spend], providers: [.claude, .copilot]) == [spend],

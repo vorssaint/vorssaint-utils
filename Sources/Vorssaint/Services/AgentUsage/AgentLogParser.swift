@@ -181,6 +181,18 @@ enum AgentLogParser {
          "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
     }
 
+    // MARK: Oh My Pi
+
+    static func parseOMP(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        OMPReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Kimi Code
+
+    static func parseKimi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        KimiReader().parse(line, state: &state, now: now)
+    }
+
     /// Codex logs a reading for each allowance: the main one under "codex",
     /// which older logs leave unnamed, and one for each model that has its
     /// own. Only the main one is kept, so a model's windows never replace it

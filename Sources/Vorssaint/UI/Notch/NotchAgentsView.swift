@@ -8,6 +8,8 @@ struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
+    @ObservedObject private var kimi = KimiUsageService.shared
+    @ObservedObject private var omp = OMPUsageService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
@@ -18,6 +20,8 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsKimi) private var kimiEnabled = true
+    @AppStorage(DefaultsKey.notchAgentsOMP) private var ompEnabled = false
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -30,11 +34,13 @@ struct NotchAgentsView: View {
     }
 
     /// Only agents that left something on this Mac, or whose accounts were
-    /// added, get cards.
+    /// configured, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, kimiEnabled ? .kimi : nil, ompEnabled ? .omp : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault) }
+                || ($0 == .claude && !usage.claudeProfile.isDefault) || ($0 == .kimi && kimi.configured)
+                || ($0 == .omp && omp.configured) }
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -42,7 +48,8 @@ struct NotchAgentsView: View {
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
+                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
+                                                              ompAccounts: omp.readings.map(\.id)),
                                       width: size.width)
     }
 
@@ -145,6 +152,29 @@ struct NotchAgentsView: View {
                 plan: usage.snapshot.plans[.claude]?.name, checking: usage.claudeAccountChecking,
                 failure: usage.claudeAccountFailure.map(text.claudeCode), refreshHint: strings.refreshHint,
                 checkLabel: strings.check, refresh: usage.checkClaudeAccount)
+        }
+        if tile.provider == .kimi {
+            let strings = FeatureStrings.kimiAccount(l10n.language)
+            return NotchAgentAccount(name: strings.cliAccount,
+                limits: kimi.currentLimits(at: now),
+                plan: kimi.reading?.plan?.name, checking: kimi.checking,
+                failure: kimi.failure.map(strings.failure), refreshHint: strings.refreshHint,
+                checkLabel: strings.check) { kimi.refresh(force: true) }
+        }
+        if tile.provider == .omp {
+            let strings = FeatureStrings.codexAccounts(l10n.language)
+            let reading = omp.readings.first { $0.id == tile.accountID }
+            let failure = omp.failure.map { failure -> String in
+                switch failure {
+                case .missing: return text.notFound
+                case .unavailable, .invalidResponse, .cancelled: return strings.failed
+                }
+            }
+            return NotchAgentAccount(name: reading?.name ?? "Oh My Pi CLI",
+                limits: reading?.currentLimits(at: now), plan: nil, checking: omp.checking,
+                failure: failure, refreshHint: strings.refreshHint, checkLabel: strings.check) {
+                omp.refresh(force: true)
+            }
         }
         guard let id = tile.accountID, let state = codexAccounts.first(where: { $0.id == id }) else { return nil }
         let strings = FeatureStrings.codexAccounts(l10n.language)
@@ -376,6 +406,7 @@ private struct NotchAgentLimitsCard: View {
         switch window.kind {
         case .session: return text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+        case .monthly: return window.scope.map { "\(text.month) · \($0)" } ?? text.month
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
             return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
