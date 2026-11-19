@@ -979,6 +979,8 @@ enum ScreenshotRenderer {
                                                 imageSize: imageSize,
                                                 paddingFactor: CGFloat(style.padding),
                                                 corner: corner,
+                                                outlineCorner: max(corner, ScreenshotSupport
+                                                    .transparentCornerRadius(of: baseImage)),
                                                 blurFactor: CGFloat(style.blur),
                                                 scale: scale) {
             result = composed
@@ -1055,6 +1057,7 @@ enum ScreenshotRenderer {
                                        imageSize: CGSize,
                                        paddingFactor: CGFloat,
                                        corner: CGFloat,
+                                       outlineCorner: CGFloat,
                                        blurFactor: CGFloat,
                                        scale: CGFloat) -> CGImage? {
         let padding = ScreenshotSupport.backdropPadding(for: imageSize, factor: paddingFactor)
@@ -1082,14 +1085,19 @@ enum ScreenshotRenderer {
         context.setShadow(offset: CGSize(width: 0, height: -6 * scale),
                           blur: 22 * scale,
                           color: CGColor(gray: 0, alpha: 0.4))
+        // A window brings its own rounded corners, which the shadow follows
+        // so no square of it shows past them. The picture is clipped only to
+        // the user's corners, so its own edge is never shaved.
+        let outline = CGPath(roundedRect: imageRect,
+                             cornerWidth: outlineCorner, cornerHeight: outlineCorner, transform: nil)
         let path = CGPath(roundedRect: imageRect,
                           cornerWidth: corner, cornerHeight: corner, transform: nil)
         // Keep the shadow outside the card without painting an opaque plate
         // behind translucent captures.
         context.addRect(CGRect(x: 0, y: 0, width: width, height: height))
-        context.addPath(path)
+        context.addPath(outline)
         context.clip(using: .evenOdd)
-        context.addPath(path)
+        context.addPath(outline)
         context.setFillColor(CGColor(gray: 1, alpha: 1))
         context.fillPath()
         context.restoreGState()

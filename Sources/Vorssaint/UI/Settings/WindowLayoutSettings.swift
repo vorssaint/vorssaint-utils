@@ -21,11 +21,13 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
     @AppStorage(DefaultsKey.windowCustomZonesEnabled) private var customZonesEnabled = false
     @AppStorage(DefaultsKey.windowCustomZoneLayouts) private var customZoneLayouts = ""
+    @AppStorage(DefaultsKey.windowEdgeSnapRestoreOnDrag) private var edgeSnapRestoreOnDrag = false
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
     @AppStorage(DefaultsKey.windowLayoutWindowGap) private var windowGap = 0
     @AppStorage(DefaultsKey.windowLayoutScreenGap) private var screenGap = 0
+    @AppStorage(DefaultsKey.windowReserveStageManagerSpace) private var reserveStageManagerSpace = false
     @AppStorage(DefaultsKey.windowLayoutMarginPercent) private var marginPercent = WindowLayoutMargin.defaultPercent
     @AppStorage(DefaultsKey.windowLayoutSideRepeatCyclesThirds) private var sideRepeatCyclesThirds = false
     @State private var directionalError: String?
@@ -66,6 +68,16 @@ struct WindowLayoutSettings: View {
                 windowMaximizerSection
             }
 
+            if AppFeature.windowLayout.isAvailable || AppFeature.windowMaximizer.isAvailable {
+                Section {
+                    Toggle(WindowStageManagerStrings.localized(l10n.language).title,
+                           isOn: $reserveStageManagerSpace)
+                    Text(WindowStageManagerStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
             if AppFeature.windowLayout.isAvailable {
                 Section(text.gestureSection) {
                     Toggle(text.edgeSnapEnable, isOn: $edgeSnapEnabled)
@@ -84,6 +96,12 @@ struct WindowLayoutSettings: View {
                         .onChange(of: edgeSnapDisabledZones) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
                         }
+                    Toggle(WindowEdgeSnapRestoreStrings.localized(l10n.language).title,
+                           isOn: $edgeSnapRestoreOnDrag)
+                        .disabled(!edgeSnapEnabled)
+                    Text(WindowEdgeSnapRestoreStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     if systemTilingEnabled {
                         Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)

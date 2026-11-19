@@ -36,6 +36,7 @@ enum NotchCompactTests {
         var scratchpadFindAction = NSTextFinder.Action.showFindInterface
         var contentSize = CGSize(width: 304, height: 122)
         var selected = NotchModule.controls
+        var musicShowsVolume = false
         var notice: NotchNotice?
         var showingSections = false
         var modules: [NotchModule] = [.controls, .music]
@@ -228,6 +229,7 @@ enum NotchCompactTests {
         readingLevels(suite)
         focus(suite)
         sizing(suite)
+        musicVolumeSizing(suite)
     }
     private static func calendarRows(_ suite: TestSuite) {
         // Local noon, so the one-hour event never crosses midnight in any time zone.
@@ -728,6 +730,32 @@ enum NotchCompactTests {
         suite.expect(floating.panel?.responderChanges == 1,
                      "a queued floating focus request is discarded after the user changes hosts")
     }
+    private static func musicVolumeSizing(_ suite: TestSuite) {
+        var page = Page()
+        page.service.selected = .music
+        let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        for notched in [false, true] {
+            for layout: NotchSize in [.compact, .spacious, .custom] {
+                page.service.geometry = NotchGeometry(screen: screen, safeAreaTop: notched ? 32 : 0,
+                                                      cameraWidth: notched ? 210 : 0, layout: layout,
+                                                      customWidth: 480, customHeight: 260)
+                for playing in [false, true] {
+                    page.music.playback = playing ? true : nil
+                    for showVolume in [false, true] {
+                        page.service.musicShowsVolume = showVolume
+                        let minimum = NotchLayout.musicPlayerHeight(band: page.service.expandedGeometry.musicBandHeight,
+                                                                    playing: playing, showVolume: showVolume)
+                        for available: CGFloat in [100, minimum, 300] {
+                            page.service.contentSize = CGSize(width: 304, height: available)
+                            suite.expect(page.pageSize == CGSize(width: 304, height: max(available, minimum)),
+                                         "the music page keeps all controls reachable in short islands and adds no scrolling when they fit: \(layout), notched \(notched), playing \(playing), volume \(showVolume)")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private static func sizing(_ suite: TestSuite) {
         var page = Page()
         let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)

@@ -369,8 +369,10 @@ final class WallpaperService: ObservableObject {
         return ok
     }
 
-    func addImages() {
-        guard isAvailable, openPanel == nil else { return }
+    func addImages(inNotch: Bool) {
+        guard isAvailable else { return }
+        // a picker already up, maybe behind another window, comes forward again
+        if let openPanel { bringForward(openPanel, inNotch: inNotch); return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
@@ -379,22 +381,26 @@ final class WallpaperService: ObservableObject {
         let types = WallpaperSupport.imageExtensions.compactMap { UTType(filenameExtension: $0) }
         panel.allowedContentTypes = types.isEmpty ? [.image] : types
         panel.message = FeatureStrings.wallpaper(L10n.shared.language).addImagePrompt
-        present(panel) { [weak self] urls in
+        present(panel, inNotch: inNotch) { [weak self] urls in
             self?.remember(urls: urls)
         }
     }
 
-    func addFolder() {
-        guard isAvailable, openPanel == nil else { return }
+    func addFolder(inNotch: Bool) {
+        guard isAvailable else { return }
+        if let openPanel { bringForward(openPanel, inNotch: inNotch); return }
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.message = FeatureStrings.wallpaper(L10n.shared.language).addFolderPrompt
-        present(panel) { [weak self] urls in
+        present(panel, inNotch: inNotch) { [weak self] urls in
             self?.remember(urls: urls)
         }
     }
+
+    // keeps the island open while a picker is up, like its other choosers
+    var isChoosingSource: Bool { openPanel != nil }
 
     func openSystemWallpaperSettings() {
         guard let url = WallpaperSupport.systemWallpaperSettingsURL else { return }
@@ -403,17 +409,31 @@ final class WallpaperService: ObservableObject {
 
     // MARK: - Bookmarks
 
-    private func present(_ panel: NSOpenPanel, completion: @escaping ([URL]) -> Void) {
+    private func present(_ panel: NSOpenPanel, inNotch: Bool, completion: @escaping ([URL]) -> Void) {
         openPanel = panel
-        // keep the menu panel up only while the picker is on screen
-        PanelInteractionState.shared.isPresentingPopoverModal = true
+        // keep the menu panel up only while its picker is on screen; the
+        // island stays open through isChoosingSource
+        if !inNotch { PanelInteractionState.shared.isPresentingPopoverModal = true }
         panel.begin { [weak self] response in
-            PanelInteractionState.shared.isPresentingPopoverModal = false
+            if !inNotch { PanelInteractionState.shared.isPresentingPopoverModal = false }
             guard let self else { return }
             self.openPanel = nil
             guard response == .OK else { return }
             completion(panel.urls)
         }
+        bringForward(panel, inNotch: inNotch)
+    }
+
+    // an inactive app's picker opens behind the front app's window, and the
+    // island never activates the app, so the buttons seemed to do nothing
+    private func bringForward(_ panel: NSOpenPanel, inNotch: Bool) {
+        // the island floats above ordinary windows; stand just above it there
+        if inNotch, let island = NotchService.shared.presentationWindow {
+            panel.level = NSWindow.Level(rawValue: island.level.rawValue + 1)
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        // activation alone can leave the nonactivating island holding focus
+        panel.makeKeyAndOrderFront(nil)
     }
 
     private func remember(urls: [URL]) {

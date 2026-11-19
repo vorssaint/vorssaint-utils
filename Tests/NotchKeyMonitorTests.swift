@@ -45,7 +45,14 @@ enum NotchKeyMonitorTests {
     }
     final class MixerPercentNativeTextField {}
     enum PlainTextEditor { static func findBarHasKeyboard(in window: Panel?) -> Bool { false } }
-    final class Host { func contains(_ point: CGPoint) -> Bool { false } }
+    final class Host {
+        var underPointer = false
+        func contains(_ point: CGPoint) -> Bool { underPointer }
+    }
+    final class Mirror {
+        final class Model { var shown = true }
+        let model = Model(), host = Host()
+    }
     final class AppDelegate { func isOverStatusItem(_ point: CGPoint) -> Bool { false } }
     struct Application { let delegate: AnyObject? = nil }
     static let NSApp = Application()
@@ -65,10 +72,12 @@ enum NotchKeyMonitorTests {
     enum QuickLauncherService { static let shared = Launcher() }
 
     class State {
+        var mirrors: [Int: Mirror] = [:]
         var eventMonitors: [Any] = []
         var clickedSinceOpening = false
         var showsKeyboardFocus = false
-        var keepsWorkingSurface = false
+        var keepsSurfaceOnClick = false, showsCapturePreview = false
+        var captureDismiss: (() -> Void)?
         let panel: Panel? = Panel()
         var windowHost: Host? = Host()
         var captureControls: Int?
@@ -108,6 +117,21 @@ enum NotchKeyMonitorTests {
         _ = NSEvent.handler?(NSEvent(window: Panel(), keyCode: 48))
         suite.expect(!service.showsKeyboardFocus,
                      "pointer input and keys in another window do not expose the island's automatic focus")
+        let mirror = Mirror()
+        mirror.host.underPointer = true
+        service.mirrors[1] = mirror
+        service.showsCapturePreview = true
+        var dismissals = 0
+        service.captureDismiss = { dismissals += 1 }
+        let mirrorClick = NSEvent(type: .leftMouseDown, window: Panel(), keyCode: 0)
+        _ = NSEvent.handler?(mirrorClick)
+        suite.expect(dismissals == 0, "the local click monitor preserves a screenshot on a visible island copy")
+        mirror.model.shown = false
+        _ = NSEvent.handler?(mirrorClick)
+        suite.expect(dismissals == 1, "the local click monitor dismisses a screenshot at a hidden copy's old position")
+        service.showsCapturePreview = false
+        service.mirrors = [:]
+        service.captureDismiss = nil
         let tab = NSEvent(window: service.panel, keyCode: 48)
         suite.expect(NSEvent.handler?(tab) != nil && service.showsKeyboardFocus,
                      "Tab restores visible focus and still reaches the controls for navigation")

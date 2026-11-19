@@ -7,8 +7,8 @@ import Foundation
 /// "5 gb to mb". Foundation does the arithmetic and writes the result in the
 /// person's own language; this file only decides what the words mean.
 ///
-/// Deliberately strict. A conversion needs a number, a unit it knows, one of
-/// the little words that mean "to", and another unit of the SAME family.
+/// Deliberately strict. A conversion needs a measurement, one of the little
+/// words that mean "to", and another unit of the SAME family.
 /// Anything else is left to the search, because a launcher that guesses at
 /// conversions turns every sentence into a wrong answer.
 enum CommandBarUnits {
@@ -54,12 +54,15 @@ enum CommandBarUnits {
         add(["f", "fahrenheit", "°f"], .temperature, UnitTemperature.fahrenheit)
         add(["k", "kelvin"], .temperature, UnitTemperature.kelvin)
         // Length
-        add(["mm", "millimeter", "millimeters", "milimetro", "milimetros"], .length, UnitLength.millimeters)
-        add(["cm", "centimeter", "centimeters", "centimetro", "centimetros"], .length, UnitLength.centimeters)
+        add(["mm", "millimeter", "millimeters", "millimetre", "millimetres", "milimetro", "milimetros"],
+            .length, UnitLength.millimeters)
+        add(["cm", "centimeter", "centimeters", "centimetre", "centimetres", "centimetro", "centimetros"],
+            .length, UnitLength.centimeters)
         add(["m", "meter", "meters", "metro", "metros", "metre", "metres"], .length, UnitLength.meters)
-        add(["km", "kilometer", "kilometers", "quilometro", "quilometros"], .length, UnitLength.kilometers)
-        add(["in", "inch", "inches", "polegada", "polegadas", "\""], .length, UnitLength.inches)
-        add(["ft", "foot", "feet", "pe", "pes"], .length, UnitLength.feet)
+        add(["km", "kilometer", "kilometers", "kilometre", "kilometres", "quilometro", "quilometros"],
+            .length, UnitLength.kilometers)
+        add(["in", "inch", "inches", "polegada", "polegadas", "\"", "″", "”"], .length, UnitLength.inches)
+        add(["ft", "foot", "feet", "pe", "pes", "'", "′", "’"], .length, UnitLength.feet)
         add(["yd", "yard", "yards", "jarda", "jardas"], .length, UnitLength.yards)
         add(["mi", "mile", "miles", "milha", "milhas"], .length, UnitLength.miles)
         // Mass
@@ -86,12 +89,17 @@ enum CommandBarUnits {
         add(["s", "sec", "secs", "second", "seconds", "segundo", "segundos"], .duration, UnitDuration.seconds)
         add(["min", "mins", "minute", "minutes", "minuto", "minutos"], .duration, UnitDuration.minutes)
         add(["h", "hr", "hrs", "hour", "hours", "hora", "horas"], .duration, UnitDuration.hours)
+        add(["d", "day", "days", "dia", "dias"], .duration, UnitDuration.days)
+        add(["wk", "wks", "week", "weeks", "semana", "semanas"], .duration, UnitDuration.weeks)
+        add(["yr", "yrs", "year", "years", "ano", "anos"], .duration, UnitDuration.years)
         // Volume
-        add(["ml", "milliliter", "milliliters", "mililitro", "mililitros"], .volume, UnitVolume.milliliters)
+        add(["ml", "milliliter", "milliliters", "millilitre", "millilitres", "mililitro", "mililitros"],
+            .volume, UnitVolume.milliliters)
         add(["l", "liter", "liters", "litre", "litres", "litro", "litros"], .volume, UnitVolume.liters)
         add(["gal", "gallon", "gallons", "galao", "galoes"], .volume, UnitVolume.gallons)
         add(["qt", "quart", "quarts"], .volume, UnitVolume.quarts)
-        add(["floz", "fluidounce", "fluidounces"], .volume, UnitVolume.fluidOunces)
+        add(["floz", "fl oz", "fluidounce", "fluidounces", "fluid ounce", "fluid ounces"],
+            .volume, UnitVolume.fluidOunces)
         add(["cup", "cups", "xicara", "xicaras"], .volume, UnitVolume.cups)
         return map
     }()
@@ -101,17 +109,15 @@ enum CommandBarUnits {
                         decimalSeparator: String = Locale.current.decimalSeparator ?? ".",
                         groupingSeparator: String = Locale.current.groupingSeparator ?? ",",
                         locale: Locale = .current) -> Result? {
-        let tokens = tokenize(input)
-        guard tokens.count >= 3, tokens.count <= 8 else { return nil }
+        let words = CommandBarSearch.normalized(input).split(separator: " ")
+        guard words.count >= 3, words.count <= 8 else { return nil }
 
-        // Try each candidate keyword from the right: in "5 in to cm" the last
-        // one is the verb and the first is a unit.
-        for position in stride(from: tokens.count - 2, through: 1, by: -1)
-        where conversionWords.contains(tokens[position]) {
-            let left = Array(tokens[0..<position])
-            let right = Array(tokens[(position + 1)...])
-            guard right.count == 1, let target = lexicon[right[0]] else { continue }
-            guard let source = parseValue(left,
+        // A connector is a whole word. In "5ft 11in in cm" only the second
+        // "in" separates the measurement from its target.
+        for position in stride(from: words.count - 2, through: 1, by: -1)
+        where conversionWords.contains(String(words[position])) {
+            guard let target = lexicon[words[(position + 1)...].joined(separator: " ")] else { continue }
+            guard let source = parseValue(words[..<position].joined(separator: " "),
                                           decimalSeparator: decimalSeparator,
                                           groupingSeparator: groupingSeparator)
             else { continue }
@@ -126,39 +132,40 @@ enum CommandBarUnits {
         return nil
     }
 
-    /// Splits the input into folded tokens, pulling "100km" apart into a
-    /// number and a unit so both spellings work.
-    static func tokenize(_ input: String) -> [String] {
-        let folded = CommandBarSearch.normalized(input)
-        var tokens: [String] = []
-        for raw in folded.split(separator: " ").map(String.init) {
-            guard let first = raw.first, first.isNumber || first == "-" || first == "." || first == "," else {
-                tokens.append(raw)
-                continue
-            }
-            let digits = raw.prefix { $0.isNumber || $0 == "." || $0 == "," || $0 == "-" }
-            let rest = raw.dropFirst(digits.count)
-            tokens.append(String(digits))
-            if !rest.isEmpty { tokens.append(String(rest)) }
-        }
-        return tokens
-    }
-
-    private static func parseValue(_ tokens: [String],
+    private static func parseValue(_ text: String,
                                    decimalSeparator: String,
                                    groupingSeparator: String) -> (value: Double, unit: KnownUnit)? {
-        guard tokens.count == 2,
-              let unit = lexicon[tokens[1]],
-              let value = number(tokens[0],
-                                 decimalSeparator: decimalSeparator,
-                                 groupingSeparator: groupingSeparator)
+        var rest = text[...]
+        func isNumberCharacter(_ c: Character) -> Bool {
+            c.isNumber || c == "." || c == "," || c == "-"
+        }
+        func readNumber() -> Double? {
+            let digits = rest.prefix(while: isNumberCharacter)
+            rest = rest[digits.endIndex...].drop(while: \.isWhitespace)
+            return number(String(digits), decimalSeparator: decimalSeparator, groupingSeparator: groupingSeparator)
+        }
+
+        guard let value = readNumber() else { return nil }
+        if let unit = lexicon[String(rest)] { return (value, unit) }
+
+        // Only whole feet can introduce an inch remainder. The inch mark is
+        // optional in height shorthand such as "5ft 11" or "5′11".
+        let footName = rest.prefix { !$0.isWhitespace && !isNumberCharacter($0) }
+        guard let feet = lexicon[String(footName)], feet.unit == UnitLength.feet,
+              value == value.rounded(.towardZero) else { return nil }
+        rest = rest[footName.endIndex...].drop(while: \.isWhitespace)
+        // An apostrophe followed by three digits can be a thousands separator.
+        guard rest.first != "-", rest.prefix(while: \.isNumber).count <= 2,
+              let inches = readNumber(), (0..<12).contains(inches),
+              rest.isEmpty || lexicon[String(rest)]?.unit == UnitLength.inches
         else { return nil }
-        return (value, unit)
+        let totalFeet = abs(value) + inches / 12
+        return (value.sign == .minus ? -totalFeet : totalFeet, feet)
     }
 
     /// Like the calculator, accepts an alternate decimal separator unless it
     /// forms grouped thousands. When both separators occur, the last is decimal.
-    /// The tokenizer never keeps a space or an apostrophe inside a number, so
+    /// Numeric components never include a space or an apostrophe, so
     /// where thousands are grouped with one of those the alternate is whichever
     /// of "." and "," is not the decimal, as in the calculator.
     private static func number(_ token: String,
@@ -232,6 +239,15 @@ enum CommandBarUnits {
         formatter.numberFormatter.locale = locale
         formatter.numberFormatter.maximumFractionDigits = fractionDigits(for: measurement.value)
         formatter.numberFormatter.minimumFractionDigits = 0
+        // Four decimals would print a millionth as "0", which reads as a
+        // wrong answer, so a tiny value keeps its significant digits instead.
+        // Temperature offsets can leave a tiny rounding remainder at zero;
+        // keep their existing decimal precision instead of exposing it.
+        let magnitude = abs(measurement.value)
+        if magnitude != 0, magnitude < 0.001, !(measurement.unit is UnitTemperature) {
+            formatter.numberFormatter.usesSignificantDigits = true
+            formatter.numberFormatter.maximumSignificantDigits = 4
+        }
         return formatter.string(from: measurement)
     }
 
@@ -243,4 +259,12 @@ enum CommandBarUnits {
         if magnitude < 100 { return 2 }
         return 1
     }
+}
+
+// ponytail: Foundation defines UnitDuration only up to .hours; larger spans
+// are fixed multipliers of seconds (365 days for year).
+private extension UnitDuration {
+    static let days = UnitDuration(symbol: "d", converter: UnitConverterLinear(coefficient: 86_400))
+    static let weeks = UnitDuration(symbol: "wk", converter: UnitConverterLinear(coefficient: 604_800))
+    static let years = UnitDuration(symbol: "yr", converter: UnitConverterLinear(coefficient: 31_536_000))
 }

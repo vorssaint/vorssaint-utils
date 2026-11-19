@@ -308,13 +308,16 @@ struct ScreenshotEditorView: View {
             let path = CGPath(roundedRect: imageRect,
                               cornerWidth: corner, cornerHeight: corner, transform: nil)
             cardPath = path
+            let outlineCorner = model.cardOutlineCornerPixels * zoom
+            let outline = CGPath(roundedRect: imageRect,
+                                 cornerWidth: outlineCorner, cornerHeight: outlineCorner, transform: nil)
             cg.saveGState()
             cg.setShadow(offset: CGSize(width: 0, height: -5), blur: 18,
                          color: CGColor(gray: 0, alpha: 0.38))
             cg.addRect(CGRect(origin: .zero, size: size))
-            cg.addPath(path)
+            cg.addPath(outline)
             cg.clip(using: .evenOdd)
-            cg.addPath(path)
+            cg.addPath(outline)
             cg.setFillColor(CGColor(gray: 1, alpha: 1))
             cg.fillPath()
             cg.restoreGState()
@@ -1712,7 +1715,7 @@ struct ScreenshotEditorView: View {
         return "\(width) × \(height) px\(retina)"
     }
 
-    /// A draggable control that exports the flattened PNG. Lives in infoChip
+    /// A draggable control that exports the flattened image. Lives in infoChip
     /// (bottom row), not the top toolbar — that region overlaps the
     /// window's real system title bar, where no subview-level override
     /// can reliably stop AppKit from treating a click as "move the
@@ -1729,7 +1732,8 @@ struct ScreenshotEditorView: View {
                       let provider = ScreenshotService.dragItemProvider(
                           image: export.image,
                           scale: export.scale,
-                          strings: strings
+                          strings: strings,
+                          preferredFormat: controller.sourceFormat
                       )
                 else { return NSItemProvider() }
                 model.markExported()

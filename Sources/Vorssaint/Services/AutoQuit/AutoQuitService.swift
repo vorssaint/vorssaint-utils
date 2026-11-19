@@ -20,6 +20,8 @@ final class AutoQuitService: ObservableObject {
 
     /// Bundle ids never auto-quit; mirrors the persisted list for the UI.
     @Published private(set) var exceptions: [String] = []
+    /// Menu bar apps explicitly allowed to quit while they are in the Dock.
+    @Published private(set) var dockApps: [String] = []
 
     private static let appNotifications = [
         kAXWindowCreatedNotification,
@@ -75,6 +77,7 @@ final class AutoQuitService: ObservableObject {
 
     private init() {
         reloadExceptions()
+        reloadDockApps()
     }
 
     var isRunning: Bool { running }
@@ -346,10 +349,11 @@ final class AutoQuitService: ObservableObject {
     private func checkWindows(pid: pid_t, confirm: Bool = true) {
         guard running, hadWindows[pid] == true,
               let app = NSRunningApplication(processIdentifier: pid), !app.isTerminated else { return }
-        let appIsExcepted = AutoQuitSupport.isExcepted(bundleIdentifier: app.bundleIdentifier,
-                                                       bundleURL: app.bundleURL,
-                                                       exceptions: exceptions)
-            || AutoQuitSupport.isBackgroundApp(bundleURL: app.bundleURL)
+        let appIsExcepted = AutoQuitSupport.isQuitExempt(bundleIdentifier: app.bundleIdentifier,
+                                                        bundleURL: app.bundleURL,
+                                                        isInDock: app.activationPolicy == .regular,
+                                                        exceptions: exceptions,
+                                                        dockApps: dockApps)
         let hiddenByCloseRequest = app.isHidden && hasRecentCloseButtonRequest(pid: pid)
 
         // Cheap early-outs before any synchronous AX IPC: excepted apps and
@@ -605,9 +609,9 @@ final class AutoQuitService: ObservableObject {
     /// the feature, and plenty of them do not destroy their window on close:
     /// they hide it, which leaves the app with no windows for Accessibility but
     /// a window record here. Those do not count. A window sitting on another
-    /// Space does. The check before a quit also counts whatever else the app
-    /// shows on screen (`countsEverythingShown`); see
-    /// `AutoQuitSupport.windowServerWindowRole`. The decision itself is
+    /// Space does, and so does a minimized one. The check before a quit also
+    /// counts whatever else the app shows on screen (`countsEverythingShown`);
+    /// see `AutoQuitSupport.windowServerWindowRole`. The decision itself is
     /// `AutoQuitSupport.windowListHasUserWindow`.
     private func hasWindowServerUserWindow(pid: pid_t, countsEverythingShown: Bool = false) -> Bool? {
         guard let info = CGWindowListCopyWindowInfo([.optionAll, .excludeDesktopElements],
@@ -617,8 +621,9 @@ final class AutoQuitService: ObservableObject {
             pid: pid,
             countsEverythingShown: countsEverythingShown,
             processDrawsForApp: { Self.process($0, drawsFor: pid) },
+            windowIsMinimized: { SpaceWindowBridge.isMinimized($0) },
             visibleSpaces: { SpaceWindowBridge.topology()?.visibleSpaces },
-            windowSpaces: { SpaceWindowBridge.spaces(of: $0) })
+            windowSpaces: { SpaceWindowBridge.resolvedSpaces(of: $0) })
     }
 
     /// Whether another process's window is this app's own interface drawn
@@ -818,22 +823,38 @@ final class AutoQuitService: ObservableObject {
 
     private func closeButtonPID(at point: CGPoint, candidate: TrafficLightCandidate) -> pid_t? {
         guard candidate.pid != getpid(), observers[candidate.pid] != nil else { return nil }
-        guard let element = elementAt(point: point),
-              let window = Self.topLevelWindow(from: element)
-        else { return candidate.pid }
+        let element = elementAt(point: point)
+        // When Accessibility cannot confirm the close button, only the click's
+        // place can, and the area that sent it here also covers the minimize
+        // button (issue #3249). An element Accessibility does name as another
+        // window button settles it the other way.
+        func unconfirmedClose() -> pid_t? {
+            guard WindowServerSupport.contains(point, inCloseButtonOf: candidate.frame) else { return nil }
+            if let element, Self.isOtherWindowButton(element) { return nil }
+            return candidate.pid
+        }
+        guard let element, let window = Self.topLevelWindow(from: element) else { return unconfirmedClose() }
 
         var pid: pid_t = 0
         AXUIElementGetPid(window, &pid)
-        if pid == 0 { return candidate.pid }
+        if pid == 0 { return unconfirmedClose() }
         guard pid == candidate.pid else { return nil }
 
         guard Self.isStandardWindow(window),
               let closeButton = Self.windowAttribute(window, kAXCloseButtonAttribute as String),
               Self.boolAttribute(closeButton, kAXEnabledAttribute as String, default: true),
               let buttonFrame = Self.frame(of: closeButton)
-        else { return candidate.pid }
+        else { return unconfirmedClose() }
 
         return buttonFrame.insetBy(dx: -4, dy: -4).contains(point) ? pid : nil
+    }
+
+    private static func isOtherWindowButton(_ element: AXUIElement) -> Bool {
+        guard !isApplicationElement(element) else { return false }
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &value) == .success
+        else { return false }
+        return AutoQuitSupport.isWindowButtonOtherThanClose(subrole: value as? String)
     }
 
     private func elementAt(point: CGPoint) -> AXUIElement? {
@@ -958,6 +979,30 @@ final class AutoQuitService: ObservableObject {
 
     func isMandatoryException(_ bundleID: String) -> Bool {
         Defaults.mandatoryAutoQuitExceptionBundleIDs.contains(bundleID)
+    }
+
+    // MARK: - Explicit menu bar app choices
+
+    private func reloadDockApps() {
+        let raw = UserDefaults.standard.stringArray(forKey: DefaultsKey.autoQuitDockApps) ?? []
+        let sanitized = Defaults.sanitizedAutoQuitDockApps(raw)
+        if raw != sanitized {
+            UserDefaults.standard.set(sanitized, forKey: DefaultsKey.autoQuitDockApps)
+        }
+        dockApps = sanitized
+    }
+
+    func addDockApp(_ bundleID: String) {
+        let list = Defaults.sanitizedAutoQuitDockApps(dockApps + [bundleID])
+        guard list != dockApps else { return }
+        UserDefaults.standard.set(list, forKey: DefaultsKey.autoQuitDockApps)
+        reloadDockApps()
+    }
+
+    func removeDockApp(_ bundleID: String) {
+        let list = Defaults.sanitizedAutoQuitDockApps(dockApps.filter { $0 != bundleID })
+        UserDefaults.standard.set(list, forKey: DefaultsKey.autoQuitDockApps)
+        reloadDockApps()
     }
 }
 
