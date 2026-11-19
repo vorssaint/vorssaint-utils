@@ -45,10 +45,6 @@ enum SwitcherFullscreenScopeTests {
             return answers.filter { pids.contains($0.key) }
         }
 
-        static func orderByUse(_ windows: [SwitcherItem], frontToBack: [CGWindowID]) -> [SwitcherItem] {
-            windows
-        }
-
         /// The apps the window server may name that the running-apps
         /// snapshot does not know.
         final class RunningApplication {
@@ -200,11 +196,23 @@ enum SwitcherFullscreenScopeTests {
     }
 
     final class Tracker {
+        struct FrontToBack {
+            let windows: [CGWindowID]
+            let apps: [pid_t]
+        }
         static let shared = Tracker()
         let historyRevision = UUID()
-        static func frontToBack() -> [CGWindowID] { [] }
-        func reconcile(existingWindows: Set<CGWindowID>, frontToBack: [CGWindowID],
-                       running: Set<pid_t>, revision: UUID) {}
+        var history: [CGWindowID] = []
+        static func frontToBack() -> FrontToBack { FrontToBack(windows: [], apps: []) }
+        func reconcile(
+            existingWindows: Set<CGWindowID>,
+            frontToBack: FrontToBack,
+            running: Set<pid_t>,
+            revision: UUID
+        ) {}
+        func order(_ entries: [WindowUseOrder.Entry], frontToBack: [CGWindowID]) -> [Int] {
+            WindowUseOrder.order(entries, windowHistory: history, appHistory: [], frontToBack: frontToBack)
+        }
         func rank(of pid: pid_t) -> Int { Int(pid) }
     }
 

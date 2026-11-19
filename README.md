@@ -81,7 +81,7 @@ Choose individual features or start with a preset. Uninstalled features stop loa
   <img src="docs/assets/readme/features-hub.png" width="720" alt="The Features hub in Settings, installing and uninstalling whole features">
 </p>
 
-Reorder or hide panel sections, choose a compact layout, and export settings to another Mac. The app supports more than a dozen languages.
+Reorder or hide panel sections, choose a compact layout, and export settings to another Mac or [keep them in your dotfiles](docs/TROUBLESHOOTING.md#keeping-settings-in-your-dotfiles). The app supports more than a dozen languages.
 
 ## Everything it does
 
@@ -146,7 +146,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Shelf.** Park files, text and links near your cursor while dragging, then drop or share them later.
 - **Finder shortcuts.** Move files with ⌘X and ⌘V, rename with F2, or paste copied images as PNG files.
 - **Clean URL.** Remove tracking parameters from links, manually or automatically.
-- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup.
+- **Disk image installer.** Install an app from a mounted disk image and eject it, with optional download cleanup. Place an empty `.vorssaint-no-install` file in a build folder to skip prompts for images in that folder and its subfolders. Removing the file restores prompts. Hidden mounts and images in system temporary folders are always skipped. Other visible mounts can prompt, including scripted mounts in unmarked folders. For an untagged image outside Downloads, moving it to Trash requires selecting that option for the current install.
 
 ### Everyday tools
 
@@ -182,7 +182,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Energy and display
 
 - **Keep awake.** Keep your Mac working on a timer, with the lid closed, or while selected apps, power or external displays are present.
-- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, and software dimming as a fallback.
+- **Displays.** Control individual displays and brightness, with hardware control where supported, half or quarter steps for the brightness keys, optional extra dimming below a monitor's minimum, software dimming as a fallback, and the volume and mute of a monitor's built-in speakers.
 - **Extra brightness.** Use a MacBook Pro XDR display's HDR headroom to go beyond its normal maximum brightness.
 - **Bluetooth on sleep.** Disconnect Bluetooth during sleep and restore it on wake only if Vorssaint turned it off.
 

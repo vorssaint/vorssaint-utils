@@ -23,6 +23,17 @@ struct NotchNotice: Equatable {
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
 
+    enum ClickTarget: Hashable {
+        case event(NotchEvent, title: String, detail: String?)
+        case notification(UUID)
+    }
+
+    /// A new reading can keep the same action. Each mirrored message has its own.
+    var clickTarget: ClickTarget {
+        if let notificationID { return .notification(notificationID) }
+        return .event(event, title: title, detail: level == nil ? detail : nil)
+    }
+
     /// Each side as wide as what it shows, so neither ends in a band of
     /// empty black: the island reaches further toward its wider side.
     var preferredWings: NotchNoticeWings { preferredWings(wrapsMessage: false) }
@@ -117,6 +128,7 @@ final class NotchService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
@@ -181,7 +193,7 @@ final class NotchService: ObservableObject {
     private var subscriptions = Set<AnyCancellable>()
     private var eventMonitors: [Any] = []
     private var screenEdgeClickMonitors: [Any] = []
-    private var screenEdgePressArea: CGRect?
+    private var screenEdgePress: (area: CGRect, point: CGPoint, notice: NotchNotice?)?
     private var captureControlsMonitors: [Any] = []
     private var hiddenHoverMonitors: [Any] = []
     private var hoverExitMonitors: [Any] = []
@@ -2256,15 +2268,14 @@ final class NotchService: ObservableObject {
     func cancelCaptureControls() { captureControlsCancel?() }
 
     func openSettings() {
-        collapse()
-        SettingsRouter.shared.request(FeatureSettingsDestination(.notch))
-        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
+        openSettings(showing: nil)
     }
 
-    /// Opens the Dynamic Island settings on one section's options.
-    func openSettings(showing module: NotchModule) {
-        SettingsRouter.shared.notchModule = module
-        openSettings()
+    func openSettings(showing module: NotchModule?) {
+        collapse()
+        let destination = module.map { FeatureSettingsDestination(notch: .module($0)) }
+        SettingsRouter.shared.request(destination ?? FeatureSettingsDestination(.notch))
+        (NSApp.delegate as? AppDelegate)?.openSettingsWindow()
     }
 
     func perform(_ action: @escaping () -> Void) {
@@ -2273,14 +2284,17 @@ final class NotchService: ObservableObject {
         else { DispatchQueue.main.async(execute: action) }
     }
 
-    var canAcceptFileDrop: Bool {
+    func canAcceptFileDrop(_ pasteboard: NSPasteboard) -> Bool {
+        // Leave file drags to the open media card as they cross the island's
+        // edge. The Files page keeps its own Shelf / Optimize destination.
         acceptsUserInteraction && captureControls == nil && modules.contains(.files)
+            && !(directMediaDropWorkspace != nil && pasteboard.types?.contains(.fileURL) == true)
             && AppFeature.shelf.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
-        guard canAcceptFileDrop else { return }
+        guard canAcceptFileDrop(pasteboard) else { return }
         choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
@@ -2308,7 +2322,7 @@ final class NotchService: ObservableObject {
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
         defer { endFileDrop() }
-        guard canAcceptFileDrop else { return false }
+        guard canAcceptFileDrop(pasteboard) else { return false }
         let optimize = choosingFileDropDestination && targetsMediaDrop
         let accepted = optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
@@ -2359,15 +2373,24 @@ final class NotchService: ObservableObject {
         return true
     }
 
-    func activateNotice(_ selectedNotice: NotchNotice) {
-        guard notice == selectedNotice else { return }
+    /// The strip keeps its outgoing button until another notice or page takes its place.
+    var stripNotice: NotchNotice? {
+        notice ?? (expanded || peeking ? nil : departingNotice)
+    }
+
+    func activateNotice(_ selectedNotice: NotchNotice, fromEdgePress: Bool = false) {
+        guard acceptsSystemFeedback, noticeCanPresent, NotchSupport.routes(selectedNotice.event) else { return }
+        let shown = stripNotice
+        guard shown?.clickTarget == selectedNotice.clickTarget
+            || (fromEdgePress && shown == nil) else { return }
         if let id = selectedNotice.notificationID {
             guard NotchNotificationService.shared.openingID == nil else { return }
             // The pointer stays where the banner was; like a click on the
             // island itself, this must not turn into a hover opening.
             settleNotificationHover()
             NotchNotificationService.shared.open(id) { [weak self] result in
-                guard let self else { return }
+                guard let self, self.acceptsSystemFeedback, self.noticeCanPresent, NotchSupport.routes(selectedNotice.event),
+                      self.stripNotice == nil || self.stripNotice?.notificationID == id else { return }
                 if self.notice?.notificationID == id { self.dismissNotice() }
                 if result == .unavailable || result == .uncertain { self.open(.notifications) }
             }
@@ -2378,6 +2401,8 @@ final class NotchService: ObservableObject {
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
              : selectedNotice.event == .watch ? .watch : .controls)
+        // The notice grows into the page it led to, and stays gone after it closes.
+        if expanded, (notice ?? departingNotice)?.clickTarget == selectedNotice.clickTarget { dismissNotice() }
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -2495,17 +2520,18 @@ final class NotchService: ObservableObject {
         if let mascotBack { bridgeMascotHome(from: mascotBack) }
         guard departingNotice != nil else { return }
         // Without motion the host hides the content at once; so does the view.
-        guard windowHost?.departsContent == true else { endDeparture(); return }
-        let work = DispatchWorkItem { [weak self] in self?.endDeparture() }
+        guard windowHost?.departsContent == true else { endDeparture(restoringClicks: true); return }
+        let work = DispatchWorkItem { [weak self] in self?.endDeparture(restoringClicks: true) }
         departureWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + NotchMotion.departureHidden, execute: work)
     }
 
-    private func endDeparture() {
+    private func endDeparture(restoringClicks: Bool = false) {
         departureWork?.cancel(); departureWork = nil
         guard departingNotice != nil else { return }
         departingNotice = nil
         windowHost?.finishDeparture()
+        if restoringClicks { refreshPresentation() }
     }
 
     private var noticeCanPresent: Bool {
@@ -2738,7 +2764,7 @@ final class NotchService: ObservableObject {
         let activationRect: CGRect
         if captureControls != nil {
             activationRect = captureControlsCollapsed ? CGRect(origin: .zero, size: size) : .zero
-        } else if notice != nil || dragPlaceholder {
+        } else if stripNotice != nil || dragPlaceholder {
             activationRect = .zero
         } else if showsCompactActivityPicker {
             let strip = compactActivityGeometry.compactActivitySize
@@ -3337,17 +3363,28 @@ final class NotchService: ObservableObject {
     }
 
     private var screenEdgeClickArea: CGRect? {
-        guard running, !suspended, !expanded, captureControls == nil, notice == nil,
+        // A notice takes these clicks as well, but a held preview has its own controls.
+        guard running, !suspended, !expanded, captureControls == nil, !noticeExpanded,
               !dragPlaceholder, !heldDrag, let panel, panel.isVisible, !panel.ignoresMouseEvents else { return nil }
         let geometry = compactActivityIsVisible ? compactActivityGeometry : self.geometry
-        let area = geometry.activationArea(in: surfaceSize, hasHeader: peeking, compactActivity: compactActivityIsVisible)
+        // A notice can be visible even when a menu occupies the simulated cutout.
+        guard geometry.isNotched || geometry.compactSideRoom != nil else { return nil }
+        var size = surfaceSize
+        if geometry.floats { size.width = min(size.width, NotchCapsuleLayout.availableWidth(geometry)) }
+        // The menu bar still gets these clicks, so beside a camera a notice
+        // leaves the items under its wings alone, as an activity's strip does.
+        let area = geometry.activationArea(in: size, hasHeader: peeking,
+                                           compactActivity: compactActivityIsVisible || stripNotice != nil)
         guard !area.isEmpty else { return nil }
-        let frame = geometry.frame(for: surfaceSize)
+        let frame = geometry.frame(for: size)
         return CGRect(x: frame.minX + area.minX, y: frame.maxY - area.maxY, width: area.width, height: area.height)
     }
 
     private func syncScreenEdgeClicks() {
         guard screenEdgeClickArea != nil else { removeScreenEdgeClickMonitors(); return }
+        if let original = screenEdgePress?.notice, let shown = stripNotice, original.clickTarget != shown.clickTarget {
+            screenEdgePress = nil
+        }
         guard screenEdgeClickMonitors.isEmpty else { return }
         // The menu bar owns the first screen row even above its window level.
         // Observe only mouse clicks, with no event tap or Accessibility requirement.
@@ -3362,9 +3399,9 @@ final class NotchService: ObservableObject {
     }
 
     private func handleScreenEdgeEvent(_ event: NSEvent) {
-        guard event.type == .leftMouseDown || screenEdgePressArea != nil else { return }
+        guard event.type == .leftMouseDown || screenEdgePress != nil else { return }
         guard let location = event.cgEvent?.location, let primary = NSScreen.withMenuBar else {
-            screenEdgePressArea = nil
+            screenEdgePress = nil
             return
         }
         handleScreenEdgeClick(event.type, at: CGPoint(x: location.x, y: primary.frame.maxY - location.y),
@@ -3372,33 +3409,44 @@ final class NotchService: ObservableObject {
     }
 
     private func handleScreenEdgeClick(_ type: NSEvent.EventType, at point: CGPoint, isNotchWindow: Bool) {
-        guard let area = screenEdgeClickArea else { screenEdgePressArea = nil; return }
+        guard let area = screenEdgeClickArea else { screenEdgePress = nil; return }
         let local = CGPoint(x: point.x - area.minX, y: area.maxY - point.y)
         switch type {
         case .leftMouseDown:
-            screenEdgePressArea = nil
+            screenEdgePress = nil
             // The menu bar a capsule leaves above itself takes its clicks too.
             guard !isNotchWindow, !keepsWorkingSurface,
                   CGRect(x: 0, y: 0, width: area.width, height: 1 + (geometry.floatingGap ?? 0)).contains(local),
                   windowHost?.containsDestination(point) == true else { return }
-            screenEdgePressArea = area
+            screenEdgePress = (area, point, stripNotice)
             hoverWork?.cancel(); hoverWork = nil
             hoverState.close(pointerInside: true)
         case .leftMouseUp:
-            let pressedArea = screenEdgePressArea
-            screenEdgePressArea = nil
-            // The hover pulse can settle between press and release; the click
-            // stays on the island in either size.
-            guard let pressed = pressedArea,
-                  NotchSupport.screenEdgeArea(pressed, contains: point) || NotchSupport.screenEdgeArea(area, contains: point),
-                  windowHost?.containsDestination(point) == true else { return }
-            if compactActivity == .calendar { openCountdownEvent() } else { open() }
+            let press = screenEdgePress
+            screenEdgePress = nil
+            // Keep the original action through expiry. A notice arriving under a
+            // resting press still leaves its wings to the menu bar.
+            guard let press, !keepsWorkingSurface else { return }
+            // A new banner changes even the generic opening to its inbox.
+            guard press.notice != nil || stripNotice?.notificationID == nil else { return }
+            if geometry.floats, press.notice != nil, notice == nil, point == press.point {
+                // The capsule may have shrunk away from a stationary click.
+                // The original point was hit-tested and must still be clear of menus.
+                let free = CGSize(width: NotchCapsuleLayout.availableWidth(geometry), height: geometry.stripHeight)
+                guard geometry.contains(point, in: free) else { return }
+            } else {
+                guard NotchSupport.screenEdgeArea(area, contains: point)
+                        || (stripNotice == nil && NotchSupport.screenEdgeArea(press.area, contains: point)),
+                      windowHost?.containsDestination(point) == true else { return }
+            }
+            if let original = press.notice { activateNotice(original, fromEdgePress: true) }
+            else if compactActivity == .calendar { openCountdownEvent() } else { open() }
         case .leftMouseDragged:
             // A press at the screen's edge reports a drag at once, often without
             // moving. Only a drag that leaves the island cancels the click.
             guard !NotchSupport.screenEdgeArea(area, contains: point),
-                  !(screenEdgePressArea.map { NotchSupport.screenEdgeArea($0, contains: point) } ?? false) else { return }
-            screenEdgePressArea = nil
+                  !(screenEdgePress.map { NotchSupport.screenEdgeArea($0.area, contains: point) } ?? false) else { return }
+            screenEdgePress = nil
         default:
             break
         }
@@ -3407,7 +3455,7 @@ final class NotchService: ObservableObject {
     private func removeScreenEdgeClickMonitors() {
         screenEdgeClickMonitors.forEach(NSEvent.removeMonitor)
         screenEdgeClickMonitors.removeAll()
-        screenEdgePressArea = nil
+        screenEdgePress = nil
     }
 
     private func stopMenuSpaceMonitoring() {
@@ -3460,9 +3508,7 @@ final class NotchService: ObservableObject {
 
     private func invalidateMenuSpace() {
         menuSpaceGeneration += 1
-        // Keep the last measured layout until its replacement arrives, so a
-        // switch does not blink; the read that follows withdraws the cutout
-        // once the new menu bar reaches the camera.
+        // Keep a settled layout during a brief remeasurement; a slow read withdraws the old clearance.
         readMenuSpace()
     }
 
@@ -3485,18 +3531,24 @@ final class NotchService: ObservableObject {
         // frontmost application while an accessory app such as a launcher has
         // focus; that app's own menu geometry was never laid out. When our own
         // Settings has focus, the menu owner can briefly be nil.
-        guard menuSpaceTimer != nil, !menuSpaceReading,
-              let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
-                ?? (NSApp.isActive ? getpid() : nil) else { return }
+        guard menuSpaceTimer != nil, !menuSpaceReading else { return }
+        guard let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
+            ?? (NSApp.isActive ? getpid() : nil) else { applyMenuSpace(nil); return }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.menuSpaceTimer != nil, self.menuSpaceReading else { return }
+            self.applyMenuSpace(nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: timeout)
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
                                                 primaryTop: primaryTop, ownWindow: window)
             DispatchQueue.main.async {
+                timeout.cancel()
                 guard let self else { return }
                 self.menuSpaceReading = false
                 guard self.menuSpaceTimer != nil else { return }
@@ -3518,7 +3570,7 @@ final class NotchService: ObservableObject {
         // Losing a safe center must also hide an unchanged bare cutout.
         if previousSize != surfaceSize || panel?.isVisible != true || room == nil {
             refreshPresentation(animated: grows)
-        }
+        } else { syncScreenEdgeClicks() }
     }
 
     /// Only a laptop reports its lid, and only a laptop can lose its
@@ -3606,7 +3658,7 @@ final class NotchService: ObservableObject {
         if modules.contains(.files), AppFeature.shelf.isAvailable {
             windowHost?.setFileDropActions(NotchFileDropActions(
                 canAccept: { [weak self] pasteboard in
-                    self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
+                    self?.canAcceptFileDrop(pasteboard) == true && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
                 enter: { [weak self] in self?.beginFileDrop($0) },
@@ -3629,7 +3681,7 @@ final class NotchService: ObservableObject {
             cameraWidth = max(0, right.minX - left.maxX)
         } else { cameraWidth = 0 }
         return NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
-                             cameraWidth: cameraWidth,
+                             cameraWidth: cameraWidth, physicalCameraX: screen.auxiliaryTopLeftArea?.maxX,
                              layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .spacious,
                              menuBarHeight: menuBarMeasurements.height(
                                 displayID: screen.notchDisplayID, frame: screen.frame,
@@ -3759,6 +3811,13 @@ final class NotchService: ObservableObject {
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
+        }
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            observe(workspace, name) { [weak self] in
+                guard let self, self.menuSpaceTimer != nil else { return }
+                self.applyMenuSpace(nil)
+                self.invalidateMenuSpace()
+            }
         }
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
@@ -4321,10 +4380,12 @@ final class NotchService: ObservableObject {
         }
     }
 
-    func showCurrentVolume() {
+    /// Shows the output's current level. False when there is no level to show.
+    @discardableResult
+    func showCurrentVolume() -> Bool {
         let mixer = AppVolumeMixer.shared
-        guard let volume = mixer.systemOutputVolume else { return }
-        showVolume(volume, muted: mixer.systemOutputMuted)
+        guard let volume = mixer.systemOutputVolume else { return false }
+        return showVolume(volume, muted: mixer.systemOutputMuted)
     }
 
     /// The island's own output and keyboard light controls already show the

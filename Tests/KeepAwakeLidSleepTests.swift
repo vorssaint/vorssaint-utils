@@ -68,6 +68,8 @@ enum KeepAwakeLidSleepContract {
     static var closes = 0
     static var policy: Bool? = true
     static var assertions: [[String: Any]]? = []
+    static var externalDisplay: Bool? = false
+    static var connectedToPower: Bool? = true
     static func IOPMFindPowerManagement(_ value: Int) -> Int { port }
     static func IOPMSleepSystem(_ value: Int) -> Int {
         calls += 1
@@ -106,14 +108,16 @@ enum KeepAwakeLidSleepContract {
     }
     static func reset() -> Service {
         port = 1; results = [0]; calls = 0; closes = 0
-        policy = true; assertions = []; BrightnessService.lid = true
+        policy = true; assertions = []; externalDisplay = false; connectedToPower = true; BrightnessService.lid = true
         LidDisplayDimmer.reading = nil; LidDisplayDimmer.written = []; LidDisplayDimmer.writeSucceeds = true
         DimmingObserver.registrations = 0; DimmingObserver.releasedObjects = 0
         DimmingObserver.destroyedPorts = 0; DimmingObserver.callback = nil
         for queue in [DispatchQueue.main, DispatchQueue.background, DispatchQueue.native] {
             queue.pending.removeAll(); queue.immediate.removeAll()
         }
-        UserDefaults.standard.values.removeAll(); UserDefaults.standard.doubles.removeAll()
+        UserDefaults.standard.values.removeAll()
+        AppFeature.keepAwake.isAvailable = true
+        SystemInfo.battery = nil
         Sudoers.calls = []; Sudoers.results = [true]; Sudoers.disabled = false
         Sudoers.configured = true; Sudoers.installCompletions = []
         Sudoers.sleepStateProbeSuspensions = 0; Sudoers.probeWrites = []
@@ -128,13 +132,30 @@ enum KeepAwakeLidSleepTests {
     private typealias C = KeepAwakeLidSleepContract
 
     static func run(expect: (Bool, String) -> Void) {
-        func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?) -> Bool {
-            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy, assertions: assertions)
+        func allowed(_ policy: Bool?, _ assertions: [[String: Any]]?,
+                     external: Bool? = false, power: Bool? = true) -> Bool {
+            KeepAwakeAutomationSupport.lidSleepIsAllowed(systemAllowsSleep: policy,
+                                                         externalDisplayConnected: external,
+                                                         connectedToPower: power,
+                                                         assertions: assertions)
         }
         let connection: [String: Any] = ["AssertType": "PreventSystemSleep", "AssertLevel": 1,
                                           "ProcessingHotPlug": true]
         expect(!allowed(true, [connection]),
                "a live monitor transition overrides a stale allowed lid policy")
+        expect(!allowed(true, [], external: true),
+               "closed-display mode with an external monitor is never forced to sleep")
+        expect(!allowed(true, [], external: nil),
+               "on external power an unreadable display list never authorizes forced sleep")
+        expect(!allowed(true, [connection], external: nil, power: false)
+               && !allowed(true, nil, external: nil, power: false),
+               "the battery cutoff still checks live lid protections when the display list is unreadable")
+        expect(allowed(true, [], external: true, power: false),
+               "a monitor on battery is not closed-display mode, so the battery cutoff still sleeps")
+        expect(!allowed(true, [], external: true, power: nil),
+               "an unreadable power source with a monitor never authorizes forced sleep")
+        expect(allowed(true, [], external: false, power: false) && allowed(true, [], external: false, power: nil),
+               "without a monitor the power source does not matter")
         expect(!allowed(false, []) && !allowed(nil, []) && !allowed(true, nil),
                "closed-display mode and unavailable system facts never authorize forced sleep")
         expect(allowed(true, []) && allowed(true, [["AssertType": "PreventUserIdleSystemSleep", "AssertLevel": 1]]),
@@ -166,6 +187,12 @@ enum KeepAwakeLidSleepTests {
                        "ports close and successful or inapplicable requests do not poll")
             }
         }
+        let docked = C.reset(); C.externalDisplay = true
+        docked.sleepIfLidAlreadyClosed()
+        expect(C.calls == 0, "ending a session docked to a monitor does not blank it with a sleep")
+        let unplugged = C.reset(); C.externalDisplay = true; C.connectedToPower = false
+        unplugged.sleepIfLidAlreadyClosed()
+        expect(C.calls == 1, "the battery cutoff still sleeps a closed lid with a monitor on battery")
         let blocked = C.reset(); C.assertions = [connection]
         blocked.sleepIfLidAlreadyClosed()
         expect(C.calls == 0, "the production request respects an in-progress monitor connection")

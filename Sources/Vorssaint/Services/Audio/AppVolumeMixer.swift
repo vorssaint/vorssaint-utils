@@ -6,6 +6,7 @@ import AppKit
 import AudioToolbox
 import Combine
 import CoreAudio
+import CoreAudioTapCompat
 import Darwin
 
 struct MixerOutputDevice: Identifiable, Equatable {
@@ -14,6 +15,7 @@ struct MixerOutputDevice: Identifiable, Equatable {
     let name: String
     let isDefault: Bool
     let isHeadphones: Bool
+    let isAirPlay: Bool
     let canBeDefaultOutput: Bool
     let canBeDefaultSystemOutput: Bool
     let priorityTier: MixerRoutingSupport.PriorityTier
@@ -86,6 +88,17 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    /// The output's volume and mute as CoreAudio reports them. The published
+    /// pair above shows the monitor's speakers instead while one carries the
+    /// sound; see `republishSystemOutput()`.
+    private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }
+    private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }
+    /// The monitor whose speakers carry the sound, when its speakers are on and
+    /// macOS cannot set that output's volume. Kept current by the brightness service.
+    private(set) var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil {
+        didSet { republishSystemOutput() }
+    }
+
     @Published private(set) var outputSwitchError: String?
     /// Set when tap creation fails with a permission error, so the panel can
     /// point at the System Audio Recording consent.
@@ -324,8 +337,9 @@ final class AppVolumeMixer: ObservableObject {
         if !outputDevices.isEmpty { outputDevices = [] }
         if currentOutputDeviceUID != nil { currentOutputDeviceUID = nil }
         if currentSystemSoundOutputDeviceUID != nil { currentSystemSoundOutputDeviceUID = nil }
-        if systemOutputVolume != nil { systemOutputVolume = nil }
-        if systemOutputMuted != nil { systemOutputMuted = nil }
+        if coreAudioOutputVolume != nil { coreAudioOutputVolume = nil }
+        if coreAudioOutputMuted != nil { coreAudioOutputMuted = nil }
+        refreshMonitorOutput()
         if outputSwitchError != nil { outputSwitchError = nil }
         if needsPermission { needsPermission = false }
         processMonitoringEnabled = false
@@ -532,11 +546,47 @@ final class AppVolumeMixer: ObservableObject {
 
     // MARK: - Volume API (panel)
 
+    /// Whether the output in use is a monitor's own speakers. The panel and the
+    /// volume keys then work on the monitor's level instead of CoreAudio's.
+    var outputIsMonitorSpeakers: Bool { monitorOutput != nil }
+
+    /// Reads which monitor, if any, carries the sound. The brightness service
+    /// calls this when its display list or the default output changes. Main
+    /// thread only.
+    func refreshMonitorOutput() {
+        let next = BrightnessService.shared.monitorSpeakerOutput()
+        if next != monitorOutput { monitorOutput = next }
+    }
+
+    /// The published pair shows the monitor's levels while it carries the sound
+    /// and CoreAudio's otherwise. A monitor at zero without a recoverable
+    /// mute state publishes no mute control.
+    private func republishSystemOutput() {
+        let volume: Double?
+        let muted: Bool?
+        if let monitor = monitorOutput {
+            volume = monitor.volume
+            muted = monitor.muted
+        } else {
+            volume = coreAudioOutputVolume
+            muted = coreAudioOutputMuted
+        }
+        if systemOutputVolume != volume { systemOutputVolume = volume }
+        if systemOutputMuted != muted { systemOutputMuted = muted }
+    }
+
     /// UI feedback is immediate; one HAL write runs at a time and a burst
     /// retains only its newest requested level. Device changes never inherit
-    /// a write intended for the previous output.
+    /// a write intended for the previous output. A monitor's speakers take the
+    /// request on the brightness queue instead.
     func requestOutputAdjustment(volume: Double? = nil, muted: Bool? = nil,
                                  completion: @escaping (Bool) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            guard volume?.isFinite != false else { completion(false); return }
+            BrightnessService.shared.requestSpeakers(.set(volume: volume, muted: muted),
+                                                     target: monitor.target, completion: completion)
+            return
+        }
         enqueueOutputAdjustment(volume: volume, muted: muted) { completion($0.handled) }
     }
 
@@ -545,8 +595,8 @@ final class AppVolumeMixer: ObservableObject {
                                          completion: @escaping (OutputKeyResult) -> Void) {
         guard let device = outputControlListenerDevice,
               volume?.isFinite != false,
-              volume == nil || systemOutputVolume != nil,
-              muted == nil || systemOutputMuted != nil else { completion(.fallback); return }
+              volume == nil || coreAudioOutputVolume != nil,
+              muted == nil || coreAudioOutputMuted != nil else { completion(.fallback); return }
         // A direct control change supersedes keys pressed before it. The HAL
         // read for those keys may still finish later, so invalidate its value.
         if step == nil {
@@ -564,20 +614,20 @@ final class AppVolumeMixer: ObservableObject {
         if let volume {
             let value = min(1, max(0, volume))
             adjustment.volume = value
-            if step == nil { systemOutputVolume = value }
+            if step == nil { coreAudioOutputVolume = value }
             // Many outputs still play faintly at a scalar of zero; macOS mutes
             // there, so do the same. A level the percent labels show as 0%
             // counts: a key steps from the level the output reports, so a
             // coarse step from a hair above one step lands just above zero.
-            if systemOutputMuted != nil, muted == nil {
+            if coreAudioOutputMuted != nil, muted == nil {
                 let mutes = MixerRoutingSupport.mutesOutput(atVolume: value)
                 adjustment.muted = mutes
-                if step == nil { systemOutputMuted = mutes }
+                if step == nil { coreAudioOutputMuted = mutes }
             }
         }
         if let muted {
             adjustment.muted = muted
-            if step == nil { systemOutputMuted = muted }
+            if step == nil { coreAudioOutputMuted = muted }
         }
         pendingOutputAdjustment = adjustment
         previous?.completion(.superseded)
@@ -587,18 +637,32 @@ final class AppVolumeMixer: ObservableObject {
     /// A key reads the output before stepping. Keys wait for the previous
     /// write and its readback, so a USB device's rounded level becomes the
     /// starting point for the next press. `level` receives zero while muted.
-    func requestOutputStep(level: @escaping (Double) -> Double,
+    func requestOutputStep(level: @escaping (Double) -> Double, raises: Bool = false,
                            completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            BrightnessService.shared.requestSpeakers(.step(levels: [level], raises: raises),
+                                                     target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
+            return
+        }
         enqueueOutputKey(OutputStep(level: level, completion: completion),
-                         isAvailable: systemOutputVolume != nil)
+                         isAvailable: coreAudioOutputVolume != nil)
     }
 
     /// The mute key rides the same read and queue as the volume keys, so it
     /// toggles the state the output reports now. A following volume key waits
     /// for that toggle and then reads the resulting audible level.
     func requestOutputMuteToggle(completion: @escaping (OutputKeyResult) -> Void = { _ in }) {
+        if let monitor = monitorOutput {
+            guard monitor.muted != nil else { completion(.fallback); return }
+            BrightnessService.shared.requestSpeakers(.toggleMute, target: monitor.target, requiresKeys: true) {
+                completion($0 ? .applied : .unconfirmed)
+            }
+            return
+        }
         enqueueOutputKey(OutputStep(level: nil, completion: completion),
-                         isAvailable: systemOutputMuted != nil)
+                         isAvailable: coreAudioOutputMuted != nil)
     }
 
     private func enqueueOutputKey(_ step: OutputStep, isAvailable: Bool) {
@@ -645,8 +709,8 @@ final class AppVolumeMixer: ObservableObject {
                 let superseded = self.outputStepReadGeneration != readGeneration
                 let fresh = !superseded && !self.hasCurrentOutputAdjustment
                 if fresh {
-                    if self.systemOutputVolume != volume { self.systemOutputVolume = volume }
-                    if self.systemOutputMuted != muted { self.systemOutputMuted = muted }
+                    if self.coreAudioOutputVolume != volume { self.coreAudioOutputVolume = volume }
+                    if self.coreAudioOutputMuted != muted { self.coreAudioOutputMuted = muted }
                 }
                 self.applyQueuedOutputSteps()
             }
@@ -664,15 +728,15 @@ final class AppVolumeMixer: ObservableObject {
     private func applyQueuedOutputSteps() {
         guard !hasCurrentOutputAdjustment, !queuedOutputSteps.isEmpty else { return }
         let step = queuedOutputSteps.removeFirst()
-        if let level = step.level, let volume = systemOutputVolume {
-            let target = level(systemOutputMuted == true ? 0 : volume)
+        if let level = step.level, let volume = coreAudioOutputVolume {
+            let target = level(coreAudioOutputMuted == true ? 0 : volume)
             guard target.isFinite else {
                 step.completion(.fallback)
                 applyQueuedOutputSteps()
                 return
             }
             enqueueOutputAdjustment(volume: target, step: step, completion: step.completion)
-        } else if step.level == nil, let muted = systemOutputMuted {
+        } else if step.level == nil, let muted = coreAudioOutputMuted {
             enqueueOutputAdjustment(muted: !muted, step: step, completion: step.completion)
         } else {
             step.completion(.fallback)
@@ -690,8 +754,8 @@ final class AppVolumeMixer: ObservableObject {
 
     private func applyOutputControls(volume: Double?, muted: Bool?) {
         guard !hasCurrentOutputAdjustment else { return }
-        if systemOutputVolume != volume { systemOutputVolume = volume }
-        if systemOutputMuted != muted { systemOutputMuted = muted }
+        if coreAudioOutputVolume != volume { coreAudioOutputVolume = volume }
+        if coreAudioOutputMuted != muted { coreAudioOutputMuted = muted }
     }
 
     private func isCurrentOutputKey(_ adjustment: OutputAdjustment) -> Bool {
@@ -1707,7 +1771,6 @@ final class AppVolumeMixer: ObservableObject {
                                    lowered: lowered)
         }
 
-        let ownPid = request.ownPid
         let saved = request.savedVolumes
         let savedOutputs = request.savedOutputs
         let showFinder = request.showFinder
@@ -1718,85 +1781,9 @@ final class AppVolumeMixer: ObservableObject {
                                                subDeviceUIDs: subDeviceUIDs(of:),
                                                deviceForUID: deviceID(forUID:))
         } ?? [] : Set<AudioObjectID>()
-        var groups: [pid_t: [AudioObjectID]] = [:]
-        var playing: Set<pid_t> = []
-        var bypassed: Set<pid_t> = []
-        var bundleHints: [pid_t: String] = [:]
         let processObjects = audioProcessObjects()
-        for object in processObjects {
-            var pid: pid_t = -1
-            guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != ownPid else { continue }
-
-            // Show every regular app that holds an audio connection, not only
-            // the ones making sound this instant, so apps are adjustable before
-            // they play and stay put between sounds.
-            guard let app = ResponsibleProcess.regularAppOwner(of: pid) else { continue }
-            let owner = app.processIdentifier
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
-            // Bypassed apps still get a row — hiding them read
-            // as a bug (issue #177) — but they are never tapped: volume
-            // pinned at unity, no saved routing, so appNeedsEngine is always
-            // false for them.
-            if MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
-                                                      name: name,
-                                                      allowCallAppVolume: request.callAppVolumeEnabled.contains(
-                                                        app.bundleIdentifier?.lowercased() ?? "")) {
-                bypassed.insert(owner)
-            }
-
-            var running: UInt32 = 0
-            _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
-            if running != 0 { playing.insert(owner) }
-
-            groups[owner, default: []].append(object)
-            if bundleHints[owner] == nil {
-                // The audio object knows the bundle id of its own process,
-                // which is the app itself whenever it plays its own sound.
-                // For a helper that plays on an app's behalf the owner found
-                // above is the app, and its bundle id is the one that counts.
-                bundleHints[owner] = app.bundleIdentifier
-                    ?? (pid == owner ? Self.processBundleIdentifier(of: object) : nil)
-            }
-        }
-
-        var next: [MixerApp] = []
-        for (owner, objects) in groups {
-            let fallbackName = "pid \(owner)"
-            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
-            // The pid fallback is not a name to save under: pids recycle.
-            let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
-                                                           ownerPid: owner,
-                                                           displayName: name == fallbackName ? nil : name)
-            // Hidden means no row, and with no row the engine reconciliation
-            // below tears its tap down too: an app taken off the list always
-            // plays untouched, never silently attenuated (issue #300).
-            if MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
-                                                     hiddenIDs: request.hiddenRowIDs) { continue }
-            let isBypassed = bypassed.contains(owner)
-            let route = isBypassed ? nil : storedRoute(for: identity,
-                                                       saved: savedOutputs,
-                                                       session: request.sessionRoutes)
-            next.append(MixerApp(id: identity.rowID,
-                                 persistenceID: identity.persistenceID,
-                                 ownerPid: owner,
-                                 name: name,
-                                 audioObjects: objects.sorted(),
-                                 isPlaying: playing.contains(owner),
-                                 isBypassed: isBypassed,
-                                 supportsVolumeOverride: MixerRoutingSupport.needsScreenSharingProtection(
-                                    bundleIdentifier: bundleHints[owner]),
-                                 selectedOutputDeviceUID: route,
-                                 effectiveOutputDeviceUID: isBypassed ? nil : MixerRoutingSupport.effectiveDeviceUID(
-                                    selectedUID: route,
-                                    availableUIDs: availableUIDs,
-                                    defaultUID: defaultUID),
-                                 outputDeviceUnavailable: isBypassed ? false : MixerRoutingSupport.selectedDeviceUnavailable(
-                                    selectedUID: route,
-                                    availableUIDs: availableUIDs),
-                                 volume: isBypassed ? 1 : (storedVolume(for: identity,
-                                                                       saved: saved,
-                                                                       session: request.sessionVolumes) ?? 1)))
-        }
+        var next = processRows(for: processObjects, request: request,
+                               availableUIDs: availableUIDs, defaultUID: defaultUID)
         if MixerRoutingSupport.needsPersistentFinderRow(
             showFinder: showFinder,
             hasFinderRow: next.contains { $0.id == MixerRoutingSupport.finderBundleIdentifier }
@@ -1840,6 +1827,91 @@ final class AppVolumeMixer: ObservableObject {
                                apps: next,
                                processObjects: processObjects,
                                lowered: lowered)
+    }
+
+    private static func processRows(for processObjects: [AudioObjectID], request: RefreshRequest,
+                                    availableUIDs: Set<String>, defaultUID: String?) -> [MixerApp] {
+        var groups: [pid_t: [AudioObjectID]] = [:]
+        var playing: Set<pid_t> = []
+        var bypassed: Set<pid_t> = []
+        var bundleHints: [pid_t: String] = [:]
+        for object in processObjects {
+            var pid: pid_t = -1
+            guard Self.read(object, kAudioProcessPropertyPID, &pid), pid > 0, pid != request.ownPid else { continue }
+
+            // Show every regular app that holds an audio connection, not only
+            // the ones making sound this instant, so apps are adjustable before
+            // they play and stay put between sounds.
+            // Keyed by the owner's real pid: the app's own processIdentifier
+            // is -1 for some apps and would merge them (issue #3929).
+            guard let owner = ResponsibleProcess.regularAppOwnerPid(of: pid),
+                  let app = NSRunningApplication(processIdentifier: owner) else { continue }
+            let name = ResponsibleProcess.displayName(pid: owner, fallback: app.localizedName ?? "pid \(owner)")
+            // Bypassed apps still get a row — hiding them read
+            // as a bug (issue #177) — but they are never tapped: volume
+            // pinned at unity, no saved routing, so appNeedsEngine is always
+            // false for them.
+            if MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: app.bundleIdentifier,
+                                                      name: name,
+                                                      allowCallAppVolume: request.callAppVolumeEnabled.contains(
+                                                        app.bundleIdentifier?.lowercased() ?? "")) {
+                bypassed.insert(owner)
+            }
+
+            var running: UInt32 = 0
+            _ = Self.read(object, kAudioProcessPropertyIsRunningOutput, &running)
+            if running != 0 { playing.insert(owner) }
+
+            groups[owner, default: []].append(object)
+            if bundleHints[owner] == nil {
+                // The audio object knows the bundle id of its own process,
+                // which is the app itself whenever it plays its own sound.
+                // For a helper that plays on an app's behalf the owner found
+                // above is the app, and its bundle id is the one that counts.
+                bundleHints[owner] = app.bundleIdentifier
+                    ?? (pid == owner ? Self.processBundleIdentifier(of: object) : nil)
+            }
+        }
+
+        var next: [MixerApp] = []
+        for (owner, objects) in groups {
+            let fallbackName = "pid \(owner)"
+            let name = ResponsibleProcess.displayName(pid: owner, fallback: fallbackName)
+            // The pid fallback is not a name to save under: pids recycle.
+            let identity = MixerRoutingSupport.rowIdentity(bundleIdentifier: bundleHints[owner],
+                                                           ownerPid: owner,
+                                                           displayName: name == fallbackName ? nil : name)
+            // Hidden means no row, and with no row the engine reconciliation
+            // below tears its tap down too: an app taken off the list always
+            // plays untouched, never silently attenuated (issue #300).
+            if MixerRoutingSupport.isHiddenFromMixer(persistenceID: identity.persistenceID,
+                                                     hiddenIDs: request.hiddenRowIDs) { continue }
+            let isBypassed = bypassed.contains(owner)
+            let route = isBypassed ? nil : storedRoute(for: identity,
+                                                       saved: request.savedOutputs,
+                                                       session: request.sessionRoutes)
+            next.append(MixerApp(id: identity.rowID,
+                                 persistenceID: identity.persistenceID,
+                                 ownerPid: owner,
+                                 name: name,
+                                 audioObjects: objects.sorted(),
+                                 isPlaying: playing.contains(owner),
+                                 isBypassed: isBypassed,
+                                 supportsVolumeOverride: MixerRoutingSupport.needsScreenSharingProtection(
+                                    bundleIdentifier: bundleHints[owner]),
+                                 selectedOutputDeviceUID: route,
+                                 effectiveOutputDeviceUID: isBypassed ? nil : MixerRoutingSupport.effectiveDeviceUID(
+                                    selectedUID: route,
+                                    availableUIDs: availableUIDs,
+                                    defaultUID: defaultUID),
+                                 outputDeviceUnavailable: isBypassed ? false : MixerRoutingSupport.selectedDeviceUnavailable(
+                                    selectedUID: route,
+                                    availableUIDs: availableUIDs),
+                                 volume: isBypassed ? 1 : (storedVolume(for: identity,
+                                                                       saved: request.savedVolumes,
+                                                                       session: request.sessionVolumes) ?? 1)))
+        }
+        return next
     }
 
     /// Runs in the HAL snapshot after rows with the same identity have been
@@ -2432,7 +2504,7 @@ final class AppVolumeMixer: ObservableObject {
         return nil
     }
 
-    private static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
+    static func hasSettableOutputVolume(for deviceID: AudioObjectID) -> Bool {
         for selector in outputVolumeSelectors {
             var address = AudioObjectPropertyAddress(mSelector: selector,
                                                      mScope: kAudioObjectPropertyScopeOutput,
@@ -2504,6 +2576,7 @@ final class AppVolumeMixer: ObservableObject {
                                                 uid: uid,
                                                 dataSourceName: dataSourceName,
                                                 terminalTypes: terminalTypes),
+                                             isAirPlay: transportType == kAudioDeviceTransportTypeAirPlay,
                                              canBeDefaultOutput: canBeDefaultOutput,
                                              canBeDefaultSystemOutput: canBeDefaultSystemOutput,
                                              priorityTier: MixerRoutingSupport.PriorityTier(
@@ -2527,6 +2600,7 @@ final class AppVolumeMixer: ObservableObject {
                                              name: airPlayName,
                                              isDefault: false,
                                              isHeadphones: false,
+                                             isAirPlay: true,
                                              canBeDefaultOutput: false,
                                              canBeDefaultSystemOutput: false,
                                              priorityTier: .hardware,
@@ -2692,7 +2766,7 @@ final class AppVolumeMixer: ObservableObject {
         return setOutputMuted(muted, for: device)
     }
 
-    fileprivate static func defaultOutputDeviceID() -> AudioObjectID? {
+    static func defaultOutputDeviceID() -> AudioObjectID? {
         var device = AudioObjectID(0)
         guard read(AudioObjectID(kAudioObjectSystemObject),
                    kAudioHardwarePropertyDefaultOutputDevice, &device),
@@ -3220,7 +3294,7 @@ private final class MixerTapConfiguration {
         let enqueue = lock.withLock {
             guard !stopped, !requiresRebuild else { return false }
             if suspend { rendering.value = 0 }
-            immediatePending = immediatePending || immediately
+            immediatePending = immediatePending || immediately || suspend
             guard !pending else { return false }
             pending = true
             return true
@@ -3242,9 +3316,9 @@ private final class MixerTapConfiguration {
                 if !unchanged {
                     rendering.value = 0
                     invalidated.value = 1
-                } else if !stopped, !pending, !requiresRebuild {
-                    // A notification arriving during a read owns another
-                    // pass and must not be cleared by this older result.
+                } else if !stopped, !immediatePending, !requiresRebuild {
+                    // A new format notification needs its own validation.
+                    // A periodic poll may skip its read and cannot resume audio for us.
                     rendering.value = 1
                 }
                 return notify
@@ -3374,7 +3448,6 @@ private final class TapGainEngine: GainEngine {
 
         guard let capture = Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID) else { return nil }
         tapID = capture.id
-        let description = capture.description
         // Started before the aggregate, so its first read runs while the
         // aggregate is built. Every failure from here on calls stop().
         let compensation = compensationBox
@@ -3389,7 +3462,7 @@ private final class TapGainEngine: GainEngine {
             kAudioAggregateDeviceMainSubDeviceKey: outputDeviceUID,
             kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: outputDeviceUID]],
             kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapUIDKey: capture.uid,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
             kAudioAggregateDeviceTapAutoStartKey: true,
@@ -3524,27 +3597,25 @@ private final class TapGainEngine: GainEngine {
 
     private struct Capture {
         let id: AudioObjectID
-        let description: CATapDescription
+        let uid: String
         let format: MixerTapFormat
         let source: MixerTapConfiguration.Source?
     }
 
     private static func createTap(objects: [AudioObjectID], outputDeviceUID: String) -> Capture? {
         let source = deviceStreamSource(objects: objects, outputDeviceUID: outputDeviceUID)
-        if let source,
-           let capture = createTap(CATapDescription(processes: objects, deviceUID: outputDeviceUID, stream: 0),
-                                   source: source) {
+        if let source, let capture = createTap(objects: objects, deviceUID: outputDeviceUID, source: source) {
             return capture
         }
-        return createTap(CATapDescription(stereoMixdownOfProcesses: objects), source: nil)
+        return createTap(objects: objects, deviceUID: nil, source: nil)
     }
 
-    private static func createTap(_ description: CATapDescription,
+    private static func createTap(objects: [AudioObjectID], deviceUID: String?,
                                   source: MixerTapConfiguration.Source?) -> Capture? {
-        description.muteBehavior = .mutedWhenTapped
-        description.isPrivate = true
         var tap = AudioObjectID(0)
-        guard AudioHardwareCreateProcessTap(description, &tap) == noErr, tap != 0 else { return nil }
+        guard let uuid = createPrivateAudioTap(deviceUID == nil ? .stereoMixdown : .deviceStream,
+                                               processes: objects as [NSNumber], deviceUID: deviceUID,
+                                               name: nil, muteBehavior: .mutedWhenTapped, id: &tap) else { return nil }
         var asbd = AudioStreamBasicDescription()
         guard AppVolumeMixer.read(tap, kAudioTapPropertyFormat, &asbd),
               let format = MixerTapFormat(asbd),
@@ -3552,7 +3623,7 @@ private final class TapGainEngine: GainEngine {
             AudioHardwareDestroyProcessTap(tap)
             return nil
         }
-        return Capture(id: tap, description: description, format: format, source: source)
+        return Capture(id: tap, uid: uuid.uuidString, format: format, source: source)
     }
 
     private static func deviceStreamSource(objects: [AudioObjectID], outputDeviceUID: String)
@@ -3677,10 +3748,8 @@ private final class AirPlayGainEngine: GainEngine {
         self.gainBox = AtomicFloatBox(gain)
         self.compensationBox = AtomicFloatBox(1)
 
-        let description = CATapDescription(stereoMixdownOfProcesses: objects)
-        description.muteBehavior = .mutedWhenTapped
-        description.isPrivate = true
-        guard AudioHardwareCreateProcessTap(description, &tapID) == noErr, tapID != 0 else {
+        guard let uuid = createPrivateAudioTap(.stereoMixdown, processes: objects as [NSNumber], deviceUID: nil,
+                                               name: nil, muteBehavior: .mutedWhenTapped, id: &tapID) else {
             return nil
         }
         // Started before the aggregate, so its first read runs while the
@@ -3697,7 +3766,7 @@ private final class AirPlayGainEngine: GainEngine {
             kAudioAggregateDeviceMainSubDeviceKey: clockDeviceUID,
             kAudioAggregateDeviceSubDeviceListKey: [[kAudioSubDeviceUIDKey: clockDeviceUID]],
             kAudioAggregateDeviceTapListKey: [[
-                kAudioSubTapUIDKey: description.uuid.uuidString,
+                kAudioSubTapUIDKey: uuid.uuidString,
                 kAudioSubTapDriftCompensationKey: true,
             ]],
             kAudioAggregateDeviceTapAutoStartKey: true,
