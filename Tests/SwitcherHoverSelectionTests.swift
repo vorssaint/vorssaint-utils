@@ -160,6 +160,8 @@ enum SwitcherHoverSelectionTests {
         var shiftBackNavigationHeld = false
         var shiftBackChordDeadline: TimeInterval = 0
         func updateIconRowLayoutForCurrentSelection() {}
+        func updateSelectionPeek() {}
+        func lingerSelectionPeek() {}
         func recomputeLayouts(for items: [SwitcherItem]) {}
         func resizePanel(animated: Bool = true) {}
         func cancelLetterConfirmation() {}
