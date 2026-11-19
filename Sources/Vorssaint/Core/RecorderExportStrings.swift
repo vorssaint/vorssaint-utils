@@ -13,6 +13,10 @@ struct RecorderExportStrings {
 extension FeatureStrings {
     static func recorderExport(_ language: AppLanguage) -> RecorderExportStrings {
         switch language {
+        case .sv:
+            return RecorderExportStrings(
+                speed: "Export speed", custom: "Custom speed", duration: "Export duration",
+                previewNote: "Gäller video, GIF och delade länkar. Förhandsvisningen för redigering förblir 1×; originalinspelningen ändras inte.")
         case .enUS:
             return RecorderExportStrings(
                 speed: "Export speed", custom: "Custom speed", duration: "Export duration",

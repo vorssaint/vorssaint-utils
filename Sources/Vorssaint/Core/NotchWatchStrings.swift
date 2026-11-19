@@ -59,6 +59,36 @@ struct NotchWatchStrings {
 extension FeatureStrings {
     static func notchWatch(_ language: AppLanguage) -> NotchWatchStrings {
         switch language {
+        case .sv: return NotchWatchStrings(
+            title: "Bevaka",
+            description: "Gör valfri del av ett fönster till en liveaktivitet i Dynamic Island, med en avisering när den ändras, avslutas eller visar det du väntar på.",
+            setupHint: "Välj valfri del av ett fönster, till exempel en förloppsindikator, byggstatus eller poäng. Ön läser den åt dig och berättar när den ändras.",
+            choose: "Välj område",
+            chooseAgain: "Välj ett annat område",
+            purpose: "Välj vad som ska bevakas",
+            stop: "Sluta bevaka",
+            watchAgain: "Bevaka igen",
+            permissionHint: "Bevakning läser området du väljer på datorn och behöver därför skärminspelning. Inget lämnar datorn.",
+            allowAccess: "Tillåt skärminspelning",
+            tellMe: "Meddela mig",
+            changes: "När det ändras",
+            settles: "När det slutar ändras",
+            contains: "När det visar",
+            reaches: "När talet når",
+            settlesHint: "När det har ändrats måste det förbli oförändrat i 30 sekunder.",
+            textPlaceholder: "Text, till exempel Klar",
+            numberPlaceholder: "Tal, till exempel 100",
+            noText: "Ingen text",
+            inIsland: "Visa på ön",
+            automatic: "Automatisk",
+            hidden: "Fönstret är dolt. Bevakningen fortsätter när det visas igen.",
+            changedNotice: "Det ändrades",
+            settledNotice: "Det slutade ändras",
+            showsFormat: "Det visar %@",
+            reachedFormat: "Det nådde %@",
+            closedNotice: "Fönstret stängdes",
+            sinceFormat: "Bevakar sedan %@",
+            sound: "Spela upp ett ljud")
         case .enUS: return NotchWatchStrings(
             title: "Watch",
             description: "Turn any part of any window into a live activity in the Dynamic Island, with an alert when it changes, finishes or shows what you are waiting for.",

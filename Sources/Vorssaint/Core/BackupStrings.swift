@@ -28,6 +28,7 @@ struct BackupFeatureStrings {
 extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -104,6 +105,20 @@ extension BackupFeatureStrings {
         configFileConfirmTitle: "Save to the settings file?",
         configFileConfirmFormat: "Your current settings are written to %@ as a complete snapshot, replacing that file if it exists. Vorssaint applies it at each launch, so save again after changing settings here.",
         configFileAction: "Save"
+    )
+
+    static let sv = BackupFeatureStrings(
+        title: "Säkerhetskopia",
+        description: "Ta med dina inställningar till en annan Mac: exportera alla preferenser till en fil och importera den dit. Dina anteckningar i Kladdblock, urklippshistorik, hyllobjekt och systembehörigheter lämnar aldrig denna Mac.",
+        exportButton: "Exportera inställningar…",
+        importButton: "Importera inställningar…",
+        exported: "Säkerhetskopia sparad",
+        exportFailed: "Kunde inte spara säkerhetskopian.",
+        importConfirmTitle: "Importera dessa inställningar?",
+        importConfirmBody: "Dina nuvarande inställningar ersätts av filens och appen startar om. Inget annat på denna Mac berörs.",
+        importMissingIslandBody: "Denna säkerhetskopia har inga inställningar för Dynamic Island. Den här datorns Dynamic Island-inställningar kommer att behållas. Återexportera med Vorssaint 3.4 eller nyare på den andra Mac-datorn för att kopiera dem. Andra inställningar importeras och appen startas om.",
+        importAction: "Importera och starta om",
+        invalidFile: "Den här filen är inte en giltig Vorssaint-säkerhetskopia."
     )
 
     static let ptBR = BackupFeatureStrings(

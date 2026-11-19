@@ -34,6 +34,7 @@ struct WallpaperFeatureStrings {
 extension FeatureStrings {
     static func wallpaper(_ language: AppLanguage) -> WallpaperFeatureStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -78,6 +79,32 @@ extension WallpaperFeatureStrings {
         applyFailed: "Could not set the wallpaper",
         previousPage: "Previous",
         nextPage: "Next"
+    )
+
+    static let sv = WallpaperFeatureStrings(
+        pageTitle: "Skrivbordsbild",
+        hubDescription: "Välj en stillbild som skrivbordsbild utan att öppna Systeminställningar",
+        panelDescription: "Välj en stillbild som skrivbordsbild utan att öppna Systeminställningar.",
+        filterAll: "Alla",
+        filterOwn: "Dina bilder",
+        filterApple: "Apple",
+        applyAllDisplays: "Visa i alla Spaces",
+        addImage: "Lägg till bild",
+        addFolder: "Lägg till mapp",
+        removeAdded: "Ta bort",
+        doneRemoving: "Klar",
+        sourceUnavailable: "Inte tillgänglig",
+        addImagePrompt: "Välj bilder att behålla i Vorssaints lista över skrivbordsbilder",
+        addFolderPrompt: "Välj en mapp med bilder att behålla i Vorssaints lista över skrivbordsbilder",
+        openSystemSettings: "Öppna inställningar för skrivbordsbild",
+        emptyAll: "Inga skrivbordsbilder hittades",
+        emptyOwn: "Inga bilder har lagts till ännu",
+        emptyApple: "Inga stillbilder från Apple hittades",
+        downloading: "Hämtar…",
+        downloadFailed: "Det gick inte att hämta skrivbordsbilden",
+        applyFailed: "Det gick inte att ställa in skrivbordsbilden",
+        previousPage: "Föregående",
+        nextPage: "Nästa"
     )
 
     static let ptBR = WallpaperFeatureStrings(

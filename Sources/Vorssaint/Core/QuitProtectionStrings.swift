@@ -57,6 +57,7 @@ struct QuitProtectionStrings {
 extension FeatureStrings {
     static func quitProtection(_ language: AppLanguage) -> QuitProtectionStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -110,6 +111,41 @@ extension QuitProtectionStrings {
         shiftKey: "Shift",
         optionKey: "Option",
         controlKey: "Control"
+    )
+
+    static let sv = QuitProtectionStrings(
+        name: "Skydd för avsluta och stäng",
+        description: "Skyddar ⌘Q och ⌘W mot oavsiktliga tryck",
+        intro: "Ställ in varje kortkommando oberoende. Ursprungsåtgärden utförs först efter den valda bekräftelsen.",
+        enabled: "Skydda detta kortkommando",
+        enabledCaption: "Andra Command-kortkommandon fortsätter att fungera som vanligt.",
+        mode: "Bekräftelseläge",
+        hold: "Håll ned för att bekräfta",
+        doublePress: "Tryck två gånger",
+        extraModifier: "Kräv extra väljartangent",
+        holdDuration: "Tid att hålla ned",
+        doublePressInterval: "Intervall mellan tryck",
+        modifier: "Extra väljartangent",
+        appScope: "Applikationer",
+        allApps: "Alla program",
+        selectedOnly: "Endast valda program",
+        allExceptSelected: "Alla utom valda program",
+        exceptions: "Valda program",
+        noExceptions: "Inga program valda",
+        addApp: "Lägg till program…",
+        feedback: "Visa visuell återkoppling",
+        accessibilityCaption: "Skyddet använder Hjälpmedel för att övervaka endast ⌘Q och ⌘W globalt.",
+        holdQuitHUDFormat: "Håll ned %@ för att avsluta",
+        holdCloseHUDFormat: "Håll ned %@ för att stänga",
+        doubleQuitHUDFormat: "Tryck på %@ igen för att avsluta",
+        doubleCloseHUDFormat: "Tryck på %@ igen för att stänga",
+        extraQuitHUDFormat: "Använd %@ för att avsluta",
+        extraCloseHUDFormat: "Använd %@ för att stänga",
+        cancelHint: "Esc avbryter",
+        releaseHint: "Släpp för att bekräfta",
+        shiftKey: "Skift",
+        optionKey: "Alternativ",
+        controlKey: "Kontroll"
     )
 
     static let ptBR = QuitProtectionStrings(

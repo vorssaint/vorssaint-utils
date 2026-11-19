@@ -64,6 +64,8 @@ enum AlertSoundStrings {
 
     private static func names(for language: AppLanguage) -> [String: String] {
         switch language {
+        case .sv:
+            return english
         case .enUS:
             return english
 

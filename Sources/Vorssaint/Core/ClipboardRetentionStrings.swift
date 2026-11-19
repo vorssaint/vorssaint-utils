@@ -22,6 +22,7 @@ struct ClipboardRetentionStrings {
 extension FeatureStrings {
     static func clipboardRetention(_ language: AppLanguage) -> ClipboardRetentionStrings {
         switch language {
+        case .sv: return .sv
         case .enUS: return .enUS
         case .ptBR: return .ptBR
         case .tr: return .tr
@@ -42,6 +43,14 @@ extension FeatureStrings {
 }
 
 extension ClipboardRetentionStrings {
+    static let sv = ClipboardRetentionStrings(
+        title: "Behåll objekt i",
+        forever: "För alltid",
+        oneDay: "1 dag",
+        daysFormat: "%d dagar",
+        caption: "Äldre objekt tas bort även under gränsen. Fästa objekt behålls alltid."
+    )
+
     static let enUS = ClipboardRetentionStrings(
         title: "Keep items for",
         forever: "Forever",
