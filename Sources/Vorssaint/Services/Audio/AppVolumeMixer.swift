@@ -2780,7 +2780,7 @@ final class AppVolumeMixer: ObservableObject {
         [kAudioObjectPropertyElementMain, 1, 2]
     }
 
-    private static func outputMuted(for deviceID: AudioObjectID) -> Bool? {
+    static func outputMuted(for deviceID: AudioObjectID) -> Bool? {
         for element in muteElements(for: deviceID) {
             var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute,
                                                      mScope: kAudioObjectPropertyScopeOutput,
@@ -2796,7 +2796,7 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     @discardableResult
-    private static func setOutputMuted(_ muted: Bool, for deviceID: AudioObjectID) -> Bool {
+    static func setOutputMuted(_ muted: Bool, for deviceID: AudioObjectID) -> Bool {
         var changed = false
         for element in muteElements(for: deviceID) {
             var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyMute,
