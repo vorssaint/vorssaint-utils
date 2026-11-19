@@ -422,7 +422,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",
                                        featureKeywords: [
                                         (.switcher, [s.switcherEnable, s.switcherInstantSelection,
-                                                     s.switcherIgnoreHoverSelection,
+                                                     s.switcherIgnoreHoverSelection, s.switcherShiftStepsBack,
                                                      FeatureStrings.switcherShortcuts(language).allWindows,
                                                      s.switcherWindowlessApps,
                                                      s.switcherMaxColumns,

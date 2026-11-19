@@ -4439,6 +4439,13 @@ enum SwitcherModelFeatureTests {
                                                                    wasShiftHeld: false,
                                                                    isShiftHeld: true),
                "App Switcher shift-only back navigation stays off when Shift belongs to the shortcut")
+        suite.expect(!SwitcherSupport.shouldNavigateBackwardOnShiftPress(enabled: false,
+                                                                   shiftIsNavigationModifier: true,
+                                                                   wasShiftHeld: false,
+                                                                   isShiftHeld: true),
+               "App Switcher shift-only back navigation stays off when disabled in Settings")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.switcherShiftStepsBack] as? Bool == true,
+               "App Switcher shift-only back navigation is on by default")
 
         func syntheticCapture(_ draw: (CGContext, CGSize) -> Void) -> CGImage? {
             let size = CGSize(width: 320, height: 200)

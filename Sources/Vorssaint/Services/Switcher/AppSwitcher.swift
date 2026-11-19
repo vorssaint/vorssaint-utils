@@ -1363,7 +1363,8 @@ final class AppSwitcher: ObservableObject {
         let shiftHeld = flags.contains(.maskShift)
         defer { shiftBackNavigationHeld = shiftHeld }
         guard let shortcut = sessionShortcut,
-              SwitcherSupport.shouldNavigateBackwardOnShiftPress(shiftIsNavigationModifier: shortcut.shiftIsNavigationModifier,
+              SwitcherSupport.shouldNavigateBackwardOnShiftPress(enabled: UserDefaults.standard.bool(forKey: DefaultsKey.switcherShiftStepsBack),
+                                                                  shiftIsNavigationModifier: shortcut.shiftIsNavigationModifier,
                                                                   wasShiftHeld: shiftBackNavigationHeld,
                                                                   isShiftHeld: shiftHeld)
         else { return false }
