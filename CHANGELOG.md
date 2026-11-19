@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 This update improves microphone muting, display controls, window switching, clipboard history and screenshots.
 
 ### Added
+- In Values mode, menu bar numbers for CPU, GPU, memory and disk usage take the usage bar's elevated and critical colors past the same thresholds. CPU, GPU and battery temperatures turn elevated from 80° and critical from 95°.
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 
 ### Changed

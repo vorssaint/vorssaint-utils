@@ -160,13 +160,14 @@ struct MenuBarMetricsPreview: View {
                 .font(.system(size: 13.6, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 14.2, height: 14.2)
-        case let .metricBlock(label, value, minimumValue, style, pressure, warning):
+        case let .metricBlock(label, value, minimumValue, style, pressure, warning, tint):
             metricBlock(label: label,
                         value: value,
                         minimumValue: minimumValue,
                         style: style,
                         pressure: pressure,
-                        warning: warning)
+                        warning: warning,
+                        tint: tint)
         case let .usageBarBlock(label, fraction, style, pressure):
             usageBarBlock(label: label,
                           fraction: fraction,
@@ -234,7 +235,8 @@ struct MenuBarMetricsPreview: View {
                              minimumValue: String,
                              style: MenuBarBlockStyle,
                              pressure: MemoryPressure?,
-                             warning: BatteryWarning) -> some View {
+                             warning: BatteryWarning,
+                             tint: MenuBarUsageBarSupport.Level? = nil) -> some View {
         VStack(spacing: -1) {
             Text(label)
                 .font(.system(size: style == .readable ? 7.2 : 6.6, weight: .medium))
@@ -247,7 +249,7 @@ struct MenuBarMetricsPreview: View {
                 }
                 if !value.isEmpty {
                     Text(value)
-                        .foregroundStyle(MenuBarRenderer.nsColor(for: warning).map { Color(nsColor: $0) } ?? .white)
+                        .foregroundStyle(metricValueColor(warning: warning, tint: tint))
                         .font(.system(size: style == .readable ? 13 : 12,
                                       weight: .semibold,
                                       design: .monospaced))
@@ -258,6 +260,15 @@ struct MenuBarMetricsPreview: View {
         }
         .foregroundStyle(.white)
         .fixedSize(horizontal: true, vertical: true)
+    }
+
+    private func metricValueColor(warning: BatteryWarning, tint: MenuBarUsageBarSupport.Level?) -> Color {
+        if let warningColor = MenuBarRenderer.nsColor(for: warning) { return Color(nsColor: warningColor) }
+        if let hex = MenuBarRenderer.valueTintHex(tint) {
+            let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: MenuBarUsageBarSupport.defaultNormalColor)
+            return Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
+        }
+        return .white
     }
 
     private func usageBarBlock(label: String,
