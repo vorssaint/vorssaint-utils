@@ -149,6 +149,13 @@ enum DefaultsKey {
     static let spacesOrderRestartPending = "spacesOrderRestartPending" // local recovery; never backed up: "<Dock pid> <fixed|rearranging> <absent|on|off>…", the Dock process that owes the restart reading a written mru-spaces, what it runs and the values written under it
     static let middleClickEnabled = "middleClickEnabled"  // three-finger PHYSICAL click on the trackpad acts as a middle click
     static let middleClickTapFingers = "middleClickTapFingers"  // 0 = off (default); 3 or 4 = a light tap with that many fingers also middle-clicks (issue #161)
+    static let trackpadEdgeSlidersEnabled = "trackpadEdgeSlidersEnabled"  // one finger sliding along the left or right trackpad edge changes brightness or volume (issue #3700)
+    static let trackpadEdgeSlidersLeft = "trackpadEdgeSlidersLeft"  // what the left edge adjusts: "brightness" (default), "volume" or "off"
+    static let trackpadEdgeSlidersRight = "trackpadEdgeSlidersRight"  // what the right edge adjusts: "volume" (default), "brightness" or "off"
+    static let trackpadEdgeSlidersWidth = "trackpadEdgeSlidersWidth"  // percent of the pad's width, from each side, that counts as the edge
+    static let trackpadEdgeSlidersSensitivity = "trackpadEdgeSlidersSensitivity"  // percent: 200 covers the whole range in half the travel
+    static let trackpadEdgeSlidersHaptics = "trackpadEdgeSlidersHaptics"  // a light tick as the slide passes each step of the system keys
+    static let trackpadEdgeSlidersReversed = "trackpadEdgeSlidersReversed"  // slide down to raise the level instead of up
     static let previewSize = "previewSize"                // dock preview thumbnail size (once shared with the app switcher)
     static let switcherPreviewSize = "switcherPreviewSize" // app switcher thumbnail size
     static let autoCheckUpdates = "autoCheckUpdates"
@@ -1220,6 +1227,10 @@ enum Defaults {
     static let keyboardDebounceWindowStep = 1
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
+    static let defaultTrackpadEdgeSliderWidth = 12
+    static let allowedTrackpadEdgeSliderWidthRange = 6...25
+    static let defaultTrackpadEdgeSliderSensitivity = 100
+    static let allowedTrackpadEdgeSliderSensitivityRange = 50...200
     static let allowedMenuBarPresets = ["dense"]
     static let allowedMenuBarMetricSpacings = ["standard", "compact"]
     static let allowedMenuBarMetricAppearances = ["values", "bars"]
@@ -1348,6 +1359,13 @@ enum Defaults {
         DefaultsKey.spacesOrderEnabled: false,
         DefaultsKey.middleClickEnabled: false,
         DefaultsKey.middleClickTapFingers: 0,
+        DefaultsKey.trackpadEdgeSlidersEnabled: false,
+        DefaultsKey.trackpadEdgeSlidersLeft: "brightness",
+        DefaultsKey.trackpadEdgeSlidersRight: "volume",
+        DefaultsKey.trackpadEdgeSlidersWidth: defaultTrackpadEdgeSliderWidth,
+        DefaultsKey.trackpadEdgeSlidersSensitivity: defaultTrackpadEdgeSliderSensitivity,
+        DefaultsKey.trackpadEdgeSlidersHaptics: true,
+        DefaultsKey.trackpadEdgeSlidersReversed: false,
         DefaultsKey.previewSize: "normal",
         DefaultsKey.switcherPreviewSize: "normal",
         DefaultsKey.autoCheckUpdates: true,
@@ -2604,6 +2622,18 @@ enum Defaults {
     /// else means the option is off.
     static func sanitizedMiddleClickTapFingers(_ raw: Int) -> Int {
         raw == 3 || raw == 4 ? raw : 0
+    }
+
+    static func sanitizedTrackpadEdgeSliderWidth(_ percent: Int) -> Int {
+        allowedTrackpadEdgeSliderWidthRange.contains(percent)
+            ? percent
+            : defaultTrackpadEdgeSliderWidth
+    }
+
+    static func sanitizedTrackpadEdgeSliderSensitivity(_ percent: Int) -> Int {
+        allowedTrackpadEdgeSliderSensitivityRange.contains(percent)
+            ? percent
+            : defaultTrackpadEdgeSliderSensitivity
     }
 
     static func sanitizedKeyboardDebounceWindow(_ milliseconds: Int) -> Int {

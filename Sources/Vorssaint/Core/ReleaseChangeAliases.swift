@@ -84,6 +84,8 @@ enum ReleaseChangeAliases {
         case .middleClick: return ["middle click", "middle-click", "middle clicks"]
         case .mouseClickDebounce: return ["extra click filter", "extra-click filter", "click filter",
             "mouse debounce", "keyboard and mouse debounce", "worn-button click filtering", "extra clicks"]
+        case .trackpadEdgeSliders: return ["trackpad edge sliders", "trackpad edge slider", "edge sliders",
+            "edge slider", "trackpad edges"]
         case .keyboardDebounce: return ["keyboard debounce", "key debounce", "debounce",
             "keyboard and mouse debounce"]
         case .textSnippets: return ["text snippets", "snippets", "snippet"]
