@@ -3224,8 +3224,9 @@ struct NotchMenuBarFit: Equatable {
 /// orders status items by that value, in points from the right edge of the
 /// display, and only reads it when the item appears.
 ///
-/// Placed once, its right end stays where the items to its right begin, a
-/// little past the island's right edge. Its length then follows the
+/// It spans the island and `margin` on each side. Placed once, its right
+/// end stays where the items to its right begin; wherever macOS lands it,
+/// its length is set from that real end. Its length then follows the
 /// island's left edge as the island grows and shrinks, which moves only
 /// the items to its left, live and without a new item. Only when the island
 /// reaches past that end, or an item to its right appears or widens and
@@ -3234,13 +3235,13 @@ struct NotchMenuBarFit: Equatable {
 /// by the position it had, and would come back under the island.
 struct NotchMenuBarGap: Equatable {
     static let autosaveName = "VorssaintNotchMenuBarGap"
-    /// Room kept past the island's left end. It exceeds the clearance the
-    /// menu measurement keeps from a status item, so the items laid out
-    /// beside the gap leave the wings their full width.
-    static let margin: CGFloat = 10
-    /// Room kept past the island's right end when the gap is placed, so a
-    /// strip can grow a little before the gap has to move.
-    static let anchorSlack: CGFloat = 24
+    /// Room kept past each end of the island.
+    static let margin: CGFloat = 4
+    /// Room asked for past the island's right end when the gap is placed.
+    static let anchorSlack: CGFloat = margin
+    /// The clearance the menu measurement keeps from a status item, as
+    /// `NotchMenuBarLayout.sideRoom` does.
+    static let menuClearance: CGFloat = 8
     /// Smaller length changes are not worth laying out the bar for.
     static let lengthTolerance: CGFloat = 1
 
@@ -3273,10 +3274,10 @@ struct NotchMenuBarGap: Equatable {
         return NotchMenuBarGap(position: (screen.maxX - right).rounded(.down), length: (right - left).rounded(.up))
     }
 
-    /// The gap's right end has to move: the island reaches past it, less
-    /// the margin.
+    /// The gap's right end has to move: the island reaches past it. The
+    /// margin is room to grow into before that.
     static func needsPlacing(rightEnd: CGFloat, island: ClosedRange<CGFloat>) -> Bool {
-        island.upperBound + margin > rightEnd
+        island.upperBound > rightEnd
     }
 
     /// The length that reaches from the gap's right end, where macOS drew
@@ -3303,9 +3304,21 @@ struct NotchMenuBarGap: Equatable {
     /// which lies over the camera and would leave the island no room at
     /// all. Status items never overlap, so the one that ends where the gap
     /// ends and overlaps it is the gap, even while its length changes.
+    /// The items beside the gap sit only its margin from the island, closer
+    /// than the menu clearance, so they count from the clearance past the
+    /// gap's ends: the gap already keeps them off the island, and fitting
+    /// must not narrow the wings for them.
     static func removing(_ gap: CGRect?, from frames: [CGRect]) -> [CGRect] {
         guard let gap, !gap.isEmpty else { return frames }
-        return frames.filter { abs($0.maxX - gap.maxX) > 3 || $0.maxX <= gap.minX }
+        return frames.filter { abs($0.maxX - gap.maxX) > 3 || $0.maxX <= gap.minX }.map { frame in
+            if frame.minX >= gap.maxX - 3, frame.minX < gap.maxX + menuClearance {
+                return frame.offsetBy(dx: gap.maxX + menuClearance - frame.minX, dy: 0)
+            }
+            if frame.maxX <= gap.minX + 3, frame.maxX > gap.minX - menuClearance {
+                return frame.offsetBy(dx: gap.minX - menuClearance - frame.maxX, dy: 0)
+            }
+            return frame
+        }
     }
 
     /// What a reading of every status item says about the gap.

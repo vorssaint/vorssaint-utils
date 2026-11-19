@@ -104,7 +104,7 @@ enum NotchActivityTests {
         let island: ClosedRange<CGFloat> = 786...1133
         let pushed = [item(610, 383), item(1007, 24), item(1083, 150), item(1209, 24), item(1384, 44)]
         suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 383, frames: pushed, screen: plain)
-                     == .replace(NotchMenuBarGap(position: 686, length: 467)),
+                     == .replace(NotchMenuBarGap(position: 686, length: 455)),
                      "a gap pushed under the island is placed again right of the items over it")
         suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 383, frames: [item(1007, 24)], screen: plain) == .unknown,
                      "a reading without the gap changes nothing")
@@ -112,7 +112,7 @@ enum NotchActivityTests {
         suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 434, frames: landed, screen: plain)
                      == .fits(gap: item(800, 434)),
                      "a gap ending past the island with nothing over the island to its right fits, from where it really ends")
-        suite.expect(NotchMenuBarGap.length(rightEnd: 1234, island: island, screen: plain) == 458,
+        suite.expect(NotchMenuBarGap.length(rightEnd: 1234, island: island, screen: plain) == 452,
                      "its length then runs from its real end, not the one asked for")
         let leftOver = [item(760, 40), item(790, 444), item(1240, 24)]
         suite.expect(NotchMenuBarGap.audit(island: island, gapLength: 444, frames: leftOver, screen: plain)
@@ -319,8 +319,8 @@ enum NotchActivityTests {
                      && NotchMenuBarGap.island(width: .nan, screen: plain) == nil,
                      "an island with no width clears nothing")
         let gap = island.flatMap { NotchMenuBarGap.placed(island: $0, screen: plain) }
-        suite.expect(gap == NotchMenuBarGap(position: 786, length: 334),
-                     "a new gap ends past the island's right end with slack and starts past its left end")
+        suite.expect(gap == NotchMenuBarGap(position: 806, length: 308),
+                     "a new gap spans the island and four points on each side")
         let offset = CGRect(x: 1920, y: 0, width: 1920, height: 1080)
         suite.expect(NotchMenuBarGap.island(width: 300, screen: offset)
                         .flatMap { NotchMenuBarGap.placed(island: $0, screen: offset) } == gap,
@@ -332,7 +332,7 @@ enum NotchActivityTests {
         let notched = CGRect(x: 0, y: 0, width: 1512, height: 982)
         suite.expect(NotchMenuBarGap.island(width: 300, screen: notched)
                         .flatMap { NotchMenuBarGap.placed(island: $0, screen: notched, notchWidth: 185) }
-                     == NotchMenuBarGap(position: 582, length: 81),
+                     == NotchMenuBarGap(position: 602, length: 61),
                      "beside a physical camera the gap starts past the notch, where macOS keeps status items")
 
         // Placed at 1134, the gap follows the island by its length alone.
@@ -340,13 +340,14 @@ enum NotchActivityTests {
         suite.expect(!NotchMenuBarGap.needsPlacing(rightEnd: end, island: 810...1110)
                      && !NotchMenuBarGap.needsPlacing(rightEnd: end, island: 850...1070),
                      "an island that stays within the gap's end keeps the gap where it is")
-        suite.expect(NotchMenuBarGap.needsPlacing(rightEnd: end, island: 795...1125),
-                     "an island reaching past the gap's end, less the margin, moves it")
+        suite.expect(NotchMenuBarGap.needsPlacing(rightEnd: end, island: 790...1140)
+                     && !NotchMenuBarGap.needsPlacing(rightEnd: end, island: 796...1132),
+                     "an island reaching past the gap's end moves it; one growing into the margin does not")
         suite.expect(!NotchMenuBarGap.needsPlacing(rightEnd: end, island: 900...1000),
                      "a narrower island keeps the gap's end, so an item it was placed to clear stays clear")
-        suite.expect(NotchMenuBarGap.length(rightEnd: end, island: 810...1110, screen: plain) == 334
-                     && NotchMenuBarGap.length(rightEnd: end, island: 820...1100, screen: plain) == 324
-                     && NotchMenuBarGap.length(rightEnd: end, island: 790...1130, screen: plain) == 354,
+        suite.expect(NotchMenuBarGap.length(rightEnd: end, island: 810...1110, screen: plain) == 328
+                     && NotchMenuBarGap.length(rightEnd: end, island: 820...1100, screen: plain) == 318
+                     && NotchMenuBarGap.length(rightEnd: end, island: 790...1130, screen: plain) == 348,
                      "the length reaches from where the items begin to the island's left end and margin")
         suite.expect(NotchMenuBarGap.length(rightEnd: 930, island: 606...906, screen: notched, notchWidth: 185) == 81,
                      "beside a camera the length keeps starting at the notch")
@@ -377,8 +378,17 @@ enum NotchActivityTests {
         let obs = CGRect(x: 1150, y: 1056, width: 30, height: 24)
         let left = CGRect(x: 770, y: 1056, width: 30, height: 24)
         let drawnGap = CGRect(x: 812, y: 1056, width: 322, height: 24)
-        suite.expect(NotchMenuBarGap.removing(gapFrame, from: [left, main, drawnGap, obs]) == [left, main, obs],
+        suite.expect(NotchMenuBarGap.removing(gapFrame, from: [left, main, drawnGap, obs])
+                     == [left.offsetBy(dx: -8, dy: 0), main, obs],
                      "measuring leaves out the gap, even mid-change, and keeps every other item, the island's own icon too")
+        // Items right against the gap, as macOS may lay them out, count from
+        // the menu clearance past its ends, so fitting keeps the full wings.
+        let tight = CGRect(x: 796, y: 1056, width: 328, height: 24)
+        let against = [CGRect(x: 760, y: 1056, width: 36, height: 24), tight, CGRect(x: 1124, y: 1056, width: 26, height: 24)]
+        let tightRoom = NotchMenuBarLayout.sideRoom(screen: plain, cameraWidth: 180, barHeight: 24,
+                                                    occupied: NotchMenuBarGap.removing(tight, from: against))
+        suite.expect(tightRoom == 74 && tightRoom.map { $0 >= (320 - 180) / 2 } == true,
+                     "a gap four points past the island leaves fitting the island's full wings and its margin")
         suite.expect(NotchMenuBarGap.removing(nil, from: [main, obs]) == [main, obs],
                      "with no gap every status item counts")
         let room = NotchMenuBarLayout.sideRoom(screen: plain, cameraWidth: 180, barHeight: 24,
