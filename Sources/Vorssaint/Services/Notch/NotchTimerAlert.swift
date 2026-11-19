@@ -30,9 +30,10 @@ final class NotchTimerAlert {
         self.stopSound = stopSound
     }
 
-    func start(enabled: Bool) {
+    func start(enabled: Bool, duration: Duration = NotchTimerAlert.maximumDuration) {
         let current = now()
-        let deadline = self.deadline ?? current.advanced(by: Self.maximumDuration)
+        // A completed session keeps its first deadline across preference syncs and suspension.
+        let deadline = deadline ?? current.advanced(by: duration)
         self.deadline = deadline
         guard enabled, current < deadline else { suspend(); return }
         guard task == nil else { return }
