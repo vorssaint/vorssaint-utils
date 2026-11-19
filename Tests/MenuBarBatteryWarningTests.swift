@@ -73,7 +73,7 @@ enum MenuBarBatteryWarningTests {
     private static func warnings(_ segments: [MenuBarSegment]) -> [BatteryWarning] {
         segments.compactMap {
             switch $0 {
-            case let .metricBlock(_, _, _, _, _, warning), let .batteryBlock(_, _, _, warning, _): return warning
+            case let .metricBlock(_, _, _, _, _, warning, _), let .batteryBlock(_, _, _, warning, _): return warning
             default: return nil
             }
         }
@@ -86,7 +86,7 @@ enum MenuBarBatteryWarningTests {
                     let segments = Renderer.blockSegments(for: snapshot(percent), metrics: metrics, style: style)
                     suite.expect(segments.count == 1 && warnings(segments) == [warning],
                                  "a combined battery reading carries its warning in either order and block style")
-                    if case let .metricBlock(label, value, minimum, _, pressure, _)? = segments.first {
+                    if case let .metricBlock(label, value, minimum, _, pressure, _, _)? = segments.first {
                         suite.expect(label == "BAT" && value == "\(percent)% 35°" && minimum == "100% 999°" && pressure == nil,
                                      "the combined warning preserves the reading, reserved width and absence of a pressure dot")
                     } else { suite.expect(false, "charge and temperature remain one metric block") }
