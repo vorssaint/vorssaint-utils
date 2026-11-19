@@ -11,6 +11,48 @@ enum QuickTogglesSupport {
     static let showAllFilesKey = "AppleShowAllFiles"
     static let createDesktopKey = "CreateDesktop"
 
+    // MARK: - Dock preferences
+
+    static let dockDomain = "com.apple.dock"
+    static let dockRevealDelayKey = "autohide-delay"
+
+    /// The Dock reads the delay as a fraction of a second. Apple's own value
+    /// is what the second click writes back; the integer preference overload
+    /// would truncate it to the instant value the first click just removed.
+    static let systemRevealDelay = 0.2
+    static let instantRevealDelay = 0.0
+
+    /// The preference file hands numbers back as NSNumbers, Doubles or decimal
+    /// strings depending on who wrote them. An absent or unreadable value is
+    /// nil, never a guess: an unset delay is the system's, not zero.
+    static func dockNumber(_ value: Any?) -> Double? {
+        switch value {
+        case let number as NSNumber:
+            return number.doubleValue
+        case let number as Double:
+            return number
+        case let text as String:
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            return Double(trimmed)
+        default:
+            return nil
+        }
+    }
+
+    /// Only exactly zero means the Dock shows without waiting. A negative or
+    /// absent value is not a value this toggle owns, so neither counts.
+    static func revealDelayIsInstant(_ delay: Double?) -> Bool {
+        guard let delay else { return false }
+        return delay == instantRevealDelay
+    }
+
+    /// Zeroes a waiting delay, or restores Apple's value when the row already
+    /// reports an instant one, so the same click always flips the setting.
+    static func toggledRevealDelay(_ current: Double?) -> Double {
+        revealDelayIsInstant(current) ? systemRevealDelay : instantRevealDelay
+    }
+
     static let emptyTrashSource = "tell application \"Finder\" to empty trash"
     static let quitFinderSource = "tell application \"Finder\" to quit"
 

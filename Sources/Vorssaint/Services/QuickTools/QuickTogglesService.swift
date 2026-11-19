@@ -287,7 +287,8 @@ final class QuickTogglesService: ObservableObject {
     @Published private(set) var dockRevealDelayInstant = false
 
     func refreshDockPreferenceStates() {
-        workQueue.async {
+        workQueue.async { [weak self] in
+            guard let self else { return }
             let delay = QuickTogglesSupport.dockNumber(
                 DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
             let instant = QuickTogglesSupport.revealDelayIsInstant(delay)
@@ -311,7 +312,8 @@ final class QuickTogglesService: ObservableObject {
     /// both rather than leaving the two corners disagreeing.
     func cycleHotCorners() {
         guard available, beginRun(.hotCorners) else { return }
-        workQueue.async {
+        workQueue.async { [weak self] in
+            guard let self else { return }
             let codes = QuickTogglesSupport.hotCornerCodes(
                 for: QuickTogglesSupport.nextHotCornerState(Self.currentHotCornerState()))
             let wrote = DockPreferenceWriter.write([
@@ -338,7 +340,8 @@ final class QuickTogglesService: ObservableObject {
     /// reports failure rather than claiming a change the Dock never took.
     func toggleDockRevealDelay() {
         guard available, beginRun(.dockRevealDelay) else { return }
-        workQueue.async {
+        workQueue.async { [weak self] in
+            guard let self else { return }
             let current = QuickTogglesSupport.dockNumber(
                 DockPreferenceWriter.read(QuickTogglesSupport.dockRevealDelayKey))
             let wrote = DockPreferenceWriter.write(QuickTogglesSupport.dockRevealDelayKey,
