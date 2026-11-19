@@ -1928,6 +1928,21 @@ enum SwitcherSupport {
         return groups[targetGroupIndex].representativeIndex
     }
 
+    /// Tab through every window, app by app, in the order the icon row shows
+    /// them: the selected app's windows first, then the next app's.
+    static func nextGroupedWindowSelectionIndex(items: [SwitcherItem],
+                                                selectedIndex: Int,
+                                                delta: Int,
+                                                wrapping: Bool = true) -> Int {
+        let rank = Dictionary(uniqueKeysWithValues: appGroups(items: items).enumerated().map { ($1.pid, $0) })
+        let order = items.indices.sorted { (rank[items[$0].pid] ?? 0, $0) < (rank[items[$1].pid] ?? 0, $1) }
+        guard !order.isEmpty else { return 0 }
+        let current = order.firstIndex(of: selectedIndex) ?? 0
+        let next = current + delta
+        if !wrapping, !order.indices.contains(next) { return order[current] }
+        return order[(next % order.count + order.count) % order.count]
+    }
+
     static func nextWindowSelectionIndexWithinApp(items: [SwitcherItem],
                                                   selectedIndex: Int,
                                                   delta: Int) -> Int {
