@@ -22,6 +22,11 @@ enum LocalizationFeatureContractTests {
         // MARK: Localization format contracts
 
         let localizedStrings = LocalizationTests.languages
+        for language in AppLanguage.allCases {
+            let name = FeatureStrings.notch(language).missionControl
+            suite.expect(!name.isEmpty && FeatureStrings.mouseButtons(language).spacesEnableCaption.contains(name),
+                   "the floating button uses the localized Mission Control name in \(language.rawValue)")
+        }
         // Thirty-six feature string sets were held to the no-em-dash rule and
         // the main one never was, so a caption in every language carried a
         // pair of them.

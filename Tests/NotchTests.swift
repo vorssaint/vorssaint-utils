@@ -2684,13 +2684,30 @@ enum NotchTests {
         let legacy = NotchQuickAccessConfiguration.stored(in: defaults)
         suite.expect(legacy == NotchQuickAccessConfiguration.stored(in: defaults),
                "legacy quick-access migration keeps stable identities across refreshes")
+        let sectionActions: [NotchQuickAction] = [.explore, .settings] + NotchModule.allCases.map(NotchQuickAction.module)
+        let quickActions: [NotchQuickAction] = [.pin, .missionControl]
+            + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control)
+        suite.expect(NotchQuickAction.sectionActions == sectionActions && NotchQuickAction.quickActions == quickActions,
+               "the picker adds Mission Control under Quick actions and preserves the existing action groups")
+        let registeredActions = NotchQuickAction.optionalActions
+        suite.expect(Set(registeredActions.map(\.id)).count == registeredActions.count
+               && registeredActions.allSatisfy { NotchQuickAction(id: $0.id) == $0 },
+               "all picker actions have unique identifiers that round-trip")
+        let savedActions: [(String, NotchQuickAction)] = [
+            ("explore", .explore), ("settings", .settings), ("pin", .pin), ("missionControl", .missionControl),
+            ("timer", .module(.timer)), ("control.timer", .control(.timer)), ("control.volume", .control(.volume))
+        ]
+        suite.expect(savedActions.allSatisfy { id, action in action.id == id && NotchQuickAction(id: id) == action },
+               "saved identifiers still distinguish standalone actions, sections and controls")
         let placements = [NotchQuickButton(action: .explore, side: .left),
                           NotchQuickButton(action: .settings, side: .right),
-                          NotchQuickButton(action: .control(.keepAwake), side: .bottom)]
+                          NotchQuickButton(action: .control(.keepAwake), side: .bottom),
+                          NotchQuickButton(action: .missionControl, side: .right, label: "Overview")]
         var layout = NotchQuickAccessConfiguration(buttons: placements)
         defaults.set(layout.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
-        suite.expect(NotchQuickAccessConfiguration.stored(in: defaults) == layout,
-               "the visual layout stores all three edges and direct actions together")
+        suite.expect(NotchQuickAccessConfiguration.stored(in: defaults) == layout
+               && NotchQuickAccessConfiguration.current(in: defaults).actions.contains(.missionControl),
+               "the saved layout restores a named Mission Control button with the existing actions")
         layout.move(placements[0].id, to: .bottom, before: placements[2].id)
         suite.expect(layout.buttons.first(where: { $0.id == placements[0].id })?.side == .bottom
                && layout.buttons.filter { $0.side == .bottom }.map(\.id) == [placements[0].id, placements[2].id],

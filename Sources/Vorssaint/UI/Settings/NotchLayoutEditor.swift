@@ -380,8 +380,8 @@ struct NotchActionChooser: View {
                         Text(FeatureStrings.clipboard(l10n.language).noResults)
                             .foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 120)
                     }
-                    group(editor.sectionActions, actions: [.explore, .settings] + NotchModule.allCases.map(NotchQuickAction.module))
-                    group(editor.quickActions, actions: [.pin] + NotchControlItem.allCases.filter { !$0.isLevel }.map(NotchQuickAction.control))
+                    group(editor.sectionActions, actions: NotchQuickAction.sectionActions)
+                    group(editor.quickActions, actions: NotchQuickAction.quickActions)
                 }.padding(2)
             }.frame(height: 200)
         }.padding(title.isEmpty ? 0 : 16).frame(width: title.isEmpty ? nil : 340)
