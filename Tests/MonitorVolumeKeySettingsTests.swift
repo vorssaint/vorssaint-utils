@@ -14,7 +14,8 @@ enum MonitorVolumeKeySettingsTests {
         let limits = MonitorVolumeKeySettings(stepPercent: 10, minimumPercent: 20, maximumPercent: 70)
 
         var tap = Keys.Service()
-        func connect(raw: UInt16, maximum: UInt16 = 100, muted: Bool? = false,
+        func connect(raw: UInt16, maximum: UInt16 = 100, muted: Bool? = false, unmutedReads: UInt16 = 2,
+                     chip: UInt32 = BrightnessSupport.chipAddress,
                      settings: MonitorVolumeKeySettings = .init(stepPercent: 1, maximumPercent: 5)) -> DisplaySpeakerVolumeTests.Service {
             Hardware.reset()
             Keys.DispatchQueue.main = MixerOutputAdjustmentContract.Queue()
@@ -23,7 +24,7 @@ enum MonitorVolumeKeySettingsTests {
             Keys.NotchService.shared.shownLevels = []
             tap = Keys.Service()
             let service = DisplaySpeakerVolumeTests.connect(Keys.AppVolumeMixer.shared,
-                                                            raw: raw, maximum: maximum, muted: muted)
+                                                            raw: raw, maximum: maximum, muted: muted, unmutedReads: unmutedReads, chip: chip)
             service.monitorVolumeKeySettings = settings
             return service
         }
@@ -135,6 +136,16 @@ enum MonitorVolumeKeySettingsTests {
         suite.expect(service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)]
                      && service.nativeMuted == true && Keys.NotchService.shared.shownLevels.isEmpty,
                      "a monitor that restores a loud level on native unmute is muted again after readback")
+        for chip in [BrightnessSupport.chipAddress, BrightnessSupport.hdmiConverterChipAddress] {
+            service = connect(raw: 0, unmutedReads: 0, chip: chip)
+            service.volumeOnUnmute = 80
+            press(.volumeUp)
+            service.finish()
+            suite.expect(service.nativeMuted == true && Keys.NotchService.shared.shownLevels.isEmpty
+                         && service.writes == [Write(volume, 1), Write(mute, 2), Write(mute, 1)]
+                         && service.chips.allSatisfy { $0 == chip },
+                         "a nonstandard unmute that restores a loud volume is silenced on the original DDC route")
+        }
         service = connect(raw: 40, muted: nil, settings: .init(stepPercent: 1, minimumPercent: 3, maximumPercent: 5))
         press(.mute)
         service.finish()
