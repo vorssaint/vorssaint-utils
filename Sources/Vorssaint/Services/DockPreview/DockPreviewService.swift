@@ -40,6 +40,10 @@ final class DockPreviewService: ObservableObject {
     private var dockHoldInputTap: CFMachPort?
     private var dockHoldInputSource: CFRunLoopSource?
     private var pendingHover: PendingHover?
+    /// The app whose hover last opened no panel because it had too few windows
+    /// to show. Moving on its icon keeps it declined instead of re-reading its
+    /// windows after every open delay; leaving the icon or clicking clears it.
+    private var declinedHoverPID: pid_t?
     private var pendingHide: DispatchWorkItem?
     private var lastMoveSampledAt: TimeInterval = 0
     private var pendingMove: DispatchWorkItem?
@@ -154,6 +158,7 @@ final class DockPreviewService: ObservableObject {
         stopTap()
         endSession()
         closeAllPinnedPanels()
+        declinedHoverPID = nil
         isRunning = false
         blockedReason = nil
     }
@@ -565,13 +570,19 @@ final class DockPreviewService: ObservableObject {
         // edge strip; running it on every move across the whole screen hammers AX.
         guard isNearDock(point) else {
             cancelPendingHover()
+            declinedHoverPID = nil
             return
         }
 
         guard let hit = dockHit(at: axPoint) else {
             cancelPendingHover()
+            declinedHoverPID = nil
             return
         }
+        // Matched by app rather than icon frame, so magnification resizing the
+        // icon under the pointer does not count as leaving it.
+        if hit.app.processIdentifier == declinedHoverPID { return }
+        declinedHoverPID = nil
         scheduleHover(hit)
     }
 
@@ -609,6 +620,8 @@ final class DockPreviewService: ObservableObject {
     }
 
     private func handleMouseDown(_ axPoint: CGPoint) {
+        // A click can open a window, so the next move reads the app afresh.
+        declinedHoverPID = nil
         guard isVisible else {
             cancelPendingHover()
             return
@@ -736,12 +749,18 @@ final class DockPreviewService: ObservableObject {
         cancelPendingHide()
 
         let list = prefetched ?? Self.previewableWindows(for: hit.app.processIdentifier)
-        // An app with no real windows shows nothing; if a panel is already up
+        // An app with no real windows shows nothing, and with the multiple-windows
+        // option neither does one with a single window; if a panel is already up
         // (the user moved here from another app), close it cleanly.
-        guard !list.isEmpty else {
+        guard DockPreviewSupport.opensPanel(
+            windowCount: list.count,
+            multipleWindowsOnly: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewMultipleWindowsOnly)
+        ) else {
             if isVisible { endSession() }
+            declinedHoverPID = hit.app.processIdentifier
             return
         }
+        declinedHoverPID = nil
 
         // Switching apps keeps the panel on screen and re-points it at the app
         // under the cursor without changing the frontmost application.

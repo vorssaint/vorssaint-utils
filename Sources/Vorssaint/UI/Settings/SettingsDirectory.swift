@@ -455,7 +455,8 @@ enum SettingsDirectory {
                                                       s.dockClickCycleWindows]),
                                         (.spacesOrder, [s.spacesOrderName]),
                                        ], terms: [
-                                        .init([s.dockPreviewOpenDelay, s.dockPreviewBackgroundOpacity,
+                                        .init([s.dockPreviewMultipleWindowsOnly, s.dockPreviewOpenDelay,
+                                               s.dockPreviewBackgroundOpacity,
                                                s.dockPreviewQuitAppOnClose, s.dockPreviewKeepDockVisible,
                                                s.dockPreviewOrderByCreation, s.switcherCurrentSpaceOnly], feature: .dockPreview,
                                               when: state.on(DefaultsKey.dockPreviewEnabled)),
