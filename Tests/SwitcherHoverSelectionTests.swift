@@ -112,7 +112,13 @@ enum SwitcherHoverSelectionTests {
         var isWrapped = false
         static let empty = Row()
     }
+    final class Inventory {
+        var removedIDs: Set<String> = []
+        func contains(_ item: SwitcherItem) -> Bool { !removedIDs.contains(item.id) }
+    }
+
     class Fixture {
+        let windowInventory = Inventory()
         var sessionActive = false
         let routeLock = NSLock()
         var sessionStartGeneration: UInt64 = 0
@@ -196,6 +202,15 @@ enum SwitcherHoverSelectionTests {
         func release(_ service: Service) {
             _ = service.handle(type: .flagsChanged, event: keyEvent(KeyCode.tab))
         }
+
+        let disappeared = fresh()
+        let heldIDs = disappeared.windows.map(\.id)
+        disappeared.windowInventory.removedIDs.insert(disappeared.windows[1].id)
+        suite.expect(disappeared.windows.map(\.id) == heldIDs && disappeared.selectedIndex == 1,
+                     "a background closure preserves the displayed entries and selection while the shortcut is held")
+        release(disappeared)
+        suite.expect(Activator.activated == [heldIDs[2]] && Enumerator.reads == 0,
+                     "modifier release skips a vanished selection using remembered state")
 
         for ignore in [false, true] {
             defaults.set(ignore, forKey: key)
