@@ -144,6 +144,7 @@ enum ReleaseChangeAliases {
             "mute key", "volume feedback", "volume indicator", "volume notice", "new track indicator",
             "displays without a notch", "displays without a camera cutout"]
         case .notchCalendar: return [.island("calendar"), "event countdown", "event countdowns", "week numbers",
+            "join meeting", "join button", "zoom", "teams", "google meet",
             "calendar indicator", .island("appointment"), .island("appointments"), .island("next event"),
             .island("upcoming event")]
         case .notchNotifications: return [.island("notifications"), .island("notification"), "notification banners",

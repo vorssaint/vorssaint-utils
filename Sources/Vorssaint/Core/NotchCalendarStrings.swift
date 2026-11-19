@@ -16,6 +16,10 @@ struct NotchCalendarStrings {
     let allDay: String
     let untitled: String
     let openCalendar: String
+    /// Opens a Teams, Zoom or Google Meet link from the event.
+    let joinMeeting: String
+    /// Short label for the closed-island Join control.
+    let join: String
     let week: String
     let today: String
     let requestFailed: String
@@ -37,6 +41,9 @@ struct NotchCalendarStrings {
     /// Counts the event under way down to its end.
     let timeLeft: String
     let timeLeftHint: String
+    /// Join control on the closed island when the countdown event has a meeting link.
+    let joinButton: String
+    let joinButtonHint: String
     /// Numbers each week of the month grid, as Calendar can.
     let weekNumbers: String
     /// Read out for each of those numbers, which the grid shows bare.
@@ -61,6 +68,8 @@ extension FeatureStrings {
             allDay: "All day",
             untitled: "Untitled event",
             openCalendar: "Open Calendar",
+            joinMeeting: "Join Meeting",
+            join: "Join",
             week: "Next 7 days",
             today: "Today",
             requestFailed: "Could not request calendar access. Please try again.",
@@ -78,6 +87,8 @@ extension FeatureStrings {
             removeCountdown: "Remove Countdown",
             timeLeft: "Time left in current event",
             timeLeftHint: "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
+            joinButton: "Join button",
+            joinButtonHint: "Show a Join button when a countdown event has a Teams, Zoom, or Google Meet link. A meeting under way stays on the island until it ends so you can join late or rejoin.",
             weekNumbers: "Week numbers",
             weekNumber: "Week %d",
             calendars: "Calendars shown")
@@ -94,6 +105,8 @@ extension FeatureStrings {
             allDay: "Dia inteiro",
             untitled: "Evento sem título",
             openCalendar: "Abrir calendário",
+            joinMeeting: "Entrar na reunião",
+            join: "Entrar",
             week: "Próximos 7 dias",
             today: "Hoje",
             requestFailed: "Não foi possível pedir acesso ao calendário. Tente novamente.",
@@ -111,6 +124,8 @@ extension FeatureStrings {
             removeCountdown: "Remover contagem regressiva",
             timeLeft: "Tempo restante do evento atual",
             timeLeftHint: "Mostra o evento com horário em andamento no notch durante a última hora antes de terminar. O título pode aparecer em capturas de tela.",
+            joinButton: "Botão Entrar",
+            joinButtonHint: "Mostra um botão Entrar quando o evento da contagem tiver um link do Teams, Zoom ou Google Meet. Uma reunião em andamento permanece no notch até terminar para você entrar atrasado ou de novo.",
             weekNumbers: "Números das semanas",
             weekNumber: "Semana %d",
             calendars: "Calendários exibidos")
@@ -127,6 +142,8 @@ extension FeatureStrings {
             allDay: "Todo el día",
             untitled: "Evento sin título",
             openCalendar: "Abrir Calendario",
+            joinMeeting: "Unirse a la reunión",
+            join: "Unirse",
             week: "Próximos 7 días",
             today: "Hoy",
             requestFailed: "No se pudo solicitar acceso al calendario. Inténtalo de nuevo.",
@@ -144,6 +161,8 @@ extension FeatureStrings {
             removeCountdown: "Quitar cuenta atrás",
             timeLeft: "Tiempo restante del evento actual",
             timeLeftHint: "Muestra el evento con hora en curso en el notch durante la última hora antes de que termine. El título puede aparecer en capturas de pantalla.",
+            joinButton: "Botón Unirse",
+            joinButtonHint: "Muestra un botón Unirse cuando el evento de la cuenta atrás tiene un enlace de Teams, Zoom o Google Meet. Una reunión en curso permanece en el notch hasta que termine para unirte tarde o volver a entrar.",
             weekNumbers: "Números de semana",
             weekNumber: "Semana %d",
             calendars: "Calendarios mostrados")
@@ -160,6 +179,8 @@ extension FeatureStrings {
             allDay: "Celý deň",
             untitled: "Udalosť bez názvu",
             openCalendar: "Otvoriť Kalendár",
+            joinMeeting: "Pripojiť sa k stretnutiu",
+            join: "Pripojiť sa",
             week: "Nasledujúcich 7 dní",
             today: "Dnes",
             requestFailed: "Nepodarilo sa požiadať o prístup ku kalendáru. Skúste to znova.",
@@ -177,6 +198,8 @@ extension FeatureStrings {
             removeCountdown: "Odstrániť odpočítavanie",
             timeLeft: "Zostávajúci čas aktuálnej udalosti",
             timeLeftHint: "Zobrazí prebiehajúcu udalosť s časom v zatvorenom výreze počas hodiny pred jej koncom. Názov sa môže zobraziť na snímkach obrazovky.",
+            joinButton: "Tlačidlo Pripojiť sa",
+            joinButtonHint: "Zobrazí tlačidlo Pripojiť sa, keď má odpočítavaná udalosť odkaz na Teams, Zoom alebo Google Meet. Prebiehajúca schôdza ostane vo výreze až do konca, aby ste sa mohli pripojiť neskoro alebo znova.",
             weekNumbers: "Čísla týždňov",
             weekNumber: "%d. týždeň",
             calendars: "Zobrazené kalendáre")
@@ -193,6 +216,8 @@ extension FeatureStrings {
             allDay: "Ganztägig",
             untitled: "Ereignis ohne Titel",
             openCalendar: "Kalender öffnen",
+            joinMeeting: "Am Meeting teilnehmen",
+            join: "Teilnehmen",
             week: "Nächste 7 Tage",
             today: "Heute",
             requestFailed: "Der Kalenderzugriff konnte nicht angefordert werden. Versuche es erneut.",
@@ -210,6 +235,8 @@ extension FeatureStrings {
             removeCountdown: "Countdown entfernen",
             timeLeft: "Restzeit des aktuellen Termins",
             timeLeftHint: "Zeigt einen laufenden Termin mit Uhrzeit in der geschlossenen Insel in der Stunde vor seinem Ende. Der Titel kann in Bildschirmaufnahmen erscheinen.",
+            joinButton: "Teilnehmen-Taste",
+            joinButtonHint: "Zeigt eine Teilnehmen-Taste, wenn der Countdown-Termin einen Teams-, Zoom- oder Google-Meet-Link hat. Ein laufendes Meeting bleibt bis zum Ende auf der Insel, damit du dich verspätet oder erneut verbinden kannst.",
             weekNumbers: "Kalenderwochen",
             weekNumber: "Kalenderwoche %d",
             calendars: "Angezeigte Kalender")
@@ -226,6 +253,8 @@ extension FeatureStrings {
             allDay: "Toute la journée",
             untitled: "Événement sans titre",
             openCalendar: "Ouvrir Calendrier",
+            joinMeeting: "Rejoindre la réunion",
+            join: "Rejoindre",
             week: "7 prochains jours",
             today: "Aujourd’hui",
             requestFailed: "Impossible de demander l’accès au calendrier. Réessayez.",
@@ -243,6 +272,8 @@ extension FeatureStrings {
             removeCountdown: "Retirer le compte à rebours",
             timeLeft: "Temps restant de l’événement en cours",
             timeLeftHint: "Affiche l’événement en cours avec une heure dans l’encoche pendant l’heure qui précède sa fin. Son titre peut apparaître dans les captures d’écran.",
+            joinButton: "Bouton Rejoindre",
+            joinButtonHint: "Affiche un bouton Rejoindre lorsque l’événement du compte à rebours a un lien Teams, Zoom ou Google Meet. Une réunion en cours reste dans l’encoche jusqu’à sa fin pour rejoindre en retard ou de nouveau.",
             weekNumbers: "Numéros de semaine",
             weekNumber: "Semaine %d",
             calendars: "Calendriers affichés")
@@ -259,6 +290,8 @@ extension FeatureStrings {
             allDay: "Tutto il giorno",
             untitled: "Evento senza titolo",
             openCalendar: "Apri Calendario",
+            joinMeeting: "Partecipa alla riunione",
+            join: "Partecipa",
             week: "Prossimi 7 giorni",
             today: "Oggi",
             requestFailed: "Impossibile richiedere l’accesso al calendario. Riprova.",
@@ -276,6 +309,8 @@ extension FeatureStrings {
             removeCountdown: "Rimuovi conto alla rovescia",
             timeLeft: "Tempo rimanente dell’evento in corso",
             timeLeftHint: "Mostra l’evento in corso con un orario nell’isola chiusa durante l’ultima ora prima della fine. Il titolo può apparire nelle acquisizioni dello schermo.",
+            joinButton: "Pulsante Partecipa",
+            joinButtonHint: "Mostra un pulsante Partecipa quando l’evento del conto alla rovescia ha un link Teams, Zoom o Google Meet. Una riunione in corso resta sull’isola fino alla fine per entrare in ritardo o di nuovo.",
             weekNumbers: "Numeri delle settimane",
             weekNumber: "Settimana %d",
             calendars: "Calendari mostrati")
@@ -292,6 +327,8 @@ extension FeatureStrings {
             allDay: "Весь день",
             untitled: "Событие без названия",
             openCalendar: "Открыть Календарь",
+            joinMeeting: "Присоединиться к встрече",
+            join: "Войти",
             week: "Ближайшие 7 дней",
             today: "Сегодня",
             requestFailed: "Не удалось запросить доступ к календарю. Повторите попытку.",
@@ -309,6 +346,8 @@ extension FeatureStrings {
             removeCountdown: "Убрать отсчёт",
             timeLeft: "Оставшееся время текущего события",
             timeLeftHint: "Показывает текущее событие со временем за час до его окончания. Название может попасть на снимки экрана.",
+            joinButton: "Кнопка «Войти»",
+            joinButtonHint: "Показывает кнопку «Войти», когда у события отсчёта есть ссылка Teams, Zoom или Google Meet. Текущая встреча остаётся в вырезе до конца, чтобы подключиться с опозданием или снова.",
             weekNumbers: "Номера недель",
             weekNumber: "Неделя %d",
             calendars: "Показываемые календари")
@@ -325,6 +364,8 @@ extension FeatureStrings {
             allDay: "Tüm gün",
             untitled: "Başlıksız etkinlik",
             openCalendar: "Takvimi Aç",
+            joinMeeting: "Toplantıya katıl",
+            join: "Katıl",
             week: "Önümüzdeki 7 gün",
             today: "Bugün",
             requestFailed: "Takvim erişimi istenemedi. Tekrar deneyin.",
@@ -342,6 +383,8 @@ extension FeatureStrings {
             removeCountdown: "Geri sayımı kaldır",
             timeLeft: "Geçerli etkinlikte kalan süre",
             timeLeftHint: "Devam eden saatli etkinliği bitmeden önceki bir saat boyunca çentikte gösterir. Başlığı ekran görüntülerinde görünebilir.",
+            joinButton: "Katıl düğmesi",
+            joinButtonHint: "Geri sayım etkinliğinde Teams, Zoom veya Google Meet bağlantısı varken bir Katıl düğmesi gösterir. Devam eden toplantı bitene kadar adada kalır; geç katılabilir veya yeniden girebilirsiniz.",
             weekNumbers: "Hafta numaraları",
             weekNumber: "%d. hafta",
             calendars: "Gösterilen takvimler")
@@ -358,6 +401,8 @@ extension FeatureStrings {
             allDay: "終日",
             untitled: "名称未設定の予定",
             openCalendar: "カレンダーを開く",
+            joinMeeting: "ミーティングに参加",
+            join: "参加",
             week: "今後7日間",
             today: "今日",
             requestFailed: "カレンダーへのアクセスを要求できませんでした。もう一度お試しください。",
@@ -375,6 +420,8 @@ extension FeatureStrings {
             removeCountdown: "カウントダウンを削除",
             timeLeft: "進行中の予定の残り時間",
             timeLeftHint: "終了1時間前から、時刻がある進行中の予定を閉じたノッチに表示します。タイトルが画面収録やスクリーンショットに映る場合があります。",
+            joinButton: "参加ボタン",
+            joinButtonHint: "カウントダウン中の予定にTeams、Zoom、またはGoogle Meetのリンクがあるとき参加ボタンを表示します。進行中の会議は終了まで島に残り、遅刻や再参加に使えます。",
             weekNumbers: "週番号",
             weekNumber: "第%d週",
             calendars: "表示するカレンダー")
@@ -391,6 +438,8 @@ extension FeatureStrings {
             allDay: "하루 종일",
             untitled: "제목 없는 일정",
             openCalendar: "캘린더 열기",
+            joinMeeting: "회의에 참가",
+            join: "참가",
             week: "앞으로 7일",
             today: "오늘",
             requestFailed: "캘린더 접근을 요청할 수 없습니다. 다시 시도하세요.",
@@ -408,6 +457,8 @@ extension FeatureStrings {
             removeCountdown: "카운트다운 제거",
             timeLeft: "진행 중인 일정의 남은 시간",
             timeLeftHint: "종료 1시간 전부터 시간이 지정된 진행 중인 일정을 닫힌 노치에 표시합니다. 제목이 화면 캡처에 나타날 수 있습니다.",
+            joinButton: "참가 버튼",
+            joinButtonHint: "카운트다운 일정에 Teams, Zoom 또는 Google Meet 링크가 있을 때 참가 버튼을 표시합니다. 진행 중인 회의는 끝날 때까지 섬에 남아 늦게 참가하거나 다시 들어갈 수 있습니다.",
             weekNumbers: "주 번호",
             weekNumber: "%d주차",
             calendars: "표시할 캘린더")
@@ -424,6 +475,8 @@ extension FeatureStrings {
             allDay: "全天",
             untitled: "无标题日程",
             openCalendar: "打开日历",
+            joinMeeting: "加入会议",
+            join: "加入",
             week: "未来 7 天",
             today: "今天",
             requestFailed: "无法请求日历访问权限，请重试。",
@@ -441,6 +494,8 @@ extension FeatureStrings {
             removeCountdown: "移除倒计时",
             timeLeft: "当前日程剩余时间",
             timeLeftHint: "在结束前一小时，于收起的刘海区域显示正在进行的定时日程。标题可能出现在屏幕截图中。",
+            joinButton: "加入按钮",
+            joinButtonHint: "当倒计时日程包含 Teams、Zoom 或 Google Meet 链接时显示加入按钮。进行中的会议会留在灵动岛直到结束，方便迟到加入或重新进入。",
             weekNumbers: "周数",
             weekNumber: "第%d周",
             calendars: "显示的日历")
@@ -457,6 +512,8 @@ extension FeatureStrings {
             allDay: "整天",
             untitled: "未命名行程",
             openCalendar: "打開行事曆",
+            joinMeeting: "加入會議",
+            join: "加入",
             week: "未來 7 天",
             today: "今天",
             requestFailed: "無法要求行事曆取用權限，請再試一次。",
@@ -474,6 +531,8 @@ extension FeatureStrings {
             removeCountdown: "移除倒數",
             timeLeft: "目前行程剩餘時間",
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
+            joinButton: "加入按鈕",
+            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時顯示加入按鈕。進行中的會議會留在動態島直到結束，方便遲到加入或重新進入。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
             calendars: "顯示的行事曆")
@@ -490,6 +549,8 @@ extension FeatureStrings {
             allDay: "全天",
             untitled: "未命名行程",
             openCalendar: "開啟日曆",
+            joinMeeting: "加入會議",
+            join: "加入",
             week: "未來 7 天",
             today: "今天",
             requestFailed: "無法要求日曆取用權限，請重試。",
@@ -507,6 +568,8 @@ extension FeatureStrings {
             removeCountdown: "移除倒數",
             timeLeft: "目前行程剩餘時間",
             timeLeftHint: "在結束前一小時，於收合的動態島顯示進行中且有時間的行程。標題可能出現在螢幕截圖中。",
+            joinButton: "加入按鈕",
+            joinButtonHint: "當倒數行程包含 Teams、Zoom 或 Google Meet 連結時顯示加入按鈕。進行中的會議會留在動態島直到結束，方便遲到加入或重新進入。",
             weekNumbers: "週數",
             weekNumber: "第%d週",
             calendars: "顯示的日曆")
@@ -523,6 +586,8 @@ extension FeatureStrings {
             allDay: "Увесь день",
             untitled: "Подія без назви",
             openCalendar: "Відкрити Календар",
+            joinMeeting: "Приєднатися до зустрічі",
+            join: "Приєднатися",
             week: "Наступні 7 днів",
             today: "Сьогодні",
             requestFailed: "Не вдалося запросити доступ до календаря. Спробуйте ще раз.",
@@ -540,6 +605,8 @@ extension FeatureStrings {
             removeCountdown: "Прибрати відлік",
             timeLeft: "Залишок часу поточної події",
             timeLeftHint: "Показує поточну подію з визначеним часом за годину до її завершення. Назва може потрапити на знімки екрана.",
+            joinButton: "Кнопка «Приєднатися»",
+            joinButtonHint: "Показує кнопку «Приєднатися», коли подія відліку має посилання Teams, Zoom або Google Meet. Поточна зустріч лишається на Dynamic Island до кінця, щоб приєднатися із запізненням або знову.",
             weekNumbers: "Номери тижнів",
             weekNumber: "Тиждень %d",
             calendars: "Календарі для показу")
