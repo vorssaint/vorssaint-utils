@@ -20,12 +20,14 @@ final class SwitcherSelectionPeek {
     private var content: SCShareableContent?
     private var cache: [CGWindowID: (CGRect, CGImage)] = [:]
     private var highlightedID: CGWindowID?
+    private var shownID: CGWindowID?
 
     /// `upcoming` are the windows of the apps the next presses land on,
     /// captured once the selected app's are, so stepping on finds them ready.
     func show(_ items: [SwitcherItem], upcoming: [SwitcherItem] = [], highlightsSelected: Bool = false) {
         generation += 1
-        highlightedID = highlightsSelected ? items.first?.windowID : nil
+        shownID = items.first?.windowID
+        highlightedID = highlightsSelected ? shownID : nil
         let current = generation
         guard !items.isEmpty else { return hide(bumping: false) }
         let ids = items.compactMap(\.windowID)
@@ -75,12 +77,29 @@ final class SwitcherSelectionPeek {
         lingers = false
         generation += 1
         let current = generation
-        // ponytail: fixed wait, long enough for a normal activation; tie it to
-        // the activation finishing if a slow app still shows the gap.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self, current == self.generation else { return }
-            self.hide(bumping: false)
+        let target = shownID
+        let deadline = ProcessInfo.processInfo.systemUptime + 1.5
+        // Polls the window list until the chosen window is the front one, so
+        // the peek covers the old front window for exactly as long as the
+        // activation takes. The deadline covers an activation that fails.
+        func poll() {
+            guard current == generation else { return }
+            if target == nil || Self.frontWindowID() == target
+                || ProcessInfo.processInfo.systemUptime > deadline {
+                return hide(bumping: false)
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { poll() }
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { poll() }
+    }
+
+    /// The front-most normal window on screen; the peek's own panels sit on
+    /// a higher layer and are skipped.
+    private static func frontWindowID() -> CGWindowID? {
+        guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
+                                                    kCGNullWindowID) as? [[String: Any]] else { return nil }
+        return list.first { ($0[kCGWindowLayer as String] as? Int) == 0 }
+            .flatMap { $0[kCGWindowNumber as String] as? CGWindowID }
     }
 
     private func hide(bumping: Bool) {
