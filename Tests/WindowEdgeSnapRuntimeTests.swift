@@ -294,6 +294,8 @@ enum WindowEdgeSnapRuntimeTests {
         var edgeSnapResolving = false
         var edgeSnapLastPointer: CGPoint?
         var edgeSnapTrail = WindowEdgeSnapPointerTrail()
+        var customZonesOptionDown = false
+        var customZonesEnabled = false
         var edgeSnapFollowsMoveGesture = false
         var edgeSnapStillCheckGeneration = 0
         var edgeSnapStillCheckPending = false
@@ -322,6 +324,10 @@ enum WindowEdgeSnapRuntimeTests {
         var settleTimers: [CGWindowID: SettleTimer] = [:]
 
         func syncWithPreferences() {}
+        func setCustomZoneOptionDown(_ held: Bool) { customZonesOptionDown = held && customZonesEnabled }
+        func customZoneTarget(atQuartzPoint: CGPoint) -> WindowCustomZoneTarget? { nil }
+        func setCustomZoneHighlight(_ target: WindowCustomZoneTarget?) {}
+        func applyCustomZone(_ drag: WindowEdgeSnapDrag, target: WindowCustomZoneTarget) {}
         func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
         func edgeSnapQuartzScreenFrames() -> [CGRect] { [CGRect(x: 0, y: 0, width: 1440, height: 900)] }
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
@@ -955,6 +961,22 @@ enum WindowEdgeSnapRuntimeTests {
             DispatchQueue.main.drain()
             suite.expect(host.placements.count == 1, "the next unmodified drag can snap")
         }
+
+        reset()
+        WindowEdgeSnapSupport.isSystemTilingEnabled = true
+        let customTiles = Host()
+        customTiles.customZonesEnabled = true
+        let customOption = event(.leftMouseDown, at: pressPoint)
+        customOption.flags = .maskAlternate
+        _ = customTiles.observeEdgeSnapEvent(type: .flagsChanged, event: customOption)
+        DispatchQueue.main.drain()
+        let customPress = event(.leftMouseDown, at: pressPoint)
+        customPress.flags = .maskAlternate
+        _ = customTiles.observeEdgeSnapEvent(type: .leftMouseDown, event: customPress)
+        DispatchQueue.main.drain()
+        suite.expect(customTiles.customZonesOptionDown && customTiles.edgeSnapSystemDrag == .idle
+                        && !customTiles.edgeSnapSequenceSuppressed,
+                     "opt-in custom tiles receive Option drags even when macOS tiling is enabled")
 
         reset()
         zoneActions = "right=rightThird"

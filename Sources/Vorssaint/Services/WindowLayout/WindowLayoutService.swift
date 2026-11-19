@@ -88,6 +88,11 @@ final class WindowLayoutService: ObservableObject {
                                                      qos: .userInitiated)
     private var edgeSnapPreviewPanel: NSPanel?
     private var edgeSnapPreviewGeneration = 0
+    private var customZonesOptionDown = false
+    private var customZonePanels: [String: NSPanel] = [:]
+    private var customZoneTargets: [WindowCustomZoneTarget] = []
+    private var highlightedCustomZone: WindowCustomZoneTarget?
+    private var customZoneDisplayObserver: NSObjectProtocol?
     private var assistiveModeSuspensions: [CGWindowID: EnhancedUserInterfaceSuspension] = [:]
     private var settleTimers: [CGWindowID: Timer] = [:]
     private var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
@@ -128,7 +133,7 @@ final class WindowLayoutService: ObservableObject {
         let gestureEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowGestureEnabled)
             && trusted
-        let edgeSnapEnabled = edgeSnapCanTrack && trusted
+        let edgeSnapEnabled = (edgeSnapCanTrack || customZonesEnabled) && trusted
         // The pointer shortcut needs no Accessibility, so it counts on its own.
         let pointerEnabled = available
             && UserDefaults.standard.bool(forKey: DefaultsKey.pointerDisplayEnabled)
@@ -1473,9 +1478,19 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapRunLoopSource = source
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        customZoneDisplayObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in self?.refreshCustomZoneOverlays() }
     }
 
     private func stopEdgeSnapTap() {
+        setCustomZoneOptionDown(false)
+        if let customZoneDisplayObserver {
+            NotificationCenter.default.removeObserver(customZoneDisplayObserver)
+            self.customZoneDisplayObserver = nil
+        }
         edgeSnapSequenceGeneration += 1
         // A resolve still in flight answers against the old generation and is
         // dropped, so the flag it holds has to be released here or the next
@@ -1518,9 +1533,15 @@ final class WindowLayoutService: ObservableObject {
               event.getIntegerValueField(.eventSourceUnixProcessID) != Self.ownProcessID
         else { return Unmanaged.passUnretained(event) }
 
+        if type == .flagsChanged {
+            let held = event.flags.contains(.maskAlternate)
+            DispatchQueue.main.async { [weak self] in self?.setCustomZoneOptionDown(held) }
+        }
         if type == .leftMouseDown {
             edgeSnapSequenceSuppressed = WindowEdgeSnapSupport.isSystemTilingEnabled
-            edgeSnapSystemDrag = !edgeSnapSequenceSuppressed && WindowEdgeSnapSupport.systemTilingEnabledForDrag(optionHeld: true)
+                && !(customZonesEnabled && event.flags.contains(.maskAlternate))
+            edgeSnapSystemDrag = !customZonesEnabled && !edgeSnapSequenceSuppressed
+                && WindowEdgeSnapSupport.systemTilingEnabledForDrag(optionHeld: true)
                 ? .watchingOption : .idle
         }
         if edgeSnapSystemDrag == .watchingOption && event.flags.contains(.maskAlternate) {
@@ -1654,6 +1675,7 @@ final class WindowLayoutService: ObservableObject {
             let pressCandidate = edgeSnapPressCandidate
             let followsMoveGesture = edgeSnapFollowsMoveGesture
             let velocity = edgeSnapTrail.velocity(at: time)
+            let customTarget = customZonesOptionDown ? customZoneTarget(atQuartzPoint: location) : nil
             // Looking the window up here waits on its app from the run loop
             // that serves the taps. It happens only over a snap zone or for
             // an opt-in restore with a saved size, after the window server
@@ -1666,7 +1688,8 @@ final class WindowLayoutService: ObservableObject {
                 WindowGestureSupport.exceedsDragSlop(from: $0, to: location)
             } ?? false
             let releasedOverZone = releasedAfterDrag
-                && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
+                && (customTarget != nil || (!customZonesOptionDown
+                    && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil))
             let mayRestore = releasedAfterDrag && !followsMoveGesture
                 && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)
                 && pressCandidate.map { candidate in
@@ -1694,6 +1717,7 @@ final class WindowLayoutService: ObservableObject {
             edgeSnapDrag = nil
             edgeSnapFollowsMoveGesture = false
             hideEdgeSnapPreview(immediately: false)
+            setCustomZoneHighlight(nil)
             let generation = edgeSnapSequenceGeneration
             guard let completed else {
                 // A window whose lookup already came back empty at release is
@@ -1708,7 +1732,11 @@ final class WindowLayoutService: ObservableObject {
                           let delayed = self.makeEdgeSnapDrag(pointerStart: pressOrigin,
                                                               pressCandidate: pressCandidate)
                     else { return }
-                    self.applyDelayedEdgeSnapIfMoved(delayed, releaseLocation: location, velocity: velocity)
+                    if let customTarget {
+                        self.applyCustomZone(delayed, target: customTarget)
+                    } else {
+                        self.applyDelayedEdgeSnapIfMoved(delayed, releaseLocation: location, velocity: velocity)
+                    }
                 }
                 return
             }
@@ -1718,11 +1746,29 @@ final class WindowLayoutService: ObservableObject {
                 else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
                     guard let self, generation == self.edgeSnapSequenceGeneration else { return }
-                    self.applyDelayedEdgeSnapIfMoved(completed, releaseLocation: location, velocity: velocity)
+                    if let customTarget {
+                        guard let current = WindowServerSupport.frame(ofWindowID: completed.key.windowID),
+                              WindowEdgeSnapSupport.classify(initialFrame: completed.initialFrame,
+                                                             currentFrame: current,
+                                                             pointerStart: completed.pointerStart,
+                                                             pointerNow: location) == .moving else { return }
+                        self.applyCustomZone(completed, target: customTarget)
+                    } else {
+                        self.applyDelayedEdgeSnapIfMoved(completed, releaseLocation: location, velocity: velocity)
+                    }
                 }
                 return
             }
-            finishEdgeSnapRelease(completed, target: completed.target, pointer: location)
+            if let customTarget {
+                // Keep custom tile placement on the next main-loop turn, after
+                // the target app has processed mouse-up.
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, generation == self.edgeSnapSequenceGeneration else { return }
+                    self.applyCustomZone(completed, target: customTarget)
+                }
+            } else {
+                finishEdgeSnapRelease(completed, target: completed.target, pointer: location)
+            }
         }
     }
 
@@ -1946,7 +1992,10 @@ final class WindowLayoutService: ObservableObject {
             }
         }
 
-        let target = edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now))
+        let customTarget = customZonesOptionDown ? customZoneTarget(atQuartzPoint: location) : nil
+        setCustomZoneHighlight(customTarget)
+        let target = customZonesOptionDown
+            ? nil : edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now))
         if target != drag.target {
             drag.target = target
             if let target {
@@ -2081,6 +2130,106 @@ final class WindowLayoutService: ObservableObject {
         }
     }
 
+    // MARK: - Option-held, per-display custom tiles
+
+    private var customZonesEnabled: Bool {
+        AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowCustomZonesEnabled)
+    }
+
+    private func setCustomZoneOptionDown(_ held: Bool) {
+        let allowed = held && customZonesEnabled && AXIsProcessTrusted()
+        guard customZonesOptionDown != allowed else { return }
+        customZonesOptionDown = allowed
+        setCustomZoneHighlight(nil)
+        refreshCustomZoneOverlays()
+    }
+
+    /// A modifier by itself shows the targets. The panels accept no mouse
+    /// events, and no window is touched until a confirmed move is released.
+    func refreshCustomZoneOverlays() {
+        customZonePanels.values.forEach { $0.orderOut(nil) }
+        customZonePanels.removeAll()
+        customZoneTargets.removeAll()
+        guard customZonesOptionDown, customZonesEnabled, edgeSnapTap != nil else { return }
+        let layouts = WindowCustomZoneLayouts(
+            storageValue: UserDefaults.standard.string(forKey: DefaultsKey.windowCustomZoneLayouts))
+        for screen in NSScreen.screens {
+            let id = WindowCustomZoneLayouts.id(for: screen)
+            let ratio = screen.visibleFrame.width / max(screen.visibleFrame.height, 1)
+            let zones = layouts.zones(for: id, aspectRatio: ratio)
+            guard !zones.isEmpty else { continue }
+            customZoneTargets += zones.enumerated().map { index, zone in
+                WindowCustomZoneTarget(displayID: id, index: index,
+                                       frame: zone.frame(in: screen.visibleFrame),
+                                       visibleFrame: screen.visibleFrame)
+            }
+            let panel = OverlayPanel(contentRect: screen.visibleFrame,
+                                     styleMask: [.borderless, .nonactivatingPanel],
+                                     backing: .buffered, defer: false)
+            panel.backgroundColor = .clear
+            panel.isOpaque = false
+            panel.hasShadow = false
+            panel.ignoresMouseEvents = true
+            panel.hidesOnDeactivate = false
+            panel.isReleasedWhenClosed = false
+            panel.level = .statusBar
+            panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
+                                        .transient, .ignoresCycle]
+            panel.animationBehavior = .none
+            let overlay = WindowCustomZoneOverlayView(zones: zones)
+            overlay.highlightedIndex = highlightedCustomZone?.displayID == id
+                ? highlightedCustomZone?.index : nil
+            panel.contentView = overlay
+            panel.orderFrontRegardless()
+            customZonePanels[id] = panel
+        }
+    }
+
+    private func customZoneTarget(atQuartzPoint point: CGPoint) -> WindowCustomZoneTarget? {
+        let appKitPoint = CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
+        return customZoneTargets.first { $0.frame.contains(appKitPoint) }
+    }
+
+    private func setCustomZoneHighlight(_ target: WindowCustomZoneTarget?) {
+        guard highlightedCustomZone != target else { return }
+        highlightedCustomZone = target
+        for (id, panel) in customZonePanels {
+            guard let view = panel.contentView as? WindowCustomZoneOverlayView else { continue }
+            view.highlightedIndex = target?.displayID == id ? target?.index : nil
+            view.needsDisplay = true
+        }
+    }
+
+    private func applyCustomZone(_ drag: WindowEdgeSnapDrag, target: WindowCustomZoneTarget) {
+        guard customZonesEnabled, AXIsProcessTrusted(),
+              NSScreen.screens.contains(where: {
+                  WindowCustomZoneLayouts.id(for: $0) == target.displayID
+                      && $0.visibleFrame == target.visibleFrame
+              }),
+              canSetFrame(on: drag.window),
+              AXWindowResolver.windowID(for: drag.window) == drag.key.windowID,
+              frame(of: drag.window) != nil
+        else { return }
+        var pid = pid_t(0)
+        guard AXUIElementGetPid(drag.window, &pid) == .success,
+              pid == drag.key.processID else { return }
+
+        pruneWindowState(keeping: drag.key)
+        frameHistory.record(WindowLayoutFrame(origin: drag.initialFrame.origin,
+                                              size: drag.initialFrame.size), for: drag.key)
+        let requestedFrame = axFrame(fromAppKit: target.frame)
+        if setFrame(requestedFrame, targetRect: target.frame,
+                    screenVisibleFrame: target.visibleFrame,
+                    action: .maximize, on: drag.window, windowKey: drag.key) {
+            lastActions.removeValue(forKey: drag.key)
+            _ = finish(.success(restored: false))
+        } else {
+            frameHistory.discardLatest(for: drag.key)
+            _ = finish(.failure(.failed))
+        }
+    }
+
     private func applyEdgeSnap(_ drag: WindowEdgeSnapDrag,
                                target: WindowEdgeSnapTarget) {
         guard AppFeature.windowLayout.isAvailable,
@@ -2124,15 +2273,17 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapDrag = nil
         edgeSnapFollowsMoveGesture = false
         hideEdgeSnapPreview(immediately: false)
+        setCustomZoneHighlight(nil)
     }
 
     /// Whether a new drag may be tracked toward an edge, asked at every press
     /// whichever tap saw it.
     private var edgeSnapCanTrack: Bool {
         AppFeature.windowLayout.isAvailable
-            && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
-            && !enabledEdgeSnapZones.isEmpty
-            && !WindowEdgeSnapSupport.isSystemTilingEnabled
+            && ((UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
+                  && !enabledEdgeSnapZones.isEmpty
+                  && !WindowEdgeSnapSupport.isSystemTilingEnabled)
+                || (customZonesEnabled && customZonesOptionDown))
             && AXIsProcessTrusted()
     }
 
@@ -3320,6 +3471,45 @@ private final class WindowEdgeSnapPreviewView: NSView {
         layer.backgroundColor = accent.withAlphaComponent(0.16).cgColor
         layer.borderColor = accent.withAlphaComponent(0.88).cgColor
         layer.borderWidth = 2
+    }
+}
+
+private final class WindowCustomZoneOverlayView: NSView {
+    let zones: [WindowCustomZone]
+    var highlightedIndex: Int?
+
+    init(zones: [WindowCustomZone]) {
+        self.zones = zones
+        super.init(frame: .zero)
+        setAccessibilityElement(false)
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        let accent = NSColor.controlAccentColor
+        for (index, zone) in zones.enumerated() {
+            let rect = zone.frame(in: bounds).insetBy(dx: 4, dy: 4)
+            guard rect.width > 5, rect.height > 5 else { continue }
+            let selected = index == highlightedIndex
+            let path = NSBezierPath(roundedRect: rect, xRadius: 10, yRadius: 10)
+            accent.withAlphaComponent(selected ? 0.36 : 0.14).setFill()
+            path.fill()
+            accent.withAlphaComponent(selected ? 1 : 0.72).setStroke()
+            path.lineWidth = selected ? 3 : 1.5
+            path.stroke()
+
+            let title = "\(index + 1)" as NSString
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: 19, weight: .semibold),
+                .foregroundColor: NSColor.labelColor
+            ]
+            let size = title.size(withAttributes: attributes)
+            title.draw(at: CGPoint(x: rect.midX - size.width / 2,
+                                   y: rect.midY - size.height / 2),
+                       withAttributes: attributes)
+        }
     }
 }
 
