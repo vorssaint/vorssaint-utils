@@ -87,6 +87,21 @@ enum WindowStageManagerTests {
         suite.expect(WindowLayoutGeometry.rect(for: .restore, current: screen, visibleFrame: reserved) == screen
                 && WindowLayoutGeometry.rect(for: .fullScreen, current: screen, visibleFrame: reserved) == screen,
                      "Restore and native full screen retain their existing pass-through geometry")
+        // Ultrawide above the main display whose visibleFrame ignores its 30pt menu bar.
+        let wide = CGRect(x: -1061, y: 1117, width: 3440, height: 1440)
+        let bar = WindowStageManagerSupport.menuBarFrames(
+            from: [[kCGWindowOwnerName as String: "Window Server",
+                    kCGWindowLayer as String: Int(CGWindowLevelForKey(.mainMenuWindow)),
+                    kCGWindowBounds as String: CGRect(x: -1061, y: -1440, width: 3440, height: 30)
+                        .dictionaryRepresentation]], screenTop: 1117)
+        suite.expect(WindowStageManagerSupport.belowMenuBar(wide, screenFrame: wide, menuBars: bar)
+                        == CGRect(x: -1061, y: 1117, width: 3440, height: 1410),
+                     "a menu bar the visible frame still covers is cut from the layout frame")
+        let main = CGRect(x: 0, y: 0, width: 1728, height: 1083)
+        suite.expect(WindowStageManagerSupport.belowMenuBar(main, screenFrame: CGRect(x: 0, y: 0, width: 1728, height: 1117),
+                                                            menuBars: [CGRect(x: 0, y: 1083, width: 1728, height: 34)]) == main
+                && WindowStageManagerSupport.belowMenuBar(wide, screenFrame: wide, menuBars: []) == wide,
+                     "a menu bar already excluded, or none at all, leaves the visible frame alone")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.windowReserveStageManagerSpace] as? Bool == false,
                      "Stage Manager reservation is opt-in")
     }
