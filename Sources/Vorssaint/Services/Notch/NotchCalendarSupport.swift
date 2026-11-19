@@ -26,6 +26,8 @@ struct NotchCalendarEvent: Equatable, Identifiable, Sendable {
     /// How a countdown chosen from the event's menu remembers it; see
     /// `NotchCalendarSupport.countdownKey`.
     var countdownKey = ""
+    /// The Zoom, Google Meet or Teams link found in the event, if any.
+    var meetingURL: URL?
 }
 
 /// What the closed island counts down to: an event's start or, while the
@@ -341,6 +343,49 @@ enum NotchCalendarSupport {
         return Duration.seconds(seconds).formatted(.units(
             allowed: [.minutes, .seconds], width: .wide,
             fractionalPart: .hide(rounded: .down)).locale(locale))
+    }
+
+    /// The first video call link in the event's URL, location, then notes.
+    /// Only the link is kept; the notes are never stored.
+    static func meetingURL(in texts: [String?]) -> URL? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        for text in texts.compactMap({ $0 }) where !text.isEmpty {
+            let range = NSRange(text.startIndex..., in: text)
+            for match in detector.matches(in: text, range: range) {
+                if let url = match.url, isMeeting(url) { return url }
+            }
+        }
+        return nil
+    }
+
+    static func isMeeting(_ url: URL) -> Bool {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased() else { return false }
+        let path = url.path.lowercased()
+        func within(_ domain: String) -> Bool { host == domain || host.hasSuffix("." + domain) }
+        if within("zoom.us") || within("zoomgov.com") {
+            return ["/j/", "/my/", "/w/", "/s/"].contains(where: path.hasPrefix)
+        }
+        if host == "meet.google.com" { return path.count > 1 && !path.hasPrefix("/_") }
+        if host == "teams.microsoft.com" || host == "teams.live.com" {
+            return path.hasPrefix("/l/meetup-join/") || path.hasPrefix("/meet/")
+        }
+        return false
+    }
+
+    static let zoom = "us.zoom.xos"
+
+    /// Zoom's own scheme skips the browser page an https link opens first.
+    static func joinURL(_ url: URL, zoomInstalled: Bool) -> URL {
+        guard zoomInstalled, let host = url.host?.lowercased(),
+              host == "zoom.us" || host.hasSuffix(".zoom.us"), url.path.hasPrefix("/j/"),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return url }
+        let meeting = String(url.path.dropFirst(3))
+        guard !meeting.isEmpty, meeting.allSatisfy(\.isNumber) else { return url }
+        components.scheme = "zoommtg"
+        components.path = "/join"
+        components.queryItems = [URLQueryItem(name: "action", value: "join"), URLQueryItem(name: "confno", value: meeting)]
+            + (components.queryItems ?? []).filter { $0.name == "pwd" }
+        return components.url ?? url
     }
 
     /// The link Calendar resolves to one appointment. A series shares one
