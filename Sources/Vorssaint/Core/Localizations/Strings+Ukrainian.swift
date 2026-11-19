@@ -620,6 +620,8 @@ extension Strings {
         mixerInputNoDevices: "Мікрофони не знайдені",
         mixerInputUnavailable: "Мікрофон недоступний",
         mixerInputFallback: "Використовується значення за замовчуванням, поки цей мікрофон не повернеться.",
+        mixerInputVolumeLock: "Утримувати гучність входу на цьому рівні",
+        mixerInputVolumeLockFailed: "Цей мікрофон не зберіг закріплений рівень.",
         mixerInputTooltip: "Вибрати мікрофон",
         mixerInputErrorFormat: "Не вдалося перемкнути: %@",
         mixerVisibleApps: "Програми в списку",

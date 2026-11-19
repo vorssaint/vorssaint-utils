@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "Nenašli sa žiadne mikrofóny",
         mixerInputUnavailable: "Mikrofón nie je dostupný",
         mixerInputFallback: "Kým sa tento mikrofón nevráti, používa sa predvolený.",
+        mixerInputVolumeLock: "Udržiavať vstupnú hlasitosť na tejto úrovni",
+        mixerInputVolumeLockFailed: "Tento mikrofón neudržal uzamknutú úroveň.",
         mixerInputTooltip: "Vybrať mikrofón",
         mixerInputErrorFormat: "Nepodarilo sa prepnúť: %@",
         mixerVisibleApps: "Aplikácie v zozname",

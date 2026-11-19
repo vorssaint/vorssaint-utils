@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "Mikrofon bulunamadı",
         mixerInputUnavailable: "Mikrofon kullanılamıyor",
         mixerInputFallback: "Bu mikrofon geri dönene kadar varsayılan kullanılıyor.",
+        mixerInputVolumeLock: "Giriş sesini bu seviyede tut",
+        mixerInputVolumeLockFailed: "Bu mikrofon kilitlenen seviyeyi korumadı.",
         mixerInputTooltip: "Mikrofon seç",
         mixerInputErrorFormat: "Geçiş yapılamadı: %@",
         mixerVisibleApps: "Listedeki uygulamalar",

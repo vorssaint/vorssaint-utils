@@ -28,6 +28,13 @@ final class AudioInputDeviceManager: ObservableObject {
     @Published private(set) var inputVolume: Double?
     @Published private(set) var preferredUnavailable = false
     @Published private(set) var lastError: String?
+    /// Opt-in: while enabled, a change to the locked microphone's input gain
+    /// made outside Vorssaint is put back to the saved level.
+    @Published private(set) var inputVolumeLockEnabled = false
+    @Published private(set) var inputVolumeLockDeviceUID: String?
+    /// The locked microphone kept refusing the saved level, so enforcement
+    /// stopped until the level, the lock or the device changes.
+    @Published private(set) var inputVolumeLockFailed = false
 
     private var listenerInstalled = false
     /// Stored so stop() can remove the HAL listeners when the mixer leaves
@@ -36,6 +43,13 @@ final class AudioInputDeviceManager: ObservableObject {
     private var volumeDeviceID: AudioObjectID?
     private var volumeListenerAddresses: [AudioObjectPropertyAddress] = []
     private var volumeRefreshGeneration = 0
+    /// Restores of the locked level in a row that did not read back as the
+    /// saved level. Bounded so an ignored or rounded write cannot loop.
+    private var lockRestoreAttempts = 0
+    private var lockRestorePending = false
+    /// Guarded by `volumeWriteLock`. A new saved level or turning the lock
+    /// off invalidates a restore that is still waiting for the audio queue.
+    private var lockWriteGeneration = 0
     private let volumeWriteLock = NSLock()
     private var volumeWriteLifetime = UUID()
     private var applyingPreferred = false
@@ -75,6 +89,7 @@ final class AudioInputDeviceManager: ObservableObject {
     }
 
     func start() {
+        loadInputVolumeLock()
         guard !listenerInstalled else {
             refreshAndApply()
             return
@@ -186,6 +201,11 @@ final class AudioInputDeviceManager: ObservableObject {
               let device = inputDevices.first(where: { $0.uid == uid }),
               volumeDeviceID == device.audioObjectID, inputVolume != nil else { return }
         let clamped = min(max(volume, 0), 1)
+        if inputVolumeLockEnabled, inputVolumeLockDeviceUID == uid {
+            // A level chosen in Vorssaint becomes the new locked level.
+            UserDefaults.standard.set(clamped, forKey: DefaultsKey.inputVolumeLockLevel)
+            resetInputVolumeLockEnforcement()
+        }
         let lifetime = volumeWriteLock.withLock { volumeWriteLifetime }
         volumeRefreshGeneration &+= 1
         if inputVolume != clamped { inputVolume = clamped }
@@ -423,6 +443,13 @@ final class AudioInputDeviceManager: ObservableObject {
         if (sweepVolumeIsCurrent || effectiveDeviceChanged || volumeDeviceChanged), inputVolume != snapshot.inputVolume {
             inputVolume = snapshot.inputVolume
         }
+        // Another microphone, or the same one reconnected, gets a fresh
+        // restore budget.
+        if effectiveDeviceChanged || volumeDeviceChanged {
+            lockRestoreAttempts = 0
+            if inputVolumeLockFailed { inputVolumeLockFailed = false }
+        }
+        enforceInputVolumeLock()
 
         guard let applied = snapshot.applied else { return }
         applyPreferredInputDevice(applied)
@@ -592,9 +619,122 @@ final class AudioInputDeviceManager: ObservableObject {
                           self.volumeDeviceID == deviceID,
                           self.volumeRefreshGeneration == generation else { return }
                     if self.inputVolume != volume { self.inputVolume = volume }
+                    self.enforceInputVolumeLock()
                 }
             }
         }
+    }
+
+    /// Locks the current microphone at its current level, or turns the lock
+    /// off. Turning it on needs a readable, writable level and an unmuted
+    /// microphone: a muted microphone reads as silence, and locking that
+    /// level would keep it silent after the user unmutes.
+    func setInputVolumeLockEnabled(_ enabled: Bool) {
+        let defaults = UserDefaults.standard
+        guard enabled else {
+            resetInputVolumeLockEnforcement()
+            defaults.set(false, forKey: DefaultsKey.inputVolumeLockEnabled)
+            if inputVolumeLockEnabled { inputVolumeLockEnabled = false }
+            return
+        }
+        guard listenerInstalled,
+              MicMuteService.shared.inputVolumeAdjustmentLifetime != nil,
+              let uid = effectiveInputDeviceUID,
+              let device = inputDevices.first(where: { $0.uid == uid }),
+              volumeDeviceID == device.audioObjectID,
+              let volume = inputVolume else { return }
+        resetInputVolumeLockEnforcement()
+        defaults.set(volume, forKey: DefaultsKey.inputVolumeLockLevel)
+        defaults.set(uid, forKey: DefaultsKey.inputVolumeLockDeviceUID)
+        defaults.set(true, forKey: DefaultsKey.inputVolumeLockEnabled)
+        if inputVolumeLockDeviceUID != uid { inputVolumeLockDeviceUID = uid }
+        if !inputVolumeLockEnabled { inputVolumeLockEnabled = true }
+    }
+
+    private func loadInputVolumeLock() {
+        let defaults = UserDefaults.standard
+        let uid = Defaults.sanitizedPreferredInputDeviceUID(
+            defaults.string(forKey: DefaultsKey.inputVolumeLockDeviceUID))
+        let enabled = defaults.bool(forKey: DefaultsKey.inputVolumeLockEnabled)
+            && uid != nil && Self.savedInputVolumeLockLevel() != nil
+        if inputVolumeLockDeviceUID != uid { inputVolumeLockDeviceUID = uid }
+        if inputVolumeLockEnabled != enabled { inputVolumeLockEnabled = enabled }
+    }
+
+    /// A missing or invalid saved level never becomes zero: that would
+    /// silence the microphone instead of keeping its level.
+    private static func savedInputVolumeLockLevel() -> Double? {
+        guard let level = UserDefaults.standard.object(forKey: DefaultsKey.inputVolumeLockLevel) as? Double,
+              level.isFinite, level >= 0, level <= 1 else { return nil }
+        return level
+    }
+
+    private func resetInputVolumeLockEnforcement() {
+        volumeWriteLock.withLock { lockWriteGeneration &+= 1 }
+        lockRestoreAttempts = 0
+        if inputVolumeLockFailed { inputVolumeLockFailed = false }
+    }
+
+    private static let inputVolumeLockTolerance = 0.01
+    private static let inputVolumeLockRestoreLimit = 3
+
+    /// Main thread, after a published level. Puts the saved level back on the
+    /// locked microphone only: a replacement device with another UID, a
+    /// different default input or a muted microphone is left alone.
+    private func enforceInputVolumeLock() {
+        guard listenerInstalled, inputVolumeLockEnabled, !inputVolumeLockFailed, !lockRestorePending,
+              let uid = effectiveInputDeviceUID, uid == inputVolumeLockDeviceUID,
+              let observed = inputVolume,
+              let target = Self.savedInputVolumeLockLevel(),
+              let device = inputDevices.first(where: { $0.uid == uid }),
+              volumeDeviceID == device.audioObjectID else { return }
+        guard abs(observed - target) > Self.inputVolumeLockTolerance else {
+            lockRestoreAttempts = 0
+            return
+        }
+        // Mic Mute owns the level while it is active and restores it itself.
+        guard let muteLifetime = MicMuteService.shared.inputVolumeAdjustmentLifetime else { return }
+        guard lockRestoreAttempts < Self.inputVolumeLockRestoreLimit else {
+            inputVolumeLockFailed = true
+            return
+        }
+        lockRestoreAttempts += 1
+        lockRestorePending = true
+        let deviceID = device.audioObjectID
+        let (lifetime, generation) = volumeWriteLock.withLock { (volumeWriteLifetime, lockWriteGeneration) }
+        halQueue.async { [weak self] in
+            guard let self else { return }
+            var wrote = false
+            MicMuteService.shared.withUnmutedInput(lifetime: muteLifetime) {
+                guard self.volumeWriteLock.withLock({
+                    self.volumeWriteLifetime == lifetime && self.lockWriteGeneration == generation
+                }),
+                      Self.defaultInputDeviceUID() == uid,
+                      !Self.isInputMuted(deviceID) else { return }
+                var currentUID: CFString = "" as CFString
+                guard Self.read(deviceID, kAudioDevicePropertyDeviceUID, &currentUID),
+                      currentUID as String == uid else { return }
+                wrote = Self.setInputVolume(Float32(target), for: deviceID)
+            }
+            let didWrite = wrote
+            DispatchQueue.main.async {
+                self.lockRestorePending = false
+                // A skipped restore (muted device, changed device, newer
+                // level) is not a refusal and must not count toward the limit.
+                guard didWrite else {
+                    self.lockRestoreAttempts = max(0, self.lockRestoreAttempts - 1)
+                    return
+                }
+                self.scheduleVolumeRefresh(for: deviceID)
+            }
+        }
+    }
+
+    /// The device's own input mute, set by the user or another app. The lock
+    /// never writes a level under it.
+    private static func isInputMuted(_ deviceID: AudioObjectID) -> Bool {
+        var muted: UInt32 = 0
+        return read(deviceID, kAudioDevicePropertyMute, &muted, scope: kAudioDevicePropertyScopeInput) && muted != 0
     }
 
     private static func isSettable(_ deviceID: AudioObjectID,

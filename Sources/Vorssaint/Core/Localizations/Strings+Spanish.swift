@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "No se encontró ningún micrófono",
         mixerInputUnavailable: "Micrófono no disponible",
         mixerInputFallback: "Usando el predeterminado hasta que vuelva este micrófono.",
+        mixerInputVolumeLock: "Mantener el volumen de entrada en este nivel",
+        mixerInputVolumeLockFailed: "Este micrófono no mantuvo el nivel bloqueado.",
         mixerInputTooltip: "Elegir micrófono",
         mixerInputErrorFormat: "No se pudo cambiar: %@",
         mixerVisibleApps: "Apps en la lista",

@@ -182,6 +182,9 @@ enum DefaultsKey {
     static let audioPriorityInputUIDs = "audioPriorityInputUIDs"     // [String] ordered device UIDs
     static let audioPriorityDeviceNames = "audioPriorityDeviceNames" // [uid: name] last-known names
     static let preferredInputDevice = "preferredInputDevice" // audio input device UID
+    static let inputVolumeLockEnabled = "inputVolumeLockEnabled"     // keep the locked microphone at its saved gain
+    static let inputVolumeLockLevel = "inputVolumeLockLevel"         // saved input gain, 0...1
+    static let inputVolumeLockDeviceUID = "inputVolumeLockDeviceUID" // the only microphone the lock applies to
     static let finderCutPasteEnabled = "finderCutPasteEnabled"
     static let finderCutPasteShowHUD = "finderCutPasteShowHUD"
     static let finderRenameEnabled = "finderRenameEnabled"
@@ -1373,6 +1376,7 @@ enum Defaults {
         DefaultsKey.audioPriorityOutputUIDs: [String](),
         DefaultsKey.audioPriorityInputUIDs: [String](),
         DefaultsKey.audioPriorityDeviceNames: [String: String](),
+        DefaultsKey.inputVolumeLockEnabled: false,
         // Finder never benefits from being "quit" (it just relaunches), so
         // it's excepted out of the box.
         DefaultsKey.autoQuitExceptions: mandatoryAutoQuitExceptionBundleIDs,

@@ -639,6 +639,8 @@ extension Strings {
         mixerInputNoDevices: "마이크를 찾을 수 없습니다",
         mixerInputUnavailable: "마이크를 사용할 수 없습니다",
         mixerInputFallback: "이 마이크가 돌아올 때까지 기본 입력을 사용합니다.",
+        mixerInputVolumeLock: "입력 음량을 이 수준으로 유지",
+        mixerInputVolumeLockFailed: "이 마이크가 고정한 수준을 유지하지 못했습니다.",
         mixerInputTooltip: "마이크 선택",
         mixerInputErrorFormat: "변경하지 못했습니다: %@",
         mixerVisibleApps: "목록에 표시할 앱",

@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "マイクが見つかりません",
         mixerInputUnavailable: "マイクを利用できません",
         mixerInputFallback: "このマイクが戻るまでデフォルトを使用します。",
+        mixerInputVolumeLock: "入力音量をこのレベルに保つ",
+        mixerInputVolumeLockFailed: "このマイクは固定したレベルを維持できませんでした。",
         mixerInputTooltip: "マイクを選択",
         mixerInputErrorFormat: "変更できませんでした: %@",
         mixerVisibleApps: "リストに表示するアプリ",
