@@ -14,7 +14,8 @@ enum WindowStageManagerSupport {
 
     static func visibleFrame(for screen: NSScreen) -> CGRect {
         adjustedFrame(
-            visibleFrame: screen.visibleFrame,
+            visibleFrame: belowMenuBar(screen.visibleFrame, screenFrame: screen.frame,
+                                       menuBars: currentMenuBarFrames()),
             screenFrame: screen.frame,
             enabled: UserDefaults.standard.bool(forKey: DefaultsKey.windowReserveStageManagerSpace),
             stageManagerEnabled: windowManagerDefaults?.bool(forKey: "GloballyEnabled") == true,
@@ -71,6 +72,48 @@ enum WindowStageManagerSupport {
             return CGRect(x: frame.minX, y: screenTop - frame.maxY,
                           width: frame.width, height: frame.height)
         }
+    }
+
+    /// Some displays report a visibleFrame that still includes a menu bar the
+    /// window server is drawing there; apps then push windows below it and the
+    /// top/bottom gaps are lost. Cut the visible frame at that bar's bottom.
+    static func belowMenuBar(_ visibleFrame: CGRect, screenFrame: CGRect, menuBars: [CGRect]) -> CGRect {
+        let bottoms = menuBars.filter { bar in
+            bar.height > 0 && bar.height <= 80
+                && abs(bar.maxY - screenFrame.maxY) <= 1
+                && bar.minX < screenFrame.maxX && bar.maxX > screenFrame.minX
+        }.map(\.minY)
+        guard let top = bottoms.min(), top < visibleFrame.maxY, top - visibleFrame.minY > 80 else {
+            return visibleFrame
+        }
+        return CGRect(x: visibleFrame.minX, y: visibleFrame.minY,
+                      width: visibleFrame.width, height: top - visibleFrame.minY)
+    }
+
+    static func menuBarFrames(from windows: [[String: Any]], screenTop: CGFloat) -> [CGRect] {
+        let level = Int(CGWindowLevelForKey(.mainMenuWindow))
+        return windows.compactMap { window in
+            guard window[kCGWindowOwnerName as String] as? String == "Window Server",
+                  (window[kCGWindowLayer as String] as? NSNumber)?.intValue == level,
+                  (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0,
+                  let bounds = window[kCGWindowBounds as String] as? [String: Any],
+                  let frame = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { return nil }
+            return CGRect(x: frame.minX, y: screenTop - frame.maxY,
+                          width: frame.width, height: frame.height)
+        }
+    }
+
+    private static var menuBarSampledAt: TimeInterval = -.infinity
+    private static var sampledMenuBars: [CGRect] = []
+
+    private static func currentMenuBarFrames() -> [CGRect] {
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - menuBarSampledAt >= 0.25 {
+            menuBarSampledAt = now
+            let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]] ?? []
+            sampledMenuBars = menuBarFrames(from: windows, screenTop: NSScreen.screens.first?.frame.maxY ?? 0)
+        }
+        return sampledMenuBars
     }
 
     private static func currentStripFrames() -> [CGRect] {
