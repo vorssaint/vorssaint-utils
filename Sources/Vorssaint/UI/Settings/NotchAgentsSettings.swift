@@ -9,12 +9,14 @@ struct NotchAgentsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var kimiUsage = KimiUsageService.shared
+    @ObservedObject private var ompUsage = OMPUsageService.shared
     @AppStorage(DefaultsKey.notchAgentsClaude) private var claude = true
     @AppStorage(DefaultsKey.notchAgentsClaudeProfile) private var claudeProfile = ""
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
     @AppStorage(DefaultsKey.notchAgentsKimi) private var kimi = true
+    @AppStorage(DefaultsKey.notchAgentsOMP) private var omp = false
     @AppStorage(DefaultsKey.notchAgentsCardOrder) private var cardOrder = ""
     @AppStorage(DefaultsKey.notchAgentsHiddenCards) private var hiddenCards = ""
     @AppStorage(DefaultsKey.notchAgentsLimitDisplay) private var limitDisplay = NotchAgentLimitDisplay.remaining.rawValue
@@ -53,6 +55,7 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             providerRow(.kimi, isOn: $kimi)
+            providerRow(.omp, isOn: $omp)
             if claude { ClaudeAccountSettings() }
             if codex { CodexAccountsSettings() }
             if kimi { KimiAccountSettings() }
@@ -104,7 +107,7 @@ struct NotchAgentsSettingsControls: View {
                 NotchAgentStripSample(readout: NotchAgentReadout(rawValue: readout) ?? .elapsed,
                                       display: NotchAgentLimitDisplay(rawValue: limitDisplay) ?? .remaining,
                                       focus: NotchAgentLimitFocus(rawValue: limitFocus) ?? .mostUsed,
-                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : copilot ? .copilot : .kimi)
+                                      provider: claude ? .claude : codex ? .codex : opencode ? .opencode : copilot ? .copilot : kimi ? .kimi : .omp)
                     .padding(.leading, settingsRowTextInset)
             }
 
@@ -169,7 +172,7 @@ struct NotchAgentsSettingsControls: View {
         // Cards and agents set the page's height, and the live reading the
         // closed island's width, which the island follows.
         .onChange(of: [cardOrder, hiddenCards, String(claude), String(codex), String(opencode), String(copilot),
-                       String(kimi), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
+                       String(kimi), String(omp), String(liveActivity), readout, limitDisplay, limitFocus]) { _, _ in
             NotchService.shared.syncWithPreferences()
         }
     }
@@ -253,6 +256,10 @@ struct NotchAgentsSettingsControls: View {
         return kimiUsage.configured ? strings.cliAccount : strings.notConfigured
     }
 
+    private var ompStatus: String {
+        ompUsage.configured ? "Oh My Pi CLI" : text.notFound
+    }
+
     /// Laid out like every other row, with the agent's own mark for an icon.
     private func providerRow(_ provider: AgentProvider, isOn: Binding<Bool>) -> some View {
         HStack(spacing: 12) {
@@ -262,14 +269,14 @@ struct NotchAgentsSettingsControls: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text(provider.displayName)
-                Text(provider == .kimi ? kimiStatus : (roots[provider] == true ? text.found : text.notFound))
+                Text(provider == .kimi ? kimiStatus : provider == .omp ? ompStatus : (roots[provider] == true ? text.found : text.notFound))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 12)
             // One agent stays on; turning the section off stops all.
             Toggle(provider.displayName, isOn: isOn).labelsHidden().toggleStyle(.switch)
-                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, kimi].filter { $0 }.count <= 1)
+                .disabled(isOn.wrappedValue && [claude, codex, opencode, copilot, kimi, omp].filter { $0 }.count <= 1)
         }
     }
 

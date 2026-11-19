@@ -126,6 +126,7 @@ final class AgentUsageService: ObservableObject {
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
         KimiUsageService.shared.synchronize()
+        OMPUsageService.shared.synchronize()
         guard NotchAgentSupport.isEnabled() else { stop(); return }
         let wanted = NotchAgentSupport.providers()
         let profile = ClaudeAccountProfile.selected()
@@ -151,6 +152,7 @@ final class AgentUsageService: ObservableObject {
         syncPrices()
         refreshClaudeLimits()
         KimiUsageService.shared.refresh()
+        OMPUsageService.shared.refresh()
     }
 
     /// Stops reading while the island is away, as with the display asleep or
@@ -159,6 +161,7 @@ final class AgentUsageService: ObservableObject {
     func pause() {
         CodexProfileLimitsService.shared.pause()
         KimiUsageService.shared.pause()
+        OMPUsageService.shared.pause()
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
@@ -193,6 +196,7 @@ final class AgentUsageService: ObservableObject {
         if pausingAccounts {
             CodexProfileLimitsService.shared.pause()
             KimiUsageService.shared.pause()
+            OMPUsageService.shared.pause()
         }
         pageVisible = false
         // A first read still going stops at its next chunk, so the wait
@@ -281,10 +285,30 @@ final class AgentUsageService: ObservableObject {
         }
     }
 
+    func noteOMPAccounts(_ readings: [OMPUsageReading]) {
+        guard let limits = OMPUsageParser.limits(for: readings) else {
+            clearOMPAccounts()
+            return
+        }
+        noteLimits(limits)
+    }
+
+    func clearOMPAccounts() {
+        guard running else { return }
+        queue.async { [self] in
+            guard readerSession >= 0 else { return }
+            store.clearLimits(.omp)
+            previousLimits[.omp] = nil
+            warned = warned.filter { $0.value.provider != .omp }
+            schedulePublish()
+        }
+    }
+
     /// Reads local fallbacks immediately and asks Claude for fresh account
     /// limits. A Settings preview reads too, without counting as the page.
     func pageDidAppear(preview: Bool = false) {
         KimiUsageService.shared.pageDidAppear(preview: preview)
+        OMPUsageService.shared.pageDidAppear(preview: preview)
         if !preview { pageVisible = true }
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
@@ -299,6 +323,7 @@ final class AgentUsageService: ObservableObject {
 
     func pageDidDisappear() {
         KimiUsageService.shared.pageDidDisappear()
+        OMPUsageService.shared.pageDidDisappear()
         pageVisible = false
     }
 
@@ -343,6 +368,9 @@ final class AgentUsageService: ObservableObject {
             }
             if !KimiCLIAuth.hasCredential(region: KimiRegion.stored()) {
                 store.clearLimits(.kimi)
+            }
+            if OMPCLI.executable() == nil {
+                store.clearLimits(.omp)
             }
             for file in files {
                 // A stop while reading leaves the rest for the next start.
@@ -617,6 +645,7 @@ final class AgentUsageService: ObservableObject {
         syncPrices()
         refreshClaudeLimits()
         KimiUsageService.shared.refresh()
+        OMPUsageService.shared.refresh()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
             let now = Date()

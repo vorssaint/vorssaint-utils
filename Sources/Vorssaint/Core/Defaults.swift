@@ -902,6 +902,7 @@ enum DefaultsKey {
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
     static let notchAgentsCopilot = "notchAgentsCopilot"
     static let notchAgentsKimi = "notchAgentsKimi"
+    static let notchAgentsOMP = "notchAgentsOMP"
     /// Kimi's credential stays in the Keychain; only its service region is a preference.
     static let notchAgentsKimiRegion = "notchAgentsKimiRegion"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
@@ -1504,6 +1505,7 @@ enum Defaults {
         DefaultsKey.notchAgentsOpenCode: true,
         DefaultsKey.notchAgentsCopilot: true,
         DefaultsKey.notchAgentsKimi: true,
+        DefaultsKey.notchAgentsOMP: false,
         // Empty until chosen: the CLI's config.toml names the region, so a new
         // international sign-in is found without opening Settings.
         DefaultsKey.notchAgentsKimiRegion: "",

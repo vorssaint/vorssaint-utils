@@ -13,6 +13,7 @@ extension AgentProvider {
         case .opencode: return Color(red: 0.06, green: 0.73, blue: 0.51)
         case .copilot: return Color(red: 0.30, green: 0.78, blue: 0.68)
         case .kimi: return Color(red: 0.36, green: 0.56, blue: 0.96)
+        case .omp: return Color(red: 0.72, green: 0.48, blue: 0.94)
         }
     }
 }
@@ -388,7 +389,7 @@ private extension AgentProvider {
         case .codex: return AgentCodexServer.appIdentifiers
         case .opencode: return ["ai.opencode.desktop", "ai.opencode.desktop.beta", "ai.opencode.desktop.dev"]
         case .copilot: return ["com.github.githubapp"]
-        case .kimi: return []
+        case .kimi, .omp: return []
         }
     }
 
@@ -402,7 +403,7 @@ private extension AgentProvider {
         case .claude: return ["TrayIconTemplate"]
         case .codex: return ["chatgptTemplate"]
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
-        case .opencode, .copilot, .kimi: return []
+        case .opencode, .copilot, .kimi, .omp: return []
         }
     }
 }

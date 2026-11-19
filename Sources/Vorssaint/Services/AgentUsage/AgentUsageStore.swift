@@ -169,7 +169,7 @@ final class AgentUsageStore {
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
             if merged == old.tokens {
-                if record.provider == .opencode {
+                if record.provider == .opencode || record.provider == .omp {
                     let newCost: Double?
                     let isReported: Bool
                     if record.reportedCost {
@@ -208,7 +208,7 @@ final class AgentUsageStore {
             let priced = AgentPricing.cost(combined, model: old.model)
             let newCost: Double?
             let isReported: Bool
-            if record.provider == .opencode {
+            if record.provider == .opencode || record.provider == .omp {
                 if record.reportedCost {
                     newCost = record.cost
                     isReported = true
@@ -477,7 +477,7 @@ struct AgentLogRoot: Equatable {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
          (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
-         (.kimi, ".kimi-code/sessions")].map { provider, path in
+         (.kimi, ".kimi-code/sessions"), (.omp, ".omp/agent/sessions")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -502,6 +502,7 @@ struct AgentLogRoot: Equatable {
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
         if provider == .kimi { return path.hasSuffix("/wire.jsonl") }
+        if provider == .omp, path.hasSuffix("/changes.jsonl") { return false }
         guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
         return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
@@ -555,9 +556,15 @@ struct AgentSessionRegistry: Equatable {
 final class AgentLogCursor {
     let path: String
     let provider: AgentProvider
-    /// Subagents report to a turn another file tracks.
+    /// Subagents and Oh My Pi sidecars contribute usage to another turn or
+    /// to the totals without opening a live turn of their own.
     var tracksTurns: Bool {
-        provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
+        switch provider {
+        case .claude: return parent == nil
+        case .codex: return !state.codexSubagent
+        case .omp: return OMPReader.isMainSession(path)
+        default: return true
+        }
     }
     /// The session log a Claude subagent works for.
     let parent: String?
@@ -581,7 +588,8 @@ final class AgentLogCursor {
     init(path: String, provider: AgentProvider) {
         self.path = path
         self.provider = provider
-        let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
+        let parent = provider == .claude ? AgentLogCursor.parent(of: path)
+            : provider == .omp ? OMPReader.parent(of: path) : nil
         self.parent = parent
     }
 
@@ -728,9 +736,9 @@ enum AgentLogReader {
     }
 
     /// Log files changed since `horizon`, newest last so live turns settle
-    /// on the most recent state. Claude subagents come after every session,
-    /// so the turn each one works for already stands when its responses are
-    /// read.
+    /// on the most recent state. Claude and Oh My Pi subagents come after
+    /// every session, so the turn each one works for already stands when
+    /// their responses are read.
     static func discover(_ roots: [AgentLogRoot], since horizon: Date) -> [(path: String, provider: AgentProvider)] {
         var found: [(path: String, provider: AgentProvider, modified: Date, subagent: Bool)] = []
         let keys: [URLResourceKey] = [.contentModificationDateKey, .isRegularFileKey]
@@ -738,7 +746,8 @@ enum AgentLogReader {
             guard root.accepts(url.path),
                   let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true,
                   let modified = values.contentModificationDate, modified >= horizon else { return }
-            let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
+            let subagent = (root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil)
+                || (root.provider == .omp && OMPReader.parent(of: url.path) != nil)
             found.append((url.path, root.provider, modified, subagent))
         }
         for root in roots where root.exists {

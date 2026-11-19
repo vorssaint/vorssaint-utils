@@ -181,6 +181,12 @@ enum AgentLogParser {
          "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
     }
 
+    // MARK: Oh My Pi
+
+    static func parseOMP(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        OMPReader().parse(line, state: &state, now: now)
+    }
+
     // MARK: Kimi Code
 
     static func parseKimi(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {

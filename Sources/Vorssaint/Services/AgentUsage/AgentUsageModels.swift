@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose usage or account limits the island reads. Their
 /// names are product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot, kimi
+    case claude, codex, opencode, copilot, kimi, omp
 
     var id: String { rawValue }
 
@@ -17,6 +17,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
         case .kimi: return "Kimi"
+        case .omp: return "Oh My Pi"
         }
     }
 
@@ -27,6 +28,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .opencode: return "terminal"
         case .copilot: return "infinity"
         case .kimi: return "moon.stars"
+        case .omp: return "pi"
         }
     }
 
