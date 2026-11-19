@@ -2565,6 +2565,7 @@ def main():
         "    private var clamshellNeedsRestore:",
         "    private func finishClamshellRestore(",
         "    private func recoverDimmedDisplayIfNeeded(",
+        "    private func syncLidMute(",
         "    private func syncLidDimmingObserver(",
         "    private func lidStateMayHaveChangedForDimming(",
         "    private func applyDimmingAction(",
@@ -2594,11 +2595,13 @@ def main():
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
           + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"
+          + "var lidMutedOutput: (device: UInt32, muted: Bool)?\n"
           + declaration(keep_awake, "    @Published private(set) var clamshellActive = false {")
                 .replace("@Published private(set) ", "", 1)
           + declaration(keep_awake, "    @Published var clamshellPreferred:").replace("@Published ", "", 1)
           + declaration(keep_awake, "    @Published var dimScreenOnLidClose: Bool {").replace("@Published ", "", 1)
-          + "init() { clamshellPreferred = true; dimScreenOnLidClose = false }\n"
+          + declaration(keep_awake, "    @Published var muteOnLidClose: Bool {").replace("@Published ", "", 1)
+          + "init() { clamshellPreferred = true; dimScreenOnLidClose = false; muteOnLidClose = false }\n"
           + "func syncScreenLockMonitoring() {}\nfunc applyAssertions() { assertionsHeld = true }\n"
           + "func releaseAssertions() { assertionsHeld = false }\nfunc syncMouseJiggleTimer() {}\n"
           + "func stopMouseJiggleTimer() {}\nfunc stopAutomationMonitoring() {}\nfunc syncWithPreferences() {}\n"

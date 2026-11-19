@@ -355,6 +355,8 @@ enum SettingsDirectory {
                                         (.extraBrightness, [s.extraBrightnessName]),
                                         (.bluetoothSleep, [bluetooth.pageTitle]),
                                        ], terms: [
+                                        .init([FeatureStrings.clamshellMute(language).title], feature: .keepAwake,
+                                              when: state.on(DefaultsKey.clamshellPreferred)),
                                         .init([s.dimScreenOnLidCloseTitle], feature: .keepAwake,
                                               when: state.on(DefaultsKey.clamshellPreferred)),
                                         .init([s.keepAwakeMouseJiggleInterval], feature: .keepAwake,

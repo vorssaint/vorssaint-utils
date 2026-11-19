@@ -36,6 +36,21 @@ enum KeepAwakeLidSleepContract {
             }
         }
     }
+    enum AppVolumeMixer {
+        static var muted = false
+        static var writes: [(UInt32, Bool)] = []
+        static var succeeds = true
+        static var readable = true
+        static var device: UInt32 = 1
+        static func defaultOutputDeviceID() -> UInt32? { device }
+        static func outputMuted(for device: UInt32) -> Bool? { readable ? muted : nil }
+        static func setOutputMuted(_ value: Bool, for device: UInt32) -> Bool {
+            guard succeeds else { return false }
+            writes.append((device, value))
+            muted = value
+            return true
+        }
+    }
     enum BrightnessService {
         static var lid: Bool? = true
         static func lidClosed() -> Bool? { lid }
@@ -107,6 +122,8 @@ enum KeepAwakeLidSleepContract {
         return KERN_SUCCESS
     }
     static func reset() -> Service {
+        AppVolumeMixer.muted = false; AppVolumeMixer.writes = []; AppVolumeMixer.succeeds = true
+        AppVolumeMixer.readable = true; AppVolumeMixer.device = 1
         port = 1; results = [0]; calls = 0; closes = 0
         policy = true; assertions = []; externalDisplay = false; connectedToPower = true; BrightnessService.lid = true
         LidDisplayDimmer.reading = nil; LidDisplayDimmer.written = []; LidDisplayDimmer.writeSucceeds = true

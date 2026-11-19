@@ -287,6 +287,12 @@ struct EnergySettings: View {
                         .labelsHidden()
                 }
                 .padding(.leading, settingsRowTextInset)
+                SettingsRow(symbol: "speaker.slash", title: FeatureStrings.clamshellMute(l10n.language).title,
+                            caption: FeatureStrings.clamshellMute(l10n.language).caption) {
+                    Toggle(FeatureStrings.clamshellMute(l10n.language).title, isOn: $awake.muteOnLidClose)
+                        .labelsHidden()
+                }
+                .padding(.leading, settingsRowTextInset)
             }
         }
     }
