@@ -211,13 +211,7 @@ struct PanelHomebrewView: View {
 
     private var installedControls: some View {
         VStack(alignment: .leading, spacing: 7) {
-            Picker("", selection: $filter) {
-                Text("\(l10n.s.homebrewAll) \(homebrew.installed.count)").tag(PanelHomebrewFilter.all)
-                Text("\(l10n.s.homebrewCasks) \(installedCaskCount)").tag(PanelHomebrewFilter.cask)
-                Text("\(l10n.s.homebrewFormulas) \(installedFormulaCount)").tag(PanelHomebrewFilter.formula)
-            }
-            .labelsHidden()
-            .pickerStyle(.segmented)
+            installedFilterPicker
 
             HStack(spacing: 7) {
                 Button {
@@ -247,6 +241,47 @@ struct PanelHomebrewView: View {
             outdatedSummary
         }
         .panelCard()
+    }
+
+    /// Not a segmented Picker: AppKit sizes each segment to the widest label
+    /// and will not shrink below that, so long labels widened the fixed-width
+    /// panel. These segments share the card width and truncate instead.
+    private var installedFilterPicker: some View {
+        HStack(spacing: 2) {
+            ForEach(PanelHomebrewFilter.allCases) { item in
+                Button {
+                    filter = item
+                } label: {
+                    Text(filterTitle(item))
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                        .foregroundStyle(filter == item ? Color.white : Color.primary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(filter == item ? Color.accentColor : Color.clear)
+                        )
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(filter == item ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.primary.opacity(0.07))
+        )
+    }
+
+    private func filterTitle(_ kind: PanelHomebrewFilter) -> String {
+        switch kind {
+        case .all: return "\(l10n.s.homebrewAll) \(homebrew.installed.count)"
+        case .cask: return "\(l10n.s.homebrewCasks) \(installedCaskCount)"
+        case .formula: return "\(l10n.s.homebrewFormulas) \(installedFormulaCount)"
+        }
     }
 
     @ViewBuilder
