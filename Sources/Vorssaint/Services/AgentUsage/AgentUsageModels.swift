@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, copilot
+    case claude, codex, opencode, copilot, omp
 
     var id: String { rawValue }
 
@@ -16,6 +16,7 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .copilot: return "GitHub Copilot"
+        case .omp: return "OMP"
         }
     }
 
@@ -25,11 +26,20 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
         case .copilot: return "infinity"
+        case .omp: return "moon.stars"
         }
     }
 
     /// Whether the provider records a plan allowance in its local logs.
     var reportsLimits: Bool { self != .copilot }
+
+    /// Whether the provider charges its own prices, so a cost it reported
+    /// stands even for a model the price list does not know.
+    ///
+    /// OpenCode and OMP both report what a reply cost. Their figure is the
+    /// one the person paid, so a list price that has not caught up yet must
+    /// not replace it.
+    var reportsOwnCost: Bool { self == .opencode || self == .omp }
 }
 
 /// Token counts in the shape both logs can be reduced to. `input` excludes
