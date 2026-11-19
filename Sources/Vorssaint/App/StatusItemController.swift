@@ -515,11 +515,13 @@ final class StatusItemController {
                 button.imagePosition = .imageOnly
             }
         } else {
-            // The leading space separates the glyph from the text; with the
-            // glyph hidden by the metrics-only option or by Dynamic Island it
-            // would be pure dead padding on the item's left edge. Same
-            // decision inputs as updateIconAppearance, with a sentinel length:
-            // the title is known non-empty on this branch.
+            // A space separates the glyph from the text, on whichever side
+            // the glyph sits: leading by default, trailing once Reverse moved
+            // it to the right end. With the glyph hidden by the metrics-only
+            // option or by Dynamic Island it would be pure dead padding on
+            // that edge of the item. Same decision inputs as
+            // updateIconAppearance, with a sentinel length: the title is
+            // known non-empty on this branch.
             let updateAvailable: Bool
             if case .available = UpdateService.shared.state {
                 updateAvailable = true
@@ -535,8 +537,12 @@ final class StatusItemController {
                     metricsEnabled: !metrics.isEmpty,
                     renderedTitleLength: 1,
                     mustShowForSignal: signal || keepAwakeSignal)
-            let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
+            let iconTrailing = defaults.bool(forKey: DefaultsKey.menuBarIconTrailing)
+            let full = NSMutableAttributedString(string: glyphHidden || iconTrailing ? "" : " ")
             full.append(title)
+            if iconTrailing && !glyphHidden {
+                full.append(NSAttributedString(string: " "))
+            }
             let stacked = full.string.contains("\n")
             let font = MenuBarRenderer.statusFont(stacked: stacked)
             full.addAttribute(.font, value: font, range: NSRange(location: 0, length: full.length))
@@ -557,8 +563,9 @@ final class StatusItemController {
                 button.font = font
                 button.attributedTitle = full
             }
-            if button.imagePosition != .imageLeading {
-                button.imagePosition = .imageLeading
+            let imagePosition: NSControl.ImagePosition = iconTrailing ? .imageTrailing : .imageLeading
+            if button.imagePosition != imagePosition {
+                button.imagePosition = imagePosition
             }
         }
 
