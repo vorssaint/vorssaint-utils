@@ -22,3 +22,6 @@
 "NSNetworkVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst. Aufräumen sucht außerdem nach vergessenen Bildschirmfotos, wenn du sie hier speicherst.";
 "NSRemovableVolumesUsageDescription" = "Vorssaint organisiert bestätigte WhatsApp-Downloads in einem Zielordner, den du ausdrücklich auswählst. Aufräumen sucht außerdem nach vergessenen Bildschirmfotos, wenn du sie hier speicherst.";
 "NSCalendarsFullAccessUsageDescription" = "Zeige deine anstehenden Termine im oberen Bildschirmbereich. Kalenderereignisse bleiben auf diesem Mac.";
+
+/* Native Apple Music authorization. */
+"NSAppleMusicUsageDescription" = "Vorssaint nutzt deinen Apple Music Account, um synchronisierte Liedtexte für Songs in der Musik-App abzurufen.";

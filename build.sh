@@ -277,6 +277,12 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAccessoryConnectionMonitor.swift
         Sources/Vorssaint/Services/QuickTools/CameraPreviewSupport.swift
         Sources/Vorssaint/Core/NotchMusicExtrasStrings.swift
+        Sources/Vorssaint/Core/NotchAppleMusicLyricsStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchAppleMusicLyricsSupport.swift
+        Sources/Vorssaint/UI/Notch/NotchKaraokeLine.swift
+        Sources/Vorssaint/UI/Notch/NotchLyricGapView.swift
+        Sources/Vorssaint/UI/Notch/NotchSyncedLyricsView.swift
+        Sources/Vorssaint/Services/Notch/NotchKaraokeMotion.swift
         Sources/Vorssaint/Core/NotchClipboardSizeStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLyricsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchQueueSupport.swift
