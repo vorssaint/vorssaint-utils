@@ -28,6 +28,10 @@ struct MixerScreenSharingStrings {
             allowVolumeControl: "Permitir el control de volumen",
             protectedCaption: "El control de volumen está desactivado para evitar eco al compartir audio.",
             sharingWarning: "Desactiva el control de volumen antes de compartir audio para evitar eco.")
+        case .ca: return .init(
+            allowVolumeControl: "Permet el control de volum",
+            protectedCaption: "El control de volum està desactivat per evitar l’eco en compartir àudio.",
+            sharingWarning: "Desactiva el control de volum abans de compartir àudio per evitar l’eco.")
         case .sk: return .init(
             allowVolumeControl: "Povoliť ovládanie hlasitosti",
             protectedCaption: "Ovládanie hlasitosti je vypnuté, aby pri zdieľaní zvuku nevznikala ozvena.",

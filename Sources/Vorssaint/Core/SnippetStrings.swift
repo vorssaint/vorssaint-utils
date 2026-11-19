@@ -82,6 +82,7 @@ extension FeatureStrings {
         case .tr: return .tr
         case .ru: return .ru
         case .es: return .es
+        case .ca: return .ca
         case .sk: return .sk
         case .de: return .de
         case .fr: return .fr
@@ -572,6 +573,74 @@ extension SnippetFeatureStrings {
         soundCaption: "Se reproduce un sonido corto del sistema cada vez que un disparador escrito se expande.",
         soundPickerLabel: "Sonido",
         soundUnavailable: "Sonido no disponible"
+    )
+
+    static let ca = SnippetFeatureStrings(
+        pageTitle: "Fragments de text",
+        hubDescription: "Els activadors curts s’expandeixen en text complet",
+        enable: "Expandeix els fragments mentre escrius",
+        enableCaption: "Escriu un activador a qualsevol lloc i es converteix en el text corresponent. Tot es queda en aquest Mac.",
+        addButton: "Afegeix un fragment",
+        newTitle: "Fragment nou",
+        editTitle: "Edició del fragment",
+        nameLabel: "Nom",
+        namePlaceholder: "Correu personal",
+        triggerLabel: "Activador",
+        triggerPlaceholder: ";correu",
+        replacementLabel: "Text",
+        replacementPlaceholder: "elmeucorreu@example.com",
+        expansionLabel: "Expandeix",
+        expansionImmediate: "De seguida",
+        expansionDelimiter: "Després d’Espai, Tabulador o Retorn",
+        variablesHint: "Variables: {{date}}, {{time}}, {{datetime}}, {{clipboard}}",
+        variablesCaption: "Es converteixen en la data, l’hora i el text copiat en el moment de l’expansió.",
+        emptyList: "Encara no hi ha cap fragment. Afegeix el primer.",
+        duplicateTrigger: "Un altre fragment ja fa servir aquest activador.",
+        triggerTooShort: "L’activador ha de tenir 2 caràcters com a mínim.",
+        deleteButton: "Elimina",
+        saveButton: "Desa",
+        manageButton: "Gestiona els fragments",
+        ignoreCaseLabel: "Ignora les majúscules i minúscules",
+        libraryTitle: "Menú ràpid de fragments",
+        libraryToggle: "Obre els fragments des d’un menú",
+        libraryCaption: "La drecera obre un menú amb cerca. Si tries un fragment, s’escriu just on tens el cursor.",
+        librarySearchPlaceholder: "Cerca fragments",
+        libraryNoResults: "Cap fragment no coincideix amb la cerca.",
+        libraryEmpty: "Encara no hi ha res per mostrar. Afegeix fragments o activa “Mostra al menú ràpid” per als que facis servir més.",
+        libraryFooterHint: "↩ insereix · esc tanca",
+        folderLabel: "Carpeta",
+        folderPlaceholder: "Feina",
+        showInLibraryLabel: "Mostra al menú ràpid",
+        variablesFormatCaption: "Un format després de dos punts en defineix l’aspecte, com ara {{date:yyyy-MM-dd}}. Una part -tz(...) defineix la zona horària, com ara {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        editorFormatCaption: "Un format després de dos punts en defineix l’aspecte, com ara {{date:yyyy-MM-dd}}, o fes servir el botó de data i hora de dalt. Una part -tz(...) defineix la zona horària, com ara {{date-tz(America/New_York):yyyy-MM-dd}}.",
+        dateTimeInsertButton: "Insereix la data o l’hora",
+        dateTimeEditButton: "Edita la data o l’hora",
+        dateTimeTypeLabel: "Tipus",
+        dateTimeKindDate: "Data",
+        dateTimeKindTime: "Hora",
+        dateTimeKindDateTime: "Data i hora",
+        dateTimeStyleLabel: "Estil",
+        dateTimeStyleShort: "Curt",
+        dateTimeStyleMedium: "Mitjà",
+        dateTimeStyleLong: "Llarg",
+        dateTimeStyleFull: "Complet",
+        dateTimeStyleISO8601: "ISO 8601",
+        dateTimeStyleCustom: "Personalitzat",
+        dateTimeStyleLocaleNote: "Un estil amb nom desa el format que fa servir ara mateix la regió del Mac.",
+        dateTimeTimezoneLabel: "Zona horària",
+        dateTimeTimezoneDeviceDefault: "Per omissió del dispositiu",
+        dateTimeTimezoneValid: "Zona horària vàlida",
+        dateTimeTimezoneInvalid: "Zona horària no reconeguda",
+        dateTimeTimezoneClear: "Esborra la zona horària",
+        dateTimeTimezoneSearchPlaceholder: "Cerca zones horàries",
+        dateTimePatternLabel: "Patró",
+        dateTimePreviewLabel: "Previsualització",
+        dateTimeConfirmInsert: "Insereix",
+        dateTimeConfirmUpdate: "Actualitza",
+        soundToggle: "Reprodueix un so quan s’expandeix un activador escrit",
+        soundCaption: "Es reprodueix un so curt del sistema cada vegada que s’expandeix un activador escrit.",
+        soundPickerLabel: "So",
+        soundUnavailable: "So no disponible"
     )
 
     static let sk = SnippetFeatureStrings(
