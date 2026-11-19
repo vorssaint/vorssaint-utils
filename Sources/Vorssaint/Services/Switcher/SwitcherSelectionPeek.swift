@@ -84,7 +84,8 @@ final class SwitcherSelectionPeek {
         // activation takes. The deadline covers an activation that fails.
         func poll() {
             guard current == generation else { return }
-            if target == nil || Self.frontWindowID() == target
+            let front = target.flatMap { Self.frontWindowID(over: $0) }
+            if target == nil || front == target
                 || ProcessInfo.processInfo.systemUptime > deadline {
                 return hide(bumping: false)
             }
@@ -93,12 +94,21 @@ final class SwitcherSelectionPeek {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { poll() }
     }
 
-    /// The front-most normal window on screen; the peek's own panels sit on
+    /// The front-most normal window covering any part of `target`. The peek
+    /// sits exactly over the target, so once nothing else is above it there,
+    /// hiding the peek shows the real window in the same place. A window in
+    /// front on another display does not count. The peek's own panels sit on
     /// a higher layer and are skipped.
-    private static func frontWindowID() -> CGWindowID? {
+    private static func frontWindowID(over target: CGWindowID) -> CGWindowID? {
         guard let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                     kCGNullWindowID) as? [[String: Any]] else { return nil }
-        return list.first { ($0[kCGWindowLayer as String] as? Int) == 0 }
+        func bounds(_ info: [String: Any]) -> CGRect? {
+            (info[kCGWindowBounds as String] as? NSDictionary).flatMap { CGRect(dictionaryRepresentation: $0) }
+        }
+        let normal = list.filter { ($0[kCGWindowLayer as String] as? Int) == 0 }
+        guard let targetFrame = normal.first(where: { ($0[kCGWindowNumber as String] as? CGWindowID) == target })
+                .flatMap(bounds) else { return nil }
+        return normal.first { bounds($0)?.intersects(targetFrame) == true }
             .flatMap { $0[kCGWindowNumber as String] as? CGWindowID }
     }
 
