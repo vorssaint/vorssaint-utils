@@ -1207,9 +1207,9 @@ extension AppFeature {
         case .mediaTools: return s.mediaName
         case .cleaner: return s.cleanerName
         case .uninstaller: return s.uninstallerName
-        case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
-        case .portManager: return FeatureStrings.portManager(L10n.shared.language).title
-        case .herdrStatus: return FeatureStrings.herdr(L10n.shared.language).title
+        case .killProcess: return FeatureStrings.killProcess(language).pageTitle
+        case .portManager: return FeatureStrings.portManager(language).title
+        case .herdrStatus: return FeatureStrings.herdr(language).title
         case .homebrew: return s.homebrewName
         case .appUpdates: return FeatureStrings.appUpdates(language).pageTitle
         case .monitorCPU: return s.monitorShowCPU

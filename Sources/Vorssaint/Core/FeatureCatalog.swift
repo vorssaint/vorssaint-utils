@@ -393,8 +393,7 @@ extension AppFeature {
              .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
              .portManager,
              // Each app gets the ordinary quit request it would from its own menu.
-             .quitApps:
-             .portManager, .herdrStatus:
+             .quitApps, .herdrStatus:
             return []
         }
     }
@@ -492,13 +491,9 @@ extension AppFeature {
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return true
-<<<<<<< HEAD
-        case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
-=======
-        case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .herdrStatus:
->>>>>>> 1b277be5 (feat(herdr): show supervised agent status in menu bar and notch)
+        case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
+             .wallpaper, .killProcess, .portManager, .quitApps, .herdrStatus, .fanControl, .notchMascot,
+             .spacesOrder:
             return false
         }
     }
