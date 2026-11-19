@@ -11,7 +11,7 @@
 "NSMicrophoneUsageDescription" = "Vorssaint graba tu micrófono solo cuando lo activas para una grabación de pantalla. El audio se queda en tu Mac salvo que elijas crear un enlace temporal.";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "Vorssaint muestra tu cámara solo en la ventana de vista previa que abres, para que compruebes cómo te ves antes de una llamada. No se graba nada ni nada sale de tu Mac.";
+"NSCameraUsageDescription" = "Vorssaint muestra tu cámara solo en la ventana de vista previa que abres, para que compruebes cómo te ves antes de una llamada. No se graba nada ni nada sale de tu Mac. El Desbloqueo facial también la usa, solo con el Mac bloqueado y tras activarlo, para reconocerte; no se guarda ninguna imagen.";
 
 /* macOS Downloads folder permission prompt. */
 "NSDownloadsFolderUsageDescription" = "Vorssaint consulta metadatos locales en Descargas para revisar, organizar o enviar a la Papelera solo los archivos confirmados de WhatsApp que tú elijas. Limpieza también busca capturas olvidadas si guardas tus capturas aquí.";
