@@ -1645,6 +1645,7 @@ def main():
           + declaration(notch, "    private func syncMenuSpaceMonitoring()").replace("private func", "func", 1)
               .replace("AXIsProcessTrusted()", "accessibilityGranted")
               .replace("NotchSupport.coversMenus()", "coversMenus")
+              .replace("NotchSupport.fitsMenuBarRoom()", "fitsMenuBarRoom")
               .replace("NotchSupport.hiddenShowsActivity()", "hiddenShowsActivity")
           + declaration(notch, "    private func syncPointerFollowing()").replace("private func", "func", 1)
           + declaration(notch, "    private func removePointerMonitors()").replace("private func", "func", 1)

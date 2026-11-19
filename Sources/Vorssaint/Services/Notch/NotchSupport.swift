@@ -1897,6 +1897,13 @@ enum NotchSupport {
         defaults.object(forKey: DefaultsKey.notchCoversMenus) as? Bool ?? true
     }
 
+    /// The closed island's wings shrink to the room the menus and status
+    /// items leave beside the camera, measured with Accessibility, before it
+    /// covers them or gives way.
+    static func fitsMenuBarRoom(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchFitsMenuBarRoom) as? Bool ?? true
+    }
+
     static let defaultLowBatteryThreshold = 10
     /// Both level sliders share this scale so their knobs line up; red stops
     /// one short of the top so amber always has room above it.
@@ -2265,6 +2272,9 @@ struct NotchGeometry: Equatable {
     let outlineRoom: CGFloat
     private let capsuleWidthFit: CGFloat
     var compactSideRoom: CGFloat?
+    /// Set while the strip fits beside the menu bar's icons; nil keeps the
+    /// room as measured, or as an empty bar leaves it.
+    var menuBarFit: NotchMenuBarFit?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
     /// What the open page puts in the island's top row.
@@ -2421,8 +2431,16 @@ struct NotchGeometry: Equatable {
         return CGRect(x: (size.width - width) / 2, y: 0, width: width, height: height)
     }
 
+    /// The room beside the camera for wings that need at least `minimum`:
+    /// as measured, or, fitted beside the icons, the room over the menus
+    /// when they do not fit and may cover them.
+    func fittedSideRoom(minimum: CGFloat) -> CGFloat {
+        guard let menuBarFit else { return compactSideRoom ?? 0 }
+        return menuBarFit.room(measured: compactSideRoom, minimum: minimum)
+    }
+
     var restingWingWidth: CGFloat {
-        let available = min(44, max(0, compactSideRoom ?? 0)).rounded(.down)
+        let available = min(44, fittedSideRoom(minimum: 44)).rounded(.down)
         return available >= 44 ? available : 0
     }
     var collapsed: CGSize {
@@ -2451,8 +2469,8 @@ struct NotchGeometry: Equatable {
     var compactMusicGeometry: NotchGeometry {
         var compact = self
         compact.allowsActivityFooter = false
-        let room = compactSideRoom ?? 0
         let wing = isNotched ? compact.compactMusicContentWing : 44
+        let room = fittedSideRoom(minimum: wing)
         compact.compactSideRoom = room.isFinite && room >= wing ? min(isNotched ? wing : 56, room) : 0
         compact.minimumWing = wing
         return compact
@@ -2512,10 +2530,13 @@ struct NotchGeometry: Equatable {
     func compactTimerGeometry(showsDownloads: Bool,
                               wing fitted: CGFloat = NotchTimerSupport.stripWingRange.upperBound) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = NotchTimerSupport.stripWingRange
         let wing = showsDownloads ? 80 : min(range.upperBound, max(range.lowerBound, fitted.isFinite ? fitted.rounded(.up) : 0))
-        compact.compactSideRoom = room.isFinite && room >= 64 ? min(wing, room) : 0
+        // Fitted beside the icons, a timer alone keeps its mark and reading
+        // down to its narrowest wing; a download beside it keeps the arrow.
+        let minimum: CGFloat = menuBarFit == nil || showsDownloads ? 64 : range.lowerBound
+        let room = fittedSideRoom(minimum: minimum)
+        compact.compactSideRoom = room.isFinite && room >= minimum ? min(wing, room) : 0
         // A wider simulated camera must not consume the timer's text budget.
         compact.minimumCompactWidth = cameraWidth + wing * 2
         // Menu changes, including full-screen transitions, must not push the
@@ -2527,7 +2548,7 @@ struct NotchGeometry: Equatable {
     /// menus leave room, its name can take a wider wing without a fixed band.
     func compactDownloadGeometry(wing: CGFloat = 56) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
+        let room = fittedSideRoom(minimum: 44)
         compact.compactSideRoom = room.isFinite && room >= 44 ? min(wing, room) : 0
         compact.minimumCompactWidth = cameraWidth + wing * 2
         return compact
@@ -2542,12 +2563,12 @@ struct NotchGeometry: Equatable {
     var compactCalendarGeometry: NotchGeometry { compactCalendarGeometry(wing: Self.calendarWingRange.upperBound) }
     func compactCalendarGeometry(wing: CGFloat, paired: Bool = false) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = Self.calendarWingRange
         let lowest = paired ? NotchTimerSupport.stripWingRange.lowerBound : range.lowerBound
         let fitted = min(range.upperBound, max(lowest, wing.isFinite ? wing.rounded(.up) : 0))
         // The narrowest wing still drawn: a readable title, or a whole pair.
         let readable = min(fitted, range.lowerBound)
+        let room = fittedSideRoom(minimum: readable)
         compact.compactSideRoom = room.isFinite && room >= readable ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2
         compact.minimumWing = readable
@@ -2558,7 +2579,7 @@ struct NotchGeometry: Equatable {
     /// needs, so a short one leaves no band of empty black at the ends.
     func compactAgentGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
+        let room = fittedSideRoom(minimum: NotchAgentSupport.stripWingRange.lowerBound)
         let fitted = min(NotchAgentSupport.stripWingRange.upperBound,
                          max(NotchAgentSupport.stripWingRange.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= NotchAgentSupport.stripWingRange.lowerBound ? min(fitted, room) : 0
@@ -2570,8 +2591,8 @@ struct NotchGeometry: Equatable {
     /// never below it, with wings as wide as the reading needs.
     func compactWatchGeometry(wing: CGFloat) -> NotchGeometry {
         var compact = self
-        let room = compactSideRoom ?? 0
         let range = NotchWatchSupport.stripWingRange
+        let room = fittedSideRoom(minimum: range.lowerBound)
         let fitted = min(range.upperBound, max(range.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= range.lowerBound ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2
@@ -3157,6 +3178,397 @@ struct NotchGlassFade: Equatable {
             return NotchGlassFade(solidHeight: start - current * range, range: max(1, range))
         }
         return NotchGlassFade(solidHeight: max(start, end), range: 1)
+    }
+}
+
+/// The closed strip fitted to the menu bar's free room beside the camera.
+/// While it is set, the menus and status items are measured even when the
+/// island may cover them, and each activity's wings take the smaller of
+/// what they want and what is free, the same on both sides so the strip
+/// stays centred on the camera. Narrower wings drop what each strip shows
+/// only when there is room, such as a download's percentage or a title's
+/// end, down to the activity's own minimum: its mark and its reading. Below
+/// that, the strip takes `coverRoom` over the menus when it may cover them,
+/// and otherwise gives way as it does without fitting.
+struct NotchMenuBarFit: Equatable {
+    /// The room an unmeasured bar leaves, for a strip that may cover the
+    /// menus; nil gives way instead.
+    var coverRoom: CGFloat?
+
+    /// Smaller changes than this keep the wings where they are, so a status
+    /// item that redraws a little wider or narrower does not resize the strip.
+    static let hysteresis: CGFloat = 4
+
+    /// What a strip that needs at least `minimum` on each side may take.
+    func room(measured: CGFloat?, minimum: CGFloat) -> CGFloat {
+        let free = measured.flatMap { $0.isFinite ? max(0, $0) : nil } ?? 0
+        if free >= minimum { return free }
+        if let coverRoom, coverRoom.isFinite, coverRoom >= minimum { return coverRoom }
+        return free
+    }
+
+    /// A new reading replaces the room in use unless it is within the
+    /// hysteresis of it. A known room always replaces an unknown one, and
+    /// an unknown reading falls back to covering the menus when the strip
+    /// may, so a failed read never hides it.
+    func settledRoom(current: CGFloat?, measured: CGFloat?) -> CGFloat? {
+        guard let measured, measured.isFinite else { return coverRoom ?? measured }
+        guard let current, current.isFinite else { return measured }
+        return abs(measured - current) < Self.hysteresis ? current : measured
+    }
+}
+
+/// An empty status item placed under the island, so the status items that
+/// would sit there are laid out to its left. Like menu bar managers, it is
+/// placed by writing its preferred position before it is created: macOS
+/// orders status items by that value, in points from the right edge of the
+/// display, and only reads it when the item appears.
+///
+/// It spans the island and `margin` on each side. Placed once, its right
+/// end stays where the items to its right begin; wherever macOS lands it,
+/// its length is set from that real end. Its length then follows the
+/// island's left edge as the island grows and shrinks, which moves only
+/// the items to its left, live and without a new item. Only when the island
+/// reaches past that end, or an item to its right appears or widens and
+/// pushes it under the island, is the gap placed again. It is never placed
+/// closer on its own: an item it was placed to clear may still be ordered
+/// by the position it had, and would come back under the island.
+struct NotchMenuBarGap: Equatable {
+    static let autosaveName = "VorssaintNotchMenuBarGap"
+    /// Room kept past each end of the island.
+    static let margin: CGFloat = 4
+    /// Room asked for past the island's right end when the gap is placed.
+    static let anchorSlack: CGFloat = margin
+    /// The clearance the menu measurement keeps from a status item, as
+    /// `NotchMenuBarLayout.sideRoom` does.
+    static let menuClearance: CGFloat = 8
+    /// Smaller length changes are not worth laying out the bar for.
+    static let lengthTolerance: CGFloat = 1
+
+    /// Points from the display's right edge to the gap's right end.
+    var position: CGFloat
+    var length: CGFloat
+
+    /// The island's ends on `screen`: `width` wide, centred on the display
+    /// and moved `surfaceShift` toward a wider side.
+    static func island(width: CGFloat, surfaceShift: CGFloat = 0, screen: CGRect) -> ClosedRange<CGFloat>? {
+        guard width.isFinite, width > 0, surfaceShift.isFinite, screen.width > 0 else { return nil }
+        let left = max(screen.minX, screen.midX + surfaceShift - width / 2)
+        let right = min(screen.maxX, screen.midX + surfaceShift + width / 2)
+        return right > left ? left...right : nil
+    }
+
+    /// Where the gap starts on the left: past the island and the margin, or,
+    /// beside a physical camera `notchWidth` wide, just past the notch, as
+    /// macOS hides a status item that reaches into it and the items the gap
+    /// moves go behind the notch as on any full bar.
+    static func leftEnd(island: ClosedRange<CGFloat>, screen: CGRect, notchWidth: CGFloat? = nil) -> CGFloat {
+        notchWidth.map { screen.midX + max(0, $0) / 2 + 1 } ?? max(screen.minX, island.lowerBound - margin)
+    }
+
+    /// A new gap for the island, its right end the slack past the island.
+    static func placed(island: ClosedRange<CGFloat>, screen: CGRect, notchWidth: CGFloat? = nil) -> NotchMenuBarGap? {
+        let right = min(screen.maxX, island.upperBound + anchorSlack)
+        let left = leftEnd(island: island, screen: screen, notchWidth: notchWidth)
+        guard right > left else { return nil }
+        return NotchMenuBarGap(position: (screen.maxX - right).rounded(.down), length: (right - left).rounded(.up))
+    }
+
+    /// The gap's right end has to move: the island reaches past it. The
+    /// margin is room to grow into before that.
+    static func needsPlacing(rightEnd: CGFloat, island: ClosedRange<CGFloat>) -> Bool {
+        island.upperBound > rightEnd
+    }
+
+    /// The length that reaches from the gap's right end, where macOS drew
+    /// it, to the island's left end.
+    static func length(rightEnd: CGFloat, island: ClosedRange<CGFloat>, screen: CGRect,
+                       notchWidth: CGFloat? = nil) -> CGFloat {
+        max(0, rightEnd - leftEnd(island: island, screen: screen, notchWidth: notchWidth)).rounded(.up)
+    }
+
+    static func needsLength(current: CGFloat, wanted: CGFloat) -> Bool {
+        abs(current - wanted) > lengthTolerance
+    }
+
+    /// Where the gap ends on the left, in points from the display's right edge.
+    private var reach: CGFloat { position + length }
+
+    /// The gap as it was asked for on `screen`, in the screen coordinates
+    /// the menus are measured in.
+    func frame(on screen: CGRect, barHeight: CGFloat) -> CGRect {
+        CGRect(x: screen.maxX - reach, y: screen.maxY - barHeight, width: length, height: barHeight)
+    }
+
+    /// Status items measured over Accessibility include the gap itself,
+    /// which lies over the camera and would leave the island no room at
+    /// all. Status items never overlap, so the one that ends where the gap
+    /// ends and overlaps it is the gap, even while its length changes.
+    /// The items beside the gap sit only its margin from the island, closer
+    /// than the menu clearance, so they count from the clearance past the
+    /// gap's ends: the gap already keeps them off the island, and fitting
+    /// must not narrow the wings for them.
+    static func removing(_ gap: CGRect?, from frames: [CGRect]) -> [CGRect] {
+        guard let gap, !gap.isEmpty else { return frames }
+        return frames.filter { abs($0.maxX - gap.maxX) > 3 || $0.maxX <= gap.minX }.map { frame in
+            if frame.minX >= gap.maxX - 3, frame.minX < gap.maxX + menuClearance {
+                return frame.offsetBy(dx: gap.maxX + menuClearance - frame.minX, dy: 0)
+            }
+            if frame.maxX <= gap.minX + 3, frame.maxX > gap.minX - menuClearance {
+                return frame.offsetBy(dx: gap.minX - menuClearance - frame.maxX, dy: 0)
+            }
+            return frame
+        }
+    }
+
+    /// What a reading of every status item says about the gap.
+    enum Audit: Equatable {
+        /// The gap was not among the items read.
+        case unknown
+        /// Nothing to its right reaches over the island: its length follows
+        /// the island from where it really ends.
+        case fits(gap: CGRect)
+        /// It ends short of the island, or an item to its right reaches over
+        /// the island, as when that item appears or widens: place it again,
+        /// right of every such item.
+        case replace(NotchMenuBarGap)
+    }
+
+    /// The gap is the item as wide as its length, within two points, on the
+    /// island's display; items to its right that reach over the island, or
+    /// a gap that ends short of it, need a new place. Items to its left are
+    /// cleared by its length alone.
+    static func audit(island: ClosedRange<CGFloat>, gapLength: CGFloat, frames: [CGRect], screen: CGRect,
+                      notchWidth: CGFloat? = nil) -> Audit {
+        let onScreen = frames.filter { $0.midX >= screen.minX && $0.midX <= screen.maxX && !$0.isEmpty }
+        guard let gap = onScreen.filter({ abs($0.width - gapLength) <= 2 })
+                .min(by: { abs($0.width - gapLength) < abs($1.width - gapLength) }) else { return .unknown }
+        let clearFrom = notchWidth.map { screen.midX + max(0, $0) / 2 } ?? island.lowerBound
+        let over = onScreen.filter { $0 != gap && $0.maxX > clearFrom + 1 && $0.minX < island.upperBound - 1 }
+        let pushing = over.filter { $0.minX >= gap.maxX - 2 }
+        if pushing.isEmpty, gap.maxX >= island.upperBound + margin / 2 { return .fits(gap: gap) }
+        // Ordered just right of the rightmost item over the island, the gap
+        // ends where the first item clear of it begins.
+        let anchor = min(screen.maxX, max(island.upperBound + margin, pushing.map(\.maxX).max() ?? 0))
+        let left = leftEnd(island: island, screen: screen, notchWidth: notchWidth)
+        guard anchor > left else { return .unknown }
+        return .replace(NotchMenuBarGap(position: max(0, (screen.maxX - anchor - 1).rounded(.down)),
+                                        length: (anchor + margin - left).rounded(.up)))
+    }
+
+    /// Only for an island hanging in the menu bar of its display while it
+    /// shows there. Beside a physical camera it clears only what reaches
+    /// past the housing; elsewhere the island itself sits on the items.
+    static func shows(enabled: Bool, presenting: Bool, hidden: Bool, floats: Bool, displayHasMenuBar: Bool,
+                      isNotched: Bool, islandWidth: CGFloat, cameraWidth: CGFloat) -> Bool {
+        guard enabled, presenting, !hidden, !floats, displayHasMenuBar, islandWidth.isFinite else { return false }
+        return isNotched ? islandWidth > cameraWidth + 1 : islandWidth > 0
+    }
+}
+
+/// Decides every change the menu bar gap makes, from what the island wants
+/// and what a reading of the status items found, so each one is counted
+/// and capped. Every change lays out the whole menu bar, so the planner
+/// keeps them few:
+/// - a new width waits `debounce` and is ignored within `lengthTolerance`;
+/// - a wider island lengthens the gap then, a narrower one only once it has
+///   been narrower for `shrinkDelay`;
+/// - a new place, needed only when the island reaches past the gap's end or
+///   an item pushes the gap under it, comes at most every `replaceInterval`;
+/// - past `maxPlacesPerMinute` places or `maxLengthsPerMinute` lengths, the
+///   gap goes away until the island shows something else.
+/// Readings are asked for only after a change of its own, or when the
+/// caller reports status items appearing, going or resizing.
+extension NotchMenuBarGap {
+    /// Posted when the app's own status items appear, go or change width
+    /// by more than a few points, any of which can move the gap.
+    static let ownStatusItemsDidChange = Notification.Name("VorssaintOwnStatusItemsDidChange")
+
+    /// Whether the app's own status items laid out differently enough to
+    /// check the gap again: another count, or widths a few points apart.
+    static func ownItemsChanged(from old: [CGFloat]?, to new: [CGFloat]) -> Bool {
+        guard let old else { return !new.isEmpty }
+        guard old.count == new.count else { return true }
+        return abs(old.reduce(0, +) - new.reduce(0, +)) >= NotchMenuBarGapPlanner.lengthTolerance
+    }
+}
+
+struct NotchMenuBarGapPlanner {
+    static let debounce: TimeInterval = 0.15
+    static let lengthTolerance: CGFloat = 4
+    static let shrinkDelay: TimeInterval = 1
+    static let replaceInterval: TimeInterval = 2
+    static let auditDelay: TimeInterval = 0.3
+    static let maxPlacesPerMinute = 4
+    static let maxLengthsPerMinute = 20
+
+    /// What the island asks of the gap: its ends at rest over an empty bar
+    /// for what it shows, which nothing the gap moves can change.
+    struct Target: Equatable {
+        var island: ClosedRange<CGFloat>
+        var screen: CGRect
+        var notchWidth: CGFloat?
+        /// What the island shows, so a gap given up returns with something new.
+        var content: String
+    }
+
+    enum Action: Equatable {
+        case place(NotchMenuBarGap)
+        case setLength(CGFloat)
+        case remove
+        /// Read the status items after this long.
+        case audit(after: TimeInterval)
+        /// Call `tick` again at this time.
+        case wake(at: TimeInterval)
+        /// The caps were reached and the gap is off; said once.
+        case gaveUp
+    }
+
+    private(set) var placed: NotchMenuBarGap?
+    private(set) var length: CGFloat?
+    /// Where an item reading last found the gap's right end.
+    private(set) var measuredRightEnd: CGFloat?
+    private var placedScreen: CGRect?
+    private var target: Target?
+    private var pending: (target: Target, due: TimeInterval)?
+    private var shrinkingSince: TimeInterval?
+    private var places: [TimeInterval] = []
+    private var lengths: [TimeInterval] = []
+    private var lastPlace = -TimeInterval.infinity
+    private var replaceWanted: NotchMenuBarGap?
+    private(set) var gaveUpOn: String?
+    private var saidGaveUp = false
+
+    /// Where the gap's right end is: as read, or as it was asked for.
+    var rightEnd: CGFloat? {
+        if let measuredRightEnd { return measuredRightEnd }
+        guard let placed, let placedScreen else { return nil }
+        return placedScreen.maxX - placed.position
+    }
+
+    /// The island's wish changed, or nil when it wants no gap. Waits out the
+    /// debounce unless the gap has to go.
+    mutating func want(_ wanted: Target?, now: TimeInterval) -> [Action] {
+        guard let wanted else {
+            pending = nil
+            target = nil
+            shrinkingSince = nil
+            replaceWanted = nil
+            return placed == nil ? [] : removeGap()
+        }
+        if let gaveUpOn {
+            guard gaveUpOn != wanted.content else { return [] }
+            self.gaveUpOn = nil
+            saidGaveUp = false
+        }
+        let compare = pending?.target ?? target
+        if let compare, Self.same(compare, wanted) { return [] }
+        let due = now + Self.debounce
+        pending = (wanted, due)
+        return [.wake(at: due)]
+    }
+
+    /// Time passed: applies a settled wish, a lasting shrink or a place the
+    /// interval held back.
+    mutating func tick(now: TimeInterval) -> [Action] {
+        if let pending, now >= pending.due {
+            target = pending.target
+            self.pending = nil
+        }
+        guard let target, gaveUpOn == nil else { return pending.map { [.wake(at: $0.due)] } ?? [] }
+        var actions = evaluate(target, now: now)
+        if let pending { actions.append(.wake(at: pending.due)) }
+        return actions
+    }
+
+    /// A reading of every status item, the gap among them.
+    mutating func audited(frames: [CGRect], now: TimeInterval) -> [Action] {
+        guard let target, let length, placed != nil, gaveUpOn == nil else { return [] }
+        switch NotchMenuBarGap.audit(island: target.island, gapLength: length, frames: frames,
+                                     screen: target.screen, notchWidth: target.notchWidth) {
+        case .unknown:
+            return []
+        case .fits(let gap):
+            measuredRightEnd = gap.maxX
+            replaceWanted = nil
+            return evaluate(target, now: now)
+        case .replace(let gap):
+            replaceWanted = gap
+            return evaluate(target, now: now)
+        }
+    }
+
+    private mutating func evaluate(_ target: Target, now: TimeInterval) -> [Action] {
+        let mustPlace: NotchMenuBarGap?
+        if placed == nil || placedScreen != target.screen {
+            mustPlace = NotchMenuBarGap.placed(island: target.island, screen: target.screen, notchWidth: target.notchWidth)
+        } else if let replaceWanted {
+            mustPlace = replaceWanted
+        } else if let rightEnd, NotchMenuBarGap.needsPlacing(rightEnd: rightEnd, island: target.island) {
+            mustPlace = NotchMenuBarGap.placed(island: target.island, screen: target.screen, notchWidth: target.notchWidth)
+        } else {
+            mustPlace = nil
+        }
+        if let mustPlace { return place(mustPlace, target: target, now: now) }
+        guard let rightEnd, let length else { return [] }
+        let wanted = NotchMenuBarGap.length(rightEnd: rightEnd, island: target.island, screen: target.screen,
+                                            notchWidth: target.notchWidth)
+        if abs(wanted - length) < Self.lengthTolerance {
+            shrinkingSince = nil
+            return []
+        }
+        if wanted < length {
+            guard let since = shrinkingSince else {
+                shrinkingSince = now
+                return [.wake(at: now + Self.shrinkDelay)]
+            }
+            guard now - since >= Self.shrinkDelay else { return [.wake(at: since + Self.shrinkDelay)] }
+        }
+        shrinkingSince = nil
+        lengths = lengths.filter { now - $0 < 60 }
+        guard lengths.count < Self.maxLengthsPerMinute else { return giveUp(target) }
+        lengths.append(now)
+        self.length = wanted
+        return [.setLength(wanted), .audit(after: Self.auditDelay)]
+    }
+
+    private mutating func place(_ gap: NotchMenuBarGap, target: Target, now: TimeInterval) -> [Action] {
+        guard now - lastPlace >= Self.replaceInterval else { return [.wake(at: lastPlace + Self.replaceInterval)] }
+        places = places.filter { now - $0 < 60 }
+        guard places.count < Self.maxPlacesPerMinute else { return giveUp(target) }
+        places.append(now)
+        lastPlace = now
+        placed = gap
+        placedScreen = target.screen
+        length = gap.length
+        measuredRightEnd = nil
+        replaceWanted = nil
+        shrinkingSince = nil
+        return [.place(gap), .audit(after: Self.auditDelay)]
+    }
+
+    private mutating func giveUp(_ target: Target) -> [Action] {
+        gaveUpOn = target.content
+        var actions = removeGap()
+        if !saidGaveUp { saidGaveUp = true; actions.append(.gaveUp) }
+        return actions
+    }
+
+    private mutating func removeGap() -> [Action] {
+        let had = placed != nil
+        placed = nil
+        placedScreen = nil
+        length = nil
+        measuredRightEnd = nil
+        replaceWanted = nil
+        shrinkingSince = nil
+        return had ? [.remove] : []
+    }
+
+    private static func same(_ a: Target, _ b: Target) -> Bool {
+        a.screen == b.screen && a.notchWidth == b.notchWidth && a.content == b.content
+            && abs(a.island.lowerBound - b.island.lowerBound) < lengthTolerance
+            && abs(a.island.upperBound - b.island.upperBound) < lengthTolerance
     }
 }
 
