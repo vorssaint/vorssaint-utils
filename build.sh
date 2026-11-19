@@ -379,6 +379,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/KeepAwakeStrings.swift
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
+        Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift
+        Sources/Vorssaint/Services/BatteryControl/BatteryControlHardware.swift
+        Sources/Vorssaint/Services/BatteryControl/BatteryControlSupport.swift
+        Sources/Vorssaint/Core/BatteryControlStrings.swift
         Sources/Vorssaint/Core/FanControlStrings.swift
         Sources/Vorssaint/Core/ConnectedDevicesStrings.swift
         Sources/Vorssaint/Services/FanControl/FanControlSupport.swift
@@ -654,6 +658,9 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${BUILD_VARIAN
     Sources/Vorssaint/Services/SystemMonitor/SMCClient.swift \
     Sources/Vorssaint/Services/Metrics/TemperatureSensorSelector.swift \
     Sources/Vorssaint/Services/FanControl/FanControlHardware.swift \
+    Sources/Vorssaint/Services/BatteryControl/BatteryControlSupport.swift \
+    Sources/Vorssaint/Services/BatteryControl/BatteryControlHardware.swift \
+    Sources/FanControlHelper/BatteryController.swift \
     Sources/FanControlHelper/main.swift \
     -o "build/$FAN_HELPER_ID"
 "build/$FAN_HELPER_ID" --selftest

@@ -11,6 +11,7 @@ if let command = SettingsBackupSupport.command(in: CommandLine.arguments) {
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
+BatteryControlCLI.runIfRequestedAndExit()
 let configuredFeatureKeys = SettingsBackup.applyConfigFileAtLaunch()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()

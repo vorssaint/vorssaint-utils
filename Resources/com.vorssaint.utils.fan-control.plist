@@ -11,6 +11,8 @@
         <key>com.vorssaint.utils.fan-control</key>
         <true/>
     </dict>
+    <key>RunAtLoad</key>
+    <true/>
     <key>KeepAlive</key>
     <dict>
         <key>Crashed</key>
