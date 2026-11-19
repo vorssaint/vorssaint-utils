@@ -135,6 +135,8 @@ struct GlobalShortcut: Equatable, Hashable {
                                                  modifiers: [.control, .option, .command])
     static let soundOutputSwitcherDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_S),
                                                            modifiers: [.control, .option, .command])
+    static let autoClickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
+                                                   modifiers: [.control, .shift, .option, .command])
     static let displayBrightnessDecreaseDefault = GlobalShortcut(
         keyCode: Int64(kVK_ANSI_Minus), modifiers: [.shift, .command])
     static let displayBrightnessIncreaseDefault = GlobalShortcut(
@@ -740,6 +742,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessIncrease
     case pointerNextDisplay
     case notch
+    case autoClicker
 
     var id: String { storageKey }
 
@@ -779,6 +782,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
+        case .autoClicker: return DefaultsKey.autoClickerShortcut
         }
     }
 
@@ -818,6 +822,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
+        case .autoClicker: return .autoClickerDefault
         }
     }
 
@@ -827,7 +832,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     static let clearedShortcutStorageValue = "none"
 
-    var supportsClearing: Bool { self == .keepAwake || self == .snippetLibrary }
+    var supportsClearing: Bool { self == .keepAwake || self == .snippetLibrary || self == .autoClicker }
 
     func assignedShortcut(storedValue: (String) -> String? = { UserDefaults.standard.string(forKey: $0) })
         -> GlobalShortcut? {
@@ -901,6 +906,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
+        case .autoClicker: return FeatureStrings.autoClicker(L10n.shared.language).title
         }
     }
 
@@ -965,6 +971,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
+        case .autoClicker: return [DefaultsKey.autoClickerEnabled]
         }
     }
 
@@ -998,6 +1005,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
+        case .autoClicker: return .autoClicker
         }
     }
 
