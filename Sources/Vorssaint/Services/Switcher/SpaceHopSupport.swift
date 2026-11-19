@@ -2,11 +2,24 @@
 // Copyright (C) 2026 Vorssaint
 
 import CoreGraphics
+import Foundation
 
 /// Pure decisions behind showing and reaching windows that live on a Space the
 /// user is not currently looking at (issue #339). Kept free of AppKit and
 /// window-server calls so the unit tests can exercise every branch.
 enum SpaceHopSupport {
+    /// Numbered desktop shortcuts skip fullscreen and system-owned Spaces.
+    /// An unknown type is not assigned a desktop number on a guess.
+    static func desktopSpaceIDs(_ spaces: [[String: Any]]) -> [UInt64]? {
+        var desktops: [UInt64] = []
+        for space in spaces {
+            guard let type = (space["type"] as? NSNumber)?.intValue,
+                  let id = (space["id64"] as? NSNumber)?.uint64Value else { return nil }
+            if type == 0 { desktops.append(id) }
+        }
+        return desktops
+    }
+
     /// The largest number of "move a space" steps a hop will replay. Spaces
     /// beyond that are treated as unreachable rather than flooding the session
     /// with synthetic shortcuts.
