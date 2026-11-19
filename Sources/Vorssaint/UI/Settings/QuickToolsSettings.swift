@@ -26,6 +26,16 @@ struct QuickToolsSettings: View {
     @AppStorage(DefaultsKey.scratchpadTextSize) private var scratchpadTextSize = ScratchpadSupport.defaultTextSize
     @AppStorage(DefaultsKey.micMuteMenuBarIndicator) private var micMenuBarIndicator = false
     @AppStorage(DefaultsKey.cleaningModeKeepScreenVisible) private var cleaningModeKeepScreenVisible = false
+    @ObservedObject private var pomodoro = PomodoroService.shared
+    @AppStorage(DefaultsKey.pomodoroEnabled) private var pomodoroEnabled = false
+    @AppStorage(DefaultsKey.pomodoroFocusMinutes) private var pomodoroFocusMinutes = 25
+    @AppStorage(DefaultsKey.pomodoroShortBreakMinutes) private var pomodoroShortBreakMinutes = 5
+    @AppStorage(DefaultsKey.pomodoroLongBreakMinutes) private var pomodoroLongBreakMinutes = 15
+    @AppStorage(DefaultsKey.pomodoroLongBreakInterval) private var pomodoroLongBreakInterval = 4
+    @AppStorage(DefaultsKey.pomodoroAutoStartBreaks) private var pomodoroAutoStartBreaks = false
+    @AppStorage(DefaultsKey.pomodoroAutoStartFocus) private var pomodoroAutoStartFocus = false
+    @AppStorage(DefaultsKey.pomodoroSoundEnabled) private var pomodoroSoundEnabled = true
+    @AppStorage(DefaultsKey.pomodoroShowInMenuBar) private var pomodoroShowInMenuBar = true
 
     var body: some View {
         Form {
@@ -332,6 +342,81 @@ struct QuickToolsSettings: View {
                     Text(l10n.s.cleaningMenuItem)
                 }
                 .settingsFormSectionAnchor(.cleaningMode)
+            }
+
+            if AppFeature.pomodoro.isAvailable {
+                let pomodoroStrings = FeatureStrings.pomodoro(l10n.language)
+                Section {
+                    Toggle(pomodoroStrings.enable, isOn: $pomodoroEnabled)
+                        .onChange(of: pomodoroEnabled) { _, _ in
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+                    Text(pomodoroStrings.enableCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if pomodoroEnabled {
+                        Stepper(value: $pomodoroFocusMinutes, in: 1...120) {
+                            HStack {
+                                Text(pomodoroStrings.focusDuration)
+                                Spacer()
+                                Text("\(pomodoroFocusMinutes) min")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onChange(of: pomodoroFocusMinutes) { _, _ in
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+
+                        Stepper(value: $pomodoroShortBreakMinutes, in: 1...60) {
+                            HStack {
+                                Text(pomodoroStrings.shortBreakDuration)
+                                Spacer()
+                                Text("\(pomodoroShortBreakMinutes) min")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onChange(of: pomodoroShortBreakMinutes) { _, _ in
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+
+                        Stepper(value: $pomodoroLongBreakMinutes, in: 1...90) {
+                            HStack {
+                                Text(pomodoroStrings.longBreakDuration)
+                                Spacer()
+                                Text("\(pomodoroLongBreakMinutes) min")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onChange(of: pomodoroLongBreakMinutes) { _, _ in
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+
+                        Stepper(value: $pomodoroLongBreakInterval, in: 1...12) {
+                            HStack {
+                                Text(pomodoroStrings.longBreakInterval)
+                                Spacer()
+                                Text("\(pomodoroLongBreakInterval)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .onChange(of: pomodoroLongBreakInterval) { _, _ in
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+
+                        Toggle(pomodoroStrings.autoStartBreaks, isOn: $pomodoroAutoStartBreaks)
+                        Toggle(pomodoroStrings.autoStartFocus, isOn: $pomodoroAutoStartFocus)
+                        Toggle(pomodoroStrings.soundAlerts, isOn: $pomodoroSoundEnabled)
+                        Toggle(pomodoroStrings.showInMenuBar, isOn: $pomodoroShowInMenuBar)
+
+                        ShortcutPreferenceRow(role: .pomodoro, isEnabled: pomodoroEnabled) {
+                            PomodoroService.shared.syncWithPreferences()
+                        }
+                    }
+                } header: {
+                    Text(pomodoroStrings.title)
+                }
+                .settingsFormSectionAnchor(.pomodoro)
             }
         }
         .formStyle(.grouped)

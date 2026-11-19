@@ -786,6 +786,7 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityPomodoro = "panelUtilityPomodoro"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1011,6 +1012,18 @@ enum DefaultsKey {
     static let radialMenuActivationMode = "radialMenuActivationMode" // RadialMenuActivationMode.rawValue
     static let radialMenuItems = "radialMenuItems"        // Data: [RadialMenuItem] JSON
     static let radialMenuProfiles = "radialMenuProfiles"  // Data: [RadialMenuProfile] JSON
+
+    // Pomodoro timer: focus and break sessions.
+    static let pomodoroEnabled = "pomodoroEnabled"
+    static let pomodoroFocusMinutes = "pomodoroFocusMinutes"
+    static let pomodoroShortBreakMinutes = "pomodoroShortBreakMinutes"
+    static let pomodoroLongBreakMinutes = "pomodoroLongBreakMinutes"
+    static let pomodoroLongBreakInterval = "pomodoroLongBreakInterval"
+    static let pomodoroAutoStartBreaks = "pomodoroAutoStartBreaks"
+    static let pomodoroAutoStartFocus = "pomodoroAutoStartFocus"
+    static let pomodoroSoundEnabled = "pomodoroSoundEnabled"
+    static let pomodoroShowInMenuBar = "pomodoroShowInMenuBar"
+    static let pomodoroShortcut = "pomodoroShortcut"
 
     // Dev-build only: force the "update available" UI for local testing.
     static let simulateUpdate = "simulateUpdate"
@@ -1616,6 +1629,16 @@ enum Defaults {
         DefaultsKey.radialMenuAtPointer: true,
         DefaultsKey.radialMenuMouseButton: RadialMenuMouseTrigger.off.rawValue,
         DefaultsKey.radialMenuActivationMode: RadialMenuActivationMode.pressOrHold.rawValue,
+        DefaultsKey.pomodoroEnabled: false,
+        DefaultsKey.pomodoroFocusMinutes: 25,
+        DefaultsKey.pomodoroShortBreakMinutes: 5,
+        DefaultsKey.pomodoroLongBreakMinutes: 15,
+        DefaultsKey.pomodoroLongBreakInterval: 4,
+        DefaultsKey.pomodoroAutoStartBreaks: false,
+        DefaultsKey.pomodoroAutoStartFocus: false,
+        DefaultsKey.pomodoroSoundEnabled: true,
+        DefaultsKey.pomodoroShowInMenuBar: true,
+        DefaultsKey.pomodoroShortcut: GlobalShortcut.pomodoroDefault.storageValue,
         DefaultsKey.windowMaximizeEnabled: false,
         DefaultsKey.windowMaximizeExcludedApps: [String](),
         DefaultsKey.keyboardDebounceEnabled: false,
@@ -1931,6 +1954,7 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityPomodoro: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
