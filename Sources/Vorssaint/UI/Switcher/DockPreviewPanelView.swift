@@ -97,6 +97,7 @@ private struct DockPreviewPanelContent: View {
 
     @ObservedObject private var l10n = L10n.shared
     @State private var draggingWindowID: CGWindowID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(DefaultsKey.minimalWindowPreviews) private var minimalPreviews = false
     @AppStorage(DefaultsKey.dockPreviewBackgroundOpacity) private var backgroundOpacity = 1.0
     @AppStorage(DefaultsKey.dockPreviewQuitAppOnClose) private var quitAppOnClose = false
@@ -135,6 +136,9 @@ private struct DockPreviewPanelContent: View {
                                 }
                             )
                             .id(window.id)
+                            .scaleEffect(liftsCard(window) ? 1.03 : 1)
+                            .zIndex(draggingWindowID == window.windowID ? 1 : 0)
+                            .animation(cardMotion, value: draggingWindowID)
                             .gesture(
                                 DragGesture(minimumDistance: DockPreviewSupport.dragLiftDistance,
                                             coordinateSpace: .global)
@@ -161,6 +165,10 @@ private struct DockPreviewPanelContent: View {
                             }
                         }
                     }
+                    // A card dragged along the run pushes its neighbours out
+                    // of the way rather than teleporting past them, so the
+                    // arrangement being built stays readable.
+                    .animation(cardMotion, value: windows.map(\.id))
                     .padding(.horizontal, DockPreviewSupport.panelPadding)
                     .padding(.bottom, DockPreviewSupport.panelPadding)
                     .padding(.top, showsHeader ? 0 : DockPreviewSupport.panelPadding)
@@ -183,6 +191,18 @@ private struct DockPreviewPanelContent: View {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(minimalPreviews ? Color.clear : Color.white.opacity(0.12), lineWidth: 1)
         )
+    }
+
+    /// The spring the panel already gives a card's own state, reused for the
+    /// run so both read as one surface. Reduce Motion takes the jump instead.
+    private var cardMotion: Animation? {
+        reduceMotion ? nil : .spring(response: 0.2, dampingFraction: 0.82)
+    }
+
+    /// The card under the pointer lifts while it is being carried, and settles
+    /// once the drag leaves the panel and the stand-in takes over.
+    private func liftsCard(_ window: SwitcherItem) -> Bool {
+        !reduceMotion && draggingWindowID == window.windowID
     }
 
     private var stacksVertically: Bool {

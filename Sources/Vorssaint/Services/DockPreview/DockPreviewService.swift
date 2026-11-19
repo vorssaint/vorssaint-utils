@@ -29,6 +29,15 @@ final class DockPreviewService: ObservableObject {
     /// Which edge the Dock is on, so the panel can run its cards along it.
     @Published private(set) var orientation: DockPreviewOrientation = .bottom
     private var isDraggingWindow = false
+    /// The dragged card's picture, held until the drag leaves the panel and
+    /// the stand-in it feeds is lifted.
+    private var draggedImage: CGImage?
+    private var draggedWindowID: CGWindowID?
+    private var ghostIsLifted = false
+    /// The arrangement each app's run has been given by hand, by window.
+    /// Windows carry session identifiers, so an app that quits takes its
+    /// arrangement with it rather than leaving one that fits nothing.
+    private var manualOrders: [pid_t: [CGWindowID]] = [:]
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
@@ -156,6 +165,9 @@ final class DockPreviewService: ObservableObject {
         closeAllPinnedPanels()
         isRunning = false
         blockedReason = nil
+        // The arrangements are worth exactly as long as the feature runs: a
+        // window identifier means nothing to the next run of its app.
+        manualOrders.removeAll()
     }
 
     func preview(_ item: SwitcherItem) {
@@ -289,15 +301,72 @@ final class DockPreviewService: ObservableObject {
         else { return }
 
         isDraggingWindow = true
+        draggedImage = image
+        draggedWindowID = item.windowID
         releaseDockAutohideHold()
         cancelPendingHide()
         cancelPendingHover()
-        DockPreviewDragGhost.shared.begin(image: image, at: NSEvent.mouseLocation)
+        // A drag starts on a card, so it starts inside the panel: the run
+        // rearranges under the pointer and the stand-in waits until the drag
+        // leaves the panel for the desktop.
+        updateWindowDrag()
     }
 
     func updateWindowDrag() {
         guard isDraggingWindow else { return }
+        let pointer = NSEvent.mouseLocation
+        if activePanelFrame?.contains(pointer) == true, runShowsEveryCard {
+            if ghostIsLifted {
+                DockPreviewDragGhost.shared.end()
+                ghostIsLifted = false
+            }
+            reorderDraggedCard(at: pointer)
+            return
+        }
+        if !ghostIsLifted {
+            guard let draggedImage else { return }
+            DockPreviewDragGhost.shared.begin(image: draggedImage, at: pointer)
+            ghostIsLifted = true
+        }
         DockPreviewDragGhost.shared.move(to: NSEvent.mouseLocation)
+    }
+
+    /// Slides the dragged card to the slot under the pointer, so the run shows
+    /// the arrangement it would keep if the drag ended here.
+    /// Rearranging reads the slot from the panel's edge, which only holds
+    /// while every card is on show.
+    private var runShowsEveryCard: Bool {
+        guard let frame = activePanelFrame else { return false }
+        return DockPreviewSupport.showsWholeRun(
+            panelFrame: frame,
+            count: windows.count,
+            stacksVertically: DockPreviewSupport.stacksVertically(orientation: orientation,
+                                                                  isPinned: isPinned))
+    }
+
+    /// Drops the arrangements of apps that have quit: a window identifier is
+    /// good for one run of its app, so their orders can only go stale.
+    private func pruneManualOrders() {
+        guard !manualOrders.isEmpty else { return }
+        let running = Set(NSWorkspace.shared.runningApplications.map(\.processIdentifier))
+        manualOrders = manualOrders.filter { running.contains($0.key) }
+    }
+
+    private func reorderDraggedCard(at pointer: CGPoint) {
+        guard let frame = activePanelFrame,
+              let draggedID = draggedWindowID,
+              let from = windows.firstIndex(where: { $0.windowID == draggedID })
+        else { return }
+        let to = DockPreviewSupport.reorderIndex(
+            pointer: pointer,
+            panelFrame: frame,
+            count: windows.count,
+            stacksVertically: DockPreviewSupport.stacksVertically(orientation: orientation,
+                                                                  isPinned: isPinned))
+        guard to != from else { return }
+        var next = windows
+        next.insert(next.remove(at: from), at: to)
+        windows = next
     }
 
     /// Drops the window where the stand-in was: its top-left corner goes to the
@@ -308,6 +377,18 @@ final class DockPreviewService: ObservableObject {
     func endWindowDrag(_ item: SwitcherItem) {
         guard isDraggingWindow else { return }
         isDraggingWindow = false
+        draggedImage = nil
+        draggedWindowID = nil
+        // A card let go inside the panel was being rearranged, not carried
+        // out: the run keeps the order it is showing and the panel stays up.
+        if !ghostIsLifted {
+            if let pid = currentSessionPID {
+                pruneManualOrders()
+                manualOrders[pid] = windows.compactMap(\.windowID)
+            }
+            return
+        }
+        ghostIsLifted = false
         DockPreviewDragGhost.shared.end()
 
         guard item.windowID != nil else {
@@ -693,7 +774,7 @@ final class DockPreviewService: ObservableObject {
         guard !isVisible else { return }
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.pendingHover?.token == token else { return }
-            let list = Self.previewableWindows(for: pid)
+            let list = Self.previewableWindows(for: pid, manual: self.manualOrders[pid] ?? [])
             // The list took Accessibility round trips to read: the hover it was
             // taken for can have been cancelled or handed on in the meantime.
             guard self.pendingHover?.token == token else { return }
@@ -704,12 +785,14 @@ final class DockPreviewService: ObservableObject {
                                       execute: work)
     }
 
-    private static func previewableWindows(for pid: pid_t) -> [SwitcherItem] {
+    private static func previewableWindows(for pid: pid_t,
+                                           manual: [CGWindowID] = []) -> [SwitcherItem] {
         let windows = WindowEnumerator.listWindowsForDockPreview(for: pid, maximumCount: 12)
             .filter { $0.windowID != nil }
         let order = DockPreviewWindowOrder.fromDefaults(
             orderByCreation: UserDefaults.standard.bool(forKey: DefaultsKey.dockPreviewOrderByCreation))
-        return DockPreviewSupport.orderedWindows(windows, order: order)
+        return DockPreviewSupport.applyingManualOrder(
+            DockPreviewSupport.orderedWindows(windows, order: order), ids: manual)
     }
 
     private func beginHoverIfStillValid(token: UUID, initialHit: DockHit) {
@@ -735,7 +818,9 @@ final class DockPreviewService: ObservableObject {
         cancelPendingHover()
         cancelPendingHide()
 
-        let list = prefetched ?? Self.previewableWindows(for: hit.app.processIdentifier)
+        let list = prefetched ?? Self.previewableWindows(
+            for: hit.app.processIdentifier,
+            manual: manualOrders[hit.app.processIdentifier] ?? [])
         // An app with no real windows shows nothing; if a panel is already up
         // (the user moved here from another app), close it cleanly.
         guard !list.isEmpty else {
