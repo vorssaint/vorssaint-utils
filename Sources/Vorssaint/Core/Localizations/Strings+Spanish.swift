@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Mueve el resaltado y desplaza la lista de inmediato al recorrer apps y ventanas.",
         switcherIgnoreHoverSelection: "Ignorar la selección al pasar el cursor",
         switcherIgnoreHoverSelectionCaption: "Mover el puntero sobre apps y ventanas deja el resaltado donde está. Un clic sigue abriendo uno.",
+        switcherShiftStepsBack: "Retroceder solo con Mayúsculas",
+        switcherShiftStepsBackCaption: "Pulsar Mayúsculas con el selector abierto selecciona el elemento anterior. Mayúsculas+Tab y ← siempre retroceden.",
         switcherMergeTabs: "Mostrar una entrada por app",
         switcherMergeTabsCaption: "Agrupa todas las ventanas de una app en una sola entrada del selector, en vez de una por ventana.",
         switcherWindowlessApps: "Apps sin ventanas abiertas",

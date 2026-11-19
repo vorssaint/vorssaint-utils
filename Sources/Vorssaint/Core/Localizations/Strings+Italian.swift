@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Sposta subito l’evidenziazione e scorre l’elenco mentre navighi tra app e finestre.",
         switcherIgnoreHoverSelection: "Ignora la selezione al passaggio",
         switcherIgnoreHoverSelectionCaption: "Spostare il puntatore su app e finestre lascia l’evidenziazione dov’è. Un clic apre comunque un elemento.",
+        switcherShiftStepsBack: "Torna indietro con il solo Maiuscole",
+        switcherShiftStepsBackCaption: "Premere Maiuscole a selettore aperto seleziona l’elemento precedente. Maiuscole+Tab e ← tornano sempre indietro.",
         switcherMergeTabs: "Mostra una voce per app",
         switcherMergeTabsCaption: "Raggruppa tutte le finestre di un’app in un’unica voce nel commutatore, anziché una per finestra.",
         switcherWindowlessApps: "App senza finestre aperte",

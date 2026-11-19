@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "浏览 App 和窗口时，立即移动高亮并滚动列表。",
         switcherIgnoreHoverSelection: "悬停时不选择",
         switcherIgnoreHoverSelectionCaption: "指针经过 App 和窗口时，高亮保持不动。单击仍会打开。",
+        switcherShiftStepsBack: "仅按 Shift 返回",
+        switcherShiftStepsBackCaption: "切换器打开时按 Shift 会选择上一项。Shift+Tab 和 ← 始终可以返回。",
         switcherMergeTabs: "每个 App 仅显示一项",
         switcherMergeTabsCaption: "将一个 App 的所有窗口合并为切换器中的一项，而不是每个窗口一项。",
         switcherWindowlessApps: "无打开窗口的 App",

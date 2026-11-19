@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Verschiebt Markierung und Liste beim Durchgehen von Apps und Fenstern sofort.",
         switcherIgnoreHoverSelection: "Auswahl beim Zeigen ignorieren",
         switcherIgnoreHoverSelectionCaption: "Bewegt sich der Zeiger über Apps und Fenster, bleibt die Markierung an ihrem Platz. Ein Klick öffnet weiterhin einen Eintrag.",
+        switcherShiftStepsBack: "Mit Umschalt allein zurück",
+        switcherShiftStepsBackCaption: "Drücken von Umschalt bei geöffnetem Umschalter wählt den vorherigen Eintrag. Umschalt+Tab und ← gehen immer zurück.",
         switcherMergeTabs: "Einen Eintrag pro App anzeigen",
         switcherMergeTabsCaption: "Fasst alle Fenster einer App zu einem Eintrag im Umschalter zusammen, statt einen Eintrag pro Fenster.",
         switcherWindowlessApps: "Apps ohne geöffnetes Fenster",

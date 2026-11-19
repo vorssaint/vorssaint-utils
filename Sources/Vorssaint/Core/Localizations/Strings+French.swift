@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Déplace immédiatement la surbrillance et fait défiler la liste pendant la navigation entre les apps et les fenêtres.",
         switcherIgnoreHoverSelection: "Ignorer la sélection au survol",
         switcherIgnoreHoverSelectionCaption: "Déplacer le pointeur sur les apps et les fenêtres laisse la surbrillance en place. Un clic ouvre toujours l’élément.",
+        switcherShiftStepsBack: "Revenir en arrière avec Maj seule",
+        switcherShiftStepsBackCaption: "Appuyer sur Maj quand le sélecteur est ouvert sélectionne l’élément précédent. Maj+Tab et ← reviennent toujours en arrière.",
         switcherMergeTabs: "Afficher une seule entrée par app",
         switcherMergeTabsCaption: "Regroupe toutes les fenêtres d’une app en une seule entrée dans le sélecteur, au lieu d’une entrée par fenêtre.",
         switcherWindowlessApps: "Apps sans fenêtre ouverte",

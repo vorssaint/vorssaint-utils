@@ -237,6 +237,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Uygulamalar ve pencereler arasında gezinirken vurguyu ve kaydırma konumunu anında değiştirir.",
         switcherIgnoreHoverSelection: "Hover ile seçmeyi kapat",
         switcherIgnoreHoverSelectionCaption: "İmleç uygulamaların ve pencerelerin üzerinden geçerken vurgu yerinde kalır. Tıklamak yine açar.",
+        switcherShiftStepsBack: "Yalnızca Shift ile geri git",
+        switcherShiftStepsBackCaption: "Değiştirici açıkken Shift’e basmak önceki öğeyi seçer. Shift+Tab ve ← her zaman geri gider.",
         switcherMergeTabs: "Uygulama başına bir giriş göster",
         switcherMergeTabsCaption: "Değiştiricide pencere başına bir giriş yerine, bir uygulamanın tüm pencerelerini tek girişte toplar.",
         switcherWindowlessApps: "Açık penceresi olmayan uygulamalar",

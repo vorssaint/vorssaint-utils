@@ -228,6 +228,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Під час переходу між програмами та вікнами одразу переміщує виділення і прокручує список.",
         switcherIgnoreHoverSelection: "Не вибирати при наведенні",
         switcherIgnoreHoverSelectionCaption: "Переміщення вказівника програмами й вікнами не зсуває виділення. Клацання й далі відкриває елемент.",
+        switcherShiftStepsBack: "Назад однією клавішею Shift",
+        switcherShiftStepsBackCaption: "Натискання Shift, коли перемикач відкритий, вибирає попередній елемент. Shift+Tab і ← завжди повертають назад.",
         switcherMergeTabs: "Показувати один запис на програму",
         switcherMergeTabsCaption: "Зводить усі вікна програми в один запис у перемикачі замість окремого запису на кожне вікно.",
         switcherWindowlessApps: "Програми без відкритих вікон",
