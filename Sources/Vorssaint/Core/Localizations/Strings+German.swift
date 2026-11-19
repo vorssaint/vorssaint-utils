@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "Kein Mikrofon gefunden",
         mixerInputUnavailable: "Mikrofon nicht verfügbar",
         mixerInputFallback: "Standard wird verwendet, bis dieses Mikrofon zurück ist.",
+        mixerInputVolumeLock: "Eingangslautstärke auf diesem Pegel halten",
+        mixerInputVolumeLockFailed: "Dieses Mikrofon hat den festgelegten Pegel nicht gehalten.",
         mixerInputTooltip: "Mikrofon wählen",
         mixerInputErrorFormat: "Wechsel fehlgeschlagen: %@",
         mixerVisibleApps: "Apps in der Liste",

@@ -818,6 +818,8 @@ struct Strings {
     let mixerInputNoDevices: String
     let mixerInputUnavailable: String
     let mixerInputFallback: String
+    let mixerInputVolumeLock: String
+    let mixerInputVolumeLockFailed: String
     let mixerInputTooltip: String
     let mixerInputErrorFormat: String
     let mixerVisibleApps: String
@@ -1974,6 +1976,8 @@ extension Strings {
         mixerInputNoDevices: "Nenhum microfone encontrado",
         mixerInputUnavailable: "Microfone indisponível",
         mixerInputFallback: "Usando o padrão até esse microfone voltar.",
+        mixerInputVolumeLock: "Manter o volume de entrada neste nível",
+        mixerInputVolumeLockFailed: "Este microfone não manteve o nível travado.",
         mixerInputTooltip: "Escolher microfone",
         mixerInputErrorFormat: "Não foi possível trocar: %@",
         mixerVisibleApps: "Apps na lista",
@@ -3105,6 +3109,8 @@ extension Strings {
         mixerInputNoDevices: "No microphones found",
         mixerInputUnavailable: "Microphone unavailable",
         mixerInputFallback: "Using default until this microphone returns.",
+        mixerInputVolumeLock: "Keep input volume at this level",
+        mixerInputVolumeLockFailed: "This microphone did not keep the locked level.",
         mixerInputTooltip: "Choose microphone",
         mixerInputErrorFormat: "Could not switch: %@",
         mixerVisibleApps: "Apps in the list",

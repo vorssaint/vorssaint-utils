@@ -52,6 +52,9 @@ enum MixerInputVolumeContract {
     }
     enum DefaultsKey {
         static let preferredInputDevice = "preferred"
+        static let inputVolumeLockEnabled = "inputVolumeLockEnabled"
+        static let inputVolumeLockLevel = "inputVolumeLockLevel"
+        static let inputVolumeLockDeviceUID = "inputVolumeLockDeviceUID"
         static let audioPriorityInputEnabled = "audioPriorityInputEnabled"
         static let micMuteActive = "mute"
         static let micMuteSavedVolumes = "savedVolumes"
@@ -68,6 +71,7 @@ enum MixerInputVolumeContract {
         final class Store {
             var values: [String: Any] = [:]
             var writtenKeys: [String] = []
+            func object(forKey k: String) -> Any? { values[k] }
             func string(forKey k: String) -> String? { values[k] as? String }
             func bool(forKey k: String) -> Bool { values[k] as? Bool ?? false }
             func double(forKey k: String) -> Double { values[k] as? Double ?? 0 }
@@ -1521,5 +1525,133 @@ enum MixerInputVolumeContract {
                     && HAL.levels[HAL.key(20)] == (mute ? 0 : 0.75),
                   "the requested mute or unmute reaches a device that arrives before publication")
         }
+
+        // Opt-in input volume lock: only the locked microphone, never while
+        // muted, and a bounded number of restores when a write does not stick.
+        func lockedLevel(_ device: UInt32 = 10) -> Double? { HAL.levels[HAL.key(device)].map(Double.init) }
+        func externalChange(_ lock: AudioInputDeviceManager, to level: Float, device: UInt32 = 10) {
+            HAL.levels[HAL.key(device)] = level
+            lock.scheduleVolumeRefresh(for: device)
+            DispatchQueue.drain()
+        }
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.6
+        var lock = manager()
+        externalChange(lock, to: 0.3)
+        check(near(lockedLevel(), 0.3) && near(lock.inputVolume, 0.3), "without the lock an external change stays")
+        lock.setInputVolumeLockEnabled(true)
+        check(lock.inputVolumeLockEnabled && lock.inputVolumeLockDeviceUID == "device-10"
+                && near(UserDefaults.standard.double(forKey: DefaultsKey.inputVolumeLockLevel), 0.3)
+                && UserDefaults.standard.bool(forKey: DefaultsKey.inputVolumeLockEnabled),
+              "turning the lock on saves the microphone and its current level")
+        externalChange(lock, to: 0.9)
+        check(near(lockedLevel(), 0.3) && near(lock.inputVolume, 0.3) && !lock.inputVolumeLockFailed,
+              "an external change returns to the locked level")
+        lock.setInputVolume(0.7)
+        DispatchQueue.drain()
+        externalChange(lock, to: 0.1)
+        check(near(lockedLevel(), 0.7) && near(UserDefaults.standard.double(forKey: DefaultsKey.inputVolumeLockLevel), 0.7),
+              "a level chosen in Vorssaint becomes the locked level")
+        lock.setInputVolumeLockEnabled(false)
+        externalChange(lock, to: 0.2)
+        check(!lock.inputVolumeLockEnabled && near(lockedLevel(), 0.2),
+              "turning the lock off stops enforcement at once")
+
+        lock.setInputVolumeLockEnabled(true)
+        lock.stop()
+        HAL.levels[HAL.key(10)] = 0.45
+        lock = manager()
+        check(lock.inputVolumeLockEnabled && near(lockedLevel(), 0.2),
+              "the lock and its level survive a relaunch and apply to the same microphone")
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        UserDefaults.standard.set(true, forKey: DefaultsKey.inputVolumeLockEnabled)
+        UserDefaults.standard.set("device-10", forKey: DefaultsKey.inputVolumeLockDeviceUID)
+        lock = manager()
+        check(!lock.inputVolumeLockEnabled && near(lockedLevel(), 0.5),
+              "a lock without a saved level never forces the microphone to zero")
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        lock = manager()
+        lock.setInputVolumeLockEnabled(true)
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        lock.scheduleVolumeRefresh(for: 10)
+        DispatchQueue.drain()
+        check(MicMuteService.shared.isMuted && MicMuteService.isSilenced(10) && !lock.inputVolumeLockFailed,
+              "the lock never undoes Mic Mute")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        externalChange(lock, to: 0.8)
+        check(!MicMuteService.shared.isMuted && near(lockedLevel(), 0.5),
+              "the locked level resumes after an explicit unmute")
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        lock = manager()
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        lock.setInputVolumeLockEnabled(true)
+        check(!lock.inputVolumeLockEnabled, "a muted microphone cannot be locked at its silent level")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.mute[10] = 0
+        lock = manager()
+        lock.setInputVolumeLockEnabled(true)
+        HAL.mute[10] = 1
+        HAL.writes = []
+        externalChange(lock, to: 0.2)
+        check(near(lockedLevel(), 0.2) && !HAL.writes.contains(HAL.key(10)) && !lock.inputVolumeLockFailed,
+              "the lock does not write a level under the device's own mute")
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        lock = manager()
+        lock.setInputVolumeLockEnabled(true)
+        HAL.ignoreWrites = true
+        HAL.writes = []
+        externalChange(lock, to: 0.2)
+        check(lock.inputVolumeLockFailed && HAL.writes.filter { $0 == HAL.key(10) }.count == 3,
+              "an ignored restore stops after a bounded number of writes and reports it")
+        HAL.writes = []
+        externalChange(lock, to: 0.25)
+        check(HAL.writes.isEmpty, "a failed lock stops writing")
+        HAL.ignoreWrites = false
+        lock.setInputVolume(0.6)
+        DispatchQueue.drain()
+        check(!lock.inputVolumeLockFailed && near(lockedLevel(), 0.6), "a new level clears the failure")
+        lock.stop()
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(20)] = 0.3
+        HAL.devices = [10, 20]
+        lock = manager()
+        lock.setInputVolumeLockEnabled(true)
+        HAL.current = 20
+        lock.refreshAndApply()
+        DispatchQueue.drain()
+        externalChange(lock, to: 0.35, device: 20)
+        check(lock.effectiveInputDeviceUID == "device-20" && near(lockedLevel(20), 0.35),
+              "another default microphone never receives the locked level")
+        HAL.uids[30] = "device-10"
+        HAL.devices = [20, 30]
+        HAL.levels[HAL.key(30)] = 0.1
+        HAL.current = 30
+        lock.refreshAndApply()
+        DispatchQueue.drain()
+        check(lock.effectiveInputDeviceUID == "device-10" && near(lockedLevel(30), 0.5),
+              "the locked microphone gets its level back when it reconnects")
+        lock.stop()
     }
 }

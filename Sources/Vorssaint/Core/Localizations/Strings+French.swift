@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "Aucun micro trouvé",
         mixerInputUnavailable: "Micro indisponible",
         mixerInputFallback: "Utilise le micro par défaut jusqu’au retour de celui-ci.",
+        mixerInputVolumeLock: "Garder le volume d’entrée à ce niveau",
+        mixerInputVolumeLockFailed: "Ce micro n’a pas conservé le niveau verrouillé.",
         mixerInputTooltip: "Choisir le micro",
         mixerInputErrorFormat: "Impossible de changer\u{00A0}: %@",
         mixerVisibleApps: "Apps dans la liste",

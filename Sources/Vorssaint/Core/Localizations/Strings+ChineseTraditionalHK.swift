@@ -639,6 +639,8 @@ extension Strings {
         mixerInputNoDevices: "找不到咪高峰",
         mixerInputUnavailable: "咪高峰無法使用",
         mixerInputFallback: "此咪高峰恢復前，使用預設輸入。",
+        mixerInputVolumeLock: "將輸入音量保持喺呢個水平",
+        mixerInputVolumeLockFailed: "呢個咪高峰未能保持鎖定嘅音量。",
         mixerInputTooltip: "選取咪高峰",
         mixerInputErrorFormat: "無法切換：%@",
         mixerVisibleApps: "列表中的 App",

@@ -356,6 +356,12 @@ struct MixerSection: View {
                     }
                 }
                 .disabled(micMute.isMuted)
+
+                Toggle(l10n.s.mixerInputVolumeLock, isOn: inputVolumeLockBinding)
+                    .toggleStyle(.checkbox)
+                    .controlSize(.small)
+                    .font(.system(size: 10.5))
+                    .disabled(micMute.isMuted)
             }
 
             if inputManager.inputDevices.isEmpty {
@@ -365,8 +371,25 @@ struct MixerSection: View {
             } else if let lastError = inputManager.lastError {
                 inputMessage(String(format: l10n.s.mixerInputErrorFormat, lastError),
                              systemImage: "exclamationmark.triangle")
+            } else if inputVolumeLockApplies, inputManager.inputVolumeLockFailed {
+                inputMessage(l10n.s.mixerInputVolumeLockFailed, systemImage: "exclamationmark.triangle")
             }
         }
+    }
+
+    /// The lock belongs to one microphone. On another microphone the box is
+    /// clear, and checking it moves the lock there at that microphone's level.
+    private var inputVolumeLockApplies: Bool {
+        inputManager.inputVolumeLockEnabled
+            && inputManager.inputVolumeLockDeviceUID != nil
+            && inputManager.inputVolumeLockDeviceUID == inputManager.effectiveInputDeviceUID
+    }
+
+    private var inputVolumeLockBinding: Binding<Bool> {
+        Binding(
+            get: { inputVolumeLockApplies },
+            set: { inputManager.setInputVolumeLockEnabled($0) }
+        )
     }
 
     private var inputSelectionBinding: Binding<String> {

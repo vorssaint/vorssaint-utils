@@ -638,6 +638,8 @@ extension Strings {
         mixerInputNoDevices: "未找到麦克风",
         mixerInputUnavailable: "麦克风不可用",
         mixerInputFallback: "在此麦克风恢复前使用默认输入。",
+        mixerInputVolumeLock: "将输入音量保持在此水平",
+        mixerInputVolumeLockFailed: "此麦克风未能保持锁定的音量。",
         mixerInputTooltip: "选择麦克风",
         mixerInputErrorFormat: "无法切换：%@",
         mixerVisibleApps: "列表中的 App",

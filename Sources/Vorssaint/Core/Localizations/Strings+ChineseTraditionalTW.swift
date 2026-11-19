@@ -639,6 +639,8 @@ extension Strings {
         mixerInputNoDevices: "找不到麥克風",
         mixerInputUnavailable: "麥克風不可用",
         mixerInputFallback: "此麥克風重新可用前，使用預設輸入。",
+        mixerInputVolumeLock: "將輸入音量維持在此等級",
+        mixerInputVolumeLockFailed: "此麥克風未能維持鎖定的音量。",
         mixerInputTooltip: "選擇麥克風",
         mixerInputErrorFormat: "無法切換：%@",
         mixerVisibleApps: "列表中的 App",
