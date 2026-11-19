@@ -9,6 +9,8 @@ import SwiftUI
 struct RadialMenuView: View {
     @ObservedObject private var service = RadialMenuService.shared
     @ObservedObject private var l10n = L10n.shared
+    /// Watched so a shortcut's name replaces its fallback label once read.
+    @ObservedObject private var appleShortcuts = RadialAppleShortcutCatalog.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -454,6 +456,10 @@ extension RadialMenuItem {
             return URL(string: normalized)?.host ?? payload
         case .shortcut:
             return GlobalShortcut(storageValue: payload)?.displayString ?? text.kindShortcut
+        case .appleShortcut:
+            return RadialAppleShortcutCatalog.shared.name(for: payload) ?? text.appleShortcutLabel
+        case .script:
+            return RadialMenuIconStore.fileName(for: payload)
         case .tool:
             guard let tool else { return text.kindTool }
             return tool.feature.hubTitle(L10n.shared.s, hub: FeatureStrings.hub(L10n.shared.language))
@@ -484,6 +490,23 @@ extension RadialMenuItem {
 
     var usesFileIcon: Bool {
         (kind == .app || kind == .file) && symbolName.isEmpty
+    }
+
+    /// The action type, as the editor's picker names it.
+    func kindTitle(_ text: RadialMenuFeatureStrings) -> String {
+        switch kind {
+        case .app: return text.kindApp
+        case .file: return text.kindFile
+        case .url: return text.kindURL
+        case .shortcut: return text.kindShortcut
+        case .appleShortcut: return text.kindAppleShortcut
+        case .script: return text.kindScript
+        case .tool: return text.kindTool
+        case .quickToggle: return FeatureStrings.quickToggles(L10n.shared.language).pageTitle
+        case .windowLayout: return FeatureStrings.windowLayout(L10n.shared.language).title
+        case .media: return text.kindMedia
+        case .submenu: return text.kindSubmenu
+        }
     }
 }
 
