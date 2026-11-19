@@ -449,9 +449,9 @@ enum NotchScreenRefreshContract {
         suite.expect(covering.menuSpaceTimer != nil && covering.reads == 1,
                "giving way to the menus again resumes the existing reader")
 
-        // Fitting beside the icons measures them even where the island may
-        // cover them, and keeps that room to cover with when the strip does
-        // not fit.
+        // Fitting adds no reader: where the island may cover the menus it
+        // measures nothing and the gap alone moves the status items; where it
+        // gives way, the reader it already runs narrows the strip.
         let fitting = Service()
         fitting.compactActivity = true
         fitting.coversMenus = true
@@ -460,36 +460,31 @@ enum NotchScreenRefreshContract {
         let fittingEmptyBar = NotchMenuBarLayout.sideRoom(screen: fitting.geometry.screen,
                                                          cameraWidth: fitting.geometry.cameraWidth,
                                                          barHeight: fitting.geometry.menuBarHeight, occupied: [])
-        suite.expect(fitting.menuSpaceTimer != nil && fitting.reads == 1 && fitting.appliedRooms.isEmpty
-                     && fitting.geometry.menuBarFit == NotchMenuBarFit(coverRoom: fittingEmptyBar)
-                     && fitting.presentations == 1,
-                     "fitting beside the icons measures the menus the island may cover, and redraws once")
+        suite.expect(fitting.menuSpaceTimer == nil && fitting.reads == 0 && fitting.appliedRooms == [fittingEmptyBar]
+                     && fitting.geometry.menuBarFit == nil && fitting.presentations == 0,
+                     "fitting where the island may cover the menus starts no reader and keeps an empty bar's room")
+        fitting.coversMenus = false
+        fitting.syncMenuSpaceMonitoring()
+        suite.expect(fitting.geometry.menuBarFit == NotchMenuBarFit(coverRoom: nil)
+                     && fitting.menuSpaceTimer != nil && fitting.reads == 1 && fitting.presentations == 1,
+                     "giving way to the menus, fitting uses the reader the island runs anyway and redraws once")
         fitting.syncMenuSpaceMonitoring()
         suite.expect(fitting.presentations == 1 && fitting.reads == 1,
                      "an unchanged fit neither redraws nor starts a second reader")
-        fitting.coversMenus = false
-        fitting.syncMenuSpaceMonitoring()
-        suite.expect(fitting.geometry.menuBarFit == NotchMenuBarFit(coverRoom: nil),
-                     "a strip that may not cover the menus gives way where it does not fit")
         fitting.accessibilityGranted = false
         fitting.coversMenus = true
         fitting.syncMenuSpaceMonitoring()
-        suite.expect(fitting.geometry.menuBarFit == nil && fitting.menuSpaceTimer == nil
-                     && fitting.appliedRooms == [fittingEmptyBar],
+        suite.expect(fitting.geometry.menuBarFit == nil && fitting.menuSpaceTimer == nil,
                      "without Accessibility the island covers the menus as before")
         let simulatedFit = Service()
         simulatedFit.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
                                               safeAreaTop: 0, cameraWidth: 0)
         simulatedFit.compactActivity = true
-        simulatedFit.coversMenus = true
         simulatedFit.fitsMenuBarRoom = true
         simulatedFit.syncMenuSpaceMonitoring()
-        let simulatedEmptyBar = NotchMenuBarLayout.sideRoom(screen: simulatedFit.geometry.screen,
-                                                           cameraWidth: simulatedFit.geometry.cameraWidth,
-                                                           barHeight: simulatedFit.geometry.menuBarHeight, occupied: [])
-        suite.expect(simulatedFit.geometry.menuBarFit == NotchMenuBarFit(coverRoom: simulatedEmptyBar)
+        suite.expect(simulatedFit.geometry.menuBarFit == NotchMenuBarFit(coverRoom: nil)
                      && simulatedFit.menuSpaceTimer != nil && simulatedFit.reads == 1,
-                     "an island drawn on a display without a notch fits beside the icons too")
+                     "an island drawn on a display without a notch fits beside the menus too")
 
         let idleSimulated = Service()
         idleSimulated.geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),

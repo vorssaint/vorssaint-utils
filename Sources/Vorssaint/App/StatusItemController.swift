@@ -28,6 +28,9 @@ final class StatusItemController {
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
     private var lastIconStateKey = ""
+    /// The widths the app's status items took at the last refresh, so the
+    /// Dynamic Island's menu bar gap hears only of real changes.
+    private var lastItemWidths: [CGFloat]?
     /// Mirrors only the island's fullscreen presentation state. A notification
     /// avoids loading NotchService when its feature was never installed.
     private(set) var islandHiddenInFullscreen = false
@@ -583,6 +586,15 @@ final class StatusItemController {
         // hide only while metrics actually render), so it re-runs here — the
         // one place where title and icon can never get out of step.
         updateIconAppearance()
+        noteItemWidths()
+    }
+
+    private func noteItemWidths() {
+        let items = [statusItem, clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
+        let widths = items.filter(\.isVisible).map { $0.button?.fittingSize.width.rounded() ?? 0 }.sorted()
+        guard NotchMenuBarGap.ownItemsChanged(from: lastItemWidths, to: widths) else { return }
+        lastItemWidths = widths
+        NotificationCenter.default.post(name: NotchMenuBarGap.ownStatusItemsDidChange, object: nil)
     }
 
     private func refreshMetricStatusItems(metrics: [MenuBarMetric],

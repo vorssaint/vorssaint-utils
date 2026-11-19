@@ -25,6 +25,7 @@ enum NotchActivityTests {
         menuBarFitContracts(suite)
         menuBarGapContracts(suite)
         menuBarGapAuditContracts(suite)
+        menuBarGapPlannerContracts(suite)
     }
 
     /// Fitting the strip beside the menu bar's icons: on by default, saved
@@ -129,22 +130,180 @@ enum NotchActivityTests {
                                            notchWidth: 185) == .fits(gap: notchItems[0]),
                      "beside a camera, items left of the notch are not over the island")
 
-        var retry = NotchMenuBarGapRetry()
-        suite.expect(retry.allows(at: 10), "a first place is allowed")
-        retry.placed(at: 10, retrying: false)
-        suite.expect(!retry.allows(at: 10.3) && retry.allows(at: 10.5), "places come at most every half second")
-        retry.placed(at: 10.5, retrying: true)
-        retry.placed(at: 11, retrying: true)
-        suite.expect(retry.allows(at: 11.5), "two places that did not land are tried again")
-        retry.placed(at: 11.5, retrying: true)
-        suite.expect(!retry.allows(at: 12) && !retry.allows(at: 16.4) && retry.allows(at: 16.5),
-                     "after three places in a row that did not land, the gap waits five seconds")
-        var settled = NotchMenuBarGapRetry()
-        settled.placed(at: 0, retrying: true)
-        settled.placed(at: 1, retrying: true)
-        settled.landed()
-        settled.placed(at: 2, retrying: true)
-        suite.expect(settled.allows(at: 2.5), "a gap that lands starts the count again")
+    }
+
+    /// Drives a planner as the service does, against a menu bar where the
+    /// gap lands where it asked and audits read it back, and counts what it
+    /// does to the bar.
+    private struct GapBar {
+        var planner = NotchMenuBarGapPlanner()
+        var now: TimeInterval = 0
+        var wakes: [TimeInterval] = []
+        var audits: [TimeInterval] = []
+        var places = 0, lengths = 0, removes = 0, gaveUp = 0
+        /// An item that appeared right of the gap, pushing it this far left,
+        /// until the gap is placed again right of it.
+        var push: CGFloat = 0
+
+        mutating func apply(_ actions: [NotchMenuBarGapPlanner.Action]) {
+            for action in actions {
+                switch action {
+                case .place: places += 1; push = 0
+                case .setLength: lengths += 1
+                case .remove: removes += 1
+                case .gaveUp: gaveUp += 1
+                case .audit(let delay): audits.append(now + delay)
+                case .wake(let time): wakes.append(time)
+                }
+            }
+        }
+
+        mutating func want(_ target: NotchMenuBarGapPlanner.Target?) { apply(planner.want(target, now: now)) }
+
+        /// Lets time pass to `time`, running every wake and reading due by then.
+        mutating func run(until time: TimeInterval) {
+            while true {
+                let due = (wakes + audits).filter { $0 <= time }.min()
+                guard let due else { break }
+                now = max(now, due)
+                if let index = wakes.firstIndex(of: due) {
+                    wakes.remove(at: index)
+                    apply(planner.tick(now: now))
+                } else if let index = audits.firstIndex(of: due) {
+                    audits.remove(at: index)
+                    apply(planner.audited(frames: frames(), now: now))
+                }
+            }
+            now = time
+        }
+
+        func frames() -> [CGRect] {
+            guard let right = planner.rightEnd, let length = planner.length else { return [] }
+            let gap = CGRect(x: right - push - length, y: 1056, width: length, height: 24)
+            return push > 0 ? [gap, CGRect(x: right - push + 14, y: 1056, width: push - 14, height: 24)] : [gap]
+        }
+    }
+
+    /// The planner keeps the gap calm: a debounced length, a delayed shrink,
+    /// a capped number of places and lengths, and a fixed point with fitting.
+    private static func menuBarGapPlannerContracts(_ suite: TestSuite) {
+        let screen = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        func target(_ width: CGFloat, _ content: String = "timer") -> NotchMenuBarGapPlanner.Target {
+            NotchMenuBarGapPlanner.Target(island: NotchMenuBarGap.island(width: width, screen: screen)!,
+                                          screen: screen, notchWidth: nil, content: content)
+        }
+
+        // A Deep Work session: the island at rest, the session starting, its
+        // reading ticking every second for five minutes, an app launching
+        // with an item that pushes the gap, and the session ending.
+        var bar = GapBar()
+        bar.want(target(300, "rest"))
+        bar.run(until: 1)
+        suite.expect(bar.places == 1 && bar.lengths == 0, "the island at rest places one gap after the debounce")
+        bar.now = 10
+        bar.want(target(400))
+        bar.run(until: 11)
+        suite.expect(bar.places == 2, "a session widening the island past the gap's end places it once more")
+        for second in 0..<300 {
+            bar.now = 11 + TimeInterval(second)
+            // Readings change the strip by a point or two, and once by eight.
+            bar.want(target(second >= 200 ? 392 : (second.isMultiple(of: 2) ? 400 : 402)))
+            bar.run(until: bar.now + 1)
+        }
+        suite.expect(bar.places == 2 && bar.lengths <= 2,
+                     "five minutes of reading ticks cause at most two length changes and no new place")
+        let ticksLengths = bar.lengths
+        bar.push = 150
+        bar.apply([.audit(after: NotchMenuBarGapPlanner.auditDelay)])
+        bar.run(until: bar.now + 3)
+        suite.expect(bar.places == 3 && bar.push == 0,
+                     "an app's item pushing the gap under the island places it once more, right of that item")
+        suite.expect(bar.lengths <= ticksLengths + 1,
+                     "a new place costs at most one length change, once a reading finds where it landed")
+        let pushedLengths = bar.lengths
+        bar.now += 30
+        bar.want(target(300, "rest"))
+        bar.run(until: bar.now + 2)
+        suite.expect(bar.lengths == pushedLengths + 1 && bar.places == 3 && bar.removes == 0 && bar.gaveUp == 0,
+                     "the session ending shortens the gap once, after its delay, without a new place")
+
+        // A shrink waits a second, and a strip that grows back meanwhile changes nothing.
+        var shrink = GapBar()
+        shrink.want(target(400))
+        shrink.run(until: 1)
+        shrink.want(target(380))
+        shrink.run(until: 1.5)
+        suite.expect(shrink.lengths == 0, "a narrower strip keeps the gap for a second")
+        shrink.want(target(400))
+        shrink.run(until: 5)
+        suite.expect(shrink.lengths == 0, "a strip back to its width before the second is up changes nothing")
+        shrink.want(target(380))
+        shrink.run(until: 8)
+        suite.expect(shrink.lengths == 1, "a strip narrower for a second shortens the gap once")
+
+        // Places are two seconds apart at least and four a minute at most.
+        var places = GapBar()
+        var width: CGFloat = 300
+        places.want(target(width))
+        places.run(until: 1)
+        for step in 1...6 {
+            places.now = TimeInterval(step) * 3
+            width += 60
+            places.want(target(width))
+            places.run(until: places.now + 2.9)
+        }
+        suite.expect(places.places == 4 && places.gaveUp == 1 && places.removes == 1,
+                     "a fifth place within a minute removes the gap and says so once")
+        places.want(target(width + 60))
+        places.run(until: places.now + 5)
+        suite.expect(places.places == 4, "the gap stays off while the island shows the same thing")
+        places.now += 61
+        places.want(target(300, "music"))
+        places.run(until: places.now + 1)
+        suite.expect(places.places == 5, "something new on the island brings the gap back")
+        var close = GapBar()
+        close.want(target(300))
+        close.run(until: 0.5)
+        close.want(target(400))
+        close.run(until: 1)
+        suite.expect(close.places == 1, "a second place waits two seconds after the first")
+        close.run(until: 3)
+        suite.expect(close.places == 2, "and then follows")
+
+        // Lengths are capped at twenty a minute.
+        var lengths = GapBar()
+        lengths.want(target(400))
+        lengths.run(until: 1)
+        for step in 0..<24 {
+            lengths.now = 1 + TimeInterval(step) * 2
+            lengths.want(target(step.isMultiple(of: 2) ? 380 : 400))
+            lengths.run(until: lengths.now + 1.9)
+        }
+        suite.expect(lengths.lengths == 20 && lengths.gaveUp == 1 && lengths.removes == 1,
+                     "a twenty-first length within a minute removes the gap")
+
+        // The gap's width comes from the island over an empty bar, which
+        // nothing it moves can change; fitting then measures with the gap
+        // left out. Once the gap is read back, neither moves again.
+        var fixed = GapBar()
+        let wanted = target(400)
+        fixed.want(wanted)
+        fixed.run(until: 2)
+        let settled = (fixed.places, fixed.lengths)
+        let frames = fixed.frames() + [CGRect(x: 700, y: 1056, width: 40, height: 24),
+                                        CGRect(x: fixed.planner.rightEnd! + 14, y: 1056, width: 30, height: 24)]
+        let gapFrame = frames[0]
+        let room = NotchMenuBarLayout.sideRoom(screen: screen, cameraWidth: 180, barHeight: 24,
+                                               occupied: NotchMenuBarGap.removing(gapFrame, from: frames))!
+        suite.expect(room >= (400 - 180) / 2,
+                     "with the gap left out, fitting leaves the strip all the width the gap was made for")
+        fixed.apply(fixed.planner.want(wanted, now: fixed.now))
+        fixed.apply(fixed.planner.audited(frames: frames, now: fixed.now))
+        fixed.run(until: fixed.now + 5)
+        fixed.apply(fixed.planner.audited(frames: frames, now: fixed.now))
+        fixed.run(until: fixed.now + 5)
+        suite.expect(fixed.places == settled.0 && fixed.lengths == settled.1,
+                     "a reading, a refresh with the same strip and another reading change nothing more")
     }
 
     /// The empty status item under the island: placed once with its right

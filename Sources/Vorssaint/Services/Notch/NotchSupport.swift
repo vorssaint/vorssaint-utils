@@ -3353,34 +3353,210 @@ struct NotchMenuBarGap: Equatable {
     }
 }
 
-/// How often the gap may be placed again. A place that does not land, as
-/// when macOS orders it by a stale position, is tried again at most every
-/// half second, and after three in a row the gap waits five seconds.
-struct NotchMenuBarGapRetry: Equatable {
-    static let minimumInterval: TimeInterval = 0.5
-    static let failuresBeforePause = 3
-    static let pause: TimeInterval = 5
+/// Decides every change the menu bar gap makes, from what the island wants
+/// and what a reading of the status items found, so each one is counted
+/// and capped. Every change lays out the whole menu bar, so the planner
+/// keeps them few:
+/// - a new width waits `debounce` and is ignored within `lengthTolerance`;
+/// - a wider island lengthens the gap then, a narrower one only once it has
+///   been narrower for `shrinkDelay`;
+/// - a new place, needed only when the island reaches past the gap's end or
+///   an item pushes the gap under it, comes at most every `replaceInterval`;
+/// - past `maxPlacesPerMinute` places or `maxLengthsPerMinute` lengths, the
+///   gap goes away until the island shows something else.
+/// Readings are asked for only after a change of its own, or when the
+/// caller reports status items appearing, going or resizing.
+extension NotchMenuBarGap {
+    /// Posted when the app's own status items appear, go or change width
+    /// by more than a few points, any of which can move the gap.
+    static let ownStatusItemsDidChange = Notification.Name("VorssaintOwnStatusItemsDidChange")
 
-    var lastPlaced: TimeInterval = -.infinity
-    var failures = 0
-    var pausedUntil: TimeInterval = -.infinity
+    /// Whether the app's own status items laid out differently enough to
+    /// check the gap again: another count, or widths a few points apart.
+    static func ownItemsChanged(from old: [CGFloat]?, to new: [CGFloat]) -> Bool {
+        guard let old else { return !new.isEmpty }
+        guard old.count == new.count else { return true }
+        return abs(old.reduce(0, +) - new.reduce(0, +)) >= NotchMenuBarGapPlanner.lengthTolerance
+    }
+}
 
-    func allows(at now: TimeInterval) -> Bool {
-        now >= pausedUntil && now - lastPlaced >= Self.minimumInterval
+struct NotchMenuBarGapPlanner {
+    static let debounce: TimeInterval = 0.15
+    static let lengthTolerance: CGFloat = 4
+    static let shrinkDelay: TimeInterval = 1
+    static let replaceInterval: TimeInterval = 2
+    static let auditDelay: TimeInterval = 0.3
+    static let maxPlacesPerMinute = 4
+    static let maxLengthsPerMinute = 20
+
+    /// What the island asks of the gap: its ends at rest over an empty bar
+    /// for what it shows, which nothing the gap moves can change.
+    struct Target: Equatable {
+        var island: ClosedRange<CGFloat>
+        var screen: CGRect
+        var notchWidth: CGFloat?
+        /// What the island shows, so a gap given up returns with something new.
+        var content: String
     }
 
-    /// `retrying` is a place made because the last one did not land.
-    mutating func placed(at now: TimeInterval, retrying: Bool) {
-        lastPlaced = now
-        guard retrying else { return }
-        failures += 1
-        if failures >= Self.failuresBeforePause {
-            failures = 0
-            pausedUntil = now + Self.pause
+    enum Action: Equatable {
+        case place(NotchMenuBarGap)
+        case setLength(CGFloat)
+        case remove
+        /// Read the status items after this long.
+        case audit(after: TimeInterval)
+        /// Call `tick` again at this time.
+        case wake(at: TimeInterval)
+        /// The caps were reached and the gap is off; said once.
+        case gaveUp
+    }
+
+    private(set) var placed: NotchMenuBarGap?
+    private(set) var length: CGFloat?
+    /// Where an item reading last found the gap's right end.
+    private(set) var measuredRightEnd: CGFloat?
+    private var placedScreen: CGRect?
+    private var target: Target?
+    private var pending: (target: Target, due: TimeInterval)?
+    private var shrinkingSince: TimeInterval?
+    private var places: [TimeInterval] = []
+    private var lengths: [TimeInterval] = []
+    private var lastPlace = -TimeInterval.infinity
+    private var replaceWanted: NotchMenuBarGap?
+    private(set) var gaveUpOn: String?
+    private var saidGaveUp = false
+
+    /// Where the gap's right end is: as read, or as it was asked for.
+    var rightEnd: CGFloat? {
+        if let measuredRightEnd { return measuredRightEnd }
+        guard let placed, let placedScreen else { return nil }
+        return placedScreen.maxX - placed.position
+    }
+
+    /// The island's wish changed, or nil when it wants no gap. Waits out the
+    /// debounce unless the gap has to go.
+    mutating func want(_ wanted: Target?, now: TimeInterval) -> [Action] {
+        guard let wanted else {
+            pending = nil
+            target = nil
+            shrinkingSince = nil
+            replaceWanted = nil
+            return placed == nil ? [] : removeGap()
+        }
+        if let gaveUpOn {
+            guard gaveUpOn != wanted.content else { return [] }
+            self.gaveUpOn = nil
+            saidGaveUp = false
+        }
+        let compare = pending?.target ?? target
+        if let compare, Self.same(compare, wanted) { return [] }
+        let due = now + Self.debounce
+        pending = (wanted, due)
+        return [.wake(at: due)]
+    }
+
+    /// Time passed: applies a settled wish, a lasting shrink or a place the
+    /// interval held back.
+    mutating func tick(now: TimeInterval) -> [Action] {
+        if let pending, now >= pending.due {
+            target = pending.target
+            self.pending = nil
+        }
+        guard let target, gaveUpOn == nil else { return pending.map { [.wake(at: $0.due)] } ?? [] }
+        var actions = evaluate(target, now: now)
+        if let pending { actions.append(.wake(at: pending.due)) }
+        return actions
+    }
+
+    /// A reading of every status item, the gap among them.
+    mutating func audited(frames: [CGRect], now: TimeInterval) -> [Action] {
+        guard let target, let length, placed != nil, gaveUpOn == nil else { return [] }
+        switch NotchMenuBarGap.audit(island: target.island, gapLength: length, frames: frames,
+                                     screen: target.screen, notchWidth: target.notchWidth) {
+        case .unknown:
+            return []
+        case .fits(let gap):
+            measuredRightEnd = gap.maxX
+            replaceWanted = nil
+            return evaluate(target, now: now)
+        case .replace(let gap):
+            replaceWanted = gap
+            return evaluate(target, now: now)
         }
     }
 
-    mutating func landed() { failures = 0 }
+    private mutating func evaluate(_ target: Target, now: TimeInterval) -> [Action] {
+        let mustPlace: NotchMenuBarGap?
+        if placed == nil || placedScreen != target.screen {
+            mustPlace = NotchMenuBarGap.placed(island: target.island, screen: target.screen, notchWidth: target.notchWidth)
+        } else if let replaceWanted {
+            mustPlace = replaceWanted
+        } else if let rightEnd, NotchMenuBarGap.needsPlacing(rightEnd: rightEnd, island: target.island) {
+            mustPlace = NotchMenuBarGap.placed(island: target.island, screen: target.screen, notchWidth: target.notchWidth)
+        } else {
+            mustPlace = nil
+        }
+        if let mustPlace { return place(mustPlace, target: target, now: now) }
+        guard let rightEnd, let length else { return [] }
+        let wanted = NotchMenuBarGap.length(rightEnd: rightEnd, island: target.island, screen: target.screen,
+                                            notchWidth: target.notchWidth)
+        if abs(wanted - length) < Self.lengthTolerance {
+            shrinkingSince = nil
+            return []
+        }
+        if wanted < length {
+            guard let since = shrinkingSince else {
+                shrinkingSince = now
+                return [.wake(at: now + Self.shrinkDelay)]
+            }
+            guard now - since >= Self.shrinkDelay else { return [.wake(at: since + Self.shrinkDelay)] }
+        }
+        shrinkingSince = nil
+        lengths = lengths.filter { now - $0 < 60 }
+        guard lengths.count < Self.maxLengthsPerMinute else { return giveUp(target) }
+        lengths.append(now)
+        self.length = wanted
+        return [.setLength(wanted), .audit(after: Self.auditDelay)]
+    }
+
+    private mutating func place(_ gap: NotchMenuBarGap, target: Target, now: TimeInterval) -> [Action] {
+        guard now - lastPlace >= Self.replaceInterval else { return [.wake(at: lastPlace + Self.replaceInterval)] }
+        places = places.filter { now - $0 < 60 }
+        guard places.count < Self.maxPlacesPerMinute else { return giveUp(target) }
+        places.append(now)
+        lastPlace = now
+        placed = gap
+        placedScreen = target.screen
+        length = gap.length
+        measuredRightEnd = nil
+        replaceWanted = nil
+        shrinkingSince = nil
+        return [.place(gap), .audit(after: Self.auditDelay)]
+    }
+
+    private mutating func giveUp(_ target: Target) -> [Action] {
+        gaveUpOn = target.content
+        var actions = removeGap()
+        if !saidGaveUp { saidGaveUp = true; actions.append(.gaveUp) }
+        return actions
+    }
+
+    private mutating func removeGap() -> [Action] {
+        let had = placed != nil
+        placed = nil
+        placedScreen = nil
+        length = nil
+        measuredRightEnd = nil
+        replaceWanted = nil
+        shrinkingSince = nil
+        return had ? [.remove] : []
+    }
+
+    private static func same(_ a: Target, _ b: Target) -> Bool {
+        a.screen == b.screen && a.notchWidth == b.notchWidth && a.content == b.content
+            && abs(a.island.lowerBound - b.island.lowerBound) < lengthTolerance
+            && abs(a.island.upperBound - b.island.upperBound) < lengthTolerance
+    }
 }
 
 /// Free room on both sides of the camera, in Cocoa screen coordinates.
