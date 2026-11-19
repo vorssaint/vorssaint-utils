@@ -175,7 +175,9 @@ final class WindowMaximizer: ObservableObject {
               let screen = bestScreen(for: current)
         else { return false }
 
-        let maximized = axFrame(fromAppKit: screen.windowLayoutVisibleFrame)
+        // Same screen gap the layout shortcuts leave around a maximized window.
+        let maximized = axFrame(fromAppKit: WindowLayoutGeometry.screenGapFrame(
+            screen.windowLayoutVisibleFrame, screenGap: WindowLayoutGaps.screenGap))
         // Revealing the strip may change its measured width before the second
         // click. Restore from the frame actually applied, not only today's size.
         let previousMaximized = maximizedFrames[target.windowID] ?? maximized
