@@ -1,0 +1,4 @@
+interface:
+  display_name: "Vorssaint Companion"
+  short_description: "Create an animated face character for Vorssaint's Dynamic Island"
+  default_prompt: "Create a Vorssaint companion character: a high-quality, face-only animated character (not pixel art). Plan the run with the skill's tool, generate the base face and one grounded sprite sheet per expression with $imagegen, slice and validate them, review the previews, and install the pack."
