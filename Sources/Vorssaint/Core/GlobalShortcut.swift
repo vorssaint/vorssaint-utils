@@ -189,18 +189,16 @@ struct GlobalShortcut: Equatable, Hashable {
     // and RightArrow are taken, and M already belongs to mic mute. H looks
     // like the mnemonic here but is recent captures' key, so a binding on it
     // would put two roles on one combination and have the conflict report
-    // blame whichever was saved second. O and R beside it are minimize and
-    // restore.
+    // blame whichever was saved second. R is restore and X is minimize-all.
     static let hideAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
                                                       modifiers: [.control, .option, .command])
-    // O for out of the way, beside hide-all's A on the same free
-    // control-option-command layer. Checked against every ⌃⌥⌘ default in
-    // this file before choosing; O appears in no default here, and R beside
-    // it is the sibling restore. H is recent captures', M is mic mute's.
-    static let minimizeAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
+    // X for clearing the windows away, on the same free control-option-command
+    // layer as hide-all and restore. This used to be O, but upstream now gives
+    // O to quit-all-except-front, so minimize-all takes the next unused letter
+    // rather than shipping two roles on one combination.
+    static let minimizeAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_X),
                                                           modifiers: [.control, .option, .command])
-    // R for restore, beside minimize-all's O on the same free
-    // control-option-command layer.
+    // R for restore, on the same free control-option-command layer.
     static let unminimizeAllWindowsDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_R),
                                                           modifiers: [.control, .option, .command])
     // Quick tools. Paste plain follows the universal "Paste and Match Style"

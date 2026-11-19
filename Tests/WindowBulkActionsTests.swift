@@ -60,9 +60,9 @@ enum WindowBulkActionsTests {
                                                 isAvailable: { _ in true }) == nil,
                "no other role holds the minimize-all default, so editing it reports no conflict")
         suite.expect(GlobalShortcut.minimizeAllWindowsDefault
-                == GlobalShortcut(keyCode: Int64(kVK_ANSI_O), modifiers: [.control, .option, .command]),
-               "the minimize-all default stays on its documented combination")
-        // O sits free of every other ⌃⌥⌘ default, which a saved-shortcut
+                == GlobalShortcut(keyCode: Int64(kVK_ANSI_X), modifiers: [.control, .option, .command]),
+               "the minimize-all default stays clear of upstream's quit-others O combination")
+        // X sits free of every other ⌃⌥⌘ default, which a saved-shortcut
         // lookup cannot prove: it only sees a clash once both roles are
         // saved — so it is asserted against the other defaults directly.
         suite.expect(!GlobalShortcutRole.allCases.contains { $0 != .minimizeAllWindows
