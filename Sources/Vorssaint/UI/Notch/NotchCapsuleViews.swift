@@ -429,7 +429,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .scores:
             EmptyView()
         }
     }
@@ -560,6 +560,47 @@ struct NotchCapsuleWatchStrip: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(FeatureStrings.notchWatch(l10n.language).title)
         .accessibilityValue(watch.headline)
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+}
+
+/// A game under way in one row: a crest or flag each side of the score,
+/// or a race's mark and its lap.
+struct NotchCapsuleScoresStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var scores = NotchScoresService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let geometry = displayGeometry ?? service.geometry
+        let game = scores.featured
+        let text = FeatureStrings.notchScores(l10n.language)
+        NotchCapsuleRow(size: size, geometry: geometry) {
+            HStack(spacing: CapsuleLayout.spacing) {
+                if let game, let marks = NotchScoresSupport.compactMarks(game) {
+                    NotchScoreCrest(url: marks.first ?? nil, size: CapsuleLayout.symbolWidth)
+                    Text(NotchScoresSupport.compactCore(game, text: text)).font(Font(CapsuleLayout.levelFont as CTFont))
+                        .notchCapCentered(CapsuleLayout.levelFont)
+                    NotchScoreCrest(url: marks.last ?? nil, size: CapsuleLayout.symbolWidth)
+                } else {
+                    Image(systemName: game?.sport.symbol ?? NotchModule.scores.symbol)
+                        .font(.system(size: CapsuleLayout.symbolSize, weight: .medium))
+                        .frame(width: CapsuleLayout.symbolWidth)
+                    Text(game.map { NotchScoresSupport.compactCore($0, text: text) } ?? "")
+                        .font(Font(CapsuleLayout.levelFont as CTFont))
+                }
+            }
+            .lineLimit(1).truncationMode(.tail)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text.title)
+        .accessibilityValue(game.map {
+            NotchScoresSupport.capsuleText(NotchScoresSupport.stripText($0, text: text, locale: l10n.language.formattingLocale(),
+                                                                        now: Date()), sport: $0.sport)
+        } ?? "")
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
     }
 }

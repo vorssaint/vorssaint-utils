@@ -246,6 +246,7 @@ enum SettingsDirectory {
         let notchMusic = FeatureStrings.notchMusicExtras(language)
         let notchCalendar = FeatureStrings.notchCalendar(language)
         let notchAgents = FeatureStrings.notchAgents(language)
+        let notchScores = FeatureStrings.notchScores(language)
         let notchLowBattery = NotchLowBatteryStrings.localized(language)
         var liquidGlass: [String] = []
 #if compiler(>=6.2)
@@ -288,6 +289,13 @@ enum SettingsDirectory {
                    notchAgents.limitsAs, notchAgents.limitFocus, notchAgents.liveActivity, notchAgents.finishAlert,
                    notchAgents.limitAlert, notchAgents.budget, notchAgents.priceUpdates], feature: .notchAgents, notch: .module(.agents)),
             .init([notchAgents.readout], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLiveActivity)),
+            .init([notchScores.title, notchScores.liveActivity, notchScores.alerts, notchScores.following,
+                   notchScores.add, notchScores.sportLabel, notchScores.league, notchScores.soccer, notchScores.football,
+                   notchScores.tennis, notchScores.racing, notchScores.nationalTeams, notchScores.basketball,
+                   notchScores.baseball, notchScores.hockey, notchScores.golf, notchScores.mma, notchScores.conference,
+                   notchScores.collegeFootball, notchScores.collegeBasketball, "ESPN", "NFL", "ATP", "WTA",
+                   "F1", "NBA", "WNBA", "NCAA", "MLB", "NHL", "NASCAR", "PGA", "LPGA", "UFC"],
+                  feature: .notchScores, notch: .module(.scores)),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
             .init([notchAgents.limitAt], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsLimitAlert)),
             .init([FeatureStrings.claudeAccount(language).title], feature: .notchAgents,

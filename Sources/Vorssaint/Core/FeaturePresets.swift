@@ -123,6 +123,9 @@ extension AppFeature {
         case .notchNotifications, .notchGestures, .notchTimer, .notchQueue, .notchDownloads: return .idle
         // It reads only while something is being watched, and stops on its own.
         case .notchWatch: return .idle
+        // A reading every 20 seconds while a followed game is on, and one
+        // every few hours otherwise.
+        case .notchScores: return .periodic
         // A blink every few seconds and a visit every few minutes, both
         // drawn by Core Animation, with one timer waiting for the next visit.
         case .notchMascot: return .periodic

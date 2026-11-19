@@ -529,6 +529,10 @@ final class NotchService: ObservableObject {
         NotchWatchSupport.isEnabled() && NotchWatchService.shared.isActive
     }
 
+    var hasScoresActivity: Bool {
+        NotchScoresSupport.showsActivity() && NotchScoresService.shared.isActive
+    }
+
     var hasDownloadActivity: Bool {
         NotchSupport.routes(.download)
             && NotchDownloadService.shared.items.contains { $0.active && !$0.completed }
@@ -565,7 +569,7 @@ final class NotchService: ObservableObject {
 
     var compactActivities: [NotchCompactActivity] {
         NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
-                                      agents: hasAgentActivity, calendar: hasCalendarActivity,
+                                      agents: hasAgentActivity, scores: hasScoresActivity, calendar: hasCalendarActivity,
                                       music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
     }
 
@@ -687,6 +691,7 @@ final class NotchService: ObservableObject {
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
+        case .scores: return geometry.compactScoresGeometry(wing: scoresStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
                                                     paired: companion != nil)
@@ -706,6 +711,18 @@ final class NotchService: ObservableObject {
             : (watch.headline as NSString).size(withAttributes: [
                 .font: NSFont.monospacedDigitSystemFont(ofSize: size, weight: .medium)
             ]).width.rounded(.up)
+        let inset = provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        return reading + inset + NotchTimerSupport.stripCameraGap
+    }
+
+    /// The wider side: a crest and its score, with air beside the camera
+    /// and from the curve.
+    private func scoresStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactScoresGeometry(wing: NotchScoresSupport.stripWingRange.lowerBound)
+        guard let game = NotchScoresService.shared.featured else { return NotchScoresSupport.stripWingRange.lowerBound }
+        let compact = NotchScoresSupport.compactText(game, text: FeatureStrings.notchScores(L10n.shared.language))
+        let size = NotchTimerSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = NotchScoresStrip.readingWidth(compact, sport: game.sport, textSize: size)
         let inset = provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         return reading + inset + NotchTimerSupport.stripCameraGap
     }
@@ -1106,6 +1123,10 @@ final class NotchService: ObservableObject {
         case .watch:
             let watch = NotchWatchService.shared
             return layout.watchSurface(reading: watch.headline, thumbnail: watch.showsThumbnail, geometry: geometry)
+        case .scores:
+            guard let game = NotchScoresService.shared.featured else { return geometry.restingSize(showsContent: false) }
+            return layout.scoresSurface(core: NotchScoresSupport.compactCore(game, text: FeatureStrings.notchScores(language)),
+                                        marks: NotchScoresSupport.compactMarks(game) == nil ? 1 : 2, geometry: geometry)
         case .keepAwake:
             let reading = KeepAwakeManager.shared.endDate.map {
                 NotchKeepAwakeSupport.compactText(until: $0, now: Date(), locale: Locale(identifier: language.rawValue))
@@ -1167,6 +1188,7 @@ final class NotchService: ObservableObject {
         // A watch keeps reading while the island is away, as on the lock
         // screen, and says so with a notification if it cannot show itself.
         NotchWatchService.shared.syncWithPreferences()
+        NotchScoresService.shared.syncWithPreferences()
         // Requested file work can continue while locked, but disabling its
         // feature must still cancel it before presentation resumes.
         NotchFileToolsService.shared.syncWithPreferences()
@@ -1280,6 +1302,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        NotchScoresService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -2399,7 +2422,7 @@ final class NotchService: ObservableObject {
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
-             : selectedNotice.event == .watch ? .watch : .controls)
+             : selectedNotice.event == .watch ? .watch : selectedNotice.event == .score ? .scores : .controls)
         // The notice grows into the page it led to, and stays gone after it closes.
         if expanded, (notice ?? departingNotice)?.clickTarget == selectedNotice.clickTarget { dismissNotice() }
     }
@@ -4146,6 +4169,18 @@ final class NotchService: ObservableObject {
             let watch = NotchWatchService.shared
             Publishers.CombineLatest3(watch.$state.removeDuplicates(), watch.$headline.removeDuplicates(),
                                       watch.$preview.map { $0 != nil }.removeDuplicates())
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if modules.contains(.scores) {
+            // A game starting, a score and a result leaving all change the strip.
+            let scores = NotchScoresService.shared
+            scores.$games.removeDuplicates().map { _ in () }
+                .merge(with: scores.$finishedAt.map { _ in () })
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
                     self?.syncMenuSpaceMonitoring()

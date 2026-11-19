@@ -70,6 +70,7 @@ struct NotchEditorStrings {
     let scratchpadSummary: String
     let agentsSummary: String
     let watchSummary: String
+    let scoresSummary: String
 
     func enableFeature(_ title: String) -> String { String(format: enableFeatureFormat, title) }
     func enableSetting(_ title: String) -> String { String(format: enableSettingFormat, title) }
@@ -94,6 +95,7 @@ struct NotchEditorStrings {
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
         case .watch: return watchSummary
+        case .scores: return scoresSummary
         }
     }
 }
@@ -167,7 +169,8 @@ extension FeatureStrings {
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
             agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot and Cursor usage, limits and costs.",
-            watchSummary: "Any part of a window, read live, with an alert when it changes."
+            watchSummary: "Any part of a window, read live, with an alert when it changes.",
+            scoresSummary: FeatureStrings.notchScores(.enUS).summary
         )
         case .ptBR: return NotchEditorStrings(
             layout: "Layout",
@@ -235,7 +238,8 @@ extension FeatureStrings {
             downloadsSummary: "Downloads em andamento e os que acabaram de terminar.",
             scratchpadSummary: "Anotações rápidas que se salvam sozinhas.",
             agentsSummary: "Uso, limites e custos do Claude Code, do Codex, do OpenCode, do GitHub Copilot e do Cursor.",
-            watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar."
+            watchSummary: "Qualquer parte de uma janela, lida ao vivo, com aviso quando mudar.",
+            scoresSummary: FeatureStrings.notchScores(.ptBR).summary
         )
         case .es: return NotchEditorStrings(
             layout: "Diseño",
@@ -303,7 +307,8 @@ extension FeatureStrings {
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
             agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode, GitHub Copilot y Cursor.",
-            watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie."
+            watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie.",
+            scoresSummary: FeatureStrings.notchScores(.es).summary
         )
         case .sk: return NotchEditorStrings(
             layout: "Rozloženie",
@@ -371,7 +376,8 @@ extension FeatureStrings {
             downloadsSummary: "Prebiehajúce a práve dokončené sťahovania.",
             scratchpadSummary: "Rýchle poznámky, ktoré sa ukladajú samy.",
             agentsSummary: "Využitie, limity a náklady Claude Code, Codexu, OpenCode, GitHub Copilot a Cursor.",
-            watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení."
+            watchSummary: "Ľubovoľná časť okna čítaná naživo s upozornením, keď sa zmení.",
+            scoresSummary: FeatureStrings.notchScores(.sk).summary
         )
         case .de: return NotchEditorStrings(
             layout: "Layout",
@@ -439,7 +445,8 @@ extension FeatureStrings {
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
             agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode, GitHub Copilot und Cursor.",
-            watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen."
+            watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen.",
+            scoresSummary: FeatureStrings.notchScores(.de).summary
         )
         case .fr: return NotchEditorStrings(
             layout: "Disposition",
@@ -507,7 +514,8 @@ extension FeatureStrings {
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
             agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode, GitHub Copilot et Cursor.",
-            watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change."
+            watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change.",
+            scoresSummary: FeatureStrings.notchScores(.fr).summary
         )
         case .it: return NotchEditorStrings(
             layout: "Layout",
@@ -575,7 +583,8 @@ extension FeatureStrings {
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
             agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode, GitHub Copilot e Cursor.",
-            watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia."
+            watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia.",
+            scoresSummary: FeatureStrings.notchScores(.it).summary
         )
         case .ru: return NotchEditorStrings(
             layout: "Макет",
@@ -643,7 +652,8 @@ extension FeatureStrings {
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
             agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode, GitHub Copilot и Cursor.",
-            watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях."
+            watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях.",
+            scoresSummary: FeatureStrings.notchScores(.ru).summary
         )
         case .tr: return NotchEditorStrings(
             layout: "Yerleşim",
@@ -711,7 +721,8 @@ extension FeatureStrings {
             downloadsSummary: "Süren ve yeni biten indirmeler.",
             scratchpadSummary: "Kendi kendine kaydedilen hızlı notlar.",
             agentsSummary: "Claude Code, Codex, GitHub Copilot, OpenCode ve Cursor kullanımı, sınırları ve maliyetleri.",
-            watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir."
+            watchSummary: "Bir pencerenin herhangi bir bölümü, canlı okunur ve değişince haber verilir.",
+            scoresSummary: FeatureStrings.notchScores(.tr).summary
         )
         case .ja: return NotchEditorStrings(
             layout: "レイアウト",
@@ -779,7 +790,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中と完了したばかりのダウンロード。",
             scratchpadSummary: "自動で保存されるクイックメモ。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot、Cursorの使用量、上限、コスト。",
-            watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。"
+            watchSummary: "ウインドウの好きな部分をライブで読み取り、変化したら知らせます。",
+            scoresSummary: FeatureStrings.notchScores(.ja).summary
         )
         case .ko: return NotchEditorStrings(
             layout: "레이아웃",
@@ -847,7 +859,8 @@ extension FeatureStrings {
             downloadsSummary: "진행 중이거나 방금 끝난 다운로드.",
             scratchpadSummary: "저절로 저장되는 빠른 메모.",
             agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot, Cursor의 사용량, 한도, 비용.",
-            watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다."
+            watchSummary: "윈도우의 원하는 부분을 실시간으로 읽고 바뀌면 알려 줍니다.",
+            scoresSummary: FeatureStrings.notchScores(.ko).summary
         )
         case .zhHans: return NotchEditorStrings(
             layout: "布局",
@@ -915,7 +928,8 @@ extension FeatureStrings {
             downloadsSummary: "进行中和刚完成的下载。",
             scratchpadSummary: "自动保存的快速笔记。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot 和 Cursor 的用量、限额和费用。",
-            watchSummary: "实时读取窗口的任意部分，变化时提醒你。"
+            watchSummary: "实时读取窗口的任意部分，变化时提醒你。",
+            scoresSummary: FeatureStrings.notchScores(.zhHans).summary
         )
         case .zhTW: return NotchEditorStrings(
             layout: "佈局",
@@ -983,7 +997,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot 和 Cursor 的用量、限額和費用。",
-            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
+            scoresSummary: FeatureStrings.notchScores(.zhTW).summary
         )
         case .zhHK: return NotchEditorStrings(
             layout: "佈局",
@@ -1051,7 +1066,8 @@ extension FeatureStrings {
             downloadsSummary: "進行中和剛完成的下載。",
             scratchpadSummary: "自動儲存的快速筆記。",
             agentsSummary: "Claude Code、Codex、OpenCode、GitHub Copilot 和 Cursor 的用量、限額和費用。",
-            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。"
+            watchSummary: "即時讀取視窗的任何部分，變化時提醒你。",
+            scoresSummary: FeatureStrings.notchScores(.zhHK).summary
         )
         case .uk: return NotchEditorStrings(
             layout: "Розкладка",
@@ -1119,7 +1135,8 @@ extension FeatureStrings {
             downloadsSummary: "Завантаження, що тривають або щойно завершилися.",
             scratchpadSummary: "Швидкі нотатки, що зберігаються автоматично.",
             agentsSummary: "Використання Claude Code, Codex, OpenCode, GitHub Copilot і Cursor, ліміти й витрати.",
-            watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни."
+            watchSummary: "Будь-яка частина вікна, яку читають наживо, зі сповіщенням про зміни.",
+            scoresSummary: FeatureStrings.notchScores(.uk).summary
         )
         }
     }

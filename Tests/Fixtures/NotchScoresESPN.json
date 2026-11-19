@@ -1,0 +1,7064 @@
+{
+ "brasileirao": {
+  "leagues": [
+   {
+    "id": "630",
+    "name": "Brazilian Serie A",
+    "slug": "bra.1"
+   }
+  ],
+  "events": [
+   {
+    "id": "401841310",
+    "date": "2026-11-18T23:00Z",
+    "name": "Chapecoense at Remo",
+    "shortName": "CHA @ REMO",
+    "status": {
+     "clock": 2700.0,
+     "displayClock": "45'+6'",
+     "period": 1,
+     "type": {
+      "id": "23",
+      "name": "STATUS_HALFTIME",
+      "state": "in",
+      "completed": false,
+      "description": "Halftime",
+      "detail": "HT",
+      "shortDetail": "HT"
+     }
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "live",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841310",
+      "text": "Gamecast",
+      "shortText": "Live",
+      "isExternal": false,
+      "isPremium": false,
+      "isHidden": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841310",
+      "date": "2026-11-18T23:00Z",
+      "status": {
+       "clock": 2700.0,
+       "displayClock": "45'+6'",
+       "period": 1,
+       "type": {
+        "id": "23",
+        "name": "STATUS_HALFTIME",
+        "state": "in",
+        "completed": false,
+        "description": "Halftime",
+        "detail": "HT",
+        "shortDetail": "HT"
+       }
+      },
+      "venue": {
+       "fullName": "Mangueirão",
+       "address": {
+        "city": "Belém",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "4936",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "score": "2",
+        "team": {
+         "id": "4936",
+         "abbreviation": "REMO",
+         "displayName": "Remo",
+         "shortDisplayName": "Remo",
+         "color": "265891",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/4936.png"
+        },
+        "form": "LWLDD",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "4"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "0"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "1"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "45.2"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "8"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "3"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "2"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "9"
+         }
+        ]
+       },
+       {
+        "id": "9318",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "score": "0",
+        "team": {
+         "id": "9318",
+         "abbreviation": "CHA",
+         "displayName": "Chapecoense",
+         "shortDisplayName": "Chapecoense",
+         "color": "417505",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/9318.png"
+        },
+        "form": "LLLWL",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "7"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "2"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "0"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "54.8"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "5"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "4"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "0"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "6"
+         }
+        ]
+       }
+      ],
+      "details": [
+       {
+        "type": {
+         "id": "70",
+         "text": "Goal"
+        },
+        "clock": {
+         "value": 126.0,
+         "displayValue": "3'"
+        },
+        "team": {
+         "id": "4936"
+        },
+        "scoringPlay": true,
+        "redCard": false,
+        "yellowCard": false,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "301185",
+          "displayName": "Jajá",
+          "shortName": "Jajá"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "98",
+         "text": "Penalty - Scored"
+        },
+        "clock": {
+         "value": 1198.0,
+         "displayValue": "20'"
+        },
+        "team": {
+         "id": "4936"
+        },
+        "scoringPlay": true,
+        "redCard": false,
+        "yellowCard": false,
+        "penaltyKick": true,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "198362",
+          "displayName": "Patrick",
+          "shortName": "Patrick"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "94",
+         "text": "Yellow Card"
+        },
+        "clock": {
+         "value": 2601.0,
+         "displayValue": "44'"
+        },
+        "team": {
+         "id": "9318"
+        },
+        "scoringPlay": false,
+        "redCard": false,
+        "yellowCard": true,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "140012",
+          "displayName": "Giovanni Augusto",
+          "shortName": "Giovanni Augusto"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "94",
+         "text": "Yellow Card"
+        },
+        "clock": {
+         "value": 2679.0,
+         "displayValue": "45'"
+        },
+        "team": {
+         "id": "4936"
+        },
+        "scoringPlay": false,
+        "redCard": false,
+        "yellowCard": true,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "286532",
+          "displayName": "Leonel Picco",
+          "shortName": "L. Picco"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401841313",
+    "date": "2026-11-18T23:30Z",
+    "name": "Athletico Paranaense at Flamengo",
+    "shortName": "CAP @ FLA",
+    "status": {
+     "clock": 2100.0,
+     "displayClock": "35'",
+     "period": 1,
+     "type": {
+      "id": "25",
+      "name": "STATUS_FIRST_HALF",
+      "state": "in",
+      "completed": false,
+      "description": "First Half",
+      "detail": "35'",
+      "shortDetail": "35'"
+     }
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "live",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841313",
+      "text": "Gamecast",
+      "shortText": "Live",
+      "isExternal": false,
+      "isPremium": false,
+      "isHidden": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841313",
+      "date": "2026-11-18T23:30Z",
+      "status": {
+       "clock": 2100.0,
+       "displayClock": "35'",
+       "period": 1,
+       "type": {
+        "id": "25",
+        "name": "STATUS_FIRST_HALF",
+        "state": "in",
+        "completed": false,
+        "description": "First Half",
+        "detail": "35'",
+        "shortDetail": "35'"
+       }
+      },
+      "venue": {
+       "fullName": "Estadio do Maracana",
+       "address": {
+        "city": "Rio de Janeiro",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "819",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "score": "2",
+        "team": {
+         "id": "819",
+         "abbreviation": "FLA",
+         "displayName": "Flamengo",
+         "shortDisplayName": "Flamengo",
+         "color": "C60000",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png"
+        },
+        "form": "WWWDW",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "2"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "2"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "1"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "67.4"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "4"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "3"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "2"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "6"
+         }
+        ]
+       },
+       {
+        "id": "3458",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "score": "1",
+        "team": {
+         "id": "3458",
+         "abbreviation": "CAP",
+         "displayName": "Athletico-PR",
+         "shortDisplayName": "Athletico-PR",
+         "color": "D80518",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/3458.png"
+        },
+        "form": "LLDLW",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "2"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "0"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "1"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "32.6"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "2"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "1"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "1"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "2"
+         }
+        ]
+       }
+      ],
+      "details": [
+       {
+        "type": {
+         "id": "70",
+         "text": "Goal"
+        },
+        "clock": {
+         "value": 655.0,
+         "displayValue": "11'"
+        },
+        "team": {
+         "id": "3458"
+        },
+        "scoringPlay": true,
+        "redCard": false,
+        "yellowCard": false,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "340596",
+          "displayName": "Kerwin Vargas",
+          "shortName": "K. Vargas"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "70",
+         "text": "Goal"
+        },
+        "clock": {
+         "value": 974.0,
+         "displayValue": "17'"
+        },
+        "team": {
+         "id": "819"
+        },
+        "scoringPlay": true,
+        "redCard": false,
+        "yellowCard": false,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "208700",
+          "displayName": "Jorge Carrascal",
+          "shortName": "J. Carrascal"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "94",
+         "text": "Yellow Card"
+        },
+        "clock": {
+         "value": 1436.0,
+         "displayValue": "24'"
+        },
+        "team": {
+         "id": "3458"
+        },
+        "scoringPlay": false,
+        "redCard": false,
+        "yellowCard": true,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "287688",
+          "displayName": "Gastón Benavídez",
+          "shortName": "G. Benavídez"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "98",
+         "text": "Penalty - Scored"
+        },
+        "clock": {
+         "value": 1594.0,
+         "displayValue": "27'"
+        },
+        "team": {
+         "id": "819"
+        },
+        "scoringPlay": true,
+        "redCard": false,
+        "yellowCard": false,
+        "penaltyKick": true,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "165778",
+          "displayName": "Jorginho",
+          "shortName": "Jorginho"
+         }
+        ]
+       },
+       {
+        "type": {
+         "id": "94",
+         "text": "Yellow Card"
+        },
+        "clock": {
+         "value": 1675.0,
+         "displayValue": "28'"
+        },
+        "team": {
+         "id": "819"
+        },
+        "scoringPlay": false,
+        "redCard": false,
+        "yellowCard": true,
+        "penaltyKick": false,
+        "ownGoal": false,
+        "shootout": false,
+        "athletesInvolved": [
+         {
+          "id": "202533",
+          "displayName": "Erick Pulgar",
+          "shortName": "E. Pulgar"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401841316",
+    "date": "2026-11-19T00:30Z",
+    "name": "Botafogo at Corinthians",
+    "shortName": "BOT @ COR",
+    "status": {
+     "clock": 0.0,
+     "displayClock": "0'",
+     "type": {
+      "id": "1",
+      "name": "STATUS_SCHEDULED",
+      "state": "pre",
+      "completed": false,
+      "description": "Scheduled",
+      "detail": "Wed, November 18th at 7:30 PM EST",
+      "shortDetail": "Scheduled"
+     }
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841316/botafogo-corinthians",
+      "text": "Summary",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false,
+      "isHidden": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841316",
+      "date": "2026-11-19T00:30Z",
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0'",
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Wed, November 18th at 7:30 PM EST",
+        "shortDetail": "Scheduled"
+       }
+      },
+      "venue": {
+       "fullName": "Neo Química Arena",
+       "address": {
+        "city": "Sao Paulo",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "874",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "score": "0",
+        "team": {
+         "id": "874",
+         "abbreviation": "COR",
+         "displayName": "Corinthians",
+         "shortDisplayName": "Corinthians",
+         "color": "000000",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/874.png"
+        },
+        "form": "DWLDL",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "0"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "0"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "0"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "0"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "0"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "0"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "0"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "0"
+         }
+        ]
+       },
+       {
+        "id": "6086",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "score": "0",
+        "team": {
+         "id": "6086",
+         "abbreviation": "BOT",
+         "displayName": "Botafogo",
+         "shortDisplayName": "Botafogo",
+         "color": "000000",
+         "logo": "https://a.espncdn.com/i/teamlogos/soccer/500/6086.png"
+        },
+        "form": "WLLWD",
+        "statistics": [
+         {
+          "name": "appearances",
+          "abbreviation": "APP",
+          "displayValue": "0"
+         },
+         {
+          "name": "foulsCommitted",
+          "abbreviation": "FC",
+          "displayValue": "0"
+         },
+         {
+          "name": "wonCorners",
+          "abbreviation": "CW",
+          "displayValue": "0"
+         },
+         {
+          "name": "goalAssists",
+          "abbreviation": "A",
+          "displayValue": "0"
+         },
+         {
+          "name": "possessionPct",
+          "abbreviation": "PP",
+          "displayValue": "0"
+         },
+         {
+          "name": "shotAssists",
+          "abbreviation": "SHAST",
+          "displayValue": "0"
+         },
+         {
+          "name": "shotsOnTarget",
+          "abbreviation": "SOG",
+          "displayValue": "0"
+         },
+         {
+          "name": "totalGoals",
+          "abbreviation": "G",
+          "displayValue": "0"
+         },
+         {
+          "name": "totalShots",
+          "abbreviation": "SHOT",
+          "displayValue": "0"
+         }
+        ]
+       }
+      ],
+      "details": []
+     }
+    ]
+   }
+  ]
+ },
+ "flamengoFixtures": {
+  "team": {
+   "id": "819",
+   "displayName": "Flamengo"
+  },
+  "events": [
+   {
+    "id": "401841313",
+    "date": "2026-11-18T23:30Z",
+    "name": "Athletico Paranaense at Flamengo",
+    "shortName": "CAP @ FLA",
+    "league": {
+     "id": "630",
+     "alternateId": "85",
+     "name": "Brazilian Serie A",
+     "abbreviation": "Brazil Serie A",
+     "shortName": "Brazil Serie A",
+     "midsizeName": "BRA.1",
+     "slug": "bra.1",
+     "isTournament": false
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "live",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841313",
+      "text": "Gamecast",
+      "shortText": "Live",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841313",
+      "date": "2026-11-18T23:30Z",
+      "status": {
+       "clock": 2220.0,
+       "addedClock": 0.0,
+       "displayClock": "37'",
+       "period": 1,
+       "type": {
+        "id": "25",
+        "name": "STATUS_FIRST_HALF",
+        "state": "in",
+        "completed": false,
+        "description": "First Half",
+        "detail": "37'",
+        "shortDetail": "37'"
+       }
+      },
+      "venue": {
+       "fullName": "Estadio do Maracana",
+       "address": {
+        "city": "Rio de Janeiro",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "819",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "score": {
+         "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/bra.1/events/401841313/competitions/401841313/competitors/819/scores/38?lang=en&region=us",
+         "value": 2.0,
+         "displayValue": "2",
+         "winner": false,
+         "source": {
+          "id": "38",
+          "description": "SA.ENVOY"
+         }
+        },
+        "team": {
+         "id": "819",
+         "abbreviation": "FLA",
+         "displayName": "Flamengo",
+         "shortDisplayName": "Flamengo",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2020-02-20T17:24Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       },
+       {
+        "id": "3458",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "score": {
+         "$ref": "http://sports.core.api.espn.pvt/v2/sports/soccer/leagues/bra.1/events/401841313/competitions/401841313/competitors/3458/scores/38?lang=en&region=us",
+         "value": 1.0,
+         "displayValue": "1",
+         "winner": false,
+         "source": {
+          "id": "38",
+          "description": "SA.ENVOY"
+         }
+        },
+        "team": {
+         "id": "3458",
+         "abbreviation": "CAP",
+         "displayName": "Athletico Paranaense",
+         "shortDisplayName": "Athletico-PR",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/3458.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2019-06-10T16:13Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401841322",
+    "date": "2026-11-21T19:30Z",
+    "name": "Flamengo at Palmeiras",
+    "shortName": "FLA @ PAL",
+    "league": {
+     "id": "630",
+     "alternateId": "85",
+     "name": "Brazilian Serie A",
+     "abbreviation": "Brazil Serie A",
+     "shortName": "Brazil Serie A",
+     "midsizeName": "BRA.1",
+     "slug": "bra.1",
+     "isTournament": false
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841322/flamengo-palmeiras",
+      "text": "Summary",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841322",
+      "date": "2026-11-21T19:30Z",
+      "status": {
+       "clock": 0.0,
+       "addedClock": 0.0,
+       "displayClock": "0'",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Sat, November 21st at 2:30 PM EST",
+        "shortDetail": "11/21 - 2:30 PM EST"
+       }
+      },
+      "venue": {
+       "fullName": "Allianz Parque",
+       "address": {
+        "city": "Sao Paulo",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "2029",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "team": {
+         "id": "2029",
+         "abbreviation": "PAL",
+         "displayName": "Palmeiras",
+         "shortDisplayName": "Palmeiras",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/2029.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2019-05-08T16:07Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       },
+       {
+        "id": "819",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "team": {
+         "id": "819",
+         "abbreviation": "FLA",
+         "displayName": "Flamengo",
+         "shortDisplayName": "Flamengo",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2020-02-20T17:24Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401841333",
+    "date": "2026-11-29T19:00Z",
+    "name": "Flamengo at Coritiba",
+    "shortName": "FLA @ CFC",
+    "league": {
+     "id": "630",
+     "alternateId": "85",
+     "name": "Brazilian Serie A",
+     "abbreviation": "Brazil Serie A",
+     "shortName": "Brazil Serie A",
+     "midsizeName": "BRA.1",
+     "slug": "bra.1",
+     "isTournament": false
+    },
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/soccer/match/_/gameId/401841333/flamengo-coritiba",
+      "text": "Summary",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401841333",
+      "date": "2026-11-29T19:00Z",
+      "status": {
+       "clock": 0.0,
+       "addedClock": 0.0,
+       "displayClock": "0'",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Sun, November 29th at 2:00 PM EST",
+        "shortDetail": "11/29 - 2:00 PM EST"
+       }
+      },
+      "venue": {
+       "fullName": "Couto Pereira",
+       "address": {
+        "city": "Curitiba",
+        "country": "Brazil"
+       }
+      },
+      "competitors": [
+       {
+        "id": "3456",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "team": {
+         "id": "3456",
+         "abbreviation": "CFC",
+         "displayName": "Coritiba",
+         "shortDisplayName": "Coritiba",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/3456.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2019-05-08T16:07Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       },
+       {
+        "id": "819",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": false,
+        "team": {
+         "id": "819",
+         "abbreviation": "FLA",
+         "displayName": "Flamengo",
+         "shortDisplayName": "Flamengo",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2020-02-20T17:24Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "chiefsSchedule": {
+  "team": {
+   "id": "12"
+  },
+  "events": [
+   {
+    "id": "401873058",
+    "date": "2026-11-15T18:00Z",
+    "name": "Kansas City Chiefs at Atlanta Falcons",
+    "shortName": "KC @ ATL",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/nfl/game/_/gameId/401873058/chiefs-falcons",
+      "text": "Gamecast",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401873058",
+      "date": "2026-11-15T18:00Z",
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 4,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       },
+       "isTBDFlex": false
+      },
+      "venue": {
+       "fullName": "Mercedes-Benz Stadium",
+       "address": {
+        "city": "Atlanta",
+        "state": "GA",
+        "zipCode": "30313",
+        "country": "USA"
+       }
+      },
+      "competitors": [
+       {
+        "id": "1",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "winner": false,
+        "score": {
+         "value": 13.0,
+         "displayValue": "13"
+        },
+        "team": {
+         "id": "1",
+         "abbreviation": "ATL",
+         "displayName": "Atlanta Falcons",
+         "shortDisplayName": "Falcons",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/nfl/500/atl.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2024-06-25T18:44Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       },
+       {
+        "id": "12",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "winner": true,
+        "score": {
+         "value": 35.0,
+         "displayValue": "35"
+        },
+        "team": {
+         "id": "12",
+         "abbreviation": "KC",
+         "displayName": "Kansas City Chiefs",
+         "shortDisplayName": "Chiefs",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2024-06-25T18:51Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "id": "401873067",
+    "date": "2026-11-22T18:00Z",
+    "name": "Arizona Cardinals at Kansas City Chiefs",
+    "shortName": "ARI @ KC",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/nfl/game/_/gameId/401873067/cardinals-chiefs",
+      "text": "Gamecast",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401873067",
+      "date": "2026-11-22T18:00Z",
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Sun, November 22nd at 1:00 PM EST",
+        "shortDetail": "11/22 - 1:00 PM EST"
+       },
+       "isTBDFlex": false
+      },
+      "venue": {
+       "fullName": "Arrowhead Stadium",
+       "address": {
+        "city": "Kansas City",
+        "state": "MO",
+        "zipCode": "64129",
+        "country": "USA"
+       }
+      },
+      "competitors": [
+       {
+        "id": "12",
+        "type": "team",
+        "order": 0,
+        "homeAway": "home",
+        "team": {
+         "id": "12",
+         "abbreviation": "KC",
+         "displayName": "Kansas City Chiefs",
+         "shortDisplayName": "Chiefs",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2024-06-25T18:51Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       },
+       {
+        "id": "22",
+        "type": "team",
+        "order": 1,
+        "homeAway": "away",
+        "team": {
+         "id": "22",
+         "abbreviation": "ARI",
+         "displayName": "Arizona Cardinals",
+         "shortDisplayName": "Cardinals",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/nfl/500/ari.png",
+           "width": 500,
+           "height": 500,
+           "alt": "",
+           "rel": [
+            "full",
+            "default"
+           ],
+           "lastUpdated": "2024-06-25T18:43Z"
+          }
+         ]
+        },
+        "form": "WDL"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "atpFinals": {
+  "leagues": [
+   {
+    "name": "ATP",
+    "slug": "atp"
+   }
+  ],
+  "events": [
+   {
+    "id": "339-2026",
+    "name": "Nitto ATP Finals",
+    "shortName": "Nitto ATP Finals",
+    "date": "2026-11-15T05:00Z",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/tennis/scoreboard/tournament/_/eventId/339-2026/competitionType/3",
+      "text": "Summary",
+      "shortText": "Summary",
+      "isExternal": false,
+      "isPremium": false,
+      "isHidden": false
+     }
+    ],
+    "groupings": [
+     {
+      "grouping": {
+       "id": "3",
+       "slug": "mens-doubles",
+       "displayName": "Men's Doubles"
+      },
+      "competitions": [
+       {
+        "id": "187517",
+        "date": "2026-11-15T10:40Z",
+        "status": {
+         "period": 3,
+         "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+         }
+        },
+        "round": {
+         "id": "15",
+         "displayName": "Group Stage"
+        },
+        "type": {
+         "id": "3",
+         "text": "Men's Doubles",
+         "slug": "mens-doubles"
+        },
+        "notes": [
+         {
+          "text": "(1) Harri Heliovaara (FIN) & Henry Patten (GBR) bt (8) Orlando Luz (BRA) & Rafael Matos (BRA) 6-3 5-7 1-0 (10-4)",
+          "type": "event"
+         }
+        ],
+        "competitors": [
+         {
+          "id": "2725-2434",
+          "type": "team",
+          "order": 2,
+          "homeAway": "away",
+          "winner": false,
+          "linescores": [
+           {
+            "value": 3.0,
+            "winner": false
+           },
+           {
+            "value": 7.0,
+            "winner": true
+           },
+           {
+            "value": 0.0,
+            "tiebreak": 4,
+            "winner": false
+           }
+          ],
+          "curatedRank": {
+           "current": 8
+          },
+          "roster": {
+           "displayName": "Orlando Luz / Rafael Matos",
+           "shortDisplayName": "O. Luz / R. Matos",
+           "athletes": [
+            {
+             "displayName": "Orlando Luz",
+             "shortName": "O. Luz"
+            },
+            {
+             "displayName": "Rafael Matos",
+             "shortName": "R. Matos"
+            }
+           ]
+          }
+         },
+         {
+          "id": "3540-10685",
+          "type": "team",
+          "order": 1,
+          "homeAway": "home",
+          "winner": true,
+          "linescores": [
+           {
+            "value": 6.0,
+            "winner": true
+           },
+           {
+            "value": 5.0,
+            "winner": false
+           },
+           {
+            "value": 1.0,
+            "tiebreak": 10,
+            "winner": true
+           }
+          ],
+          "curatedRank": {
+           "current": 1
+          },
+          "roster": {
+           "displayName": "Harri Heliovaara / Henry Patten",
+           "shortDisplayName": "H. Heliovaara / H. Patten",
+           "athletes": [
+            {
+             "displayName": "Harri Heliovaara",
+             "shortName": "H. Heliovaara"
+            },
+            {
+             "displayName": "Henry Patten",
+             "shortName": "H. Patten"
+            }
+           ]
+          }
+         }
+        ]
+       },
+       {
+        "id": "187518",
+        "date": "2026-11-15T17:10Z",
+        "status": {
+         "period": 2,
+         "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+         }
+        },
+        "round": {
+         "id": "15",
+         "displayName": "Group Stage"
+        },
+        "type": {
+         "id": "3",
+         "text": "Men's Doubles",
+         "slug": "mens-doubles"
+        },
+        "notes": [
+         {
+          "text": "(4) Marcelo Arevalo (ESA) & Mate Pavic (CRO) bt (6) Theo Arribage (FRA) & Albano Olivetti (FRA) 7-6 (9-7) 6-4",
+          "type": "event"
+         }
+        ],
+        "competitors": [
+         {
+          "id": "10882-1965",
+          "type": "team",
+          "order": 2,
+          "homeAway": "away",
+          "winner": false,
+          "linescores": [
+           {
+            "value": 6.0,
+            "tiebreak": 7,
+            "winner": false
+           },
+           {
+            "value": 4.0,
+            "winner": false
+           }
+          ],
+          "curatedRank": {
+           "current": 6
+          },
+          "roster": {
+           "displayName": "Theo Arribage / Albano Olivetti",
+           "shortDisplayName": "T. Arribage / A. Olivetti",
+           "athletes": [
+            {
+             "displayName": "Theo Arribage",
+             "shortName": "T. Arribage"
+            },
+            {
+             "displayName": "Albano Olivetti",
+             "shortName": "A. Olivetti"
+            }
+           ]
+          }
+         },
+         {
+          "id": "1343-1790",
+          "type": "team",
+          "order": 1,
+          "homeAway": "home",
+          "winner": true,
+          "linescores": [
+           {
+            "value": 7.0,
+            "tiebreak": 9,
+            "winner": true
+           },
+           {
+            "value": 6.0,
+            "winner": true
+           }
+          ],
+          "curatedRank": {
+           "current": 4
+          },
+          "roster": {
+           "displayName": "Marcelo Arevalo / Mate Pavic",
+           "shortDisplayName": "M. Arevalo / M. Pavic",
+           "athletes": [
+            {
+             "displayName": "Marcelo Arevalo",
+             "shortName": "M. Arevalo"
+            },
+            {
+             "displayName": "Mate Pavic",
+             "shortName": "M. Pavic"
+            }
+           ]
+          }
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "grouping": {
+       "id": "1",
+       "slug": "mens-singles",
+       "displayName": "Men's Singles"
+      },
+      "competitions": [
+       {
+        "id": "187505",
+        "date": "2026-11-15T13:25Z",
+        "status": {
+         "period": 2,
+         "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+         }
+        },
+        "round": {
+         "id": "15",
+         "displayName": "Group Stage"
+        },
+        "type": {
+         "id": "1",
+         "text": "Men's Singles",
+         "slug": "mens-singles"
+        },
+        "notes": [
+         {
+          "text": "(1) Alexander Zverev (GER) bt (8) Rafael Jodar (ESP) 6-4 6-4",
+          "type": "event"
+         }
+        ],
+        "competitors": [
+         {
+          "id": "12657",
+          "type": "athlete",
+          "order": 2,
+          "homeAway": "away",
+          "winner": false,
+          "linescores": [
+           {
+            "value": 4.0,
+            "winner": false
+           },
+           {
+            "value": 4.0,
+            "winner": false
+           }
+          ],
+          "curatedRank": {
+           "current": 8
+          },
+          "athlete": {
+           "displayName": "Rafael Jodar",
+           "shortName": "R. Jodar",
+           "fullName": "Rafael Jodar",
+           "flag": {
+            "href": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png",
+            "alt": "Spain",
+            "rel": [
+             "country-flag"
+            ]
+           }
+          }
+         },
+         {
+          "id": "2375",
+          "type": "athlete",
+          "order": 1,
+          "homeAway": "home",
+          "winner": true,
+          "linescores": [
+           {
+            "value": 6.0,
+            "winner": true
+           },
+           {
+            "value": 6.0,
+            "winner": true
+           }
+          ],
+          "curatedRank": {
+           "current": 1
+          },
+          "athlete": {
+           "displayName": "Alexander Zverev",
+           "shortName": "A. Zverev",
+           "fullName": "Alexander Zverev",
+           "flag": {
+            "href": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png",
+            "alt": "Germany",
+            "rel": [
+             "country-flag"
+            ]
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "187506",
+        "date": "2026-11-15T19:40Z",
+        "status": {
+         "period": 3,
+         "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+         }
+        },
+        "round": {
+         "id": "15",
+         "displayName": "Group Stage"
+        },
+        "type": {
+         "id": "1",
+         "text": "Men's Singles",
+         "slug": "mens-singles"
+        },
+        "notes": [
+         {
+          "text": "(3) Ben Shelton (USA) bt (6) Arthur Fils (FRA) 6-2 3-6 6-3",
+          "type": "event"
+         }
+        ],
+        "competitors": [
+         {
+          "id": "10052",
+          "type": "athlete",
+          "order": 2,
+          "homeAway": "away",
+          "winner": false,
+          "linescores": [
+           {
+            "value": 2.0,
+            "winner": false
+           },
+           {
+            "value": 6.0,
+            "winner": true
+           },
+           {
+            "value": 3.0,
+            "winner": false
+           }
+          ],
+          "curatedRank": {
+           "current": 6
+          },
+          "athlete": {
+           "displayName": "Arthur Fils",
+           "shortName": "A. Fils",
+           "fullName": "Arthur Fils",
+           "flag": {
+            "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+            "alt": "France",
+            "rel": [
+             "country-flag"
+            ]
+           }
+          }
+         },
+         {
+          "id": "9250",
+          "type": "athlete",
+          "order": 1,
+          "homeAway": "home",
+          "winner": true,
+          "linescores": [
+           {
+            "value": 6.0,
+            "winner": true
+           },
+           {
+            "value": 3.0,
+            "winner": false
+           },
+           {
+            "value": 6.0,
+            "winner": true
+           }
+          ],
+          "curatedRank": {
+           "current": 3
+          },
+          "athlete": {
+           "displayName": "Ben Shelton",
+           "shortName": "B. Shelton",
+           "fullName": "Ben Shelton",
+           "flag": {
+            "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+            "alt": "USA",
+            "rel": [
+             "country-flag"
+            ]
+           }
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "mexicoGrandPrix": {
+  "leagues": [
+   {
+    "name": "Formula 1",
+    "slug": "f1"
+   }
+  ],
+  "events": [
+   {
+    "id": "600057447",
+    "name": "Mexico City Grand Prix",
+    "shortName": "Mexico City GP",
+    "date": "2026-10-30T18:30Z",
+    "competitions": [
+     {
+      "id": "401839123",
+      "date": "2026-10-30T18:30Z",
+      "type": {
+       "id": "1",
+       "abbreviation": "FP1"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 29,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "competitors": [
+       {
+        "id": "5498",
+        "uid": "s:2000~a:5498",
+        "type": "athlete",
+        "order": 1,
+        "winner": false,
+        "athlete": {
+         "fullName": "Charles Leclerc",
+         "displayName": "Charles Leclerc",
+         "shortName": "C. Leclerc",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+          "alt": "Monaco",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5829",
+        "uid": "s:2000~a:5829",
+        "type": "athlete",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "fullName": "Kimi Antonelli",
+         "displayName": "Kimi Antonelli",
+         "shortName": "K. Antonelli",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+          "alt": "Italy",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5788",
+        "uid": "s:2000~a:5788",
+        "type": "athlete",
+        "order": 3,
+        "winner": false,
+        "athlete": {
+         "fullName": "Frederik Vesti",
+         "displayName": "Frederik Vesti",
+         "shortName": "F. Vesti",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/den.png",
+          "alt": "Denmark",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "868",
+        "uid": "s:2000~a:868",
+        "type": "athlete",
+        "order": 4,
+        "winner": false,
+        "athlete": {
+         "fullName": "Lewis Hamilton",
+         "displayName": "Lewis Hamilton",
+         "shortName": "L. Hamilton",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+          "alt": "Britain",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       }
+      ]
+     },
+     {
+      "id": "401839126",
+      "date": "2026-10-31T21:00Z",
+      "type": {
+       "id": "2",
+       "abbreviation": "Qual"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 20,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "competitors": [
+       {
+        "id": "868",
+        "uid": "s:2000~a:868",
+        "type": "athlete",
+        "order": 1,
+        "winner": false,
+        "athlete": {
+         "fullName": "Lewis Hamilton",
+         "displayName": "Lewis Hamilton",
+         "shortName": "L. Hamilton",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+          "alt": "Britain",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5503",
+        "uid": "s:2000~a:5503",
+        "type": "athlete",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "fullName": "George Russell",
+         "displayName": "George Russell",
+         "shortName": "G. Russell",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+          "alt": "Britain",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5498",
+        "uid": "s:2000~a:5498",
+        "type": "athlete",
+        "order": 3,
+        "winner": false,
+        "athlete": {
+         "fullName": "Charles Leclerc",
+         "displayName": "Charles Leclerc",
+         "shortName": "C. Leclerc",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+          "alt": "Monaco",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "4665",
+        "uid": "s:2000~a:4665",
+        "type": "athlete",
+        "order": 4,
+        "winner": false,
+        "athlete": {
+         "fullName": "Max Verstappen",
+         "displayName": "Max Verstappen",
+         "shortName": "M. Verstappen",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+          "alt": "Netherlands",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       }
+      ]
+     },
+     {
+      "id": "401839127",
+      "date": "2026-11-01T20:00Z",
+      "type": {
+       "id": "3",
+       "abbreviation": "Race"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 71,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "competitors": [
+       {
+        "id": "4665",
+        "uid": "s:2000~a:4665",
+        "type": "athlete",
+        "order": 1,
+        "winner": true,
+        "athlete": {
+         "fullName": "Max Verstappen",
+         "displayName": "Max Verstappen",
+         "shortName": "M. Verstappen",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/ned.png",
+          "alt": "Netherlands",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "868",
+        "uid": "s:2000~a:868",
+        "type": "athlete",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "fullName": "Lewis Hamilton",
+         "displayName": "Lewis Hamilton",
+         "shortName": "L. Hamilton",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/gbr.png",
+          "alt": "Britain",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5829",
+        "uid": "s:2000~a:5829",
+        "type": "athlete",
+        "order": 3,
+        "winner": false,
+        "athlete": {
+         "fullName": "Kimi Antonelli",
+         "displayName": "Kimi Antonelli",
+         "shortName": "K. Antonelli",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png",
+          "alt": "Italy",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "5498",
+        "uid": "s:2000~a:5498",
+        "type": "athlete",
+        "order": 4,
+        "winner": false,
+        "athlete": {
+         "fullName": "Charles Leclerc",
+         "displayName": "Charles Leclerc",
+         "shortName": "C. Leclerc",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/mon.png",
+          "alt": "Monaco",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "lasVegasGrandPrix": {
+  "events": [
+   {
+    "id": "600057449",
+    "name": "Heineken Las Vegas Grand Prix",
+    "shortName": "Heineken Las Vegas GP",
+    "date": "2026-11-20T00:30Z",
+    "competitions": [
+     {
+      "id": "401839133",
+      "date": "2026-11-20T00:30Z",
+      "type": {
+       "id": "1",
+       "abbreviation": "FP1"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Thu, November 19th at 7:30 PM EST",
+        "shortDetail": "11/19 - 7:30 PM EST"
+       }
+      }
+     },
+     {
+      "id": "401839134",
+      "date": "2026-11-20T04:00Z",
+      "type": {
+       "id": "1",
+       "abbreviation": "FP2"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Thu, November 19th at 11:00 PM EST",
+        "shortDetail": "11/19 - 11:00 PM EST"
+       }
+      }
+     },
+     {
+      "id": "401839135",
+      "date": "2026-11-21T00:30Z",
+      "type": {
+       "id": "1",
+       "abbreviation": "FP3"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Fri, November 20th at 7:30 PM EST",
+        "shortDetail": "11/20 - 7:30 PM EST"
+       }
+      }
+     },
+     {
+      "id": "401839136",
+      "date": "2026-11-21T04:00Z",
+      "type": {
+       "id": "2",
+       "abbreviation": "Qual"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Fri, November 20th at 11:00 PM EST",
+        "shortDetail": "11/20 - 11:00 PM EST"
+       }
+      }
+     },
+     {
+      "id": "401839137",
+      "date": "2026-11-22T04:00Z",
+      "type": {
+       "id": "3",
+       "abbreviation": "Race"
+      },
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 0,
+       "type": {
+        "id": "1",
+        "name": "STATUS_SCHEDULED",
+        "state": "pre",
+        "completed": false,
+        "description": "Scheduled",
+        "detail": "Sat, November 21st at 11:00 PM EST",
+        "shortDetail": "11/21 - 11:00 PM EST"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "brasileiraoTeams": {
+  "sports": [
+   {
+    "leagues": [
+     {
+      "teams": [
+       {
+        "team": {
+         "id": "874",
+         "abbreviation": "COR",
+         "displayName": "Corinthians",
+         "color": "000000",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/874.png",
+           "rel": [
+            "full",
+            "default"
+           ]
+          },
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500-dark/874.png",
+           "rel": [
+            "full",
+            "dark"
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "team": {
+         "id": "819",
+         "abbreviation": "FLA",
+         "displayName": "Flamengo",
+         "color": "C60000",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png",
+           "rel": [
+            "full",
+            "default"
+           ]
+          },
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500-dark/819.png",
+           "rel": [
+            "full",
+            "dark"
+           ]
+          }
+         ]
+        }
+       },
+       {
+        "team": {
+         "id": "2029",
+         "abbreviation": "PAL",
+         "displayName": "Palmeiras",
+         "color": "417505",
+         "logos": [
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500/2029.png",
+           "rel": [
+            "full",
+            "default"
+           ]
+          },
+          {
+           "href": "https://a.espncdn.com/i/teamlogos/soccer/500-dark/2029.png",
+           "rel": [
+            "full",
+            "dark"
+           ]
+          }
+         ]
+        }
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "atpRankings": {
+  "rankings": [
+   {
+    "name": "ATP Rankings",
+    "ranks": [
+     {
+      "current": 1,
+      "points": 9320.0,
+      "athlete": {
+       "id": "2375",
+       "firstName": "Alexander",
+       "lastName": "Zverev",
+       "displayName": "Alexander Zverev",
+       "shortname": "A. Zverev",
+       "flag": "https://a.espncdn.com/i/teamlogos/countries/500/ger.png"
+      }
+     },
+     {
+      "current": 2,
+      "points": 7950.0,
+      "athlete": {
+       "id": "3623",
+       "firstName": "Jannik",
+       "lastName": "Sinner",
+       "displayName": "Jannik Sinner",
+       "shortname": "J. Sinner",
+       "flag": "https://a.espncdn.com/i/teamlogos/countries/500/ita.png"
+      }
+     },
+     {
+      "current": 3,
+      "points": 6100.0,
+      "athlete": {
+       "id": "3782",
+       "firstName": "Carlos",
+       "lastName": "Alcaraz",
+       "displayName": "Carlos Alcaraz",
+       "shortname": "C. Alcaraz",
+       "flag": "https://a.espncdn.com/i/teamlogos/countries/500/esp.png"
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "driverStandings": {
+  "children": [
+   {
+    "name": "Driver Standings",
+    "standings": {
+     "entries": [
+      {
+       "athlete": {
+        "id": "5829",
+        "displayName": "Kimi Antonelli",
+        "abbreviation": "ANT",
+        "shortName": "K. Antonelli"
+       },
+       "stats": [
+        {
+         "name": "rank",
+         "displayName": "Rank",
+         "shortDisplayName": "RK",
+         "description": "Rank",
+         "abbreviation": "RK",
+         "type": "rank",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      },
+      {
+       "athlete": {
+        "id": "4665",
+        "displayName": "Max Verstappen",
+        "abbreviation": "VER",
+        "shortName": "M. Verstappen"
+       },
+       "stats": [
+        {
+         "name": "rank",
+         "displayName": "Rank",
+         "shortDisplayName": "RK",
+         "description": "Rank",
+         "abbreviation": "RK",
+         "type": "rank",
+         "value": 2.0,
+         "displayValue": "2"
+        }
+       ]
+      },
+      {
+       "athlete": {
+        "id": "5503",
+        "displayName": "George Russell",
+        "abbreviation": "RUS",
+        "shortName": "G. Russell"
+       },
+       "stats": [
+        {
+         "name": "rank",
+         "displayName": "Rank",
+         "shortDisplayName": "RK",
+         "description": "Rank",
+         "abbreviation": "RK",
+         "type": "rank",
+         "value": 3.0,
+         "displayValue": "3"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "nflFinal": {
+  "leagues": [
+   {
+    "name": "NFL",
+    "slug": "nfl"
+   }
+  ],
+  "events": [
+   {
+    "id": "401873053",
+    "date": "2026-11-15T14:30Z",
+    "name": "New England Patriots at Detroit Lions",
+    "shortName": "NE VS DET",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/nfl/game/_/gameId/401873053/patriots-lions",
+      "text": "Gamecast",
+      "shortText": "Gamecast",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401873053",
+      "date": "2026-11-15T14:30Z",
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 4,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       },
+       "isTBDFlex": false
+      },
+      "venue": {
+       "fullName": "FC Bayern Munich Stadium",
+       "address": {
+        "city": "Munich",
+        "country": "Germany"
+       }
+      },
+      "competitors": [
+       {
+        "id": "8",
+        "homeAway": "home",
+        "winner": true,
+        "score": "35",
+        "linescores": [
+         {
+          "value": 7.0,
+          "displayValue": "7",
+          "period": 1
+         },
+         {
+          "value": 14.0,
+          "displayValue": "14",
+          "period": 2
+         },
+         {
+          "value": 7.0,
+          "displayValue": "7",
+          "period": 3
+         },
+         {
+          "value": 7.0,
+          "displayValue": "7",
+          "period": 4
+         }
+        ],
+        "team": {
+         "id": "8",
+         "abbreviation": "DET",
+         "displayName": "Detroit Lions",
+         "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/det.png"
+        },
+        "records": [
+         {
+          "name": "overall",
+          "summary": "7-2"
+         }
+        ]
+       },
+       {
+        "id": "17",
+        "homeAway": "away",
+        "winner": false,
+        "score": "10",
+        "linescores": [
+         {
+          "value": 3.0,
+          "displayValue": "3",
+          "period": 1
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 2
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 3
+         },
+         {
+          "value": 7.0,
+          "displayValue": "7",
+          "period": 4
+         }
+        ],
+        "team": {
+         "id": "17",
+         "abbreviation": "NE",
+         "displayName": "New England Patriots",
+         "logo": "https://a.espncdn.com/i/teamlogos/nfl/500/scoreboard/ne.png"
+        },
+        "records": [
+         {
+          "name": "overall",
+          "summary": "5-5"
+         }
+        ]
+       }
+      ],
+      "leaders": [
+       {
+        "name": "passingYards",
+        "displayName": "Passing Leader",
+        "leaders": [
+         {
+          "displayValue": "20/31, 303 YDS, 3 TD, 2 INT",
+          "athlete": {
+           "displayName": "Jared Goff",
+           "shortName": "J. Goff"
+          },
+          "team": {
+           "id": "8"
+          }
+         }
+        ]
+       },
+       {
+        "name": "rushingYards",
+        "displayName": "Rushing Leader",
+        "leaders": [
+         {
+          "displayValue": "22 CAR, 153 YDS, 2 TD",
+          "athlete": {
+           "displayName": "Jahmyr Gibbs",
+           "shortName": "J. Gibbs"
+          },
+          "team": {
+           "id": "8"
+          }
+         }
+        ]
+       },
+       {
+        "name": "receivingYards",
+        "displayName": "Receiving Leader",
+        "leaders": [
+         {
+          "displayValue": "7 REC, 99 YDS",
+          "athlete": {
+           "displayName": "Jahmyr Gibbs",
+           "shortName": "J. Gibbs"
+          },
+          "team": {
+           "id": "8"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "nbaLive": {
+  "leagues": [
+   {
+    "name": "National Basketball Association",
+    "slug": "nba"
+   }
+  ],
+  "events": [
+   {
+    "id": "401910007",
+    "date": "2026-11-19T00:00Z",
+    "name": "Memphis Grizzlies at Cleveland Cavaliers",
+    "shortName": "MEM @ CLE",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "live",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/nba/game?gameId=401910007",
+      "text": "Gamecast",
+      "shortText": "Gamecast",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401910007",
+      "date": "2026-11-19T00:00Z",
+      "status": {
+       "clock": 99.0,
+       "displayClock": "1:39",
+       "period": 3,
+       "type": {
+        "id": "2",
+        "name": "STATUS_IN_PROGRESS",
+        "state": "in",
+        "completed": false,
+        "description": "In Progress",
+        "detail": "1:39 - 3rd Quarter",
+        "shortDetail": "1:39 - 3rd"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 4
+       }
+      },
+      "venue": {
+       "fullName": "Rocket Arena",
+       "address": {
+        "city": "Cleveland"
+       }
+      },
+      "competitors": [
+       {
+        "id": "5",
+        "homeAway": "home",
+        "score": "96",
+        "linescores": [
+         {
+          "value": 37.0,
+          "displayValue": "37",
+          "period": 1
+         },
+         {
+          "value": 35.0,
+          "displayValue": "35",
+          "period": 2
+         },
+         {
+          "value": 24.0,
+          "displayValue": "24",
+          "period": 3
+         }
+        ],
+        "team": {
+         "id": "5",
+         "abbreviation": "CLE",
+         "displayName": "Cleveland Cavaliers",
+         "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/cle.png"
+        },
+        "records": [
+         {
+          "summary": "8-7"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "rebounds",
+          "displayValue": "27"
+         },
+         {
+          "name": "avgRebounds",
+          "displayValue": "27.0"
+         },
+         {
+          "name": "assists",
+          "displayValue": "22"
+         },
+         {
+          "name": "fieldGoalsAttempted",
+          "displayValue": "66"
+         },
+         {
+          "name": "fieldGoalsMade",
+          "displayValue": "36"
+         },
+         {
+          "name": "fieldGoalPct",
+          "displayValue": "54.5"
+         },
+         {
+          "name": "freeThrowPct",
+          "displayValue": "100.0"
+         },
+         {
+          "name": "freeThrowsAttempted",
+          "displayValue": "12"
+         },
+         {
+          "name": "freeThrowsMade",
+          "displayValue": "12"
+         },
+         {
+          "name": "points",
+          "displayValue": "96"
+         },
+         {
+          "name": "threePointPct",
+          "displayValue": "37.5"
+         },
+         {
+          "name": "threePointFieldGoalsAttempted",
+          "displayValue": "32"
+         },
+         {
+          "name": "threePointFieldGoalsMade",
+          "displayValue": "12"
+         },
+         {
+          "name": "avgPoints",
+          "displayValue": "96.0"
+         },
+         {
+          "name": "avgAssists",
+          "displayValue": "22.0"
+         },
+         {
+          "name": "threePointFieldGoalPct",
+          "displayValue": "37.5"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "points",
+          "leaders": [
+           {
+            "displayValue": "28",
+            "athlete": {
+             "displayName": "Donovan Mitchell"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         },
+         {
+          "name": "rebounds",
+          "leaders": [
+           {
+            "displayValue": "7",
+            "athlete": {
+             "displayName": "Norchad Omier"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         },
+         {
+          "name": "assists",
+          "leaders": [
+           {
+            "displayValue": "7",
+            "athlete": {
+             "displayName": "James Harden"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         },
+         {
+          "name": "rating",
+          "leaders": [
+           {
+            "displayValue": "28 PTS",
+            "athlete": {
+             "displayName": "Donovan Mitchell"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "29",
+        "homeAway": "away",
+        "score": "97",
+        "linescores": [
+         {
+          "value": 30.0,
+          "displayValue": "30",
+          "period": 1
+         },
+         {
+          "value": 41.0,
+          "displayValue": "41",
+          "period": 2
+         },
+         {
+          "value": 26.0,
+          "displayValue": "26",
+          "period": 3
+         }
+        ],
+        "team": {
+         "id": "29",
+         "abbreviation": "MEM",
+         "displayName": "Memphis Grizzlies",
+         "logo": "https://a.espncdn.com/i/teamlogos/nba/500/scoreboard/mem.png"
+        },
+        "records": [
+         {
+          "summary": "10-4"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "rebounds",
+          "displayValue": "21"
+         },
+         {
+          "name": "avgRebounds",
+          "displayValue": "21.0"
+         },
+         {
+          "name": "assists",
+          "displayValue": "23"
+         },
+         {
+          "name": "fieldGoalsAttempted",
+          "displayValue": "60"
+         },
+         {
+          "name": "fieldGoalsMade",
+          "displayValue": "34"
+         },
+         {
+          "name": "fieldGoalPct",
+          "displayValue": "56.7"
+         },
+         {
+          "name": "freeThrowPct",
+          "displayValue": "81.0"
+         },
+         {
+          "name": "freeThrowsAttempted",
+          "displayValue": "21"
+         },
+         {
+          "name": "freeThrowsMade",
+          "displayValue": "17"
+         },
+         {
+          "name": "points",
+          "displayValue": "97"
+         },
+         {
+          "name": "threePointPct",
+          "displayValue": "41.4"
+         },
+         {
+          "name": "threePointFieldGoalsAttempted",
+          "displayValue": "29"
+         },
+         {
+          "name": "threePointFieldGoalsMade",
+          "displayValue": "12"
+         },
+         {
+          "name": "avgPoints",
+          "displayValue": "97.0"
+         },
+         {
+          "name": "avgAssists",
+          "displayValue": "23.0"
+         },
+         {
+          "name": "threePointFieldGoalPct",
+          "displayValue": "41.4"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "points",
+          "leaders": [
+           {
+            "displayValue": "24",
+            "athlete": {
+             "displayName": "Cam Spencer"
+            },
+            "team": {
+             "id": "29"
+            }
+           }
+          ]
+         },
+         {
+          "name": "rebounds",
+          "leaders": [
+           {
+            "displayValue": "4",
+            "athlete": {
+             "displayName": "Cameron Boozer"
+            },
+            "team": {
+             "id": "29"
+            }
+           }
+          ]
+         },
+         {
+          "name": "assists",
+          "leaders": [
+           {
+            "displayValue": "7",
+            "athlete": {
+             "displayName": "Cam Spencer"
+            },
+            "team": {
+             "id": "29"
+            }
+           }
+          ]
+         },
+         {
+          "name": "rating",
+          "leaders": [
+           {
+            "displayValue": "24 PTS, 7 AST",
+            "athlete": {
+             "displayName": "Cam Spencer"
+            },
+            "team": {
+             "id": "29"
+            }
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "situation": {
+       "lastPlay": {
+        "text": "Javon Small lost ball turnover (Norchad Omier steals)"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "mlbFinal": {
+  "leagues": [
+   {
+    "name": "Major League Baseball",
+    "slug": "mlb"
+   }
+  ],
+  "events": [
+   {
+    "id": "401816352",
+    "date": "2026-08-01T19:07Z",
+    "name": "St. Louis Cardinals at Toronto Blue Jays",
+    "shortName": "STL @ TOR",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "summary",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/mlb/game/_/gameId/401816352/cardinals-blue-jays",
+      "text": "Gamecast",
+      "shortText": "Gamecast",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401816352",
+      "date": "2026-08-01T19:07Z",
+      "status": {
+       "clock": 0.0,
+       "displayClock": "0:00",
+       "period": 9,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       },
+       "featuredAthletes": [
+        {
+         "name": "winningPitcher",
+         "displayName": "Winning Pitcher",
+         "shortDisplayName": "Win",
+         "abbreviation": "WP",
+         "playerId": 32667,
+         "athlete": {
+          "id": "32667",
+          "fullName": "Kevin Gausman",
+          "displayName": "Kevin Gausman",
+          "shortName": "K. Gausman",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/mlb/player/_/id/32667"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/mlb/players/full/32667.png",
+          "jersey": "12",
+          "position": "SP"
+         },
+         "team": {
+          "id": "14"
+         },
+         "statistics": [
+          {
+           "name": "saves",
+           "abbreviation": "SV",
+           "displayValue": "0"
+          },
+          {
+           "name": "losses",
+           "abbreviation": "L",
+           "displayValue": "10"
+          },
+          {
+           "name": "wins",
+           "abbreviation": "W",
+           "displayValue": "5"
+          },
+          {
+           "name": "ERA",
+           "abbreviation": "ERA",
+           "displayValue": "4.38"
+          },
+          {
+           "name": "errors",
+           "abbreviation": "E",
+           "displayValue": "2"
+          }
+         ],
+         "projections": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/baseball/leagues/mlb/events/401816352/competitions/401816352/competitors/14/roster/32667/projections?lang=en&region=us"
+         }
+        },
+        {
+         "name": "losingPitcher",
+         "displayName": "Losing Pitcher",
+         "shortDisplayName": "Loss",
+         "abbreviation": "LP",
+         "playerId": 4837405,
+         "athlete": {
+          "id": "4837405",
+          "fullName": "Quinn Mathews",
+          "displayName": "Quinn Mathews",
+          "shortName": "Q. Mathews",
+          "links": [
+           {
+            "rel": [
+             "playercard",
+             "desktop",
+             "athlete"
+            ],
+            "href": "https://www.espn.com/mlb/player/_/id/4837405"
+           }
+          ],
+          "headshot": "https://a.espncdn.com/i/headshots/mlb/players/full/4837405.png",
+          "jersey": "60",
+          "position": "SP",
+          "team": {
+           "id": "24"
+          }
+         },
+         "team": {
+          "id": "24"
+         },
+         "statistics": [
+          {
+           "name": "saves",
+           "abbreviation": "SV",
+           "displayValue": "0"
+          },
+          {
+           "name": "losses",
+           "abbreviation": "L",
+           "displayValue": "1"
+          },
+          {
+           "name": "wins",
+           "abbreviation": "W",
+           "displayValue": "0"
+          },
+          {
+           "name": "ERA",
+           "abbreviation": "ERA",
+           "displayValue": "3.60"
+          },
+          {
+           "name": "errors",
+           "abbreviation": "E",
+           "displayValue": "0"
+          }
+         ],
+         "projections": {
+          "$ref": "http://sports.core.api.espn.pvt/v2/sports/baseball/leagues/mlb/events/401816352/competitions/401816352/competitors/24/roster/4837405/projections?lang=en&region=us"
+         }
+        }
+       ]
+      },
+      "format": {
+       "regulation": {
+        "periods": 9
+       }
+      },
+      "venue": {
+       "fullName": "Rogers Centre",
+       "address": {
+        "city": "Toronto"
+       }
+      },
+      "competitors": [
+       {
+        "id": "14",
+        "homeAway": "home",
+        "winner": true,
+        "score": "5",
+        "linescores": [
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 1
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 2
+         },
+         {
+          "value": 1.0,
+          "displayValue": "1",
+          "period": 3
+         },
+         {
+          "value": 1.0,
+          "displayValue": "1",
+          "period": 4
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 5
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 6
+         },
+         {
+          "value": 3.0,
+          "displayValue": "3",
+          "period": 7
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 8
+         }
+        ],
+        "hits": 9,
+        "errors": 0,
+        "team": {
+         "id": "14",
+         "abbreviation": "TOR",
+         "displayName": "Toronto Blue Jays",
+         "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/tor.png"
+        },
+        "records": [
+         {
+          "summary": "52-59"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "hits",
+          "displayValue": "9"
+         },
+         {
+          "name": "runs",
+          "displayValue": "5"
+         },
+         {
+          "name": "avg",
+          "displayValue": ".281"
+         },
+         {
+          "name": "saves",
+          "displayValue": "0"
+         },
+         {
+          "name": "losses",
+          "displayValue": "0"
+         },
+         {
+          "name": "wins",
+          "displayValue": "1"
+         },
+         {
+          "name": "ERA",
+          "displayValue": "1.00"
+         },
+         {
+          "name": "errors",
+          "displayValue": "0"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "avg",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, 2 RBI, R",
+            "athlete": {
+             "displayName": "George Springer"
+            },
+            "team": {
+             "id": "14"
+            }
+           }
+          ]
+         },
+         {
+          "name": "homeRuns",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, 2 RBI, R",
+            "athlete": {
+             "displayName": "George Springer"
+            },
+            "team": {
+             "id": "14"
+            }
+           }
+          ]
+         },
+         {
+          "name": "RBIs",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, 2 RBI, R",
+            "athlete": {
+             "displayName": "George Springer"
+            },
+            "team": {
+             "id": "14"
+            }
+           }
+          ]
+         },
+         {
+          "name": "MLBRating",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, 2 RBI, R",
+            "athlete": {
+             "displayName": "George Springer"
+            },
+            "team": {
+             "id": "14"
+            }
+           }
+          ]
+         },
+         {
+          "name": "MLBRating",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, 2 RBI, R",
+            "athlete": {
+             "displayName": "George Springer"
+            },
+            "team": {
+             "id": "14"
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "24",
+        "homeAway": "away",
+        "winner": false,
+        "score": "1",
+        "linescores": [
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 1
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 2
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 3
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 4
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 5
+         },
+         {
+          "value": 1.0,
+          "displayValue": "1",
+          "period": 6
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 7
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 8
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 9
+         }
+        ],
+        "hits": 11,
+        "errors": 0,
+        "team": {
+         "id": "24",
+         "abbreviation": "STL",
+         "displayName": "St. Louis Cardinals",
+         "logo": "https://a.espncdn.com/i/teamlogos/mlb/500/scoreboard/stl.png"
+        },
+        "records": [
+         {
+          "summary": "54-57"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "hits",
+          "displayValue": "11"
+         },
+         {
+          "name": "runs",
+          "displayValue": "1"
+         },
+         {
+          "name": "avg",
+          "displayValue": ".306"
+         },
+         {
+          "name": "saves",
+          "displayValue": "0"
+         },
+         {
+          "name": "losses",
+          "displayValue": "1"
+         },
+         {
+          "name": "wins",
+          "displayValue": "0"
+         },
+         {
+          "name": "ERA",
+          "displayValue": "5.63"
+         },
+         {
+          "name": "errors",
+          "displayValue": "0"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "avg",
+          "leaders": [
+           {
+            "displayValue": "2-4, BB",
+            "athlete": {
+             "displayName": "Alec Burleson"
+            },
+            "team": {
+             "id": "24"
+            }
+           }
+          ]
+         },
+         {
+          "name": "homeRuns",
+          "leaders": [
+           {
+            "displayValue": "1-4, 2B, R",
+            "athlete": {
+             "displayName": "Ivan Herrera"
+            },
+            "team": {
+             "id": "24"
+            }
+           }
+          ]
+         },
+         {
+          "name": "RBIs",
+          "leaders": [
+           {
+            "displayValue": "1-3, 2B, RBI, BB, K",
+            "athlete": {
+             "displayName": "Masyn Winn"
+            },
+            "team": {
+             "id": "24"
+            }
+           }
+          ]
+         },
+         {
+          "name": "MLBRating",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, K",
+            "athlete": {
+             "displayName": "Blaze Jordan"
+            },
+            "team": {
+             "id": "24"
+            }
+           }
+          ]
+         },
+         {
+          "name": "MLBRating",
+          "leaders": [
+           {
+            "displayValue": "2-4, 2B, K",
+            "athlete": {
+             "displayName": "Blaze Jordan"
+            },
+            "team": {
+             "id": "24"
+            }
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "leaders": [
+       {
+        "name": "MLBRating",
+        "leaders": [
+         {
+          "displayValue": "2-4, 2B, 2 RBI, R",
+          "athlete": {
+           "displayName": "George Springer"
+          },
+          "team": {
+           "id": "14"
+          }
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "nhlLive": {
+  "leagues": [
+   {
+    "name": "National Hockey League",
+    "slug": "nhl"
+   }
+  ],
+  "events": [
+   {
+    "id": "401892739",
+    "date": "2026-11-19T00:30Z",
+    "name": "Boston Bruins at Detroit Red Wings",
+    "shortName": "BOS @ DET",
+    "links": [
+     {
+      "language": "en-US",
+      "rel": [
+       "live",
+       "desktop",
+       "event"
+      ],
+      "href": "https://www.espn.com/nhl/game/_/gameId/401892739",
+      "text": "Gamecast",
+      "shortText": "Gamecast",
+      "isExternal": false,
+      "isPremium": false
+     }
+    ],
+    "competitions": [
+     {
+      "id": "401892739",
+      "date": "2026-11-19T00:30Z",
+      "status": {
+       "clock": 662.0,
+       "displayClock": "11:02",
+       "period": 2,
+       "type": {
+        "id": "2",
+        "name": "STATUS_IN_PROGRESS",
+        "state": "in",
+        "completed": false,
+        "description": "In Progress",
+        "detail": "11:02 - 2nd Period",
+        "shortDetail": "11:02 - 2nd"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 3
+       }
+      },
+      "venue": {
+       "fullName": "Little Caesars Arena",
+       "address": {
+        "city": "Detroit"
+       }
+      },
+      "competitors": [
+       {
+        "id": "5",
+        "homeAway": "home",
+        "score": "1",
+        "linescores": [
+         {
+          "value": 1.0,
+          "displayValue": "1",
+          "period": 1
+         },
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 2
+         }
+        ],
+        "team": {
+         "id": "5",
+         "abbreviation": "DET",
+         "displayName": "Detroit Red Wings",
+         "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/det.png"
+        },
+        "records": [
+         {
+          "summary": "8-10-3"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "saves",
+          "displayValue": "18"
+         },
+         {
+          "name": "savePct",
+          "displayValue": ".947"
+         },
+         {
+          "name": "goals",
+          "displayValue": "1"
+         },
+         {
+          "name": "ytdGoals",
+          "displayValue": "112"
+         },
+         {
+          "name": "assists",
+          "displayValue": "2"
+         },
+         {
+          "name": "points",
+          "displayValue": "3"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "goals",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "Lucas Raymond"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         },
+         {
+          "name": "assists",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "Andrew Copp"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         },
+         {
+          "name": "points",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "Lucas Raymond"
+            },
+            "team": {
+             "id": "5"
+            }
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "1",
+        "homeAway": "away",
+        "score": "1",
+        "linescores": [
+         {
+          "value": 0.0,
+          "displayValue": "0",
+          "period": 1
+         },
+         {
+          "value": 1.0,
+          "displayValue": "1",
+          "period": 2
+         }
+        ],
+        "team": {
+         "id": "1",
+         "abbreviation": "BOS",
+         "displayName": "Boston Bruins",
+         "logo": "https://a.espncdn.com/i/teamlogos/nhl/500/scoreboard/bos.png"
+        },
+        "records": [
+         {
+          "summary": "13-7-1"
+         }
+        ],
+        "statistics": [
+         {
+          "name": "saves",
+          "displayValue": "11"
+         },
+         {
+          "name": "savePct",
+          "displayValue": ".917"
+         },
+         {
+          "name": "goals",
+          "displayValue": "1"
+         },
+         {
+          "name": "ytdGoals",
+          "displayValue": "143"
+         },
+         {
+          "name": "assists",
+          "displayValue": "2"
+         },
+         {
+          "name": "points",
+          "displayValue": "3"
+         }
+        ],
+        "leaders": [
+         {
+          "name": "goals",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "JJ Peterka"
+            },
+            "team": {
+             "id": "1"
+            }
+           }
+          ]
+         },
+         {
+          "name": "assists",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "Casey Mittelstadt"
+            },
+            "team": {
+             "id": "1"
+            }
+           }
+          ]
+         },
+         {
+          "name": "points",
+          "leaders": [
+           {
+            "displayValue": "1",
+            "athlete": {
+             "displayName": "JJ Peterka"
+            },
+            "team": {
+             "id": "1"
+            }
+           }
+          ]
+         }
+        ]
+       }
+      ],
+      "situation": {
+       "lastPlay": {
+        "text": "Alex DeBrincat Snap Shot saved by Jeremy Swayman"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "nascarRace": {
+  "events": [
+   {
+    "id": "202611080042",
+    "date": "2026-11-08T20:00Z",
+    "name": "NASCAR Cup Series at Miami",
+    "shortName": "NASCAR Cup Series at Miami",
+    "competitions": [
+     {
+      "id": "202611080042",
+      "date": "2026-11-08T20:00Z",
+      "status": {
+       "period": 267,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "competitors": [
+       {
+        "id": "4531",
+        "uid": "s:2000~a:4531",
+        "type": "athlete",
+        "order": 1,
+        "winner": true,
+        "athlete": {
+         "fullName": "Ryan Blaney",
+         "displayName": "Ryan Blaney",
+         "shortName": "R. Blaney",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "4577",
+        "uid": "s:2000~a:4577",
+        "type": "athlete",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "fullName": "Tyler Reddick",
+         "displayName": "Tyler Reddick",
+         "shortName": "T. Reddick",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "4721",
+        "uid": "s:2000~a:4721",
+        "type": "athlete",
+        "order": 3,
+        "winner": false,
+        "athlete": {
+         "fullName": "William Byron",
+         "displayName": "William Byron",
+         "shortName": "W. Byron",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       },
+       {
+        "id": "4700",
+        "uid": "s:2000~a:4700",
+        "type": "athlete",
+        "order": 4,
+        "winner": false,
+        "athlete": {
+         "fullName": "Christopher Bell",
+         "displayName": "Christopher Bell",
+         "shortName": "C. Bell",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "statistics": []
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "golfFinal": {
+  "events": [
+   {
+    "id": "401850979",
+    "date": "2026-11-05T05:00Z",
+    "endDate": "2026-11-08T05:00Z",
+    "name": "World Wide Technology Championship",
+    "shortName": "World Wide Technology Championship",
+    "status": {
+     "type": {
+      "id": "3",
+      "name": "STATUS_FINAL",
+      "state": "post",
+      "completed": true,
+      "description": "Final"
+     }
+    },
+    "competitions": [
+     {
+      "id": "401850979",
+      "date": "2026-11-05T05:00Z",
+      "status": {
+       "period": 5,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Complete"
+       }
+      },
+      "competitors": [
+       {
+        "id": "5211425",
+        "order": 1,
+        "score": "-25",
+        "athlete": {
+         "displayName": "Blades Brown",
+         "shortName": "B. Brown",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "linescores": [
+         {
+          "value": 66.0,
+          "displayValue": "-6",
+          "period": 1,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 68.0,
+          "displayValue": "-4",
+          "period": 2,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 68.0,
+          "displayValue": "-4",
+          "period": 3,
+          "linescores": [
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 63.0,
+          "displayValue": "-9",
+          "period": 4,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 8.0,
+          "displayValue": "-2",
+          "period": 5,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "period": 402,
+          "linescores": []
+         }
+        ]
+       },
+       {
+        "id": "5077389",
+        "order": 2,
+        "score": "-24",
+        "athlete": {
+         "displayName": "Ben James",
+         "shortName": "B. James",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "linescores": [
+         {
+          "value": 65.0,
+          "displayValue": "-7",
+          "period": 1,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 64.0,
+          "displayValue": "-8",
+          "period": 2,
+          "linescores": [
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           }
+          ]
+         },
+         {
+          "value": 66.0,
+          "displayValue": "-6",
+          "period": 3,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 70.0,
+          "displayValue": "-2",
+          "period": 4,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           }
+          ]
+         },
+         {
+          "value": 4.0,
+          "displayValue": "-1",
+          "period": 5,
+          "linescores": [
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "period": 402,
+          "linescores": []
+         }
+        ]
+       },
+       {
+        "id": "8974",
+        "order": 3,
+        "score": "-22",
+        "athlete": {
+         "displayName": "Michael Kim",
+         "shortName": "M. Kim",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "linescores": [
+         {
+          "value": 73.0,
+          "displayValue": "+1",
+          "period": 1,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 6.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 66.0,
+          "displayValue": "-6",
+          "period": 2,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 63.0,
+          "displayValue": "-9",
+          "period": 3,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           }
+          ]
+         },
+         {
+          "value": 64.0,
+          "displayValue": "-8",
+          "period": 4,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "5075548",
+        "order": 4,
+        "score": "-21",
+        "athlete": {
+         "displayName": "Kensei Hirata",
+         "shortName": "K. Hirata",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/jpn.png",
+          "alt": "Japan",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "linescores": [
+         {
+          "value": 65.0,
+          "displayValue": "-7",
+          "period": 1,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           }
+          ]
+         },
+         {
+          "value": 69.0,
+          "displayValue": "-3",
+          "period": 2,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           }
+          ]
+         },
+         {
+          "value": 67.0,
+          "displayValue": "-5",
+          "period": 3,
+          "linescores": [
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 5.0
+           }
+          ]
+         },
+         {
+          "value": 66.0,
+          "displayValue": "-6",
+          "period": 4,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         }
+        ]
+       },
+       {
+        "id": "5150294",
+        "order": 5,
+        "score": "-20",
+        "athlete": {
+         "displayName": "David Ford",
+         "shortName": "D. Ford",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "linescores": [
+         {
+          "value": 67.0,
+          "displayValue": "-5",
+          "period": 1,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           }
+          ]
+         },
+         {
+          "value": 68.0,
+          "displayValue": "-4",
+          "period": 2,
+          "linescores": [
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         },
+         {
+          "value": 67.0,
+          "displayValue": "-5",
+          "period": 3,
+          "linescores": [
+           {
+            "value": 3.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 2.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 5.0
+           }
+          ]
+         },
+         {
+          "value": 66.0,
+          "displayValue": "-6",
+          "period": 4,
+          "linescores": [
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 3.0
+           },
+           {
+            "value": 4.0
+           },
+           {
+            "value": 4.0
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "ufcCard": {
+  "events": [
+   {
+    "id": "600061400",
+    "date": "2026-11-14T22:00Z",
+    "name": "UFC 334: Gane vs. Hokit",
+    "shortName": "UFC 334",
+    "status": {
+     "type": {
+      "id": "3",
+      "name": "STATUS_FINAL",
+      "state": "post",
+      "completed": true,
+      "description": "Final",
+      "detail": "Final",
+      "shortDetail": "Final"
+     }
+    },
+    "competitions": [
+     {
+      "id": "401932013",
+      "date": "2026-11-14T22:00Z",
+      "type": {
+       "id": "986",
+       "abbreviation": "Lightweight"
+      },
+      "status": {
+       "clock": 300.0,
+       "displayClock": "5:00",
+       "period": 3,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 3
+       }
+      },
+      "competitors": [
+       {
+        "id": "5037883",
+        "order": 1,
+        "winner": true,
+        "athlete": {
+         "displayName": "Evan Elder",
+         "shortName": "E. Elder",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "11-2-0"
+         }
+        ]
+       },
+       {
+        "id": "5293557",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "displayName": "Samuel Sanches",
+         "shortName": "S. Sanches",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+          "alt": "Brazil",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "11-2-0"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "401933936",
+      "date": "2026-11-14T22:00Z",
+      "type": {
+       "id": "970",
+       "abbreviation": "Bantamweight"
+      },
+      "status": {
+       "clock": 300.0,
+       "displayClock": "5:00",
+       "period": 3,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 3
+       }
+      },
+      "competitors": [
+       {
+        "id": "3154389",
+        "order": 1,
+        "winner": false,
+        "athlete": {
+         "displayName": "Alatengheili",
+         "shortName": "Alatengheili",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/chn.png",
+          "alt": "China",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "18-11-2"
+         }
+        ]
+       },
+       {
+        "id": "5310574",
+        "order": 2,
+        "winner": true,
+        "athlete": {
+         "displayName": "Juan Diaz",
+         "shortName": "J. Diaz",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/per.png",
+          "alt": "Peru",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "17-1-1"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "401922638",
+      "date": "2026-11-15T02:00Z",
+      "type": {
+       "id": "1003",
+       "abbreviation": "W Bantamweight"
+      },
+      "status": {
+       "clock": 89.0,
+       "displayClock": "1:29",
+       "period": 4,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 5
+       }
+      },
+      "competitors": [
+       {
+        "id": "2516131",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "displayName": "Amanda Nunes",
+         "shortName": "A. Nunes",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/bra.png",
+          "alt": "Brazil",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "23-6-0"
+         }
+        ]
+       },
+       {
+        "id": "4332765",
+        "order": 1,
+        "winner": true,
+        "athlete": {
+         "displayName": "Kayla Harrison",
+         "shortName": "K. Harrison",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "20-1-0"
+         }
+        ]
+       }
+      ]
+     },
+     {
+      "id": "401913646",
+      "date": "2026-11-15T02:00Z",
+      "type": {
+       "id": "982",
+       "abbreviation": "Heavyweight"
+      },
+      "status": {
+       "clock": 300.0,
+       "displayClock": "5:00",
+       "period": 5,
+       "type": {
+        "id": "3",
+        "name": "STATUS_FINAL",
+        "state": "post",
+        "completed": true,
+        "description": "Final",
+        "detail": "Final",
+        "shortDetail": "Final"
+       }
+      },
+      "format": {
+       "regulation": {
+        "periods": 5
+       }
+      },
+      "competitors": [
+       {
+        "id": "4049391",
+        "order": 2,
+        "winner": false,
+        "athlete": {
+         "displayName": "Josh Hokit",
+         "shortName": "J. Hokit",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
+          "alt": "USA",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "10-1-0"
+         }
+        ]
+       },
+       {
+        "id": "4426000",
+        "order": 1,
+        "winner": true,
+        "athlete": {
+         "displayName": "Ciryl Gane",
+         "shortName": "C. Gane",
+         "flag": {
+          "href": "https://a.espncdn.com/i/teamlogos/countries/500/fra.png",
+          "alt": "France",
+          "rel": [
+           "country-flag"
+          ]
+         }
+        },
+        "records": [
+         {
+          "summary": "15-2-0"
+         }
+        ]
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "nflStandings": {
+  "name": "National Football League",
+  "children": [
+   {
+    "name": "American Football Conference",
+    "abbreviation": "AFC",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "2",
+        "abbreviation": "BUF",
+        "displayName": "Buffalo Bills",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/buf.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T18:45Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 88.0,
+         "displayValue": "+88"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "12",
+        "abbreviation": "KC",
+        "displayName": "Kansas City Chiefs",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/kc.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T18:51Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 81.0,
+         "displayValue": "+81"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "30",
+        "abbreviation": "JAX",
+        "displayName": "Jacksonville Jaguars",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/jax.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T18:50Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 125.0,
+         "displayValue": "+125"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "name": "National Football Conference",
+    "abbreviation": "NFC",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "25",
+        "abbreviation": "SF",
+        "displayName": "San Francisco 49ers",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/sf.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T18:56Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 85.0,
+         "displayValue": "+85"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "8",
+        "abbreviation": "DET",
+        "displayName": "Detroit Lions",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/det.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T18:48Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 58.0,
+         "displayValue": "+58"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "16",
+        "abbreviation": "MIN",
+        "displayName": "Minnesota Vikings",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nfl/500/min.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-08-24T19:26Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "differential",
+         "displayName": "Point Differential",
+         "shortDisplayName": "DIFF",
+         "description": "Point Differential",
+         "abbreviation": "DIFF",
+         "type": "differential",
+         "value": 50.0,
+         "displayValue": "+50"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "collegeFootballStandings": {
+  "name": "FBS",
+  "children": [
+   {
+    "name": "Southeastern Conference",
+    "abbreviation": "sec",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "61",
+        "abbreviation": "UGA",
+        "displayName": "Georgia Bulldogs",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2025-12-19T23:48Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "displayName": "Games Back",
+         "shortDisplayName": "GB",
+         "description": "Games Back",
+         "abbreviation": "GB",
+         "type": "gamesbehind",
+         "value": 0.0,
+         "displayValue": "-"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "333",
+        "abbreviation": "ALA",
+        "displayName": "Alabama Crimson Tide",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2025-12-19T23:48Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "displayName": "Games Back",
+         "shortDisplayName": "GB",
+         "description": "Games Back",
+         "abbreviation": "GB",
+         "type": "gamesbehind",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "251",
+        "abbreviation": "TEX",
+        "displayName": "Texas Longhorns",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2025-12-19T23:48Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "displayName": "Games Back",
+         "shortDisplayName": "GB",
+         "description": "Games Back",
+         "abbreviation": "GB",
+         "type": "gamesbehind",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "name": "Sun Belt Conference",
+    "abbreviation": "belt",
+    "standings": {
+     "entries": []
+    },
+    "children": [
+     {
+      "name": "Sun Belt - East",
+      "abbreviation": "belte",
+      "standings": {
+       "entries": [
+        {
+         "team": {
+          "id": "256",
+          "abbreviation": "JMU",
+          "displayName": "James Madison Dukes",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/256.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-24T20:19Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 0.0,
+           "displayValue": "-"
+          }
+         ]
+        },
+        {
+         "team": {
+          "id": "290",
+          "abbreviation": "GASO",
+          "displayName": "Georgia Southern Eagles",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/290.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-24T20:19Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 1.5,
+           "displayValue": "1.5"
+          }
+         ]
+        },
+        {
+         "team": {
+          "id": "2026",
+          "abbreviation": "APP",
+          "displayName": "App State Mountaineers",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2026.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-24T20:19Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 1.5,
+           "displayValue": "1.5"
+          }
+         ]
+        }
+       ]
+      }
+     },
+     {
+      "name": "Sun Belt - West",
+      "abbreviation": "beltw",
+      "standings": {
+       "entries": [
+        {
+         "team": {
+          "id": "2348",
+          "abbreviation": "LT",
+          "displayName": "Louisiana Tech Bulldogs",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/2348.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-23T22:08Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 0.0,
+           "displayValue": "-"
+          }
+         ]
+        },
+        {
+         "team": {
+          "id": "309",
+          "abbreviation": "UL",
+          "displayName": "Louisiana Ragin' Cajuns",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/309.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-24T20:19Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 1.0,
+           "displayValue": "1"
+          }
+         ]
+        },
+        {
+         "team": {
+          "id": "6",
+          "abbreviation": "USA",
+          "displayName": "South Alabama Jaguars",
+          "logos": [
+           {
+            "href": "https://a.espncdn.com/i/teamlogos/ncaa/500/6.png",
+            "width": 500,
+            "height": 500,
+            "alt": "",
+            "rel": [
+             "full",
+             "default"
+            ],
+            "lastUpdated": "2025-12-24T20:19Z"
+           }
+          ]
+         },
+         "stats": [
+          {
+           "name": "gamesBehind",
+           "displayName": "Games Back",
+           "shortDisplayName": "GB",
+           "description": "Games Back",
+           "abbreviation": "GB",
+           "type": "gamesbehind",
+           "value": 3.0,
+           "displayValue": "3"
+          }
+         ]
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ },
+ "brasileiraoStandings": {
+  "children": [
+   {
+    "name": "2026",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "3445",
+        "abbreviation": "FLU",
+        "displayName": "Fluminense",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/3445.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2023-03-24T19:32Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesPlayed",
+         "type": "gamesplayed",
+         "value": 34.0,
+         "displayValue": "34"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 9.0,
+         "displayValue": "9"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": 13.0,
+         "displayValue": "+13"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": 57.0,
+         "displayValue": "57"
+        },
+        {
+         "name": "ties",
+         "type": "ties",
+         "value": 9.0,
+         "displayValue": "9"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 16.0,
+         "displayValue": "16"
+        },
+        {
+         "name": "rank",
+         "type": "rank",
+         "value": 4.0,
+         "displayValue": "4"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "2022",
+        "abbreviation": "CRU",
+        "displayName": "Cruzeiro",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/2022.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesPlayed",
+         "type": "gamesplayed",
+         "value": 35.0,
+         "displayValue": "35"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 10.0,
+         "displayValue": "10"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": 8.0,
+         "displayValue": "+8"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": 63.0,
+         "displayValue": "63"
+        },
+        {
+         "name": "ties",
+         "type": "ties",
+         "value": 6.0,
+         "displayValue": "6"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 19.0,
+         "displayValue": "19"
+        },
+        {
+         "name": "rank",
+         "type": "rank",
+         "value": 3.0,
+         "displayValue": "3"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "2029",
+        "abbreviation": "PAL",
+        "displayName": "Palmeiras",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/2029.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2019-05-08T16:07Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesPlayed",
+         "type": "gamesplayed",
+         "value": 35.0,
+         "displayValue": "35"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 4.0,
+         "displayValue": "4"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": 38.0,
+         "displayValue": "+38"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": 73.0,
+         "displayValue": "73"
+        },
+        {
+         "name": "ties",
+         "type": "ties",
+         "value": 10.0,
+         "displayValue": "10"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 21.0,
+         "displayValue": "21"
+        },
+        {
+         "name": "rank",
+         "type": "rank",
+         "value": 2.0,
+         "displayValue": "2"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "819",
+        "abbreviation": "FLA",
+        "displayName": "Flamengo",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/soccer/500/819.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2020-02-20T17:24Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesPlayed",
+         "type": "gamesplayed",
+         "value": 35.0,
+         "displayValue": "35"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 4.0,
+         "displayValue": "4"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": 43.0,
+         "displayValue": "+43"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": 79.0,
+         "displayValue": "79"
+        },
+        {
+         "name": "ties",
+         "type": "ties",
+         "value": 7.0,
+         "displayValue": "7"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 24.0,
+         "displayValue": "24"
+        },
+        {
+         "name": "rank",
+         "type": "rank",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ },
+ "nbaStandings": {
+  "children": [
+   {
+    "name": "Eastern Conference",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "15",
+        "abbreviation": "MIL",
+        "displayName": "Milwaukee Bucks",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/mil.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 11.5,
+         "displayValue": "11.5"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 14.0,
+         "displayValue": "14"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 15.0,
+         "displayValue": "15"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -197.0,
+         "displayValue": "-197"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -6.5,
+         "displayValue": "-6.5"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.06666667,
+         "displayValue": ".067"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "17",
+        "abbreviation": "BKN",
+        "displayName": "Brooklyn Nets",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/bkn.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 9.0,
+         "displayValue": "9"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 11.0,
+         "displayValue": "11"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 14.0,
+         "displayValue": "14"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -117.0,
+         "displayValue": "-117"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -4.0,
+         "displayValue": "-4.0"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.21428572,
+         "displayValue": ".214"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 3.0,
+         "displayValue": "3"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "27",
+        "abbreviation": "WSH",
+        "displayName": "Washington Wizards",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/wsh.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 8.0,
+         "displayValue": "8"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 11.0,
+         "displayValue": "11"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 11.0,
+         "displayValue": "11"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -115.0,
+         "displayValue": "-115"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -3.0,
+         "displayValue": "-3.0"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.3125,
+         "displayValue": ".313"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 5.0,
+         "displayValue": "5"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "30",
+        "abbreviation": "CHA",
+        "displayName": "Charlotte Hornets",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/cha.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 8.0,
+         "displayValue": "8"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 10.0,
+         "displayValue": "10"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 12.0,
+         "displayValue": "12"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -144.0,
+         "displayValue": "-144"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -3.0,
+         "displayValue": "-3.0"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.2857143,
+         "displayValue": ".286"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 4.0,
+         "displayValue": "4"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   {
+    "name": "Western Conference",
+    "standings": {
+     "entries": [
+      {
+       "team": {
+        "id": "26",
+        "abbreviation": "UTAH",
+        "displayName": "Utah Jazz",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/utah.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2025-06-24T15:32Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 11.0,
+         "displayValue": "11"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 13.0,
+         "displayValue": "13"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 14.0,
+         "displayValue": "14"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -128.0,
+         "displayValue": "-128"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -5.5,
+         "displayValue": "-5.5"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.13333334,
+         "displayValue": ".133"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 2.0,
+         "displayValue": "2"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "23",
+        "abbreviation": "SAC",
+        "displayName": "Sacramento Kings",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/sac.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 11.0,
+         "displayValue": "11"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 12.0,
+         "displayValue": "12"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 15.0,
+         "displayValue": "15"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -175.0,
+         "displayValue": "-175"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -5.5,
+         "displayValue": "-5.5"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.07692308,
+         "displayValue": ".077"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 1.0,
+         "displayValue": "1"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "3",
+        "abbreviation": "NO",
+        "displayName": "New Orleans Pelicans",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/no.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 8.0,
+         "displayValue": "8"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 10.0,
+         "displayValue": "10"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 12.0,
+         "displayValue": "12"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -106.0,
+         "displayValue": "-106"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -2.5,
+         "displayValue": "-2.5"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.33333334,
+         "displayValue": ".333"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 5.0,
+         "displayValue": "5"
+        }
+       ]
+      },
+      {
+       "team": {
+        "id": "12",
+        "abbreviation": "LAC",
+        "displayName": "LA Clippers",
+        "logos": [
+         {
+          "href": "https://a.espncdn.com/i/teamlogos/nba/500/lac.png",
+          "width": 500,
+          "height": 500,
+          "alt": "",
+          "rel": [
+           "full",
+           "default"
+          ],
+          "lastUpdated": "2024-06-25T21:17Z"
+         }
+        ]
+       },
+       "stats": [
+        {
+         "name": "gamesBehind",
+         "type": "gamesbehind",
+         "value": 8.0,
+         "displayValue": "8"
+        },
+        {
+         "name": "losses",
+         "type": "losses",
+         "value": 9.0,
+         "displayValue": "9"
+        },
+        {
+         "name": "playoffSeed",
+         "type": "playoffseed",
+         "value": 13.0,
+         "displayValue": "13"
+        },
+        {
+         "name": "pointDifferential",
+         "type": "pointdifferential",
+         "value": -75.0,
+         "displayValue": "-75"
+        },
+        {
+         "name": "points",
+         "type": "points",
+         "value": -2.5,
+         "displayValue": "-2.5"
+        },
+        {
+         "name": "winPercent",
+         "type": "winpercent",
+         "value": 0.30769232,
+         "displayValue": ".308"
+        },
+        {
+         "name": "wins",
+         "type": "wins",
+         "value": 4.0,
+         "displayValue": "4"
+        }
+       ]
+      }
+     ]
+    }
+   }
+  ]
+ }
+}
