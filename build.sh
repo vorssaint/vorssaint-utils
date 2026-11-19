@@ -491,12 +491,14 @@ if (( TEST )); then
         Sources/Vorssaint/Services/MouseButtons/MouseButtonShortcutSupport.swift
         Sources/Vorssaint/Services/MouseButtons/MouseSpacesGestureSupport.swift
         Sources/Vorssaint/Services/MouseClickDebounce/MouseClickDebounceSupport.swift
+        Sources/Vorssaint/Services/TrackpadEdgeSlider/TrackpadEdgeSliderSupport.swift
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptionSupport.swift
         Sources/Vorssaint/Services/MouseExceptions/MouseAppExceptions.swift
         Sources/Vorssaint/Services/WindowServerSupport.swift
         Sources/Vorssaint/Services/WindowMaximizerSupport.swift
         Sources/Vorssaint/Core/MouseButtonStrings.swift
         Sources/Vorssaint/Core/MouseClickDebounceStrings.swift
+        Sources/Vorssaint/Core/TrackpadEdgeSliderStrings.swift
         Sources/Vorssaint/Core/MouseExceptionStrings.swift
         Sources/Vorssaint/Core/ClipboardIgnoredAppsStrings.swift
         Sources/Vorssaint/Core/ClipboardRetentionStrings.swift

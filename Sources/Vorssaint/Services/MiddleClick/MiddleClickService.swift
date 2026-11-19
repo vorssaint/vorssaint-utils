@@ -16,7 +16,9 @@ import IOKit
 /// utility uses it), loaded via dlopen/dlsym so a macOS that changes it
 /// degrades to the feature simply staying off. Requires Accessibility for
 /// the event tap. The same tap recognizer also opens the radial menu from a
-/// four-finger tap, so the service runs for either feature.
+/// four-finger tap, and the same contact stream drives the trackpad edge
+/// sliders (one finger sliding along the left or right edge changes brightness
+/// or volume), so the service runs for any of the three features.
 final class MiddleClickService: ObservableObject {
     static let shared = MiddleClickService()
 
@@ -93,6 +95,13 @@ final class MiddleClickService: ObservableObject {
     private var tapSawButton = false
     private var tapPositionUnavailable = false
 
+    // Trackpad edge sliders, all under `stateLock`.
+    private var edgeSlidersOn = false
+    private var edgeEngine = TrackpadEdgeSliderEngine()
+    /// Where the pointer sat when the finger touched down in the edge, put back
+    /// on every frame of the touch so a slide never drags it along.
+    private var edgePointerAnchor: CGPoint?
+
     private init() {
         // Multitouch callbacks and the filter tap belong only to the login
         // session on screen. A switched-away process must own neither.
@@ -113,15 +122,20 @@ final class MiddleClickService: ObservableObject {
                 && RadialMenuSupport.decodeProfiles(defaults.data(forKey: DefaultsKey.radialMenuProfiles),
                                                     defaults: defaults).contains(where: \.trackpadTap),
             middleClickTapFingers: tap)
+        let edgeSliders = AppFeature.trackpadEdgeSliders.isAvailable
+            && defaults.bool(forKey: DefaultsKey.trackpadEdgeSlidersEnabled)
         tapStateLock.withLock { middleClickOn = enabled }
         stateLock.lock()
         tapFingers = tap
         radialMenuTapFingers = radialMenuTap
+        edgeSlidersOn = edgeSliders
+        edgeEngine.config = TrackpadEdgeSliderConfig(defaults: defaults)
+        resetEdgeSlidersLocked()
         resetTapCandidateLocked()
         stateLock.unlock()
         refreshDragGestureConflict()
         if SessionActivitySupport.tapShouldRun(
-            featureWanted: enabled || radialMenuTap > 0,
+            featureWanted: enabled || radialMenuTap > 0 || edgeSliders,
             accessibilityGranted: AXIsProcessTrusted(),
             sessionIsActive: SessionActivity.shared.isActive
         ) {
@@ -248,6 +262,7 @@ final class MiddleClickService: ObservableObject {
         fingerCount = 0
         lastFrameUptime = 0
         fingerCountSince = 0
+        resetEdgeSlidersLocked()
         resetTapCandidateLocked()
         stateLock.unlock()
         isRunning = false
@@ -279,6 +294,9 @@ final class MiddleClickService: ObservableObject {
 
     private func stopMultitouch() {
         guard let list = deviceList else { return }
+        // Contacts stop arriving, so an edge touch in progress can never end
+        // by itself; the next one starts from an empty pad.
+        stateLock.withLock { resetEdgeSlidersLocked() }
         for index in 0..<CFArrayGetCount(list) {
             guard let device = CFArrayGetValueAtIndex(list, index) else { continue }
             Multitouch.stop(UnsafeMutableRawPointer(mutating: device))
@@ -371,12 +389,69 @@ final class MiddleClickService: ObservableObject {
             firedFingers = trackTapLocked(count: count, geometry: geometry, now: now)
         }
         let radialMenuFingers = radialMenuTapFingers
+        var edgeOutput = TrackpadEdgeSliderOutput.idle
+        var pointerAnchor: CGPoint?
+        if edgeSlidersOn {
+            // One finger is all a slide needs, so that is the only position read.
+            let position = count == 1
+                ? Multitouch.touchGeometry(touches: touches, count: 1)?.center
+                : nil
+            edgeOutput = edgeEngine.update(fingerCount: count,
+                                           position: position,
+                                           typedRecently: Self.typedRecently())
+            if edgeOutput.holdsPointer {
+                if edgePointerAnchor == nil { edgePointerAnchor = CGEvent(source: nil)?.location }
+                pointerAnchor = edgePointerAnchor
+            } else {
+                edgePointerAnchor = nil
+            }
+        }
         stateLock.unlock()
         if let firedFingers {
             if firedFingers == radialMenuFingers {
                 DispatchQueue.main.async { RadialMenuService.shared.toggleFromTrackpad() }
             } else {
                 postMiddleTap()
+            }
+        }
+        if let pointerAnchor {
+            CGWarpMouseCursorPosition(pointerAnchor)
+        }
+        if let target = edgeOutput.target, edgeOutput.steps != 0 {
+            postEdgeSliderSteps(target: target, steps: edgeOutput.steps)
+        }
+        if edgeOutput.haptic {
+            DispatchQueue.main.async {
+                NSHapticFeedbackManager.defaultPerformer.perform(.generic, performanceTime: .now)
+            }
+        }
+    }
+
+    /// Typing right before a touch means the contact is a palm or a resting
+    /// hand, not a deliberate slide.
+    private static func typedRecently() -> Bool {
+        CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: .keyDown)
+            < MiddleClickSupport.tapKeyboardIdle
+    }
+
+    private func resetEdgeSlidersLocked() {
+        edgeEngine.reset()
+        edgePointerAnchor = nil
+    }
+
+    /// Sends the same system-defined key events the keyboard's volume and
+    /// brightness keys do, so macOS applies the change, shows its own indicator
+    /// and treats each external display the way it already does. Option and Shift
+    /// make each press a quarter step; the marker keeps the precise volume
+    /// feature from handling its own neighbour's events twice.
+    private func postEdgeSliderSteps(target: TrackpadEdgeSliderTarget, steps: Int) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.tapStateLock.withLock({ self.tap }) != nil else { return }
+            let code = TrackpadEdgeSliderSupport.keyCode(for: target, raising: steps > 0)
+            for _ in 0..<abs(steps) {
+                for event in PreciseVolumeKeyEvents.fineStep(code) {
+                    event.post(tap: .cghidEventTap)
+                }
             }
         }
     }
@@ -488,7 +563,7 @@ final class MiddleClickService: ObservableObject {
             releaseHeldMiddleButton()
             let enabled = AppFeature.middleClick.isAvailable
                 && UserDefaults.standard.bool(forKey: DefaultsKey.middleClickEnabled)
-                || stateLock.withLock { radialMenuTapFingers > 0 }
+                || stateLock.withLock { radialMenuTapFingers > 0 || edgeSlidersOn }
             let shouldRearm = SessionActivitySupport.tapShouldRun(
                 featureWanted: enabled,
                 accessibilityGranted: AXIsProcessTrusted(),
@@ -520,6 +595,8 @@ final class MiddleClickService: ObservableObject {
         case .leftMouseDown, .rightMouseDown:
             stateLock.lock()
             if tapStartUptime != nil { tapSawButton = true }
+            // A press on the edge is a click, not the start of a slide.
+            edgeEngine.cancel()
             stateLock.unlock()
             tapStateLock.lock()
             guard middleClickOn else {

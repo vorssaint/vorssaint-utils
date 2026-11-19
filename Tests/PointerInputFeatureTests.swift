@@ -4301,6 +4301,7 @@ enum MiddleClickTrackpadContract {
         var fingerCountSince: TimeInterval = 0
         func releaseHeldMiddleButton() {}
         func resetTapCandidateLocked() {}
+        func resetEdgeSlidersLocked() {}
     }
 
     static func run(_ suite: TestSuite) {
