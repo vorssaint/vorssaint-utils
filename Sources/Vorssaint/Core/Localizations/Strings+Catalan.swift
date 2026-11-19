@@ -697,6 +697,7 @@ extension Strings {
         audioPriorityMoveUp: "Mou cap amunt",
         audioPriorityMoveDown: "Mou cap avall",
         audioPriorityUnavailable: "No disponible",
+        audioPriorityRemove: "Elimina",
         audioPriorityCurrent: "Actual",
         audioPriorityCaption: "Els dispositius se seleccionen per ordre de prioritat. Quan es connecta un dispositiu amb més prioritat, passa a ser l’actiu. Quan l’actiu es desconnecta, el substitueix el següent disponible.",
         updatesSection: "Actualitzacions",
