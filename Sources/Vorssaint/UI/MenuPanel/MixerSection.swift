@@ -549,8 +549,14 @@ struct MixerOptionsControls: View {
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
+    @AppStorage(DefaultsKey.mixerWakeVolumeCapEnabled)
+    private var wakeVolumeCapEnabled = false
+    @AppStorage(DefaultsKey.mixerWakeVolumeCapPercent)
+    private var wakeVolumeCapPercent = Defaults.defaultMixerWakeVolumeCapPercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
+    @AppStorage(DefaultsKey.systemMuteShortcutEnabled)
+    private var systemMuteShortcutEnabled = false
     @State private var showListChooser = false
     var includeSharedAudioFeatures = true
 
@@ -560,6 +566,9 @@ struct MixerOptionsControls: View {
                 inactiveAppsVisibilityToggle
             }
             headphoneDisconnectProtectionToggle
+            wakeVolumeCapToggle
+
+            systemMuteToggle
             preciseVolumeRollerToggle
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
@@ -622,6 +631,64 @@ struct MixerOptionsControls: View {
 
     private var headphonesDisconnectDisplayPercent: Int {
         Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(headphonesDisconnectVolumePercent)
+    }
+
+    private var wakeVolumeCapToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.mixerCapVolumeAfterWakeToggle, isOn: $wakeVolumeCapEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+
+            Text(l10n.s.mixerCapVolumeAfterWakeCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if wakeVolumeCapEnabled {
+                HStack(spacing: 8) {
+                    Stepper(value: wakeVolumeCapPercentBinding,
+                            in: Defaults.minimumMixerHeadphonesDisconnectVolumePercent...100,
+                            step: 5) {
+                        Text(l10n.s.mixerWakeVolumeCapPercent)
+                            .font(.system(size: 10.5, weight: .medium))
+                    }
+                    .controlSize(.small)
+                    Spacer(minLength: 6)
+                    Text("\(wakeVolumeCapDisplayPercent)%")
+                        .font(.system(size: 10.5, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 38, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    private var wakeVolumeCapPercentBinding: Binding<Int> {
+        Binding(
+            get: { Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(wakeVolumeCapPercent) },
+            set: { wakeVolumeCapPercent = Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent($0) }
+        )
+    }
+
+    private var wakeVolumeCapDisplayPercent: Int {
+        Defaults.sanitizedMixerHeadphonesDisconnectVolumePercent(wakeVolumeCapPercent)
+    }
+
+    private var systemMuteToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.systemMuteShortcutToggle, isOn: $systemMuteShortcutEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: systemMuteShortcutEnabled) { _, _ in
+                    AppVolumeMixer.shared.syncWithPreferences()
+                }
+
+            Text(SoundOutputStrings.localized(l10n.language).systemMuteCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private var preciseVolumeRollerToggle: some View {
@@ -774,6 +841,10 @@ struct SoundOutputSwitcherControls: View {
     @AppStorage(DefaultsKey.soundOutputSwitcherEnabled)
     private var enabled = false
     @State private var selectedUIDs: [String] = []
+    @ObservedObject private var inputManager = AudioInputDeviceManager.shared
+    @AppStorage(DefaultsKey.soundInputSwitcherEnabled)
+    private var inputEnabled = false
+    @State private var selectedInputUIDs: [String] = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -829,11 +900,70 @@ struct SoundOutputSwitcherControls: View {
                     }
                 }
             }
+
+            Divider()
+
+            Toggle(l10n.s.soundInputSwitcherEnable, isOn: $inputEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: inputEnabled) { _, isEnabled in
+                    if isEnabled, selectedInputUIDs.isEmpty,
+                       let current = inputManager.currentInputDeviceUID,
+                       inputManager.inputDevices.contains(where: { $0.uid == current }) {
+                        setSelectedInputUIDs([current])
+                    }
+                }
+
+            Text(l10n.s.soundInputSwitcherCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if inputEnabled {
+                if outputSwitcher.lastInputSwitchFailed {
+                    inputMessage(l10n.s.soundInputSwitcherNoAvailableSelection,
+                                 systemImage: "mic.badge.xmark")
+                }
+
+                Button {
+                    if !outputSwitcher.switchToNextInput() { NSSound.beep() }
+                } label: {
+                    Label(l10n.s.soundInputSwitcherEnable, systemImage: "mic")
+                        .font(.system(size: 10.5, weight: .medium))
+                }
+                .buttonStyle(.link)
+                .controlSize(.small)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(l10n.s.soundInputSwitcherDevices)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(.secondary)
+
+                    if inputManager.inputDevices.isEmpty {
+                        inputMessage(l10n.s.soundInputSwitcherNoDevices, systemImage: "mic.slash")
+                    } else {
+                        ForEach(inputManager.inputDevices) { device in
+                            Toggle(isOn: inputSelectionBinding(for: device.uid)) {
+                                Text(inputDeviceTitle(device))
+                                    .font(.system(size: 10.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .toggleStyle(.checkbox)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
         }
-        .onAppear { selectedUIDs = outputSwitcher.selectedDeviceUIDs() }
+        .onAppear {
+            selectedUIDs = outputSwitcher.selectedDeviceUIDs()
+            selectedInputUIDs = outputSwitcher.selectedInputDeviceUIDs()
+        }
         .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: RunLoop.main)) { _ in
             selectedUIDs = outputSwitcher.selectedDeviceUIDs()
+            selectedInputUIDs = outputSwitcher.selectedInputDeviceUIDs()
         }
     }
 
@@ -875,6 +1005,34 @@ struct SoundOutputSwitcherControls: View {
         let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
         selectedUIDs = sanitized
         outputSwitcher.setSelectedDeviceUIDs(sanitized)
+    }
+
+    private func inputDeviceTitle(_ device: MixerInputDevice) -> String {
+        device.isDefault ? "\(device.name) (\(l10n.s.mixerOutputCurrent))" : device.name
+    }
+
+    private func inputSelectionBinding(for uid: String) -> Binding<Bool> {
+        Binding(
+            get: { selectedInputUIDs.contains(uid) },
+            set: { selected in
+                var next = selectedInputUIDs
+                if selected {
+                    if !next.contains(uid) { next.append(uid) }
+                } else {
+                    next.removeAll { $0 == uid }
+                }
+                let visibleOrder = inputManager.inputDevices.map(\.uid)
+                let visible = visibleOrder.filter { next.contains($0) }
+                let unavailable = next.filter { !visibleOrder.contains($0) }
+                setSelectedInputUIDs(visible + unavailable)
+            }
+        )
+    }
+
+    private func setSelectedInputUIDs(_ uids: [String]) {
+        let sanitized = Defaults.sanitizedSoundOutputSwitcherDeviceUIDs(uids)
+        selectedInputUIDs = sanitized
+        outputSwitcher.setSelectedInputDeviceUIDs(sanitized)
     }
 }
 

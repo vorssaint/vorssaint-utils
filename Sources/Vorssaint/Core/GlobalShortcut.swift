@@ -201,6 +201,8 @@ struct GlobalShortcut: Equatable, Hashable {
     // O for "others", beside Quit all on the same layer.
     static let quitAllExceptFrontDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_O),
                                                               modifiers: [.control, .option, .command])
+    static let systemMuteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_J),
+                                                  modifiers: [.control, .option, .command])
     // W for webcam, on the same free control-option-command layer.
     static let cameraPreviewDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_W),
                                                      modifiers: [.control, .option, .command])
@@ -720,6 +722,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case micMute
     case quitAll
     case quitAllExceptFront
+    case systemMute
     case quickLauncher
     case screenshot
     case screenshotScrolling
@@ -759,6 +762,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return DefaultsKey.micMuteShortcut
         case .quitAll: return DefaultsKey.quitAppsShortcut
         case .quitAllExceptFront: return DefaultsKey.quitAppsExceptFrontShortcut
+        case .systemMute: return DefaultsKey.systemMuteShortcut
         case .quickLauncher: return DefaultsKey.quickLauncherShortcut
         case .screenshotScrolling: return DefaultsKey.screenshotScrollingShortcut
         case .screenshot: return DefaultsKey.screenshotShortcut
@@ -798,6 +802,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return .micMuteDefault
         case .quitAll: return .quitAllDefault
         case .quitAllExceptFront: return .quitAllExceptFrontDefault
+        case .systemMute: return .systemMuteDefault
         case .quickLauncher: return .quickLauncherDefault
         case .screenshotScrolling: return .screenshotScrollingDefault
         case .screenshot: return .screenshotDefault
@@ -870,6 +875,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .quitAll: return FeatureStrings.quickToggles(L10n.shared.language).quitAllTitle
         case .quitAllExceptFront:
             return FeatureStrings.quickToggles(L10n.shared.language).quitOthersTitle
+        case .systemMute: return SoundOutputStrings.localized(L10n.shared.language).systemMute
         case .quickLauncher: return strings.launcherName
         case .screenshot:
             return FeatureStrings.screenshot(L10n.shared.language).pageTitle
@@ -945,6 +951,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
         case .quitAll: return [DefaultsKey.quitAppsShortcutEnabled]
         case .quitAllExceptFront: return [DefaultsKey.quitAppsExceptFrontShortcutEnabled]
+        case .systemMute: return [DefaultsKey.systemMuteShortcutEnabled]
         case .quickLauncher: return [DefaultsKey.quickLauncherShortcutEnabled]
         case .screenshotScrolling: return [DefaultsKey.screenshotScrollingShortcutEnabled]
         case .screenshot: return [DefaultsKey.screenshotShortcutEnabled]
@@ -984,6 +991,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .screenOCR: return .screenOCR
         case .micMute: return .micMute
         case .quitAll, .quitAllExceptFront: return .quitApps
+        case .systemMute: return .mixer
         case .quickLauncher: return .quickLauncher
         case .screenshot, .screenshotScrolling, .screenshotFullScreen, .screenshotLastCapture, .recentCaptures,
              .screenshotClipboard, .screenshotUpload:
