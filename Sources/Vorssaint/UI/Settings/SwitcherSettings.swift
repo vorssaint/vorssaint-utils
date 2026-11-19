@@ -31,6 +31,8 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
     @AppStorage(DefaultsKey.switcherIgnoreHoverSelection) private var switcherIgnoreHoverSelection = false
     @AppStorage(DefaultsKey.switcherTabStepsThroughWindows) private var switcherTabStepsThroughWindows = false
+    @AppStorage(DefaultsKey.switcherPeekSelectedApp) private var switcherPeekSelectedApp = false
+    @AppStorage(DefaultsKey.switcherPeekHighlightSelected) private var switcherPeekHighlightSelected = true
     @AppStorage(DefaultsKey.switcherMaxColumns) private var switcherMaxColumns = 0
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
@@ -248,6 +250,16 @@ struct SwitcherSettings: View {
                 SettingsRow(symbol: "rectangle.stack", title: l10n.s.switcherTabStepsThroughWindows,
                             caption: l10n.s.switcherTabStepsThroughWindowsCaption) {
                     Toggle(l10n.s.switcherTabStepsThroughWindows, isOn: $switcherTabStepsThroughWindows).labelsHidden()
+                }
+            }
+            SettingsRow(symbol: "macwindow.on.rectangle", title: l10n.s.switcherPeekSelectedApp,
+                        caption: l10n.s.switcherPeekSelectedAppCaption) {
+                Toggle(l10n.s.switcherPeekSelectedApp, isOn: $switcherPeekSelectedApp).labelsHidden()
+            }
+            if switcherPeekSelectedApp {
+                SettingsRow(symbol: "rectangle.dashed", title: l10n.s.switcherPeekHighlightSelected,
+                            caption: l10n.s.switcherPeekHighlightSelectedCaption) {
+                    Toggle(l10n.s.switcherPeekHighlightSelected, isOn: $switcherPeekHighlightSelected).labelsHidden()
                 }
             }
             SettingsRow(symbol: "magnifyingglass", title: l10n.s.switcherSearchPin,

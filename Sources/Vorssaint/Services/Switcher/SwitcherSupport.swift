@@ -1943,6 +1943,17 @@ enum SwitcherSupport {
         return order[(next % order.count + order.count) % order.count]
     }
 
+    /// The window the selection peek draws: the one committing raises, as
+    /// only that window comes forward. Minimized, hidden and other-desktop
+    /// windows stay out, as they stay out of view.
+    static func peekItems(items: [SwitcherItem], selectedIndex: Int) -> [SwitcherItem] {
+        guard items.indices.contains(selectedIndex) else { return [] }
+        let item = items[selectedIndex]
+        guard item.windowID != nil, !item.isMinimized, !item.isAppHidden,
+              !item.isOnHiddenSpace, !item.isFullscreen, item.frame.width > 1 else { return [] }
+        return [item]
+    }
+
     static func nextWindowSelectionIndexWithinApp(items: [SwitcherItem],
                                                   selectedIndex: Int,
                                                   delta: Int) -> Int {
