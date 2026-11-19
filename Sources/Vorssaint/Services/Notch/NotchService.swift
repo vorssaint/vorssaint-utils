@@ -654,6 +654,13 @@ final class NotchService: ObservableObject {
 
     private var compactMusicIsVisible: Bool { compactActivityIsVisible && compactActivity == .music }
 
+    /// A new song's notice covers the music strip but still answers a
+    /// sideways swipe, so skipping through songs need not wait for it to go.
+    private var noticeIsTrackInfo: Bool {
+        guard let notice else { return false }
+        return notice.event == .track
+    }
+
     /// The song the closed island drew at its last refresh, for the frames
     /// between the music stopping and the refresh that lets it depart. The
     /// view reads playback live, so it kept drawing what rests under the
@@ -4093,8 +4100,8 @@ final class NotchService: ObservableObject {
                                                            : NotchLayout.headerHeight)
         let interaction = NotchGestureSupport.nativeInteraction(at: panel.contentView?.hitTest(event.locationInWindow))
         let musicSurface = modules.contains(.music)
-            && (compactMusicIsVisible || (expanded && selected == .music && !showingAppPanel && !showingSections
-                                          && !showingCommandBar))
+            && (compactMusicIsVisible || noticeIsTrackInfo
+                || (expanded && selected == .music && !showingAppPanel && !showingSections && !showingCommandBar))
         let vertical = NotchGestureSupport.allowsVertical(expanded: expanded, inHeader: inHeader,
                                                           musicSurface: musicSurface,
                                                           control: interaction.control, scroll: interaction.scroll)
