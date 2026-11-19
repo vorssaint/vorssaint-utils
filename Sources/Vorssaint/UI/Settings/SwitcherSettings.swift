@@ -30,6 +30,7 @@ struct SwitcherSettings: View {
     @AppStorage(DefaultsKey.switcherAppearanceDelay) private var switcherAppearanceDelay = SwitcherSupport.defaultAppearanceDelayMilliseconds
     @AppStorage(DefaultsKey.switcherInstantSelection) private var switcherInstantSelection = false
     @AppStorage(DefaultsKey.switcherIgnoreHoverSelection) private var switcherIgnoreHoverSelection = false
+    @AppStorage(DefaultsKey.switcherTabStepsThroughWindows) private var switcherTabStepsThroughWindows = false
     @AppStorage(DefaultsKey.switcherMaxColumns) private var switcherMaxColumns = 0
     private var pages: SettingsPageStrings { FeatureStrings.settingsPages(l10n.language) }
     private var switcherEngaged: Bool { switcherEnabled && AppFeature.switcher.isAvailable }
@@ -242,6 +243,12 @@ struct SwitcherSettings: View {
             SettingsRow(symbol: "cursorarrow.slash", title: l10n.s.switcherIgnoreHoverSelection,
                         caption: l10n.s.switcherIgnoreHoverSelectionCaption) {
                 Toggle(l10n.s.switcherIgnoreHoverSelection, isOn: $switcherIgnoreHoverSelection).labelsHidden()
+            }
+            if switcherIconRowMode {
+                SettingsRow(symbol: "rectangle.stack", title: l10n.s.switcherTabStepsThroughWindows,
+                            caption: l10n.s.switcherTabStepsThroughWindowsCaption) {
+                    Toggle(l10n.s.switcherTabStepsThroughWindows, isOn: $switcherTabStepsThroughWindows).labelsHidden()
+                }
             }
             SettingsRow(symbol: "magnifyingglass", title: l10n.s.switcherSearchPin,
                         caption: l10n.s.switcherSearchPinCaption) {

@@ -403,6 +403,8 @@ struct Strings {
     let switcherInstantSelectionCaption: String
     let switcherIgnoreHoverSelection: String
     let switcherIgnoreHoverSelectionCaption: String
+    let switcherTabStepsThroughWindows: String
+    let switcherTabStepsThroughWindowsCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -1573,6 +1575,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
         switcherIgnoreHoverSelection: "Ignorar seleção ao passar o cursor",
         switcherIgnoreHoverSelectionCaption: "Mover o ponteiro sobre apps e janelas deixa o destaque onde está. Clicar ainda abre um.",
+        switcherTabStepsThroughWindows: "Tab percorre também as janelas",
+        switcherTabStepsThroughWindowsCaption: "Nos ícones grandes, Tab passa por cada janela do app antes de ir para o próximo app.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -2704,6 +2708,8 @@ extension Strings {
         switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
         switcherIgnoreHoverSelection: "Ignore hover selection",
         switcherIgnoreHoverSelectionCaption: "Moving the pointer over apps and windows leaves the highlight where it is. Clicking still opens one.",
+        switcherTabStepsThroughWindows: "Tab steps through windows too",
+        switcherTabStepsThroughWindowsCaption: "With large icons, Tab visits each of an app’s windows before moving to the next app.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",

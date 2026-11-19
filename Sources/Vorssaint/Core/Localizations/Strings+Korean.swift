@@ -238,6 +238,8 @@ extension Strings {
         switcherInstantSelectionCaption: "앱과 윈도우를 탐색할 때 강조 표시와 스크롤 위치를 즉시 이동합니다.",
         switcherIgnoreHoverSelection: "가리켜 선택하지 않기",
         switcherIgnoreHoverSelectionCaption: "앱과 윈도우 위로 포인터를 옮겨도 강조 표시는 그대로입니다. 클릭하면 여전히 엽니다.",
+        switcherTabStepsThroughWindows: "Tab으로 윈도우도 전환",
+        switcherTabStepsThroughWindowsCaption: "큰 아이콘에서 Tab은 앱의 각 윈도우를 거친 다음 다음 앱으로 이동합니다.",
         switcherMergeTabs: "앱별로 하나로 묶어 표시",
         switcherMergeTabsCaption: "전환기에서 앱의 모든 윈도우를 각각이 아닌 하나의 항목으로 묶습니다.",
         switcherWindowlessApps: "열린 윈도우가 없는 앱",
