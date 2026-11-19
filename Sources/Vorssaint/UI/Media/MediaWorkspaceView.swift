@@ -56,6 +56,7 @@ struct MediaWorkspaceView: View {
     @ObservedObject private var featureRuntime = FeatureRuntime.shared
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.notchPresentation) private var inNotch
+    @Environment(\.notchSettingsPreview) private var notchPreview
 
     @AppStorage(DefaultsKey.mediaLastTool) private var toolRaw = MediaTool.videoCompressor.rawValue
     @AppStorage(DefaultsKey.mediaVideoStart) private var videoStart = 0.0
@@ -131,6 +132,7 @@ struct MediaWorkspaceView: View {
     var onClose: (() -> Void)?
     private let initialInputs: [URL]
     private let initialTool: MediaTool?
+    private let acceptsDirectDrops: Bool
     private let preservesServiceState: Bool
     private let onContentHeightChange: ((CGFloat) -> Void)?
     private let onToolChange: (() -> Void)?
@@ -139,13 +141,14 @@ struct MediaWorkspaceView: View {
     init(compact: Bool, onClose: (() -> Void)? = nil,
          media: MediaService = .shared, initialInputs: [URL] = [],
          initialTool: MediaTool? = nil, preservesServiceState: Bool = false,
-         workspace: MediaWorkspaceSelection? = nil,
+         acceptsDirectDrops: Bool = true, workspace: MediaWorkspaceSelection? = nil,
          onContentHeightChange: ((CGFloat) -> Void)? = nil,
          onToolChange: (() -> Void)? = nil,
          scrollsContent: Bool = true) {
         self.compact = compact
         self.onClose = onClose
         self.media = media
+        self.acceptsDirectDrops = acceptsDirectDrops
         self.initialInputs = initialInputs
         self.initialTool = initialTool
         self.preservesServiceState = preservesServiceState
@@ -172,6 +175,7 @@ struct MediaWorkspaceView: View {
     private var selectedTool: MediaTool {
         get { workspace.tool ?? MediaSupport.sanitizedTool(toolRaw) }
         nonmutating set {
+            workspace.pendingDrop = nil
             cancelVideoImport()
             if preservesServiceState { workspace.tool = newValue }
             else { toolRaw = newValue.rawValue }
@@ -204,6 +208,9 @@ struct MediaWorkspaceView: View {
     var body: some View {
         layout
         .onAppear {
+            if inNotch && acceptsDirectDrops && !notchPreview {
+                NotchService.shared.directMediaDropWorkspace = workspace
+            }
             if !workspace.loadedInitialInputs {
                 workspace.loadedInitialInputs = true
                 if let initialTool {
@@ -230,6 +237,11 @@ struct MediaWorkspaceView: View {
             outputURL = defaultOutputURL(for: inputURLs, tool: .imageCompressor)
         }
         .onDisappear {
+            workspace.pendingDrop = nil
+            if inNotch && acceptsDirectDrops && !notchPreview,
+               NotchService.shared.directMediaDropWorkspace === workspace {
+                NotchService.shared.directMediaDropWorkspace = nil
+            }
             mediaDefaultsTask?.cancel()
             workspace.durationLoading.cancel()
             cancelVideoImport()
@@ -304,12 +316,10 @@ struct MediaWorkspaceView: View {
     }
 
     @ViewBuilder private var inputDropTarget: some View {
-        if inNotch {
-            inputSelector
+        if acceptsDirectDrops && !isRunning {
+            inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted, perform: acceptDrop)
         } else {
-            inputSelector.onDrop(of: [.fileURL], isTargeted: $isDropTargeted) { providers in
-                acceptDrop(providers)
-            }
+            inputSelector
         }
     }
 
@@ -1366,24 +1376,26 @@ struct MediaWorkspaceView: View {
     }
 
     private func acceptDrop(_ providers: [NSItemProvider]) -> Bool {
-        let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }
-        guard !fileProviders.isEmpty else {
-            return false
-        }
+        guard acceptsDirectDrops, !isRunning, AppFeature.mediaTools.isAvailable,
+              !providers.isEmpty,
+              providers.allSatisfy({ $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) else { return false }
+        let tool = selectedTool
+        let request = UUID()
+        workspace.pendingDrop = request
         let group = DispatchGroup()
         let lock = NSLock()
         var indexedURLs: [(offset: Int, url: URL)] = []
-        for (offset, provider) in fileProviders.enumerated() {
+        for (offset, provider) in providers.enumerated() {
             group.enter()
             provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-            let url: URL?
-            if let itemURL = item as? URL {
-                url = itemURL
-            } else if let data = item as? Data {
-                url = URL(dataRepresentation: data, relativeTo: nil)
-            } else {
-                url = nil
-            }
+                let url: URL?
+                if let itemURL = item as? URL {
+                    url = itemURL
+                } else if let data = item as? Data {
+                    url = URL(dataRepresentation: data, relativeTo: nil)
+                } else {
+                    url = nil
+                }
                 if let url {
                     lock.lock()
                     indexedURLs.append((offset, url))
@@ -1393,21 +1405,27 @@ struct MediaWorkspaceView: View {
             }
         }
         group.notify(queue: .main) {
+            guard workspace.pendingDrop == request else { return }
+            workspace.pendingDrop = nil
+            guard !isRunning, AppFeature.mediaTools.isAvailable, selectedTool == tool else { return }
             let urls = MediaSupport.urlsInProviderOrder(indexedURLs)
-            let accepted = urls.filter { url in
-                let contentType = try? url.resourceValues(forKeys: [.contentTypeKey]).contentType
-                return MediaSupport.inputMatchesTool(contentType: contentType, inputTypes: inputTypes)
-            }
-            if accepted.isEmpty || (selectedTool != .imageCompressor && accepted.count != urls.count) {
+            guard urls.count == providers.count, (tool == .imageCompressor || urls.count == 1),
+                  urls.allSatisfy({ url in
+                      guard url.isFileURL,
+                            let values = try? url.resourceValues(forKeys: [.contentTypeKey, .isRegularFileKey]),
+                            values.isRegularFile == true else { return false }
+                      return MediaSupport.inputMatchesTool(contentType: values.contentType, inputTypes: inputTypes)
+                  }) else {
                 media.rejectUnsupportedInput()
-            } else {
-                setInputs(selectedTool == .imageCompressor ? accepted : Array(accepted.prefix(1)))
+                return
             }
+            setInputs(urls)
         }
         return true
     }
 
     private func setInputs(_ urls: [URL], resetsMedia: Bool = true) {
+        workspace.pendingDrop = nil
         cancelVideoImport()
         inputURLs = selectedTool == .imageCompressor ? urls : Array(urls.prefix(1))
         inputImageSize = selectedTool == .imageCompressor
@@ -1421,6 +1439,7 @@ struct MediaWorkspaceView: View {
     }
 
     private func clearInput() {
+        workspace.pendingDrop = nil
         mediaDefaultsTask?.cancel()
         workspace.durationLoading.reset()
         cancelVideoImport()
@@ -1531,6 +1550,7 @@ struct MediaWorkspaceView: View {
             localMessage = l10n.s.mediaErrorNoFile
             return
         }
+        workspace.pendingDrop = nil
         self.outputURL = outputURL
         localMessage = nil
         switch selectedTool {

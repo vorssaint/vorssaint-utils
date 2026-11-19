@@ -1972,9 +1972,24 @@ enum ScreenshotSupport {
 
     /// Immutable pixels shared by image annotations and undo snapshots.
     final class ImageAsset: Equatable {
+        /// Stable identity for saved-state comparisons after the pixels have been released.
+        let id = UUID()
         let image: CGImage
         init(image: CGImage) { self.image = image }
         static func == (lhs: ImageAsset, rhs: ImageAsset) -> Bool { lhs === rhs }
+    }
+
+    /// Dirty-state comparisons remember each image layer's identity without
+    /// keeping its potentially large image alive after it leaves history.
+    struct SavedAnnotation: Equatable {
+        private var annotation: Annotation
+        private let imageID: UUID?
+
+        init(_ source: Annotation) {
+            annotation = source
+            imageID = source.imageAsset?.id
+            annotation.imageAsset = nil
+        }
     }
 
     /// One annotation on the canvas. Geometry lives in image-point
@@ -2198,6 +2213,30 @@ enum ScreenshotSupport {
         let maxY = (rect.maxY).rounded()
         return clamp(CGRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY),
                      to: bounds)
+    }
+
+    /// A picture's own pixels rather than a window into another picture.
+    /// `cropping(to:)` keeps the parent frame alive, so an 800×600 crop of a
+    /// 5K capture would hold the whole display in memory. Size, colour space
+    /// and byte order stay as they were; only ownership changes. Nil when the
+    /// pixels cannot be copied, and the caller keeps what it had.
+    static func independentImage(_ image: CGImage) -> CGImage? {
+        let space = image.colorSpace ?? CGColorSpaceCreateDeviceRGB()
+        let alpha: CGImageAlphaInfo
+        switch image.alphaInfo {
+        case .none, .noneSkipLast, .noneSkipFirst, .premultipliedLast, .premultipliedFirst:
+            alpha = image.alphaInfo
+        default:
+            alpha = .premultipliedLast
+        }
+        guard let context = CGContext(data: nil, width: image.width, height: image.height,
+                                      bitsPerComponent: image.bitsPerComponent, bytesPerRow: 0,
+                                      space: space, bitmapInfo: alpha.rawValue)
+        else { return nil }
+        // Straight pixels: a resize or a smoothing pass here would move them.
+        context.interpolationQuality = .none
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return context.makeImage()
     }
 
     /// A stable square of source pixels for the crop loupe. Near an image
