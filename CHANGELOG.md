@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The color picker can add a palette icon to the menu bar that opens the macOS color panel, with its color wheel and your own color palettes.
+
+## [Unreleased]
+
 ### Summary
 This update improves microphone muting, display controls, window switching, clipboard history and screenshots.
 
