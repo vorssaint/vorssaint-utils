@@ -899,6 +899,71 @@ enum BrightnessSupport {
                 return nil
             }
         }
+
+        /// The read that confirms a level written without one. A step of no
+        /// levels reports the monitor and writes nothing, not even a mute.
+        static var verification: Self { .step(levels: [], raises: true) }
+    }
+
+    /// What this app last knew for sure about one monitor's speakers.
+    struct SpeakerBelief: Equatable {
+        let level: SpeakerLevel
+        let muted: Bool?
+        /// The connection the level was seen on.
+        let generation: UInt64
+        /// When the monitor itself last reported it, on the system uptime clock.
+        let readAt: TimeInterval
+        /// Whether `level` is what this app wrote since that reading.
+        let predicted: Bool
+    }
+
+    /// How long a reading of a monitor's speakers is stepped from without
+    /// asking again. A monitor changed by its own buttons or another source
+    /// stays unnoticed for at most this long.
+    static let speakerTrustWindow: TimeInterval = 3
+
+    /// How long the volume keys stay quiet before a level written without a
+    /// reading is confirmed with one.
+    static let speakerVerifyDelay: TimeInterval = 0.4
+
+    /// The level to write without reading the monitor first, or nil when the
+    /// monitor has to be asked. Only an ordinary level change of speakers that
+    /// were audible, unmuted and read within the trust window qualifies, and
+    /// only when it lands on another audible level: reaching zero, changing
+    /// nothing and every mute decision start from a fresh reading.
+    static func knownLevelTarget(for change: SpeakerChange, belief: SpeakerBelief?, generation: UInt64,
+                                 now: TimeInterval, keySettings: MonitorVolumeKeySettings) -> SpeakerLevel? {
+        guard let belief, belief.generation == generation, belief.muted == false, belief.level.raw > 0,
+              now >= belief.readAt, now - belief.readAt <= speakerTrustWindow else { return nil }
+        let maximum = belief.level.maximum
+        let raw: UInt16
+        switch change {
+        case let .step(levels, _):
+            guard let stepped = steppedSpeakerTarget(from: belief.level.raw, maximum: maximum,
+                                                     levels: levels, keySettings: keySettings) else { return nil }
+            raw = stepped
+        case let .set(.some(volume), nil):
+            guard volume.isFinite else { return nil }
+            raw = deviceValue(for: volume, maximum: maximum)
+        default:
+            return nil
+        }
+        return raw > 0 && raw != belief.level.raw ? SpeakerLevel(raw: raw, maximum: maximum) : nil
+    }
+
+    /// Walks queued key steps from a level, each one bounded by the key
+    /// settings. Nil when a step is not a number.
+    static func steppedSpeakerTarget(from start: UInt16, maximum: UInt16, levels: [(Double) -> Double],
+                                     keySettings: MonitorVolumeKeySettings) -> UInt16? {
+        var target = start
+        for step in levels {
+            let next = step(Double(target) / Double(maximum))
+            guard next.isFinite else { return nil }
+            if let bounded = keySettings.boundedStep(from: target, maximum: maximum, to: next) {
+                target = bounded
+            }
+        }
+        return target
     }
 
     typealias VCPReading = (current: UInt16, maximum: UInt16)
@@ -907,6 +972,11 @@ enum BrightnessSupport {
         let raw: UInt16
         let maximum: UInt16
         var volume: Double { Double(raw) / Double(maximum) }
+
+        init(raw: UInt16, maximum: UInt16) {
+            self.raw = raw
+            self.maximum = maximum
+        }
 
         init?(_ reply: VCPReading?) {
             guard let reply, audioReply(current: reply.current, maximum: reply.maximum) != nil else { return nil }
@@ -958,14 +1028,9 @@ enum BrightnessSupport {
             requestsLevel = true
             if muted == true && raises { target = 0 }
             let start = target
-            for step in levels {
-                let current = Double(target) / Double(initial.maximum)
-                let next = step(current)
-                guard next.isFinite else { return nil }
-                if let bounded = keySettings.boundedStep(from: target, maximum: initial.maximum, to: next) {
-                    target = bounded
-                }
-            }
+            guard let stepped = steppedSpeakerTarget(from: target, maximum: initial.maximum, levels: levels,
+                                                     keySettings: keySettings) else { return nil }
+            target = stepped
             let mutesAtZero = !raises && initial.raw == 0 && keySettings.minimumPercent == 0 && muted == false
             guard target != start || mutesAtZero || (needsUnmute && raises && target > 0) else { return (initial, muted) }
             desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
