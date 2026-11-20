@@ -73,7 +73,7 @@ extension FeatureStrings {
 extension PresentationPointerStrings {
     static let enUS = PresentationPointerStrings(
         title: "Presentation pointer",
-        caption: "Swaps the pointer for a large hand that taps wherever you click, so everyone watching your screen can follow along.",
+        caption: "Swaps the pointer for a large picture that taps wherever you click, so everyone watching your screen can follow along.",
         hubDescription: "A large pointer that taps every click on screen shares",
         panelCaption: "Make every click easy to follow",
         showToggle: "Show the presentation pointer",
@@ -117,7 +117,7 @@ extension PresentationPointerStrings {
 
     static let ptBR = PresentationPointerStrings(
         title: "Ponteiro de apresentação",
-        caption: "Troca o ponteiro por uma mão grande que toca onde você clica, para que todos que veem sua tela acompanhem.",
+        caption: "Troca o ponteiro por uma imagem grande que toca onde você clica, para que todos que veem sua tela acompanhem.",
         hubDescription: "Um ponteiro grande que toca cada clique em compartilhamentos de tela",
         panelCaption: "Deixe cada clique fácil de acompanhar",
         showToggle: "Mostrar o ponteiro de apresentação",
@@ -161,7 +161,7 @@ extension PresentationPointerStrings {
 
     static let tr = PresentationPointerStrings(
         title: "Sunum işaretçisi",
-        caption: "İşaretçiyi, tıkladığınız yere dokunan büyük bir elle değiştirir; ekranınızı izleyen herkes sizi kolayca takip eder.",
+        caption: "İşaretçiyi, tıkladığınız yere dokunan büyük bir görselle değiştirir; ekranınızı izleyen herkes sizi kolayca takip eder.",
         hubDescription: "Ekran paylaşımlarında her tıklamaya dokunan büyük bir işaretçi",
         panelCaption: "Her tıklamayı takip etmeyi kolaylaştırın",
         showToggle: "Sunum işaretçisini göster",
@@ -205,7 +205,7 @@ extension PresentationPointerStrings {
 
     static let ru = PresentationPointerStrings(
         title: "Указатель для презентаций",
-        caption: "Заменяет указатель крупной рукой, которая нажимает там, где вы кликаете, чтобы все зрители вашего экрана могли следить за действиями.",
+        caption: "Заменяет указатель крупной картинкой, которая нажимает там, где вы кликаете, чтобы все зрители вашего экрана могли следить за действиями.",
         hubDescription: "Крупный указатель, показывающий каждый клик при демонстрации экрана",
         panelCaption: "Пусть каждый клик будет легко заметить",
         showToggle: "Показывать указатель для презентаций",
@@ -249,7 +249,7 @@ extension PresentationPointerStrings {
 
     static let es = PresentationPointerStrings(
         title: "Puntero de presentación",
-        caption: "Cambia el puntero por una mano grande que toca donde haces clic, para que todos los que ven tu pantalla puedan seguirte.",
+        caption: "Cambia el puntero por una imagen grande que toca donde haces clic, para que todos los que ven tu pantalla puedan seguirte.",
         hubDescription: "Un puntero grande que marca cada clic al compartir pantalla",
         panelCaption: "Haz que cada clic sea fácil de seguir",
         showToggle: "Mostrar el puntero de presentación",
@@ -293,7 +293,7 @@ extension PresentationPointerStrings {
 
     static let sk = PresentationPointerStrings(
         title: "Prezentačný kurzor",
-        caption: "Nahradí kurzor veľkou rukou, ktorá ťukne tam, kde kliknete, aby každý, kto sleduje vašu obrazovku, videl, čo robíte.",
+        caption: "Nahradí kurzor veľkým obrázkom, ktorý ťukne tam, kde kliknete, aby každý, kto sleduje vašu obrazovku, videl, čo robíte.",
         hubDescription: "Veľký kurzor, ktorý ukáže každé kliknutie pri zdieľaní obrazovky",
         panelCaption: "Nech je každé kliknutie dobre viditeľné",
         showToggle: "Zobraziť prezentačný kurzor",
@@ -337,7 +337,7 @@ extension PresentationPointerStrings {
 
     static let de = PresentationPointerStrings(
         title: "Präsentationszeiger",
-        caption: "Ersetzt den Zeiger durch eine große Hand, die dort tippt, wo du klickst, damit alle, die deinen Bildschirm sehen, mitverfolgen können.",
+        caption: "Ersetzt den Zeiger durch ein großes Bild, das dort tippt, wo du klickst, damit alle, die deinen Bildschirm sehen, mitverfolgen können.",
         hubDescription: "Ein großer Zeiger, der jeden Klick bei Bildschirmfreigaben antippt",
         panelCaption: "Jeden Klick leicht nachvollziehbar machen",
         showToggle: "Präsentationszeiger anzeigen",
@@ -381,7 +381,7 @@ extension PresentationPointerStrings {
 
     static let fr = PresentationPointerStrings(
         title: "Pointeur de présentation",
-        caption: "Remplace le pointeur par une grande main qui tape là où vous cliquez, pour que tous ceux qui regardent votre écran suivent facilement.",
+        caption: "Remplace le pointeur par une grande image qui tape là où vous cliquez, pour que tous ceux qui regardent votre écran suivent facilement.",
         hubDescription: "Un grand pointeur qui marque chaque clic lors des partages d’écran",
         panelCaption: "Rendez chaque clic facile à suivre",
         showToggle: "Afficher le pointeur de présentation",
@@ -425,7 +425,7 @@ extension PresentationPointerStrings {
 
     static let it = PresentationPointerStrings(
         title: "Puntatore per presentazioni",
-        caption: "Sostituisce il puntatore con una grande mano che tocca dove fai clic, così chi guarda il tuo schermo può seguirti facilmente.",
+        caption: "Sostituisce il puntatore con una grande immagine che tocca dove fai clic, così chi guarda il tuo schermo può seguirti facilmente.",
         hubDescription: "Un grande puntatore che tocca ogni clic nelle condivisioni dello schermo",
         panelCaption: "Rendi ogni clic facile da seguire",
         showToggle: "Mostra il puntatore per presentazioni",
@@ -469,7 +469,7 @@ extension PresentationPointerStrings {
 
     static let ja = PresentationPointerStrings(
         title: "プレゼン用ポインタ",
-        caption: "ポインタを、クリックした場所をタップする大きな手に置き換えます。画面を見ている全員が操作を目で追えます。",
+        caption: "ポインタを、クリックした場所をタップする大きな画像に置き換えます。画面を見ている全員が操作を目で追えます。",
         hubDescription: "画面共有でクリックのたびにタップする大きなポインタ",
         panelCaption: "すべてのクリックを見やすく",
         showToggle: "プレゼン用ポインタを表示",
@@ -513,7 +513,7 @@ extension PresentationPointerStrings {
 
     static let ko = PresentationPointerStrings(
         title: "프레젠테이션 포인터",
-        caption: "포인터를 클릭한 곳을 탭하는 큰 손으로 바꿔, 화면을 보는 모든 사람이 쉽게 따라갈 수 있습니다.",
+        caption: "포인터를 클릭한 곳을 탭하는 큰 그림으로 바꿔, 화면을 보는 모든 사람이 쉽게 따라갈 수 있습니다.",
         hubDescription: "화면 공유에서 모든 클릭을 탭으로 보여 주는 큰 포인터",
         panelCaption: "모든 클릭을 쉽게 따라가도록",
         showToggle: "프레젠테이션 포인터 표시",
@@ -557,7 +557,7 @@ extension PresentationPointerStrings {
 
     static let zhHans = PresentationPointerStrings(
         title: "演示指针",
-        caption: "将指针换成会在点击处轻点的大手，让所有观看你屏幕的人都能轻松跟上。",
+        caption: "将指针换成会在点击处轻点的大图，让所有观看你屏幕的人都能轻松跟上。",
         hubDescription: "在屏幕共享中为每次点击轻点的大指针",
         panelCaption: "让每次点击都一目了然",
         showToggle: "显示演示指针",
@@ -601,7 +601,7 @@ extension PresentationPointerStrings {
 
     static let zhTW = PresentationPointerStrings(
         title: "簡報指標",
-        caption: "將指標換成會在點按處輕點的大手，讓所有觀看你螢幕的人都能輕鬆跟上。",
+        caption: "將指標換成會在點按處輕點的大圖，讓所有觀看你螢幕的人都能輕鬆跟上。",
         hubDescription: "在螢幕分享時為每次點按輕點的大指標",
         panelCaption: "讓每次點按都一目瞭然",
         showToggle: "顯示簡報指標",
@@ -645,7 +645,7 @@ extension PresentationPointerStrings {
 
     static let zhHK = PresentationPointerStrings(
         title: "簡報指標",
-        caption: "將指標換成會在點按處輕點的大手，讓所有觀看你螢幕的人都能輕鬆跟上。",
+        caption: "將指標換成會在點按處輕點的大圖，讓所有觀看你螢幕的人都能輕鬆跟上。",
         hubDescription: "在螢幕分享時為每次點按輕點的大指標",
         panelCaption: "讓每次點按都一目了然",
         showToggle: "顯示簡報指標",
@@ -689,7 +689,7 @@ extension PresentationPointerStrings {
 
     static let uk = PresentationPointerStrings(
         title: "Вказівник для презентацій",
-        caption: "Замінює вказівник великою рукою, яка торкається там, де ви клацаєте, щоб усі, хто бачить ваш екран, могли стежити за діями.",
+        caption: "Замінює вказівник великою картинкою, яка торкається там, де ви клацаєте, щоб усі, хто бачить ваш екран, могли стежити за діями.",
         hubDescription: "Великий вказівник, що показує кожен клац під час демонстрації екрана",
         panelCaption: "Зробіть кожен клац помітним",
         showToggle: "Показувати вказівник для презентацій",

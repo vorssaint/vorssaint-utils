@@ -2292,28 +2292,31 @@ private struct PresentationPointerPanelTile: View {
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                 }
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 5) {
-                        ForEach(PresentationPointerStyle.allCases) { option in
-                            styleChip(option)
-                        }
-                    }
-                    // A switch under the one above, like the one in Settings,
-                    // so its state reads the same way everywhere.
-                    HStack(spacing: 6) {
-                        Label(text.blockClicksTitle,
-                              systemImage: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
-                            .font(.system(size: 11, weight: .medium))
-                            .lineLimit(1)
-                            .accessibilityHidden(true)
-                        Spacer(minLength: 6)
-                        Toggle(text.blockClicksTitle, isOn: blockingBinding)
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
+                HStack(spacing: 5) {
+                    ForEach(PresentationPointerStyle.allCases) { option in
+                        styleChip(option)
                     }
                 }
                 .padding(.leading, PanelRowMetrics.iconWidth + PanelRowMetrics.iconSpacing)
+                // A switch under the one above, in the same icon and title
+                // columns, like the one in Settings, so its state reads the
+                // same way everywhere.
+                HStack(spacing: PanelRowMetrics.iconSpacing) {
+                    Image(systemName: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: PanelRowMetrics.iconWidth)
+                        .accessibilityHidden(true)
+                    Text(text.blockClicksTitle)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                        .accessibilityHidden(true)
+                    Spacer(minLength: 6)
+                    Toggle(text.blockClicksTitle, isOn: blockingBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                }
             }
             .panelRowInsets()
             .panelRowDescription(text.panelCaption)

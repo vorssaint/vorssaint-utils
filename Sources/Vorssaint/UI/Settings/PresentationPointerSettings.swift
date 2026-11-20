@@ -378,8 +378,9 @@ private struct PresentationPointerPreview: View {
 
     var body: some View {
         ZStack {
+            // A shallow well in both appearances, like the unpicked looks.
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.background.opacity(0.6))
+                .fill(Color.primary.opacity(0.04))
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             if let image {
