@@ -2245,6 +2245,7 @@ struct NotchGeometry: Equatable {
     /// notice reaches further toward its wider side. Zero everywhere else.
     var surfaceShift: CGFloat = 0
     let cameraWidth: CGFloat
+    let physicalCamera: CGRect?
     /// The island's camera region, including optional menu-bar coverage,
     /// manual fit and outline clearance, rather than just the hardware inset.
     let cameraHeight: CGFloat
@@ -2283,7 +2284,7 @@ struct NotchGeometry: Equatable {
     /// Narrower wings than this are dropped rather than drawn cramped.
     private var minimumWing: CGFloat = 44
 
-    init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, layout: NotchSize = .compact,
+    init(screen: CGRect, safeAreaTop: CGFloat, cameraWidth: CGFloat, physicalCameraX: CGFloat? = nil, layout: NotchSize = .compact,
          menuBarHeight: CGFloat = 24, compactSideRoom: CGFloat? = nil,
          customWidth: Double = NotchSize.defaultWidth, customHeight: Double = NotchSize.defaultHeight,
          cameraFit: NotchCameraFit = .zero, silhouette: NotchSilhouette = .notch, capsuleFit: NotchCapsuleFit = .zero,
@@ -2294,6 +2295,8 @@ struct NotchGeometry: Equatable {
         self.customHeight = NotchSize.clamped(customHeight, to: NotchSize.heightRange, fallback: NotchSize.defaultHeight)
         let barHeight = menuBarHeight.isFinite ? min(64, max(16, menuBarHeight)) : 24
         isNotched = safeAreaTop.isFinite && safeAreaTop > 0 && cameraWidth.isFinite && cameraWidth > 0
+        physicalCamera = isNotched ? CGRect(x: physicalCameraX ?? (screen.midX - cameraWidth / 2),
+                                           y: screen.maxY - safeAreaTop, width: cameraWidth, height: safeAreaTop) : nil
         // Only a physical camera has an outline to match; a simulated one follows the bar.
         let fit = isNotched ? cameraFit : .zero
         // A capsule replaces only a simulated cutout. It is as wide as the
@@ -2338,7 +2341,7 @@ struct NotchGeometry: Equatable {
     var floats: Bool { floatingGap != nil }
 
     func hasSameMenuBar(as other: NotchGeometry) -> Bool {
-        screen == other.screen && cameraWidth == other.cameraWidth
+        screen == other.screen && cameraWidth == other.cameraWidth && physicalCamera == other.physicalCamera
             && menuBarHeight == other.menuBarHeight && isNotched == other.isNotched
     }
 
@@ -3162,12 +3165,39 @@ struct NotchGlassFade: Equatable {
 enum NotchMenuBarLayout {
     /// A successful AX read can contain menu items from another display.
     /// Without an item on this display, its menu space remains unknown.
-    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
-                                 menuItems: [CGRect], statusItems: [CGRect]) -> CGFloat? {
+    /// Only status windows actually centered inside this display's bar are evidence about its icons.
+    static func statusFrames(screen: CGRect, barHeight: CGFloat, windows: [CGRect],
+                             requiresExtras: Bool, extras: () -> [CGRect]?) -> [CGRect]? {
         let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
-        guard menuItems.contains(where: { $0.intersects(bar) }) else { return nil }
+        func onBar(_ rect: CGRect) -> Bool {
+            !rect.isEmpty && bar.contains(CGPoint(x: rect.midX, y: rect.midY))
+        }
+        let legacy = windows.filter(onBar)
+        if !requiresExtras, !legacy.isEmpty { return legacy }
+        guard let reported = extras() else { return nil }
+        let visible = reported.filter(onBar)
+        guard !visible.isEmpty else { return nil }
+        return visible + legacy
+    }
+
+    /// A missing or unreadable item can be the one nearest the island.
+    static func completeFrames<Item>(_ items: [Item], limit: Int, read: (Item) -> CGRect?) -> [CGRect]? {
+        guard items.count <= limit else { return nil }
+        var frames: [CGRect] = []
+        for item in items {
+            guard let frame = read(item) else { return nil }
+            frames.append(frame)
+        }
+        return frames
+    }
+
+    static func measuredSideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,
+                                 menuItems: [CGRect], statusItems: [CGRect], physicalCamera: CGRect? = nil) -> CGFloat? {
+        let bar = CGRect(x: screen.minX, y: screen.maxY - barHeight, width: screen.width, height: barHeight)
+        guard menuItems.contains(where: { !$0.intersection(bar).isEmpty }) else { return nil }
+        let visibleStatus = statusItems.filter { physicalCamera?.contains($0.intersection(bar)) != true }
         return sideRoom(screen: screen, cameraWidth: cameraWidth, barHeight: barHeight,
-                        occupied: menuItems + statusItems)
+                        occupied: menuItems + visibleStatus)
     }
 
     static func sideRoom(screen: CGRect, cameraWidth: CGFloat, barHeight: CGFloat,

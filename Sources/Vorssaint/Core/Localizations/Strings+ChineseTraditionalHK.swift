@@ -653,6 +653,7 @@ extension Strings {
         audioPriorityMoveUp: "上移",
         audioPriorityMoveDown: "下移",
         audioPriorityUnavailable: "無法使用",
+        audioPriorityRemove: "移除",
         audioPriorityCurrent: "使用中",
         audioPriorityCaption: "裝置會按優先順序選用。當優先順序較高嘅裝置連接時，系統會切換到該裝置；使用中嘅裝置中斷連接時，就會切換到下一個可用裝置。",
 

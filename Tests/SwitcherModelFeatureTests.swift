@@ -465,11 +465,11 @@ enum SwitcherModelFeatureTests {
             "recording releases Carbon but keeps native keys out of the focused field's way")
         let begin = body("private func beginPendingSession(generation: UInt64) {")
         let guardRange = begin.range(of: "guard guardSecureInputActions(for: requested.shortcut) else {")
-        let enumerationRange = begin.range(of: "enumerationQueue.async")
-        suite.expect(guardRange != nil && enumerationRange != nil
-            && guardRange!.lowerBound < enumerationRange!.lowerBound
+        let selectionRange = begin.range(of: "windowInventory.selection(")
+        suite.expect(guardRange != nil && selectionRange != nil
+            && guardRange!.lowerBound < selectionRange!.lowerBound
             && source.contains("if id.signature == AppSwitcher.secureInputActionHotKeySignature { return noErr }"),
-            "the live session guards Q/W before enumeration and consumes them without replay")
+            "the live session guards Q/W before selecting remembered windows and consumes them without replay")
         let callback = body("private func routeSecureInputHotKey(id: UInt32) {")
         let claim = callback.range(of: "secureInputReplays.enqueue(shortcut: owner)")
         let protection = callback.range(of: "guard guardSecureInputActions(for: accepted.shortcut)")
@@ -515,6 +515,7 @@ enum SwitcherModelFeatureTests {
         SwitcherAccessibilitySnapshotTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
         SwitcherQuickCommitTests.run(suite)
+        SwitcherRememberedSelectionTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
         scrollNavigationChecks(suite)
         accessibilityPrefetchChecks(suite)
@@ -671,6 +672,23 @@ enum SwitcherModelFeatureTests {
                                                            rememberedPaths: Set(laterPaths)),
                        "the checksum recheck runs once and keeps later write-only verdicts")
             }
+
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked)
+            migrationDefaults.set(["hdmi|port"], forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            migrationDefaults.set(["manual|port"], forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+            Defaults.recheckBrightnessDDCHDMIConverterPaths(in: migrationDefaults)
+            suite.expect(migrationDefaults.object(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths) == nil
+                   && migrationDefaults.bool(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked)
+                   && migrationDefaults.stringArray(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
+                   == ["manual|port"],
+                   "a monitor cached as write-only behind the HDMI converter is probed again, manual choices kept")
+            migrationDefaults.set(["hdmi|port"], forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            Defaults.recheckBrightnessDDCHDMIConverterPaths(in: migrationDefaults)
+            suite.expect(migrationDefaults.stringArray(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+                   == ["hdmi|port"],
+                   "the HDMI converter recheck runs once and keeps later write-only verdicts")
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+            migrationDefaults.removeObject(forKey: DefaultsKey.brightnessForcedSoftwarePaths)
 
             migrationDefaults.set("microphone,panel", forKey: DefaultsKey.notchHiddenControls)
             Defaults.hideScratchpadControlOnce(in: migrationDefaults)
@@ -1890,11 +1908,11 @@ enum SwitcherModelFeatureTests {
                && switcherCode.contains("items: sourceItems)")
                && enumeratorCode.contains("sourceItems: sourceCandidates"),
                "activation retains the foreground window even when the displayed list excludes its monitor")
-        let displaySnapshot = switcherSource.range(of: "let displayScope = currentDisplayScope")
-        let enumerationDispatch = switcherSource.range(of: "enumerationQueue.async")
-        suite.expect(displaySnapshot != nil && enumerationDispatch != nil
-               && displaySnapshot!.lowerBound < enumerationDispatch!.lowerBound,
-               "the target display is captured before window enumeration can delay the session")
+        let displaySnapshot = switcherSource.range(of: "displayScope: currentDisplayScope)")
+        let sessionHandoff = switcherSource.range(of: "finishPendingSession(generation: generation,")
+        suite.expect(displaySnapshot != nil && sessionHandoff != nil
+               && displaySnapshot!.lowerBound < sessionHandoff!.lowerBound,
+               "the target display filters remembered windows before the session opens")
 
         // MARK: Switcher entries for apps with no window (issue #351)
         suite.expect(SwitcherWindowlessApps.mode(storedValue: nil,
@@ -2869,6 +2887,15 @@ enum SwitcherModelFeatureTests {
         suite.expect(StatusItemAnchorSupport.panelActivationSource(after: PanelActivationChange<Int>.activeSpaceChanged,
                                                                    current: 501, isOwnApp: ownApp) == nil,
                "a desktop switch while the panel is open drops the remembered app")
+
+        suite.expect(StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: 26),
+               "the panel's activation click does not dismiss it")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 31, panelWindowNumber: 26),
+               "clicking an overlapping window still dismisses the panel")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 0, panelWindowNumber: 0),
+               "an event without an identified window cannot claim the panel's click")
+        suite.expect(!StatusItemAnchorSupport.isPanelSelfClick(eventWindowNumber: 26, panelWindowNumber: nil),
+               "an unavailable panel cannot claim another window's click")
 
         MenuPanelRecoveryTests.run { suite.expect($0, $1) }
         MenuPanelKeyTests.run(suite)
