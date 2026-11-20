@@ -188,7 +188,7 @@ struct PresentationPointerSection: View {
                 if soundName != PresentationPointerSupport.defaultSoundName,
                    PresentationPointerSoundChoice.resolve(stored: soundName,
                                                           systemNames: TextSnippetSupport.alertSoundNames)
-                    == .builtIn(.tap) {
+                    == .builtIn(.drum) {
                     Text(text.soundUnavailable).tag(soundName)
                 }
             }
@@ -282,6 +282,7 @@ struct PresentationPointerSection: View {
 
     private func name(of sound: PresentationPointerTapSound) -> String {
         switch sound {
+        case .drum: return text.soundDrum
         case .tap: return text.soundTap
         case .knock: return text.soundKnock
         case .pop: return text.soundPop

@@ -13,7 +13,7 @@ import QuartzCore
 final class PresentationPointerOverlay {
     let displayID: CGDirectDisplayID
     private(set) var frame: CGRect
-    private let panel: OverlayPanel
+    private let panel: PointerPanel
     private let canvas = NSView()
     /// Follows the pointer and nothing else, so moves never animate.
     private let pointerLayer = CALayer()
@@ -24,6 +24,10 @@ final class PresentationPointerOverlay {
     private let imageLayer = CALayer()
     private var artwork: PresentationPointerArtwork?
     private var pressedScale: CGFloat?
+    /// Whether the system pointer is on screen anyway, where macOS insists
+    /// on drawing it; the picture then steps aside so only one shows.
+    private var suppressed = false
+    private var placed = false
 
     /// Above shielding windows and the island's own level, under nothing but
     /// the system pointer.
@@ -32,7 +36,7 @@ final class PresentationPointerOverlay {
     init(frame: CGRect, displayID: CGDirectDisplayID) {
         self.displayID = displayID
         self.frame = frame
-        panel = OverlayPanel(contentRect: frame,
+        panel = PointerPanel(contentRect: frame,
                              styleMask: [.borderless, .nonactivatingPanel],
                              backing: .buffered,
                              defer: true)
@@ -82,6 +86,8 @@ final class PresentationPointerOverlay {
 
     func show() {
         panel.orderFrontRegardless()
+        // Exactly over its display, or every point drawn is off by the gap.
+        if panel.frame != frame { panel.setFrame(frame, display: false) }
     }
 
     func close() {
@@ -113,10 +119,19 @@ final class PresentationPointerOverlay {
 
     /// `point` is in screen coordinates.
     func movePointer(to point: CGPoint) {
+        placed = true
         withoutAnimation {
             pointerLayer.position = CGPoint(x: point.x - frame.minX, y: point.y - frame.minY)
-            pointerLayer.isHidden = false
+            pointerLayer.isHidden = suppressed
         }
+    }
+
+    /// Steps the picture aside while the system pointer shows anyway, and
+    /// brings it back once that one is hidden again.
+    func setSuppressed(_ suppressed: Bool) {
+        guard suppressed != self.suppressed else { return }
+        self.suppressed = suppressed
+        withoutAnimation { pointerLayer.isHidden = suppressed || !placed }
     }
 
     /// Where the drawn tip is, in screen coordinates: the point a click
@@ -130,20 +145,20 @@ final class PresentationPointerOverlay {
         return CGPoint(x: inCanvas.x + frame.minX, y: inCanvas.y + frame.minY)
     }
 
-    /// The pointer arriving: it pops up from its tip and settles.
-    func popIn(reduceMotion: Bool) {
+    /// The pointer arriving: a quick fade where it already stands, so it
+    /// never seems to jump from somewhere else.
+    func fadeIn(reduceMotion: Bool) {
         guard !reduceMotion else { return }
-        let spring = CASpringAnimation(keyPath: "transform.scale")
-        spring.fromValue = 0.35
-        spring.toValue = 1
-        spring.mass = 0.7
-        spring.stiffness = 300
-        spring.damping = 13
-        spring.duration = spring.settlingDuration
-        pointerLayer.add(spring, forKey: "arrive")
+        let fade = CABasicAnimation(keyPath: "opacity")
+        fade.fromValue = 0
+        fade.toValue = 1
+        fade.duration = 0.12
+        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        pointerLayer.add(fade, forKey: "arrive")
     }
 
     func hidePointer() {
+        placed = false
         withoutAnimation { pointerLayer.isHidden = true }
         pressedScale = nil
         pressLayer.removeAllAnimations()
@@ -312,6 +327,13 @@ final class PresentationPointerOverlay {
     }
 }
 
+/// The overlays' panel. AppKit may move a window it is ordering in so that it
+/// fits below the menu bar; these cover the whole display on purpose, so
+/// their frames are kept exactly as given.
+final class PointerPanel: OverlayPanel {
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
+}
+
 extension PresentationPointerOverlay {
     convenience init(screen: NSScreen) {
         self.init(frame: screen.frame, displayID: screen.displayID)
@@ -373,6 +395,7 @@ final class PresentationPointerClickShield {
     private final class ShieldPanel: OverlayPanel {
         override var canBecomeKey: Bool { false }
         override var canBecomeMain: Bool { false }
+        override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
     }
 
     /// Takes the first click without activating anything and does nothing

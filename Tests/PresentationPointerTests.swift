@@ -266,7 +266,14 @@ enum PresentationPointerTests {
         overlay.release(reduceMotion: false)
         overlay.press(expression, reduceMotion: true)
         overlay.release(reduceMotion: true)
-        overlay.popIn(reduceMotion: false)
+        overlay.fadeIn(reduceMotion: false)
+        overlay.movePointer(to: CGPoint(x: 3000, y: 400))
+        overlay.setSuppressed(true)
+        suite.expect(overlay.drawnTip == nil,
+                     "while macOS shows its own pointer, the picture steps aside so only one shows")
+        overlay.setSuppressed(false)
+        suite.expect(overlay.drawnTip.map { hypot($0.x - 3000, $0.y - 400) < 0.01 } == true,
+                     "once the system pointer hides again, the picture is back on the mouse")
         overlay.hidePointer()
         suite.expect(overlay.drawnTip == nil, "a hidden pointer has no tip on screen")
         overlay.update(frame: CGRect(x: 0, y: 0, width: 1512, height: 982))
@@ -285,7 +292,7 @@ enum PresentationPointerTests {
             for level in 1...PresentationPointerTapSeries.maximumLevel {
                 let samples = sound.samples(level: level)
                 let label = "\(sound) at level \(level)"
-                suite.expect(samples.count == Int(sound.duration * rate) && sound.duration <= 0.2,
+                suite.expect(samples.count == Int(sound.duration * rate) && sound.duration <= 0.25,
                              "\(label) is a short tap")
                 let peak = samples.reduce(0) { max($0, abs($1)) }
                 suite.expect(peak > 0.8 && peak <= 0.851, "\(label) is loud enough and never clips (\(peak))")
@@ -326,11 +333,11 @@ enum PresentationPointerTests {
                      && PresentationPointerSoundChoice.resolve(stored: "custom", systemNames: system) == .custom,
                      "a saved sound name finds the pointer's own, the Mac's, or the person's file")
         suite.expect(PresentationPointerSoundChoice.resolve(stored: "Funky Retired Sound", systemNames: system)
-                     == .builtIn(.tap)
-                     && PresentationPointerSoundChoice.resolve(stored: nil, systemNames: system) == .builtIn(.tap),
-                     "a sound this Mac does not have plays the default tap rather than nothing")
-        suite.expect(PresentationPointerSupport.defaultSoundName == PresentationPointerTapSound.tap.storageValue,
-                     "the default sound is the pointer's own tap")
+                     == .builtIn(.drum)
+                     && PresentationPointerSoundChoice.resolve(stored: nil, systemNames: system) == .builtIn(.drum),
+                     "a sound this Mac does not have plays the default sound rather than nothing")
+        suite.expect(PresentationPointerSupport.defaultSoundName == PresentationPointerTapSound.drum.storageValue,
+                     "the default sound is the pointer's own drum")
     }
 
     /// Reads a drawn image's alpha, rows from the top.

@@ -1405,7 +1405,9 @@ def main():
     # since the tests place it on frames of their own.
     write("PresentationPointerOverlayDeclaration.swift", "import AppKit\nimport QuartzCore\n\n"
           + declaration("Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
-                        "final class PresentationPointerOverlay"))
+                        "final class PresentationPointerOverlay")
+          + declaration("Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
+                        "final class PointerPanel"))
     shelf = "Sources/Vorssaint/Services/Shelf/ShelfService.swift"
     write("ShelfDragCompletion.swift", "import AppKit\n\nextension ShelfDragCompletionContract {\n"
           + "final class Service {\nstatic var shared = Service()\n"

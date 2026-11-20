@@ -161,7 +161,7 @@ enum PresentationPointerSupport {
     static let sizeRange: ClosedRange<Double> = 32...128
     static let defaultSize: Double = 64
     static let defaultEnergy: Double = 0.5
-    static let defaultSoundName = PresentationPointerTapSound.tap.storageValue
+    static let defaultSoundName = PresentationPointerTapSound.drum.storageValue
     static let defaultSoundVolume: Double = 0.6
     /// The sound preference value that stands for the file the person chose.
     static let customSoundName = "custom"
@@ -222,8 +222,8 @@ enum PresentationPointerSupport {
 }
 
 /// What a stored sound name asks for. Anything it does not recognise, such as
-/// a system sound this macOS no longer ships, is the default tap rather than
-/// silence while the switch still reads on.
+/// a system sound this macOS no longer ships, is the default sound rather
+/// than silence while the switch still reads on.
 enum PresentationPointerSoundChoice: Equatable {
     case builtIn(PresentationPointerTapSound)
     case system(String)
@@ -233,7 +233,7 @@ enum PresentationPointerSoundChoice: Equatable {
         if let sound = PresentationPointerTapSound(storageValue: stored) { return .builtIn(sound) }
         if stored == PresentationPointerSupport.customSoundName { return .custom }
         if let stored, systemNames.contains(stored) { return .system(stored) }
-        return .builtIn(.tap)
+        return .builtIn(.drum)
     }
 }
 
@@ -242,6 +242,8 @@ enum PresentationPointerSoundChoice: Equatable {
 /// noise, and each level of a tap series sounds a little higher and brighter
 /// than the one before, the same way the tap itself lands harder.
 enum PresentationPointerTapSound: String, CaseIterable, Identifiable {
+    /// A stick click on a deep drum. Quick clicks climb like toms in a fill.
+    case drum
     /// A fingertip and nail on a hard surface: a crisp click and a small
     /// rebound just after it.
     case tap
@@ -268,6 +270,7 @@ enum PresentationPointerTapSound: String, CaseIterable, Identifiable {
 
     var duration: Double {
         switch self {
+        case .drum: return 0.22
         case .tap: return 0.11
         case .knock: return 0.12
         case .pop: return 0.08
@@ -296,6 +299,18 @@ enum PresentationPointerTapSound: String, CaseIterable, Identifiable {
             lowpassed += 0.25 * (white - lowpassed)
             var value: Double
             switch self {
+            case .drum:
+                // The stick: a sharp click on the attack, brighter the
+                // harder the series hits.
+                let stick = 0.8 * brightness * (white - lowpassed) * exp(-t / 0.0008)
+                    + 0.45 * sin(2 * .pi * 2300 * t) * exp(-t / 0.003)
+                // The drum: a deep tone that drops in pitch as it rings,
+                // pitched up a step at each level of a series, like toms.
+                let tom = 1 + 0.12 * step
+                let frequency = (62 + 120 * exp(-t / 0.025)) * tom
+                phase += 2 * .pi * frequency / rate
+                value = stick + sin(phase) * exp(-t / 0.11)
+                    + 0.3 * sin(2.6 * phase) * exp(-t / 0.035)
             case .tap:
                 // The click: bright noise and two high rings that are gone
                 // within a few milliseconds. Then the rebound, softer and

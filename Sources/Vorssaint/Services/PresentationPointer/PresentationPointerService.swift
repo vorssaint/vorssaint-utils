@@ -299,7 +299,7 @@ final class PresentationPointerService: ObservableObject {
         }
         layoutDisplays()
         if arriving, let id = activeDisplayID {
-            overlays[id]?.popIn(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+            overlays[id]?.fadeIn(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
         }
     }
 
@@ -377,6 +377,8 @@ final class PresentationPointerService: ObservableObject {
             systemPointer.hide()
         } else {
             systemPointer.show()
+            // The ring circles the system pointer, so it never steps aside.
+            overlays.values.forEach { $0.setSuppressed(false) }
         }
     }
 
@@ -427,7 +429,36 @@ final class PresentationPointerService: ObservableObject {
             pendingMove = (location, event.timestamp)
             runFrameClock()
         }
-        systemPointer.reassertIfNeeded(now: event.timestamp)
+        checkSystemPointer(now: event.timestamp)
+        // A click can open a menu, where macOS may show its own pointer a
+        // moment later with no move to tell us.
+        if !Self.moveEvents.contains(type) { scheduleSystemPointerCheck(after: 0.12) }
+    }
+
+    // MARK: - One pointer at a time
+
+    private var systemPointerCheckScheduled = false
+
+    /// Hides the system pointer again if macOS showed it, and where macOS
+    /// insists on it (menus, the Dock, some system surfaces), steps the
+    /// picture aside so the two never show at once.
+    private func checkSystemPointer(now: TimeInterval, force: Bool = false) {
+        guard isPresenting, style.replacesSystemPointer, let id = activeDisplayID else { return }
+        guard let showing = systemPointer.reassertIfNeeded(now: now, force: force) else { return }
+        overlays[id]?.setSuppressed(showing)
+        // While it shows, keep looking, so the picture comes back as soon as
+        // the system pointer leaves, even without a move.
+        if showing { scheduleSystemPointerCheck(after: 0.15) }
+    }
+
+    private func scheduleSystemPointerCheck(after delay: TimeInterval) {
+        guard !systemPointerCheckScheduled else { return }
+        systemPointerCheckScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self else { return }
+            self.systemPointerCheckScheduled = false
+            self.checkSystemPointer(now: ProcessInfo.processInfo.systemUptime, force: true)
+        }
     }
 
     // MARK: - Frame clock
@@ -568,7 +599,7 @@ final class PresentationPointerService: ObservableObject {
 
     private func reassertPointer() {
         guard isPresenting else { return }
-        systemPointer.reassertIfNeeded(now: ProcessInfo.processInfo.systemUptime, force: true)
+        checkSystemPointer(now: ProcessInfo.processInfo.systemUptime, force: true)
         overlays.values.forEach { $0.show() }
         shields.values.forEach { $0.show() }
     }
@@ -606,7 +637,7 @@ final class PresentationPointerService: ObservableObject {
     // MARK: - Sound
 
     /// What a tap plays, or nil for silence. A custom file that has gone
-    /// missing falls back to the default tap rather than going quiet while
+    /// missing falls back to the default sound rather than going quiet while
     /// the switch still reads on.
     static func soundSource(from defaults: UserDefaults) -> PresentationPointerSoundSource? {
         guard defaults.bool(forKey: DefaultsKey.presentationPointerSoundEnabled) else { return nil }
@@ -620,7 +651,7 @@ final class PresentationPointerService: ObservableObject {
         case .custom:
             guard let path = defaults.string(forKey: DefaultsKey.presentationPointerCustomSoundPath),
                   !path.isEmpty, FileManager.default.isReadableFile(atPath: path)
-            else { return .builtIn(.tap) }
+            else { return .builtIn(.drum) }
             return .file(URL(fileURLWithPath: path))
         }
     }
@@ -644,6 +675,7 @@ private final class SystemPointerHider {
     private(set) var isHiding = false
     private var hides = 0
     private var lastCheck: TimeInterval = 0
+    private var lastHideAttempt: TimeInterval = 0
 
     private let isVisible: VisibleFunction? = {
         dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, "CGCursorIsVisible")
@@ -668,18 +700,27 @@ private final class SystemPointerHider {
         if hides == 0 { BackgroundCursor.setAllowed(false, by: .presentationPointer) }
     }
 
-    func reassertIfNeeded(now: TimeInterval, force: Bool = false) {
-        guard isHiding, force || now - lastCheck >= 0.25 else { return }
+    /// Hides the system pointer again if macOS showed it. Returns whether it
+    /// is on screen after trying, or nil when it was not checked this time.
+    /// Checks are cheap and run up to twenty times a second; where a hide
+    /// does not take (macOS keeps its pointer over menus), it is tried again
+    /// only every few tenths of a second.
+    func reassertIfNeeded(now: TimeInterval, force: Bool = false) -> Bool? {
+        guard isHiding, force || now - lastCheck >= 0.05 else { return nil }
         lastCheck = now
-        guard let isVisible, isVisible() != 0,
-              CGDisplayHideCursor(CGMainDisplayID()) == .success else { return }
+        guard let isVisible else { return nil }
+        guard isVisible() != 0 else { return false }
+        guard now - lastHideAttempt >= 0.3 else { return true }
+        lastHideAttempt = now
+        guard CGDisplayHideCursor(CGMainDisplayID()) == .success else { return true }
         // A hide that changed nothing is handed straight back, so the count
         // owed on the way out never grows past the hides that worked.
         if isVisible() != 0 {
             _ = CGDisplayShowCursor(CGMainDisplayID())
-        } else {
-            hides += 1
+            return true
         }
+        hides += 1
+        return false
     }
 }
 
