@@ -2317,7 +2317,8 @@ private struct PresentationPointerPanelTile: View {
                     .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
                         .fill(Color.secondary.opacity(0.055)))
                     PanelOptionToggle(icon: service.blocksClicks ? "hand.raised.fill" : "hand.raised",
-                                      title: text.blockClicksTitle, isOn: blockingBinding)
+                                      title: text.blockClicksTitle, isOn: blockingBinding,
+                                      switchSpeaksTitle: true)
                 }
                 .padding(.leading, PanelRowMetrics.iconWidth + PanelRowMetrics.iconSpacing)
             }
@@ -2379,6 +2380,9 @@ struct PanelOptionToggle: View {
     let title: String
     let isOn: Binding<Bool>
     var errorText: String? = nil
+    /// Leaves the title to the switch, which carries the same name, so
+    /// VoiceOver says it once.
+    var switchSpeaksTitle = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -2387,10 +2391,12 @@ struct PanelOptionToggle: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                     .frame(width: 15)
+                    .accessibilityHidden(switchSpeaksTitle)
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityHidden(switchSpeaksTitle)
                 Spacer(minLength: 8)
                 Toggle(title, isOn: isOn)
                     .toggleStyle(.switch)
