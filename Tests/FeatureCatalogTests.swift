@@ -1648,9 +1648,11 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility).contains(.screenRecorder),
                "the recorder uses accessibility for anonymous typing timing while active")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.preciseVolumeRollerEnabled]).contains(.mixer),
-               "mixer uses accessibility only for precise volume roller")
+               "mixer uses accessibility for precise volume roller")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.softwareOutputVolumeEnabled]).contains(.mixer),
+               "mixer uses accessibility for the software volume keys")
         suite.expect(!activeSet(.accessibility).contains(.mixer),
-               "mixer without precise volume roller does not use accessibility")
+               "mixer without volume key features does not use accessibility")
 
         suite.expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
                 == [.switcher, .screenOCR, .screenshot, .screenRecorder],

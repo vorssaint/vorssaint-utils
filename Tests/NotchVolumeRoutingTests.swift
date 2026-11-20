@@ -62,6 +62,8 @@ enum NotchVolumeRoutingTests {
     class State {
         var monitorVolumeKeysHeld: [BrightnessSupport.VolumeKeyAction: BrightnessSupport.SpeakerTarget] = [:]
         static func showMonitorFeedback() { NotchService.shared.showCurrentVolume() }
+        var softwareVolumeKeysHeld: Set<BrightnessSupport.VolumeKeyAction> = []
+        static func showSoftwareFeedback() { NotchService.shared.showCurrentVolume() }
         var notchKeyGate = NotchVolumeKeyGate()
         var gate = PreciseVolumeRollerGate()
         var feedbackStep = 0

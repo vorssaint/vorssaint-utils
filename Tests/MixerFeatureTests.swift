@@ -817,7 +817,8 @@ enum MixerFeatureTests {
                      && mixerCode.contains("let currentGain = box.value * ramp.next(toward: compensation.value, hostTime: now.pointee.mHostTime)")
                      && mixerCode.components(separatedBy: "let ramp = TapLevelRamp()").count == 3,
                      "both engines give back the level the tap's mixdown took, eased")
-        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 5
+        suite.expect(mixerCode.components(separatedBy: "MixerRoutingSupport.gain(forVolume:").count == 3
+                     && mixerCode.components(separatedBy: "appEngineGain(forVolume:").count == 5
                      && !mixerCode.contains("Float(app.volume)")
                      && !mixerCode.contains("Float(latestApp.volume)"),
                      "every engine plays an app's slider through the same loudness curve")
@@ -830,7 +831,7 @@ enum MixerFeatureTests {
                      && levelWatch.contains("mScope: kAudioObjectPropertyScopeOutput")
                      && mixerCode.components(separatedBy: "LevelCompensationWatch.started(objects: objects)").count == 3,
                      "both engines follow the app to another output, on the scope the HAL announces it")
-        let engineInits = ["init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String)",
+        let engineInits = ["init?(objects: [AudioObjectID], gain: Float, outputDeviceUID: String, excludesObjects: Bool = false)",
                            "init?(appID: String, objects: [AudioObjectID], gain: Float, clockDeviceUID: String)"]
             .map { signature in
                 mixerCode.range(of: signature).flatMap { start in

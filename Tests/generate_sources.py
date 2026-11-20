@@ -1185,6 +1185,8 @@ def main():
           + "private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }\n"
           + "var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil { didSet { republishSystemOutput() } }\n"
           + "var outputIsMonitorSpeakers: Bool { monitorOutput != nil }\n"
+          + "var softwareOutput: SoftwareOutputVolume? = nil { didSet { republishSystemOutput() } }\n"
+          + "func applySoftwareOutput(_ volume: SoftwareOutputVolume) { softwareOutput = volume }\n"
           + "typealias BrightnessService = DisplaySpeakerVolumeTests.Service\n"
           + "var outputControlListenerDevice: AudioObjectID?\n"
           + "var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []\n"
@@ -1240,7 +1242,8 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
-                        "    private func applyMonitorVolumeKey("])
+                        "    private func applyMonitorVolumeKey(", "    private func routeSoftwareVolume(",
+                        "    private func applySoftwareVolumeKey("])
           + "}\n}\n")
     mixer_section = "Sources/Vorssaint/UI/MenuPanel/MixerSection.swift"
     write("MixerPercentKey.swift", "import Foundation\nextension MixerPercentKeyTests {\nfinal class Coordinator: Fixture {\n"

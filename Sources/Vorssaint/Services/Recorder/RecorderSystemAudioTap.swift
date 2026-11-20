@@ -674,7 +674,9 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         return objects
     }
 
-    private static func processObject(for pid: pid_t) -> AudioObjectID? {
+    /// The audio object of a process, nil before it has one. The mixer's
+    /// output-wide tap leaves this process out by it, as the recorder does.
+    static func processObject(for pid: pid_t) -> AudioObjectID? {
         var pid = pid
         var object = AudioObjectID(0)
         var address = address(kAudioHardwarePropertyTranslatePIDToProcessObject)

@@ -14,6 +14,7 @@ typedef NS_ENUM(NSInteger, VorssaintTapMode) {
     VorssaintTapModeStereoMixdown,
     VorssaintTapModeStereoGlobalExcluding,
     VorssaintTapModeDeviceStream,
+    VorssaintTapModeDeviceStreamExcluding,
 };
 
 // Early Sonoma lacks the Swift convenience initializers, even though the SDK
@@ -35,6 +36,10 @@ static inline CATapDescription * _Nullable VorssaintPrivateTapDescription(
         case VorssaintTapModeDeviceStream:
             if (!deviceUID) return nil;
             description = [[tapClass alloc] initWithProcesses:processes andDeviceUID:deviceUID withStream:0];
+            break;
+        case VorssaintTapModeDeviceStreamExcluding:
+            if (!deviceUID) return nil;
+            description = [[tapClass alloc] initExcludingProcesses:processes andDeviceUID:deviceUID withStream:0];
             break;
     }
 

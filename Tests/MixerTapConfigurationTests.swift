@@ -197,6 +197,16 @@ enum MixerTapConfigurationTests {
                      "the mixer targets stream zero of its output and mutes only while tapped")
         suite.expect(VorssaintPrivateTapDescription(.deviceStream, objects, nil, nil, .mutedWhenTapped) == nil,
                      "a missing output UID cannot become a device tap")
+        // The software output volume lowers one output, so its tap must leave
+        // audio that apps send to any other output alone.
+        let output = VorssaintPrivateTapDescription(.deviceStreamExcluding, objects, "test-output", nil, .mutedWhenTapped)
+        suite.expect(output?.deviceUID == "test-output" && (output?.value(forKey: "stream") as? NSNumber)?.intValue == 0
+                        && output?.isExclusive == true
+                        && (output?.value(forKey: "processes") as? [NSNumber]) == objects
+                        && output?.isPrivate == true && output?.muteBehavior == .mutedWhenTapped,
+                     "the output-wide tap takes every other process on stream zero of one output only")
+        suite.expect(VorssaintPrivateTapDescription(.deviceStreamExcluding, objects, nil, nil, .mutedWhenTapped) == nil,
+                     "a missing output UID cannot become an output-wide tap")
     }
 
     static func run(_ suite: TestSuite) {
@@ -293,6 +303,23 @@ enum MixerTapConfigurationTests {
                                                         streamCount: count, startingChannel: start,
                                                         format: format) == expected,
                          "\(name) selects a direct stream only when every captured channel keeps its destination")
+        }
+        // The software volume's output-wide tap takes the output's own stream,
+        // whatever the processes it leaves out play on, so the stream alone
+        // decides. Nil fails open, since no other shape renders correctly.
+        let outputWide: [(String, Int, UInt32, MixerTapFormat?, Bool?)] = [
+            ("a stereo monitor such as the X34", 1, 1, MixerTapFormat(asbd(channels: 2)), false),
+            ("one wide native stream", 1, 1, wide, true),
+            ("multiple streams", 2, 1, wide, nil),
+            ("missing streams", 0, 1, wide, nil),
+            ("shifted channel range", 1, 3, wide, nil),
+            ("unknown format", 1, 1, nil, nil),
+            ("a mono stream", 1, 1, MixerTapFormat(asbd(channels: 1)), nil),
+        ]
+        for (name, count, start, format, expected) in outputWide {
+            suite.expect(MixerTapFormat.outputWidePassesThrough(streamCount: count, startingChannel: start,
+                                                               format: format) == expected,
+                         "\(name): the output-wide tap passes wide streams through, mixes stereo, refuses the rest")
         }
     }
 

@@ -550,6 +550,7 @@ extension AppFeature {
                 return boolFor(DefaultsKey.keepAwakeMouseJiggleEnabled)
             case (.mixer, .accessibility):
                 return boolFor(DefaultsKey.preciseVolumeRollerEnabled)
+                    || boolFor(DefaultsKey.softwareOutputVolumeEnabled)
             case (.brightness, .accessibility):
                 return boolFor(DefaultsKey.brightnessKeysEnabled)
                     || boolFor(DefaultsKey.brightnessOSDEnabled)

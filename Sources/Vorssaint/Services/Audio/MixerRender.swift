@@ -43,6 +43,16 @@ struct MixerTapFormat: Equatable {
         let devices = Set(processDevices.flatMap { $0 })
         return devices == [outputDevice]
     }
+
+    /// The shape of the software volume's output-wide tap, which takes the
+    /// output's own stream whatever the processes it leaves out play on. True
+    /// passes a wide stream through as it is, false mixes a stereo one like an
+    /// app tap, and nil refuses every other shape, which then fails open.
+    static func outputWidePassesThrough(streamCount: Int, startingChannel: UInt32,
+                                        format: MixerTapFormat?) -> Bool? {
+        guard streamCount == 1, startingChannel == 1, let format, format.channels >= 2 else { return nil }
+        return format.channels > 2
+    }
 }
 
 /// Puts a tapped app's audio onto whatever shape the output device asks for.
