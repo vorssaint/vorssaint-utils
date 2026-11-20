@@ -27,6 +27,8 @@ extension AgentProvider {
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
         case .copilot: CopilotReader()
+        case .agy: AgyReader()
         }
     }
 }
+

@@ -97,7 +97,10 @@ struct NotchMusicStrip: View {
                 }
                 .frame(width: geometry.compactActivityCameraGap, height: geometry.compactActivityContentHeight)
                 .clipped()
-                HStack {
+                HStack(spacing: 4) {
+                    if let companion = service.compactCompanion, companion == .agents {
+                        NotchCompanionMark(companion: companion, geometry: geometry)
+                    }
                     if wing > 0 { bars }
                 }
                 .padding(.leading, innerInset)
