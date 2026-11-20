@@ -529,7 +529,9 @@ enum SettingsBackupSupport {
             for index in presets.indices where presets[index].images?.isEmpty == false {
                 presets[index].images = nil
             }
-            settings[DefaultsKey.recorderEditorPresets] = try? JSONEncoder().encode(presets)
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = [.sortedKeys]
+            settings[DefaultsKey.recorderEditorPresets] = try? encoder.encode(presets)
         }
         if let rawProfiles = settings[DefaultsKey.mediaImageProfiles] as? String {
             if let portableProfiles = MediaSupport.portableImageProfiles(rawProfiles) {
@@ -584,7 +586,9 @@ enum SettingsBackupSupport {
             let id = presets[index].id
             presets[index].images = localPresets.first { $0.id == id }?.images
         }
-        return (try? JSONEncoder().encode(presets)) ?? restored
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return (try? encoder.encode(presets)) ?? restored
     }
 
     /// A backup is a file the user can hand around and edit, so a value has to
