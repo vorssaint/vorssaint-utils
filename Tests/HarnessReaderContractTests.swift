@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        antigravityGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -141,5 +142,35 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func antigravityGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 0)
+        var state = AgentLogState()
+        state.session = "ag-1"
+        state.project = "demo"
+        let reader = AgentProvider.antigravity.reader
+        let began = AgentTimestamp.parse("2026-09-21T16:00:00Z")!
+        let finished = AgentTimestamp.parse("2026-09-21T16:00:20Z")!
+        let errored = AgentTimestamp.parse("2026-09-21T16:00:25Z")!
+        let prompt = line(#"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"2026-09-21T16:00:00Z","content":"private"}"#)
+        suite.expect(reader.parse(prompt, state: &state, now: now)
+                        == [.turnBegan(began), .turnContext(model: "", project: "demo")],
+                     "an Antigravity prompt opens its turn with known project context")
+        let toolReply = line(#"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-21T16:00:05Z","model":"gemini-4-neon-medium","input_tokens":1000,"cache_read_tokens":200,"output_tokens":50,"tool_calls":[{"name":"read_file"}]}"#)
+        let toolEntries = reader.parse(toolReply, state: &state, now: now)
+        suite.expect(toolEntries.count == 3 && state.turnOpen && state.model == "gemini-4-neon-medium",
+                     "a planner response with tool calls keeps the Antigravity turn active")
+        let finalReply = line(#"{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-21T16:00:20Z","model":"gemini-4-neon-medium","input_tokens":500,"cache_read_tokens":100,"output_tokens":40}"#)
+        let finalEntries = reader.parse(finalReply, state: &state, now: now)
+        suite.expect(finalEntries.last == .turnEnded(finished, completed: true, duration: nil)
+                        && !state.turnOpen,
+                     "a final Antigravity planner response without tool calls closes its turn")
+        _ = reader.parse(prompt, state: &state, now: now)
+        let err = line(#"{"step_index":3,"source":"SYSTEM","type":"ERROR_MESSAGE","status":"ERROR","created_at":"2026-09-21T16:00:25Z","error":"boom"}"#)
+        suite.expect(reader.parse(err, state: &state, now: now)
+                        == [.turnEnded(errored, completed: false, duration: nil)]
+                        && !state.turnOpen,
+                     "an Antigravity error message closes an open turn as incomplete")
     }
 }

@@ -130,6 +130,11 @@ enum AgentUsageReadTests {
                 #"{"id":"end","timestamp":\#(timestamp),"type":"assistant.turn_end","data":{"turnId":"0"}}"#,
                 #"{"id":"usage","timestamp":\#(timestamp),"type":"session.shutdown","data":{"modelMetrics":{"gpt-6-sol":{"requests":{"count":1},"tokenDetails":{"input":{"tokenCount":10},"cache_read":{"tokenCount":20},"cache_write":{"tokenCount":0},"output":{"tokenCount":5}},"usage":{"reasoningTokens":2}}}}}"#,
                 #"{"id":"final-checkpoint","timestamp":\#(timestamp),"type":"session.usage_checkpoint","data":{}}"#
+            ]),
+            (.antigravity, [
+                #"{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":\#(timestamp),"content":"private"}"#,
+                #"{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":\#(timestamp),"model":"gemini-4-neon-medium","input_tokens":10,"cache_read_tokens":20,"output_tokens":5,"tool_calls":[{"name":"run_command"}]}"#,
+                #"{"step_index":2,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":\#(timestamp),"model":"gemini-4-neon-medium","input_tokens":8,"cache_read_tokens":12,"output_tokens":4}"#
             ])
         ]
         for (provider, lines) in cases {
@@ -146,6 +151,7 @@ enum AgentUsageReadTests {
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .antigravity: entries += AgentLogParser.parseAntigravity(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -391,7 +397,8 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            let relative = provider == .antigravity ? "session/.system_generated/logs/transcript.jsonl" : "session/events.jsonl"
+            let file = root.url.appending(path: relative)
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
