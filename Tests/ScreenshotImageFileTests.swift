@@ -76,6 +76,19 @@ enum ScreenshotImageFileTests {
                                                preferredFormat: .jpeg), format: .jpeg, suite: suite)
             checkDrag(Service.dragItemProvider(image: opaque, scale: 2, strings: .enUS),
                       format: .png, suite: suite)
+            if let cachedPNG = ScreenshotImageFile.encode(export, preferredFormat: .png)?.data {
+                let source = folder.appendingPathComponent("\(UUID().uuidString).png")
+                let captureDate = Date(timeIntervalSince1970: 1)
+                try cachedPNG.write(to: source)
+                let provider = Service.dragItemProvider(pngAt: source, capturedAt: captureDate, strings: .enUS)
+                try FileManager.default.removeItem(at: source)
+                suite.expect(provider?.suggestedName == ScreenshotSupport.fileName(
+                    prefix: ScreenshotFeatureStrings.enUS.fileNamePrefix, date: captureDate),
+                    "a history drag suggests the original capture time in its file name")
+                checkDrag(provider, format: .png, suite: suite, expectedData: cachedPNG)
+            } else {
+                suite.expect(false, "a history capture fixture can be encoded as PNG")
+            }
             context.clear(CGRect(x: 3, y: 4, width: 1, height: 1))
             checkDrag(Service.dragItemProvider(image: context.makeImage()!, scale: 2,
                                                strings: .enUS, preferredFormat: .jpeg),
@@ -86,7 +99,8 @@ enum ScreenshotImageFileTests {
         transparency(suite)
     }
 
-    private static func checkDrag(_ provider: NSItemProvider?, format: MediaImageFormat, suite: TestSuite) {
+    private static func checkDrag(_ provider: NSItemProvider?, format: MediaImageFormat, suite: TestSuite,
+                                  expectedData: Data? = nil) {
         guard let provider, provider.hasItemConformingToTypeIdentifier(format.contentType.identifier) else {
             suite.expect(false, "the drag provider advertises the source format or transparent PNG fallback")
             return
@@ -97,12 +111,13 @@ enum ScreenshotImageFileTests {
             let source = url.flatMap { CGImageSourceCreateWithURL($0 as CFURL, nil) }
             let valid = error == nil && url.flatMap { UTType(filenameExtension: $0.pathExtension) } == format.contentType
                 && source.flatMap(CGImageSourceGetType) as String? == format.contentType.identifier
+            let matchesData = expectedData.map { data in url.flatMap { try? Data(contentsOf: $0) } == data } ?? true
             if inPlace, let folder = url?.deletingLastPathComponent(),
                folder.lastPathComponent.hasPrefix("ScreenshotDrag-") {
                 try? FileManager.default.removeItem(at: folder)
             }
             DispatchQueue.main.async {
-                matches = valid
+                matches = valid && matchesData
                 finished = true
             }
         }

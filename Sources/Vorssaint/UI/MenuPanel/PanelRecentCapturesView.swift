@@ -133,6 +133,8 @@ struct RecentCapturesView: View {
     private func row(_ entry: RecentCaptureEntry) -> some View {
         HStack(spacing: 10) {
             preview(entry)
+                .contentShape(Rectangle())
+                .onDrag { history.dragItemProvider(for: entry) ?? NSItemProvider() }
             VStack(alignment: .leading, spacing: 5) {
                 Text(entry.kind == .screenshot ? text.screenshot : text.recording)
                     .font(.system(size: 11.5, weight: .semibold))

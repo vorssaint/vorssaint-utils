@@ -325,7 +325,9 @@ def main():
     editor = "Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift"
     write("ScreenshotImageFileOutput.swift", "import AppKit\nextension ScreenshotImageFileTests.Service {\n"
           + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift", prefix)
-                    for prefix in ["    static func dragItemProvider(", "    static func temporaryExportFile(",
+                    for prefix in ["    static func dragItemProvider(image:", "    static func dragItemProvider(pngAt ",
+                                   "    private static func temporaryDragItemProvider(",
+                                   "    static func temporaryExportFile(image:", "    private static func temporaryExportFile(",
                                    "    static func saveDestination(",
                                    "    private static func fileName("])
           + "}\n")
