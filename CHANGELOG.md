@@ -11,6 +11,8 @@ This update improves microphone muting, display controls, window switching, clip
 
 ### Added
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
+- The music page has a heart for the song playing, which Settings → Dynamic Island → Music can show in place of the audio output button. For Apple Music it shows whether the song is a favorite and changes it, asking once to control Music like the playback buttons do. For Spotify it shows whether the song is in Liked Songs, once "Spotify likes" is turned on in Features and your own Spotify developer app is connected in Settings → Dynamic Island → Content → Now Playing.
+- With Spotify likes connected, Up next lists Spotify's own upcoming songs, which Spotify does not share with the system.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.

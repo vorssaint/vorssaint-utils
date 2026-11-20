@@ -69,6 +69,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchIncludeOtherPlayers) private var includeOtherPlayers = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var musicShowVolume = false
     @AppStorage(DefaultsKey.notchPreferredPlayer) private var preferredPlayer = NotchPreferredPlayer.automatic
+    @AppStorage(DefaultsKey.notchMusicSideButton) private var musicSideButton = NotchMusicSidePlace.output.rawValue
     @AppStorage(DefaultsKey.notchIdleContent) private var idle = NotchIdleContent.music.rawValue
     @AppStorage(DefaultsKey.notchLowBatteryTint) private var lowBatteryTint = false
     @AppStorage(DefaultsKey.notchLowBatteryThreshold) private var lowBatteryThreshold = NotchSupport.defaultLowBatteryThreshold
@@ -440,6 +441,13 @@ struct NotchSettings: View {
                 }
                 .labelsHidden()
             }
+            SettingsRow(symbol: "heart", title: music.sideButton, caption: music.sideButtonHint) {
+                Picker(music.sideButton, selection: $musicSideButton) {
+                    Text(music.sideButtonOutput).tag(NotchMusicSidePlace.output.rawValue)
+                    Text(music.sideButtonLike).tag(NotchMusicSidePlace.like.rawValue)
+                }
+                .labelsHidden()
+            }
             .task {
                 guard let choices = await NotchPreferredPlayer.loadInstalled(), !Task.isCancelled else { return }
                 preferredPlayers = choices
@@ -455,6 +463,9 @@ struct NotchSettings: View {
             SettingsFeatureSwitchRow(symbol: "waveform", title: music.liveEqualizer,
                                      caption: NotchAudioLevelSupport.isSupported ? music.liveEqualizerHint : music.liveEqualizerUnavailable,
                                      isOn: $liveEqualizer, feature: .notchLiveEqualizer, enabled: NotchAudioLevelSupport.isSupported)
+            Divider()
+            NotchSpotifySettings()
+                .disabled(!AppFeature.notchSpotify.isAvailable)
         case .notifications:
             let notifications = FeatureStrings.notchNotifications(l10n.language)
             switchRow("bell.slash", notifications.hideSystemBanner, caption: notifications.hideSystemBannerHint,
