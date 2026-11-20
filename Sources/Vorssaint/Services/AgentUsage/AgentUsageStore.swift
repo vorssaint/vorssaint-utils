@@ -690,6 +690,13 @@ enum AgentLogReader {
     /// usage record; it is skipped rather than held in memory.
     static let maximumLine = 32 << 20
 
+    /// How far back the slow sweep looks: at every log, however long it was
+    /// quiet. An agent that keeps its log open, as Codex does, can write for
+    /// hours without a file event, and a conversation resumed after days of
+    /// silence was otherwise never read again. A log that has not grown costs
+    /// a `stat`.
+    static let sweepWindow: TimeInterval = .infinity
+
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
