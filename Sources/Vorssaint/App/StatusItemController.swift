@@ -202,6 +202,11 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: PresentationPointerClickBlock.didChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .store(in: &cancellables)
+
         NotificationCenter.default.publisher(for: NotchService.fullscreenVisibilityDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notification in
@@ -363,7 +368,9 @@ final class StatusItemController {
         let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
-        let signal = updateAvailable || micBadgeActive
+        // While the presentation pointer blocks clicks, this item's menu is
+        // the way to let them through again, so it stays on screen.
+        let signal = updateAvailable || micBadgeActive || PresentationPointerClickBlock.isActive
         let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(
             in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal
         let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(

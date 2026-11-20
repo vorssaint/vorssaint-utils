@@ -45,13 +45,20 @@ enum PresentationPointerStyle: String, CaseIterable, Identifiable {
 /// press before any window sees it. Written on the main thread, read from
 /// tap callbacks, so it answers under a lock.
 enum PresentationPointerClickBlock {
+    /// Posted on the main thread when blocking starts or ends.
+    static let didChange = Notification.Name("PresentationPointerClickBlock.didChange")
+
     private static let lock = NSLock()
     private static var active = false
 
     static var isActive: Bool { lock.withLock { active } }
 
     static func set(_ value: Bool) {
-        lock.withLock { active = value }
+        let changed = lock.withLock { () -> Bool in
+            defer { active = value }
+            return active != value
+        }
+        if changed { NotificationCenter.default.post(name: didChange, object: nil) }
     }
 }
 

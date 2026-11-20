@@ -225,6 +225,7 @@ final class RadialMenuService: ObservableObject {
         }
         mouseTap = nil
         mouseTapSource = nil
+        buttonsLeftToShield.removeAll()
         if isWatchingMouseButton { isWatchingMouseButton = false }
     }
 
@@ -272,6 +273,8 @@ final class RadialMenuService: ObservableObject {
             buttonsLeftToShield.insert(button)
             return Unmanaged.passUnretained(event)
         }
+        // A new press starts afresh, whatever an earlier one left behind.
+        if type == .otherMouseDown { buttonsLeftToShield.remove(button) }
         if buttonsLeftToShield.contains(button) {
             if type == .otherMouseUp { buttonsLeftToShield.remove(button) }
             return Unmanaged.passUnretained(event)

@@ -519,7 +519,10 @@ final class MouseButtonShortcutService: ObservableObject {
             }
             return nil
         }
-        guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
+        // Blocked scrolling goes to the presentation pointer's shield, not to
+        // a shortcut for the app underneath.
+        guard !PresentationPointerClickBlock.isActive,
+              let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         if MouseAppExceptions.shared.excludesActionTarget(
             .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID) {

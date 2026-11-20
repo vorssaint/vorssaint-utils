@@ -53,9 +53,10 @@ enum PresentationPointerTests {
         let levels = (1...6).map { series.registerPress(at: 100 + Double($0) * gap * 0.5) }
         suite.expect(levels == [2, 3, 4, 5, 5, 5],
                      "quick clicks climb one level each and stop at the top (\(levels))")
-        suite.expect(series.registerPress(at: 103.5 + gap * 1.01) == 1,
-                     "a pause longer than the window starts over")
-        suite.expect(series.registerPress(at: 103.5 + gap * 1.01 + gap * 0.99) == 2,
+        let last = 100 + 6 * gap * 0.5
+        suite.expect(series.registerPress(at: last + gap * 1.01) == 1,
+                     "a click just past the window starts over")
+        suite.expect(series.registerPress(at: last + gap * 1.01 + gap * 0.99) == 2,
                      "a click just inside the window continues the series")
         suite.expect(series.registerPress(at: 50) == 1,
                      "a timestamp from before the last click cannot continue a series")
@@ -90,6 +91,14 @@ enum PresentationPointerTests {
                          > PresentationPointerTapExpression.intensity(level: level, energy: 0),
                          "more energy taps harder at level \(level)")
         }
+        let first = PresentationPointerTapExpression.make(level: 1, energy: 0.5)
+        let top = PresentationPointerTapExpression.make(level: maximum, energy: 0.5)
+        suite.expect(top.pressScale < first.pressScale && top.burstRadius > first.burstRadius
+                     && top.soundGain > first.soundGain,
+                     "the top level taps visibly and audibly harder than the first")
+        suite.expect(PresentationPointerTapExpression.make(level: maximum, energy: 1).pressScale
+                     < PresentationPointerTapExpression.make(level: maximum, energy: 0).pressScale,
+                     "the two ends of the Tap energy slider tap differently")
         suite.expect(PresentationPointerTapExpression.intensity(level: 1, energy: 0) > 0,
                      "the subtlest tap is still visible")
         suite.expectClose(PresentationPointerTapExpression.intensity(level: maximum, energy: 1), 1,
@@ -262,15 +271,20 @@ enum PresentationPointerTests {
         }
         let expression = PresentationPointerTapExpression.make(level: 5, energy: 1)
         overlay.press(expression, reduceMotion: false)
+        suite.expect(overlay.isPressed, "a tap presses the pointer in")
         overlay.burst(at: CGPoint(x: 3000, y: 400), expression, reduceMotion: false)
         overlay.release(reduceMotion: false)
+        suite.expect(!overlay.isPressed, "letting go springs it back")
         overlay.press(expression, reduceMotion: true)
+        suite.expect(overlay.isPressed,
+                     "with Reduce Motion a tap still shows, as a change of size with no movement")
         overlay.release(reduceMotion: true)
+        suite.expect(!overlay.isPressed, "and letting go puts it back at once")
         overlay.fadeIn(reduceMotion: false)
         suite.expect(overlay.arrivalFadeStart == 0, "a pointer turned on fades in from nothing")
         overlay.fadeIn(elapsed: PresentationPointerOverlay.arrivalDuration / 2, reduceMotion: false)
         suite.expect(overlay.arrivalFadeStart.map { abs($0 - 0.5) < 0.001 } == true,
-                     "a pointer crossing to another display mid-fade carries on from where it was")
+                     "a fade picked up half way, as on another display, goes on from half opacity")
         overlay.movePointer(to: CGPoint(x: 3000, y: 400))
         overlay.setSuppressed(true)
         suite.expect(overlay.drawnTip == nil,
@@ -303,6 +317,10 @@ enum PresentationPointerTests {
                 suite.expect(abs(samples.first ?? 1) < 0.01 && abs(samples.last ?? 1) < 0.01,
                              "\(label) starts and ends in silence, so it never clicks")
                 suite.expect(samples == sound.samples(level: level), "\(label) sounds the same every time")
+                if level > 1 {
+                    suite.expect(samples != sound.samples(level: level - 1),
+                                 "\(label) sounds different from the level below")
+                }
                 // Zero crossings of the tone, after the opening click, rise
                 // with the pitch.
                 let window = samples[Int(0.005 * rate)..<Int(min(0.03, sound.duration) * rate)]
@@ -320,10 +338,12 @@ enum PresentationPointerTests {
         let samples: [Float] = [0, 0.5, -0.5, 1.5, -1.5]
         let wav = PresentationPointerTapSound.wavData(samples)
         func word(_ offset: Int) -> UInt32 { wav.subdata(in: offset..<offset + 4).withUnsafeBytes { $0.load(as: UInt32.self) } }
+        func half(_ offset: Int) -> UInt16 { wav.subdata(in: offset..<offset + 2).withUnsafeBytes { $0.load(as: UInt16.self) } }
         suite.expect(wav.count == 44 + samples.count * 2
                      && String(decoding: wav.prefix(4), as: UTF8.self) == "RIFF"
                      && String(decoding: wav.subdata(in: 8..<16), as: UTF8.self) == "WAVEfmt "
                      && word(4) == UInt32(36 + samples.count * 2)
+                     && half(20) == 1 && half(22) == 1 && half(34) == 16
                      && word(24) == UInt32(PresentationPointerTapSound.sampleRate)
                      && word(40) == UInt32(samples.count * 2),
                      "the tap is a well-formed 16-bit mono WAV file")

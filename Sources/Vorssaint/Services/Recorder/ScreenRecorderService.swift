@@ -53,6 +53,8 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
     /// Immutable for the whole session, which is what makes it safe to touch
     /// from the capture queue while the main thread watches the clock.
     private let writer: RecorderWriter
+    /// Main thread only: the presentation pointer's windows joining a take.
+    private var pointerWindowsObserver: NSObjectProtocol?
 
     var onUnexpectedStop: ((RecorderFailure) -> Void)?
     var onMicrophoneUnavailable: (() -> Void)?
@@ -152,6 +154,16 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
         await MainActor.run {
             pointer.start()
             typing.start()
+            // The presentation pointer turned on, or on a new display, during
+            // the take is part of what the viewer sees, so it is recorded.
+            pointerWindowsObserver = NotificationCenter.default.addObserver(
+                forName: PresentationPointerService.overlayWindowsDidChange, object: nil, queue: .main
+            ) { [weak self] notification in
+                guard let self,
+                      let numbers = notification.userInfo?[PresentationPointerService.windowNumbersKey] as? [Int]
+                else { return }
+                Task { await self.engine.admitOwnWindows(numbers) }
+            }
         }
         return nil
     }
@@ -206,7 +218,11 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                                                      streamHeardSound: streamHeardSound(against: tap)),
                 forKey: DefaultsKey.recorderSystemAudioTapVerified)
         }
-        let (track, typingTrack) = await MainActor.run { (pointer.stop(), typing.stop()) }
+        let (track, typingTrack) = await MainActor.run { () -> (RecorderPointerTrack, RecorderTypingTrack) in
+            if let pointerWindowsObserver { NotificationCenter.default.removeObserver(pointerWindowsObserver) }
+            pointerWindowsObserver = nil
+            return (pointer.stop(), typing.stop())
+        }
         writerQueue.sync {}
         let written = await writer.finish(at: end)
         if written, !track.isEmpty {

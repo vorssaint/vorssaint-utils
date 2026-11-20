@@ -75,6 +75,8 @@ final class PresentationPointerService: ObservableObject {
     private var restingFrames = 0
 
     private var lastMove: (x: CGFloat, time: TimeInterval)?
+    /// Where the pointer was last drawn, to notice a move nothing reported.
+    private var drawnLocation: CGPoint?
     private var horizontalSpeed: Double = 0
     private var leanAngle: CGFloat = 0
     private var settleScheduled = false
@@ -85,7 +87,18 @@ final class PresentationPointerService: ObservableObject {
     private var screenSaverIsRunning = false
     private var captureHoldsPointer = false
 
+    /// Whether this process ever made the service, so quitting gives the
+    /// system pointer back whatever the feature's availability reads by then
+    /// (a backup import can change it on the way out).
+    private(set) static var isLoaded = false
+
+    /// Posted when the pointer's overlay windows change, with their window
+    /// numbers under `windowNumbersKey`, so a recording can take them in.
+    static let overlayWindowsDidChange = Notification.Name("PresentationPointerService.overlayWindowsDidChange")
+    static let windowNumbersKey = "windowNumbers"
+
     private init() {
+        Self.isLoaded = true
         pointerHotkey.onPress = { [weak self] in self?.toggle() }
         blockClicksHotkey.onPress = { [weak self] in self?.toggleBlockingClicks() }
         SessionActivity.shared.onChange { [weak self] isActive in
@@ -159,7 +172,9 @@ final class PresentationPointerService: ObservableObject {
     /// Plays the chosen tap once, for the settings page.
     func previewSound() {
         stopPreview()
-        guard let sound = Self.soundSource(from: .standard).flatMap({ $0.makeSound(level: 1) }) else { return }
+        guard let source = Self.soundSource(from: .standard),
+              let sound = source.makeSound(level: 1) ?? PresentationPointerSoundSource.builtIn(.drum).makeSound(level: 1)
+        else { return }
         sound.volume = Self.soundVolume(from: .standard)
         sound.play()
         preview = sound
@@ -309,6 +324,7 @@ final class PresentationPointerService: ObservableObject {
             arrivalTime = nil
         }
         layoutDisplays()
+        if arriving { schedulePresentationCheck(after: 0.5) }
     }
 
     private func dismiss() {
@@ -327,7 +343,8 @@ final class PresentationPointerService: ObservableObject {
         displayFrames = []
         awaitingArrival = false
         arrivalTime = nil
-        cancelSystemPointerCheck()
+        drawnLocation = nil
+        cancelPresentationCheck()
         systemPointerShowing = false
         series.reset()
         buttonsDown = []
@@ -342,6 +359,7 @@ final class PresentationPointerService: ObservableObject {
     /// One overlay per display, and one click shield per display while clicks
     /// are blocked, matched to the screens as they are now.
     private func layoutDisplays() {
+        let windowsBefore = Set(overlays.values.map(\.windowNumber))
         let screens = NSScreen.screens
         let ids = Set(screens.map(\.displayID))
         for id in overlays.keys where !ids.contains(id) {
@@ -370,6 +388,11 @@ final class PresentationPointerService: ObservableObject {
                 }
             }
         }
+        let windowsNow = overlays.values.map(\.windowNumber)
+        if Set(windowsNow) != windowsBefore {
+            NotificationCenter.default.post(name: Self.overlayWindowsDidChange, object: nil,
+                                            userInfo: [Self.windowNumbersKey: windowsNow])
+        }
         displayIDs = screens.map(\.displayID).filter { overlays[$0] != nil }
         displayFrames = displayIDs.compactMap { overlays[$0]?.frame }
         // A display that went away took its pointer and its frame clock with
@@ -391,13 +414,12 @@ final class PresentationPointerService: ObservableObject {
             // Some surfaces keep the system pointer however it is hidden;
             // find out in a moment, once the hide has landed, rather than at
             // the next mouse move.
-            scheduleSystemPointerCheck(after: 0.05)
+            schedulePresentationCheck(after: 0.05)
         } else {
             // Only a pointer hidden until now needs giving back; a pass while
             // a refused show is being retried leaves that retry and its
             // spacing alone.
             if systemPointer.isHiding { restoreSystemPointer() }
-            cancelSystemPointerCheck()
             systemPointerShowing = false
             // The ring circles the system pointer, so it never steps aside.
             overlays.values.forEach { $0.setSuppressed(false) }
@@ -450,11 +472,12 @@ final class PresentationPointerService: ObservableObject {
             // position is drawn, on the next frame.
             pendingMove = (location, event.timestamp)
             runFrameClock()
+            releaseButtonsNoLongerHeld()
         }
         checkSystemPointer(now: event.timestamp)
         // A click can open a menu, where macOS may show its own pointer a
         // moment later with no move to tell us.
-        if !Self.moveEvents.contains(type) { scheduleSystemPointerCheck(after: 0.12) }
+        if !Self.moveEvents.contains(type) { schedulePresentationCheck(after: 0.12) }
     }
 
     // MARK: - One pointer at a time
@@ -473,15 +496,26 @@ final class PresentationPointerService: ObservableObject {
         guard let showing = systemPointer.reassertIfNeeded(now: now, force: force) else { return }
         systemPointerShowing = showing
         overlays[id]?.setSuppressed(showing)
-        // macOS can show its pointer with no mouse input to tell us (a menu
-        // opening late, an app resetting the cursor), so keep looking: twice
-        // a second, and often while it shows so the picture comes back as
-        // soon as it goes.
-        scheduleSystemPointerCheck(after: showing ? 0.15 : 0.5)
+        // While it shows, look often, so the picture comes back as soon as
+        // the system pointer goes.
+        if showing { schedulePresentationCheck(after: 0.15) }
+    }
+
+    /// Twice a second while the pointer shows, and soon after anything that
+    /// can change it, a look at what sends no mouse event to follow: macOS
+    /// showing its own pointer again (a menu opening late, an app resetting
+    /// the cursor), an app moving the pointer itself, a button let go inside
+    /// another app's own tracking loop.
+    private func presentationCheck() {
+        guard isPresenting else { return }
+        followUnreportedPointer()
+        releaseButtonsNoLongerHeld()
+        checkSystemPointer(now: ProcessInfo.processInfo.systemUptime, force: true)
+        schedulePresentationCheck(after: 0.5)
     }
 
     /// One pending check at a time; an earlier one replaces a later one.
-    private func scheduleSystemPointerCheck(after delay: TimeInterval) {
+    private func schedulePresentationCheck(after delay: TimeInterval) {
         let due = ProcessInfo.processInfo.systemUptime + delay
         if let systemPointerCheckDue, systemPointerCheckDue <= due { return }
         systemPointerCheckDue = due
@@ -490,13 +524,31 @@ final class PresentationPointerService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self, generation == self.systemPointerCheckGeneration else { return }
             self.systemPointerCheckDue = nil
-            self.checkSystemPointer(now: ProcessInfo.processInfo.systemUptime, force: true)
+            self.presentationCheck()
         }
     }
 
-    private func cancelSystemPointerCheck() {
+    private func cancelPresentationCheck() {
         systemPointerCheckDue = nil
         systemPointerCheckGeneration &+= 1
+    }
+
+    /// A pointer moved by an app (a warp) sends no event; follow it.
+    private func followUnreportedPointer() {
+        guard pendingMove == nil else { return }
+        let location = NSEvent.mouseLocation
+        if let drawnLocation, hypot(location.x - drawnLocation.x, location.y - drawnLocation.y) < 0.5 { return }
+        movePointer(to: location)
+    }
+
+    /// A release that happened inside another app's tracking loop never
+    /// reaches the monitors; the mouse itself says the button is up.
+    private func releaseButtonsNoLongerHeld() {
+        guard !buttonsDown.isEmpty else { return }
+        let held = NSEvent.pressedMouseButtons
+        for button in buttonsDown where (0..<Int.bitWidth).contains(button) && held & (1 << button) == 0 {
+            release(button)
+        }
     }
 
     /// Gives the system pointer back. The window server can refuse, which
@@ -572,6 +624,7 @@ final class PresentationPointerService: ObservableObject {
     private func movePointer(to location: CGPoint) {
         guard let index = PresentationPointerSupport.screenIndex(containing: location, in: displayFrames)
         else { return }
+        drawnLocation = location
         let id = displayIDs[index]
         if id != activeDisplayID {
             if let previous = activeDisplayID { overlays[previous]?.hidePointer() }
@@ -845,7 +898,9 @@ private final class PresentationPointerSoundPlayer {
         guard source != self.source else { return }
         self.source = source
         tearDown()
-        guard let source, let format = load(source) else { return }
+        // A file that cannot be read as audio taps with the default sound,
+        // as a missing one does, rather than going quiet with the switch on.
+        guard let source, let format = load(source) ?? load(.builtIn(.drum)) else { return }
         for _ in 0..<4 {
             let player = AVAudioPlayerNode()
             engine.attach(player)

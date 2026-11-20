@@ -166,6 +166,12 @@ final class PresentationPointerOverlay {
         pointerLayer.add(fade, forKey: "arrive")
     }
 
+    /// The overlay's window, as the window server numbers it.
+    var windowNumber: Int { panel.windowNumber }
+
+    /// Whether a tap is holding the pointer pressed in.
+    var isPressed: Bool { pressedScale != nil }
+
     /// The opacity the running arrival fade starts from, or nil when none
     /// runs.
     var arrivalFadeStart: Float? {
@@ -198,10 +204,16 @@ final class PresentationPointerOverlay {
     /// The press of a tap: the pointer sinks toward its tip and holds there
     /// until the button comes up.
     func press(_ expression: PresentationPointerTapExpression, reduceMotion: Bool) {
-        guard !reduceMotion else { return }
         let scale = expression.pressScale
         let from = currentPressScale()
         pressedScale = scale
+        // Reduce Motion keeps the press as a change of size with no movement
+        // in between, so a click still shows with bursts and sound off.
+        guard !reduceMotion else {
+            pressLayer.removeAnimation(forKey: "tap")
+            withoutAnimation { pressLayer.transform = CATransform3DMakeScale(scale, scale, 1) }
+            return
+        }
         let animation = CABasicAnimation(keyPath: "transform.scale")
         animation.fromValue = from
         animation.toValue = scale
@@ -292,6 +304,8 @@ final class PresentationPointerOverlay {
         let width = max(1.5, (expression.rayWidth * artwork.pointerSize * 2).rounded() / 2)
         let key = "\(expression.rayCount)-\(radius)-\(width)"
         if let cached = burstImages[key] { return cached }
+        // Each Tap energy has its own rays; keep only the recent ones.
+        if burstImages.count >= 10 { burstImages.removeAll() }
 
         let ink = width + max(1.5, width * 0.6)
         let side = ceil((radius + ink) * 2)

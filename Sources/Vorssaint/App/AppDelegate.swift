@@ -343,7 +343,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         MouseClickDebounceService.shared.suspend()
         // Hands the system pointer back rather than leaving it to the window
         // server to notice the process is gone.
-        if AppFeature.presentationPointer.isAvailable { PresentationPointerService.shared.suspend() }
+        if PresentationPointerService.isLoaded { PresentationPointerService.shared.suspend() }
         TextSnippetService.shared.suspend()
         // Takes the Super key mapping back out before the process goes away.
         SuperKeyService.shared.suspend()

@@ -44,6 +44,10 @@ final class RecorderCaptureEngine: NSObject {
     private let lifecycleLock = NSLock()
     private var lifecycle = RecorderCaptureLifecycle()
     private var stream: SCStream?
+    /// A display recording's region and the windows of this app it lets in,
+    /// so a window the presentation pointer opens mid-take can join them.
+    private var displayRegion: RecorderSupport.Region?
+    private var admittedWindowIDs: Set<CGWindowID> = []
 
     /// True while pixels are being delivered. Read from the main thread.
     var isRunning: Bool {
@@ -81,6 +85,13 @@ final class RecorderCaptureEngine: NSObject {
             in: content,
             excluding: excludedWindowNumbers)
         guard let filter = preparedFilter else { return .noContent }
+        let admitted = RecorderSupport.exceptedOwnWindowIDs(
+            ownWindowIDs: Self.ownWindowIDs(in: content),
+            protectedWindowIDs: Set(excludedWindowNumbers.map { CGWindowID($0) }))
+        lifecycleLock.withLock {
+            displayRegion = region.windowID == nil ? region : nil
+            admittedWindowIDs = admitted
+        }
 
         let configuration = SCStreamConfiguration()
         configuration.width = Int(region.pixelRect.width)
@@ -167,6 +178,8 @@ final class RecorderCaptureEngine: NSObject {
             lifecycle.stop()
             let stream = self.stream
             self.stream = nil
+            displayRegion = nil
+            admittedWindowIDs = []
             return stream
         }
         if let stream { try? await stream.stopCapture() }
@@ -174,6 +187,22 @@ final class RecorderCaptureEngine: NSObject {
         // serial queue makes it enqueue into the writer before the session's
         // own writer barrier and finalization.
         queue.sync {}
+    }
+
+    /// Lets windows of this app that opened after a display recording
+    /// started into the frame, such as the presentation pointer turned on
+    /// mid-take. Any other new window of the app stays out, as at the start.
+    func admitOwnWindows(_ windowNumbers: [Int]) async {
+        let state = lifecycleLock.withLock { () -> (SCStream, RecorderSupport.Region, Set<CGWindowID>)? in
+            guard let stream, let displayRegion else { return nil }
+            admittedWindowIDs.formUnion(windowNumbers.map { CGWindowID($0) })
+            return (stream, displayRegion, admittedWindowIDs)
+        }
+        guard let state,
+              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
+              let filter = Self.filter(admitting: state.2, on: state.1.displayID, in: content)
+        else { return }
+        try? await state.0.updateContentFilter(filter)
     }
 
     private func stopAndDrain(_ stream: SCStream) async {
@@ -190,21 +219,32 @@ final class RecorderCaptureEngine: NSObject {
            let window = content.windows.first(where: { $0.windowID == windowID }) {
             return SCContentFilter(desktopIndependentWindow: window)
         }
-        guard let display = content.displays.first(where: { $0.displayID == region.displayID })
+        let exceptedIDs = RecorderSupport.exceptedOwnWindowIDs(
+            ownWindowIDs: ownWindowIDs(in: content),
+            protectedWindowIDs: Set(windowNumbers.map { CGWindowID($0) })
+        )
+        return filter(admitting: exceptedIDs, on: region.displayID, in: content)
+    }
+
+    /// The display without this app, except the windows of it named.
+    private static func filter(admitting admitted: Set<CGWindowID>,
+                               on displayID: CGDirectDisplayID,
+                               in content: SCShareableContent) -> SCContentFilter? {
+        guard let display = content.displays.first(where: { $0.displayID == displayID })
         else { return nil }
-        let excluded = Set(windowNumbers.map { CGWindowID($0) })
         let ownPID = NSRunningApplication.current.processIdentifier
         let ownWindows = content.windows.filter { $0.owningApplication?.processID == ownPID }
         guard let ownApplication = content.applications.first(where: { $0.processID == ownPID })
                 ?? ownWindows.compactMap(\.owningApplication).first else { return nil }
-        let exceptedIDs = RecorderSupport.exceptedOwnWindowIDs(
-            ownWindowIDs: Set(ownWindows.map(\.windowID)),
-            protectedWindowIDs: excluded
-        )
-        let ordinaryWindows = ownWindows.filter { exceptedIDs.contains($0.windowID) }
+        let ordinaryWindows = ownWindows.filter { admitted.contains($0.windowID) }
         return SCContentFilter(display: display,
                                excludingApplications: [ownApplication],
                                exceptingWindows: ordinaryWindows)
+    }
+
+    private static func ownWindowIDs(in content: SCShareableContent) -> Set<CGWindowID> {
+        let ownPID = NSRunningApplication.current.processIdentifier
+        return Set(content.windows.filter { $0.owningApplication?.processID == ownPID }.map(\.windowID))
     }
 
     /// The recorded area inside the display, in points with a top-left origin,
