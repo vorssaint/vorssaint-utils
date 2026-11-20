@@ -342,9 +342,29 @@ enum WindowLayoutMargin {
     static let defaultPercent = 5.0
     static let percentRange = 0.0...25.0
 
-    static var percent: Double {
-        sanitizedPercent(UserDefaults.standard.object(forKey: DefaultsKey.windowLayoutMarginPercent) as? Double
-            ?? defaultPercent)
+    /// Margin maximize's inset on each edge, as a percentage of the visible
+    /// frame's width (left, right) or height (top, bottom).
+    struct Edges: Equatable {
+        var top, bottom, left, right: Double
+
+        static func uniform(_ percent: Double) -> Edges {
+            Edges(top: percent, bottom: percent, left: percent, right: percent)
+        }
+    }
+
+    static var edges: Edges {
+        let defaults = UserDefaults.standard
+        if defaults.object(forKey: DefaultsKey.windowLayoutMarginUniform) as? Bool ?? true {
+            return .uniform(stored(DefaultsKey.windowLayoutMarginPercent))
+        }
+        return Edges(top: stored(DefaultsKey.windowLayoutMarginTopPercent),
+                     bottom: stored(DefaultsKey.windowLayoutMarginBottomPercent),
+                     left: stored(DefaultsKey.windowLayoutMarginLeftPercent),
+                     right: stored(DefaultsKey.windowLayoutMarginRightPercent))
+    }
+
+    private static func stored(_ key: String) -> Double {
+        sanitizedPercent(UserDefaults.standard.object(forKey: key) as? Double ?? defaultPercent)
     }
 
     static func sanitizedPercent(_ value: Double) -> Double {
@@ -537,7 +557,7 @@ enum WindowLayoutGeometry {
                      visibleFrame: CGRect,
                      windowGap: CGFloat = 0,
                      screenGap: CGFloat = 0,
-                     marginPercent: Double = WindowLayoutMargin.defaultPercent) -> CGRect {
+                     margin: WindowLayoutMargin.Edges = .uniform(WindowLayoutMargin.defaultPercent)) -> CGRect {
         // Only placements that tile against the screen edge take the screen
         // gap. The exempt actions keep their own geometry: margin maximize's
         // percentage margin, center's size clamp, and the pass-through
@@ -550,7 +570,7 @@ enum WindowLayoutGeometry {
             frame = screenGapFrame(visibleFrame, screenGap: screenGap)
         }
         let rect = ungappedRect(for: action, current: current, visibleFrame: frame,
-                               marginPercent: marginPercent)
+                               margin: margin)
         return windowGapped(rect, for: action, in: frame, windowGap: windowGap)
     }
 
@@ -606,7 +626,7 @@ enum WindowLayoutGeometry {
     private static func ungappedRect(for action: WindowLayoutAction,
                                      current: CGRect,
                                      visibleFrame: CGRect,
-                                     marginPercent: Double) -> CGRect {
+                                     margin: WindowLayoutMargin.Edges) -> CGRect {
         let halfWidth = visibleFrame.width / 2
         let halfHeight = visibleFrame.height / 2
         let thirdWidth = visibleFrame.width / 3
@@ -721,9 +741,18 @@ enum WindowLayoutGeometry {
         case .maximize:
             return visibleFrame.integral
         case .marginMaximize:
-            let fraction = CGFloat(WindowLayoutMargin.sanitizedPercent(marginPercent) / 100)
-            return visibleFrame.insetBy(dx: visibleFrame.width * fraction,
-                                        dy: visibleFrame.height * fraction).integral
+            // AppKit coordinates: the bottom edge is minY.
+            func inset(_ percent: Double, of length: CGFloat) -> CGFloat {
+                length * CGFloat(WindowLayoutMargin.sanitizedPercent(percent) / 100)
+            }
+            let left = inset(margin.left, of: visibleFrame.width)
+            let right = inset(margin.right, of: visibleFrame.width)
+            let top = inset(margin.top, of: visibleFrame.height)
+            let bottom = inset(margin.bottom, of: visibleFrame.height)
+            return CGRect(x: visibleFrame.minX + left,
+                          y: visibleFrame.minY + bottom,
+                          width: visibleFrame.width - left - right,
+                          height: visibleFrame.height - top - bottom).integral
         case .center:
             let width = min(current.width, visibleFrame.width)
             let height = min(current.height, visibleFrame.height)
