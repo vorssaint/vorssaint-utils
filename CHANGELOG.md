@@ -32,6 +32,7 @@ This update improves microphone muting, display controls, window switching, clip
 - Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
 - The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
 - Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
+- Brightness keys keep working on a monitor the system controls after the Mac wakes. If the system does not answer for the monitor right when the screen comes back, Vorssaint now asks again a few times instead of settling for the monitor's own control, which some monitors lock, for example while showing HDR.
 
 ### Contributors
 Thanks to @binjamshid, @davidmessem, @EugeneCarldotme, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @TC-Virtuoso, @trenaryja, @whizzzkid and @Zekuath.
