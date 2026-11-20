@@ -117,6 +117,14 @@ struct AgentLogObject {
         fields[key].flatMap { AgentLogObject(data, range: $0) }
     }
 
+    func has(_ key: String) -> Bool { fields[key] != nil }
+
+    /// Whether a field holds a string with any text, told without decoding it.
+    func hasText(_ key: String) -> Bool {
+        guard let range = fields[key] else { return false }
+        return data[range.lowerBound] == 0x22 && range.count > 2
+    }
+
     func hasItems(_ key: String) -> Bool {
         guard let range = fields[key], data[range.lowerBound] == 0x5B else { return false }
         return data[(range.lowerBound + 1)..<range.upperBound]

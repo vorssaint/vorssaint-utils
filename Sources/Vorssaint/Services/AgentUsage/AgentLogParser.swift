@@ -68,6 +68,31 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+    /// Antigravity's named workspace, which outranks shell working directories.
+    var antigravityNamedWorkspace = ""
+    /// An Antigravity subagent owns no turn; its usage counts toward `antigravityRoot`.
+    var antigravitySubagent = false
+    var antigravityRoot = ""
+    /// Each model an Antigravity conversation ran on and when it began to,
+    /// which says what a subagent started then inherited.
+    var antigravityModels: [AntigravityModelChange] = []
+}
+
+struct AntigravityModelChange: Equatable {
+    let date: Date
+    let model: String
+}
+
+extension AgentLogState {
+    mutating func adoptAntigravityModel(_ model: String, at date: Date) {
+        guard model != self.model else { return }
+        self.model = model
+        antigravityModels.append(AntigravityModelChange(date: date, model: model))
+    }
+
+    func antigravityModel(at date: Date) -> String? {
+        antigravityModels.last { $0.date <= date }?.model
+    }
 }
 
 /// Per-session turn and model tracking for OpenCode databases.
@@ -156,12 +181,15 @@ enum AgentLogParser {
         ["fast", "priority"].contains(tier.lowercased())
     }
 
-    // MARK: OpenCode
-
+    /// How long a turn goes on after a step that may have been its last.
     /// OpenCode starts the next step the moment a step's tools return, so
     /// a turn that goes this long without one after a step ended has stopped,
-    /// as when a permission was rejected or a question dismissed.
-    static let openCodeSettle: TimeInterval = 30
+    /// as when a permission was rejected or a question dismissed. Gemini CLI
+    /// writes the tools a reply asked for only once they finish, so a reply
+    /// with nothing after it for this long was the turn's last.
+    static let settle: TimeInterval = 30
+
+    // MARK: OpenCode
 
     static func parseOpenCode(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         OpenCodeReader().parse(line, state: &state, now: now)

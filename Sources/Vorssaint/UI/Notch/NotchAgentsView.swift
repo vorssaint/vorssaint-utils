@@ -18,6 +18,8 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = true
+    @AppStorage(DefaultsKey.notchAgentsGemini) private var gemini = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
     private var chosenPeriod: AgentPeriod { AgentPeriod(rawValue: period) ?? .today }
@@ -32,7 +34,8 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
+        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
+         copilot ? .copilot : nil, antigravity ? .antigravity : nil, gemini ? .gemini : nil].compactMap { $0 }
             .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
                 || ($0 == .claude && !usage.claudeProfile.isDefault) }
     }
@@ -256,6 +259,7 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
+    @ObservedObject private var service = AgentUsageService.shared
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -272,7 +276,12 @@ private struct NotchAgentLimitsCard: View {
     /// Two rows fit: the session and whichever longer window binds first.
     private var windows: [AgentLimitWindow] {
         let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
-        let session = all.first { $0.kind == .session }
+        let session = all.filter { $0.kind == .session }.max { $0.usedPercent < $1.usedPercent }
+        if session == nil, provider == .antigravity, !all.contains(where: { $0.kind == .weekly }) {
+            return Array(all.sorted {
+                $0.usedPercent != $1.usedPercent ? $0.usedPercent > $1.usedPercent : $0.id < $1.id
+            }.prefix(2))
+        }
         let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
         return [session, longer].compactMap { $0 }
     }
@@ -374,11 +383,12 @@ private struct NotchAgentLimitsCard: View {
     /// What the window covers: its length, or the model it is kept for.
     private func label(_ window: AgentLimitWindow) -> String {
         switch window.kind {
-        case .session: return text.session
+        case .session: return window.scope.map { "\(text.session) · \($0)" } ?? text.session
         case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
-            return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
+            let length = AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
+            return window.scope.map { "\(length) · \($0)" } ?? length
         }
     }
 
@@ -433,43 +443,62 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .opencode {
             let todayUsage = snapshot.usage(.today).byProvider[.opencode]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
-                let costText: String = {
-                    if todayUsage.unpriced > 0 {
-                        return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
-                    }
-                    return AgentFormat.cost(todayUsage.cost)
-                }()
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 5) {
-                        Text(text.period(.today))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.85))
-                        Spacer(minLength: 2)
-                        Text(costText)
-                            .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .monospacedDigit()
-                    }
-                    .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
-                    HStack(spacing: 4) {
-                        Text(AgentFormat.tokens(todayUsage.tokens.total))
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.secondary)
-                        if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
-                            Text("· " + text.cached(AgentFormat.percent(rate)))
-                                .font(.system(size: 9.5))
-                                .foregroundStyle(.tertiary)
-                        }
-                        Spacer()
-                        lastUsed
-                    }
-                }
+                todaySummary(todayUsage)
             } else {
                 Text(text.noSession).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                lastUsed
+            }
+        } else if provider == .antigravity {
+            if let todayUsage = snapshot.usage(.today).byProvider[.antigravity] {
+                if todayUsage.tokens.total > 0 {
+                    todaySummary(todayUsage)
+                } else {
+                    setUpLimits
+                    lastUsed
+                }
+            } else if service.antigravityAccountFailure != nil {
+                setUpLimits
+                lastUsed
+            } else {
+                Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
                 lastUsed
             }
         } else {
             Text(text.waitingForLimits).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(2)
             lastUsed
+        }
+    }
+
+    private func todaySummary(_ todayUsage: AgentTotals) -> some View {
+        let costText: String = {
+            if todayUsage.unpriced > 0 {
+                return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
+            }
+            return AgentFormat.cost(todayUsage.cost)
+        }()
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                Text(text.period(.today))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.85))
+                Spacer(minLength: 2)
+                Text(costText)
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+            }
+            .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+            HStack(spacing: 4) {
+                Text(AgentFormat.tokens(todayUsage.tokens.total))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                if let rate = todayUsage.tokens.cacheHitRate, rate > 0 {
+                    Text("· " + text.cached(AgentFormat.percent(rate)))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+                lastUsed
+            }
         }
     }
 
