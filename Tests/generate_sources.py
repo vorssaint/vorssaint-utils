@@ -154,7 +154,7 @@ def main():
     write("RecorderPreparation.swift", "import Foundation\nextension RecorderPreparationTests {\n"
           + "final class Service: Fixture {\n"
           + "".join(declaration(recorder, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func beginRecording(", "    private func pendingStartIsAuthorized(",
+                    for prefix in ["    func recordAudio(", "    private func beginRecording(", "    private func pendingStartIsAuthorized(",
                                    "    private func invalidatePendingStart()", "    var hasActiveCapture:",
                                    "    func stopOrCancelActiveCapture()", "    func prepareForSelection()"])
           + "}\n}\n")
@@ -215,6 +215,7 @@ def main():
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
           + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    func stop() async")
+          + declaration("Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift", "    private func rebuildPipelineIfChanged()").replace("private func", "func", 1)
           + "}\n}\n")
     tap = "Sources/Vorssaint/Services/Recorder/RecorderSystemAudioTap.swift"
     write("RecorderSystemAudioTrust.swift", "import Accelerate\nimport AVFoundation\nimport Darwin\n"

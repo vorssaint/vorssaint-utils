@@ -4,7 +4,7 @@
 import CoreAudio
 import Foundation
 
-/// Exercises the production stop body with only HAL teardown replaced.
+/// Exercises production stop and device-change handling with HAL calls replaced.
 /// Startup cancellation and finalization can both stop the same tap.
 enum RecorderSystemAudioTapLifecycleTests {
     final class Watch {
@@ -20,12 +20,30 @@ enum RecorderSystemAudioTapLifecycleTests {
         var processListenerClient = UnsafeMutableRawPointer(bitPattern: 8)
         var levelWatch: Watch? = Watch()
         var pipelineStops = 0
+        var pipelineBuilds = 0
+        var aggregateID = AudioObjectID(92)
+        var hostDeviceUID: String? = "original"
+        var sampleRate: Double = 48_000
+        var deviceChangeReported = false
+        var onDeviceChange: (() -> Void)?
+        var onReaderLost: (() -> Void)?
 
         private static let traceLock = NSLock()
         private static var removed: [UInt] = []
         private static var destroyed: [AudioObjectID] = []
+        private static var deviceUID = "original"
+        private static var deviceRate: Double = 48_000
 
-        static func reset() { traceLock.withLock { removed = []; destroyed = [] } }
+        static func reset() {
+            traceLock.withLock { removed = []; destroyed = []; deviceUID = "original"; deviceRate = 48_000 }
+        }
+        static func device(_ uid: String, rate: Double = 48_000) {
+            traceLock.withLock { deviceUID = uid; deviceRate = rate }
+        }
+        static func hostDeviceUID() -> String? { traceLock.withLock { deviceUID } }
+        static func nominalSampleRate(of device: AudioObjectID) -> Double {
+            traceLock.withLock { deviceRate }
+        }
         static var trace: (removed: [UInt], destroyed: [AudioObjectID]) {
             traceLock.withLock { (removed, destroyed) }
         }
@@ -40,12 +58,49 @@ enum RecorderSystemAudioTapLifecycleTests {
             traceLock.withLock { destroyed.append(tapID) }
         }
 
-        func teardownPipeline() { pipelineStops += 1 }
+        func teardownPipeline() { pipelineStops += 1; aggregateID = 0 }
+        func buildPipeline() {
+            pipelineBuilds += 1
+            aggregateID = 92
+            hostDeviceUID = Self.hostDeviceUID()
+            sampleRate = Self.nominalSampleRate(of: aggregateID)
+        }
     }
 
     static func run(_ suite: TestSuite) {
         Fixture.reset()
         defer { Fixture.reset() }
+
+        let interrupted = Tap()
+        var changes = 0
+        interrupted.onDeviceChange = { changes += 1 }
+        interrupted.queue.sync { interrupted.rebuildPipelineIfChanged() }
+        suite.expect(changes == 0, "an unchanged audio device does not interrupt a recording")
+        Fixture.device("new output")
+        interrupted.queue.sync {
+            interrupted.rebuildPipelineIfChanged()
+            interrupted.rebuildPipelineIfChanged()
+        }
+        suite.expect(changes == 1 && interrupted.pipelineStops == 0 && interrupted.pipelineBuilds == 0,
+                     "a route change reports once and leaves finalization to the audio-only owner")
+
+        Fixture.reset()
+        let rateChanged = Tap()
+        var rateChanges = 0
+        rateChanged.onDeviceChange = { rateChanges += 1 }
+        Fixture.device("original", rate: 44_100)
+        rateChanged.queue.sync { rateChanged.rebuildPipelineIfChanged() }
+        suite.expect(rateChanges == 1 && rateChanged.pipelineBuilds == 0,
+                     "a sample rate change also interrupts the protected recording")
+
+        Fixture.reset()
+        let video = Tap()
+        Fixture.device("new output")
+        video.queue.sync { video.rebuildPipelineIfChanged(); video.rebuildPipelineIfChanged() }
+        suite.expect(video.pipelineStops == 1 && video.pipelineBuilds == 1 && video.hostDeviceUID == "new output",
+                     "a video owner without interruption handling retains the existing one-time rebuild")
+
+        Fixture.reset()
         let tap = Tap()
         let watch = tap.levelWatch!
         func stop(_ count: Int) -> Bool {

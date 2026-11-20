@@ -181,7 +181,7 @@ struct RecentCapturesView: View {
                     .scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             } else {
-                Image(systemName: entry.kind == .screenshot ? "photo" : "film")
+                Image(systemName: entry.kind == .screenshot ? "photo" : (entry.audioOnly == true ? "waveform" : "film"))
                     .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(.tertiary)
             }

@@ -18,12 +18,19 @@ enum RecorderPreparationTests {
     }
     struct Permissions {
         static let shared = Self()
-        enum Grant { case granted }
-        let microphone = Grant.granted
+        enum Grant { case granted, undetermined, denied, unknown }
+        static var microphoneState = Grant.granted
+        static var microphoneReplies: [(Bool) -> Void] = []
+        static var screenRequests = 0
+        static var accessibilityRequests = 0
+        var microphone: Grant { Self.microphoneState }
         let screenRecording = true
         let accessibility = true
-        func requestScreenRecording() {}
-        func requestAccessibility() {}
+        func requestScreenRecording() { Self.screenRequests += 1 }
+        func requestAccessibility() { Self.accessibilityRequests += 1 }
+        func requestMicrophone(completion: @escaping (Bool) -> Void) {
+            Self.microphoneReplies.append(completion)
+        }
     }
     enum QuickToolHUD {
         static var messages = 0
@@ -51,7 +58,7 @@ enum RecorderPreparationTests {
     final class RecorderWriter {
         static var replies: [(RecorderWriter?) -> Void] = []
         var cancelled = false
-        static func prepare(url: URL, pixelSize: CGSize, frameRate: Int,
+        static func prepare(url: URL, pixelSize: CGSize, audioOnly: Bool = false, frameRate: Int,
                             capturesSystemAudio: Bool, capturesMicrophone: Bool,
                             pauseClock: RecorderPauseClock,
                             completion: @escaping (RecorderWriter?) -> Void) {
@@ -61,12 +68,13 @@ enum RecorderPreparationTests {
     }
     final class RecorderSession {
         let writer: RecorderWriter
-        init(take: RecorderTakeStore.Take, region: RecorderSupport.Region,
+        init(take: RecorderTakeStore.Take, region: RecorderSupport.Region?,
              writer: RecorderWriter, pauseClock: RecorderPauseClock,
              capturesSystemAudio: Bool, capturesMicrophone: Bool) {
             self.writer = writer
         }
     }
+    enum RecorderFailure { case writerFailed, microphoneUnavailable }
     class Fixture {
         var session: RecorderSession?
         var indicator: Indicator? = Indicator()
@@ -86,6 +94,7 @@ enum RecorderPreparationTests {
         }
         func stop() {}
         func reportNoSpace() {}
+        func report(_ failure: RecorderFailure) { QuickToolHUD.messages += 1 }
     }
 
     static func run(_ suite: TestSuite) {
@@ -93,12 +102,61 @@ enum RecorderPreparationTests {
             pixelRect: CGRect(x: 0, y: 0, width: 64, height: 64), anchorRect: .zero, scale: 1)
         func reset() {
             AppFeature.available = true
+            Permissions.microphoneState = .granted
+            Permissions.microphoneReplies = []
+            Permissions.screenRequests = 0
+            Permissions.accessibilityRequests = 0
             RecorderWriter.replies = []
             RecorderTakeStore.shared.made = []
             RecorderTakeStore.shared.deleted = []
             QuickToolHUD.messages = 0
         }
         defer { reset() }
+
+        for sources in [(true, false), (false, true), (true, true)] {
+            reset()
+            let audio = Service()
+            audio.recordAudio(systemAudio: sources.0, microphone: sources.1)
+            suite.expect(audio.hasActiveCapture && RecorderWriter.replies.count == 1,
+                         "each audio source combination reserves one recording")
+            RecorderWriter.replies.removeFirst()(RecorderWriter())
+            suite.expect(audio.starts == 1 && Permissions.screenRequests == 0
+                         && Permissions.accessibilityRequests == 0,
+                         "audio admission does not invoke screen or Accessibility permission flow")
+        }
+        reset()
+        let noSources = Service()
+        noSources.recordAudio(systemAudio: false, microphone: false)
+        suite.expect(!noSources.hasActiveCapture && RecorderTakeStore.shared.made.isEmpty,
+                     "no selected audio sources never allocates a take")
+
+        reset()
+        Permissions.microphoneState = .denied
+        let denied = Service()
+        denied.recordAudio(systemAudio: false, microphone: true)
+        suite.expect(!denied.hasActiveCapture && RecorderTakeStore.shared.made.isEmpty
+                     && QuickToolHUD.messages == 1, "denied microphone fails before capture or file creation")
+
+        reset()
+        Permissions.microphoneState = .undetermined
+        let permission = Service()
+        permission.recordAudio(systemAudio: false, microphone: true)
+        suite.expect(permission.hasActiveCapture && permission.stopOrCancelActiveCapture(),
+                     "a pending audio permission request can be cancelled")
+        Permissions.microphoneState = .granted
+        Permissions.microphoneReplies.removeFirst()(true)
+        suite.expect(permission.starts == 0 && RecorderTakeStore.shared.made.isEmpty,
+                     "a permission granted after Cancel cannot restart audio capture")
+
+        reset()
+        let audioCancelled = Service()
+        audioCancelled.recordAudio(systemAudio: true, microphone: true)
+        _ = audioCancelled.stopOrCancelActiveCapture()
+        let lateAudio = RecorderWriter()
+        RecorderWriter.replies.removeFirst()(lateAudio)
+        suite.expect(lateAudio.cancelled && audioCancelled.starts == 0
+                     && RecorderTakeStore.shared.deleted == RecorderTakeStore.shared.made,
+                     "audio writer prepared after Cancel is discarded and cleaned")
 
         reset()
         let accepted = Service()
