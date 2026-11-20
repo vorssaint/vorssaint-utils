@@ -1191,19 +1191,44 @@ struct SoftwareOutputVolume: Equatable {
     /// loudness curve, which stays at or below one for every level here.
     var gain: Float { muted ? 0 : MixerRoutingSupport.gain(forVolume: level) }
 
+    /// The volume for a sound that Vorssaint plays itself, such as the volume
+    /// click. The output tap leaves Vorssaint out, so these sounds apply the
+    /// software gain themselves. Full volume when no software level is active.
+    static func clickVolume(for software: SoftwareOutputVolume?) -> Float {
+        software?.gain ?? 1
+    }
+
     /// One volume key press. Up ends a mute and steps from the level before
     /// it; reaching zero mutes, as macOS does for its own outputs. The step
     /// grid and the limits are the ones the monitor speaker keys use.
     mutating func step(_ direction: Int, fine: Bool, settings: MonitorVolumeKeySettings) {
+        guard direction != 0 else { return }
+        step(to: settings.requestedLevel(from: level, direction: direction, fine: fine),
+             raises: direction > 0, settings: settings)
+    }
+
+    /// One volume key press whose target the caller already worked out from
+    /// `level`, as the mixer's shared key path does for every output.
+    mutating func step(to requested: Double, raises: Bool, settings: MonitorVolumeKeySettings) {
         let maximum = Self.maximum(settings)
         let minimum = Double(settings.minimumPercent) / 100
-        let requested = settings.requestedLevel(from: level, direction: direction, fine: fine)
-        if direction > 0 {
+        if raises || requested > level {
             muted = false
             level = min(max(requested, level), maximum)
-        } else if direction < 0, level > minimum {
+        } else if level > minimum {
             level = max(min(requested, level), minimum)
             if level <= 0 { muted = true }
+        }
+    }
+
+    /// A level and mute chosen on a slider. The slider reaches zero, below the
+    /// keys' minimum, but never past the maximum; zero mutes as a key does.
+    mutating func set(level requested: Double?, muted requestedMute: Bool?, settings: MonitorVolumeKeySettings) {
+        if let requested, requested.isFinite {
+            level = min(max(requested, 0), Self.maximum(settings))
+            muted = requestedMute ?? MixerRoutingSupport.mutesOutput(atVolume: level)
+        } else if let requestedMute {
+            muted = requestedMute
         }
     }
 
@@ -1213,8 +1238,18 @@ struct SoftwareOutputVolume: Equatable {
     /// untouched level leaves the audio path exactly as macOS built it.
     static func engages(featureEnabled: Bool, outputHasSettableVolume: Bool, hasMonitorSpeakerControl: Bool,
                         audioCapturePermitted: Bool, volume: SoftwareOutputVolume) -> Bool {
-        featureEnabled && !outputHasSettableVolume && !hasMonitorSpeakerControl && audioCapturePermitted
+        controlsOutput(featureEnabled: featureEnabled, outputHasSettableVolume: outputHasSettableVolume,
+                       hasMonitorSpeakerControl: hasMonitorSpeakerControl,
+                       audioCapturePermitted: audioCapturePermitted)
             && (volume.level < 1 || volume.muted)
+    }
+
+    /// Whether the volume keys and the output slider work on the software
+    /// level. They do at full level too, where no engine runs, so the first
+    /// press down can start it.
+    static func controlsOutput(featureEnabled: Bool, outputHasSettableVolume: Bool, hasMonitorSpeakerControl: Bool,
+                               audioCapturePermitted: Bool) -> Bool {
+        featureEnabled && !outputHasSettableVolume && !hasMonitorSpeakerControl && audioCapturePermitted
     }
 
     /// The processes the output-wide tap leaves out. Vorssaint's own per-app

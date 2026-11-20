@@ -19,6 +19,8 @@ final class PreciseVolumeRollerService: ObservableObject {
     /// Monitor volume presses this tap claimed and has not yet seen released,
     /// so their key-ups are consumed too. Main thread only: the tap runs there.
     private var monitorVolumeKeysHeld: [BrightnessSupport.VolumeKeyAction: BrightnessSupport.SpeakerTarget] = [:]
+    /// The same for presses the software output volume claimed.
+    private var softwareVolumeKeysHeld: Set<BrightnessSupport.VolumeKeyAction> = []
     /// Island steps bypass the system, so its volume click plays on release here.
     /// Waits for both the release and the last step's adjustment, so a failed
     /// step forwarded to macOS never plays a second click.
@@ -37,6 +39,8 @@ final class PreciseVolumeRollerService: ObservableObject {
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)))
             || BrightnessService.shared.wantsMonitorVolumeKeys
+            || (AppFeature.mixer.isAvailable
+                && UserDefaults.standard.bool(forKey: DefaultsKey.softwareOutputVolumeEnabled))
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -68,6 +72,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         feedback = nil
         keyOwnership = PreciseVolumeKeyOwnership()
         monitorVolumeKeysHeld = [:]
+        softwareVolumeKeysHeld = []
     }
 
     private func start() {
@@ -126,6 +131,7 @@ final class PreciseVolumeRollerService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         if routeMonitorVolume(nsEvent, flags: event.flags) { return nil }
+        if routeSoftwareVolume(nsEvent, flags: event.flags) { return nil }
         guard AppFeature.mixer.isAvailable else { return Unmanaged.passUnretained(event) }
         if routeNotchVolume(nsEvent, event: event) { return nil }
         guard UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled),
@@ -245,6 +251,92 @@ final class PreciseVolumeRollerService: ObservableObject {
                            kind: output.muted == true ? .mutedVolume : .volume)
     }
 
+    /// Routes a volume press to the software output volume, when the output
+    /// has no volume of its own and no monitor speakers answer. It claims the
+    /// keys at full level too, where no engine runs yet, so the first press
+    /// down can start it. Main thread only; the level changes in memory.
+    private func routeSoftwareVolume(_ nsEvent: NSEvent, flags: CGEventFlags) -> Bool {
+        guard let press = BrightnessSupport.volumeKeyEvent(
+            subtype: Int(nsEvent.subtype.rawValue), data1: nsEvent.data1) else { return false }
+        let code = Int32((nsEvent.data1 >> 16) & 0xffff)
+        if !press.isKeyDown {
+            guard softwareVolumeKeysHeld.remove(press.action) != nil else { return false }
+            if feedback?.key == code {
+                feedback?.released = true
+                playFeedbackIfReady()
+            }
+            return true
+        }
+        let held = softwareVolumeKeysHeld.contains(press.action)
+        if !press.isRepeat { softwareVolumeKeysHeld.remove(press.action) }
+        if press.isRepeat && !held { return false }
+        guard let fine = BrightnessSupport.volumeKeyFineness(
+            option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift),
+            commandOrControl: !flags.isDisjoint(with: [.maskCommand, .maskControl])),
+              AppVolumeMixer.shared.softwareOutput != nil else { return press.isRepeat && held }
+        if press.isRepeat, press.action == .toggleMute { return true }
+        softwareVolumeKeysHeld.insert(press.action)
+        let action = press.action
+        let precise = AppFeature.mixer.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+        if precise, case let .step(direction) = action,
+           !gate.accepts(direction > 0 ? .up : .down, at: ProcessInfo.processInfo.systemUptime) {
+            return true
+        }
+        feedbackStep &+= 1
+        let step = feedbackStep
+        feedback = NotchVolumeKeyGate.playsFeedback(
+            setting: UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback"),
+            option: flags.contains(.maskAlternate), shift: flags.contains(.maskShift))
+            ? (code, step, false, false) : nil
+        DispatchQueue.main.async { [weak self] in
+            self?.applySoftwareVolumeKey(action, fine: fine || precise, step: step)
+        }
+        return true
+    }
+
+    /// Applies a press that routeSoftwareVolume claimed, through the mixer's
+    /// output path, which steps the software level while it owns the output.
+    private func applySoftwareVolumeKey(_ action: BrightnessSupport.VolumeKeyAction, fine: Bool, step: Int) {
+        let mixer = AppVolumeMixer.shared
+        guard mixer.softwareOutput != nil else {
+            if feedback?.step == step { feedback = nil }
+            return
+        }
+        func landed(_ result: AppVolumeMixer.OutputKeyResult) {
+            let applied = result == .applied
+            if applied { Self.showSoftwareFeedback() }
+            guard feedback?.step == step else { return }
+            // Like macOS, the mute key clicks only when it unmutes.
+            if applied, action != .toggleMute || mixer.systemOutputMuted == false {
+                feedback?.applied = true
+            } else {
+                feedback = nil
+            }
+            playFeedbackIfReady()
+        }
+        switch action {
+        case let .step(direction):
+            let settings = BrightnessService.shared.monitorVolumeKeySettings
+            mixer.requestOutputStep(level: {
+                settings.requestedLevel(from: $0, direction: direction, fine: fine)
+            }, raises: direction > 0, completion: landed)
+        case .toggleMute:
+            mixer.requestOutputMuteToggle(completion: landed)
+        }
+    }
+
+    /// Shows the software level after a key moved it, as for monitor speakers:
+    /// the island when it can, otherwise the overlay on the main screen, since
+    /// an output without volume control names no display of its own.
+    private static func showSoftwareFeedback() {
+        if NotchService.shared.showCurrentVolume() { return }
+        let mixer = AppVolumeMixer.shared
+        guard let level = mixer.systemOutputVolume else { return }
+        BrightnessOSD.show(displayID: CGMainDisplayID(), level: level,
+                           kind: mixer.systemOutputMuted == true ? .mutedVolume : .volume)
+    }
+
     private func routeNotchVolume(_ nsEvent: NSEvent, event: CGEvent) -> Bool {
         let code = Int32((nsEvent.data1 >> 16) & 0xffff)
         let state = (nsEvent.data1 >> 8) & 0xff
@@ -327,15 +419,21 @@ final class PreciseVolumeRollerService: ObservableObject {
     /// when volume is changed" setting.
     static func playVolumeFeedback() {
         guard UserDefaults.standard.bool(forKey: "com.apple.sound.beep.feedback") else { return }
-        volumeFeedback?.stop()
-        volumeFeedback?.play()
+        playClick()
+    }
+
+    /// Plays the click at the software level when one is active.
+    private static func playClick() {
+        guard let volumeFeedback else { return }
+        volumeFeedback.stop()
+        volumeFeedback.volume = SoftwareOutputVolume.clickVolume(for: AppVolumeMixer.shared.softwareOutput)
+        volumeFeedback.play()
     }
 
     private func playFeedbackIfReady() {
         guard let feedback, feedback.applied, feedback.released else { return }
         self.feedback = nil
-        Self.volumeFeedback?.stop()
-        Self.volumeFeedback?.play()
+        Self.playClick()
     }
 
     private static func postForwardedRelease(_ code: Int32) {
