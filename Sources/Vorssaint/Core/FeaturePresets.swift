@@ -135,7 +135,9 @@ extension AppFeature {
              .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return .periodic
         case .mixer:
-            return UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+            let defaults = UserDefaults.standard
+            return defaults.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
+                || defaults.bool(forKey: DefaultsKey.softwareOutputVolumeEnabled)
                 ? .keyboard : .idle
         case .brightness:
             // Following the pointer, the overlay and a finer step answer the

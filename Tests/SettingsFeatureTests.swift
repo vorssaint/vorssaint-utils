@@ -1115,6 +1115,8 @@ enum SettingsFeatureTests {
                "per-app Switcher rules keep their bundle identity and behavior through backup import")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.preciseVolumeRollerEnabled] as? Bool == false,
                "precise volume roller is opt-in")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.softwareOutputVolumeEnabled] as? Bool == false,
+               "software output volume is opt-in")
 
     }
 }

@@ -551,6 +551,8 @@ struct MixerOptionsControls: View {
     private var headphonesDisconnectVolumePercent = Defaults.defaultMixerHeadphonesDisconnectVolumePercent
     @AppStorage(DefaultsKey.preciseVolumeRollerEnabled)
     private var preciseVolumeRollerEnabled = false
+    @AppStorage(DefaultsKey.softwareOutputVolumeEnabled)
+    private var softwareOutputVolumeEnabled = false
     @State private var showListChooser = false
     var includeSharedAudioFeatures = true
 
@@ -561,6 +563,9 @@ struct MixerOptionsControls: View {
             }
             headphoneDisconnectProtectionToggle
             preciseVolumeRollerToggle
+            if AppVolumeMixer.isSupported {
+                softwareOutputVolumeToggle
+            }
             if includeSharedAudioFeatures, AppFeature.soundOutputSwitcher.isAvailable {
                 SoundOutputSwitcherControls()
             }
@@ -652,6 +657,50 @@ struct MixerOptionsControls: View {
                              systemImage: "exclamationmark.triangle")
             }
         }
+    }
+
+    /// Software volume for outputs that macOS cannot lower, such as a monitor
+    /// on DisplayPort that ignores the DDC volume command. Each message names
+    /// the one thing that keeps the keys from working.
+    private var softwareOutputVolumeToggle: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Toggle(l10n.s.softwareOutputVolumeEnable, isOn: $softwareOutputVolumeEnabled)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 11.5, weight: .medium))
+                .onChange(of: softwareOutputVolumeEnabled) { _, enabled in
+                    if enabled { permissions.requestAccessibility() }
+                    PreciseVolumeRollerService.shared.syncWithPreferences()
+                    AppVolumeMixer.shared.syncWithPreferences()
+                }
+
+            Text(l10n.s.softwareOutputVolumeCaption)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if softwareOutputVolumeEnabled {
+                if !permissions.accessibility {
+                    permissionLink(l10n.s.softwareOutputVolumeNeedsAccessibility) {
+                        Permissions.shared.openAccessibilitySettings()
+                    }
+                } else if mixer.needsPermission {
+                    permissionLink(l10n.s.softwareOutputVolumeNeedsAudioCapture) {
+                        Permissions.shared.openAudioCaptureSettings()
+                    }
+                } else if mixer.softwareOutputVolumeFailed {
+                    inputMessage(l10n.s.softwareOutputVolumeFailed,
+                                 systemImage: "exclamationmark.triangle")
+                }
+            }
+        }
+    }
+
+    private func permissionLink(_ text: String, open: @escaping () -> Void) -> some View {
+        Button(action: open) {
+            Label(text, systemImage: "hand.raised")
+        }
+        .buttonStyle(.link)
+        .font(.system(size: 10.5, weight: .medium))
     }
 
     /// One entry per app the list knows about: visible rows checked, hidden

@@ -809,6 +809,11 @@ struct Strings {
     let preciseVolumeRollerEnable: String
     let preciseVolumeRollerCaption: String
     let preciseVolumeRollerTapFailed: String
+    let softwareOutputVolumeEnable: String
+    let softwareOutputVolumeCaption: String
+    let softwareOutputVolumeNeedsAccessibility: String
+    let softwareOutputVolumeNeedsAudioCapture: String
+    let softwareOutputVolumeFailed: String
     let soundOutputSwitcherTitle: String
     let soundOutputSwitcherEnable: String
     let soundOutputSwitcherCaption: String
@@ -1965,6 +1970,11 @@ extension Strings {
         preciseVolumeRollerEnable: "Volume mais preciso no controle",
         preciseVolumeRollerCaption: "Transforma roletes e teclas de volume em passos menores.",
         preciseVolumeRollerTapFailed: "Não foi possível ouvir as teclas de volume.",
+        softwareOutputVolumeEnable: "Volume por software para saídas sem controle de volume",
+        softwareOutputVolumeCaption: "Permite que as teclas de volume abaixem um monitor que ignora o volume do macOS.",
+        softwareOutputVolumeNeedsAccessibility: "As teclas de volume precisam da permissão de Acessibilidade.",
+        softwareOutputVolumeNeedsAudioCapture: "O volume por software precisa da permissão de Gravação de Áudio do Sistema.",
+        softwareOutputVolumeFailed: "O volume por software parou. O áudio toca no nível do próprio monitor.",
         soundOutputSwitcherTitle: "Alternador de saída",
         soundOutputSwitcherEnable: "Alternar saídas por atalho",
         soundOutputSwitcherCaption: "Escolha as saídas e use o atalho para passar para a próxima disponível.",
@@ -3096,6 +3106,11 @@ extension Strings {
         preciseVolumeRollerEnable: "Use finer volume steps",
         preciseVolumeRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
         preciseVolumeRollerTapFailed: "Could not listen for volume keys.",
+        softwareOutputVolumeEnable: "Software volume for outputs without volume control",
+        softwareOutputVolumeCaption: "Lets the volume keys lower a monitor that ignores the macOS volume.",
+        softwareOutputVolumeNeedsAccessibility: "Volume keys need Accessibility permission.",
+        softwareOutputVolumeNeedsAudioCapture: "Software volume needs System Audio Recording permission.",
+        softwareOutputVolumeFailed: "Software volume stopped. Audio plays at the monitor’s own level.",
         soundOutputSwitcherTitle: "Output switcher",
         soundOutputSwitcherEnable: "Switch outputs with shortcut",
         soundOutputSwitcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
