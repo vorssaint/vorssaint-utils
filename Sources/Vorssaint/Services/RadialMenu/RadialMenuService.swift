@@ -274,7 +274,7 @@ final class RadialMenuService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         // A new press starts afresh, whatever an earlier one left behind.
-        if type == .otherMouseDown { buttonsLeftToShield.remove(button) }
+        if type == .otherMouseDown, buttonsLeftToShield.contains(button) { buttonsLeftToShield.remove(button) }
         if buttonsLeftToShield.contains(button) {
             if type == .otherMouseUp { buttonsLeftToShield.remove(button) }
             return Unmanaged.passUnretained(event)
