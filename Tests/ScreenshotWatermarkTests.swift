@@ -8,6 +8,7 @@ import AppKit
 enum ScreenshotWatermarkTests {
     static func run(_ suite: TestSuite) {
         backupChecks(suite)
+        determinismChecks(suite)
         renderingChecks(suite)
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.screenshot(language)
@@ -101,6 +102,54 @@ enum ScreenshotWatermarkTests {
                 restored: source[presetsKey] as? String, local: nil)).allSatisfy {
                     $0.kind == .text && $0.imagePath == nil
                 }, "forged image presets cannot authorize any file")
+    }
+
+    /// The backup path re-encodes the watermark/backdrop JSON on every export,
+    /// so it must be byte-stable across processes. A plain `JSONEncoder()`
+    /// orders object keys by a per-process hash, so two runs wrote different
+    /// bytes; `.sortedKeys` makes the order alphabetical (and process
+    /// independent), which is the property asserted here.
+    private static func determinismChecks(_ suite: TestSuite) {
+        let watermark = ScreenshotSupport.WatermarkStyle(
+            kind: .text, text: "Draft", imagePath: nil, color: "white",
+            anchor: .bottomTrailing, size: 0.4, opacity: 0.6, rotation: 12)
+        let backdrop = ScreenshotSupport.BackdropStyle(
+            kind: .gradient, presetID: nil, colors: [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]],
+            imagePath: nil, padding: 0.5, cornerRadius: 0.2, blur: 0.1)
+        let encoders: [(String, String)] = [
+            ("watermark style", watermark.encoded()),
+            ("backdrop style", backdrop.encoded()),
+            ("watermark presets", ScreenshotSupport.encodedWatermarkPresets([watermark])),
+            ("backdrop presets", ScreenshotSupport.encodedBackdropPresets([backdrop])),
+        ]
+        for (name, raw) in encoders {
+            let keys = objectKeys(in: raw)
+            suite.expect(!keys.isEmpty && keys == keys.sorted(),
+                         "\(name) persists JSON keys in alphabetical order")
+        }
+        let source: [String: Any] = [
+            DefaultsKey.screenshotWatermarkStyle: watermark.encoded(),
+            DefaultsKey.screenshotWatermarkPresets:
+                ScreenshotSupport.encodedWatermarkPresets([watermark]),
+        ]
+        let first = SettingsBackupSupport.payload(appVersion: "test", valueFor: { source[$0] })
+        let second = SettingsBackupSupport.payload(appVersion: "test", valueFor: { source[$0] })
+        let firstSettings = first[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+        let secondSettings = second[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
+        suite.expect((firstSettings as NSDictionary).isEqual(secondSettings),
+                     "two exports of the same settings produce identical values")
+    }
+
+    /// Object keys of a JSON string, in file order. Every value fed to this
+    /// test is a scalar or an array of scalars, so a quoted key followed by a
+    /// colon is unambiguous and string values never match.
+    private static func objectKeys(in raw: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: "\"([^\"]+)\":") else { return [] }
+        let range = NSRange(raw.startIndex..<raw.endIndex, in: raw)
+        return regex.matches(in: raw, range: range).compactMap { match in
+            guard match.numberOfRanges > 1, let r = Range(match.range(at: 1), in: raw) else { return nil }
+            return String(raw[r])
+        }
     }
 
     private static func bitmap(width: Int, height: Int) -> CGContext {
