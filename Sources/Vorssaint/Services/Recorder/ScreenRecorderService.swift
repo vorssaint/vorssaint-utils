@@ -164,6 +164,12 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                 else { return }
                 Task { await self.engine.admitOwnWindows(numbers) }
             }
+            // A pointer turned on while the recording was starting opened
+            // its windows before anyone was listening.
+            let showing = PresentationPointerService.overlayWindowNumbers
+            if !showing.isEmpty {
+                Task { [engine] in await engine.admitOwnWindows(showing) }
+            }
         }
         return nil
     }

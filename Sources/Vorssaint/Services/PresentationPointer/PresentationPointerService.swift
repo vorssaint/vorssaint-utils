@@ -96,6 +96,13 @@ final class PresentationPointerService: ObservableObject {
     /// numbers under `windowNumbersKey`, so a recording can take them in.
     static let overlayWindowsDidChange = Notification.Name("PresentationPointerService.overlayWindowsDidChange")
     static let windowNumbersKey = "windowNumbers"
+    /// The overlay windows showing now, read on the main thread by a
+    /// recording that starts while the pointer is already on.
+    private(set) static var overlayWindowNumbers: [Int] = []
+
+    /// Counts every change of the two switches, so a change scheduled for
+    /// later can tell whether something else got there first.
+    private(set) var revision = 0
 
     private init() {
         Self.isLoaded = true
@@ -139,6 +146,7 @@ final class PresentationPointerService: ObservableObject {
     }
 
     func suspend() {
+        revision &+= 1
         pointerHotkey.unregister()
         blockClicksHotkey.unregister()
         mode.reset()
@@ -151,6 +159,7 @@ final class PresentationPointerService: ObservableObject {
 
     func toggle() {
         guard canPresent else { return }
+        revision &+= 1
         clearStaleStepAsideReasons()
         let wasBlocking = mode.blocksClicks
         mode.toggleShowing()
@@ -159,6 +168,7 @@ final class PresentationPointerService: ObservableObject {
     }
 
     func toggleBlockingClicks() {
+        revision &+= 1
         guard canPresent else { return }
         clearStaleStepAsideReasons()
         // A screenshot or recording selection on screen needs the mouse;
@@ -336,6 +346,7 @@ final class PresentationPointerService: ObservableObject {
         presentationObservers = []
         overlays.values.forEach { $0.close() }
         overlays = [:]
+        Self.overlayWindowNumbers = []
         shields.values.forEach { $0.close() }
         shields = [:]
         activeDisplayID = nil
@@ -389,6 +400,7 @@ final class PresentationPointerService: ObservableObject {
             }
         }
         let windowsNow = overlays.values.map(\.windowNumber)
+        Self.overlayWindowNumbers = windowsNow
         if Set(windowsNow) != windowsBefore {
             NotificationCenter.default.post(name: Self.overlayWindowsDidChange, object: nil,
                                             userInfo: [Self.windowNumbersKey: windowsNow])

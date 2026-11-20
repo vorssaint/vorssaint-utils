@@ -368,9 +368,11 @@ final class StatusItemController {
         let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
-        // While the presentation pointer blocks clicks, this item's menu is
-        // the way to let them through again, so it stays on screen.
-        let signal = updateAvailable || micBadgeActive || PresentationPointerClickBlock.isActive
+        // While the presentation pointer blocks clicks, a menu of ours is the
+        // way to let them through again. A metric item opens it where it is;
+        // with none showing, this item stays on screen to open it.
+        let blockingNeedsItem = PresentationPointerClickBlock.isActive && renderedMetricItemCount == 0
+        let signal = updateAvailable || micBadgeActive || blockingNeedsItem
         let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(
             in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal
         let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(

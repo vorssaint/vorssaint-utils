@@ -2357,9 +2357,10 @@ private struct PresentationPointerPanelTile: View {
         Binding(get: { service.isShowing }, set: { on in
             guard on != service.isShowing else { return }
             guard on else { return service.toggle() }
+            let revision = service.revision
             runAfterClosing {
                 // A shortcut may have got there while the panel closed.
-                if !service.isShowing { service.toggle() }
+                if service.revision == revision, !service.isShowing { service.toggle() }
             }
         })
     }
@@ -2368,8 +2369,9 @@ private struct PresentationPointerPanelTile: View {
         Binding(get: { service.blocksClicks }, set: { on in
             guard on != service.blocksClicks else { return }
             guard on else { return service.toggleBlockingClicks() }
+            let revision = service.revision
             runAfterClosing {
-                if !service.blocksClicks { service.toggleBlockingClicks() }
+                if service.revision == revision, !service.blocksClicks { service.toggleBlockingClicks() }
             }
         })
     }

@@ -166,11 +166,9 @@ final class PresentationPointerOverlay {
         pointerLayer.add(fade, forKey: "arrive")
     }
 
-    /// The overlay's window, as the window server numbers it.
-    var windowNumber: Int { panel.windowNumber }
-
-    /// Whether a tap is holding the pointer pressed in.
-    var isPressed: Bool { pressedScale != nil }
+    /// Whether a tap is holding the pointer pressed in, read from what is
+    /// drawn.
+    var isPressed: Bool { pressLayer.transform.m11 < 0.999 }
 
     /// The opacity the running arrival fade starts from, or nil when none
     /// runs.

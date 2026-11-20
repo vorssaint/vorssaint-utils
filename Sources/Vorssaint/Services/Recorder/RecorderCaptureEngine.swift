@@ -48,6 +48,9 @@ final class RecorderCaptureEngine: NSObject {
     /// so a window the presentation pointer opens mid-take can join them.
     private var displayRegion: RecorderSupport.Region?
     private var admittedWindowIDs: Set<CGWindowID> = []
+    /// Counts filter updates, so one that finishes after a newer one began
+    /// is dropped rather than putting back an older list.
+    private var filterRevision = 0
 
     /// True while pixels are being delivered. Read from the main thread.
     var isRunning: Bool {
@@ -193,14 +196,21 @@ final class RecorderCaptureEngine: NSObject {
     /// started into the frame, such as the presentation pointer turned on
     /// mid-take. Any other new window of the app stays out, as at the start.
     func admitOwnWindows(_ windowNumbers: [Int]) async {
-        let state = lifecycleLock.withLock { () -> (SCStream, RecorderSupport.Region, Set<CGWindowID>)? in
+        let state = lifecycleLock.withLock { () -> (SCStream, RecorderSupport.Region, Int)? in
             guard let stream, let displayRegion else { return nil }
             admittedWindowIDs.formUnion(windowNumbers.map { CGWindowID($0) })
-            return (stream, displayRegion, admittedWindowIDs)
+            filterRevision &+= 1
+            return (stream, displayRegion, filterRevision)
         }
+        // Minimized windows included, so one already admitted stays admitted.
         guard let state,
-              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true),
-              let filter = Self.filter(admitting: state.2, on: state.1.displayID, in: content)
+              let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
+        else { return }
+        let admitted = lifecycleLock.withLock { () -> Set<CGWindowID>? in
+            guard self.stream === state.0, filterRevision == state.2 else { return nil }
+            return admittedWindowIDs
+        }
+        guard let admitted, let filter = Self.filter(admitting: admitted, on: state.1.displayID, in: content)
         else { return }
         try? await state.0.updateContentFilter(filter)
     }
