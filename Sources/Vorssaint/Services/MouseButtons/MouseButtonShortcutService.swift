@@ -520,18 +520,19 @@ final class MouseButtonShortcutService: ObservableObject {
             return nil
         }
         guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
+        // Blocked scrolling goes to the presentation pointer's shield, not to
+        // a shortcut for the app underneath. The gate still hears it, so a
+        // turn that outlasts click blocking does not fire a second time.
+        if PresentationPointerClickBlock.isActive {
+            _ = sideWheelGesture.shouldFire(input, at: timestamp)
+            return Unmanaged.passUnretained(event)
+        }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         if MouseAppExceptions.shared.excludesActionTarget(
             .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID) {
             return Unmanaged.passUnretained(event)
         }
-        // The gate hears every packet of a turn, blocked or not, so a turn
-        // that outlasts click blocking does not fire a second time.
-        let fires = sideWheelGesture.shouldFire(input, at: timestamp)
-        // Blocked scrolling goes to the presentation pointer's shield, not to
-        // a shortcut for the app underneath.
-        if PresentationPointerClickBlock.isActive { return Unmanaged.passUnretained(event) }
-        guard fires else { return nil }
+        guard sideWheelGesture.shouldFire(input, at: timestamp) else { return nil }
         post(shortcut)
         return nil
     }

@@ -162,14 +162,12 @@ private final class RecorderSession: NSObject, RecorderCaptureEngineDelegate {
                 guard let self,
                       let numbers = notification.userInfo?[PresentationPointerService.windowNumbersKey] as? [Int]
                 else { return }
-                Task { await self.engine.admitOwnWindows(numbers) }
+                self.engine.admitOwnWindows(numbers)
             }
             // A pointer turned on while the recording was starting opened
             // its windows before anyone was listening.
             let showing = PresentationPointerService.overlayWindowNumbers
-            if !showing.isEmpty {
-                Task { [engine] in await engine.admitOwnWindows(showing) }
-            }
+            if !showing.isEmpty { engine.admitOwnWindows(showing) }
         }
         return nil
     }

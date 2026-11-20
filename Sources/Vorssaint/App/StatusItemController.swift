@@ -438,7 +438,10 @@ final class StatusItemController {
     /// the bar, otherwise the item that was clicked. A menu set on an item
     /// that is out of the bar has nowhere on screen to open from.
     func menuHost(for button: NSStatusBarButton?) -> NSStatusItem {
-        guard !statusItem.isVisible, let button else { return statusItem }
+        // While clicks are blocked the main item may be on screen only to
+        // offer Allow clicks, possibly where a crowded bar clips it, so the
+        // menu opens under the item that was clicked.
+        guard !statusItem.isVisible || PresentationPointerClickBlock.isActive, let button else { return statusItem }
         let others = [clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
         return others.first { $0.button === button } ?? statusItem
     }

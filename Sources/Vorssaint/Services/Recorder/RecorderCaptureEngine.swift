@@ -48,9 +48,9 @@ final class RecorderCaptureEngine: NSObject {
     /// so a window the presentation pointer opens mid-take can join them.
     private var displayRegion: RecorderSupport.Region?
     private var admittedWindowIDs: Set<CGWindowID> = []
-    /// Counts filter updates, so one that finishes after a newer one began
-    /// is dropped rather than putting back an older list.
-    private var filterRevision = 0
+    /// The filter updates, one after another, so a later list is never
+    /// overtaken by an earlier one; stopping waits for the one under way.
+    private var filterUpdates: Task<Void, Never>?
 
     /// True while pixels are being delivered. Read from the main thread.
     var isRunning: Bool {
@@ -185,6 +185,11 @@ final class RecorderCaptureEngine: NSObject {
             admittedWindowIDs = []
             return stream
         }
+        let pendingFilterUpdates = lifecycleLock.withLock { () -> Task<Void, Never>? in
+            defer { filterUpdates = nil }
+            return filterUpdates
+        }
+        await pendingFilterUpdates?.value
         if let stream { try? await stream.stopCapture() }
         // A callback may already have passed its lifecycle check. Draining its
         // serial queue makes it enqueue into the writer before the session's
@@ -195,24 +200,32 @@ final class RecorderCaptureEngine: NSObject {
     /// Lets windows of this app that opened after a display recording
     /// started into the frame, such as the presentation pointer turned on
     /// mid-take. Any other new window of the app stays out, as at the start.
-    func admitOwnWindows(_ windowNumbers: [Int]) async {
-        let state = lifecycleLock.withLock { () -> (SCStream, RecorderSupport.Region, Int)? in
-            guard let stream, let displayRegion else { return nil }
+    func admitOwnWindows(_ windowNumbers: [Int]) {
+        lifecycleLock.withLock {
+            guard stream != nil, displayRegion != nil else { return }
             admittedWindowIDs.formUnion(windowNumbers.map { CGWindowID($0) })
-            filterRevision &+= 1
-            return (stream, displayRegion, filterRevision)
+            let previous = filterUpdates
+            filterUpdates = Task { [weak self] in
+                await previous?.value
+                await self?.applyAdmittedWindows()
+            }
         }
-        // Minimized windows included, so one already admitted stays admitted.
-        guard let state,
+    }
+
+    private func applyAdmittedWindows() async {
+        guard let stream = lifecycleLock.withLock({ self.stream }),
+              // Minimized windows included, so one already admitted stays in.
               let content = try? await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
         else { return }
-        let admitted = lifecycleLock.withLock { () -> Set<CGWindowID>? in
-            guard self.stream === state.0, filterRevision == state.2 else { return nil }
-            return admittedWindowIDs
+        // Read after the wait, so the newest list is the one applied, and
+        // nothing is sent to a stream that has stopped since.
+        let current = lifecycleLock.withLock { () -> (RecorderSupport.Region, Set<CGWindowID>)? in
+            guard self.stream === stream, let displayRegion else { return nil }
+            return (displayRegion, admittedWindowIDs)
         }
-        guard let admitted, let filter = Self.filter(admitting: admitted, on: state.1.displayID, in: content)
+        guard let current, let filter = Self.filter(admitting: current.1, on: current.0.displayID, in: content)
         else { return }
-        try? await state.0.updateContentFilter(filter)
+        try? await stream.updateContentFilter(filter)
     }
 
     private func stopAndDrain(_ stream: SCStream) async {

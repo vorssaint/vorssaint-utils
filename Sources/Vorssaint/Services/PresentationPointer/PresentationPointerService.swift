@@ -20,7 +20,9 @@ import Combine
 final class PresentationPointerService: ObservableObject {
     static let shared = PresentationPointerService()
 
-    @Published private(set) var mode = PresentationPointerMode()
+    @Published private(set) var mode = PresentationPointerMode() {
+        didSet { if mode != oldValue { revision &+= 1 } }
+    }
     @Published private(set) var shortcutRegistrationFailed = false
     @Published private(set) var blockClicksShortcutRegistrationFailed = false
 
@@ -100,8 +102,9 @@ final class PresentationPointerService: ObservableObject {
     /// recording that starts while the pointer is already on.
     private(set) static var overlayWindowNumbers: [Int] = []
 
-    /// Counts every change of the two switches, so a change scheduled for
-    /// later can tell whether something else got there first.
+    /// Counts every change of the two switches, whatever made it, so a
+    /// change scheduled for later can tell whether something else got there
+    /// first.
     private(set) var revision = 0
 
     private init() {
@@ -146,7 +149,6 @@ final class PresentationPointerService: ObservableObject {
     }
 
     func suspend() {
-        revision &+= 1
         pointerHotkey.unregister()
         blockClicksHotkey.unregister()
         mode.reset()
@@ -159,7 +161,6 @@ final class PresentationPointerService: ObservableObject {
 
     func toggle() {
         guard canPresent else { return }
-        revision &+= 1
         clearStaleStepAsideReasons()
         let wasBlocking = mode.blocksClicks
         mode.toggleShowing()
@@ -168,7 +169,6 @@ final class PresentationPointerService: ObservableObject {
     }
 
     func toggleBlockingClicks() {
-        revision &+= 1
         guard canPresent else { return }
         clearStaleStepAsideReasons()
         // A screenshot or recording selection on screen needs the mouse;
