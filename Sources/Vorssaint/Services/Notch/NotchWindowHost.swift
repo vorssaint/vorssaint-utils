@@ -44,6 +44,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     private var overviewWasVisible = false
     private var restoringFromMissionControl = false
     var missionControlDidRestore: (() -> Void)?
+    var onSilhouetteChange: ((CGRect, CGFloat?, Int, NSWindow.Level, NSScreen?) -> Void)?
+    private weak var backgroundOverlayWindow: NSWindow?
+    private var lastReportedSilhouetteRect: CGRect = .null
+    private var lastReportedFloatingGap: CGFloat? = nil
     private let overlaySpace = NotchOverlaySpace()
     private var concealedForFrameChange = false
     private var restoresKeyAfterFrameChange = false
@@ -96,7 +100,49 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
         overlaySpace?.add(panel)
-        panel.visibilityDidChange = { [weak self] in self?.syncMissionControlMonitoring() }
+        canvas.onContourUpdated = { [weak self] path in self?.notifySilhouette(canvasPath: path) }
+        panel.visibilityDidChange = { [weak self] in
+            self?.syncMissionControlMonitoring()
+            self?.notifySilhouette()
+        }
+    }
+
+    func attachBackgroundOverlay(_ window: NSWindow) {
+        if backgroundOverlayWindow !== window {
+            backgroundOverlayWindow = window
+            overlaySpace?.add(window)
+        }
+        window.level = panel.level
+        window.collectionBehavior = NotchPanel.overlayCollectionBehavior
+    }
+
+    func orderBackgroundOverlay(_ window: NSWindow, visible: Bool) {
+        attachBackgroundOverlay(window)
+        guard visible, panel.isVisible, panel.windowNumber > 0 else {
+            window.orderOut(nil)
+            return
+        }
+        window.order(.below, relativeTo: panel.windowNumber)
+    }
+
+    private func notifySilhouette(canvasPath: CGPath? = nil) {
+        let gap = currentGeometry.floatingGap
+        let rect: CGRect
+        if let path = canvasPath ?? canvas.visiblePath, !path.boundingBoxOfPath.isNull, path.boundingBoxOfPath.width > 0.5 {
+            let box = path.boundingBoxOfPath
+            let size = canvas.surfaceSize(of: path)
+            let shoulderInset = gap != nil ? NotchLayout.shoulder(height: size.height) : 0
+            let rectInCanvas = CGRect(x: box.minX - shoulderInset, y: 0, width: size.width, height: size.height)
+            let inWindow = canvas.convert(rectInCanvas, to: nil)
+            rect = pixelAligned(panel.convertToScreen(inWindow))
+        } else {
+            rect = pixelAligned(currentGeometry.frame(for: targetSize))
+        }
+        guard rect.width > 1, rect.height > 1 else { return }
+        if lastReportedSilhouetteRect == rect, lastReportedFloatingGap == gap { return }
+        lastReportedSilhouetteRect = rect
+        lastReportedFloatingGap = gap
+        onSilhouetteChange?(rect, gap, panel.windowNumber, panel.level, panel.screen ?? NSScreen.main)
     }
 
     /// Whether leaving content is fading out with the shape rather than hidden at once.
@@ -580,6 +626,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
         // AppKit aligns the backing window to pixels; its accepted frame is
         // the baseline for detecting a later move by the window server.
         appliedFrame = panel.frame
+        notifySilhouette()
     }
 
     private func configureQuickAccess() {
@@ -1153,6 +1200,7 @@ private final class NotchCanvas: NSView {
     private var activationRect = CGRect.zero
     private var hoverTrackingArea: NSTrackingArea?
     var hoverChanged: ((Bool) -> Void)?
+    var onContourUpdated: ((CGPath) -> Void)?
     private let silhouette = CAShapeLayer()
     private let edge = CAShapeLayer()
     private let edgeMask = CALayer()
@@ -1576,6 +1624,7 @@ private final class NotchCanvas: NSView {
         transaction.disablesAnimations = true
         withTransaction(transaction) { backdropPresentation.contour = contour }
         updateCanvasBlack()
+        onContourUpdated?(path)
     }
 
     deinit { backdropDisplayLink?.invalidate() }
