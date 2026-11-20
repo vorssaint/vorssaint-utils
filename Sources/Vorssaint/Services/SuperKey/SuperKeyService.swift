@@ -10,6 +10,18 @@ import HIDEventSystem
 import IOKit
 import IOKit.hidsystem
 
+/// The outcome of one mapping write. Richer than `SuperKeyMappingFailure`
+/// because a missing keyboard is a transient "not yet", not a refusal to show.
+enum SuperKeyMappingResult: Equatable {
+    /// The mapping is in place and the readback confirms it.
+    case applied
+    /// No keyboard matched yet: nothing was read, written or refused. The tap
+    /// stays up and the mapping is retried once a keyboard appears.
+    case noKeyboard
+    /// A refusal the feature must surface.
+    case failed(SuperKeyMappingFailure)
+}
+
 /// Turns one key into the user's chosen modifiers.
 ///
 /// Two halves make it work. The keyboard mapping table turns the source into
@@ -430,7 +442,7 @@ final class SuperKeyService: ObservableObject {
                               expectedTap: CFMachPort? = nil,
                               generation: UInt? = nil,
                               synchronously: Bool = false,
-                              completion: ((SuperKeyMappingFailure?) -> Void)? = nil) {
+                              completion: ((SuperKeyMappingResult) -> Void)? = nil) {
         let source = stateLock.withLock { eventSource }
         stateLock.withLock {
             lastMappingAt = ProcessInfo.processInfo.systemUptime
@@ -460,7 +472,7 @@ final class SuperKeyService: ObservableObject {
             let ownedSource = previousMarker ? SuperKeySource.sanitized(
                 defaults.string(forKey: DefaultsKey.superKeyMappedSource)
             ) : nil
-            let failure = self.performMapping(
+            let result = self.performMapping(
                 enabled,
                 source: source,
                 ownedSource: ownedSource
@@ -470,13 +482,13 @@ final class SuperKeyService: ObservableObject {
                 self.mappingGuard = nil
                 let marker = SuperKeySupport.mappingMarkerAfterClear(
                     previous: previousMarker,
-                    readbackConfirmed: failure == nil || guardConfirmed
+                    readbackConfirmed: result == .applied || guardConfirmed
                 )
                 defaults.set(marker, forKey: DefaultsKey.superKeyMappingApplied)
                 if !marker { defaults.removeObject(forKey: DefaultsKey.superKeyMappedSource) }
             }
             if let completion {
-                DispatchQueue.main.async { completion(failure) }
+                DispatchQueue.main.async { completion(result) }
             }
         }
         if synchronously {
@@ -486,32 +498,43 @@ final class SuperKeyService: ObservableObject {
         }
     }
 
-    /// Applies or clears the mapping, and answers with the reason it could not
-    /// be done, or nil when it was.
+    /// Applies or clears the mapping, and answers with what happened. A missing
+    /// keyboard is a distinct "not yet", not a refusal.
     ///
     /// Modifier Keys rules cannot be read here: hidd keeps
     /// `HIDKeyboardModifierMappingPairs` per client connection, so hidutil
     /// answers null for rules written by System Settings.
     private func performMapping(_ enabled: Bool,
                                 source: SuperKeySource,
-                                ownedSource: SuperKeySource?) -> SuperKeyMappingFailure? {
+                                ownedSource: SuperKeySource?) -> SuperKeyMappingResult {
         let report = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard report.status == 0 else { return .systemRefused }
-        guard let existing = SuperKeySupport.consistentMappings(
+        guard report.status == 0 else { return .failed(.systemRefused) }
+        let existing: [SuperKeyMapping]
+        switch SuperKeySupport.readMappings(
             report.output,
             property: SuperKeySupport.userMappingProperty,
             ownedSource: ownedSource
-        ) else { return .foreignMapping }
+        ) {
+        case .noKeyboard:
+            // No keyboard is present yet. Nothing was read, so nothing can be
+            // written or refused; the caller keeps the tap up and retries once
+            // a keyboard appears.
+            return .noKeyboard
+        case .foreignMapping:
+            return .failed(.foreignMapping)
+        case .consistent(let mappings):
+            existing = mappings
+        }
         guard !enabled || !SuperKeySupport.hasMappingConflict(
             in: existing,
             source: source,
             ownedSource: ownedSource
         )
-        else { return .foreignMapping }
+        else { return .failed(.foreignMapping) }
         let wanted = SuperKeySupport.mappings(
             enablingSuperKey: enabled,
             existing: existing,
@@ -519,17 +542,17 @@ final class SuperKeyService: ObservableObject {
             ownedSource: ownedSource
         )
         if !enabled, ownedSource == nil,
-           SuperKeySupport.mappingsMatch(existing, wanted) { return nil }
+           SuperKeySupport.mappingsMatch(existing, wanted) { return .applied }
         var startedGuard = false
         var mappingConfirmed = false
         if enabled {
             if let mappingGuard, mappingGuard.source != source {
-                guard mappingGuard.stop() else { return .systemRefused }
+                guard mappingGuard.stop() else { return .failed(.systemRefused) }
                 self.mappingGuard = nil
             }
             if mappingGuard == nil {
                 guard let guardHandle = SuperKeyMappingGuard.start(source: source) else {
-                    return .systemRefused
+                    return .failed(.systemRefused)
                 }
                 mappingGuard = guardHandle
                 startedGuard = true
@@ -562,21 +585,21 @@ final class SuperKeyService: ObservableObject {
             ["property", "--matching", keyboardMatch,
              "--set", SuperKeySupport.mappingArgument(wanted)]
         )
-        guard write.status == 0 else { return .systemRefused }
+        guard write.status == 0 else { return .failed(.systemRefused) }
         let readback = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard readback.status == 0 else { return .systemRefused }
+        guard readback.status == 0 else { return .failed(.systemRefused) }
         mappingConfirmed = SuperKeySupport.mappingReportConfirms(readback.output, expected: wanted)
-        return mappingConfirmed ? nil : .systemRefused
+        return mappingConfirmed ? .applied : .failed(.systemRefused)
     }
 
     private func confirmMapping(for expectedTap: CFMachPort,
                                 generation: UInt,
                                 publishingRunState: Bool) {
-        applyMapping(true, expectedTap: expectedTap, generation: generation) { [weak self] failure in
+        applyMapping(true, expectedTap: expectedTap, generation: generation) { [weak self] result in
             guard let self else { return }
             let active = self.lifecycleLock.withLock {
                 SuperKeySupport.mappingRequestIsAuthorized(
@@ -587,19 +610,26 @@ final class SuperKeyService: ObservableObject {
                 )
             }
             guard active else { return }
-            guard let failure else {
+            switch result {
+            case .applied:
                 self.setMappingFailure(nil)
                 if publishingRunState || !self.isRunning { self.finishStart() }
-                return
+            case .noKeyboard:
+                // No keyboard yet. The tap stays up and no refusal is shown, so
+                // the first raw source-key press on a keyboard that connects a
+                // moment later drives the existing repair path to apply the
+                // mapping, and that success calls `finishStart()`.
+                self.setMappingFailure(nil)
+            case .failed(let failure):
+                if publishingRunState {
+                    self.stop()
+                } else {
+                    // A failed repair keeps the existing tap alive so a later
+                    // repair can recover without rebuilding the event pipeline.
+                    self.isRunning = false
+                }
+                self.setMappingFailure(failure)
             }
-            if publishingRunState {
-                self.stop()
-            } else {
-                // A failed repair keeps the existing tap alive so a later
-                // repair can recover without rebuilding the event pipeline.
-                self.isRunning = false
-            }
-            self.setMappingFailure(failure)
         }
     }
 
