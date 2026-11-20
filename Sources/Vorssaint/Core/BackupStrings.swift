@@ -34,6 +34,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -199,6 +200,25 @@ extension BackupFeatureStrings {
         configFileConfirmTitle: "Uložiť do súboru nastavení?",
         configFileConfirmFormat: "Všetky aktuálne nastavenia sa zapíšu do %@ a nahradia tento súbor, ak už existuje. Vorssaint ho použije pri každom spustení, preto po zmene nastavení tu uložte znova.",
         configFileAction: "Uložiť"
+    )
+
+    static let cs = BackupFeatureStrings(
+        title: "Záloha",
+        description: "Přeneste svá nastavení na jiný Mac: exportujte všechny předvolby do souboru a tam je importujte. Poznámkový blok, historie schránky, položky police a systémová oprávnění nikdy neopustí tento Mac.",
+        exportButton: "Exportovat nastavení…",
+        importButton: "Importovat nastavení…",
+        exported: "Záloha uložena",
+        exportFailed: "Zálohu se nepodařilo uložit.",
+        importConfirmTitle: "Importovat tato nastavení?",
+        importConfirmBody: "Vaše aktuální nastavení se nahradí nastaveními ze souboru a aplikace se restartuje. Nic jiného se na tomto Macu nezmění.",
+        importConfigFileNotice: "Po opětovném spuštění mají nastavení ze souboru XDG přednost před importovanými hodnotami.",
+        importMissingIslandBody: "Tato záloha neobsahuje nastavení Dynamic Island. Nastavení na tomto Macu zůstanou zachována. Pokud je chcete přenést z druhého Macu, exportujte zálohu znovu ve Vorssaint 3.4 nebo novějším. Ostatní nastavení se importují a aplikace se restartuje.",
+        importAction: "Importovat a restartovat",
+        invalidFile: "Tento soubor není platná záloha Vorssaint.",
+        configFileButton: "Uložit do souboru nastavení…",
+        configFileConfirmTitle: "Uložit do souboru nastavení?",
+        configFileConfirmFormat: "Všechna aktuální nastavení se zapíšou do %@ a nahradí tento soubor, pokud už existuje. Vorssaint ho použije při každém spuštění, proto po změně nastavení zde uložte znovu.",
+        configFileAction: "Uložit"
     )
 
     static let de = BackupFeatureStrings(

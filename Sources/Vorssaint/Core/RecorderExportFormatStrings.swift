@@ -54,6 +54,13 @@ extension FeatureStrings {
                 gifSize: "Veľkosť GIF",
                 customSize: "Vlastná veľkosť",
                 frameRate: "Snímková frekvencia")
+        case .cs:
+            return RecorderExportFormatStrings(
+                format: "Formát exportu",
+                video: "Video",
+                gifSize: "Velikost GIF",
+                customSize: "Vlastní velikost",
+                frameRate: "Snímková frekvence")
         case .de:
             return RecorderExportFormatStrings(
                 format: "Exportformat",

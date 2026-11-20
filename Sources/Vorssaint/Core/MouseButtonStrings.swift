@@ -52,6 +52,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -280,6 +281,42 @@ extension MouseButtonFeatureStrings {
         spacesCaptureExists: "Toto tlačidlo už má skratku. Vyberte iné.",
         spacesFollowsDragLabel: "Plochy sledujú presun",
         spacesFollowsDragCaption: "Presunutie doprava privedie plochu vľavo, rovnako ako ju ťah po trackpade unáša spolu s vašimi prstami."
+    )
+
+    static let cs = MouseButtonFeatureStrings(
+        pageTitle: "Zkratky tlačítek myši",
+        hubDescription: "Extra tlačítka a směry bočního kolečka stisknou kombinaci kláves, kterou si vyberete.",
+        enableLabel: "Používat extra tlačítka jako zkratky",
+        enableCaption: "Každé extra tlačítko nebo směr bočního kolečka může za vás stisknout kombinaci kláves. Dokud má zkratku, přestane dělat to, co dříve.",
+        addButton: "Přidat tlačítko nebo boční kolečko",
+        captureWaiting: "Nyní stiskněte extra tlačítko nebo pohněte bočním kolečkem.",
+        captureCancel: "Zrušit",
+        captureBlind: "Vorssaint nyní nemůže sledovat myš.",
+        captureUnsupported: "Tomuto vstupu nelze přiřadit zkratku. Použijte extra tlačítko nebo směr bočního kolečka.",
+        captureWheel: "Toto tlačítko už otevírá radiální menu. Vyberte jiné, nebo ho tam nejprve uvolněte.",
+        captureExists: "Toto tlačítko nebo směr už je v seznamu níže.",
+        captureHint: "Pokud se nic nestane, tento ovládací prvek možná už používá vlastní software myši.",
+        middleButtonName: "Prostřední tlačítko",
+        backButtonName: "Boční tlačítko zpět",
+        forwardButtonName: "Boční tlačítko vpřed",
+        otherButtonFormat: "Tlačítko %d",
+        setShortcutButton: "Nastavit zkratku",
+        removeButton: "Odstranit",
+        emptyCaption: "Zatím žádné zkratky. Přidejte tlačítko nebo směr bočního kolečka.",
+        rowWheelNote: "Toto tlačítko nyní otevírá radiální menu, takže zkratka čeká.",
+        manageButton: "Nastavit…",
+        panelCaption: "Extra tlačítka a směry bočního kolečka stisknou kombinace kláves, které si vyberete.",
+        sideWheelLeftName: "Boční kolečko vlevo",
+        sideWheelRightName: "Boční kolečko vpravo",
+        spacesEnableLabel: "Přepínat plochy přetažením tlačítka",
+        spacesEnableCaption: "Podržte zvolené tlačítko a táhněte: vlevo nebo vpravo přejde o jednu plochu, nahoru otevře Mission Control, dolů otevře Exposé aplikace. Krátké kliknutí nadále dělá to, co vždy.",
+        spacesPickButton: "Vybrat tlačítko",
+        spacesShortcutsOffNote: "Klávesové zkratky pro Mission Control jsou v Nastavení systému vypnuté, takže toto gesto nemá o co požádat.",
+        spacesCaptureWaiting: "Nyní stiskněte prostřední nebo extra tlačítko.",
+        spacesCaptureUnsupported: "Tento vstup nelze podržet pro tažení. Použijte prostřední nebo extra tlačítko.",
+        spacesCaptureExists: "Toto tlačítko už má zkratku. Vyberte jiné.",
+        spacesFollowsDragLabel: "Plochy sledují tažení",
+        spacesFollowsDragCaption: "Tažení doprava přivede plochu zleva, stejně jako ji tah po trackpadu unáší spolu s vašimi prsty."
     )
 
     static let de = MouseButtonFeatureStrings(
