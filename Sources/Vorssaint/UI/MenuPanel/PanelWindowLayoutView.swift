@@ -41,7 +41,7 @@ struct PanelWindowLayoutView: View {
                 .topQuarter, .upperMiddleQuarter, .lowerMiddleQuarter, .bottomQuarter,
             ])
             actionGroup(title: text.quarterColumns, actions: [
-                .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter,
+                .leftQuarter, .leftMiddleQuarter, .rightMiddleQuarter, .rightQuarter, .centerThreeFourths,
             ])
             actionGroup(title: text.sixths, actions: [
                 .topLeftSixth, .topCenterSixth, .topRightSixth,
