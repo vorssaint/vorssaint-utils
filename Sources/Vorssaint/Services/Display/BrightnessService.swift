@@ -47,6 +47,9 @@ struct BrightnessDisplay: Identifiable, Equatable {
     let readable: Bool
     /// Manual dimming choices need a stable display-and-connection key.
     var canChooseDimming = false
+    /// A DDC channel was matched to this monitor, so its input can be
+    /// switched even while its brightness is dimmed in software.
+    var canSwitchInput = false
     /// Captured before this display is disabled, while its identity is still
     /// available. A reused display number must not transfer recovery ownership.
     var restorationFingerprint: String? = nil
@@ -157,6 +160,9 @@ final class BrightnessService: ObservableObject {
         var extendedDimming = false
         var lastDDCValue: UInt16?
         var chipAddress: UInt32
+        /// The matched DDC channel of a software route, kept for input
+        /// switching only: brightness never writes through it.
+        var inputService: CFTypeRef? = nil
     }
 
     private var deferredRestoration = BrightnessSupport.DeferredDisplayRestoration()
@@ -648,7 +654,7 @@ final class BrightnessService: ObservableObject {
     /// stricter monitors need.
     func detectInputSources(for id: CGDirectDisplayID) {
         guard running, inputStates[id] == nil, !inputDetections.contains(id),
-              displays.contains(where: { $0.id == id && $0.isActive && $0.method == .ddc })
+              displays.contains(where: { $0.id == id && $0.isActive && $0.canSwitchInput })
         else { return }
         inputDetections.insert(id)
         let vendorID = Self.vendorID(id)
@@ -690,7 +696,7 @@ final class BrightnessService: ObservableObject {
         let pointer = NSEvent.mouseLocation
         let pointerDisplay = NSScreen.screens.first { NSMouseInRect(pointer, $0.frame, false) }
             .flatMap { ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value }
-        let eligible = displays.filter { $0.isActive && !$0.isBuiltIn && $0.method == .ddc
+        let eligible = displays.filter { $0.isActive && !$0.isBuiltIn && $0.canSwitchInput
             && !pendingDisplayIDs.contains($0.id) }.map(\.id)
         guard let id = DisplayInputSupport.shortcutDisplay(pointerDisplay: pointerDisplay, eligible: eligible),
               !inputSwitchPending.contains(id) else { return }
@@ -762,12 +768,12 @@ final class BrightnessService: ObservableObject {
 
     private func storeInputState(_ state: DisplayInputState?, for id: CGDirectDisplayID) {
         guard running, let state,
-              displays.contains(where: { $0.id == id && $0.method == .ddc }) else { return }
+              displays.contains(where: { $0.id == id && $0.canSwitchInput }) else { return }
         inputStates[id] = state
     }
 
     private func forgetInputStates(keeping displays: [BrightnessDisplay]) {
-        let kept = Set(displays.filter { $0.isActive && $0.method == .ddc }.map(\.id))
+        let kept = Set(displays.filter { $0.isActive && $0.canSwitchInput }.map(\.id))
         if inputStates.keys.contains(where: { !kept.contains($0) }) {
             inputStates = inputStates.filter { kept.contains($0.key) }
         }
@@ -2497,7 +2503,8 @@ final class BrightnessService: ObservableObject {
                                          method: previous.method, isActive: true,
                                          brightness: previous.brightness,
                                          readable: previous.readable,
-                                         canChooseDimming: previous.canChooseDimming)
+                                         canChooseDimming: previous.canChooseDimming,
+                                         canSwitchInput: previous.canSwitchInput)
             }
             DispatchQueue.main.async { [weak self] in
                 guard let self, self.running, generation == self.rebuildGeneration else { return }
@@ -2518,6 +2525,7 @@ final class BrightnessService: ObservableObject {
         var forcedSoftwareIDs = Set<CGDirectDisplayID>()
         var extendedDimmingIDs = Set<CGDirectDisplayID>()
         var softwarePathKeys: [CGDirectDisplayID: String] = [:]
+        var softwareTransports: [CGDirectDisplayID: (service: CFTypeRef, chip: UInt32)] = [:]
         var retryDelay: TimeInterval?
         // Candidates the pass found no service for. Without a note here they
         // fall to software dimming silently, which hid why one launch never
@@ -2547,6 +2555,7 @@ final class BrightnessService: ObservableObject {
                     // probe on a channel whose answer was already rejected.
                     forcedSoftwareIDs.insert(id)
                     softwarePathKeys[id] = pathKey
+                    softwareTransports[id] = (matched.service, matched.chipAddress)
                     continue
                 }
                 let writeOnlyPaths = writeOnlyDDCPaths()
@@ -2576,6 +2585,7 @@ final class BrightnessService: ObservableObject {
                     // back to hardware now that the transport is available.
                     forcedSoftwareIDs.insert(id)
                     softwarePathKeys[id] = pathKey
+                    softwareTransports[id] = (matched.service, matched.chipAddress)
                     continue
                 }
                 switch probe {
@@ -2614,7 +2624,7 @@ final class BrightnessService: ObservableObject {
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
                         method: .ddc, isActive: true, brightness: level,
-                        readable: true, canChooseDimming: pathKey != nil)
+                        readable: true, canChooseDimming: pathKey != nil, canSwitchInput: true)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: ceiling, ddcReadable: true,
                                           ddcPathKey: pathKey, extendedDimming: extendsDimming,
@@ -2650,7 +2660,7 @@ final class BrightnessService: ObservableObject {
                     built[candidate.index] = BrightnessDisplay(
                         id: id, name: built[candidate.index].name, isBuiltIn: false,
                         method: .ddc, isActive: true, brightness: seed,
-                        readable: false, canChooseDimming: pathKey != nil)
+                        readable: false, canChooseDimming: pathKey != nil, canSwitchInput: true)
                     newRoutes[id] = Route(method: .ddc, service: matched.service,
                                           maximum: 100, ddcPathKey: pathKey,
                                           chipAddress: matched.chipAddress)
@@ -2714,10 +2724,12 @@ final class BrightnessService: ObservableObject {
             built[index] = BrightnessDisplay(
                 id: id, name: built[index].name, isBuiltIn: false,
                 method: .software, isActive: true, brightness: value, readable: true,
-                canChooseDimming: softwarePathKeys[id] != nil)
+                canChooseDimming: softwarePathKeys[id] != nil,
+                canSwitchInput: softwareTransports[id] != nil)
             newRoutes[id] = Route(method: .software, service: nil, maximum: 100,
                                   ddcPathKey: softwarePathKeys[id],
-                                  chipAddress: BrightnessSupport.chipAddress)
+                                  chipAddress: softwareTransports[id]?.chip ?? BrightnessSupport.chipAddress,
+                                  inputService: softwareTransports[id]?.service)
             if value < 0.999 || dimmedDisplays.contains(id) {
                 _ = applySoftwareDim(id, value: value)
             }
@@ -3069,7 +3081,8 @@ final class BrightnessService: ObservableObject {
         stateLock.lock()
         let route = routes[id]
         stateLock.unlock()
-        guard let route, route.method == .ddc, let service = route.service else { return nil }
+        guard let route,
+              let service = route.method == .ddc ? route.service : route.inputService else { return nil }
         return (service, route.chipAddress)
     }
 

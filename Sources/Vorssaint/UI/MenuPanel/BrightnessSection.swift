@@ -336,7 +336,7 @@ struct DisplayInputButton: View {
 
     private var strings: DisplayInputStrings { DisplayInputStrings.localized(l10n.language) }
     private var state: DisplayInputState? { service.inputStates[display.id] }
-    private var switchable: Bool { display.isActive && !display.isBuiltIn && display.method == .ddc }
+    private var switchable: Bool { display.isActive && !display.isBuiltIn && display.canSwitchInput }
 
     var body: some View {
         if switchable {
