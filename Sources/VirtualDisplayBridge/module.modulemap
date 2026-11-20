@@ -1,0 +1,5 @@
+module VirtualDisplayBridge [system] {
+    header "include/CGVirtualDisplayPrivate.h"
+    link "CoreGraphics"
+    export *
+}

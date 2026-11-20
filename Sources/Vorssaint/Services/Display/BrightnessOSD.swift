@@ -26,10 +26,12 @@ enum BrightnessOSD {
         }
         // A display mirroring another has no screen of its own; the overlay
         // goes on the screen the mirror set shares, in hardware or software.
+        let virtualScreenID = VirtualDisplayService.shared.virtualDisplayID(for: displayID) ?? displayID
         let sharedScreenID = CGDisplayPrimaryDisplay(displayID)
         let mirroredID = CGDisplayMirrorsDisplay(displayID)
         guard let screen = NSScreen.screens.first(where: {
             let number = ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+            if number == virtualScreenID { return true }
             return number == displayID || number == sharedScreenID || number == mirroredID
         }) else { return }
 
