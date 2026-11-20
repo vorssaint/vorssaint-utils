@@ -5593,6 +5593,26 @@ enum SwitcherModelFeatureTests {
                                                                  selectedIndex: 2,
                                                                  delta: 1) == 2,
                "App Switcher icon-row window navigation stays put when the app has one window")
+        let tabInterleaved = [groupedSwitcherItems[0], groupedSwitcherItems[2], groupedSwitcherItems[1]]
+        suite.expect([0, 2, 1].map { SwitcherSupport.nextGroupedWindowSelectionIndex(items: tabInterleaved,
+                                                                                selectedIndex: $0,
+                                                                                delta: 1) } == [2, 1, 0],
+               "Tab through windows visits an app's windows before the next app, then wraps")
+        suite.expect(SwitcherSupport.nextGroupedWindowSelectionIndex(items: tabInterleaved, selectedIndex: 1,
+                                                                     delta: 1, wrapping: false) == 1,
+               "held Tab through windows stops at the last window")
+        let peekFrame = CGRect(x: 0, y: 0, width: 400, height: 300)
+        let peekItems = [
+            SwitcherItem.window(id: 11, title: "A", appName: "Chrome", pid: 7, isOnScreen: true, frame: peekFrame),
+            SwitcherItem.window(id: 12, title: "B", appName: "Other", pid: 8, isOnScreen: true, frame: peekFrame),
+            SwitcherItem.window(id: 13, title: "C", appName: "Chrome", pid: 7, isOnScreen: false,
+                                isMinimized: true, frame: peekFrame),
+            SwitcherItem.window(id: 14, title: "D", appName: "Chrome", pid: 7, isOnScreen: true, frame: peekFrame),
+        ]
+        suite.expect(SwitcherSupport.peekItems(items: peekItems, selectedIndex: 3).map(\.windowID) == [14],
+               "selection peek shows only the selected window, the one committing raises")
+        suite.expect(SwitcherSupport.peekItems(items: peekItems, selectedIndex: 2).isEmpty,
+               "selection peek shows nothing for a minimized window")
         suite.expect(SwitcherSupport.iconRowEdgeHoverInterval > SwitcherSupport.iconRowEdgeHoverAnimationDuration
                && SwitcherSupport.iconRowEdgeHoverRepeatInterval >= SwitcherSupport.iconRowEdgeHoverAnimationDuration
                && SwitcherSupport.iconRowEdgeHoverRepeatInterval < SwitcherSupport.iconRowEdgeHoverInterval
