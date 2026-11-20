@@ -958,6 +958,22 @@ enum DefaultsKey {
     static let notchCoversMenus = "notchCoversMenus"
     static let notchLowBatteryTint = "notchLowBatteryTint"
     static let notchLowBatteryThreshold = "notchLowBatteryThreshold"
+    static let notchLightsEnabled = "notchLightsEnabled"
+    static let notchHaloStyle = "notchHaloStyle"
+    static let notchHaloArmWidth = "notchHaloArmWidth"
+    static let notchHaloThickness = "notchHaloThickness"
+    static let notchHaloEntry = "notchHaloEntry"
+    static let notchHaloMotion = "notchHaloMotion"
+    static let notchHaloTransition = "notchHaloTransition"
+    static let notchEdgeWaveEnabled = "notchEdgeWaveEnabled"
+    static let notchLightSurfaceStyle = "notchLightSurfaceStyle"
+    static let notchLightsAgentActivity = "notchLightsAgentActivity"
+    static let notchLightsMusicActivity = "notchLightsMusicActivity"
+    static let notchLightsCopySweep = "notchLightsCopySweep"
+    static let notchLightsNotices = "notchLightsNotices"
+    static let notchOutlineTheme = "notchOutlineTheme"
+    static let notchLightsRestingOutline = "notchLightsRestingOutline"
+    static let notchLightsLevelBars = "notchLightsLevelBars"
     static let notchLowBatteryEarly = "notchLowBatteryEarly"
     static let notchLowBatteryEarlyThreshold = "notchLowBatteryEarlyThreshold"
     static let notchLowBatteryMenuBar = "notchLowBatteryMenuBar"
@@ -1563,6 +1579,22 @@ enum Defaults {
         DefaultsKey.notchCapsuleFitWidth: 0.0,
         DefaultsKey.notchCapsuleFitHeight: 0.0,
         DefaultsKey.notchCapsuleFitDrop: 0.0,
+        DefaultsKey.notchLightsEnabled: true,
+        DefaultsKey.notchHaloStyle: NotchHaloStyle.rays.rawValue,
+        DefaultsKey.notchHaloArmWidth: NotchHaloArmWidth.medium.rawValue,
+        DefaultsKey.notchHaloThickness: 1.0,
+        DefaultsKey.notchHaloEntry: NotchHaloEntryMode.sweep.rawValue,
+        DefaultsKey.notchHaloMotion: NotchHaloMotion.ondulation.rawValue,
+        DefaultsKey.notchHaloTransition: NotchHaloTransitionEffect.hybrid.rawValue,
+        DefaultsKey.notchEdgeWaveEnabled: true,
+        DefaultsKey.notchLightSurfaceStyle: NotchLightSurfaceStyle.neon.rawValue,
+        DefaultsKey.notchLightsAgentActivity: true,
+        DefaultsKey.notchLightsMusicActivity: true,
+        DefaultsKey.notchLightsCopySweep: true,
+        DefaultsKey.notchLightsNotices: true,
+        DefaultsKey.notchOutlineTheme: NotchOutlineTheme.adaptive.rawValue,
+        DefaultsKey.notchLightsRestingOutline: false,
+        DefaultsKey.notchLightsLevelBars: true,
         DefaultsKey.notchOpenOnHover: false,
         DefaultsKey.notchShortcutEnabled: false,
         DefaultsKey.notchShortcut: GlobalShortcut.notchDefault.storageValue,

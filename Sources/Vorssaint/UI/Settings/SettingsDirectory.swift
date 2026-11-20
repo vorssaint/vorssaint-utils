@@ -32,7 +32,7 @@ struct SettingsSearchState: Equatable {
             DefaultsKey.notchHideInFullscreen, DefaultsKey.notchHoverInFullscreen, DefaultsKey.notchOpenOnHover,
             DefaultsKey.notchHideUntilHover, DefaultsKey.notchHoverExpands, DefaultsKey.notchAgentsClaude,
             DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsLimitAlert,
-            DefaultsKey.notchCommandBar, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
+            DefaultsKey.notchCommandBar, DefaultsKey.notchLightsEnabled, DefaultsKey.notchMascotVisits, DefaultsKey.monitorAlertCPU,
             DefaultsKey.monitorAlertCPUTemperature, DefaultsKey.monitorAlertDisk,
             DefaultsKey.monitorAlertBattery, DefaultsKey.monitorAlertBatteryTemperature,
         ].filter { defaults.bool(forKey: $0) })
@@ -255,6 +255,7 @@ enum SettingsDirectory {
         }
 #endif
         let mascot = FeatureStrings.notchMascot(language)
+        let notchLights = NotchLightsStrings.localized(language)
         let activities = FeatureStrings.notchActivities(language)
         let lockScreen = FeatureStrings.notchLockScreen(language)
         let hover = state.on(DefaultsKey.notchOpenOnHover)
@@ -294,6 +295,12 @@ enum SettingsDirectory {
                   notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsClaude)),
             .init([notchEditor.activity, notchEditor.resting, notch.coverMenus, notchEditor.feedback, notch.inputSource,
                    notch.newTrack, lockScreen.title, lockScreen.sounds, lockScreen.show], notch: .activity),
+            .init([notchLights.title, notchLights.enable, "laser", "halo", "edge wave"], notch: .activity),
+            .init([notchLights.style, notchLights.outlineTheme, notchLights.restingOutline, notchLights.armWidth,
+                   notchLights.thickness, notchLights.entry, notchLights.motion, notchLights.transition,
+                   notchLights.edgeWave, notchLights.lightSurface, notchLights.levelBars, notchLights.agentActivity,
+                   notchLights.musicActivity, notchLights.copySweep, notchLights.notices, notchLights.preview],
+                  notch: .activity, when: state.on(DefaultsKey.notchLightsEnabled)),
             .init([notchLowBattery.title], feature: .monitorPower, notch: .activity, when: batteryRest),
             .init([notchLowBattery.threshold, notchLowBattery.early, notchLowBattery.menuBar],
                   feature: .monitorPower, notch: .activity, when: tintedBattery),
