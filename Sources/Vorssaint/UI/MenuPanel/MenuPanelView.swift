@@ -2304,7 +2304,6 @@ private struct PresentationPointerPanelTile: View {
                         Label(text.blockClicksTitle,
                               systemImage: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(service.blocksClicks ? Color.primary : Color.secondary)
                             .lineLimit(1)
                             .accessibilityHidden(true)
                         Spacer(minLength: 6)

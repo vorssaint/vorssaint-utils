@@ -32,12 +32,19 @@ struct PresentationPointerSection: View {
 
     var body: some View {
         SettingsCard(title: text.title) {
-            SettingsRow(symbol: "hand.point.up.left.fill", title: text.showToggle, caption: text.caption) {
+            SettingsRow(symbol: "hand.point.up.left", title: text.showToggle, caption: text.caption) {
                 Toggle(text.showToggle, isOn: showingBinding).labelsHidden()
             }
             SettingsRow(symbol: "hand.raised", title: text.blockClicksTitle, caption: text.blockClicksCaption) {
                 Toggle(text.blockClicksTitle, isOn: blockingBinding).labelsHidden()
             }
+            // What viewers need for the pointer to reach them, next to the
+            // switch that shows it.
+            Text(text.shareNote)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
 
             Divider()
 
@@ -72,18 +79,19 @@ struct PresentationPointerSection: View {
             SettingsRow(symbol: "bolt.fill", title: text.energyLabel, caption: text.energyCaption) {
                 EmptyView()
             }
-            Slider(value: $energy, in: 0...1) {
-                Text(text.energyLabel)
-            } minimumValueLabel: {
+            // End labels of its own: a slider dims the ones it is given.
+            HStack(spacing: 8) {
                 Text(text.energySubtle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            } maximumValueLabel: {
+                Slider(value: $energy, in: 0...1) {
+                    Text(text.energyLabel)
+                }
+                .labelsHidden()
                 Text(text.energyBold)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .labelsHidden()
             .frame(width: Self.columnWidth)
             .padding(.leading, settingsRowTextInset)
             SettingsRow(symbol: "sparkle", title: text.burstsToggle) {
@@ -127,11 +135,6 @@ struct PresentationPointerSection: View {
             if blockClicksShortcutEnabled, service.blockClicksShortcutRegistrationFailed {
                 unavailableShortcutNote
             }
-
-            Text(text.shareNote)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .onChange(of: preferenceState) { _, _ in
             service.syncWithPreferences()
