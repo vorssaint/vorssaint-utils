@@ -160,7 +160,9 @@ final class PresentationPointerOverlay {
         fade.fromValue = Float(max(0, elapsed) / Self.arrivalDuration)
         fade.toValue = 1
         fade.duration = remaining
-        fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        // Even, so a fade carried to another display goes on at the same
+        // opacity it had reached.
+        fade.timingFunction = CAMediaTimingFunction(name: .linear)
         pointerLayer.add(fade, forKey: "arrive")
     }
 

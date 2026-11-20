@@ -278,7 +278,6 @@ final class PresentationPointerService: ObservableObject {
                 return
             }
             isPresenting = true
-            arrivalTime = ProcessInfo.processInfo.systemUptime
             sound.configure(source: Self.soundSource(from: .standard), volume: Self.soundVolume(from: .standard))
             let app = NotificationCenter.default
             presentationObservers = [
@@ -301,7 +300,9 @@ final class PresentationPointerService: ObservableObject {
                     forName: name, object: nil, queue: .main) { [weak self] _ in self?.reassertPointer() }))
             }
         }
-        // The first display the pointer lands on fades it in (movePointer).
+        // The first display the pointer lands on fades it in (movePointer),
+        // timed from here, once everything else is set up.
+        if arriving { arrivalTime = ProcessInfo.processInfo.systemUptime }
         layoutDisplays()
     }
 
@@ -328,7 +329,7 @@ final class PresentationPointerService: ObservableObject {
         lastMove = nil
         horizontalSpeed = 0
         leanAngle = 0
-        systemPointer.show()
+        restoreSystemPointer()
         sound.configure(source: nil, volume: 0)
     }
 
@@ -385,7 +386,7 @@ final class PresentationPointerService: ObservableObject {
             // the next mouse move.
             scheduleSystemPointerCheck(after: 0.05)
         } else {
-            systemPointer.show()
+            restoreSystemPointer()
             cancelSystemPointerCheck()
             systemPointerShowing = false
             // The ring circles the system pointer, so it never steps aside.
@@ -486,6 +487,18 @@ final class PresentationPointerService: ObservableObject {
     private func cancelSystemPointerCheck() {
         systemPointerCheckDue = nil
         systemPointerCheckGeneration &+= 1
+    }
+
+    /// Gives the system pointer back. The window server can refuse, which
+    /// would leave the Mac without a pointer, so a refused show is tried
+    /// again a few times, further apart each time, until it takes or a
+    /// picture stands in for the pointer again.
+    private func restoreSystemPointer(attempt: Int = 0) {
+        if attempt > 0, systemPointer.isHiding { return }
+        guard !systemPointer.show(), attempt < 6 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 * pow(2, Double(attempt))) { [weak self] in
+            self?.restoreSystemPointer(attempt: attempt + 1)
+        }
     }
 
     // MARK: - Frame clock
@@ -724,15 +737,19 @@ private final class SystemPointerHider {
         if CGDisplayHideCursor(CGMainDisplayID()) == .success { hides += 1 }
     }
 
-    func show() {
-        guard isHiding || hides > 0 else { return }
+    /// Returns whether every hide has been given back.
+    @discardableResult
+    func show() -> Bool {
+        guard isHiding || hides > 0 else { return true }
         isHiding = false
         while hides > 0, CGDisplayShowCursor(CGMainDisplayID()) == .success {
             hides -= 1
         }
-        // A show the window server refused leaves the hide owed; the next
-        // attempt pays it rather than dropping it.
+        // A show the window server refused leaves the hide owed, and the
+        // background permission with it; the next attempt pays it rather
+        // than dropping it.
         if hides == 0 { BackgroundCursor.setAllowed(false, by: .presentationPointer) }
+        return hides == 0
     }
 
     /// Hides the system pointer again if macOS showed it. Returns whether it
