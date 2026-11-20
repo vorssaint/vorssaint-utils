@@ -1198,6 +1198,27 @@ struct SoftwareOutputVolume: Equatable {
         software?.gain ?? 1
     }
 
+    /// The gain of an app's own engine on an output that the software volume
+    /// lowers. While the output-wide tap still carries any of the app's audio
+    /// objects, the app already plays there, so its own engine stays silent
+    /// until a rebuild leaves it out. Nil `outputGain`: no output-wide tap.
+    static func appEngineGain(_ appGain: Float, outputGain: Float?, excluded: [AudioObjectID],
+                              objects: [AudioObjectID]) -> Float {
+        guard let outputGain else { return appGain }
+        return Set(objects).isSubset(of: excluded) ? appGain * outputGain : 0
+    }
+
+    /// True while the output-wide engine has sound to render: an app plays on
+    /// `outputUID` with an audio object that the engine does not exclude. A
+    /// stopped render count is only a wedge while this holds.
+    static func carriesPlayingAudio(outputUID: String, excluded: [AudioObjectID],
+                                    apps: [(objects: [AudioObjectID], outputUID: String?, isPlaying: Bool)]) -> Bool {
+        let excluded = Set(excluded)
+        return apps.contains { app in
+            app.isPlaying && app.outputUID == outputUID && app.objects.contains { !excluded.contains($0) }
+        }
+    }
+
     /// One volume key press. Up ends a mute and steps from the level before
     /// it; reaching zero mutes, as macOS does for its own outputs. The step
     /// grid and the limits are the ones the monitor speaker keys use.

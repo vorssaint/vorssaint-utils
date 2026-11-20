@@ -14,6 +14,8 @@ enum SoftwareOutputVolumeTests {
         limits(suite)
         keyRoute(suite)
         clickVolume(suite)
+        renderWatch(suite)
+        appEngines(suite)
     }
 
     private static let x34 = "AppleGFXHDAEngineOutputDP:10001:0:{4C41-3482-00000000}"
@@ -241,5 +243,38 @@ enum SoftwareOutputVolumeTests {
                      "the click plays at the software gain, as loud as the music it follows")
         suite.expect(SoftwareOutputVolume.clickVolume(for: volume(0.3, muted: true)) == 0,
                      "a muted software output plays no click")
+    }
+
+    // The stall watchdog needs to know when silence from the output-wide
+    // engine is wrong: only while an app it carries is playing on its output.
+    private static func renderWatch(_ suite: TestSuite) {
+        let own: AudioObjectID = 7
+        func carries(_ apps: [(objects: [AudioObjectID], outputUID: String?, isPlaying: Bool)]) -> Bool {
+            SoftwareOutputVolume.carriesPlayingAudio(outputUID: x34, excluded: [own, 41], apps: apps)
+        }
+        suite.expect(carries([([30], x34, true)]), "a playing app on the output means the engine must render")
+        suite.expect(!carries([([30], x34, false)]), "a silent app gives the engine nothing to render")
+        suite.expect(!carries([([30], "BuiltInSpeakerDevice", true)]),
+                     "an app playing on another output is not carried by this engine")
+        suite.expect(!carries([([41], x34, true)]),
+                     "an app with its own mixer tap is left out of the output-wide engine")
+        suite.expect(carries([([41, 42], x34, true)]),
+                     "an app with any audio object outside the exclusions is carried")
+        suite.expect(!carries([([30], nil, true)]), "an app with no known output is not counted")
+        suite.expect(!carries([]), "no apps, nothing to render")
+    }
+
+    // An app's own engine and the output-wide tap must never both play the
+    // app, or it sounds up to twice as loud as the monitor's own level.
+    private static func appEngines(_ suite: TestSuite) {
+        let output = volume(0.5)
+        suite.expect(SoftwareOutputVolume.appEngineGain(0.8, outputGain: output.gain, excluded: [7, 41], objects: [41]) == 0.8 * output.gain,
+                     "an app the output-wide tap leaves out carries the output level in its own engine")
+        suite.expect(SoftwareOutputVolume.appEngineGain(0.8, outputGain: output.gain, excluded: [7], objects: [41]) == 0,
+                     "an app the output-wide tap still carries stays silent in its own engine until the tap leaves it out")
+        suite.expect(SoftwareOutputVolume.appEngineGain(0.8, outputGain: output.gain, excluded: [7, 41], objects: [41, 42]) == 0,
+                     "an app with any audio object still in the output-wide tap stays silent in its own engine")
+        suite.expect(SoftwareOutputVolume.appEngineGain(0.8, outputGain: nil, excluded: [], objects: [41]) == 0.8,
+                     "without the output-wide tap an app engine plays at its own gain")
     }
 }

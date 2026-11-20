@@ -111,6 +111,11 @@ final class AppVolumeMixer: ObservableObject {
     /// Discards an output-wide build that lands after the mixer moved on.
     private var softwareOutputBuild = 0
     private var softwareOutputBuildInFlight = false
+    /// The stall watchdog's last reading of the output-wide engine, and its
+    /// one rebuild before the feature fails open.
+    private var softwareOutputRenderProgress: MixerRoutingSupport.EngineRenderObservation?
+    private var softwareOutputRecovery = MixerEngineRecovery()
+    private static let softwareOutputRecoveryID = "software-output"
     /// The output whose software volume engine failed. Audio there plays at
     /// the monitor's own level and the keys go back to macOS, until the
     /// output changes or the feature is switched off and on.
@@ -308,6 +313,8 @@ final class AppVolumeMixer: ObservableObject {
                 // even on a quiet wake.
                 self.engineRenderProgress.removeAll()
                 self.engineRecovery.clearAll()
+                self.softwareOutputRenderProgress = nil
+                self.softwareOutputRecovery.clearAll()
                 // An output that drops away during sleep can come back under
                 // the same object ID without the volume and mute listeners
                 // registered on it, and the level it reports then goes stale.
@@ -822,9 +829,49 @@ final class AppVolumeMixer: ObservableObject {
         syncSoftwareOutputVolume()
     }
 
+    /// The per-app stall watchdog (issue #341), applied to the output-wide
+    /// engine: a wedged aggregate there mutes the whole output. The first
+    /// wedge rebuilds the engine. A second one on the same configuration
+    /// fails open, which plays the output at its own level and shows why.
+    /// Returns when the next pass must look again.
+    private func watchSoftwareOutputRender(apps: [MixerApp], now: Double) -> Double? {
+        guard let engine = softwareOutputEngine else {
+            softwareOutputRenderProgress = nil
+            return nil
+        }
+        let isPlaying = SoftwareOutputVolume.carriesPlayingAudio(
+            outputUID: engine.outputDeviceUID, excluded: engine.tappedObjects,
+            apps: apps.map { ($0.audioObjects, $0.effectiveOutputDeviceUID, $0.isPlaying) })
+        switch MixerRoutingSupport.engineRenderVerdict(previous: softwareOutputRenderProgress,
+                                                       cycles: engine.renderCycles,
+                                                       isPlaying: isPlaying, now: now) {
+        case .note(let observation, let recheckAfter):
+            if let previous = softwareOutputRenderProgress, observation.cycles != previous.cycles {
+                softwareOutputRecovery.clear(Self.softwareOutputRecoveryID)
+            }
+            softwareOutputRenderProgress = observation
+            return recheckAfter
+        case .stalled(let recheckAfter):
+            return recheckAfter
+        case .wedged:
+            let configuration = MixerEngineRecovery.Configuration(objects: engine.tappedObjects,
+                                                                  outputDeviceUID: engine.outputDeviceUID)
+            stopSoftwareOutputEngine()
+            if !softwareOutputRecovery.recordFailure(Self.softwareOutputRecoveryID, configuration: configuration) {
+                softwareOutputFailedUID = engine.outputDeviceUID
+                Self.log.error("Software output volume stalled on \(engine.outputDeviceUID, privacy: .private)")
+            }
+            return nil
+        case nil:
+            softwareOutputRenderProgress = nil
+            return nil
+        }
+    }
+
     private func stopSoftwareOutputEngine() {
         softwareOutputBuild &+= 1
         softwareOutputBuildInFlight = false
+        softwareOutputRenderProgress = nil
         guard let engine = softwareOutputEngine else { return }
         softwareOutputEngine = nil
         engine.stop()
@@ -834,16 +881,19 @@ final class AppVolumeMixer: ObservableObject {
 
     /// The gain of an app's own engine. The output-wide tap leaves the apps
     /// the mixer taps out, so on that output their engines carry its level.
-    private func appEngineGain(forVolume volume: Double, outputDeviceUID: String?) -> Float {
-        let gain = MixerRoutingSupport.gain(forVolume: volume)
-        guard let output = softwareOutputEngine, output.outputDeviceUID == outputDeviceUID else { return gain }
-        return gain * output.gain
+    private func appEngineGain(forVolume volume: Double, outputDeviceUID: String?,
+                               objects: [AudioObjectID]) -> Float {
+        let output = softwareOutputEngine.flatMap { $0.outputDeviceUID == outputDeviceUID ? $0 : nil }
+        return SoftwareOutputVolume.appEngineGain(MixerRoutingSupport.gain(forVolume: volume),
+                                                  outputGain: output?.gain,
+                                                  excluded: output?.tappedObjects ?? [], objects: objects)
     }
 
     private func applyAppEngineGains() {
         for app in apps {
             guard let engine = engines[app.id] else { continue }
-            engine.gain = appEngineGain(forVolume: app.volume, outputDeviceUID: engine.outputDeviceUID)
+            engine.gain = appEngineGain(forVolume: app.volume, outputDeviceUID: engine.outputDeviceUID,
+                                        objects: engine.tappedObjects)
         }
     }
 
@@ -1513,7 +1563,8 @@ final class AppVolumeMixer: ObservableObject {
            engine.tappedObjects == app.audioObjects,
            engine.outputDeviceUID == targetOutputDeviceUID,
            !engine.requiresRebuild {
-            engine.gain = appEngineGain(forVolume: app.volume, outputDeviceUID: engine.outputDeviceUID)
+            engine.gain = appEngineGain(forVolume: app.volume, outputDeviceUID: engine.outputDeviceUID,
+                                        objects: engine.tappedObjects)
             return
         }
         if let delay = configurationRepairDelay(for: app.id) {
@@ -1568,7 +1619,8 @@ final class AppVolumeMixer: ObservableObject {
             return
         }
 
-        let gain = appEngineGain(forVolume: app.volume, outputDeviceUID: targetOutputDeviceUID)
+        let gain = appEngineGain(forVolume: app.volume, outputDeviceUID: targetOutputDeviceUID,
+                                 objects: app.audioObjects)
         buildQueue.async { [weak self] in
             let engine = TapGainEngine(objects: app.audioObjects, gain: gain,
                                        outputDeviceUID: targetOutputDeviceUID)
@@ -1649,7 +1701,8 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: latestApp)
             return
         }
-        engine.gain = appEngineGain(forVolume: latestApp.volume, outputDeviceUID: engine.outputDeviceUID)
+        engine.gain = appEngineGain(forVolume: latestApp.volume, outputDeviceUID: engine.outputDeviceUID,
+                                    objects: engine.tappedObjects)
         configurationRepairs.removeValue(forKey: id)
         let previous = engines.updateValue(engine, forKey: id)
         engineChangeAt[id] = CFAbsoluteTimeGetCurrent()
@@ -2397,6 +2450,9 @@ final class AppVolumeMixer: ObservableObject {
             applyRouting(for: app)
         }
         forgetEngineStateOfMissingRows(byId)
+        if let recheckAfter = watchSoftwareOutputRender(apps: apps, now: now) {
+            nextPassDelay = min(nextPassDelay ?? recheckAfter, recheckAfter)
+        }
         // A new or departed app tap changes what the output-wide tap leaves
         // out, and a format change can invalidate it like any other tap.
         syncSoftwareOutputVolume()
@@ -3574,7 +3630,8 @@ private final class MixerTapConfiguration {
 /// The audio path for one routed app: a muted process tap feeding an aggregate
 /// device whose IO proc re-renders the samples scaled by `gain` onto the chosen
 /// output device. With `excludesObjects`, the same path carries every process
-/// but `objects`, which is how the software output volume lowers a whole output.
+/// but `objects` that plays on that output, which is how the software output
+/// volume lowers a whole output.
 @available(macOS 14.4, *)
 private final class TapGainEngine: GainEngine {
     let tappedObjects: [AudioObjectID]
@@ -3638,15 +3695,13 @@ private final class TapGainEngine: GainEngine {
         self.outputDeviceUID = outputDeviceUID
 
         guard let capture = excludesObjects
-                ? Self.createTap(objects: objects, deviceUID: nil, source: nil, excludesObjects: true)
+                ? Self.createOutputWideTap(excluding: objects, outputDeviceUID: outputDeviceUID)
                 : Self.createTap(objects: objects, outputDeviceUID: outputDeviceUID) else { return nil }
         tapID = capture.id
         // Started before the aggregate, so its first read runs while the
         // aggregate is built. Every failure from here on calls stop().
         let compensation = compensationBox
-        if excludesObjects {
-            levelWatch = LevelCompensationWatch.started(everyProcessExcept: objects) { compensation.value = $0 }
-        } else if capture.source == nil {
+        if capture.source == nil {
             levelWatch = LevelCompensationWatch.started(objects: objects) { compensation.value = $0 }
         }
 
@@ -3805,10 +3860,32 @@ private final class TapGainEngine: GainEngine {
         return createTap(objects: objects, deviceUID: nil, source: nil)
     }
 
+    /// Taps every process but `objects` on the output's own stream only, so
+    /// apps that play on other outputs stay where they are. There is no
+    /// mixdown fallback, which would take those apps too: a shape this
+    /// cannot render fails, and the output plays at its own level.
+    private static func createOutputWideTap(excluding objects: [AudioObjectID],
+                                            outputDeviceUID: String) -> Capture? {
+        guard let device = AppVolumeMixer.deviceID(forUID: outputDeviceUID) else { return nil }
+        let streams = AppVolumeMixer.outputStreams(device)
+        var asbd = AudioStreamBasicDescription()
+        var startingChannel: UInt32 = 0
+        let format = streams.first.flatMap { stream in
+            AppVolumeMixer.read(stream, kAudioStreamPropertyVirtualFormat, &asbd)
+                && AppVolumeMixer.read(stream, kAudioStreamPropertyStartingChannel, &startingChannel)
+                ? MixerTapFormat(asbd) : nil
+        }
+        guard let stream = streams.first, let format,
+              let passesThrough = MixerTapFormat.outputWidePassesThrough(
+                streamCount: streams.count, startingChannel: startingChannel, format: format) else { return nil }
+        let source = passesThrough ? MixerTapConfiguration.Source(device: device, stream: stream, format: format) : nil
+        return createTap(objects: objects, deviceUID: outputDeviceUID, source: source, excludesObjects: true)
+    }
+
     private static func createTap(objects: [AudioObjectID], deviceUID: String?,
                                   source: MixerTapConfiguration.Source?, excludesObjects: Bool = false) -> Capture? {
         var tap = AudioObjectID(0)
-        let mode: VorssaintTapMode = excludesObjects ? .stereoGlobalExcluding
+        let mode: VorssaintTapMode = excludesObjects ? .deviceStreamExcluding
             : deviceUID == nil ? .stereoMixdown : .deviceStream
         guard let uuid = createPrivateAudioTap(mode,
                                                processes: objects as [NSNumber], deviceUID: deviceUID,
