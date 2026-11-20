@@ -428,6 +428,8 @@ enum SettingsDirectory {
                                           FeatureStrings.presentationPointer(language).energyLabel,
                                           FeatureStrings.presentationPointer(language).burstsToggle,
                                           FeatureStrings.presentationPointer(language).soundToggle,
+                                          FeatureStrings.presentationPointer(language).shortcutToggle,
+                                          FeatureStrings.presentationPointer(language).blockClicksShortcutToggle,
                                           "cursor highlight", "presentation", "pointer"]),
                                        ]),
                 SettingsDirectoryItem(page: .switcher, title: s.tabSwitcher, icon: "rectangle.on.rectangle",

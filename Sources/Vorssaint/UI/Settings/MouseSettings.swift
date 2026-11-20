@@ -478,18 +478,7 @@ struct MouseSettings: View {
 
     private func sliderRow(_ title: String, value: Binding<Double>, range: ClosedRange<Double>,
                            step: Double, readout: String) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .frame(minWidth: 96, alignment: .leading)
-            Slider(value: value, in: range, step: step) {
-                Text(title)
-            }
-            .labelsHidden()
-            Text(readout)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
-        }
+        SettingsSliderRow(title: title, value: value, range: range, step: step, readout: readout)
     }
 
     // MARK: - Acceleration, side buttons, click filter, middle click

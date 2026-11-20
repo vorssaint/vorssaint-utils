@@ -42,7 +42,7 @@ final class PresentationPointerMenu: NSObject {
             item.target = self
             item.tag = index
             item.state = style == current ? .on : .off
-            item.image = PresentationPointerThumbnails.image(style, colorHex: color, size: 16)
+            item.image = PresentationPointerThumbnails.tile(style, colorHex: color, side: 16)
             menu.addItem(item)
         }
         menu.addItem(.separator())
@@ -140,6 +140,13 @@ enum PresentationPointerThumbnails {
         let image = NSImage(cgImage: artwork.image, size: artwork.size)
         cache[key] = image
         return image
+    }
+
+    /// A look for a picker tile or menu item, `side` points across. Every
+    /// picture leaves a margin inside its square while the ring fills its
+    /// own, so the ring is drawn a little smaller to weigh the same.
+    static func tile(_ style: PresentationPointerStyle, colorHex: String, side: CGFloat) -> NSImage? {
+        image(style, colorHex: colorHex, size: style == .ring ? (side * 0.82).rounded() : side)
     }
 }
 

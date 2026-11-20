@@ -44,44 +44,47 @@ struct PresentationPointerSection: View {
             SettingsRow(symbol: "paintpalette", title: text.styleLabel) {
                 EmptyView()
             }
-            stylePicker
-                .padding(.leading, settingsRowTextInset)
-
-            HStack(alignment: .center, spacing: 16) {
-                VStack(alignment: .leading, spacing: 13) {
-                    SettingsRow(symbol: "arrow.up.left.and.arrow.down.right", title: text.sizeLabel) {
-                        // Continuous, so no tick marks crowd the track; the
-                        // binding keeps the value to whole points.
-                        Slider(value: sizeBinding, in: PresentationPointerSupport.sizeRange) {
-                            Text(text.sizeLabel)
-                        }
-                        .labelsHidden()
-                        .frame(width: 180)
-                    }
-                    SettingsRow(symbol: "eyedropper", title: text.colorLabel) {
+            // The looks and the two choices that change them, with the
+            // pointer as it will look right beside them.
+            HStack(alignment: .center, spacing: 20) {
+                VStack(alignment: .leading, spacing: 12) {
+                    stylePicker
+                    // Continuous, so no tick marks crowd the track; the
+                    // binding keeps the value to whole points.
+                    SettingsSliderRow(title: text.sizeLabel, value: sizeBinding,
+                                      range: PresentationPointerSupport.sizeRange,
+                                      readout: "\(Int(PresentationPointerSupport.sanitizedSize(size))) pt")
+                    HStack(spacing: 12) {
+                        Text(text.colorLabel)
+                        Spacer(minLength: 12)
                         ColorPicker(text.colorLabel, selection: colorBinding, supportsOpacity: false)
                             .labelsHidden()
                     }
                 }
+                .frame(width: Self.columnWidth)
                 PresentationPointerPreview(style: selectedStyle, colorHex: color,
                                            size: PresentationPointerSupport.sanitizedSize(size))
             }
+            .padding(.leading, settingsRowTextInset)
+
+            Divider()
 
             SettingsRow(symbol: "bolt.fill", title: text.energyLabel, caption: text.energyCaption) {
                 EmptyView()
             }
-            HStack(spacing: 10) {
+            Slider(value: $energy, in: 0...1) {
+                Text(text.energyLabel)
+            } minimumValueLabel: {
                 Text(text.energySubtle)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Slider(value: $energy, in: 0...1) {
-                    Text(text.energyLabel)
-                }
-                .labelsHidden()
+            } maximumValueLabel: {
                 Text(text.energyBold)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .labelsHidden()
+            .frame(width: Self.columnWidth)
             .padding(.leading, settingsRowTextInset)
             SettingsRow(symbol: "sparkle", title: text.burstsToggle) {
                 Toggle(text.burstsToggle, isOn: $bursts).labelsHidden()
@@ -94,28 +97,35 @@ struct PresentationPointerSection: View {
             }
             if soundEnabled {
                 soundControls
+                    .frame(width: Self.columnWidth, alignment: .leading)
                     .padding(.leading, settingsRowTextInset)
             }
 
             Divider()
 
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle(text.shortcutToggle, isOn: $shortcutEnabled)
-                ShortcutPreferenceRow(role: .presentationPointer, isEnabled: shortcutEnabled,
-                                      label: text.title) {
-                    service.syncWithPreferences()
-                }
-                if shortcutEnabled, service.shortcutRegistrationFailed {
-                    unavailableShortcutNote
-                }
-                Toggle(text.blockClicksShortcutToggle, isOn: $blockClicksShortcutEnabled)
-                ShortcutPreferenceRow(role: .presentationPointerBlockClicks, isEnabled: blockClicksShortcutEnabled,
-                                      label: text.blockClicksTitle) {
-                    service.syncWithPreferences()
-                }
-                if blockClicksShortcutEnabled, service.blockClicksShortcutRegistrationFailed {
-                    unavailableShortcutNote
-                }
+            // The General page's shortcut pattern, a switch row with its
+            // recorder under it, once for each of the two switches at the top.
+            SettingsRow(symbol: "keyboard", title: text.shortcutToggle) {
+                Toggle(text.shortcutToggle, isOn: $shortcutEnabled).labelsHidden()
+            }
+            ShortcutPreferenceRow(role: .presentationPointer, isEnabled: shortcutEnabled,
+                                  label: text.title) {
+                service.syncWithPreferences()
+            }
+            .padding(.leading, settingsRowTextInset)
+            if shortcutEnabled, service.shortcutRegistrationFailed {
+                unavailableShortcutNote
+            }
+            SettingsRow(symbol: "keyboard", title: text.blockClicksShortcutToggle) {
+                Toggle(text.blockClicksShortcutToggle, isOn: $blockClicksShortcutEnabled).labelsHidden()
+            }
+            ShortcutPreferenceRow(role: .presentationPointerBlockClicks, isEnabled: blockClicksShortcutEnabled,
+                                  label: text.blockClicksTitle) {
+                service.syncWithPreferences()
+            }
+            .padding(.leading, settingsRowTextInset)
+            if blockClicksShortcutEnabled, service.blockClicksShortcutRegistrationFailed {
+                unavailableShortcutNote
             }
 
             Text(text.shareNote)
@@ -133,9 +143,17 @@ struct PresentationPointerSection: View {
 
     // MARK: - Style
 
+    private static let tileWidth: CGFloat = 72
+    private static let tileSpacing: CGFloat = 8
+
+    /// The five looks side by side. The controls under them share this width,
+    /// so every slider and picker ends where the last look does.
+    private static let columnWidth = CGFloat(PresentationPointerStyle.allCases.count) * tileWidth
+        + CGFloat(PresentationPointerStyle.allCases.count - 1) * tileSpacing
+
     /// Every look as it will appear, picked by clicking it.
     private var stylePicker: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: Self.tileSpacing) {
             ForEach(PresentationPointerStyle.allCases) { option in
                 let selected = selectedStyle == option
                 Button {
@@ -150,7 +168,7 @@ struct PresentationPointerSection: View {
                             .minimumScaleFactor(0.8)
                     }
                     .padding(.vertical, 6)
-                    .frame(width: 72)
+                    .frame(width: Self.tileWidth)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -168,38 +186,12 @@ struct PresentationPointerSection: View {
     // MARK: - Sound
 
     private var soundControls: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Picker(text.soundPickerLabel, selection: $soundName) {
-                // The pointer's own taps first, then the Mac's alert sounds,
-                // then a file of the person's own.
-                ForEach(PresentationPointerTapSound.allCases) { sound in
-                    Text(name(of: sound)).tag(sound.storageValue)
-                }
-                Divider()
-                ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
-                                                      language: l10n.language), id: \.self) { name in
-                    Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
-                }
-                Divider()
-                Text(text.soundCustom).tag(PresentationPointerSupport.customSoundName)
-                // A name saved on another Mac, or one this macOS no longer
-                // ships, needs a row of its own or the picker shows nothing.
-                // It plays the default tap, as the row says.
-                if soundName != PresentationPointerSupport.defaultSoundName,
-                   PresentationPointerSoundChoice.resolve(stored: soundName,
-                                                          systemNames: TextSnippetSupport.alertSoundNames)
-                    == .builtIn(.drum) {
-                    Text(text.soundUnavailable).tag(soundName)
-                }
-            }
-            .fixedSize()
-            .onChange(of: soundName) { _, name in
-                service.syncWithPreferences()
-                // A custom file not chosen yet would preview the fallback,
-                // which is not the sound just picked.
-                if name != PresentationPointerSupport.customSoundName || !customSoundPath.isEmpty {
-                    service.previewSound()
-                }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Text(text.soundPickerLabel)
+                    .frame(minWidth: 96, alignment: .leading)
+                soundPicker
+                Spacer(minLength: 0)
             }
             if soundName == PresentationPointerSupport.customSoundName {
                 HStack(spacing: 10) {
@@ -213,16 +205,47 @@ struct PresentationPointerSection: View {
                     Button(text.soundChooseFile, action: chooseSoundFile)
                         .controlSize(.small)
                 }
+                .padding(.leading, 96 + 12)
             }
-            HStack(spacing: 10) {
-                Text(text.volumeLabel)
-                Slider(value: $volume, in: 0...1) {
-                    Text(text.volumeLabel)
-                } onEditingChanged: { editing in
-                    if !editing { service.previewSound() }
-                }
-                .labelsHidden()
-                .frame(width: 180)
+            SettingsSliderRow(title: text.volumeLabel, value: $volume, range: 0...1,
+                              readout: "\(Int((volume * 100).rounded()))%") { editing in
+                if !editing { service.previewSound() }
+            }
+        }
+    }
+
+    private var soundPicker: some View {
+        Picker(text.soundPickerLabel, selection: $soundName) {
+            // The pointer's own taps first, then the Mac's alert sounds,
+            // then a file of the person's own.
+            ForEach(PresentationPointerTapSound.allCases) { sound in
+                Text(name(of: sound)).tag(sound.storageValue)
+            }
+            Divider()
+            ForEach(AlertSoundStrings.sortedNames(TextSnippetSupport.alertSoundNames,
+                                                  language: l10n.language), id: \.self) { name in
+                Text(AlertSoundStrings.displayName(for: name, language: l10n.language)).tag(name)
+            }
+            Divider()
+            Text(text.soundCustom).tag(PresentationPointerSupport.customSoundName)
+            // A name saved on another Mac, or one this macOS no longer
+            // ships, needs a row of its own or the picker shows nothing.
+            // It plays the default tap, as the row says.
+            if soundName != PresentationPointerSupport.defaultSoundName,
+               PresentationPointerSoundChoice.resolve(stored: soundName,
+                                                      systemNames: TextSnippetSupport.alertSoundNames)
+                == .builtIn(.drum) {
+                Text(text.soundUnavailable).tag(soundName)
+            }
+        }
+        .labelsHidden()
+        .fixedSize()
+        .onChange(of: soundName) { _, name in
+            service.syncWithPreferences()
+            // A custom file not chosen yet would preview the fallback,
+            // which is not the sound just picked.
+            if name != PresentationPointerSupport.customSoundName || !customSoundPath.isEmpty {
+                service.previewSound()
             }
         }
     }
@@ -278,6 +301,7 @@ struct PresentationPointerSection: View {
         Text(l10n.s.shortcutUnavailable)
             .font(.caption)
             .foregroundStyle(.orange)
+            .padding(.leading, settingsRowTextInset)
     }
 
     private func name(of sound: PresentationPointerTapSound) -> String {
@@ -307,7 +331,7 @@ private struct PresentationPointerThumbnail: View {
     let colorHex: String
 
     var body: some View {
-        if let image = PresentationPointerThumbnails.image(style, colorHex: colorHex, size: 34) {
+        if let image = PresentationPointerThumbnails.tile(style, colorHex: colorHex, side: 34) {
             Image(nsImage: image)
                 .accessibilityHidden(true)
         }
@@ -325,6 +349,8 @@ private struct PresentationPointerPreview: View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.background.opacity(0.6))
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
             if let image {
                 // True to size up to the box; the largest sizes are shown
                 // scaled down rather than cut off.

@@ -2292,19 +2292,27 @@ private struct PresentationPointerPanelTile: View {
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                 }
-                HStack(spacing: 5) {
-                    ForEach(PresentationPointerStyle.allCases) { option in
-                        styleChip(option)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        ForEach(PresentationPointerStyle.allCases) { option in
+                            styleChip(option)
+                        }
                     }
-                    Spacer(minLength: 6)
-                    Toggle(isOn: blockingBinding) {
+                    // A switch under the one above, like the one in Settings,
+                    // so its state reads the same way everywhere.
+                    HStack(spacing: 6) {
                         Label(text.blockClicksTitle,
                               systemImage: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
-                            .font(.system(size: 9.5, weight: .semibold))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(service.blocksClicks ? Color.primary : Color.secondary)
+                            .lineLimit(1)
+                            .accessibilityHidden(true)
+                        Spacer(minLength: 6)
+                        Toggle(text.blockClicksTitle, isOn: blockingBinding)
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
                     }
-                    .toggleStyle(.button)
-                    .controlSize(.mini)
-                    .tint(.orange)
                 }
                 .padding(.leading, PanelRowMetrics.iconWidth + PanelRowMetrics.iconSpacing)
             }
@@ -2320,7 +2328,7 @@ private struct PresentationPointerPanelTile: View {
             service.syncWithPreferences()
         } label: {
             Group {
-                if let image = PresentationPointerThumbnails.image(option, colorHex: color, size: 16) {
+                if let image = PresentationPointerThumbnails.tile(option, colorHex: color, side: 16) {
                     Image(nsImage: image)
                 }
             }
