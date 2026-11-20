@@ -173,6 +173,15 @@ struct NotchView: View {
                 NotchIconButton(symbol: "chevron.down", title: text.open) { service.open() }
             }
             .padding(.horizontal, NotchLayout.horizontalInset).padding(.top, service.geometry.safeContentTop)
+        } else if let modifier = service.modifierIndicator {
+            Group {
+                if floats {
+                    NotchCapsuleModifierStrip(indicator: modifier, geometry: service.geometry, size: service.surfaceSize)
+                } else {
+                    NotchModifierStrip(indicator: modifier, geometry: service.geometry)
+                }
+            }
+            .transition(.opacity)
         } else if let activity = service.compactActivity {
             if service.showsCompactActivityPicker {
                 let layout = service.compactActivityPickerLayout
