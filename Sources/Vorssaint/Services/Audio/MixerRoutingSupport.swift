@@ -1159,3 +1159,80 @@ enum AudioListenerClients {
         lock.withLock { entries[UInt(bitPattern: client)] = nil }
     }
 }
+
+/// The level Vorssaint plays an output at when macOS offers no volume for
+/// it and no DDC speaker control answers, such as a monitor on DisplayPort
+/// that ignores the volume command. The level only ever lowers the sound:
+/// full level is the monitor's own volume, never more.
+struct SoftwareOutputVolume: Equatable {
+    let outputUID: String
+    private(set) var level: Double
+    private(set) var muted: Bool
+
+    /// Restores the saved state of one output. A saved level that is missing,
+    /// malformed or out of range starts at the configured maximum, so a damaged
+    /// preference can only make the output quieter than full. Nil for an
+    /// output without a UID, which has nowhere to keep its level.
+    init?(outputUID: String, stored: Any?, settings: MonitorVolumeKeySettings) {
+        guard !outputUID.isEmpty else { return nil }
+        let maximum = Self.maximum(settings)
+        let saved = stored as? [String: Any]
+        let savedLevel = saved?["level"] as? Double
+        self.outputUID = outputUID
+        if let savedLevel, savedLevel.isFinite, (0...1).contains(savedLevel) {
+            level = min(savedLevel, maximum)
+        } else {
+            level = maximum
+        }
+        muted = saved?["muted"] as? Bool ?? false
+    }
+
+    /// The gain the engine applies: zero while muted, otherwise the mixer's
+    /// loudness curve, which stays at or below one for every level here.
+    var gain: Float { muted ? 0 : MixerRoutingSupport.gain(forVolume: level) }
+
+    /// One volume key press. Up ends a mute and steps from the level before
+    /// it; reaching zero mutes, as macOS does for its own outputs. The step
+    /// grid and the limits are the ones the monitor speaker keys use.
+    mutating func step(_ direction: Int, fine: Bool, settings: MonitorVolumeKeySettings) {
+        let maximum = Self.maximum(settings)
+        let minimum = Double(settings.minimumPercent) / 100
+        let requested = settings.requestedLevel(from: level, direction: direction, fine: fine)
+        if direction > 0 {
+            muted = false
+            level = min(max(requested, level), maximum)
+        } else if direction < 0, level > minimum {
+            level = max(min(requested, level), minimum)
+            if level <= 0 { muted = true }
+        }
+    }
+
+    mutating func toggleMute() { muted.toggle() }
+
+    /// Whether the engine runs. It runs only to make the output quieter, so an
+    /// untouched level leaves the audio path exactly as macOS built it.
+    static func engages(featureEnabled: Bool, outputHasSettableVolume: Bool, hasMonitorSpeakerControl: Bool,
+                        audioCapturePermitted: Bool, volume: SoftwareOutputVolume) -> Bool {
+        featureEnabled && !outputHasSettableVolume && !hasMonitorSpeakerControl && audioCapturePermitted
+            && (volume.level < 1 || volume.muted)
+    }
+
+    /// The processes the output-wide tap leaves out. Vorssaint's own per-app
+    /// engines apply the output level themselves, and a per-app tap does not
+    /// hide an app's original audio from a second tap, so an adjusted app the
+    /// output tap also heard would play twice.
+    static func excludedProcesses(own: AudioObjectID, perAppTapped: some Sequence<AudioObjectID>) -> [AudioObjectID] {
+        [own] + Set(perAppTapped).subtracting([own]).sorted()
+    }
+
+    /// The preference dictionary with this output's state written into it.
+    static func saving(_ volume: SoftwareOutputVolume, in store: [String: Any]) -> [String: Any] {
+        var store = store
+        store[volume.outputUID] = ["level": volume.level, "muted": volume.muted]
+        return store
+    }
+
+    private static func maximum(_ settings: MonitorVolumeKeySettings) -> Double {
+        Double(settings.maximumPercent) / 100
+    }
+}
