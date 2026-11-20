@@ -361,6 +361,19 @@ enum MonitorInputTests {
         } else {
             suite.expect(false, "the state reads the input and then the capability list")
         }
+
+        // A monitor behind the built-in HDMI port's converter answers on another
+        // chip than the standard one. The chip its service was found with must be
+        // the one every exchange uses: the read, the capability list, the write
+        // and the confirmation.
+        let fragment = method("private func ddcCapabilitiesFragment(")
+        suite.expect(targets.contains("chip: matched.chipAddress")
+                && write.contains("chip: target.chip")
+                && state.components(separatedBy: "chip: target.chip").count == 3
+                && confirmStep.contains("chip: target.chip")
+                && fragment.contains("write(service, chip,") && fragment.contains("read(service, chip,")
+                && !fragment.contains("BrightnessSupport.chipAddress"),
+               "every exchange with a monitor's input, the capability list included, uses the chip its service answers on")
     }
 
     private static func strings(_ suite: TestSuite) {
