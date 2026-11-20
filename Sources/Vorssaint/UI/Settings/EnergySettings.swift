@@ -352,6 +352,7 @@ struct EnergySettings: View {
                             .labelsHidden()
                         }
                         DisplayBrightnessShortcutControls(showsSettingsRow: true)
+                        DisplayInputShortcutControls()
                         if brightness.brightnessOSDSupported {
                             SettingsRow(symbol: "sun.max", title: strings.osdToggle, caption: strings.osdCaption) {
                                 Toggle(strings.osdToggle, isOn: $brightnessOSDEnabled)
@@ -448,6 +449,7 @@ struct EnergySettings: View {
                 }
             }
             SoftwareDimmingButton(display: display)
+            DisplayInputButton(display: display)
             DisplayPowerButton(display: display)
         }
     }

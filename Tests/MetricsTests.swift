@@ -163,6 +163,7 @@ struct MetricsTests {
                 DisplayRestorationTests.run(suite)
                 BrightnessStepTests.run(suite)
                 BrightnessKeyRoutingTests.run(suite)
+                DisplayInputTests.run(suite)
             }),
             ("speaker-volume", {
                 DisplaySpeakerVolumeTests.run(suite)
