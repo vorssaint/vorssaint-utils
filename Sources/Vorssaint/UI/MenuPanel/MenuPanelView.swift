@@ -2292,31 +2292,34 @@ private struct PresentationPointerPanelTile: View {
                         .toggleStyle(.switch)
                         .controlSize(.mini)
                 }
-                HStack(spacing: 5) {
-                    ForEach(PresentationPointerStyle.allCases) { option in
-                        styleChip(option)
+                // The looks and Block clicks as the Keep Awake card shows its
+                // options: a picker in a soft well, then a small switch row.
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 7) {
+                        HStack(spacing: 8) {
+                            Text(text.styleLabel)
+                                .font(.system(size: 10.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 8)
+                            Text(PresentationPointerMenu.name(of: PresentationPointerSupport.style(stored: style),
+                                                              text))
+                                .font(.system(size: 10))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                        HStack(spacing: 5) {
+                            ForEach(PresentationPointerStyle.allCases) { option in
+                                styleChip(option)
+                            }
+                        }
                     }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .fill(Color.secondary.opacity(0.055)))
+                    PanelOptionToggle(icon: service.blocksClicks ? "hand.raised.fill" : "hand.raised",
+                                      title: text.blockClicksTitle, isOn: blockingBinding)
                 }
                 .padding(.leading, PanelRowMetrics.iconWidth + PanelRowMetrics.iconSpacing)
-                // A switch under the one above, in the same icon and title
-                // columns, like the one in Settings, so its state reads the
-                // same way everywhere.
-                HStack(spacing: PanelRowMetrics.iconSpacing) {
-                    Image(systemName: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
-                        .frame(width: PanelRowMetrics.iconWidth)
-                        .accessibilityHidden(true)
-                    Text(text.blockClicksTitle)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .accessibilityHidden(true)
-                    Spacer(minLength: 6)
-                    Toggle(text.blockClicksTitle, isOn: blockingBinding)
-                        .labelsHidden()
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                }
             }
             .panelRowInsets()
             .panelRowDescription(text.panelCaption)
@@ -2329,16 +2332,15 @@ private struct PresentationPointerPanelTile: View {
             style = option.rawValue
             service.syncWithPreferences()
         } label: {
-            Group {
-                if let image = PresentationPointerThumbnails.tile(option, colorHex: color, side: 16) {
+            // A box even without its picture, so a look never loses its chip.
+            ZStack {
+                if let image = PresentationPointerThumbnails.tile(option, colorHex: color, side: 18) {
                     Image(nsImage: image)
                 }
             }
-            .frame(width: 24, height: 24)
-            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(selected ? Color.accentColor.opacity(0.1) : Color.primary.opacity(0.04)))
-            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 2))
+            .frame(maxWidth: .infinity)
+            .frame(height: 29)
+            .choiceTile(selected: selected)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -2367,6 +2369,42 @@ private struct PresentationPointerPanelTile: View {
     private func runAfterClosing(_ action: @escaping () -> Void) {
         appDelegate()?.closePopover()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: action)
+    }
+}
+
+/// A small switch row for an option under a card's main switch: the Keep
+/// Awake card's options and the presentation pointer's Block clicks.
+struct PanelOptionToggle: View {
+    let icon: String
+    let title: String
+    let isOn: Binding<Bool>
+    var errorText: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 7) {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 15)
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 8)
+                Toggle(title, isOn: isOn)
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .labelsHidden()
+            }
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.red)
+                    .padding(.leading, 22)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
 
@@ -3100,30 +3138,7 @@ struct KeepAwakeCard: View {
                                      title: String,
                                      isOn: Binding<Bool>,
                                      errorText: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 7) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 15)
-                Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Toggle(title, isOn: isOn)
-                    .toggleStyle(.switch)
-                    .controlSize(.mini)
-                    .labelsHidden()
-            }
-            if let errorText {
-                Text(errorText)
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.red)
-                    .padding(.leading, 22)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        PanelOptionToggle(icon: icon, title: title, isOn: isOn, errorText: errorText)
     }
 
     private var mouseJiggleIntervalRow: some View {

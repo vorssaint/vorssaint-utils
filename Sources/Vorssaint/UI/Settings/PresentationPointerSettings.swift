@@ -193,11 +193,7 @@ struct PresentationPointerSection: View {
                     }
                     .padding(.vertical, 6)
                     .frame(width: Self.tileWidth)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.1) : Color.clear))
-                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25),
-                                      lineWidth: selected ? 2 : 1))
+                    .choiceTile(selected: selected)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -362,9 +358,12 @@ private struct PresentationPointerThumbnail: View {
     let colorHex: String
 
     var body: some View {
-        if let image = PresentationPointerThumbnails.tile(style, colorHex: colorHex, side: 34) {
-            Image(nsImage: image)
-                .accessibilityHidden(true)
+        // A box even without its picture, so a look never loses its tile.
+        ZStack {
+            if let image = PresentationPointerThumbnails.tile(style, colorHex: colorHex, side: 34) {
+                Image(nsImage: image)
+                    .accessibilityHidden(true)
+            }
         }
     }
 }
