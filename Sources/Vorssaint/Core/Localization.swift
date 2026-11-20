@@ -401,6 +401,8 @@ struct Strings {
     let switcherMaxColumnsAuto: String
     let switcherInstantSelection: String
     let switcherInstantSelectionCaption: String
+    let switcherIgnoreHoverSelection: String
+    let switcherIgnoreHoverSelectionCaption: String
     let switcherMergeTabs: String
     let switcherMergeTabsCaption: String
     let switcherWindowlessApps: String
@@ -503,6 +505,7 @@ struct Strings {
     let uninstallerRemoving: String
     let uninstallerFoundTitle: String
     let uninstallerSelectedFormat: String   // + selected, total
+    let uninstallerSelectAll: String
     let uninstallerRemove: String
     let uninstallerCancel: String
     let uninstallerConfirmationExpired: String
@@ -523,6 +526,10 @@ struct Strings {
     let uninstallerCommandBarBrowseTitle: String
     let uninstallerCommandBarToggle: String
     let uninstallerCommandBarCaption: String
+    let uninstallerWatchTrashToggle: String
+    let uninstallerWatchTrashCaption: String
+    let uninstallerConfirmTrashCleanup: String
+    let uninstallerTrashUnavailable: String
     let uninstallerCommandBarFinderTitle: String
     let uninstallerSelectionUnavailable: String
     let uninstallerRefusedNotApp: String
@@ -593,6 +600,8 @@ struct Strings {
     let homebrewOpenTerminal: String
     let homebrewCancelOperation: String
     let homebrewClearLog: String
+    let homebrewLastLogView: String
+    let homebrewLastLogHide: String
     let homebrewLogTitle: String
     let homebrewVersion: String
     let homebrewDescription: String
@@ -825,6 +834,7 @@ struct Strings {
     let audioPriorityMoveUp: String
     let audioPriorityMoveDown: String
     let audioPriorityUnavailable: String
+    let audioPriorityRemove: String
     let audioPriorityCurrent: String
     let audioPriorityCaption: String
 
@@ -1314,6 +1324,9 @@ struct Strings {
     let linearScrollName: String
     let linearScrollCaption: String
     let linearScrollLinesLabel: String
+    let scrollSpeedName: String
+    let scrollSpeedCaption: String
+    let scrollSpeedMultiplierLabel: String
     let shelfClearOnClose: String
     let shelfClearOnCloseCaption: String
     let shelfShortcutFinderSelection: String
@@ -1558,6 +1571,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Automático",
         switcherInstantSelection: "Seleção instantânea",
         switcherInstantSelectionCaption: "Move o destaque e a rolagem imediatamente ao navegar por apps e janelas.",
+        switcherIgnoreHoverSelection: "Ignorar seleção ao passar o cursor",
+        switcherIgnoreHoverSelectionCaption: "Mover o ponteiro sobre apps e janelas deixa o destaque onde está. Clicar ainda abre um.",
         switcherMergeTabs: "Mostrar uma entrada por app",
         switcherMergeTabsCaption: "Junta todas as janelas de um app em uma só entrada no alternador, em vez de uma por janela.",
         switcherWindowlessApps: "Apps sem janela aberta",
@@ -1657,6 +1672,7 @@ extension Strings {
         uninstallerRemoving: "Movendo para a Lixeira…",
         uninstallerFoundTitle: "encontrado",
         uninstallerSelectedFormat: "%d de %d selecionados",
+        uninstallerSelectAll: "Selecionar tudo",
         uninstallerRemove: "Mover para a Lixeira",
         uninstallerCancel: "Cancelar",
         uninstallerConfirmationExpired: "Esta confirmação não é mais válida. Revise os itens atuais e confirme de novo.",
@@ -1677,6 +1693,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Desinstalar aplicativo",
         uninstallerCommandBarToggle: "Mostrar na Barra de Comandos",
         uninstallerCommandBarCaption: "Permite escolher e desinstalar aplicativos pela Barra de Comandos.",
+        uninstallerWatchTrashToggle: "Oferecer limpeza ao mover um app para o Lixo",
+        uninstallerWatchTrashCaption: "Abre o Desinstalador quando você apaga um app no Finder. Requer Acesso Total ao Disco.",
+        uninstallerConfirmTrashCleanup: "Se você moveu este app para o Lixo para desinstalá-lo, confirme para mover também os dados selecionados. Se o app estiver sendo atualizado, cancele para manter seus dados.",
+        uninstallerTrashUnavailable: "Só é possível limpar dados do Lixo após mover a última cópia do app da pasta Aplicativos. Se ele ainda estiver instalado ou em atualização, seus dados serão mantidos.",
         uninstallerCommandBarFinderTitle: "Desinstalar aplicativo selecionado no Finder",
         uninstallerSelectionUnavailable: "Selecione um aplicativo que possa ser removido no Finder ou escolha outro na lista.",
         uninstallerRefusedNotApp: "Só é possível desinstalar apps.",
@@ -1745,6 +1765,8 @@ extension Strings {
         homebrewOpenTerminal: "Abrir terminal",
         homebrewCancelOperation: "Cancelar",
         homebrewClearLog: "Limpar log",
+        homebrewLastLogView: "Ver o último log",
+        homebrewLastLogHide: "Ocultar o último log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Versão",
         homebrewDescription: "Tipo",
@@ -1966,6 +1988,7 @@ extension Strings {
         audioPriorityMoveUp: "Mover para cima",
         audioPriorityMoveDown: "Mover para baixo",
         audioPriorityUnavailable: "Indisponível",
+        audioPriorityRemove: "Remover",
         audioPriorityCurrent: "Em uso",
         audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
@@ -2431,6 +2454,9 @@ extension Strings {
         linearScrollName: "Rolagem linear",
         linearScrollCaption: "Cada passo da rodinha do mouse rola a mesma distância, não importa a velocidade do giro. O trackpad não muda.",
         linearScrollLinesLabel: "Linhas por passo",
+        scrollSpeedName: "Rolar mais rápido segurando uma tecla",
+        scrollSpeedCaption: "Mantenha apenas a tecla escolhida pressionada ao rolar a roda do mouse para multiplicar a distância. O trackpad não muda.",
+        scrollSpeedMultiplierLabel: "Velocidade",
         shelfClearOnClose: "Limpar ao fechar",
         shelfClearOnCloseCaption: "Esvazia a área somente quando você clica no botão de fechar. Ocultar automaticamente e encolher preservam os itens.",
         shelfShortcutFinderSelection: "Adicionar a seleção do Finder com o atalho",
@@ -2676,6 +2702,8 @@ extension Strings {
         switcherMaxColumnsAuto: "Auto",
         switcherInstantSelection: "Instant selection",
         switcherInstantSelectionCaption: "Moves the highlight and scroll position immediately as you browse apps and windows.",
+        switcherIgnoreHoverSelection: "Ignore hover selection",
+        switcherIgnoreHoverSelectionCaption: "Moving the pointer over apps and windows leaves the highlight where it is. Clicking still opens one.",
         switcherMergeTabs: "Show one entry per app",
         switcherMergeTabsCaption: "Collapses all of an app’s windows into one entry in the switcher, instead of one entry per window.",
         switcherWindowlessApps: "Apps with no open window",
@@ -2775,6 +2803,7 @@ extension Strings {
         uninstallerRemoving: "Moving to the Trash…",
         uninstallerFoundTitle: "found",
         uninstallerSelectedFormat: "%d of %d selected",
+        uninstallerSelectAll: "Select all",
         uninstallerRemove: "Move to Trash",
         uninstallerCancel: "Cancel",
         uninstallerConfirmationExpired: "This confirmation is no longer valid. Review the current items and confirm again.",
@@ -2795,6 +2824,10 @@ extension Strings {
         uninstallerCommandBarBrowseTitle: "Uninstall Application",
         uninstallerCommandBarToggle: "Show in Command Bar",
         uninstallerCommandBarCaption: "Choose and uninstall apps in the Command Bar.",
+        uninstallerWatchTrashToggle: "Offer cleanup when an app is moved to the Trash",
+        uninstallerWatchTrashCaption: "Opens the Uninstaller when you delete an app in Finder. Needs Full Disk Access.",
+        uninstallerConfirmTrashCleanup: "If you moved this app to the Trash to uninstall it, confirm to move its selected data to the Trash too. If the app is updating, cancel to keep its data.",
+        uninstallerTrashUnavailable: "Cleanup requires moving the last installed copy from an Applications folder to the Trash. Data is kept while the app is installed or updating.",
         uninstallerCommandBarFinderTitle: "Uninstall app selected in Finder",
         uninstallerSelectionUnavailable: "Select an app that can be removed in Finder, or choose another from the list.",
         uninstallerRefusedNotApp: "Only apps can be uninstalled.",
@@ -2863,6 +2896,8 @@ extension Strings {
         homebrewOpenTerminal: "Open terminal",
         homebrewCancelOperation: "Cancel",
         homebrewClearLog: "Clear log",
+        homebrewLastLogView: "View last log",
+        homebrewLastLogHide: "Hide last log",
         homebrewLogTitle: "Log",
         homebrewVersion: "Version",
         homebrewDescription: "Type",
@@ -3084,6 +3119,7 @@ extension Strings {
         audioPriorityMoveUp: "Move up",
         audioPriorityMoveDown: "Move down",
         audioPriorityUnavailable: "Unavailable",
+        audioPriorityRemove: "Remove",
         audioPriorityCurrent: "Current",
         audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
@@ -3549,6 +3585,9 @@ extension Strings {
         linearScrollName: "Linear scrolling",
         linearScrollCaption: "Every notch of the mouse wheel scrolls the same distance, no matter how fast it spins. The trackpad is not affected.",
         linearScrollLinesLabel: "Lines per step",
+        scrollSpeedName: "Scroll faster while holding a key",
+        scrollSpeedCaption: "Hold only the selected modifier while scrolling the mouse wheel to multiply scroll distance. The trackpad is not affected.",
+        scrollSpeedMultiplierLabel: "Speed",
         shelfClearOnClose: "Clear when closed",
         shelfClearOnCloseCaption: "Empties the shelf only when you click its close button. Automatic hiding and collapsing keep the items.",
         shelfShortcutFinderSelection: "Add the Finder selection with the shortcut",

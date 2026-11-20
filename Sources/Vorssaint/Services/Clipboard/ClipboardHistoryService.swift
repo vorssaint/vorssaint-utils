@@ -27,7 +27,9 @@ final class ClipboardHistoryService: ObservableObject {
             searchCache.prune(keeping: entries)
             // The result array holds full entry texts, so a cleared or edited
             // history's content must not linger in it until the next search.
-            filterCache = nil
+            filterCache.removeAll()
+            for work in deferredSearchWork.values { work.cancel() }
+            deferredSearchWork.removeAll()
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -94,6 +96,8 @@ final class ClipboardHistoryService: ObservableObject {
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
     private var panelResizeObserver: NSObjectProtocol?
+    private var panelMoveObserver: NSObjectProtocol?
+    private var adjustingPanelFrame = false
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
@@ -479,37 +483,76 @@ final class ClipboardHistoryService: ObservableObject {
     /// Bumped by the `entries` didSet; lets the search cache below notice any
     /// mutation without every mutating site having to remember it.
     private var entriesStamp = 0
-    private var filterCache: (query: String, stamp: Int, imageLabel: String,
-                              result: [ClipboardHistoryEntry])?
+    private var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
     private var searchCache = ClipboardHistorySearchCache()
+    private var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
 
-    func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+    func cancelSearch(on surface: ClipboardHistorySearchSurface) {
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
+        filterCache[surface] = nil
+    }
+
+    func filteredEntries(matching query: String, surface: ClipboardHistorySearchSurface = .quick,
+                         onDeferredResults: (() -> Void)? = nil) -> [ClipboardHistoryEntry] {
         // One ranking pass over a large history of long texts costs real
         // time, and SwiftUI asks for the filtered list many times per
         // render. The last result is reused until the query, the language
         // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        if let cache = filterCache, cache.query == query,
+        if let cache = filterCache[surface], cache.query == query,
            cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
             return cache.result
         }
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
         guard !entries.isEmpty else {
             searchCache.clear()
-            filterCache = (query, entriesStamp, imageLabel, [])
+            filterCache[surface] = (query, entriesStamp, imageLabel, [])
             return []
         }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            filterCache = (query, entriesStamp, imageLabel, entries)
+            filterCache[surface] = (query, entriesStamp, imageLabel, entries)
             return entries
         }
         let candidates = searchCache.candidates(for: entries,
                                                 stamp: entriesStamp,
                                                 imageLabel: imageLabel)
-        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
-            .compactMap { entries.indices.contains($0) ? entries[$0] : nil }
-        filterCache = (query, entriesStamp, imageLabel, result)
+        let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
+        filterCache[surface] = (query, entriesStamp, imageLabel, result)
+        scheduleDeferredSearch(candidates: candidates,
+                               indexedRanking: ranked,
+                               query: query,
+                               imageLabel: imageLabel,
+                               stamp: entriesStamp, surface: surface, onDeferredResults: onDeferredResults)
         return result
+    }
+
+    /// Scores complete documents off-main so suffix-only and already visible
+    /// matches both settle in the same order as a full-text search.
+    private func scheduleDeferredSearch(candidates: [ClipboardHistorySearchCandidate],
+                                        indexedRanking: [Int], query: String, imageLabel: String,
+                                        stamp: Int, surface: ClipboardHistorySearchSurface,
+                                        onDeferredResults: (() -> Void)?) {
+        guard candidates.contains(where: \.isIndexTruncated) else { return }
+        let snapshot = entries
+        deferredSearchWork[surface] = Task.detached(priority: .utility) { [weak self] in
+            do { try await Task.sleep(nanoseconds: 150_000_000) } catch { return }
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query,
+                completeText: { snapshot[$0].searchableText(imageLabel: imageLabel) },
+                isCancelled: { Task.isCancelled })
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled, self.entriesStamp == stamp,
+                      let cache = self.filterCache[surface], cache.query == query, cache.imageLabel == imageLabel
+                else { return }
+                self.deferredSearchWork[surface] = nil
+                guard complete != indexedRanking else { return }
+                self.filterCache[surface] = (query, stamp, imageLabel, complete.map { self.entries[$0] })
+                self.objectWillChange.send()
+                onDeferredResults?()
+            }
+        }
     }
 
     func copyQuickEntry(at index: Int) {
@@ -1285,6 +1328,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func hideHistoryWindow() {
+        cancelSearch(on: .quick)
         // What was copied in the panel is read now, as the panel's, so a copy
         // made right after in the app behind is credited to that app.
         if panel?.isVisible == true { captureIfChanged(historyPanelClosing: true) }
@@ -1380,14 +1424,27 @@ final class ClipboardHistoryService: ObservableObject {
         // AppKit owns the window size; SwiftUI fills its content view.
         host.sizingOptions = []
         panel.contentViewController = host
+        observePanelGeometry(panel)
+        self.panel = panel
+        return panel
+    }
+
+    private func observePanelGeometry(_ panel: NSPanel) {
         panelResizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didEndLiveResizeNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
-            guard let self, let panel else { return }
+            guard let self, let panel, panel.isVisible, !self.adjustingPanelFrame else { return }
             self.savePanelSize(panel)
+            // Resizing from the left or bottom also moves the origin, but
+            // AppKit does not send didMove when the size changes with it.
+            self.savePanelPosition(panel)
         }
-        self.panel = panel
-        return panel
+        panelMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            guard let self, let panel else { return }
+            self.savePanelPosition(panel)
+        }
     }
 
     /// Read on every opening, so a layout picked in Settings applies the next
@@ -1422,11 +1479,18 @@ final class ClipboardHistoryService: ObservableObject {
         UserDefaults.standard.set(Double(size.height), forKey: DefaultsKey.clipboardHistoryWindowHeight)
     }
 
+    private func savePanelPosition(_ panel: NSPanel) {
+        guard panel.isVisible, quickLayout == .list, !adjustingPanelFrame else { return }
+        UserDefaults.standard.set(Double(panel.frame.minX), forKey: DefaultsKey.clipboardHistoryWindowX)
+        UserDefaults.standard.set(Double(panel.frame.minY), forKey: DefaultsKey.clipboardHistoryWindowY)
+    }
+
     /// Placed again on every open, so a changed display never strands it.
     /// Cards make a shelf along the bottom of the screen the pointer is on.
-    /// The list is a window of the size the user last gave it, centered
-    /// toward the top.
+    /// The list keeps its chosen location when that display is still usable.
     private func position(_ panel: NSPanel) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
@@ -1437,6 +1501,17 @@ final class ClipboardHistoryService: ObservableObject {
                            animate: false)
         case .list:
             panel.styleMask.insert(.resizable)
+            let defaults = UserDefaults.standard
+            if defaults.object(forKey: DefaultsKey.clipboardHistoryWindowX) != nil,
+               defaults.object(forKey: DefaultsKey.clipboardHistoryWindowY) != nil,
+               let restored = ClipboardHistoryWindowPlacement.restoredFrame(
+                   origin: NSPoint(x: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowX),
+                                   y: defaults.double(forKey: DefaultsKey.clipboardHistoryWindowY)),
+                   visibleFrames: NSScreen.screens.map(\.visibleFrame),
+                   size: preferredPanelSize(visibleFrame:)) {
+                panel.setFrame(restored, display: true, animate: false)
+                return
+            }
             let size = preferredPanelSize(visibleFrame: screen)
             let x = screen.midX - size.width / 2
             let y = min(screen.maxY - size.height - 54, screen.midY - size.height / 2)
@@ -1451,6 +1526,8 @@ final class ClipboardHistoryService: ObservableObject {
 
     private func resize(_ panel: NSPanel, to contentSize: NSSize,
                         around current: NSRect, animated: Bool) {
+        adjustingPanelFrame = true
+        defer { adjustingPanelFrame = false }
         var target = NSRect(origin: .zero, size: contentSize)
         target.origin.x = current.midX - target.width / 2
         target.origin.y = current.midY - target.height / 2
