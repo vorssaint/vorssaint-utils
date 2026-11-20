@@ -110,6 +110,11 @@ extension FeatureStrings {
             compact: "Kompaktná",
             comfortable: "Pohodlná",
             hint: "Kompaktné položky zobrazujú jeden alebo dva riadky a rozbalia sa, keď sa na nich zastaví ukazovateľ.")
+        case .cs: return NotchClipboardSizeStrings(
+            entrySize: "Velikost položek",
+            compact: "Kompaktní",
+            comfortable: "Pohodlná",
+            hint: "Kompaktní položky zobrazují jeden nebo dva řádky a rozbalí se, když se na nich zastaví ukazatel.")
         case .de: return NotchClipboardSizeStrings(
             entrySize: "Größe der Einträge",
             compact: "Kompakt",

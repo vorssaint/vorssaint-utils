@@ -53,6 +53,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -73,6 +74,7 @@ extension FeatureStrings {
         case .ru: return .ru
         case .es: return .es
         case .sk: return .sk
+        case .cs: return .cs
         case .de: return .de
         case .fr: return .fr
         case .it: return .it
@@ -115,6 +117,11 @@ extension KeepAwakeDisplaySleepStrings {
     static let sk = KeepAwakeDisplaySleepStrings(
         allowDisplaySleep: "Povoliť uspatie displeja",
         allowDisplaySleepCaption: "Udržiava Mac v bdelom stave, zatiaľ čo displej sa riadi bežným časovačom uspávania."
+    )
+
+    static let cs = KeepAwakeDisplaySleepStrings(
+        allowDisplaySleep: "Povolit uspání displeje",
+        allowDisplaySleepCaption: "Udržuje Mac v bdělém stavu, zatímco displej se řídí běžným časovačem uspání."
     )
 
     static let de = KeepAwakeDisplaySleepStrings(
@@ -293,6 +300,28 @@ extension KeepAwakeAutomationStrings {
         matchAny: "Ktorákoľvek",
         matchAll: "Všetky",
         automationCaptionAll: "Spustí sa iba vtedy, keď sú aktívne všetky vybrané podmienky."
+    )
+
+    static let cs = KeepAwakeAutomationStrings(
+        automationSection: "Automatizace",
+        automationCaption: "Spustí se, když je aktivní kterákoli vybraná podmínka.",
+        automationOff: "Vypnuto",
+        externalDisplayToggle: "Externí displej",
+        externalDisplayActive: "Aktivní, dokud je připojen externí displej",
+        powerToggle: "Napájení",
+        powerActive: "Aktivní, dokud je připojeno napájení",
+        runningAppsToggle: "Aplikace",
+        runningAppsActive: "Aktivní, dokud běží vybraná aplikace",
+        runningAppsListTitle: "Vybrané aplikace",
+        runningAppsAddButton: "Přidat aplikaci…",
+        runningAppsRemoveButton: "Odstranit",
+        runningAppsListCaption: "Bdělý režim je aktivní, dokud je otevřená kterákoli z těchto aplikací, i na pozadí.",
+        automationActive: "Aktivní, protože je splněna automatická podmínka",
+        pauseWhenLockedToggle: "Pozastavit, když je Mac zamčený",
+        pauseWhenLockedCaption: "Během zamčení se řídí běžnými pravidly uspání a po odemčení pokračuje zbývající část relace.",
+        matchAny: "Kterákoli",
+        matchAll: "Všechny",
+        automationCaptionAll: "Spustí se pouze tehdy, když jsou aktivní všechny vybrané podmínky."
     )
 
     static let de = KeepAwakeAutomationStrings(
