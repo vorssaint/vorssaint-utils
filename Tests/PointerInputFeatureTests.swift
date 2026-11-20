@@ -2691,6 +2691,26 @@ enum PointerInputFeatureTests {
         ) == [foreignMapping],
                "the crash guard removes only the mapping owned by the Super key")
 
+        suite.expect(SuperKeySupport.readMappings(
+            "", property: SuperKeySupport.userMappingProperty
+        ) == .noKeyboard
+            && SuperKeySupport.readMappings(
+                "RegistryID  Key  Value\n", property: SuperKeySupport.userMappingProperty
+            ) == .noKeyboard,
+            "an empty hidutil report means no keyboard yet, not a foreign mapping")
+        suite.expect(SuperKeySupport.readMappings(
+            heterogeneousUserMappingReport,
+            property: SuperKeySupport.userMappingProperty
+        ) == .foreignMapping,
+            "keyboards that disagree still read as a foreign mapping")
+        suite.expect(SuperKeySupport.readMappings(
+            mappingReport, property: SuperKeySupport.userMappingProperty
+        ) == .consistent([capsMapping])
+            && SuperKeySupport.consistentMappings(
+                mappingReport, property: SuperKeySupport.userMappingProperty
+            ) == [capsMapping],
+            "a consistent report reads as one safe table, and the legacy helper keeps it")
+
         let noActionReport = """
         HIDKeyboardModifierMappingPairs = {
           HIDKeyboardModifierMappingSrc = 30064771129;
