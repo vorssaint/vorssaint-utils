@@ -120,4 +120,28 @@ enum MicMuteSupport {
         let here = Set(present)
         return (recorded ?? []).filter { !here.contains($0) }
     }
+
+    /// Only consecutive attempts to silence an input accumulate. A quiet
+    /// sweep or a new device ID starts over; persistent failures back off
+    /// from a quarter second to half a minute.
+    struct Retry {
+        let deviceID: UInt32
+        let onlyWhileIdle: Bool
+        let attempts: Int
+        let lastAttempt: TimeInterval
+        let deadline: TimeInterval?
+
+        init(deviceID: UInt32, onlyWhileIdle: Bool, previous: Retry?, now: TimeInterval) {
+            self.deviceID = deviceID
+            self.onlyWhileIdle = onlyWhileIdle
+            lastAttempt = now
+            if let previous, previous.deviceID == deviceID, previous.onlyWhileIdle == onlyWhileIdle,
+               !onlyWhileIdle || previous.deadline != nil || now - previous.lastAttempt < 0.25 {
+                attempts = min(previous.attempts + 1, 10)
+            } else {
+                attempts = 1
+            }
+            deadline = attempts < 3 ? nil : now + min(30, 0.25 * Double(1 << (attempts - 3)))
+        }
+    }
 }

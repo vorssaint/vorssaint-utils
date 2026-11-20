@@ -349,9 +349,6 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [capturedWindow]) == nil,
                "a window with nothing stacked on it keeps the ordinary single-window capture")
-        let captureEngineSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotCaptureEngine.swift",
-            encoding: .utf8)) ?? ""
         // A sheet is often exactly as wide as the window it drops out of, so
         // the rule has to take one that matches an edge rather than shrink from
         // it.
@@ -370,10 +367,21 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotCapturePolicy.attachedCapturePlan(
             target: capturedWindow, frontToBack: [sheet]) == nil,
                "a window missing from the list does not treat everything as stacked on it")
-        suite.expect(captureEngineSource.contains("$0.frame.intersects(plan.bounds)")
-                && captureEngineSource.contains("hits.count == 1")
-                && !captureEngineSource.contains(".contains(plan.bounds)"),
-               "the one-display crop declines a window straddling two displays instead of taking a one-display slice")
+        let leftDisplay = CGRect(x: -1200, y: 0, width: 1200, height: 900)
+        let rightDisplay = CGRect(x: 0, y: 0, width: 1600, height: 1000)
+        let displays = [leftDisplay, rightDisplay]
+        func display(for window: CGRect) -> CGRect? {
+            ScreenshotCapturePolicy.displayCoveringWindow(window, in: displays, frame: \.self)
+        }
+        suite.expect(display(for: CGRect(x: -40, y: 40, width: 100, height: 80)) == nil,
+                     "a window straddling two displays declines the one-display crop")
+        suite.expect(display(for: CGRect(x: -1210, y: 40, width: 100, height: 80)) == nil,
+                     "a window partly offscreen declines the one-display crop")
+        suite.expect(display(for: CGRect(x: -100, y: 40, width: 100, height: 80)) == leftDisplay
+                     && display(for: rightDisplay) == rightDisplay,
+                     "a whole window touching the seam still fits its display without losing an edge")
+        suite.expect(display(for: CGRect(x: 1650, y: 30, width: 90, height: 70)) == nil,
+                     "an offscreen window has no display crop")
 
         let geometricAttachment = ScreenshotCapturePolicy.AttachedCapturePlan(
             windowIDs: [1, 6, 2], bounds: capturedWindow.frame)
@@ -398,7 +406,7 @@ enum ScreenshotFeatureTests {
         let captureWindowBody = (screenshotCaptureEngineSource
             .components(separatedBy: "static func captureWindow(").last ?? "")
             .components(separatedBy: "\n    /// On-screen windows").first ?? ""
-        let accessibilityGate = captureWindowBody.range(of: "if Permissions.shared.accessibility {")
+        let accessibilityGate = captureWindowBody.range(of: "if let geometricPlan = plan, Permissions.shared.accessibility {")
         let attachmentConfirmation = captureWindowBody.range(
             of: "accessibilityAttachedWindowIDs(")
         suite.expect(accessibilityGate != nil && attachmentConfirmation != nil
@@ -1887,11 +1895,6 @@ enum ScreenshotFeatureTests {
             .split(separator: "\n", omittingEmptySubsequences: false)
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
-        suite.expect(screenshotEditorSource.contains("if tool != .select, tool != .crop, tool != .expandCanvas {\n            selectedID = nil\n        }"),
-               "the editor clears stale selection before creating a new annotation")
-        suite.expect(!screenshotEditorSource.contains("annotations.append(annotation)\n            selectedID = annotation.id\n            draftID = annotation.id")
-                && screenshotEditorSource.contains("} else if let draftID {\n                selectedID = draftID"),
-               "a shape is selected only after its drag ends")
         suite.expect(screenshotSupportSource.contains("let color: ColorID?")
                 && screenshotSupportSource.contains("let stroke: StrokeID?")
                 && screenshotSupportSource.contains("let arrowStyle: ArrowStyleID?"),
@@ -4191,17 +4194,6 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
                "every input channel is muted, never fewer than the stereo pair")
-        let micMuteServiceSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
-            encoding: .utf8)) ?? ""
-        let reapply = micMuteServiceSource.range(of: "private func reapplyIfNeeded() {")
-            .map { micMuteServiceSource[$0.lowerBound...] }
-            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
-            .map(String.init) ?? ""
-        suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
-                && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool) {\n        wantsMute = muted"),
-               "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")

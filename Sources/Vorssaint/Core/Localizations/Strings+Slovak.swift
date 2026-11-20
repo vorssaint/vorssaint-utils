@@ -652,6 +652,7 @@ extension Strings {
         audioPriorityMoveUp: "Presunúť nahor",
         audioPriorityMoveDown: "Presunúť nadol",
         audioPriorityUnavailable: "Nedostupné",
+        audioPriorityRemove: "Odstrániť",
         audioPriorityCurrent: "Používa sa",
         audioPriorityCaption: "Zariadenia sa vyberajú podľa poradia priority. Keď sa pripojí zariadenie s vyššou prioritou, začne sa používať. Keď sa aktívne zariadenie odpojí, nahradí ho ďalšie dostupné.",
 

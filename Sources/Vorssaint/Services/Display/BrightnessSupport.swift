@@ -53,6 +53,21 @@ enum BrightnessSupport {
     static let chipAddress: UInt32 = 0x37
     /// Sub-address DDC hosts write through.
     static let dataAddress: UInt32 = 0x51
+    /// Address that reaches the monitor through an MCDP29XX DisplayPort to
+    /// HDMI converter, which sits behind the built-in HDMI port of at least
+    /// the M1 Max MacBook Pro. The converter accepts writes to the standard
+    /// address and passes none of them on, so they report success while the
+    /// monitor never moves. The packets themselves, checksum included, stay
+    /// the same.
+    static let hdmiConverterChipAddress: UInt32 = 0xB7
+    /// EPIC provider class of a DDC service that sits behind that converter.
+    static let hdmiConverterProviderClass = "AppleDCPMCDP29XX"
+
+    /// The I2C address to speak DDC on for a service, from the provider class
+    /// its registry entry reports.
+    static func ddcChipAddress(epicProviderClass: String?) -> UInt32 {
+        epicProviderClass == hdmiConverterProviderClass ? hdmiConverterChipAddress : chipAddress
+    }
     /// VCP code for speaker volume: the same channel the monitor's own
     /// buttons use for the speakers built into it.
     static let audioVolumeCode: UInt8 = 0x62
@@ -257,6 +272,29 @@ enum BrightnessSupport {
         guard probesAudio, repliedThisSession,
               attempt >= 1, attempt <= ddcRetryDelays.count else { return nil }
         return ddcRetryDelays[attempt - 1]
+    }
+
+    /// Each online display has its own deadlines, even if its EDID is shared
+    /// with another panel. Opening Settings can probe early without spending
+    /// another scheduled attempt.
+    struct ServiceDiscoveryRetries {
+        private var deadlines: [UInt32: (attempt: Int, due: TimeInterval)] = [:]
+
+        mutating func found(_ display: UInt32) { deadlines[display] = nil }
+
+        mutating func missing(_ display: UInt32, now: TimeInterval) -> TimeInterval? {
+            if let previous = deadlines[display], now < previous.due { return previous.due - now }
+            let attempt = deadlines[display]?.attempt ?? 0
+            guard ddcRetryDelays.indices.contains(attempt) else { return nil }
+            let delay = ddcRetryDelays[attempt]
+            deadlines[display] = (attempt + 1, now + delay)
+            return delay
+        }
+    }
+
+    static func keepsSoftwareDimOnDiscovery(previouslySoftware: Bool,
+                                             dimmed: Bool, pending: Double?) -> Bool {
+        previouslySoftware && (dimmed || pending.map { $0 < 0.999 } == true)
     }
 
     static let volumeKeyRescanInterval: TimeInterval = 10
@@ -784,6 +822,13 @@ enum BrightnessSupport {
         }
     }
 
+    /// Whether a monitor whose mute is not the MCCS control still takes the
+    /// unmute when it leaves zero. A Samsung S34C65xT reads 0 unmuted and 1
+    /// muted, and stays silent after reaching zero until it is told to unmute.
+    static func unmutesLeavingZero(muteReply current: UInt16, maximum: UInt16) -> Bool {
+        current == 0 && maximum >= audioUnmutedValue
+    }
+
     static func muteDeviceValue(_ muted: Bool) -> UInt16 {
         muted ? audioMutedValue : audioUnmutedValue
     }
@@ -828,7 +873,7 @@ enum BrightnessSupport {
     /// mute on, as macOS does for its own outputs, and leaving zero always
     /// writes mute off whatever the last reading said. A raise (or a slider
     /// set) also lifts a mute the person chose; a lower leaves it in place.
-    /// A monitor without an MCCS mute control gets no mute writes at all.
+    /// A monitor without an MCCS mute control gets no mute change here.
     static func monitorMuteChange(from current: Double, muted: Bool?,
                                   to level: Double, raises: Bool) -> Bool? {
         guard let muted else { return nil }
@@ -878,14 +923,18 @@ enum BrightnessSupport {
     /// Runs on the DDC queue. Every successful result describes a level the
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
-        _ change: SpeakerChange, hasNativeMute: Bool, keySettings: MonitorVolumeKeySettings,
-        restore: inout SpeakerLevel?,
+        _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
+        keySettings: MonitorVolumeKeySettings,
+        restore: inout SpeakerLevel?, needsUnmute: inout Bool,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
         guard let initial = SpeakerLevel(read(audioVolumeCode)) else { return nil }
         if initial.raw > 0 || restore?.maximum != initial.maximum { restore = nil }
         func readMute() -> Bool? {
-            read(audioMuteCode).flatMap { muteReply(current: $0.current, maximum: $0.maximum) }
+            guard let reply = read(audioMuteCode) else { return nil }
+            // A monitor discovered while muted can use either unmuted encoding.
+            if Self.unmutesLeavingZero(muteReply: reply.current, maximum: reply.maximum) { return false }
+            return muteReply(current: reply.current, maximum: reply.maximum)
         }
         let muted = hasNativeMute ? readMute() : initial.mutedWithoutNativeControl(restoring: restore)
         guard !hasNativeMute || muted != nil else { return nil }
@@ -918,7 +967,7 @@ enum BrightnessSupport {
                 }
             }
             let mutesAtZero = !raises && initial.raw == 0 && keySettings.minimumPercent == 0 && muted == false
-            guard target != start || mutesAtZero else { return (initial, muted) }
+            guard target != start || mutesAtZero || (needsUnmute && raises && target > 0) else { return (initial, muted) }
             desiredMute = monitorMuteChange(from: initial.volume, muted: hasNativeMute ? muted : nil,
                                             to: Double(target) / Double(initial.maximum), raises: raises)
         case .toggleMute:
@@ -946,6 +995,7 @@ enum BrightnessSupport {
             guard target > 0 else { return (initial, muted) }
         }
 
+        if unmutesLeavingZero && initial.raw == 0 && target > 0 { needsUnmute = true }
         var confirmed = initial
         if target != initial.raw {
             guard write(audioVolumeCode, target),
@@ -954,18 +1004,28 @@ enum BrightnessSupport {
             confirmed = actual
         }
         if !hasNativeMute {
+            if unmutesLeavingZero, needsUnmute, confirmed.raw > 0 {
+                guard confirmed.raw <= keySettings.ceiling(for: confirmed.maximum),
+                      write(audioMuteCode, audioUnmutedValue) else { return nil }
+                // Firmware can restore its previous (loud) level as part of unmute.
+                guard readMute() == false, SpeakerLevel(read(audioVolumeCode)) == confirmed else {
+                    if !setNativeMute(true) { _ = write(audioVolumeCode, 0) }
+                    return nil
+                }
+                needsUnmute = false
+            }
             if confirmed.raw > 0 { restore = nil }
             else if initial.raw > 0 { restore = initial }
             return (confirmed, confirmed.mutedWithoutNativeControl(restoring: restore))
         }
         if desiredMute == false {
-            guard setNativeMute(false) else { return nil }
+            guard write(audioMuteCode, audioUnmutedValue) else { return nil }
             // Some firmware restores its own stored level on unmute. A level
             // change must still be present after that last command.
             let final = SpeakerLevel(read(audioVolumeCode))
-            guard let final, !requestsLevel || final == confirmed,
+            guard readMute() == false, let final, !requestsLevel || final == confirmed,
                   final.raw <= keySettings.ceiling(for: final.maximum) else {
-                if muted == true { _ = setNativeMute(true) }
+                if muted == true || initial.raw == 0 { _ = setNativeMute(true) }
                 return nil
             }
             return (final, false)
@@ -1086,6 +1146,36 @@ enum BrightnessSupport {
             score += 1
         }
         return score
+    }
+
+    /// Native and inactive external displays also own their DDC services.
+    /// Reserve their matches even though they do not need a brightness probe.
+    static func brightnessServices(displays: [(index: Int, identity: DisplayIdentity)],
+                                   candidates: Set<Int>, services: [ServiceIdentity]) -> [Int: Int] {
+        let scores = displays.flatMap { display in
+            services.map { service in
+                let serial = display.identity.serialNumber ?? 0
+                let conflict = serial != 0 && service.serialNumber != 0 && serial != service.serialNumber
+                let score = conflict ? 0 : matchScore(service: service, display: display.identity,
+                                                       requireIdentity: displays.count > 1)
+                return (displayIndex: display.index, serviceOrdinal: service.ordinal, score: score)
+            }
+        }
+        let usable = scores.filter { pair in
+            candidates.contains(pair.displayIndex) && pair.score > 0
+                && !scores.contains { other in
+                    other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex
+                        && other.score >= pair.score
+                }
+        }
+        let assigned = assignServices(scores: usable)
+        if assigned.isEmpty, displays.count == 1, services.count == 1, let display = displays.first,
+           candidates.contains(display.index), let service = services.first {
+            if let serial = display.identity.serialNumber, serial != 0, service.serialNumber != 0,
+               serial != service.serialNumber { return [:] }
+            return [display.index: service.ordinal]
+        }
+        return assigned
     }
 
     /// Greedy assignment, best scores first: each display and each service is
