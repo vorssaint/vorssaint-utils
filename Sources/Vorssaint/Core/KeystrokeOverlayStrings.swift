@@ -32,6 +32,8 @@ struct KeystrokeOverlayStrings {
     let sizeLarge: String
     let durationLabel: String
     let durationSecondsFormat: String
+    let showInCapturesToggle: String
+    let showInCapturesCaption: String
     let previewButton: String
     let privacyNote: String
 
@@ -113,6 +115,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Large",
         durationLabel: "Fade-out delay",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Show in screen recordings and screenshots",
+        showInCapturesCaption: "When off, the overlay stays visible to you but is hidden from screen recordings, screenshots and screen sharing.",
         previewButton: "Test overlay",
         privacyNote: "Pauses automatically in password fields when macOS Secure Input is active."
     )
@@ -145,6 +149,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Grande",
         durationLabel: "Tempo na tela",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Mostrar em gravações e capturas de tela",
+        showInCapturesCaption: "Quando desativado, o indicador continua visível para você, mas fica oculto em gravações, capturas e compartilhamento de tela.",
         previewButton: "Testar indicador",
         privacyNote: "Pausa automaticamente em campos de senha quando a Entrada Segura do macOS está ativa."
     )
@@ -177,6 +183,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Büyük",
         durationLabel: "Kaybolma süresi",
         durationSecondsFormat: "%.1f sn",
+        showInCapturesToggle: "Ekran kayıtlarında ve ekran görüntülerinde göster",
+        showInCapturesCaption: "Kapalıyken gösterge sizin için görünür kalır ancak ekran kayıtlarından, ekran görüntülerinden ve ekran paylaşımından gizlenir.",
         previewButton: "Göstergeyi dene",
         privacyNote: "macOS Güvenli Giriş etkinken parola alanlarında otomatik olarak duraklatılır."
     )
@@ -209,6 +217,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Большой",
         durationLabel: "Задержка скрытия",
         durationSecondsFormat: "%.1f с",
+        showInCapturesToggle: "Показывать на записях и снимках экрана",
+        showInCapturesCaption: "Когда выключено, панель видна вам, но скрыта в записях экрана, снимках и демонстрации экрана.",
         previewButton: "Проверить панель",
         privacyNote: "Автоматически приостанавливается в полях ввода пароля при активном защищённом вводе macOS."
     )
@@ -241,6 +251,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Grande",
         durationLabel: "Tiempo en pantalla",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Mostrar en grabaciones y capturas de pantalla",
+        showInCapturesCaption: "Al desactivarlo, el indicador sigue visible para ti pero queda oculto en grabaciones, capturas y pantalla compartida.",
         previewButton: "Probar indicador",
         privacyNote: "Se pausa automáticamente en los campos de contraseña cuando la entrada segura de macOS está activa."
     )
@@ -273,6 +285,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Veľká",
         durationLabel: "Čas zobrazenia",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Zobrazovať na nahrávkach a snímkach obrazovky",
+        showInCapturesCaption: "Keď je vypnuté, indikátor zostane viditeľný pre vás, ale bude skrytý v nahrávkach, snímkach a pri zdieľaní obrazovky.",
         previewButton: "Vyskúšať indikátor",
         privacyNote: "Automaticky sa pozastaví v poliach pre heslo, keď je aktívny zabezpečený vstup macOS."
     )
@@ -305,6 +319,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Groß",
         durationLabel: "Ausblendverzögerung",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "In Bildschirmaufnahmen und Screenshots anzeigen",
+        showInCapturesCaption: "Wenn deaktiviert, bleibt die Einblendung für Sie sichtbar, wird aber in Aufnahmen, Screenshots und bei der Bildschirmfreigabe ausgeblendet.",
         previewButton: "Einblendung testen",
         privacyNote: "Pausiert automatisch in Passwortfeldern, solange die sichere Eingabe von macOS aktiv ist."
     )
@@ -337,6 +353,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Grand",
         durationLabel: "Délai de disparition",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Afficher dans les enregistrements et captures d’écran",
+        showInCapturesCaption: "Une fois désactivé, l’indicateur reste visible pour vous mais est masqué des enregistrements, captures et partages d’écran.",
         previewButton: "Tester l’affichage",
         privacyNote: "Se met automatiquement en pause dans les champs de mot de passe lorsque la saisie sécurisée de macOS est active."
     )
@@ -369,6 +387,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Grande",
         durationLabel: "Ritardo di scomparsa",
         durationSecondsFormat: "%.1f s",
+        showInCapturesToggle: "Mostra nelle registrazioni e negli screenshot",
+        showInCapturesCaption: "Quando disattivato, l’indicatore resta visibile per te ma viene nascosto in registrazioni, screenshot e condivisione schermo.",
         previewButton: "Prova indicatore",
         privacyNote: "Si mette automaticamente in pausa nei campi password quando l’input sicuro di macOS è attivo."
     )
@@ -401,6 +421,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "大",
         durationLabel: "消えるまでの時間",
         durationSecondsFormat: "%.1f秒",
+        showInCapturesToggle: "画面収録とスクリーンショットに表示",
+        showInCapturesCaption: "オフにすると自分には表示されたまま、画面収録・スクリーンショット・画面共有からは非表示になります。",
         previewButton: "テスト表示",
         privacyNote: "macOSのセキュア入力が有効なパスワード欄では自動的に一時停止します。"
     )
@@ -433,6 +455,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "크게",
         durationLabel: "사라짐 지연 시간",
         durationSecondsFormat: "%.1f초",
+        showInCapturesToggle: "화면 기록 및 스크린샷에 표시",
+        showInCapturesCaption: "끄면 본인 화면에는 계속 보이지만 화면 기록, 스크린샷 및 화면 공유에서는 숨겨집니다.",
         previewButton: "오버레이 테스트",
         privacyNote: "macOS 보안 입력이 활성화된 암호 입력란에서는 자동으로 일시 정지됩니다."
     )
@@ -465,6 +489,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "大",
         durationLabel: "淡出延迟",
         durationSecondsFormat: "%.1f 秒",
+        showInCapturesToggle: "在录屏和截图中显示",
+        showInCapturesCaption: "关闭后悬浮窗仍对你可见，但会在录屏、截图和屏幕共享中隐藏。",
         previewButton: "测试显示",
         privacyNote: "当 macOS 安全输入处于启用状态（如密码输入框）时会自动暂停。"
     )
@@ -497,6 +523,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "大",
         durationLabel: "淡出延遲",
         durationSecondsFormat: "%.1f 秒",
+        showInCapturesToggle: "在螢幕錄製與截圖中顯示",
+        showInCapturesCaption: "關閉後浮動視窗仍對你可見，但會在螢幕錄製、截圖與螢幕共享中隱藏。",
         previewButton: "測試顯示",
         privacyNote: "當 macOS 安全輸入啟用時（例如密碼欄位），會自動暫停顯示。"
     )
@@ -529,6 +557,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "大",
         durationLabel: "淡出延遲",
         durationSecondsFormat: "%.1f 秒",
+        showInCapturesToggle: "喺螢幕錄影同截圖中顯示",
+        showInCapturesCaption: "關閉後浮動視窗依然對你可見，但會喺螢幕錄影、截圖同螢幕共享中隱藏。",
         previewButton: "測試顯示",
         privacyNote: "當 macOS 安全輸入啟用時（例如密碼欄），會自動暫停顯示。"
     )
@@ -542,7 +572,7 @@ extension KeystrokeOverlayStrings {
         styleLabel: "Тема",
         styleSvelte: "Svelte",
         styleKeycaps: "Клавіші",
-        modeLabel: "Які клавіші показывать",
+        modeLabel: "Які клавіші показувати",
         modeAllKeys: "Усі клавіші",
         modeShortcutsOnly: "Лише скорочення",
         modeCaption: "Режим «Лише скорочення» пропускає звичайний набір і показує комбінації з ⌘, ⌥, ⌃ або функціональними клавішами.",
@@ -561,6 +591,8 @@ extension KeystrokeOverlayStrings {
         sizeLarge: "Великий",
         durationLabel: "Затримка зникнення",
         durationSecondsFormat: "%.1f с",
+        showInCapturesToggle: "Показувати на записах і знімках екрана",
+        showInCapturesCaption: "Якщо вимкнено, панель залишається видимою для вас, але приховується на записах, знімках і під час демонстрації екрана.",
         previewButton: "Перевірити панель",
         privacyNote: "Автоматично призупиняється в полях пароля, коли активне безпечне введення macOS."
     )

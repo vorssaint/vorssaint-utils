@@ -342,6 +342,7 @@ enum DefaultsKey {
     static let keystrokeOverlayCustomY = "keystrokeOverlayCustomY"       // Double, screen origin Y when dragged
     static let keystrokeOverlaySize = "keystrokeOverlaySize"             // small | medium | large
     static let keystrokeOverlayDuration = "keystrokeOverlayDuration"     // Double, seconds
+    static let keystrokeOverlayShowInCaptures = "keystrokeOverlayShowInCaptures" // Bool, visible in screen recordings & screenshots
     static let panelControlKeystrokeOverlay = "panelControlKeystrokeOverlay"
     static let panelUtilityCleaning = "panelUtilityCleaning"
     static let cleaningModeKeepScreenVisible = "cleaningModeKeepScreenVisible"
@@ -1636,6 +1637,7 @@ enum Defaults {
         DefaultsKey.keystrokeOverlayPosition: KeystrokeOverlayPosition.bottomCenter.rawValue,
         DefaultsKey.keystrokeOverlaySize: KeystrokeOverlaySize.medium.rawValue,
         DefaultsKey.keystrokeOverlayDuration: KeystrokeOverlayConfig.defaultDurationSeconds,
+        DefaultsKey.keystrokeOverlayShowInCaptures: true,
         DefaultsKey.panelControlKeystrokeOverlay: true,
         DefaultsKey.panelUtilityCleaning: true,
         DefaultsKey.cleaningModeKeepScreenVisible: false,

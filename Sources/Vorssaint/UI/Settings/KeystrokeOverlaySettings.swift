@@ -14,6 +14,7 @@ struct KeystrokeOverlaySettings: View {
     @AppStorage(DefaultsKey.keystrokeOverlayPosition) private var positionRaw = KeystrokeOverlayPosition.bottomCenter.rawValue
     @AppStorage(DefaultsKey.keystrokeOverlaySize) private var sizeRaw = KeystrokeOverlaySize.medium.rawValue
     @AppStorage(DefaultsKey.keystrokeOverlayDuration) private var duration = KeystrokeOverlayConfig.defaultDurationSeconds
+    @AppStorage(DefaultsKey.keystrokeOverlayShowInCaptures) private var showInCaptures = true
 
     private var strings: KeystrokeOverlayStrings {
         FeatureStrings.keystrokeOverlay(l10n.language)
@@ -93,6 +94,14 @@ struct KeystrokeOverlaySettings: View {
                            in: KeystrokeOverlayConfig.durationRange,
                            step: 0.1)
                 }
+
+                Toggle(strings.showInCapturesToggle, isOn: $showInCaptures)
+                    .onChange(of: showInCaptures) { _, _ in
+                        KeystrokeOverlayService.shared.syncWithPreferences()
+                    }
+                Text(strings.showInCapturesCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Button {
                     KeystrokeOverlayService.shared.showPreview()

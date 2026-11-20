@@ -138,6 +138,7 @@ struct KeystrokeOverlayConfig: Equatable {
     var customOrigin: CGPoint? = nil
     var size: KeystrokeOverlaySize
     var durationSeconds: Double
+    var showInCaptures: Bool = true
 
     static let defaultDurationSeconds: Double = 1.5
     static let durationRange: ClosedRange<Double> = 0.5...5.0
@@ -146,6 +147,10 @@ struct KeystrokeOverlayConfig: Equatable {
         guard value.isFinite else { return defaultDurationSeconds }
         let clamped = min(max(value, durationRange.lowerBound), durationRange.upperBound)
         return (clamped * 10).rounded() / 10
+    }
+
+    static func showsInCaptures(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.keystrokeOverlayShowInCaptures) as? Bool ?? true
     }
 }
 

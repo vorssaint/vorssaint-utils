@@ -79,7 +79,8 @@ final class KeystrokeOverlayService: ObservableObject {
             durationSeconds: KeystrokeOverlayConfig.sanitizedDuration(
                 defaults.object(forKey: DefaultsKey.keystrokeOverlayDuration) as? Double
                     ?? KeystrokeOverlayConfig.defaultDurationSeconds
-            )
+            ),
+            showInCaptures: KeystrokeOverlayConfig.showsInCaptures(in: defaults)
         )
         eventLock.withLock {
             config = nextConfig
@@ -89,6 +90,7 @@ final class KeystrokeOverlayService: ObservableObject {
             self.style = nextConfig.style
             self.size = nextConfig.size
             self.hasCustomPosition = customOrigin != nil
+            self.panel?.sharingType = nextConfig.showInCaptures ? .readOnly : .none
             if self.panel?.isVisible == true {
                 self.updatePanelFrame()
             }
@@ -111,6 +113,38 @@ final class KeystrokeOverlayService: ObservableObject {
 
     func suspend() {
         stop()
+    }
+
+    @MainActor
+    var captureVisibleWindowIDs: Set<CGWindowID> {
+        guard let panel, panel.isVisible, panel.windowNumber > 0,
+              eventLock.withLock({ config.showInCaptures }) else { return [] }
+        return [CGWindowID(panel.windowNumber)]
+    }
+
+    @MainActor
+    var captureExcludedWindowIDs: Set<CGWindowID> {
+        guard let panel, panel.windowNumber > 0,
+              !eventLock.withLock({ config.showInCaptures }) else { return [] }
+        return [CGWindowID(panel.windowNumber)]
+    }
+
+    /// Ensures the overlay panel exists on screen (invisible and click-through
+    /// while idle) before ScreenCaptureKit builds its `SCContentFilter`, so
+    /// Vorssaint's own Screen Recorder includes it in `exceptingWindows` when
+    /// "Show in screen recordings and screenshots" is enabled.
+    @MainActor
+    func prepareForScreenRecording() {
+        let currentConfig = eventLock.withLock { config }
+        guard currentConfig.enabled, currentConfig.showInCaptures else { return }
+        let panel = ensurePanel()
+        panel.sharingType = .readOnly
+        if !panel.isVisible {
+            updatePanelFrame()
+            panel.alphaValue = 0
+            panel.ignoresMouseEvents = true
+            panel.orderFrontRegardless()
+        }
     }
 
     func resetCustomPosition() {
@@ -567,6 +601,8 @@ final class KeystrokeOverlayService: ObservableObject {
         guard hasContent else { return }
 
         let panel = ensurePanel()
+        panel.sharingType = currentConfig.showInCaptures ? .readOnly : .none
+        panel.ignoresMouseEvents = false
         if !isDraggingPanel {
             updatePanelFrame()
         }
@@ -672,6 +708,7 @@ final class KeystrokeOverlayService: ObservableObject {
         panel.ignoresMouseEvents = false
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
+        panel.sharingType = eventLock.withLock { config.showInCaptures } ? .readOnly : .none
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.onDragStateChanged = { [weak self] dragging in
             guard let self else { return }

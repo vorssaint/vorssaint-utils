@@ -407,5 +407,18 @@ enum KeyboardFeatureTests {
         _ = svelteBuffer.record(token: "Super K", isStandalone: true, now: 1.3, duration: 1.5)
         suite.expect(svelteBuffer.displayText == "Super K",
                "standalone shortcut replaces rolling text in the Svelte box")
+
+        let captureSuiteName = "vorssaint.test.keystroke-captures.\(UUID().uuidString)"
+        if let defaults = UserDefaults(suiteName: captureSuiteName) {
+            defer { defaults.removePersistentDomain(forName: captureSuiteName) }
+            suite.expect(KeystrokeOverlayConfig.showsInCaptures(in: defaults) == true,
+                   "keystroke overlay defaults to visible in screen recordings and screenshots")
+            defaults.set(false, forKey: DefaultsKey.keystrokeOverlayShowInCaptures)
+            suite.expect(KeystrokeOverlayConfig.showsInCaptures(in: defaults) == false,
+                   "keystroke overlay respects disabling visibility in captures")
+            defaults.set(true, forKey: DefaultsKey.keystrokeOverlayShowInCaptures)
+            suite.expect(KeystrokeOverlayConfig.showsInCaptures(in: defaults) == true,
+                   "keystroke overlay respects enabling visibility in captures")
+        }
     }
 }
