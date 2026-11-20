@@ -223,7 +223,7 @@ enum RecorderFeatureTests {
         let recorderSessionSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/Recorder/ScreenRecorderService.swift",
             encoding: .utf8)) ?? ""
-        suite.expect(recorderSessionSource.contains("RecorderSystemAudioTap.make(hearing: Self.windowOwner(of: region))")
+        suite.expect(recorderSessionSource.contains("RecorderSystemAudioTap.make(hearing: region.flatMap(Self.windowOwner))")
                 && recorderSessionSource.contains("WindowServerSupport.ownerProcessID(ofWindowID:)"),
                "a window recording hears the app that owns the window, found by its window number")
         suite.expect(systemAudioTapSource.contains("awaitingApp = true")
@@ -918,10 +918,10 @@ enum RecorderFeatureTests {
             .components(separatedBy: .whitespacesAndNewlines)
             .filter { !$0.isEmpty }.joined(separator: " ")
         suite.expect(recorderSessionShape.contains(
-            "await MainActor.run { pointer.start() typing.start() }"
+            "await MainActor.run { pointer?.start() typing?.start() }"
         ), "the recorder installs its event monitors on the main thread")
         suite.expect(recorderSessionShape.contains(
-            "await MainActor.run { (pointer.stop(), typing.stop()) }"
+            "await MainActor.run { (pointer?.stop(), typing?.stop()) }"
         ), "the recorder removes its event monitors on the main thread")
 
         let uniform = RecorderMotion.resampled(

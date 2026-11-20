@@ -95,6 +95,11 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
     /// instead of falling silent. Set before `start`.
     var onReaderLost: (() -> Void)?
 
+    /// A caller that cannot safely resume after a device change stops its
+    /// recording instead of accepting a shortened audio track. Set before start.
+    var onDeviceChange: (() -> Void)?
+    private var deviceChangeReported = false
+
     /// Whether any sample was more than silence. Read after `stop`.
     var heardSound: Bool { heard.value }
 
@@ -385,6 +390,12 @@ final class RecorderSystemAudioTap: @unchecked Sendable {
         let hostChanged = Self.hostDeviceUID() != hostDeviceUID
         let rateChanged = Self.nominalSampleRate(of: aggregateID) != sampleRate
         guard hostChanged || rateChanged else { return }
+        if let onDeviceChange {
+            guard !deviceChangeReported else { return }
+            deviceChangeReported = true
+            onDeviceChange()
+            return
+        }
         teardownPipeline()
         buildPipeline()
         // Nothing came back, and with no aggregate left this tap can no longer

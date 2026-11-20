@@ -13,6 +13,9 @@ enum RecorderFailure: Equatable {
     case noContent
     case streamFailed
     case writerFailed
+    case microphoneUnavailable
+    case audioDeviceChanged
+    case noMedia
     case diskFull
 }
 
@@ -54,7 +57,7 @@ final class RecorderCaptureEngine: NSObject {
 
     /// Builds the filter and starts the stream. Existing ordinary Vorssaint
     /// windows remain recordable, while new app chrome stays excluded.
-    func start(region: RecorderSupport.Region,
+    func start(region: RecorderSupport.Region?,
                frameRate: Int,
                capturesSystemAudio: Bool,
                excludedWindowNumbers: [Int],
@@ -76,36 +79,48 @@ final class RecorderCaptureEngine: NSObject {
         // Keep the call and optional binding as separate type-checking targets.
         // Older Swift compilers otherwise crash in their constraint walker when
         // this expression sits inside the larger async start routine.
-        let preparedFilter: SCContentFilter? = Self.filter(
-            for: region,
-            in: content,
-            excluding: excludedWindowNumbers)
+        let preparedFilter: SCContentFilter?
+        if let region {
+            preparedFilter = Self.filter(for: region, in: content, excluding: excludedWindowNumbers)
+        } else {
+            preparedFilter = content.displays.first.map {
+                SCContentFilter(display: $0, excludingWindows: [])
+            }
+        }
         guard let filter = preparedFilter else { return .noContent }
 
         let configuration = SCStreamConfiguration()
-        configuration.width = Int(region.pixelRect.width)
-        configuration.height = Int(region.pixelRect.height)
-        configuration.minimumFrameInterval = CMTime(value: 1,
-                                                    timescale: CMTimeScale(frameRate))
-        configuration.pixelFormat = kCVPixelFormatType_32BGRA
-        configuration.colorSpaceName = CGColorSpace.sRGB
-        // An independent window keeps the output dimensions chosen when the
-        // recording starts. Scaling it into that output makes later window
-        // resizes follow the recording instead of leaving an empty frame.
-        configuration.scalesToFit = region.windowID != nil
-        configuration.preservesAspectRatio = true
-        configuration.captureResolution = .best
-        // The pointer is drawn by us afterwards, from the track the sampler
-        // keeps, so it can be smoothed and pressed. Leaving the system one in
-        // the frame would put two pointers in the video.
-        configuration.showsCursor = false
-        configuration.shouldBeOpaque = true
-        // Shadows belong to the desktop, not to the thing being recorded, and
-        // they would be baked into the frame the background is drawn behind.
-        configuration.ignoreShadowsDisplay = true
-        configuration.ignoreShadowsSingleWindow = true
-        if region.windowID == nil {
-            configuration.sourceRect = Self.sourceRect(for: region)
+        if let region {
+            configuration.width = Int(region.pixelRect.width)
+            configuration.height = Int(region.pixelRect.height)
+            configuration.minimumFrameInterval = CMTime(value: 1,
+                                                        timescale: CMTimeScale(frameRate))
+            configuration.pixelFormat = kCVPixelFormatType_32BGRA
+            configuration.colorSpaceName = CGColorSpace.sRGB
+            // An independent window keeps the output dimensions chosen when the
+            // recording starts. Scaling it into that output makes later window
+            // resizes follow the recording instead of leaving an empty frame.
+            configuration.scalesToFit = region.windowID != nil
+            configuration.preservesAspectRatio = true
+            configuration.captureResolution = .best
+            // The pointer is drawn by us afterwards, from the track the sampler
+            // keeps, so it can be smoothed and pressed. Leaving the system one in
+            // the frame would put two pointers in the video.
+            configuration.showsCursor = false
+            configuration.shouldBeOpaque = true
+            // Shadows belong to the desktop, not to the thing being recorded, and
+            // they would be baked into the frame the background is drawn behind.
+            configuration.ignoreShadowsDisplay = true
+            configuration.ignoreShadowsSingleWindow = true
+            if region.windowID == nil {
+                configuration.sourceRect = Self.sourceRect(for: region)
+            }
+        } else {
+            // A legitimate display filter, but no screen output or video encoder.
+            configuration.width = 2
+            configuration.height = 2
+            configuration.minimumFrameInterval = CMTime(seconds: 1, preferredTimescale: 1)
+            configuration.showsCursor = false
         }
         if capturesSystemAudio {
             configuration.capturesAudio = true
@@ -117,7 +132,9 @@ final class RecorderCaptureEngine: NSObject {
 
         let stream = SCStream(filter: filter, configuration: configuration, delegate: self)
         do {
-            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            if region != nil {
+                try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: queue)
+            }
             if capturesSystemAudio {
                 try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: queue)
             }
@@ -242,12 +259,15 @@ final class RecorderMicrophoneCapture: NSObject,
                                        AVCaptureAudioDataOutputSampleBufferDelegate,
                                        @unchecked Sendable {
     var onSample: ((CMSampleBuffer) -> Void)?
+    /// Runtime failures stop an audio-only take instead of silently dropping voice.
+    var onUnavailable: (() -> Void)?
 
     private let queue = DispatchQueue(label: "com.vorssaint.recorder.microphone",
                                       qos: .userInitiated)
     private let session = AVCaptureSession()
     private var targetClock: CMClock?
     private var configured = false
+    private var observers: [NSObjectProtocol] = []
 
     func start(synchronizingTo clock: CMClock) async -> Bool {
         await withCheckedContinuation { continuation in
@@ -257,6 +277,15 @@ final class RecorderMicrophoneCapture: NSObject,
                     return
                 }
                 targetClock = clock
+                if observers.isEmpty {
+                    for name in [AVCaptureSession.runtimeErrorNotification,
+                                 AVCaptureSession.wasInterruptedNotification] {
+                        observers.append(NotificationCenter.default.addObserver(
+                            forName: name, object: session, queue: .main) { [weak self] _ in
+                                self?.onUnavailable?()
+                            })
+                    }
+                }
                 session.startRunning()
                 continuation.resume(returning: session.isRunning)
             }
@@ -266,12 +295,16 @@ final class RecorderMicrophoneCapture: NSObject,
     func stop() async {
         await withCheckedContinuation { continuation in
             queue.async { [self] in
+                observers.forEach(NotificationCenter.default.removeObserver)
+                observers.removeAll()
                 if session.isRunning { session.stopRunning() }
                 targetClock = nil
                 continuation.resume()
             }
         }
     }
+
+    deinit { observers.forEach(NotificationCenter.default.removeObserver) }
 
     private func configureIfNeeded() -> Bool {
         if configured { return true }

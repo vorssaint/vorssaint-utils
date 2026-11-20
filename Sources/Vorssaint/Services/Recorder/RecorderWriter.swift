@@ -26,13 +26,14 @@ final class RecorderWriter {
     /// and return a fully prepared writer before any capture starts.
     static func prepare(url: URL,
                         pixelSize: CGSize,
+                        audioOnly: Bool = false,
                         frameRate: Int,
                         capturesSystemAudio: Bool,
                         capturesMicrophone: Bool,
                         pauseClock: RecorderPauseClock,
                         completion: @escaping (RecorderWriter?) -> Void) {
         preparationQueue.async {
-            let writer = RecorderWriter(url: url, pixelSize: pixelSize, frameRate: frameRate,
+            let writer = RecorderWriter(url: url, pixelSize: pixelSize, audioOnly: audioOnly, frameRate: frameRate,
                                         capturesSystemAudio: capturesSystemAudio,
                                         capturesMicrophone: capturesMicrophone, pauseClock: pauseClock)
             DispatchQueue.main.async { completion(writer) }
@@ -46,7 +47,7 @@ final class RecorderWriter {
     }
 
     private let writer: AVAssetWriter
-    private let videoInput: AVAssetWriterInput
+    private let videoInput: AVAssetWriterInput?
     private let systemAudioInput: AVAssetWriterInput?
     private let microphoneInput: AVAssetWriterInput?
     private let pauseClock: RecorderPauseClock
@@ -63,38 +64,63 @@ final class RecorderWriter {
     /// reported as a failure instead of leaving an unplayable file behind.
     private(set) var videoFrameCount = 0
 
+    private(set) var systemAudioBufferCount = 0
+    private(set) var microphoneBufferCount = 0
+
+    var didFail: Bool { failed || loggedInvalidAudio || writer.status == .failed }
+
+    var hasRequiredMedia: Bool {
+        if videoInput != nil { return videoFrameCount > 0 }
+        return (systemAudioInput == nil || systemAudioBufferCount > 0)
+            && (microphoneInput == nil || microphoneBufferCount > 0)
+            && (systemAudioInput != nil || microphoneInput != nil)
+    }
+
+    private var hasAnyMedia: Bool {
+        if videoInput != nil { return videoFrameCount > 0 }
+        return systemAudioBufferCount > 0 || microphoneBufferCount > 0
+    }
+
     var url: URL { writer.outputURL }
 
     init?(url: URL,
           pixelSize: CGSize,
+          audioOnly: Bool = false,
           frameRate: Int,
           capturesSystemAudio: Bool,
           capturesMicrophone: Bool,
           pauseClock: RecorderPauseClock) {
+        guard !audioOnly || capturesSystemAudio || capturesMicrophone else { return nil }
+        // M4A removes leading gaps before the first audio buffer. MOV retains
+        // the shared clock even when a selected source starts delivering late.
         guard let writer = try? AVAssetWriter(outputURL: url, fileType: .mov) else { return nil }
         // A recording that outlives a crash is worth the few extra bytes a
         // fragmented file costs.
         writer.movieFragmentInterval = CMTime(seconds: 10, preferredTimescale: 600)
 
-        let width = Int(pixelSize.width)
-        let height = Int(pixelSize.height)
-        let settings = Self.videoSettings(width: width,
-                                          height: height,
-                                          frameRate: frameRate,
-                                          codec: .hevc)
-        let resolved = writer.canApply(outputSettings: settings, forMediaType: .video)
-            && Self.hevcEncodes(width: width, height: height)
-            ? settings
-            : Self.videoSettings(width: width,
-                                 height: height,
-                                 frameRate: frameRate,
-                                 codec: .h264)
-        guard writer.canApply(outputSettings: resolved, forMediaType: .video) else { return nil }
+        var videoInput: AVAssetWriterInput?
+        if !audioOnly {
+            let width = Int(pixelSize.width)
+            let height = Int(pixelSize.height)
+            let settings = Self.videoSettings(width: width,
+                                              height: height,
+                                              frameRate: frameRate,
+                                              codec: .hevc)
+            let resolved = writer.canApply(outputSettings: settings, forMediaType: .video)
+                && Self.hevcEncodes(width: width, height: height)
+                ? settings
+                : Self.videoSettings(width: width,
+                                     height: height,
+                                     frameRate: frameRate,
+                                     codec: .h264)
+            guard writer.canApply(outputSettings: resolved, forMediaType: .video) else { return nil }
 
-        let videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: resolved)
-        videoInput.expectsMediaDataInRealTime = true
-        guard writer.canAdd(videoInput) else { return nil }
-        writer.add(videoInput)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: resolved)
+            videoInput = input
+            input.expectsMediaDataInRealTime = true
+            guard writer.canAdd(input) else { return nil }
+            writer.add(input)
+        }
 
         var systemAudioInput: AVAssetWriterInput?
         if capturesSystemAudio {
@@ -120,6 +146,10 @@ final class RecorderWriter {
             }
         }
 
+        if audioOnly {
+            guard !capturesSystemAudio || systemAudioInput != nil,
+                  !capturesMicrophone || microphoneInput != nil else { return nil }
+        }
         self.writer = writer
         self.videoInput = videoInput
         self.systemAudioInput = systemAudioInput
@@ -235,6 +265,7 @@ final class RecorderWriter {
             // Hold the first captured image over startup latency. Keep the
             // shared origin and every later timestamp so audio stays aligned.
             let videoTime: CMTime = videoFrameCount == 0 ? .zero : shifted
+            guard let videoInput else { return .dropped }
             guard videoInput.isReadyForMoreMediaData else { return .notReady }
             guard let retimed = RecorderSampleTiming.retimed(sampleBuffer, to: videoTime)
             else { return .dropped }
@@ -261,6 +292,7 @@ final class RecorderWriter {
                 failed = true
                 return .dropped
             }
+            systemAudioBufferCount += 1
             return .appended
         case .microphone:
             guard let microphoneInput else { return .dropped }
@@ -276,6 +308,7 @@ final class RecorderWriter {
                 failed = true
                 return .dropped
             }
+            microphoneBufferCount += 1
             return .appended
         }
     }
@@ -362,11 +395,11 @@ final class RecorderWriter {
     /// person pressed stop, otherwise a recording that ended on a still screen
     /// would be as short as its last change instead of as long as it felt.
     func finish(at wallClockEnd: CMTime) async -> Bool {
-        guard started, !failed, videoFrameCount > 0 else {
+        guard started, !failed, hasAnyMedia else {
             writer.cancelWriting()
             return false
         }
-        if let lastVideoSample {
+        if let lastVideoSample, let videoInput {
             let end = CMTime(
                 seconds: pauseClock.elapsed(at: wallClockEnd.seconds),
                 preferredTimescale: 600_000_000)
@@ -377,7 +410,7 @@ final class RecorderWriter {
             writer.endSession(atSourceTime: end)
         }
         lastVideoSample = nil
-        videoInput.markAsFinished()
+        videoInput?.markAsFinished()
         systemAudioInput?.markAsFinished()
         microphoneInput?.markAsFinished()
         await writer.finishWriting()
