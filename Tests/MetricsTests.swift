@@ -168,6 +168,7 @@ struct MetricsTests {
                 DisplaySpeakerVolumeTests.run(suite)
                 MonitorVolumeKeySettingsTests.run(suite)
             }),
+            ("monitor-input", { MonitorInputTests.run(suite) }),
             ("software-dimming", { SoftwareDimmingRouteTests.run { suite.expect($0, $1) } }),
             ("capture", {
                 ScreenshotSelectionRefreshContract.run(suite)
