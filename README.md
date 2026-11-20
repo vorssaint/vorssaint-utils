@@ -134,6 +134,7 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 - **Middle click.** Turn a three-finger trackpad press into a middle click.
 - **Apps to leave alone.** Exclude chosen apps from mouse enhancements.
 - **Extra click filter.** Ignore accidental rapid clicks from worn mouse buttons without delaying normal clicks.
+- **Presentation pointer.** Swap the pointer for a large 3D hand, magic wand, pencil or banana, or circle it with a ring, so every click taps on screen shares and recordings, with an option that keeps clicks from reaching the app you present.
 - **Key debounce.** Filter repeated letters caused by a worn keyboard.
 - **Super key.** Use Caps Lock or a right-side modifier as a shortcut combination, with a separate tap action and app exclusions.
 - **Keyboard shortcuts.** Manage feature shortcuts in one place, including optional takeover of supported macOS shortcuts while a feature is active.
@@ -262,6 +263,7 @@ Vorssaint is free and will stay that way. If it earned its place in your menu ba
 ## Acknowledgements
 
 - App icon designed by [@divisionseven](https://github.com/divisionseven)
+- Presentation pointer pictures from [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by Microsoft, under the MIT License
 
 ## License
 

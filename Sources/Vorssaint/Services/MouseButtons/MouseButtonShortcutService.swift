@@ -343,6 +343,12 @@ final class MouseButtonShortcutService: ObservableObject {
                 lastInputSeen = button
                 return consumesPress ? nil : Unmanaged.passUnretained(event)
             }
+            // While the presentation pointer blocks clicks, a new press goes
+            // to its shield, not to a shortcut or a Spaces drag. Nothing is
+            // taken into custody, so the release goes the same way.
+            if PresentationPointerClickBlock.isActive {
+                return Unmanaged.passUnretained(event)
+            }
             // An app on the exception list keeps its buttons: the press goes
             // through whole and no shortcut is sent (issue #358). Capture is
             // above on purpose, so a button can still be added from Settings

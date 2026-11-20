@@ -49,6 +49,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
             "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift",
             "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift",
+            "Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
         ]
         for path in surfaces {
             let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""

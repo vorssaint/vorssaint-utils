@@ -8,6 +8,9 @@ import AppKit
 /// permission.
 final class PointerDisplayService: ObservableObject {
     static let shared = PointerDisplayService()
+    /// Posted after the pointer was moved to another display: a warp sends
+    /// no mouse event, so anything drawing the pointer hears about it here.
+    static let didWarpPointer = Notification.Name("VorssaintPointerDidWarp")
 
     @Published private(set) var shortcutRegistrationFailed = false
 
@@ -50,5 +53,6 @@ final class PointerDisplayService: ObservableObject {
         // Without this the next physical movement can snap the pointer back
         // to where it was before the warp.
         CGAssociateMouseAndMouseCursorPosition(1)
+        NotificationCenter.default.post(name: Self.didWarpPointer, object: nil)
     }
 }

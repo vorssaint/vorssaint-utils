@@ -217,7 +217,10 @@ final class MouseNavigationService: ObservableObject {
         // side button, so both have to stay cheap.
         if RadialMenuSupport.claimsMouseButton(buttonNumber)
             || MouseButtonShortcutSupport.claimsButton(buttonNumber)
-            || MouseButtonShortcutService.isCaptureActive {
+            || MouseButtonShortcutService.isCaptureActive
+            // While the presentation pointer blocks clicks, a side button
+            // must reach its shield like any other press, not the app.
+            || PresentationPointerClickBlock.isActive {
             return Unmanaged.passUnretained(event)
         }
 

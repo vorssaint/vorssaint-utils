@@ -226,6 +226,12 @@ struct GlobalShortcut: Equatable, Hashable {
     // P opens a copied image in the editor, beside the other screenshot tools.
     static let screenshotClipboardDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_P),
                                                            modifiers: [.control, .option, .command])
+    // F for finger: the presentation pointer, and B to block clicks beside
+    // it, both on the same free control-option-command layer.
+    static let presentationPointerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_F),
+                                                           modifiers: [.control, .option, .command])
+    static let presentationPointerBlockClicksDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B),
+                                                                      modifiers: [.control, .option, .command])
     // Space for the wheel, on the same free control-option-command layer.
     static let radialMenuDefault = GlobalShortcut(keyCode: Int64(kVK_Space),
                                                   modifiers: [.control, .option, .command])
@@ -740,6 +746,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessIncrease
     case pointerNextDisplay
     case notch
+    case presentationPointer
+    case presentationPointerBlockClicks
 
     var id: String { storageKey }
 
@@ -779,6 +787,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
+        case .presentationPointer: return DefaultsKey.presentationPointerShortcut
+        case .presentationPointerBlockClicks: return DefaultsKey.presentationPointerBlockClicksShortcut
         }
     }
 
@@ -818,6 +828,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
+        case .presentationPointer: return .presentationPointerDefault
+        case .presentationPointerBlockClicks: return .presentationPointerBlockClicksDefault
         }
     }
 
@@ -901,6 +913,9 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
+        case .presentationPointer: return FeatureStrings.presentationPointer(L10n.shared.language).title
+        case .presentationPointerBlockClicks:
+            return FeatureStrings.presentationPointer(L10n.shared.language).blockClicksTitle
         }
     }
 
@@ -965,6 +980,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
+        case .presentationPointer: return [DefaultsKey.presentationPointerShortcutEnabled]
+        case .presentationPointerBlockClicks: return [DefaultsKey.presentationPointerBlockClicksShortcutEnabled]
         }
     }
 
@@ -998,6 +1015,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
         case .notch: return .notch
+        case .presentationPointer, .presentationPointerBlockClicks: return .presentationPointer
         }
     }
 

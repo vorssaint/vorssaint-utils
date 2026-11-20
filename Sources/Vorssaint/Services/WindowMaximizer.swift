@@ -109,7 +109,10 @@ final class WindowMaximizer: ObservableObject {
 
         switch type {
         case .leftMouseDown:
-            guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
+            // While the presentation pointer blocks clicks, the press belongs
+            // to its shield, not to the window under it.
+            guard !PresentationPointerClickBlock.isActive,
+                  event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
                   let target = target(at: event.location)
             else {
                 pendingClick = nil

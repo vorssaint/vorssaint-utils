@@ -82,6 +82,21 @@ enum DefaultsKey {
     static let mouseSpacesGestureFollowsDrag = "mouseSpacesGestureFollowsDrag" // the Space moves with the hand, the way natural scrolling does
     static let mouseClickDebounceEnabled = "mouseClickDebounceEnabled"
     static let mouseClickDebounceWindowMs = "mouseClickDebounceWindowMs"
+    // Presentation pointer: whether it shows is live state and never saved,
+    // so it starts off at every launch; these are its look and its triggers.
+    static let presentationPointerShortcutEnabled = "presentationPointerShortcutEnabled"
+    static let presentationPointerShortcut = "presentationPointerShortcut"
+    static let presentationPointerBlockClicksShortcutEnabled = "presentationPointerBlockClicksShortcutEnabled"
+    static let presentationPointerBlockClicksShortcut = "presentationPointerBlockClicksShortcut"
+    static let presentationPointerStyle = "presentationPointerStyle"      // PresentationPointerStyle raw value
+    static let presentationPointerColor = "presentationPointerColor"      // #RRGGBB
+    static let presentationPointerSize = "presentationPointerSize"        // points, see PresentationPointerSupport.sizeRange
+    static let presentationPointerEnergy = "presentationPointerEnergy"    // 0 subtle ... 1 bold
+    static let presentationPointerBursts = "presentationPointerBursts"
+    static let presentationPointerSoundEnabled = "presentationPointerSoundEnabled"
+    static let presentationPointerSoundName = "presentationPointerSoundName" // a system sound, or "custom"
+    static let presentationPointerSoundVolume = "presentationPointerSoundVolume"
+    static let presentationPointerCustomSoundPath = "presentationPointerCustomSoundPath"
     static let superKeyEnabled = "superKeyEnabled"        // chosen key holds the configured modifiers (issue #330)
     static let superKeySource = "superKeySource"           // SuperKeySource raw value
     static let superKeyModifiers = "superKeyModifiers"     // GlobalShortcutModifiers storage tokens
@@ -786,6 +801,7 @@ enum DefaultsKey {
     static let recorderSharingEnabled = "recorderSharingEnabled"
     static let panelUtilityScreenRecorder = "panelUtilityScreenRecorder"
     static let panelUtilityPortManager = "panelUtilityPortManager"
+    static let panelUtilityPresentationPointer = "panelUtilityPresentationPointer"
 
     // Window Layout — snapping, global shortcuts and optional pointer gestures.
     static let windowLayoutShortcutsEnabled = "windowLayoutShortcutsEnabled"
@@ -1297,6 +1313,21 @@ enum Defaults {
         DefaultsKey.mouseSpacesGestureFollowsDrag: false,
         DefaultsKey.mouseClickDebounceEnabled: false,
         DefaultsKey.mouseClickDebounceWindowMs: defaultMouseClickDebounceWindowMs,
+        // The feature is opt-in, so its shortcuts come with it once installed.
+        DefaultsKey.presentationPointerShortcutEnabled: true,
+        DefaultsKey.presentationPointerShortcut: GlobalShortcut.presentationPointerDefault.storageValue,
+        DefaultsKey.presentationPointerBlockClicksShortcutEnabled: true,
+        DefaultsKey.presentationPointerBlockClicksShortcut:
+            GlobalShortcut.presentationPointerBlockClicksDefault.storageValue,
+        DefaultsKey.presentationPointerStyle: PresentationPointerSupport.defaultStyle.rawValue,
+        DefaultsKey.presentationPointerColor: PresentationPointerSupport.defaultColor,
+        DefaultsKey.presentationPointerSize: PresentationPointerSupport.defaultSize,
+        DefaultsKey.presentationPointerEnergy: PresentationPointerSupport.defaultEnergy,
+        DefaultsKey.presentationPointerBursts: true,
+        DefaultsKey.presentationPointerSoundEnabled: false,
+        DefaultsKey.presentationPointerSoundName: PresentationPointerSupport.defaultSoundName,
+        DefaultsKey.presentationPointerSoundVolume: PresentationPointerSupport.defaultSoundVolume,
+        DefaultsKey.presentationPointerCustomSoundPath: "",
         DefaultsKey.superKeyEnabled: false,
         DefaultsKey.superKeySource: SuperKeySource.capsLock.rawValue,
         DefaultsKey.superKeyModifiers: SuperKeySupport.defaultModifierStorageValue,
@@ -1931,6 +1962,7 @@ enum Defaults {
         DefaultsKey.recorderSharingEnabled: true,
         DefaultsKey.panelUtilityScreenRecorder: true,
         DefaultsKey.panelUtilityPortManager: true,
+        DefaultsKey.panelUtilityPresentationPointer: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,

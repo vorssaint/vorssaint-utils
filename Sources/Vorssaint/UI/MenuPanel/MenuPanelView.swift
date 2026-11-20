@@ -556,7 +556,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
     // are migrated once without disturbing the rest of the user's layout.
     case screenshot, quickLauncher, appUpdates, cleaner, homebrew, media, clipboard, windowLayout,
          uninstaller, cleanURL, cleaning, screenOCR, colorPicker, cameraPreview, scratchpad,
-         commandBar, screenRecorder, portManager
+         commandBar, screenRecorder, portManager, presentationPointer
 
     var id: String { rawValue }
 
@@ -582,6 +582,7 @@ private enum UtilityPanelItem: String, PanelOrderItem, Identifiable {
         case .scratchpad: return .scratchpad
         case .commandBar: return .commandBar
         case .portManager: return .portManager
+        case .presentationPointer: return .presentationPointer
         }
     }
 }
@@ -618,6 +619,7 @@ struct UtilitiesSection: View {
     @AppStorage(DefaultsKey.panelUtilityCommandBar) private var showCommandBar = true
     @AppStorage(DefaultsKey.panelUtilityScreenRecorder) private var showScreenRecorder = true
     @AppStorage(DefaultsKey.panelUtilityPortManager) private var showPortManager = true
+    @AppStorage(DefaultsKey.panelUtilityPresentationPointer) private var showPresentationPointer = true
     @ObservedObject private var recorder = ScreenRecorderService.shared
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardEnabled = false
     @AppStorage(DefaultsKey.panelUtilityOrder) private var utilityOrderRaw = ""
@@ -782,6 +784,7 @@ struct UtilitiesSection: View {
         case .screenshot: return showScreenshot
         case .screenRecorder: return showScreenRecorder
         case .portManager: return showPortManager
+        case .presentationPointer: return showPresentationPointer
         }
     }
 
@@ -1026,6 +1029,10 @@ struct UtilitiesSection: View {
                                 showsDragHandle: true,
                                 visibility: $showPortManager,
                                 action: { showPortManagerPanel = true })
+        case .presentationPointer:
+            PresentationPointerPanelTile(isEditing: editing,
+                                         visibility: $showPresentationPointer,
+                                         shortcutHint: shortcutHint(.presentationPointer))
         }
     }
 
@@ -1103,6 +1110,7 @@ struct UtilitiesSection: View {
         showQuickLauncher = true
         showCommandBar = true
         showPortManager = true
+        showPresentationPointer = true
     }
 
     private func grantAccessibility() {
@@ -2238,6 +2246,119 @@ struct UtilityActionButton: View {
     }
 }
 
+/// The presentation pointer in the panel, as quick to use as its own menu:
+/// a switch to show it, the looks to pick from, and click blocking, which
+/// lights up while it is on. Its own view, so the service is only created
+/// where the feature is installed.
+private struct PresentationPointerPanelTile: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = PresentationPointerService.shared
+    @AppStorage(DefaultsKey.presentationPointerStyle) private var style =
+        PresentationPointerSupport.defaultStyle.rawValue
+    @AppStorage(DefaultsKey.presentationPointerColor) private var color = PresentationPointerSupport.defaultColor
+    let isEditing: Bool
+    let visibility: Binding<Bool>
+    let shortcutHint: String?
+
+    private var text: PresentationPointerStrings { FeatureStrings.presentationPointer(l10n.language) }
+
+    var body: some View {
+        if isEditing {
+            UtilityActionButton(title: text.title, caption: text.panelCaption,
+                                systemImage: "hand.point.up.left", isEditing: true, showsDragHandle: true,
+                                visibility: visibility, action: {})
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: PanelRowMetrics.iconSpacing) {
+                    Image(systemName: service.isShowing ? "hand.point.up.left.fill" : "hand.point.up.left")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: PanelRowMetrics.iconWidth)
+                    Text(text.title)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if let shortcutHint {
+                        Text(shortcutHint)
+                            .font(.system(size: 9, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.tertiary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                .fill(Color.primary.opacity(0.06)))
+                    }
+                    Toggle(text.showToggle, isOn: showingBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                }
+                HStack(spacing: 5) {
+                    ForEach(PresentationPointerStyle.allCases) { option in
+                        styleChip(option)
+                    }
+                    Spacer(minLength: 6)
+                    Toggle(isOn: blockingBinding) {
+                        Label(text.blockClicksTitle,
+                              systemImage: service.blocksClicks ? "hand.raised.fill" : "hand.raised")
+                            .font(.system(size: 9.5, weight: .semibold))
+                    }
+                    .toggleStyle(.button)
+                    .controlSize(.mini)
+                    .tint(.orange)
+                }
+                .padding(.leading, PanelRowMetrics.iconWidth + PanelRowMetrics.iconSpacing)
+            }
+            .panelRowInsets()
+            .panelRowDescription(text.panelCaption)
+        }
+    }
+
+    private func styleChip(_ option: PresentationPointerStyle) -> some View {
+        let selected = PresentationPointerSupport.style(stored: style) == option
+        return Button {
+            style = option.rawValue
+            service.syncWithPreferences()
+        } label: {
+            Group {
+                if let image = PresentationPointerThumbnails.image(option, colorHex: color, size: 16) {
+                    Image(nsImage: image)
+                }
+            }
+            .frame(width: 24, height: 24)
+            .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(selected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 1.5))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(PresentationPointerMenu.name(of: option, text))
+        .accessibilityLabel(PresentationPointerMenu.name(of: option, text))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Turning the pointer or click blocking on closes the panel first, so
+    /// the pointer arrives over what is being presented; turning either off
+    /// happens at once.
+    private var showingBinding: Binding<Bool> {
+        Binding(get: { service.isShowing }, set: { on in
+            guard on != service.isShowing else { return }
+            on ? runAfterClosing(service.toggle) : service.toggle()
+        })
+    }
+
+    private var blockingBinding: Binding<Bool> {
+        Binding(get: { service.blocksClicks }, set: { on in
+            guard on != service.blocksClicks else { return }
+            on ? runAfterClosing(service.toggleBlockingClicks) : service.toggleBlockingClicks()
+        })
+    }
+
+    private func runAfterClosing(_ action: @escaping () -> Void) {
+        appDelegate()?.closePopover()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: action)
+    }
+}
 
 /// Shared switch row used by Quick Controls and Quick toggles.
 struct PanelToggleRow: View {
