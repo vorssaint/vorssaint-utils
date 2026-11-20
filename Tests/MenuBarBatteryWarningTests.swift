@@ -22,6 +22,7 @@ enum MenuBarBatteryWarningTests {
         typealias ReviewDefaults = MenuBarBatteryWarningTests.ReviewDefaults
         typealias MenuBarMetricSpacing = MenuBarBatteryWarningTests.MenuBarMetricSpacing
         typealias MenuBarMetricAppearance = MenuBarBatteryWarningTests.MenuBarMetricAppearance
+        typealias MenuBarBatteryStyle = MenuBarBatteryWarningTests.MenuBarBatteryStyle
         static let blockImageCache = NSCache<NSString, NSImage>()
         static let legacyBlockAttachmentNudge: CGFloat = 0
         static var style = MenuBarBlockStyle.dense
@@ -36,8 +37,6 @@ enum MenuBarBatteryWarningTests {
         // Unrelated branches of the production attributed-string renderer
         // must not be reached by this battery-only fixture.
         static func symbolAttachment(named: String, stacked: Bool, enlarged: Bool = false) -> NSAttributedString { preconditionFailure() }
-        static func usageBarBlockAttachment(label: String, fraction: Double?, style: MenuBarBlockStyle,
-                                            pressure: MemoryPressure?) -> NSAttributedString { preconditionFailure() }
         static func networkBlockAttachment(down: String, up: String, style: MenuBarBlockStyle) -> NSAttributedString { preconditionFailure() }
         static func diskActivityBlockAttachment(read: String, write: String, style: MenuBarBlockStyle) -> NSAttributedString { preconditionFailure() }
     }
@@ -61,12 +60,15 @@ enum MenuBarBatteryWarningTests {
         defaults.set(true, forKey: DefaultsKey.menuBarCombineTemperatures)
         segmentContracts(suite, defaults: defaults)
         imageContracts(suite, defaults: defaults)
+        barContracts(suite, defaults: defaults)
     }
 
-    private static func snapshot(_ percent: Int? = 10, temperature: Double? = 35, plugged: Bool = false) -> SystemSnapshot {
+    private static func snapshot(_ percent: Int? = 10, temperature: Double? = 35, plugged: Bool = false,
+                                 charging: Bool = false) -> SystemSnapshot {
         var power = PowerReading()
         power.chargePercent = percent
         power.externalConnected = plugged
+        power.isCharging = charging
         return SystemSnapshot(power: power, batteryTemperature: temperature)
     }
 
@@ -158,6 +160,80 @@ enum MenuBarBatteryWarningTests {
                      && memory.map { matchingPixels($0, color: .systemYellow) > 0 && matchingPixels($0, color: .systemRed) == 0 } == true,
                      "other metric blocks retain the default warning and their existing pressure color")
         Renderer.overrideSegments = nil
+    }
+
+    private static func barContracts(_ suite: TestSuite, defaults: UserDefaults) {
+        defaults.set("bars", forKey: DefaultsKey.menuBarMetricAppearance)
+        let initialStyle = Renderer.style
+        defer {
+            defaults.removeObject(forKey: DefaultsKey.menuBarMetricAppearance)
+            defaults.removeObject(forKey: DefaultsKey.menuBarBatteryStyle)
+            Renderer.style = initialStyle
+        }
+        for style in [MenuBarBlockStyle.readable, .dense] {
+            if case let .batteryBlock(_, _, _, warning, _)? = Renderer.blockSegments(for: snapshot(), metrics: [.battery], style: style).first {
+                suite.expect(warning == .low, "the bars appearance keeps the battery glyph and its warning until the bar style is chosen")
+            } else { suite.expect(false, "the battery bar is opt-in under the bars appearance") }
+        }
+        defaults.set("bar", forKey: DefaultsKey.menuBarBatteryStyle)
+        defaults.set("values", forKey: DefaultsKey.menuBarMetricAppearance)
+        suite.expect(warnings(Renderer.blockSegments(for: snapshot(10, temperature: nil), metrics: [.battery], style: .dense)) == [.low]
+                     && { if case .batteryBlock? = Renderer.blockSegments(for: snapshot(), metrics: [.battery], style: .dense).first { return true }
+                          return false }(),
+                     "the bar style has no effect outside the bars appearance")
+        let bolt = MenuBarUsageBarSupport.chargingBoltPoints
+        suite.expect(bolt.allSatisfy { point in
+                         bolt.contains { abs($0.x - (1 - point.x)) < 0.0001 && abs($0.y - (1 - point.y)) < 0.0001 }
+                     },
+                     "the charging bolt is symmetric about its center, so it sits on the bar's center line")
+        defaults.set("bars", forKey: DefaultsKey.menuBarMetricAppearance)
+        for style in [MenuBarBlockStyle.readable, .dense] {
+            Renderer.style = style
+            for metrics: [MenuBarMetric] in [[.battery, .batteryTemperature], [.battery]] {
+                for percent in [10, 25, 90] {
+                    let segments = Renderer.blockSegments(for: snapshot(percent), metrics: metrics, style: style)
+                    if case let .batteryBarBlock(charge, _, _, barStyle)? = segments.first {
+                        suite.expect(charge == percent && barStyle == style,
+                                     "the bars appearance draws charge as a battery bar")
+                    } else { suite.expect(false, "the bars appearance turns charge into a battery bar") }
+                }
+            }
+            func bar(_ percent: Int, plugged: Bool = false, charging: Bool = false) -> NSImage? {
+                let attributed = Renderer.attributed(for: snapshot(percent, plugged: plugged, charging: charging), metrics: [.battery])
+                return attributed.length > 0 ? (attributed.attribute(.attachment, at: 0, effectiveRange: nil) as? NSTextAttachment)?.image : nil
+            }
+            // The island's warning is on at 10% and 20% in these defaults; the
+            // bar ignores it and switches at 20% and 40% instead.
+            guard let low = bar(19), let early = bar(39), let full = bar(40), let idle = bar(90),
+                  let charging = bar(90, charging: true) else {
+                suite.expect(false, "battery bars produce image attachments")
+                continue
+            }
+            suite.expect(low.size == full.size && charging.size == full.size
+                         && full.size == Renderer.usageBarSize(style: style, showsPressure: false),
+                         "battery bars keep the usage bar footprint whatever the charge or charging state")
+            func usage(_ hex: String) -> NSColor {
+                let rgb = MenuBarUsageBarSupport.rgb(for: hex, fallback: hex)
+                return NSColor(deviceRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1)
+            }
+            let normal = usage(MenuBarUsageBarSupport.defaultNormalColor)
+            let elevated = usage(MenuBarUsageBarSupport.defaultElevatedColor)
+            let critical = usage(MenuBarUsageBarSupport.defaultCriticalColor)
+            suite.expect(matchingPixels(low, color: critical) > 0 && matchingPixels(early, color: elevated) > 0
+                         && matchingPixels(full, color: normal) > 0
+                         && matchingPixels(full, color: critical) == 0 && matchingPixels(full, color: elevated) == 0,
+                         "a battery bar uses the usage colors in reverse: below 40% is elevated, below 20% critical")
+            if let chargingLow = bar(10, charging: true), let idleLow = bar(10) {
+                suite.expect(matchingPixels(charging, color: normal) < matchingPixels(idle, color: normal)
+                             && matchingPixels(chargingLow, color: .black) > matchingPixels(idleLow, color: .black),
+                             "charging cuts the bolt out of the fill and draws it in the label color above the fill")
+            } else { suite.expect(false, "a low charging battery bar produces an image attachment") }
+            if let plugged = bar(10, plugged: true) {
+                suite.expect(matchingPixels(plugged, color: .systemGreen) > 0 && matchingPixels(full, color: .systemGreen) == 0
+                             && matchingPixels(plugged, color: critical) == 0,
+                             "external power fills the battery bar green, like the panel's battery, and clears the warning")
+            } else { suite.expect(false, "a plugged-in battery bar produces an image attachment") }
+        }
     }
 
     /// Force the actual NSImage drawing closure into a bitmap and inspect its
