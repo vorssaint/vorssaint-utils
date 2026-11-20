@@ -60,6 +60,7 @@ final class ScreenshotSelectionController {
     private var freeze: Bool
     private var includePointer: Bool
     private let showLastRegion: Bool
+    private let squareSelectionCorners: Bool
     private var hideVorssaintWindows: Bool
     private let otherProtectedWindowIDs: () -> Set<CGWindowID>
     private let baseMode: Mode
@@ -198,6 +199,7 @@ final class ScreenshotSelectionController {
         self.screenCaptureOptions = screenCaptureOptions
         self.scrollingCaptureEnabled = screenCaptureOptions?.selectedTool == .scrolling
         let defaults = UserDefaults.standard
+        self.squareSelectionCorners = defaults.bool(forKey: DefaultsKey.screenshotSquareSelectionCorners)
         self.loupeZoom = ScreenshotSupport.captureLoupeInitialZoom(
             rememberLast: defaults.bool(forKey: DefaultsKey.screenshotLoupeRememberZoom),
             defaultZoom: CGFloat(defaults.double(forKey: DefaultsKey.screenshotLoupeDefaultZoom)),
@@ -213,6 +215,10 @@ final class ScreenshotSelectionController {
     }
 
     private var activeTool: ScreenCaptureTool? { screenCaptureOptions?.selectedTool }
+
+    fileprivate var usesSquareSelectionCorners: Bool {
+        squareSelectionCorners && (activeTool == .screenshot || activeTool == .scrolling)
+    }
 
     private var activeMode: Mode {
         switch activeTool {
@@ -1497,14 +1503,15 @@ private final class ScreenshotOverlayView: NSView {
                                                           isFrozen: frozenImage != nil, isDragging: isDragging)
         context.setFillColor(CGColor(gray: 0, alpha: dimAlpha))
         if selection.width > 0, selection.height > 0 {
+            let cornerRadius: CGFloat = controller.usesSquareSelectionCorners ? 0 : 8
             context.beginPath()
             context.addRect(bounds)
             context.addPath(CGPath(roundedRect: selection,
-                                   cornerWidth: 8,
-                                   cornerHeight: 8,
+                                   cornerWidth: cornerRadius,
+                                   cornerHeight: cornerRadius,
                                    transform: nil))
             context.fillPath(using: .evenOdd)
-            drawSelectionChrome(context, pixelScale: panel.pixelScale)
+            drawSelectionChrome(context, pixelScale: panel.pixelScale, cornerRadius: cornerRadius)
         } else if dragOrigin == nil, hoveredWindow != nil {
             if let hovered = hoveredWindow {
                 context.beginPath()
@@ -1533,14 +1540,15 @@ private final class ScreenshotOverlayView: NSView {
         }
     }
 
-    private func drawSelectionChrome(_ context: CGContext, pixelScale: CGFloat) {
+    private func drawSelectionChrome(_ context: CGContext, pixelScale: CGFloat, cornerRadius: CGFloat) {
+        let outerCornerRadius = cornerRadius > 0 ? cornerRadius + 1 : 0
         let outer = CGPath(roundedRect: selection.insetBy(dx: -1.5, dy: -1.5),
-                           cornerWidth: 9,
-                           cornerHeight: 9,
+                           cornerWidth: outerCornerRadius,
+                           cornerHeight: outerCornerRadius,
                            transform: nil)
         let inner = CGPath(roundedRect: selection.insetBy(dx: -0.5, dy: -0.5),
-                           cornerWidth: 8,
-                           cornerHeight: 8,
+                           cornerWidth: cornerRadius,
+                           cornerHeight: cornerRadius,
                            transform: nil)
         context.saveGState()
         context.setShadow(offset: .zero,
