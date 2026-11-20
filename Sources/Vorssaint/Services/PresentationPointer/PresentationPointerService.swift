@@ -40,9 +40,12 @@ final class PresentationPointerService: ObservableObject {
     private var overlays: [CGDirectDisplayID: PresentationPointerOverlay] = [:]
     private var shields: [CGDirectDisplayID: PresentationPointerClickShield] = [:]
     private var activeDisplayID: CGDirectDisplayID?
-    /// When the pointer was last turned on, so a display it crosses to while
-    /// it is still fading in carries the fade on.
+    /// Set when the pointer is turned on: the first display it lands on
+    /// starts the arrival fade, and one it crosses to while that fade runs
+    /// carries it on from `arrivalTime`.
+    private var awaitingArrival = false
     private var arrivalTime: TimeInterval?
+    private var restoreGeneration = 0
     /// The displays and their frames in the system's order, read once per
     /// layout so a mouse move allocates nothing.
     private var displayIDs: [CGDirectDisplayID] = []
@@ -300,9 +303,11 @@ final class PresentationPointerService: ObservableObject {
                     forName: name, object: nil, queue: .main) { [weak self] _ in self?.reassertPointer() }))
             }
         }
-        // The first display the pointer lands on fades it in (movePointer),
-        // timed from here, once everything else is set up.
-        if arriving { arrivalTime = ProcessInfo.processInfo.systemUptime }
+        // The first display the pointer lands on fades it in (movePointer).
+        if arriving {
+            awaitingArrival = true
+            arrivalTime = nil
+        }
         layoutDisplays()
     }
 
@@ -320,6 +325,7 @@ final class PresentationPointerService: ObservableObject {
         activeDisplayID = nil
         displayIDs = []
         displayFrames = []
+        awaitingArrival = false
         arrivalTime = nil
         cancelSystemPointerCheck()
         systemPointerShowing = false
@@ -380,6 +386,7 @@ final class PresentationPointerService: ObservableObject {
     /// leaves the system pointer where it is.
     private func reconcileSystemPointer() {
         if isPresenting, style.replacesSystemPointer, let id = activeDisplayID, overlays[id]?.hasArtwork == true {
+            restoreGeneration &+= 1
             systemPointer.hide()
             // Some surfaces keep the system pointer however it is hidden;
             // find out in a moment, once the hide has landed, rather than at
@@ -491,13 +498,20 @@ final class PresentationPointerService: ObservableObject {
 
     /// Gives the system pointer back. The window server can refuse, which
     /// would leave the Mac without a pointer, so a refused show is tried
-    /// again a few times, further apart each time, until it takes or a
-    /// picture stands in for the pointer again.
-    private func restoreSystemPointer(attempt: Int = 0) {
-        if attempt > 0, systemPointer.isHiding { return }
-        guard !systemPointer.show(), attempt < 6 else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25 * pow(2, Double(attempt))) { [weak self] in
-            self?.restoreSystemPointer(attempt: attempt + 1)
+    /// again, further apart each time up to every few seconds, until it
+    /// takes or a picture stands in for the pointer again. One chain of
+    /// retries runs at a time.
+    private func restoreSystemPointer() {
+        restoreGeneration &+= 1
+        guard !systemPointer.show() else { return }
+        retryRestore(generation: restoreGeneration, after: 0.25)
+    }
+
+    private func retryRestore(generation: Int, after delay: TimeInterval) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            guard let self, generation == self.restoreGeneration, !self.systemPointer.isHiding,
+                  !self.systemPointer.show() else { return }
+            self.retryRestore(generation: generation, after: min(delay * 2, 4))
         }
     }
 
@@ -564,8 +578,13 @@ final class PresentationPointerService: ObservableObject {
             // macOS shows its pointer, and still fading if it just arrived.
             overlays[id]?.setSuppressed(style.replacesSystemPointer && systemPointerShowing)
             overlays[id]?.movePointer(to: location)
+            let now = ProcessInfo.processInfo.systemUptime
+            if awaitingArrival {
+                awaitingArrival = false
+                arrivalTime = now
+            }
             if let arrivalTime {
-                overlays[id]?.fadeIn(elapsed: ProcessInfo.processInfo.systemUptime - arrivalTime,
+                overlays[id]?.fadeIn(elapsed: now - arrivalTime,
                                      reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
             }
             reconcileSystemPointer()
