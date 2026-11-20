@@ -400,6 +400,7 @@ private struct NotchCapsuleCompanionMark: View {
     let companion: NotchCompactActivity
     let geometry: NotchGeometry
     @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var mediaDownloader = MediaDownloaderService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
@@ -410,7 +411,8 @@ private struct NotchCapsuleCompanionMark: View {
         case .downloads:
             HStack(spacing: CapsuleLayout.markSpacing) {
                 NotchCapsuleSymbol(name: "arrow.down.circle.fill")
-                if let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction {
+                if let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction
+                    ?? mediaDownloader.activeDownloadFraction {
                     Text(fraction, format: NotchDownloadSupport.percentFormat(l10n.language))
                         .font(Font(CapsuleLayout.smallFont as CTFont)).lineLimit(1)
                         .frame(width: CapsuleLayout.downloadPercentWidth(l10n.language), alignment: .trailing)
@@ -497,16 +499,19 @@ struct NotchCapsuleDownloadStrip: View {
     /// Another display's capsule, when the island shows on every display.
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var mediaDownloader = MediaDownloaderService.shared
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
         let item = downloads.items.first { $0.active && !$0.completed }
-        let name = item?.name ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle
+        let fraction = item?.fraction ?? mediaDownloader.activeDownloadFraction
+        let name = item?.name ?? mediaDownloader.activeDownloadTitle
+            ?? FeatureStrings.notchFiles(l10n.language).downloadsTitle
         NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
             HStack(spacing: CapsuleLayout.spacing) {
                 NotchCapsuleSymbol(name: "arrow.down.circle.fill")
                 Text(name).font(Font(CapsuleLayout.detailFont as CTFont)).lineLimit(1).truncationMode(.middle)
-                if let fraction = item?.fraction {
+                if let fraction {
                     NotchMeter(value: fraction, height: CapsuleLayout.meterHeight)
                         .frame(width: CapsuleLayout.downloadMeterWidth)
                         .padding(.leading, CapsuleLayout.groupSpacing - CapsuleLayout.spacing)

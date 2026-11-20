@@ -1549,6 +1549,10 @@ def main():
     if not separator or not next_case or not music_case.startswith("        case .music:\n"):
         raise ValueError("Expected the music branch first in capsuleStripSize")
     for line in ["        let download = NotchDownloadService.shared.items.first { $0.active && !$0.completed }\n",
+                 "        let downloadName = download?.name ?? MediaDownloaderService.shared.activeDownloadTitle\n",
+                 "            ?? FeatureStrings.notchFiles(language).downloadsTitle\n",
+                 "        let downloadHasProgress = download?.fraction != nil\n",
+                 "            || MediaDownloaderService.shared.activeDownloadFraction != nil\n",
                  "        let working = Set(AgentUsageService.shared.snapshot.live.map(\\.provider)).count\n"]:
         if line not in prefix:
             raise ValueError("Expected the non-music activity readings in capsuleStripSize")

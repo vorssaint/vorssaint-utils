@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, quitApps, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager
+         commandBar, screenRecorder, wallpaper, killProcess, portManager, mediaDownloader
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
@@ -113,7 +113,7 @@ extension AppFeature {
             return .sound
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep:
             return .energyDisplay
-        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+        case .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools, .mediaDownloader,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
              .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
             return .tools
@@ -178,6 +178,7 @@ extension AppFeature {
         case .screenOCR: return "text.viewfinder"
         case .cleaningMode: return "bubbles.and.sparkles"
         case .mediaTools: return "photo.on.rectangle.angled"
+        case .mediaDownloader: return "film"
         case .cleaner: return "sparkles"
         case .uninstaller: return "trash"
         case .homebrew: return "shippingbox"
@@ -291,7 +292,7 @@ extension AppFeature {
         case .extraBrightness: return [DefaultsKey.extraBrightnessEnabled]
         case .bluetoothSleep: return [DefaultsKey.bluetoothSleepEnabled]
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
-             .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
+             .quickLauncher, .quickToggles, .quitApps, .colorPicker, .screenOCR, .cleaningMode, .mediaTools, .mediaDownloader,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
@@ -389,6 +390,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
+             .mediaDownloader,
              .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
              .portManager,
              // Each app gets the ordinary quit request it would from its own menu.
@@ -491,7 +493,8 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .scrollZoom, .linearScroll, .scrollSpeed, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps:
+             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder, .quitApps,
+             .mediaDownloader:
             return false
         }
     }

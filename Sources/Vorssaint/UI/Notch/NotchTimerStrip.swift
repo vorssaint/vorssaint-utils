@@ -113,6 +113,7 @@ struct NotchCompanionMark: View {
     let companion: NotchCompactActivity
     let geometry: NotchGeometry
     @ObservedObject private var downloads = NotchDownloadService.shared
+    @ObservedObject private var mediaDownloader = MediaDownloaderService.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var calendar = NotchCalendarService.shared
@@ -145,7 +146,8 @@ struct NotchCompanionMark: View {
         HStack(spacing: 5) {
             Image(systemName: "arrow.down.circle.fill").font(.system(size: 13))
             if geometry.compactActivityWingWidth >= 80,
-               let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction {
+               let fraction = downloads.items.first(where: { $0.active && !$0.completed })?.fraction
+                    ?? mediaDownloader.activeDownloadFraction {
                 Text(fraction, format: .percent.precision(.fractionLength(0)))
                     .font(.system(size: 10, weight: .medium)).monospacedDigit()
             }

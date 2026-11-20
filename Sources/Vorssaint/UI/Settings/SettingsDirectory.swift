@@ -200,6 +200,13 @@ enum SettingsDirectory {
         }
         var items = SettingsSearchSupport.combinedItems(pageItems: pageItems,
                                                         featureItems: featureItems)
+        let mediaDownloader = FeatureStrings.mediaDownloader(language)
+        if let index = items.firstIndex(where: { $0.feature == .mediaDownloader }) {
+            items[index].terms.append(SettingsSearchTerms([
+                mediaDownloader.toolsTitle, mediaDownloader.linkTitle,
+                mediaDownloader.batchTitle, mediaDownloader.progressTitle,
+            ]))
+        }
         items.append(SettingsSearchItem(
             id: .setting(.panelConfiguration),
             destination: FeatureSettingsDestination(

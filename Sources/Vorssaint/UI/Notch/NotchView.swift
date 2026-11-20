@@ -579,6 +579,9 @@ struct NotchView: View {
                 NotchNotificationsView(size: pageSize)
                     .notchBand(trailing: { NotchClearNotificationsButton() })
             case .downloads: NotchDownloadsView(size: pageSize)
+            case .mediaDownloader:
+                MediaDownloaderView(compact: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             case .calendar: NotchCalendarView(size: pageSize)
             case .controls: NotchControlsView(service: service, size: pageSize)
             case .mixer: NotchMixerView(size: pageSize)
@@ -825,6 +828,7 @@ extension NotchModule: PanelOrderItem {
         case .camera: return FeatureStrings.notchActivities(language).camera
         case .notifications: return FeatureStrings.notchNotifications(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
+        case .mediaDownloader: return "Media Downloader"
         case .calendar: return FeatureStrings.notchCalendar(language).title
         case .controls: return FeatureStrings.notch(language).controls
         case .mixer: return Strings.localized(language).mixerSection
