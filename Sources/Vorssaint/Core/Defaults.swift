@@ -722,6 +722,7 @@ enum DefaultsKey {
     static let screenshotDefaultAction = "screenshotDefaultAction"
     static let screenshotIncludePointer = "screenshotIncludePointer"
     static let screenshotShowLastRegion = "screenshotShowLastRegion"
+    static let screenshotSquareSelectionCorners = "screenshotSquareSelectionCorners"
     static let screenshotHighlightWindows = "screenshotHighlightWindows"
     static let screenshotLoupeStartsOn = "screenshotLoupeStartsOn"
     static let screenshotLoupeRememberZoom = "screenshotLoupeRememberZoom"
@@ -1961,6 +1962,7 @@ enum Defaults {
         DefaultsKey.screenshotDefaultAction: "",
         DefaultsKey.screenshotIncludePointer: false,
         DefaultsKey.screenshotShowLastRegion: true,
+        DefaultsKey.screenshotSquareSelectionCorners: false,
         DefaultsKey.screenshotHighlightWindows: true,
         DefaultsKey.screenshotLoupeStartsOn: false,
         DefaultsKey.screenshotLoupeRememberZoom: false,
