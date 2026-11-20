@@ -323,6 +323,9 @@ final class ShelfTileView: NSView, NSDraggingSource {
     private let isExpanded: Bool
     private let isPinned: Bool
     private var mouseDownPoint: NSPoint = .zero
+    private var pendingDragEvent: NSEvent?
+    private var pendingDragID: UUID?
+    private var dragPreparation: DispatchWorkItem?
     private var didDrag = false
     private var draggedIDs: [UUID] = []
     private var isDropTargeted = false
@@ -606,11 +609,13 @@ final class ShelfTileView: NSView, NSDraggingSource {
         ShelfService.shared.noteInteraction()
         window?.makeKey()
         ShelfTooltipPopover.shared.hide()
+        cancelDragPreparation()
         mouseDownPoint = event.locationInWindow
         didDrag = false
     }
 
     override func mouseDragged(with event: NSEvent) {
+        if pendingDragID != nil { pendingDragEvent = event }
         guard !didDrag else { return }
         let point = event.locationInWindow
         if hypot(point.x - mouseDownPoint.x, point.y - mouseDownPoint.y) > 4 {
@@ -620,6 +625,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
     }
 
     override func mouseUp(with event: NSEvent) {
+        cancelDragPreparation()
         guard !didDrag else { return }
         if item.isBatch, event.clickCount >= 2 {
             ShelfService.shared.toggleBatchExpansion(item.id)
@@ -684,31 +690,45 @@ final class ShelfTileView: NSView, NSDraggingSource {
             }
     }
 
+    private func cancelDragPreparation() {
+        dragPreparation?.cancel()
+        dragPreparation = nil
+        pendingDragID = nil
+        pendingDragEvent = nil
+    }
+
     private func beginItemDrag(with event: NSEvent) {
         let shelf = ShelfService.shared
-        let candidates = shelf.selection.contains(item.id) ? shelf.selectedItems() : [item]
-        let dragged = shelf.dragItems(for: candidates)
+        guard let source = window else { return }
+        let dragged = shelf.dragItemsForTile(item.id)
         guard !dragged.isEmpty else { return }
-        // A payload whose file vanished since it was shelved can never be
-        // dropped: every destination refuses the dead URL and the whole
-        // drag reads as broken. Only living payloads join the session; an
-        // all-dead grab explains itself instead of offering a ghost drag.
-        let living = shelf.livingDragItems(in: dragged)
-        guard !living.isEmpty else {
-            shelf.handleDeadDrag(dragged)
-            return
-        }
-        draggedIDs = living.map(\.id)
+        let id = UUID()
+        pendingDragID = id
+        pendingDragEvent = event
+        dragPreparation = shelf.prepareDrag(dragged) { [weak self, weak source] prepared in
+            guard let self, self.pendingDragID == id, let event = self.pendingDragEvent else { return }
+            self.pendingDragID = nil
+            self.pendingDragEvent = nil
+            self.dragPreparation = nil
+            guard let source, self.window === source, NSEvent.pressedMouseButtons & 1 != 0 else { return }
+            let leaves = shelf.dragItemsForTile(self.item.id)
+            guard leaves.count == dragged.count,
+                  zip(leaves, dragged).allSatisfy({ $0.id == $1.id && $0.payload == $1.payload })
+            else { return }
 
-        let draggingItems: [NSDraggingItem] = living.map { entry in
-            let draggingItem = NSDraggingItem(pasteboardWriter: shelf.pasteboardWriter(for: entry))
-            // Overlapping frames make AppKit stack them with a count badge.
-            draggingItem.setDraggingFrame(bounds, contents: entry.icon)
-            return draggingItem
+            shelf.finishPreparingDrag(prepared)
+            guard !prepared.living.isEmpty else { return }
+            self.draggedIDs = prepared.living.map(\.id)
+            let draggingItems = prepared.living.map { entry in
+                let draggingItem = NSDraggingItem(pasteboardWriter: shelf.pasteboardWriter(for: entry))
+                draggingItem.setDraggingFrame(self.bounds, contents: entry.icon)
+                return draggingItem
+            }
+            shelf.beginInternalDrag(items: prepared.living, from: source,
+                                    containsPackageContent: prepared.containsPackageContent)
+            shelf.beginInteraction()
+            self.beginDraggingSession(with: draggingItems, event: event, source: self)
         }
-        shelf.beginInternalDrag(items: living, from: window)
-        shelf.beginInteraction()
-        beginDraggingSession(with: draggingItems, event: event, source: self)
     }
 
     // MARK: NSDraggingSource

@@ -27,7 +27,9 @@ final class ClipboardHistoryService: ObservableObject {
             searchCache.prune(keeping: entries)
             // The result array holds full entry texts, so a cleared or edited
             // history's content must not linger in it until the next search.
-            filterCache = nil
+            filterCache.removeAll()
+            for work in deferredSearchWork.values { work.cancel() }
+            deferredSearchWork.removeAll()
             // Keeps latestPasteboardEntry from outliving the entry it points
             // to: removing it, clearing recent/all, or trimming to a smaller
             // limit must stop the preview from claiming stale content is
@@ -481,37 +483,76 @@ final class ClipboardHistoryService: ObservableObject {
     /// Bumped by the `entries` didSet; lets the search cache below notice any
     /// mutation without every mutating site having to remember it.
     private var entriesStamp = 0
-    private var filterCache: (query: String, stamp: Int, imageLabel: String,
-                              result: [ClipboardHistoryEntry])?
+    private var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
     private var searchCache = ClipboardHistorySearchCache()
+    private var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
 
-    func filteredEntries(matching query: String) -> [ClipboardHistoryEntry] {
+    func cancelSearch(on surface: ClipboardHistorySearchSurface) {
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
+        filterCache[surface] = nil
+    }
+
+    func filteredEntries(matching query: String, surface: ClipboardHistorySearchSurface = .quick,
+                         onDeferredResults: (() -> Void)? = nil) -> [ClipboardHistoryEntry] {
         // One ranking pass over a large history of long texts costs real
         // time, and SwiftUI asks for the filtered list many times per
         // render. The last result is reused until the query, the language
         // or the history itself changes.
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        if let cache = filterCache, cache.query == query,
+        if let cache = filterCache[surface], cache.query == query,
            cache.stamp == entriesStamp, cache.imageLabel == imageLabel {
             return cache.result
         }
+        deferredSearchWork.removeValue(forKey: surface)?.cancel()
         guard !entries.isEmpty else {
             searchCache.clear()
-            filterCache = (query, entriesStamp, imageLabel, [])
+            filterCache[surface] = (query, entriesStamp, imageLabel, [])
             return []
         }
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            filterCache = (query, entriesStamp, imageLabel, entries)
+            filterCache[surface] = (query, entriesStamp, imageLabel, entries)
             return entries
         }
         let candidates = searchCache.candidates(for: entries,
                                                 stamp: entriesStamp,
                                                 imageLabel: imageLabel)
-        let result = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
-            .compactMap { entries.indices.contains($0) ? entries[$0] : nil }
-        filterCache = (query, entriesStamp, imageLabel, result)
+        let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
+        let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
+        filterCache[surface] = (query, entriesStamp, imageLabel, result)
+        scheduleDeferredSearch(candidates: candidates,
+                               indexedRanking: ranked,
+                               query: query,
+                               imageLabel: imageLabel,
+                               stamp: entriesStamp, surface: surface, onDeferredResults: onDeferredResults)
         return result
+    }
+
+    /// Scores complete documents off-main so suffix-only and already visible
+    /// matches both settle in the same order as a full-text search.
+    private func scheduleDeferredSearch(candidates: [ClipboardHistorySearchCandidate],
+                                        indexedRanking: [Int], query: String, imageLabel: String,
+                                        stamp: Int, surface: ClipboardHistorySearchSurface,
+                                        onDeferredResults: (() -> Void)?) {
+        guard candidates.contains(where: \.isIndexTruncated) else { return }
+        let snapshot = entries
+        deferredSearchWork[surface] = Task.detached(priority: .utility) { [weak self] in
+            do { try await Task.sleep(nanoseconds: 150_000_000) } catch { return }
+            let complete = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query,
+                completeText: { snapshot[$0].searchableText(imageLabel: imageLabel) },
+                isCancelled: { Task.isCancelled })
+            guard !Task.isCancelled else { return }
+            await MainActor.run { [weak self] in
+                guard let self, !Task.isCancelled, self.entriesStamp == stamp,
+                      let cache = self.filterCache[surface], cache.query == query, cache.imageLabel == imageLabel
+                else { return }
+                self.deferredSearchWork[surface] = nil
+                guard complete != indexedRanking else { return }
+                self.filterCache[surface] = (query, stamp, imageLabel, complete.map { self.entries[$0] })
+                self.objectWillChange.send()
+                onDeferredResults?()
+            }
+        }
     }
 
     func copyQuickEntry(at index: Int) {
@@ -1287,6 +1328,7 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func hideHistoryWindow() {
+        cancelSearch(on: .quick)
         // What was copied in the panel is read now, as the panel's, so a copy
         // made right after in the app behind is credited to that app.
         if panel?.isVisible == true { captureIfChanged(historyPanelClosing: true) }
