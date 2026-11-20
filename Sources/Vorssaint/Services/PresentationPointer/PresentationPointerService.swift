@@ -393,7 +393,10 @@ final class PresentationPointerService: ObservableObject {
             // the next mouse move.
             scheduleSystemPointerCheck(after: 0.05)
         } else {
-            restoreSystemPointer()
+            // Only a pointer hidden until now needs giving back; a pass while
+            // a refused show is being retried leaves that retry and its
+            // spacing alone.
+            if systemPointer.isHiding { restoreSystemPointer() }
             cancelSystemPointerCheck()
             systemPointerShowing = false
             // The ring circles the system pointer, so it never steps aside.
