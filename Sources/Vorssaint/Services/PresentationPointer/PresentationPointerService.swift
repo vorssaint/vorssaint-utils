@@ -141,6 +141,9 @@ final class PresentationPointerService: ObservableObject {
             observeLifecycle()
         } else {
             mode.reset()
+            // Uninstalling voids anything still waiting to change the
+            // switches, even when they were off already.
+            revision &+= 1
             stopObservingLifecycle()
         }
         if !available || Self.soundSource(from: defaults) == nil { stopPreview() }
