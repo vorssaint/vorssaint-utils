@@ -476,7 +476,8 @@ struct AgentLogRoot: Equatable {
                     claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
         let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.antigravity, ".gemini/antigravity/brain")].map { provider, path in
             AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
@@ -500,9 +501,16 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
-        let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        if provider == .copilot {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        }
+        if provider == .antigravity {
+            let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
+            return parts.count == 4 && !parts[0].isEmpty && !parts[0].hasPrefix(".")
+                && parts[1] == ".system_generated" && parts[2] == "logs" && parts[3] == "transcript.jsonl"
+        }
+        return true
     }
 }
 
@@ -581,6 +589,12 @@ final class AgentLogCursor {
         self.provider = provider
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        if provider == .antigravity, let session = AgentAntigravityDatabase.conversationID(from: path) {
+            state.session = session
+            if let project = AgentAntigravityDatabase.projectName(for: session, near: path) {
+                state.project = project
+            }
+        }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -693,6 +707,7 @@ enum AgentLogReader {
     static func isLog(_ path: String) -> Bool {
         let name = (path as NSString).lastPathComponent
         if name == AgentOpenCodeReader.database || name == AgentOpenCodeReader.database + "-wal" { return true }
+        if name == "transcript_full.jsonl" { return false }
         return path.hasSuffix(".jsonl")
     }
 
@@ -757,6 +772,16 @@ enum AgentLogReader {
                 let sessions = (try? FileManager.default.contentsOfDirectory(
                     at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
                 for session in sessions { include(session.appending(path: "events.jsonl"), from: root) }
+                continue
+            }
+            // Antigravity keeps `.pb` blobs, scratch files and `transcript_full.jsonl`
+            // beside the compact log, so inspect only the fixed transcript path.
+            if root.provider == .antigravity {
+                let sessions = (try? FileManager.default.contentsOfDirectory(
+                    at: root.url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+                for session in sessions {
+                    include(session.appending(path: ".system_generated/logs/transcript.jsonl"), from: root)
+                }
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: root.url, includingPropertiesForKeys: keys,
