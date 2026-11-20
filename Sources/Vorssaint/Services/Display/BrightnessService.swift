@@ -677,6 +677,9 @@ final class BrightnessService: ObservableObject {
         let id: CGDirectDisplayID
         let name: String
         let service: CFTypeRef
+        /// The I2C address its DDC service answers on. A monitor behind the
+        /// built-in HDMI port's converter does not use the standard one.
+        let chip: UInt32
         /// Nil when the monitor or its connection cannot be told apart, so
         /// nothing is remembered about it.
         let pathKey: String?
@@ -812,7 +815,8 @@ final class BrightnessService: ObservableObject {
             guard CGDisplayIsOnline(target.id) != 0 else { return }
             var reading: UInt16?
             if case .replied(let reported, _) = self.ddcProbe(MonitorInputSupport.inputCode,
-                                                              for: target.id, service: target.service) {
+                                                              for: target.id, service: target.service,
+                                                              chip: target.chip) {
                 reading = MonitorInputSupport.inputValue(fromReply: reported)
             }
             DispatchQueue.main.async { [weak self] in
@@ -3590,7 +3594,7 @@ final class BrightnessService: ObservableObject {
 
     /// Work queue.
     private func writeMonitorInput(_ value: UInt16, to target: MonitorInputTarget) -> MonitorInputOutcome {
-        guard ddcSend(to: target.id, service: target.service,
+        guard ddcSend(to: target.id, service: target.service, chip: target.chip,
                       packet: MonitorInputSupport.setInputPacket(value)) else {
             Self.log.log("display \(target.id) refused the input write")
             return .failed
@@ -3604,13 +3608,14 @@ final class BrightnessService: ObservableObject {
     /// a monitor that does not do input control costs one failed read.
     private func monitorInputState(of target: MonitorInputTarget) -> (current: UInt16?, supported: [UInt16]) {
         guard case .replied(let reported, _) = ddcProbe(MonitorInputSupport.inputCode,
-                                                        for: target.id, service: target.service) else {
+                                                        for: target.id, service: target.service,
+                                                        chip: target.chip) else {
             return (nil, [])
         }
         let current = MonitorInputSupport.inputValue(fromReply: reported)
         if let key = target.pathKey, let cached = monitorInputCapabilities[key] { return (current, cached) }
         guard let text = MonitorInputSupport.capabilities(fetch: { [self] offset in
-            ddcCapabilitiesFragment(at: offset, for: target.id, service: target.service)
+            ddcCapabilitiesFragment(at: offset, for: target.id, service: target.service, chip: target.chip)
         }) else { return (current, []) }
         let inputs = MonitorInputSupport.supportedInputs(fromCapabilities: text)
         if let key = target.pathKey, !inputs.isEmpty { monitorInputCapabilities[key] = inputs }
@@ -3620,7 +3625,7 @@ final class BrightnessService: ObservableObject {
     /// Work queue. One Get Capabilities exchange: the request, the settling
     /// pause, then the reply, tried again a few times like the other reads.
     private func ddcCapabilitiesFragment(at offset: Int, for id: CGDirectDisplayID,
-                                         service: CFTypeRef) -> [UInt8]? {
+                                         service: CFTypeRef, chip: UInt32) -> [UInt8]? {
         guard let write = BrightnessBridge.writeI2C,
               let read = BrightnessBridge.readI2C else { return nil }
         paceDDCCommand(for: id)
@@ -3628,11 +3633,11 @@ final class BrightnessService: ObservableObject {
         var request = MonitorInputSupport.capabilitiesRequestPacket(offset: offset)
         for attempt in 0...BrightnessSupport.retryAttempts {
             usleep(BrightnessSupport.writePauseMicroseconds)
-            let accepted = write(service, BrightnessSupport.chipAddress, BrightnessSupport.dataAddress,
+            let accepted = write(service, chip, BrightnessSupport.dataAddress,
                                  &request, UInt32(request.count)) == KERN_SUCCESS
             usleep(BrightnessSupport.readPauseMicroseconds)
             var reply = [UInt8](repeating: 0, count: MonitorInputSupport.capabilitiesReplyLength)
-            if accepted, read(service, BrightnessSupport.chipAddress, 0,
+            if accepted, read(service, chip, 0,
                               &reply, UInt32(reply.count)) == KERN_SUCCESS,
                let fragment = MonitorInputSupport.parseCapabilitiesReply(reply, offset: offset) {
                 return fragment
@@ -3682,7 +3687,7 @@ final class BrightnessService: ObservableObject {
             let location = candidate.identity.ioDisplayLocation.flatMap { $0.isEmpty ? nil : $0 }
                 ?? matched.identity.ioDisplayLocation
             return MonitorInputTarget(
-                id: candidate.id, name: candidate.name, service: matched.service,
+                id: candidate.id, name: candidate.name, service: matched.service, chip: matched.chipAddress,
                 pathKey: BrightnessSupport.ddcPathKey(displayFingerprint: Self.displayFingerprint(candidate.id),
                                                       ioDisplayLocation: location))
         }
