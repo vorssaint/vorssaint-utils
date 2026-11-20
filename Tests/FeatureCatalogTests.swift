@@ -719,6 +719,9 @@ enum FeatureCatalogTests {
         let onboardingViewSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Onboarding/OnboardingView.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(onboardingViewSource.contains("let features = Set(AppFeature.allCases.filter(\\.isAvailable))")
+                && onboardingViewSource.contains("_selectedFeatures = State(initialValue: features)"),
+               "the first setup screen starts with the prepared features, including the settings file's selections")
         let additionalPermissionsAlignment =
             #"DisclosureGroup\(isExpanded: \$showingOtherPermissions\) \{\s+"#
             + #"VStack\(alignment: \.leading, spacing: 14\)"#
@@ -933,6 +936,31 @@ enum FeatureCatalogTests {
             "missing application-domain resolutions fail closed")
         let installerFixture = FileManager.default.temporaryDirectory
             .appendingPathComponent("vorss-installer-\(UUID().uuidString)", isDirectory: true)
+        do {
+            let fm = FileManager.default
+            defer { try? fm.removeItem(at: installerFixture) }
+            let excluded = installerFixture.appendingPathComponent("build", isDirectory: true)
+            let scratch = installerFixture.appendingPathComponent("scratch", isDirectory: true)
+            try fm.createDirectory(at: excluded, withIntermediateDirectories: true)
+            let alias = installerFixture.appendingPathComponent("linked-build")
+            try fm.createSymbolicLink(at: alias, withDestinationURL: excluded)
+            let marker = excluded.appendingPathComponent(".vorssaint-no-install")
+            try Data().write(to: marker)
+            func offers(_ relative: String, browsable: Bool? = true) -> Bool {
+                DiskImageInstallerSupport.offersInstall(volumeIsBrowsable: browsable,
+                    imageURL: installerFixture.appendingPathComponent(relative), temporaryDirectories: [scratch])
+            }
+            suite.expect(!offers("build/nested/App.dmg") && !offers("linked-build/App.dmg")
+                         && !offers("scratch/App.dmg"), "excluded and temporary directories include their descendants and aliases")
+            suite.expect(offers("build-backup/App.dmg") && offers("scratchpad/App.dmg") && offers("Desktop/App.dmg"),
+                         "similarly named siblings and manual images remain available")
+            suite.expect(!offers("Desktop/App.dmg", browsable: false) && !offers("Desktop/App.dmg", browsable: nil),
+                         "hidden mounts and mounts with unknown visibility are not offered")
+            try fm.removeItem(at: marker)
+            suite.expect(offers("build/nested/App.dmg"), "removing a folder exclusion restores its manual installs")
+        } catch {
+            suite.expect(false, "could not create the disk image exclusion fixture: \(error)")
+        }
         let installerFM = InstallerFileManager(root: installerFixture)
         let installerApp = URL(fileURLWithPath: "/Volumes/Installer/Example.app")
         let missingUserDestination = installerFM.userApplications!
@@ -1603,6 +1631,10 @@ enum FeatureCatalogTests {
         suite.expect(!activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled])
                 .contains(.brightness),
                "brightness sliders alone never use accessibility")
+        let displayKeys: Set<String> = [DefaultsKey.brightnessControlEnabled, DefaultsKey.displayVolumeKeysEnabled]
+        suite.expect(!activeSet(.accessibility, on: displayKeys).contains(.brightness)
+                && activeSet(.accessibility, on: displayKeys.union([DefaultsKey.displayVolumeEnabled])).contains(.brightness),
+               "a remembered volume key setting requires accessibility only while monitor speakers are enabled")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
                                strings: [DefaultsKey.brightnessKeyStep: "quarter"]).contains(.brightness)
                 && !activeSet(.accessibility, on: [DefaultsKey.brightnessControlEnabled],
@@ -1886,6 +1918,8 @@ enum FeatureCatalogTests {
             suite.expect(FeatureStrings.backup(language).description.contains(
                 FeatureStrings.scratchpad(language).pageTitle),
                    "every backup description accounts for the Scratchpad text (\(language.rawValue))")
+            expectFormat(FeatureStrings.backup(language).configFileConfirmFormat, ["@"],
+                         "\(language.rawValue) settings file confirmation names the path")
             suite.expect(FeatureStrings.appUpdates(language).updateSelectedFormat.contains("%d")
                     && FeatureStrings.appUpdates(language).lastCheckFormat.contains("%@")
                     && FeatureStrings.appUpdates(language).nextCheckFormat.contains("%@")
@@ -2090,18 +2124,24 @@ enum FeatureCatalogTests {
                 && AppFeature.scratchpad.energyProfile == .idle,
                "energy badges tell the honest mechanism per feature")
         let brightnessEnergyKeys = [DefaultsKey.brightnessKeysEnabled, DefaultsKey.brightnessOSDEnabled,
-                                    DefaultsKey.brightnessKeyStep]
+                                    DefaultsKey.brightnessKeyStep, DefaultsKey.displayVolumeEnabled,
+                                    DefaultsKey.displayVolumeKeysEnabled]
         let previousBrightnessEnergy = brightnessEnergyKeys.map { UserDefaults.standard.object(forKey: $0) }
         func brightnessEnergy(followsPointer: Bool = false, overlay: Bool = false,
-                              step: BrightnessSupport.KeyStep = .standard) -> FeatureEnergyProfile {
+                              step: BrightnessSupport.KeyStep = .standard, speakers: Bool = false,
+                              speakerKeys: Bool = false) -> FeatureEnergyProfile {
             UserDefaults.standard.set(followsPointer, forKey: DefaultsKey.brightnessKeysEnabled)
             UserDefaults.standard.set(overlay, forKey: DefaultsKey.brightnessOSDEnabled)
             UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.brightnessKeyStep)
+            UserDefaults.standard.set(speakers, forKey: DefaultsKey.displayVolumeEnabled)
+            UserDefaults.standard.set(speakerKeys, forKey: DefaultsKey.displayVolumeKeysEnabled)
             return AppFeature.brightness.energyProfile
         }
         suite.expect(brightnessEnergy() == .idle
                 && brightnessEnergy(followsPointer: true) == .keyboard
                 && brightnessEnergy(overlay: true) == .keyboard
+                && brightnessEnergy(speakerKeys: true) == .idle
+                && brightnessEnergy(speakers: true, speakerKeys: true) == .keyboard
                 && brightnessEnergy(step: .half) == .keyboard,
                "brightness listens to the keyboard only while an option answers its keys")
         for (key, value) in zip(brightnessEnergyKeys, previousBrightnessEnergy) {
@@ -2558,6 +2598,16 @@ enum FeatureCatalogTests {
                "DDC read request's checksum covers the source address")
         suite.expect(Array(BrightnessSupport.writePacket(code: 0x10, value: 100)[3...4]) == [0x00, 0x64],
                "DDC values split into high and low bytes")
+        // A Dell P2715Q on the built-in HDMI port of an M1 Max MacBook Pro
+        // took writes at 0x37 without changing, and answered a luminance read
+        // only at 0xB7, with the same packets.
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPMCDP29XX") == 0xB7,
+               "DDC behind the built-in HDMI port's converter goes to the converter's address")
+        suite.expect(BrightnessSupport.ddcChipAddress(epicProviderClass: nil) == 0x37
+                && BrightnessSupport.ddcChipAddress(epicProviderClass: "AppleDCPDPTXProxy") == 0x37,
+               "every other DDC service keeps the standard address")
+        suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.brightnessDDCHDMIConverterRechecked),
+               "the HDMI converter recheck marker stays on the Mac that ran it")
 
         var ddcReply: [UInt8] = [0x6E, 0x88, 0x02, 0x00, 0x10, 0x00, 0x00, 0x64, 0x00, 0x32]
         ddcReply.append(ddcReply.reduce(UInt8(0x50)) { $0 ^ $1 })

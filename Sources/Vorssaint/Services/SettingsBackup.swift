@@ -153,8 +153,7 @@ enum SettingsBackup {
         for (key, value) in settings {
             defaults.set(value, forKey: key)
         }
-        if let shared = SettingsBackupSupport.sharedSwitcherPauseList(in: settings),
-           replacingMissing || defaults.object(forKey: DefaultsKey.switcherPreviewExcludedApps) == nil {
+        if replacingMissing, let shared = SettingsBackupSupport.sharedSwitcherPauseList(in: settings) {
             defaults.set(shared, forKey: DefaultsKey.switcherPreviewExcludedApps)
         }
         if let restored = settings[DefaultsKey.recorderEditorPresets] as? Data {
@@ -228,7 +227,15 @@ enum SettingsBackup {
             isDeveloperBuild: AppInfo.isDeveloperBuild)
     }
 
-    /// A normal app launch overlays only the declared keys, before migrations.
+    /// The Advanced page's explicit save to the settings file. The app never
+    /// writes it on its own; this is the same complete snapshot as an export,
+    /// with the same refusal to replace a read-only or non-regular target.
+    static func writeConfigFile() -> Bool {
+        write(to: configFileURL)
+    }
+
+    /// A normal app launch overlays the declared keys after migrating local
+    /// settings, so a migration cannot copy a declaration into an omitted key.
     /// The plist is owned by the user or their dotfiles manager.
     static func applyConfigFileAtLaunch(arguments: [String] = CommandLine.arguments,
                                         bundleID: String? = Bundle.main.bundleIdentifier,
@@ -242,12 +249,31 @@ enum SettingsBackup {
         guard !settings.isEmpty else { return [] }
         let availability = AppFeature.availabilityDefaults
         let managedFeatures = Set(settings.keys.filter { availability[$0] != nil })
-        let local = defaults.dictionaryRepresentation()
-        let current = SettingsBackupSupport.payload(appVersion: AppInfo.version) { local[$0] }
-        let portable = current[SettingsBackupSupport.settingsKey] as? [String: Any] ?? [:]
-        if settings.contains(where: { portable[$0.key] as? NSObject != $0.value as? NSObject }) {
-            apply(settings: SettingsBackupSupport.keepingLocalMediaLogos(settings, local: local),
-                  replacingMissing: false, in: defaults)
+        var comparisonKeys = Set(settings.keys)
+        if settings[DefaultsKey.appVolumes] != nil { comparisonKeys.insert(DefaultsKey.appVolumesArePositions) }
+        if settings[DefaultsKey.mediaImageWatermarkKind] != nil { comparisonKeys.insert(DefaultsKey.mediaImageWatermarkText) }
+        let local = comparisonKeys.reduce(into: [String: Any]()) { $0[$1] = defaults.object(forKey: $1) }
+        let portable = SettingsBackupSupport.portableSettings(local)
+        var changed = settings.filter { key, value in
+            !SettingsBackupSupport.matchesPortableValue(value, local: portable[key], key: key)
+        }
+        // Treat mixer values and their units as one declaration. A file that
+        // explicitly stores slider positions can compare them without a gain conversion.
+        if let positions = settings[DefaultsKey.appVolumesArePositions] as? Bool, positions,
+           local[DefaultsKey.appVolumesArePositions] as? Bool == true,
+           settings[DefaultsKey.appVolumes] as? NSDictionary == local[DefaultsKey.appVolumes] as? NSDictionary {
+            changed.removeValue(forKey: DefaultsKey.appVolumes)
+            changed.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        } else if changed[DefaultsKey.appVolumes] != nil || changed[DefaultsKey.appVolumesArePositions] != nil {
+            changed[DefaultsKey.appVolumes] = settings[DefaultsKey.appVolumes]
+            changed[DefaultsKey.appVolumesArePositions] = settings[DefaultsKey.appVolumesArePositions]
+        }
+        if !changed.isEmpty {
+            let incoming = SettingsBackupSupport.keepingLocalMediaLogos(changed, local: local)
+            apply(settings: incoming, replacingMissing: false, in: defaults)
+            if incoming[DefaultsKey.appVolumes] != nil {
+                Defaults.migrateAppVolumesToPositions(in: defaults)
+            }
         }
         return managedFeatures
     }
