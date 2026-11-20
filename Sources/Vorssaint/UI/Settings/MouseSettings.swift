@@ -13,6 +13,7 @@ struct MouseSettings: View {
     @ObservedObject private var smoothScroll = SmoothScrollService.shared
     @ObservedObject private var mouseNavigation = MouseNavigationService.shared
     @ObservedObject private var middleClick = MiddleClickService.shared
+    @ObservedObject private var presentationPointer = PresentationPointerService.shared
     @Environment(\.colorScheme) private var colorScheme
     @AppStorage(DefaultsKey.scrollInverterEnabled) private var invertVertical = false
     @AppStorage(DefaultsKey.scrollInverterHorizontalEnabled) private var invertHorizontal = false
@@ -113,6 +114,10 @@ struct MouseSettings: View {
                     middleClickCard
                         .settingsSectionAnchor(.middleClick, cornerRadius: 16)
                 }
+                if AppFeature.presentationPointer.isAvailable {
+                    PresentationPointerSection()
+                        .settingsSectionAnchor(.presentationPointer, cornerRadius: 16)
+                }
                 if accessibilityNoteVisible {
                     SettingsCard(title: l10n.s.permissionRequired) {
                         PermissionRow(kind: .accessibility)
@@ -134,7 +139,7 @@ struct MouseSettings: View {
     /// The mouse features on this page, in page order, for the legend.
     private var legendFeatures: [AppFeature] {
         [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration,
-         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick]
+         .mouseNavigation, .mouseButtonShortcuts, .mouseClickDebounce, .middleClick, .presentationPointer]
             .filter(\.isAvailable)
     }
 
@@ -154,6 +159,7 @@ struct MouseSettings: View {
         case .mouseButtonShortcuts: return mouseButtonShortcutsEnabled || spacesEnabled
         case .mouseClickDebounce: return mouseClickDebounceEnabled
         case .middleClick: return middleClickEnabled
+        case .presentationPointer: return presentationPointer.isShowing
         default: return false
         }
     }
@@ -472,18 +478,7 @@ struct MouseSettings: View {
 
     private func sliderRow(_ title: String, value: Binding<Double>, range: ClosedRange<Double>,
                            step: Double, readout: String) -> some View {
-        HStack(spacing: 12) {
-            Text(title)
-                .frame(minWidth: 96, alignment: .leading)
-            Slider(value: value, in: range, step: step) {
-                Text(title)
-            }
-            .labelsHidden()
-            Text(readout)
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
-                .frame(width: 60, alignment: .trailing)
-        }
+        SettingsSliderRow(title: title, value: value, range: range, step: step, readout: readout)
     }
 
     // MARK: - Acceleration, side buttons, click filter, middle click

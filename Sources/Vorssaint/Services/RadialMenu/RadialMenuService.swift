@@ -68,6 +68,9 @@ final class RadialMenuService: ObservableObject {
     /// Set while a session was summoned by a mouse button and it is still
     /// down; releasing it runs the pointed slice, mirroring the chord.
     private var holdButton: Int64?
+    /// Extra buttons pressed while clicks were blocked, whose drags and
+    /// releases follow their press to the shield.
+    private var buttonsLeftToShield: Set<Int64> = []
     private var mouseTap: CFMachPort?
     private var mouseTapSource: CFRunLoopSource?
     private var eventMonitors: [Any] = []
@@ -222,6 +225,7 @@ final class RadialMenuService: ObservableObject {
         }
         mouseTap = nil
         mouseTapSource = nil
+        buttonsLeftToShield.removeAll()
         if isWatchingMouseButton { isWatchingMouseButton = false }
     }
 
@@ -262,6 +266,19 @@ final class RadialMenuService: ObservableObject {
         }
         let defaults = UserDefaults.standard
         let button = Int64(pressed)
+        // While the presentation pointer blocks clicks, a summoner's press
+        // goes to its shield like any other click, and its drag and release
+        // follow it there, so no wheel opens and nothing is half a click.
+        if type == .otherMouseDown, PresentationPointerClickBlock.isActive {
+            buttonsLeftToShield.insert(button)
+            return Unmanaged.passUnretained(event)
+        }
+        // A new press starts afresh, whatever an earlier one left behind.
+        if type == .otherMouseDown, buttonsLeftToShield.contains(button) { buttonsLeftToShield.remove(button) }
+        if buttonsLeftToShield.contains(button) {
+            if type == .otherMouseUp { buttonsLeftToShield.remove(button) }
+            return Unmanaged.passUnretained(event)
+        }
         // Every press and release of every extra button lands here, so the
         // cheap question comes first: the wheels themselves are decoded only
         // once a press turns out to be a summoner, and only to open one.

@@ -31,6 +31,41 @@ struct SettingsCard<Content: View>: View {
 /// Where a row's text column starts, so follow-up controls can line up with it.
 let settingsRowTextInset: CGFloat = 26 + 12
 
+/// A follow-up control under a row: a label, a slider and its value, in the
+/// label and value columns the Mouse & Trackpad sliders share. Without a
+/// step the slider is continuous and draws no tick marks.
+struct SettingsSliderRow: View {
+    let title: String
+    let value: Binding<Double>
+    let range: ClosedRange<Double>
+    var step: Double?
+    let readout: String
+    var onEditingChanged: (Bool) -> Void = { _ in }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .frame(minWidth: 96, alignment: .leading)
+            slider
+                .labelsHidden()
+            Text(readout)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .frame(width: 60, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder
+    private var slider: some View {
+        if let step {
+            Slider(value: value, in: range, step: step, label: { Text(title) },
+                   onEditingChanged: onEditingChanged)
+        } else {
+            Slider(value: value, in: range, label: { Text(title) }, onEditingChanged: onEditingChanged)
+        }
+    }
+}
+
 /// Icon, title, one line of explanation and the control on the right. A nil
 /// symbol shows the app's own menu bar glyph, for rows about that icon.
 struct SettingsRow<Accessory: View>: View {

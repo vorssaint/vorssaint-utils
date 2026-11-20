@@ -20,6 +20,12 @@ enum OverlayPanelTests {
                          "a floating overlay stays an accessible window for assistive technology")
         }
 
+        // The presentation pointer's panel is a subclass of its own.
+        let pointerPanel = PointerPanel(contentRect: CGRect(x: 0, y: 0, width: 200, height: 40),
+                                        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
+        suite.expect(pointerPanel.accessibilitySubrole() == .unknown,
+                     "the presentation pointer's panel is an overlay window managers skip")
+
         // HUDs, previews, pickers and the menu's positioning helper: none is a
         // document window, and each floats over other apps' windows.
         let surfaces = [
@@ -49,6 +55,7 @@ enum OverlayPanelTests {
             "Sources/Vorssaint/Services/Display/BrightnessOSD.swift",
             "Sources/Vorssaint/Services/CleaningMode/CleaningModeManager.swift",
             "Sources/Vorssaint/Services/Recorder/RecorderIndicator.swift",
+            "Sources/Vorssaint/Services/PresentationPointer/PresentationPointerOverlay.swift",
         ]
         for path in surfaces {
             let source = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""

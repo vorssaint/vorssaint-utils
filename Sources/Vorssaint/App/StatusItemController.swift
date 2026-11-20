@@ -202,6 +202,11 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        NotificationCenter.default.publisher(for: PresentationPointerClickBlock.didChange)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .store(in: &cancellables)
+
         NotificationCenter.default.publisher(for: NotchService.fullscreenVisibilityDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notification in
@@ -363,7 +368,11 @@ final class StatusItemController {
         let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
-        let signal = updateAvailable || micBadgeActive
+        // While the presentation pointer blocks clicks, a menu of ours is the
+        // way to let them through again. A metric item opens it where it is;
+        // with none showing, this item stays on screen to open it.
+        let blockingNeedsItem = PresentationPointerClickBlock.isActive && renderedMetricItemCount == 0
+        let signal = updateAvailable || micBadgeActive || blockingNeedsItem
         let islandHides = MenuBarSpacingSupport.islandHidesStatusIcon(
             in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal
         let hidden = islandHides || MenuBarSpacingSupport.shouldHideStatusIcon(
@@ -429,7 +438,10 @@ final class StatusItemController {
     /// the bar, otherwise the item that was clicked. A menu set on an item
     /// that is out of the bar has nowhere on screen to open from.
     func menuHost(for button: NSStatusBarButton?) -> NSStatusItem {
-        guard !statusItem.isVisible, let button else { return statusItem }
+        // While clicks are blocked the main item may be on screen only to
+        // offer Allow clicks, possibly where a crowded bar clips it, so the
+        // menu opens under the item that was clicked.
+        guard !statusItem.isVisible || PresentationPointerClickBlock.isActive, let button else { return statusItem }
         let others = [clipboardPreviewStatusItem].compactMap { $0 } + Array(metricStatusItems.values)
         return others.first { $0.button === button } ?? statusItem
     }

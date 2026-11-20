@@ -125,8 +125,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self?.toggleMainPopover()
         }
         statusController.onRightClick = { [weak self] button in
-            if AppFeature.keepAwake.isAvailable
-                && UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
+            // While the presentation pointer blocks clicks, this menu is the
+            // way back, so it opens whatever the right click usually does.
+            let clicksBlocked = AppFeature.presentationPointer.isAvailable
+                && PresentationPointerService.shared.blocksClicks
+            if AppFeature.keepAwake.isAvailable, !clicksBlocked,
+               UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakeRightClickToggle) {
                 KeepAwakeManager.shared.toggle()
             } else {
                 self?.showContextMenu(from: button)
@@ -337,6 +341,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         WindowLayoutService.shared.suspend()
         KeyboardDebounceService.shared.suspend()
         MouseClickDebounceService.shared.suspend()
+        // Hands the system pointer back rather than leaving it to the window
+        // server to notice the process is gone.
+        if PresentationPointerService.isLoaded { PresentationPointerService.shared.suspend() }
         TextSnippetService.shared.suspend()
         // Takes the Super key mapping back out before the process goes away.
         SuperKeyService.shared.suspend()
@@ -1671,6 +1678,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             menu.addItem(cleaningItem)
         }
 
+        if AppFeature.presentationPointer.isAvailable {
+            // The way back from blocked clicks that never depends on a
+            // shortcut or a panel tile: this menu opens above the shield.
+            if PresentationPointerService.shared.blocksClicks {
+                let allowItem = NSMenuItem(title: FeatureStrings.presentationPointer(L10n.shared.language).allowClicks,
+                                           action: #selector(menuAllowPresentationClicks), keyEquivalent: "")
+                allowItem.target = self
+                menu.addItem(allowItem)
+            }
+            menu.addItem(PresentationPointerMenu.shared.item())
+        }
+
         if menu.items.isEmpty == false {
             menu.addItem(.separator())
         }
@@ -1717,6 +1736,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     @objc private func menuToggleAwake() {
         KeepAwakeManager.shared.toggle()
+    }
+
+    @objc private func menuAllowPresentationClicks() {
+        guard PresentationPointerService.shared.blocksClicks else { return }
+        PresentationPointerService.shared.toggleBlockingClicks()
     }
 
     @objc private func menuCleaningMode() {

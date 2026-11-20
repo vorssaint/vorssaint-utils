@@ -154,8 +154,11 @@ final class DockClickService {
         // missed an up during a timeout) must never block the new one.
         pendingClick = nil
 
-        // Modifier clicks keep the Dock's native shortcuts (⌘ reveal, ⌥ hide…).
-        guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty
+        // Modifier clicks keep the Dock's native shortcuts (⌘ reveal, ⌥ hide…),
+        // and while the presentation pointer blocks clicks the press is its
+        // shield's, not the Dock's.
+        guard event.flags.intersection([.maskCommand, .maskControl, .maskAlternate, .maskShift]).isEmpty,
+              !PresentationPointerClickBlock.isActive
         else { return Unmanaged.passUnretained(event) }
 
         let point = event.location

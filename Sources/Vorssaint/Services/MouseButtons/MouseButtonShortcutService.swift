@@ -343,6 +343,12 @@ final class MouseButtonShortcutService: ObservableObject {
                 lastInputSeen = button
                 return consumesPress ? nil : Unmanaged.passUnretained(event)
             }
+            // While the presentation pointer blocks clicks, a new press goes
+            // to its shield, not to a shortcut or a Spaces drag. Nothing is
+            // taken into custody, so the release goes the same way.
+            if PresentationPointerClickBlock.isActive {
+                return Unmanaged.passUnretained(event)
+            }
             // An app on the exception list keeps its buttons: the press goes
             // through whole and no shortcut is sent (issue #358). Capture is
             // above on purpose, so a button can still be added from Settings
@@ -514,6 +520,13 @@ final class MouseButtonShortcutService: ObservableObject {
             return nil
         }
         guard let shortcut = mappings[input] else { return Unmanaged.passUnretained(event) }
+        // Blocked scrolling goes to the presentation pointer's shield, not to
+        // a shortcut for the app underneath. The gate still hears it, so a
+        // turn that outlasts click blocking does not fire a second time.
+        if PresentationPointerClickBlock.isActive {
+            _ = sideWheelGesture.shouldFire(input, at: timestamp)
+            return Unmanaged.passUnretained(event)
+        }
         let sourceProcessID = event.getIntegerValueField(.eventSourceUnixProcessID)
         if MouseAppExceptions.shared.excludesActionTarget(
             .buttonShortcuts, at: event.location, sourceProcessID: sourceProcessID) {

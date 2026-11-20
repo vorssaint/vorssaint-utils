@@ -35,6 +35,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case mouseButtonShortcuts
     case middleClick
     case mouseClickDebounce
+    case presentationPointer
     case switcher
     case dock
     case dockClick
@@ -69,7 +70,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
             return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
         case .scrollDirection, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-             .middleClick, .mouseClickDebounce:
+             .middleClick, .mouseClickDebounce, .presentationPointer:
             return .mouse
         case .switcher: return .switcher
         case .dock, .dockClick, .spacesOrder: return .dock
@@ -356,6 +357,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.mouse, sectionAnchor: .middleClick)
         case .mouseClickDebounce:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseClickDebounce)
+        case .presentationPointer:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .presentationPointer)
         case .keyboardDebounce: return FeatureSettingsDestination(.keyDebounce)
         case .textSnippets: return FeatureSettingsDestination(.textSnippets)
         case .superKey: return FeatureSettingsDestination(.superKey)
@@ -459,7 +462,7 @@ enum FeatureVisibilitySupport {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
         case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
-                             .middleClick, .mouseClickDebounce]
+                             .middleClick, .mouseClickDebounce, .presentationPointer]
         case .switcher: return [.switcher]
         case .dock: return [.dockPreview, .dockClick, .spacesOrder]
         case .windowLayout: return [.windowLayout, .windowMaximizer]

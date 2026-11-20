@@ -227,6 +227,10 @@ final class ScreenshotSelectionController {
         Self.isSessionOnScreen = true
         Self.activeSession = self
         self.completion = completion
+        // Claimed before any frozen image is taken: a presentation pointer
+        // steps aside on this, so the picture shows the real pointer (or
+        // none) as Include Pointer says, and the crosshair can be set later.
+        BackgroundCursor.setAllowed(true, by: .screenCapture)
         screenCaptureOptions?.onSelectionChange = { [weak self] in
             self?.screenCaptureToolDidChange()
         }
@@ -300,7 +304,6 @@ final class ScreenshotSelectionController {
             // instead of waiting for the Z toggle.
             toggleLoupe()
         }
-        BackgroundCursor.setAllowed(true)
         NSCursor.crosshair.set()
     }
 
@@ -888,44 +891,10 @@ final class ScreenshotSelectionController {
         retirePanels()
         panels.removeAll()
         NSCursor.arrow.set()
-        BackgroundCursor.setAllowed(false)
+        BackgroundCursor.setAllowed(false, by: .screenCapture)
         let completion = completion
         self.completion = nil
         completion?(outcome)
-    }
-}
-
-// MARK: - Cursor
-
-/// The window server ignores cursor changes from an app in the background,
-/// and the capture panels keep the app there, so the crosshair the surface
-/// asked for never appeared (measured on macOS 27). The connection property
-/// lifts that only while a session is up. Resolved at runtime, so a macOS
-/// that drops it degrades to the arrow pointer as before.
-private enum BackgroundCursor {
-    private typealias ConnectionID = UInt32
-    private typealias SetPropertyFunction =
-        @convention(c) (ConnectionID, ConnectionID, CFString, CFTypeRef) -> CGError
-
-    private static func symbol(_ name: String) -> UnsafeMutableRawPointer? {
-        dlsym(UnsafeMutableRawPointer(bitPattern: -2) /* RTLD_DEFAULT */, name)
-    }
-
-    private static let connection: ConnectionID = {
-        typealias Function = @convention(c) () -> ConnectionID
-        guard let symbol = symbol("CGSMainConnectionID") else { return 0 }
-        return unsafeBitCast(symbol, to: Function.self)()
-    }()
-
-    private static let setProperty: SetPropertyFunction? = {
-        guard let symbol = symbol("CGSSetConnectionProperty") else { return nil }
-        return unsafeBitCast(symbol, to: SetPropertyFunction.self)
-    }()
-
-    static func setAllowed(_ allowed: Bool) {
-        guard connection != 0, let setProperty else { return }
-        _ = setProperty(connection, connection, "SetsCursorInBackground" as CFString,
-                        allowed ? kCFBooleanTrue : kCFBooleanFalse)
     }
 }
 

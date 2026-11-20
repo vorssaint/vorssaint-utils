@@ -220,6 +220,13 @@ final class MouseNavigationService: ObservableObject {
             || MouseButtonShortcutService.isCaptureActive {
             return Unmanaged.passUnretained(event)
         }
+        // While the presentation pointer blocks clicks, a side button must
+        // reach its shield like any other press, not the app. Its drag and
+        // release follow it there, even if blocking ends while it is held.
+        if type == .otherMouseDown, PresentationPointerClickBlock.isActive {
+            passThroughButtons.insert(buttonNumber)
+            return Unmanaged.passUnretained(event)
+        }
 
         if type == .otherMouseDown {
             // Apps that consume the side buttons themselves keep the raw

@@ -1226,6 +1226,12 @@ final class WindowLayoutService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
         guard var session = directionalSession else { return Unmanaged.passUnretained(event) }
+        // While the presentation pointer blocks clicks, a click or scroll
+        // goes to its shield rather than choosing a layout; the keys still
+        // steer the gesture.
+        if type != .keyDown, PresentationPointerClickBlock.isActive {
+            return Unmanaged.passUnretained(event)
+        }
 
         if type == .scrollWheel {
             // Read the wheel as Scroll Direction delivers it everywhere else.

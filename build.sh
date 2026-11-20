@@ -360,6 +360,9 @@ if (( TEST )); then
         Sources/Vorssaint/Core/RecorderStrings.swift
         Sources/Vorssaint/Core/RecorderShareStrings.swift
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
+        Sources/Vorssaint/Core/PresentationPointerStrings.swift
+        Sources/Vorssaint/Services/PresentationPointer/PresentationPointerSupport.swift
+        Sources/Vorssaint/Services/PresentationPointer/PresentationPointerArtwork.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
         Sources/Vorssaint/UI/MenuPanel/WallpaperThumbnailView.swift
