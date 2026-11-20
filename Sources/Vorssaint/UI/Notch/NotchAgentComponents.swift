@@ -170,56 +170,6 @@ private struct NotchAgentPulseBridge: NSViewRepresentable {
     static func dismantleNSView(_ view: NotchAgentAnimationView, coordinator: ()) { view.stop() }
 }
 
-/// The Antigravity arch glyph, scaled and centred in its box.
-struct AntigravityMarkShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var base = Path()
-        base.move(to: CGPoint(x: 144.248, y: 149.062))
-        base.addCurve(to: CGPoint(x: 152.685, y: 140.625),
-                      control1: CGPoint(x: 151.748, y: 154.688),
-                      control2: CGPoint(x: 162.998, y: 150.938))
-        base.addCurve(to: CGPoint(x: 89.8727, y: 28.125),
-                      control1: CGPoint(x: 121.748, y: 110.625),
-                      control2: CGPoint(x: 128.31, y: 28.125))
-        base.addCurve(to: CGPoint(x: 27.0602, y: 140.625),
-                      control1: CGPoint(x: 51.4352, y: 28.125),
-                      control2: CGPoint(x: 57.9977, y: 110.625))
-        base.addCurve(to: CGPoint(x: 35.4977, y: 149.062),
-                      control1: CGPoint(x: 15.8102, y: 151.875),
-                      control2: CGPoint(x: 27.9977, y: 154.688))
-        base.addCurve(to: CGPoint(x: 89.8727, y: 94.6875),
-                      control1: CGPoint(x: 64.5602, y: 129.375),
-                      control2: CGPoint(x: 62.6852, y: 94.6875))
-        base.addCurve(to: CGPoint(x: 144.248, y: 149.062),
-                      control1: CGPoint(x: 117.06, y: 94.6875),
-                      control2: CGPoint(x: 115.185, y: 129.375))
-        base.closeSubpath()
-
-        let bounds = CGRect(x: 15, y: 28, width: 148, height: 127)
-        guard bounds.width > 0, bounds.height > 0, rect.width > 0, rect.height > 0 else { return base }
-        let scale = min(rect.width / bounds.width, rect.height / bounds.height)
-        let xOffset = rect.minX + (rect.width - bounds.width * scale) / 2 - bounds.minX * scale
-        let yOffset = rect.minY + (rect.height - bounds.height * scale) / 2 - bounds.minY * scale
-        let transform = CGAffineTransform(translationX: xOffset, y: yOffset)
-            .scaledBy(x: scale, y: scale)
-        return base.applying(transform)
-    }
-
-    static let templateImage: NSImage = {
-        let size = NSSize(width: 36, height: 36)
-        let image = NSImage(size: size, flipped: true) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            let path = AntigravityMarkShape().path(in: CGRect(origin: .zero, size: rect.size))
-            ctx.addPath(path.cgPath)
-            ctx.setFillColor(NSColor.black.cgColor)
-            ctx.fillPath()
-            return true
-        }
-        image.isTemplate = true
-        return image
-    }()
-}
-
 private struct NotchAgentGlyphBridge: NSViewRepresentable {
     let provider: AgentProvider
     let size: CGFloat
@@ -230,30 +180,43 @@ private struct NotchAgentGlyphBridge: NSViewRepresentable {
         let image: NSImage?
         let markSize: CGFloat
         let tint: NSColor?
-        if provider == .agy {
-            image = AntigravityMarkShape.templateImage
+        switch AgentMarks.mark(for: provider) {
+        case .template(let mark):
+            image = mark
             markSize = size * provider.markScale
             tint = NSColor(provider.tint)
-        } else {
-            switch AgentMarks.mark(for: provider) {
-            case .template(let mark):
-                image = mark
-                markSize = size * provider.markScale
-                tint = NSColor(provider.tint)
-            case .icon(let mark):
-                image = mark
-                markSize = size * 1.35
-                tint = nil
-            case nil:
-                image = NSImage(systemSymbolName: provider.symbol, accessibilityDescription: nil)?
-                    .withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
-                markSize = size
-                tint = NSColor(provider.tint)
-            }
+        case .icon(let mark):
+            image = mark
+            markSize = size * 1.35
+            tint = nil
+        case nil:
+            let symbol = NSImage(systemSymbolName: provider.symbol, accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: size, weight: .semibold))
+            image = provider.symbolRotation != 0 ? symbol?.rotated(byDegrees: provider.symbolRotation) : symbol
+            markSize = size
+            tint = NSColor(provider.tint)
         }
         view.configureGlyph(image: image, size: markSize, tint: tint, animates: animates)
     }
     static func dismantleNSView(_ view: NotchAgentAnimationView, coordinator: ()) { view.stop() }
+}
+
+private extension NSImage {
+    /// Positive degrees match SwiftUI's clockwise rotation; AppKit's y axis
+    /// points up, so negate for `NSAffineTransform`.
+    func rotated(byDegrees degrees: CGFloat) -> NSImage {
+        let rotated = NSImage(size: size, flipped: false) { rect in
+            let transform = NSAffineTransform()
+            transform.translateX(by: rect.midX, yBy: rect.midY)
+            transform.rotate(byDegrees: -degrees)
+            transform.translateX(by: -rect.midX, yBy: -rect.midY)
+            transform.concat()
+            self.draw(in: rect)
+            return true
+        }
+        rotated.isTemplate = isTemplate
+        return rotated
+    }
 }
 
 /// Stacked bars, one per bucket, each split by agent. Hovering a bar reports
@@ -408,7 +371,6 @@ enum AgentMarks {
     }
 
     private static func lookUp(_ provider: AgentProvider) -> Mark? {
-        guard provider != .agy else { return nil }
         for identifier in provider.appIdentifiers {
             guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) else { continue }
             if let bundle = Bundle(url: url) {
@@ -419,9 +381,66 @@ enum AgentMarks {
                     }
                 }
             }
+            let asarURL = url.appendingPathComponent("Contents/Resources/app.asar")
+            if !provider.menuBarImageNames.isEmpty, FileManager.default.fileExists(atPath: asarURL.path) {
+                for name in provider.menuBarImageNames {
+                    for (fileName, scale) in [("\(name)@2x.png", 2.0), ("\(name).png", 1.0)] {
+                        guard let data = readAsarFile(fileName, from: asarURL),
+                              let image = NSImage(data: data) else { continue }
+                        if let rep = image.representations.first, rep.pixelsWide > 0, rep.pixelsHigh > 0 {
+                            image.size = NSSize(width: CGFloat(rep.pixelsWide) / scale,
+                                                height: CGFloat(rep.pixelsHigh) / scale)
+                        }
+                        image.isTemplate = true
+                        return .template(image)
+                    }
+                }
+            }
             return .icon(NSWorkspace.shared.icon(forFile: url.path))
         }
         return nil
+    }
+
+    private static func readAsarFile(_ name: String, from archiveURL: URL) -> Data? {
+        guard let handle = try? FileHandle(forReadingFrom: archiveURL) else { return nil }
+        defer { try? handle.close() }
+        guard let prefix = try? handle.read(upToCount: 16), prefix.count == 16 else { return nil }
+
+        func uint32LE(at offset: Int) -> UInt32 {
+            let base = prefix.startIndex + offset
+            return UInt32(prefix[base])
+                | (UInt32(prefix[base + 1]) << 8)
+                | (UInt32(prefix[base + 2]) << 16)
+                | (UInt32(prefix[base + 3]) << 24)
+        }
+
+        guard uint32LE(at: 0) == 4 else { return nil }
+        let headerSize = UInt64(uint32LE(at: 4))
+        let jsonLength = Int(uint32LE(at: 12))
+        guard jsonLength > 0, jsonLength < 16 * 1024 * 1024 else { return nil }
+        let base = 8 + headerSize
+        guard base >= 16 + UInt64(jsonLength) else { return nil }
+
+        guard let headerData = try? handle.read(upToCount: jsonLength),
+              headerData.count == jsonLength,
+              let root = try? JSONSerialization.jsonObject(with: headerData) as? [String: Any],
+              let files = root["files"] as? [String: Any],
+              let entry = files[name] as? [String: Any],
+              (entry["unpacked"] as? Bool) != true,
+              let size = entry["size"] as? Int, size > 0, size < 1024 * 1024,
+              let offsetString = entry["offset"] as? String,
+              let relativeOffset = UInt64(offsetString) else { return nil }
+
+        let (fileOffset, overflow) = base.addingReportingOverflow(relativeOffset)
+        guard !overflow else { return nil }
+
+        do {
+            try handle.seek(toOffset: fileOffset)
+            guard let data = try handle.read(upToCount: size), data.count == size else { return nil }
+            return data
+        } catch {
+            return nil
+        }
     }
 }
 
@@ -437,9 +456,12 @@ private extension AgentProvider {
         }
     }
 
-    /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
-    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
+    /// The menu bar images keep a margin; the spark's thin rays and the
+    /// arch's wide margin need more of the box than the knot to look the same size.
+    var markScale: CGFloat { self == .claude ? 1.45 : self == .agy ? 1.9 : 1.2 }
+
+    /// Degrees to turn the fallback symbol; agy's "greaterthan" points up.
+    var symbolRotation: CGFloat { self == .agy ? -90 : 0 }
 
     /// What those apps name the mark they show in the menu bar.
     var menuBarImageNames: [String] {
@@ -449,7 +471,7 @@ private extension AgentProvider {
         // The OpenCode app shows nothing in the menu bar; its icon stands in.
         case .opencode: return []
         case .copilot: return []
-        case .agy: return []
+        case .agy: return ["trayTemplate"]
         }
     }
 }
@@ -461,32 +483,27 @@ struct NotchAgentMark: View {
     var tint: Color?
 
     var body: some View {
-        if provider == .agy {
-            AntigravityMarkShape()
-                .fill(tint ?? provider.tint)
+        switch AgentMarks.mark(for: provider) {
+        case .template(let image):
+            Image(nsImage: image)
+                .renderingMode(.template)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
                 .frame(width: size * provider.markScale, height: size * provider.markScale)
-        } else {
-            switch AgentMarks.mark(for: provider) {
-            case .template(let image):
-                Image(nsImage: image)
-                    .renderingMode(.template)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: size * provider.markScale, height: size * provider.markScale)
-                    .foregroundStyle(tint ?? provider.tint)
-            case .icon(let image):
-                // App icons keep a margin around their artwork.
-                Image(nsImage: image)
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: size * 1.35, height: size * 1.35)
-            case nil:
-                Image(systemName: provider.symbol)
-                    .font(.system(size: size, weight: .semibold))
-                    .foregroundStyle(tint ?? provider.tint)
-            }
+                .foregroundStyle(tint ?? provider.tint)
+        case .icon(let image):
+            // App icons keep a margin around their artwork.
+            Image(nsImage: image)
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: size * 1.35, height: size * 1.35)
+        case nil:
+            Image(systemName: provider.symbol)
+                .font(.system(size: size, weight: .semibold))
+                .foregroundStyle(tint ?? provider.tint)
+                .rotationEffect(.degrees(provider.symbolRotation))
         }
     }
 }

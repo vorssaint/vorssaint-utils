@@ -550,8 +550,15 @@ private struct NotchAgentAgyLimitsCard: View {
         struct Row: Identifiable {
             let id: String
             let window: AgentLimitWindow?
+            let label: String?
         }
     }
+
+    private static let knownScopes: [String: (order: Int, title: String)] = [
+        "Gemini Models": (0, "Gemini General"),
+        "Gemini 4 Argon": (1, "Gemini Advanced (Weekly)"),
+        "Claude and GPT models": (2, "Claude Models"),
+    ]
 
     private var limits: AgentLimits? {
         snapshot.limits[.agy]
@@ -567,38 +574,68 @@ private struct NotchAgentAgyLimitsCard: View {
         (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
     }
 
-    private var isPaid: Bool {
-        windows.contains { $0.scope == "Gemini 4 Argon" }
+    private static func isCarbonScope(_ scope: String?) -> Bool {
+        scope?.range(of: "carbon", options: .caseInsensitive) != nil
+    }
+
+    private var planChipLabel: String? {
+        guard !windows.isEmpty else { return nil }
+        if windows.contains(where: { Self.isCarbonScope($0.scope) }) { return "Ultra" }
+        if windows.contains(where: { $0.scope == "Gemini 4 Argon" }) { return "Pro" }
+        return "Free"
     }
 
     private var groupedWindows: [WindowGroup] {
+        guard !windows.isEmpty else { return [] }
         var groups: [String: [AgentLimitWindow]] = [:]
-        var order: [String] = []
+        var carbonWindows: [AgentLimitWindow] = []
+        var unknownOrder: [String] = []
         for window in windows {
             let scope = window.scope ?? ""
-            if groups[scope] == nil {
-                order.append(scope)
+            if Self.isCarbonScope(scope) {
+                carbonWindows.append(window)
+                continue
+            }
+            if Self.knownScopes[scope] == nil, groups[scope] == nil {
+                unknownOrder.append(scope)
             }
             groups[scope, default: []].append(window)
         }
-        return order.compactMap { (scope: String) -> WindowGroup? in
-            guard let allInScope = groups[scope], !allInScope.isEmpty else { return nil }
+
+        let orderedKnown = Self.knownScopes
+            .sorted { $0.value.order < $1.value.order }
+            .map(\.key)
+
+        return (orderedKnown + unknownOrder).compactMap { scope -> WindowGroup? in
+            let allInScope = groups[scope] ?? []
+            let title = Self.knownScopes[scope]?.title ?? scope
+
+            if scope == "Gemini 4 Argon" {
+                let carbonWindow = carbonWindows.first { $0.kind == .weekly } ?? carbonWindows.first
+                let carbonRow = carbonWindow.map {
+                    WindowGroup.Row(id: $0.id, window: $0, label: "Carbon")
+                } ?? WindowGroup.Row(id: "\(scope).carbon", window: nil, label: "Carbon")
+                let weekly = allInScope.first { $0.kind == .weekly }
+                let other = allInScope.filter { $0.kind != .session && $0.kind != .weekly }
+                let argonRow = weekly.map {
+                    WindowGroup.Row(id: $0.id, window: $0, label: "Argon")
+                } ?? WindowGroup.Row(id: "\(scope).argon", window: nil, label: "Argon")
+                let rows = [
+                    carbonRow,
+                    argonRow,
+                ] + other.map { WindowGroup.Row(id: $0.id, window: $0, label: nil) }
+                return WindowGroup(id: scope, title: title, rows: rows)
+            }
+
+            guard !allInScope.isEmpty else { return nil }
             let session = allInScope.first { $0.kind == .session }
             let weekly = allInScope.first { $0.kind == .weekly }
             let other = allInScope.filter { $0.kind != .session && $0.kind != .weekly }
-            let rows: [WindowGroup.Row]
-            if scope == "Gemini 4 Argon", session == nil, let weekly {
-                rows = [
-                    WindowGroup.Row(id: "\(scope).empty", window: nil),
-                    WindowGroup.Row(id: weekly.id, window: weekly)
-                ] + other.map { WindowGroup.Row(id: $0.id, window: $0) }
-            } else {
-                rows = ([session, weekly].compactMap { $0 } + other).map {
-                    WindowGroup.Row(id: $0.id, window: $0)
-                }
+            let rows = ([session, weekly].compactMap { $0 } + other).map {
+                WindowGroup.Row(id: $0.id, window: $0, label: nil)
             }
             guard !rows.isEmpty else { return nil }
-            return WindowGroup(id: scope, title: scope, rows: rows)
+            return WindowGroup(id: scope, title: title, rows: rows)
         }
     }
 
@@ -612,7 +649,7 @@ private struct NotchAgentAgyLimitsCard: View {
                         if checking {
                             ProgressView().controlSize(.mini).scaleEffect(0.65).frame(width: 12, height: 12)
                         }
-                        if isPaid { NotchAgentChip(text: "Paid", tint: AgentProvider.agy.tint) }
+                        if let planChipLabel { NotchAgentChip(text: planChipLabel, tint: AgentProvider.agy.tint) }
                         if !snapshot.working(.agy).isEmpty { NotchAgentPulse(tint: AgentProvider.agy.tint, size: 5) }
                     }
                 }
@@ -640,11 +677,11 @@ private struct NotchAgentAgyLimitsCard: View {
                     VStack(spacing: 5) {
                         ForEach(group.rows) { row in
                             if let window = row.window {
-                                NotchAgentLimitRowView(window: window, label: rowLabel(window), provider: .agy,
+                                NotchAgentLimitRowView(window: window, label: row.label ?? rowLabel(window), provider: .agy,
                                                        now: now, display: display, text: text,
                                                        observedAt: limits?.observedAt)
                             } else {
-                                disabledSessionRow
+                                disabledRow(row.label ?? text.session)
                             }
                         }
                     }
@@ -655,10 +692,10 @@ private struct NotchAgentAgyLimitsCard: View {
         .opacity(stale ? 0.6 : 1)
     }
 
-    private var disabledSessionRow: some View {
+    private func disabledRow(_ label: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
-                Text(text.session)
+                Text(label)
                     .font(.system(size: 10, weight: .medium))
                     .strikethrough(true, color: .white.opacity(0.35))
                     .foregroundStyle(.white.opacity(0.35))
