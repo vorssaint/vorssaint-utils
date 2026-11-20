@@ -40,6 +40,9 @@ final class PresentationPointerService: ObservableObject {
     private var overlays: [CGDirectDisplayID: PresentationPointerOverlay] = [:]
     private var shields: [CGDirectDisplayID: PresentationPointerClickShield] = [:]
     private var activeDisplayID: CGDirectDisplayID?
+    /// When the pointer was last turned on, so a display it crosses to while
+    /// it is still fading in carries the fade on.
+    private var arrivalTime: TimeInterval?
     /// The displays and their frames in the system's order, read once per
     /// layout so a mouse move allocates nothing.
     private var displayIDs: [CGDirectDisplayID] = []
@@ -275,6 +278,7 @@ final class PresentationPointerService: ObservableObject {
                 return
             }
             isPresenting = true
+            arrivalTime = ProcessInfo.processInfo.systemUptime
             sound.configure(source: Self.soundSource(from: .standard), volume: Self.soundVolume(from: .standard))
             let app = NotificationCenter.default
             presentationObservers = [
@@ -297,10 +301,8 @@ final class PresentationPointerService: ObservableObject {
                     forName: name, object: nil, queue: .main) { [weak self] _ in self?.reassertPointer() }))
             }
         }
+        // The first display the pointer lands on fades it in (movePointer).
         layoutDisplays()
-        if arriving, let id = activeDisplayID {
-            overlays[id]?.fadeIn(reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
-        }
     }
 
     private func dismiss() {
@@ -317,6 +319,9 @@ final class PresentationPointerService: ObservableObject {
         activeDisplayID = nil
         displayIDs = []
         displayFrames = []
+        arrivalTime = nil
+        cancelSystemPointerCheck()
+        systemPointerShowing = false
         series.reset()
         buttonsDown = []
         heldExpression = nil
@@ -375,8 +380,14 @@ final class PresentationPointerService: ObservableObject {
     private func reconcileSystemPointer() {
         if isPresenting, style.replacesSystemPointer, let id = activeDisplayID, overlays[id]?.hasArtwork == true {
             systemPointer.hide()
+            // Some surfaces keep the system pointer however it is hidden;
+            // find out in a moment, once the hide has landed, rather than at
+            // the next mouse move.
+            scheduleSystemPointerCheck(after: 0.05)
         } else {
             systemPointer.show()
+            cancelSystemPointerCheck()
+            systemPointerShowing = false
             // The ring circles the system pointer, so it never steps aside.
             overlays.values.forEach { $0.setSuppressed(false) }
         }
@@ -437,7 +448,11 @@ final class PresentationPointerService: ObservableObject {
 
     // MARK: - One pointer at a time
 
-    private var systemPointerCheckScheduled = false
+    /// Whether macOS showed its pointer at the last check, which the picture
+    /// on whichever display the mouse is on follows.
+    private var systemPointerShowing = false
+    private var systemPointerCheckDue: TimeInterval?
+    private var systemPointerCheckGeneration = 0
 
     /// Hides the system pointer again if macOS showed it, and where macOS
     /// insists on it (menus, the Dock, some system surfaces), steps the
@@ -445,20 +460,32 @@ final class PresentationPointerService: ObservableObject {
     private func checkSystemPointer(now: TimeInterval, force: Bool = false) {
         guard isPresenting, style.replacesSystemPointer, let id = activeDisplayID else { return }
         guard let showing = systemPointer.reassertIfNeeded(now: now, force: force) else { return }
+        systemPointerShowing = showing
         overlays[id]?.setSuppressed(showing)
-        // While it shows, keep looking, so the picture comes back as soon as
-        // the system pointer leaves, even without a move.
-        if showing { scheduleSystemPointerCheck(after: 0.15) }
+        // macOS can show its pointer with no mouse input to tell us (a menu
+        // opening late, an app resetting the cursor), so keep looking: twice
+        // a second, and often while it shows so the picture comes back as
+        // soon as it goes.
+        scheduleSystemPointerCheck(after: showing ? 0.15 : 0.5)
     }
 
+    /// One pending check at a time; an earlier one replaces a later one.
     private func scheduleSystemPointerCheck(after delay: TimeInterval) {
-        guard !systemPointerCheckScheduled else { return }
-        systemPointerCheckScheduled = true
+        let due = ProcessInfo.processInfo.systemUptime + delay
+        if let systemPointerCheckDue, systemPointerCheckDue <= due { return }
+        systemPointerCheckDue = due
+        systemPointerCheckGeneration &+= 1
+        let generation = systemPointerCheckGeneration
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            guard let self else { return }
-            self.systemPointerCheckScheduled = false
+            guard let self, generation == self.systemPointerCheckGeneration else { return }
+            self.systemPointerCheckDue = nil
             self.checkSystemPointer(now: ProcessInfo.processInfo.systemUptime, force: true)
         }
+    }
+
+    private func cancelSystemPointerCheck() {
+        systemPointerCheckDue = nil
+        systemPointerCheckGeneration &+= 1
     }
 
     // MARK: - Frame clock
@@ -520,7 +547,14 @@ final class PresentationPointerService: ObservableObject {
             if let previous = activeDisplayID { overlays[previous]?.hidePointer() }
             activeDisplayID = id
             leanAngle = 0
+            // The picture here picks up where the last one was: aside while
+            // macOS shows its pointer, and still fading if it just arrived.
+            overlays[id]?.setSuppressed(style.replacesSystemPointer && systemPointerShowing)
             overlays[id]?.movePointer(to: location)
+            if let arrivalTime {
+                overlays[id]?.fadeIn(elapsed: ProcessInfo.processInfo.systemUptime - arrivalTime,
+                                     reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+            }
             reconcileSystemPointer()
             // A press held across the edge stays pressed on the new display.
             if let heldExpression {
@@ -667,8 +701,9 @@ final class PresentationPointerService: ObservableObject {
 /// Hides the system pointer from the background while a drawn pointer stands
 /// in for it, and gives it back exactly once. macOS can show it again on its
 /// own (after waking, on a Space change, when another app comes forward), so
-/// it is checked again at those moments and, at most a few times a second,
-/// while the mouse moves. Only calls the window server accepted are counted.
+/// it is checked again at those moments, up to twenty times a second while the
+/// mouse moves, and twice a second while it rests. Only calls the window server
+/// accepted are counted.
 private final class SystemPointerHider {
     private typealias VisibleFunction = @convention(c) () -> Int32
 
@@ -690,7 +725,7 @@ private final class SystemPointerHider {
     }
 
     func show() {
-        guard isHiding else { return }
+        guard isHiding || hides > 0 else { return }
         isHiding = false
         while hides > 0, CGDisplayShowCursor(CGMainDisplayID()) == .success {
             hides -= 1
@@ -713,13 +748,14 @@ private final class SystemPointerHider {
         guard now - lastHideAttempt >= 0.3 else { return true }
         lastHideAttempt = now
         guard CGDisplayHideCursor(CGMainDisplayID()) == .success else { return true }
+        hides += 1
         // A hide that changed nothing is handed straight back, so the count
-        // owed on the way out never grows past the hides that worked.
+        // owed on the way out stays small; one the window server refuses to
+        // take back stays counted and is paid on the way out.
         if isVisible() != 0 {
-            _ = CGDisplayShowCursor(CGMainDisplayID())
+            if CGDisplayShowCursor(CGMainDisplayID()) == .success { hides -= 1 }
             return true
         }
-        hides += 1
         return false
     }
 }

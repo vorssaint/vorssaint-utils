@@ -2333,9 +2333,9 @@ private struct PresentationPointerPanelTile: View {
             }
             .frame(width: 24, height: 24)
             .background(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(selected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.04)))
+                .fill(selected ? Color.accentColor.opacity(0.1) : Color.primary.opacity(0.04)))
             .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 1.5))
+                .strokeBorder(selected ? Color.accentColor : Color.clear, lineWidth: 2))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

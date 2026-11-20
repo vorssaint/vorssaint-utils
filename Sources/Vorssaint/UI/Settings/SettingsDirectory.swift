@@ -428,6 +428,7 @@ enum SettingsDirectory {
                                           FeatureStrings.presentationPointer(language).energyLabel,
                                           FeatureStrings.presentationPointer(language).burstsToggle,
                                           FeatureStrings.presentationPointer(language).soundToggle,
+                                          FeatureStrings.presentationPointer(language).volumeLabel,
                                           FeatureStrings.presentationPointer(language).shortcutToggle,
                                           FeatureStrings.presentationPointer(language).blockClicksShortcutToggle,
                                           "cursor highlight", "presentation", "pointer"]),

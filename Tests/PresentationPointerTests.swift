@@ -267,6 +267,10 @@ enum PresentationPointerTests {
         overlay.press(expression, reduceMotion: true)
         overlay.release(reduceMotion: true)
         overlay.fadeIn(reduceMotion: false)
+        suite.expect(overlay.arrivalFadeStart == 0, "a pointer turned on fades in from nothing")
+        overlay.fadeIn(elapsed: PresentationPointerOverlay.arrivalDuration / 2, reduceMotion: false)
+        suite.expect(overlay.arrivalFadeStart.map { abs($0 - 0.5) < 0.001 } == true,
+                     "a pointer crossing to another display mid-fade carries on from where it was")
         overlay.movePointer(to: CGPoint(x: 3000, y: 400))
         overlay.setSuppressed(true)
         suite.expect(overlay.drawnTip == nil,

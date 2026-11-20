@@ -52,25 +52,25 @@ struct PresentationPointerSection: View {
                 EmptyView()
             }
             // The looks and the two choices that change them, with the
-            // pointer as it will look right beside them.
-            HStack(alignment: .center, spacing: 20) {
+            // pointer as it will look beside them where the window is wide
+            // enough, and beside the two choices under the looks where not.
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .center, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        stylePicker
+                        sizeAndColor
+                    }
+                    .frame(width: Self.columnWidth)
+                    preview(side: 132)
+                }
                 VStack(alignment: .leading, spacing: 12) {
                     stylePicker
-                    // Continuous, so no tick marks crowd the track; the
-                    // binding keeps the value to whole points.
-                    SettingsSliderRow(title: text.sizeLabel, value: sizeBinding,
-                                      range: PresentationPointerSupport.sizeRange,
-                                      readout: "\(Int(PresentationPointerSupport.sanitizedSize(size))) pt")
-                    HStack(spacing: 12) {
-                        Text(text.colorLabel)
-                        Spacer(minLength: 12)
-                        ColorPicker(text.colorLabel, selection: colorBinding, supportsOpacity: false)
-                            .labelsHidden()
+                    HStack(alignment: .center, spacing: 16) {
+                        sizeAndColor
+                        preview(side: 96)
                     }
+                    .frame(width: Self.columnWidth)
                 }
-                .frame(width: Self.columnWidth)
-                PresentationPointerPreview(style: selectedStyle, colorHex: color,
-                                           size: PresentationPointerSupport.sanitizedSize(size))
             }
             .padding(.leading, settingsRowTextInset)
 
@@ -154,6 +154,27 @@ struct PresentationPointerSection: View {
     private static let columnWidth = CGFloat(PresentationPointerStyle.allCases.count) * tileWidth
         + CGFloat(PresentationPointerStyle.allCases.count - 1) * tileSpacing
 
+    private var sizeAndColor: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Continuous, so no tick marks crowd the track; the binding keeps
+            // the value to whole points.
+            SettingsSliderRow(title: text.sizeLabel, value: sizeBinding,
+                              range: PresentationPointerSupport.sizeRange,
+                              readout: "\(Int(PresentationPointerSupport.sanitizedSize(size))) pt")
+            HStack(spacing: 12) {
+                Text(text.colorLabel)
+                Spacer(minLength: 12)
+                ColorPicker(text.colorLabel, selection: colorBinding, supportsOpacity: false)
+                    .labelsHidden()
+            }
+        }
+    }
+
+    private func preview(side: CGFloat) -> some View {
+        PresentationPointerPreview(style: selectedStyle, colorHex: color,
+                                   size: PresentationPointerSupport.sanitizedSize(size), side: side)
+    }
+
     /// Every look as it will appear, picked by clicking it.
     private var stylePicker: some View {
         HStack(spacing: Self.tileSpacing) {
@@ -173,7 +194,7 @@ struct PresentationPointerSection: View {
                     .padding(.vertical, 6)
                     .frame(width: Self.tileWidth)
                     .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear))
+                        .fill(selected ? Color.accentColor.opacity(0.1) : Color.clear))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
                         .strokeBorder(selected ? Color.accentColor : Color.secondary.opacity(0.25),
                                       lineWidth: selected ? 2 : 1))
@@ -210,8 +231,8 @@ struct PresentationPointerSection: View {
                 }
                 .padding(.leading, 96 + 12)
             }
-            SettingsSliderRow(title: text.volumeLabel, value: $volume, range: 0...1,
-                              readout: "\(Int((volume * 100).rounded()))%") { editing in
+            SettingsSliderRow(title: text.volumeLabel, value: volumeBinding, range: 0...1,
+                              readout: "\(Int((volumeBinding.wrappedValue * 100).rounded()))%") { editing in
                 if !editing { service.previewSound() }
             }
         }
@@ -283,6 +304,13 @@ struct PresentationPointerSection: View {
                 set: { if $0 != service.mode.blocksClicks { service.toggleBlockingClicks() } })
     }
 
+    /// A volume restored from a backup is any number; the slider and its
+    /// value read it as the taps play it, from silent to full.
+    private var volumeBinding: Binding<Double> {
+        Binding(get: { PresentationPointerSupport.clampedFraction(volume) },
+                set: { volume = PresentationPointerSupport.clampedFraction($0) })
+    }
+
     private var sizeBinding: Binding<Double> {
         Binding(get: { PresentationPointerSupport.sanitizedSize(size) },
                 set: { size = PresentationPointerSupport.sanitizedSize($0.rounded()) })
@@ -346,9 +374,9 @@ private struct PresentationPointerPreview: View {
     let style: PresentationPointerStyle
     let colorHex: String
     let size: Double
+    let side: CGFloat
 
     var body: some View {
-        let side: CGFloat = 132
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.background.opacity(0.6))

@@ -147,14 +147,27 @@ final class PresentationPointerOverlay {
 
     /// The pointer arriving: a quick fade where it already stands, so it
     /// never seems to jump from somewhere else.
-    func fadeIn(reduceMotion: Bool) {
-        guard !reduceMotion else { return }
+    /// How long the pointer takes to fade in when it is turned on.
+    static let arrivalDuration: TimeInterval = 0.12
+
+    /// Fades the pointer in as it arrives. `elapsed` is how far an arrival
+    /// on another display had got, so a pointer crossing over mid-fade
+    /// carries on from there rather than starting again or popping in.
+    func fadeIn(elapsed: TimeInterval = 0, reduceMotion: Bool) {
+        let remaining = Self.arrivalDuration - max(0, elapsed)
+        guard !reduceMotion, remaining > 0 else { return }
         let fade = CABasicAnimation(keyPath: "opacity")
-        fade.fromValue = 0
+        fade.fromValue = Float(max(0, elapsed) / Self.arrivalDuration)
         fade.toValue = 1
-        fade.duration = 0.12
+        fade.duration = remaining
         fade.timingFunction = CAMediaTimingFunction(name: .easeOut)
         pointerLayer.add(fade, forKey: "arrive")
+    }
+
+    /// The opacity the running arrival fade starts from, or nil when none
+    /// runs.
+    var arrivalFadeStart: Float? {
+        (pointerLayer.animation(forKey: "arrive") as? CABasicAnimation)?.fromValue as? Float
     }
 
     func hidePointer() {
