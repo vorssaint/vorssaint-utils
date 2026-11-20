@@ -145,6 +145,10 @@ enum MixerInputVolumeContract {
         static var streamReadFails = false
         static var afterWrite: (() -> Void)?
         static var afterUIDRead: (() -> Void)?
+        /// The audio server's process list: each process, whether it is
+        /// recording, and from which devices.
+        static var processes: [(object: UInt32, pid: Int32, recording: Bool, devices: [UInt32])] = []
+        static var processListReads = 0
         static var current: UInt32 = 10
         static var uids: [UInt32: String] = [:]
         static var aggregates: Set<UInt32> = []
@@ -180,6 +184,8 @@ enum MixerInputVolumeContract {
             streamReadFails = false
             afterWrite = nil
             afterUIDRead = nil
+            processes = []
+            processListReads = 0
             UserDefaults.standard.values = [:]
             AppFeature.micMuteAvailable = true
             MicMuteService.shared = MicMuteService()
@@ -205,6 +211,14 @@ enum MixerInputVolumeContract {
                     MemoryLayout<AudioBufferList>.size + max(0, (streamChannels[d] ?? [2]).count - 1)
                         * MemoryLayout<AudioBuffer>.stride)
                 return streamReadFails ? -1 : noErr
+            }
+            if a.pointee.mSelector == kAudioHardwarePropertyProcessObjectList {
+                size.pointee = UInt32(processes.count * 4)
+                return noErr
+            }
+            if a.pointee.mSelector == kAudioProcessPropertyDevices {
+                size.pointee = UInt32((processes.first { $0.object == d }?.devices.count ?? 0) * 4)
+                return noErr
             }
             size.pointee =
                 a.pointee.mSelector == kAudioHardwarePropertyDevices ? UInt32(devices.count * 4) : 4
@@ -235,6 +249,22 @@ enum MixerInputVolumeContract {
                     p.storeBytes(of: v, toByteOffset: i * 4, as: UInt32.self)
                 }
             case kAudioHardwarePropertyDefaultInputDevice: p.storeBytes(of: current, as: UInt32.self)
+            case kAudioHardwarePropertyProcessObjectList:
+                processListReads += 1
+                for (i, process) in processes.enumerated() {
+                    p.storeBytes(of: process.object, toByteOffset: i * 4, as: UInt32.self)
+                }
+            case kAudioProcessPropertyPID:
+                guard let process = processes.first(where: { $0.object == d }) else { return -1 }
+                p.storeBytes(of: process.pid, as: Int32.self)
+            case kAudioProcessPropertyIsRunningInput:
+                guard let process = processes.first(where: { $0.object == d }) else { return -1 }
+                p.storeBytes(of: UInt32(process.recording ? 1 : 0), as: UInt32.self)
+            case kAudioProcessPropertyDevices:
+                guard let process = processes.first(where: { $0.object == d }) else { return -1 }
+                for (i, device) in process.devices.enumerated() {
+                    p.storeBytes(of: device, toByteOffset: i * 4, as: UInt32.self)
+                }
             case kAudioDevicePropertyDeviceUID, kAudioObjectPropertyName:
                 p.assumingMemoryBound(to: CFString.self).pointee = (uids[d] ?? "device-\(d)") as CFString
                 let callback = afterUIDRead
@@ -1521,5 +1551,76 @@ enum MixerInputVolumeContract {
                     && HAL.levels[HAL.key(20)] == (mute ? 0 : 0.75),
                   "the requested mute or unmute reaches a device that arrives before publication")
         }
+
+        // A call app that opens a microphone this app muted, while it is
+        // recording from it, is followed: the mute is released and said so.
+        // Any other change to the level is an app nudging gain and is put back.
+        func mutedMicrophone() -> MicMuteService {
+            HAL.reset()
+            HAL.levels[HAL.key(10)] = 0.5
+            let muted = MicMuteService.shared
+            muted.setMuted(true)
+            DispatchQueue.drain()
+            QuickToolHUD.messages = []
+            return muted
+        }
+        func raiseLevel(of muted: MicMuteService) {
+            HAL.levels[HAL.key(10)] = 0.7
+            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, muted.listenerClient)
+            DispatchQueue.drain()
+        }
+        let callApp: Int32 = 4242
+
+        var callMute = mutedMicrophone()
+        check(callMute.isMuted && HAL.levels[HAL.key(10)] == 0 && callMute.silencedAfterSweep == ["device-10"],
+              "a mute leaves the microphone silent and remembers it was verifiably quiet")
+        HAL.processes = [(object: 100, pid: callApp, recording: true, devices: [10])]
+        raiseLevel(of: callMute)
+        check(!callMute.isMuted && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+                && HAL.levels[HAL.key(10)] == 0.5 && QuickToolHUD.messages == ["unmuted"],
+              "a call app that opens a muted microphone while recording from it is followed, and it is said")
+        check(!callMute.applyInFlight && callMute.silencedAfterSweep.isEmpty,
+              "following a call app leaves nothing in flight and nothing remembered as muted")
+        callMute.setMuted(true)
+        DispatchQueue.drain()
+        check(callMute.isMuted && HAL.levels[HAL.key(10)] == 0,
+              "the microphone can be muted again after a call app was followed")
+
+        callMute = mutedMicrophone()
+        raiseLevel(of: callMute)
+        check(callMute.isMuted && HAL.levels[HAL.key(10)] == 0 && QuickToolHUD.messages.isEmpty,
+              "with nobody recording, a raised level is put back without a word")
+        let notACall: [(String, [(object: UInt32, pid: Int32, recording: Bool, devices: [UInt32])])] = [
+            ("this app", [(100, ProcessInfo.processInfo.processIdentifier, true, [10])]),
+            ("an app that is not recording", [(100, callApp, false, [10])]),
+            ("an app recording from another device", [(100, callApp, true, [20])]),
+        ]
+        for (label, processes) in notACall {
+            callMute = mutedMicrophone()
+            HAL.processes = processes
+            raiseLevel(of: callMute)
+            check(callMute.isMuted && HAL.levels[HAL.key(10)] == 0 && QuickToolHUD.messages.isEmpty,
+                  "a raised level is put back when the one recording is \(label)")
+        }
+
+        callMute = mutedMicrophone()
+        HAL.processes = [(object: 100, pid: callApp, recording: true, devices: [10])]
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, callMute.listenerClient)
+        DispatchQueue.drain()
+        check(callMute.isMuted && HAL.processListReads == 0,
+              "the audio server is not asked who is recording while the device still looks muted")
+        raiseLevel(of: callMute)
+        check(HAL.processListReads > 0 && !callMute.isMuted,
+              "the audio server is asked once a device's controls look opened")
+
+        callMute = mutedMicrophone()
+        HAL.levels[HAL.key(10)] = 0.7
+        callMute.halQueue.async { callMute.recordSweepBaseline(muted: true) }
+        callMute.halQueue.run()
+        check(callMute.silencedAfterSweep == ["device-10"],
+              "a read that lands after a call app opened the microphone does not erase what the sweep left quiet")
+        callMute.halQueue.async { callMute.recordSweepBaseline(muted: false) }
+        callMute.halQueue.run()
+        check(callMute.silencedAfterSweep.isEmpty, "what was remembered as quiet is forgotten once the mute is released")
     }
 }

@@ -4223,31 +4223,6 @@ enum ScreenshotFeatureTests {
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 2) == [0, 1, 2] as [UInt32],
                "every input channel is muted, never fewer than the stereo pair")
-        let micMuteServiceSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/MicMuteService.swift",
-            encoding: .utf8)) ?? ""
-        let reapply = micMuteServiceSource.range(of: "private func reapplyIfNeeded() {")
-            .map { micMuteServiceSource[$0.lowerBound...] }
-            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
-            .map(String.init) ?? ""
-        suite.expect(reapply.contains("if wantsMute {") && !reapply.contains("micMuteActive")
-                && micMuteServiceSource.contains(
-                    "private func apply(muted: Bool, announce: Bool, followingCallApps: Bool = false) {\n        wantsMute = muted"),
-               "a device change re-asserts the mute request in flight, never the persisted flag it is about to replace")
-        suite.expect(micMuteServiceSource.contains("callAppOpenedTheMicrophone()")
-                && micMuteServiceSource.contains("apply(muted: true, announce: false, followingCallApps: true)")
-                && micMuteServiceSource.contains("self.apply(muted: false, announce: true)")
-                && micMuteServiceSource.contains("self?.recordSweepBaseline(muted: muted)"),
-               "a device change asks whether a call app opened the microphone, and each mute sweep records what it left quiet")
-        let callCheck = micMuteServiceSource.range(of: "private func callAppOpenedTheMicrophone() -> Bool {")
-            .map { micMuteServiceSource[$0.lowerBound...] }
-            .flatMap { body in body.range(of: "\n    }\n").map { body[..<$0.lowerBound] } }
-            .map(String.init) ?? ""
-        let controlsRead = callCheck.range(of: "guard !opened.isEmpty else { return false }")
-        let serverAsked = callCheck.range(of: "Self.devicesCapturedByOtherProcesses()")
-        suite.expect(controlsRead != nil && serverAsked != nil
-                && controlsRead!.upperBound <= serverAsked!.lowerBound,
-               "the audio server is asked who is recording only once a device's controls already look opened")
 
         suite.expect(Defaults.registeredDefaults[DefaultsKey.radialMenuEnabled] as? Bool == false,
                "the radial menu ships off by default")
