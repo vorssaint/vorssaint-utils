@@ -76,6 +76,7 @@ struct NotchCapsuleNoticeView: View {
         // A warning reads as one in any agent's color; other AI notices wear it.
         case .agents: return notice.symbol.hasPrefix("exclamationmark") ? .orange : notice.agent?.tint ?? .white
         case .timer: return .orange
+        case .clipboard where notice.symbol == "clipboard.fill": return Color(red: 0.45, green: 0.90, blue: 0.85)
         default: return .white
         }
     }

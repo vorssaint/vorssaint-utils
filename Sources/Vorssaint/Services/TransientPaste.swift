@@ -201,6 +201,7 @@ final class TransientPaste {
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
         willPost?()
+        NotificationCenter.default.post(name: Notification.Name("VorssaintDidPaste"), object: nil)
         keyDown.post(tap: .cghidEventTap)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
             keyUp.post(tap: .cghidEventTap)
