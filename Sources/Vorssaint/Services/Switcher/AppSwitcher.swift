@@ -37,7 +37,9 @@ final class AppSwitcher: ObservableObject {
             cancelLetterConfirmation()
             updateIconRowLayoutForCurrentSelection()
             revealSelectedIconInVisibleRow()
-            updateSelectionPeek()
+            // The reset in endSession must not cut short the peek kept up
+            // until the chosen window is in front.
+            if sessionActive { updateSelectionPeek() }
             if sessionActive, simpleModeEnabled, !usesWindowRow {
                 resizePanel(animated: !UserDefaults.standard.bool(forKey: DefaultsKey.switcherInstantSelection))
             }
