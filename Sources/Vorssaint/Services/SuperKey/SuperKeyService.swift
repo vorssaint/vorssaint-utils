@@ -717,10 +717,15 @@ final class SuperKeyService: ObservableObject {
     // MARK: - A press whose release never came
 
     private func armHeldKeyWatchdog() {
+        let wasArmed = heldKeyWatchdog != nil
         heldKeyWatchdog?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.reevaluateHold() }
         heldKeyWatchdog = work
         DispatchQueue.main.asyncAfter(deadline: .now() + heldKeyTimeout, execute: work)
+        if !wasArmed {
+            let currentModifiers = stateLock.withLock { eventModifiers }
+            KeystrokeOverlayService.shared.noteSuperKeyState(isHeld: true, modifiers: currentModifiers)
+        }
     }
 
     /// Decides whether a hold that reached its deadline should survive, and
@@ -768,8 +773,12 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func cancelHeldKeyWatchdog() {
+        let wasArmed = heldKeyWatchdog != nil
         heldKeyWatchdog?.cancel()
         heldKeyWatchdog = nil
+        if wasArmed {
+            KeystrokeOverlayService.shared.noteSuperKeyState(isHeld: false, modifiers: [])
+        }
     }
 
     /// Back to the key being up. State resets synchronously; UI callbacks stay

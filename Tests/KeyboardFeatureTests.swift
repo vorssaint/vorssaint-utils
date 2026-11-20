@@ -228,5 +228,184 @@ enum KeyboardFeatureTests {
         suite.expect(silenced.allSatisfy { AppFeature.allCases.contains($0) },
                "the silenced list only names real features, so re-syncing them restores the keys")
         GlobalShortcut.refreshLayoutLabels()
+
+        // MARK: Keystroke overlay (KeyCastr-style visualizer)
+
+        suite.expect(!AppFeature.keystrokeOverlay.installedByDefault,
+               "keystroke overlay ships opt-in on the Features page")
+        suite.expect(AppFeature.keystrokeOverlay.permissions == [.accessibility]
+                && AppFeature.keystrokeOverlay.enabledKeys == [DefaultsKey.keystrokeOverlayEnabled]
+                && AppFeature.keystrokeOverlay.group == .mouseKeyboard
+                && AppFeature.keystrokeOverlay.energyProfile == .keyboard,
+               "keystroke overlay declares its Accessibility requirement, enable key and keyboard energy profile")
+
+        // Secure Input and auto-repeat suppression
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_A),
+            modifiers: [],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: true,
+            typedCharacter: "a") == nil,
+               "keystroke overlay suppresses all keys while macOS Secure Input is active")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_A),
+            modifiers: [],
+            mode: .allKeys,
+            isAutoRepeat: true,
+            secureInputActive: false,
+            typedCharacter: "a") == nil,
+               "keystroke overlay ignores held key auto-repeat events")
+
+        // Mode filtering: All keys vs Shortcuts only
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_A),
+            modifiers: [],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: false,
+            typedCharacter: "a") == ["A"],
+               "all-keys mode shows plain letter keys")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_A),
+            modifiers: [.shift],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: false,
+            typedCharacter: "A") == ["A"],
+               "all-keys mode folds Shift into a single character cap")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_Tab),
+            modifiers: [.shift],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: false) == ["⇧", "⇥"],
+               "special keys keep the Shift cap alongside their symbol")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_A),
+            modifiers: [.shift],
+            mode: .shortcutsOnly,
+            isAutoRepeat: false,
+            secureInputActive: false,
+            typedCharacter: "A") == nil,
+               "shortcuts-only mode ignores ordinary typing and Shift-only letters")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_ANSI_C),
+            modifiers: [.command],
+            mode: .shortcutsOnly,
+            isAutoRepeat: false,
+            secureInputActive: false,
+            typedCharacter: "c") == ["⌘", "C"],
+               "shortcuts-only mode shows primary modifier combinations")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(kVK_F5),
+            modifiers: [],
+            mode: .shortcutsOnly,
+            isAutoRepeat: false,
+            secureInputActive: false) == ["F5"],
+               "shortcuts-only mode still shows standalone function keys")
+
+        // Buffer repeat merging, pruning and max visible capacity
+        var buffer = KeystrokeOverlayBuffer()
+        let firstItems = buffer.record(caps: ["⌘", "C"], now: 10.0, duration: 1.5)
+        suite.expect(firstItems.count == 1 && firstItems.first?.repeatCount == 1
+                && firstItems.first?.displayText == "⌘ C",
+               "first keystroke records with repeat count 1")
+        let repeatedItems = buffer.record(caps: ["⌘", "C"], now: 10.4, duration: 1.5)
+        suite.expect(repeatedItems.count == 1 && repeatedItems.first?.repeatCount == 2
+                && repeatedItems.first?.displayText == "⌘ C ×2",
+               "rapid consecutive presses of the same key merge into a repeat count")
+        for step in 0..<6 {
+            _ = buffer.record(caps: ["\(step)"], now: 11.0 + Double(step) * 0.1, duration: 5.0)
+        }
+        suite.expect(buffer.items.count == KeystrokeOverlayBuffer.maxVisibleItems
+                && buffer.items.first?.caps == ["1"]
+                && buffer.items.last?.caps == ["5"],
+               "overlay buffer bounds visible items to \(KeystrokeOverlayBuffer.maxVisibleItems)")
+        buffer.prune(now: 20.0, duration: 1.5)
+        suite.expect(buffer.items.isEmpty, "pruning after the fade-out delay clears expired items")
+
+        // Screen placement math and custom drag-and-drop origin clamping
+        let screenRect = CGRect(x: 0, y: 0, width: 1440, height: 900)
+        let pillSize = CGSize(width: 140, height: 50)
+        let bottomCenter = KeystrokeOverlaySupport.panelFrame(
+            size: pillSize, visibleFrame: screenRect, position: .bottomCenter, margin: 28)
+        let topRight = KeystrokeOverlaySupport.panelFrame(
+            size: pillSize, visibleFrame: screenRect, position: .topRight, margin: 28)
+        suite.expect(bottomCenter.midX == screenRect.midX && bottomCenter.minY == 28,
+               "bottom-center placement centers horizontally above the bottom margin")
+        suite.expect(topRight.maxX == screenRect.maxX - 28 && topRight.maxY == screenRect.maxY - 28,
+               "top-right placement insets from the top and right edges")
+        let draggedInBounds = KeystrokeOverlaySupport.panelFrame(
+            size: pillSize,
+            visibleFrame: screenRect,
+            position: .bottomCenter,
+            customOrigin: CGPoint(x: 320, y: 410)
+        )
+        suite.expect(draggedInBounds.origin == CGPoint(x: 320, y: 410),
+               "custom dragged origin overrides preset placement when inside visible screen bounds")
+        let draggedOffscreen = KeystrokeOverlaySupport.panelFrame(
+            size: pillSize,
+            visibleFrame: screenRect,
+            position: .bottomCenter,
+            customOrigin: CGPoint(x: -500, y: 5000)
+        )
+        suite.expect(draggedOffscreen.minX == 8 && draggedOffscreen.maxY == screenRect.maxY - 8,
+               "custom dragged origin clamps inside the screen's visible frame")
+
+        // Svelte theme metrics, modifier cells, Space/Shift/Super rendering
+        suite.expect(KeystrokeOverlayStyle.sanitized(nil) == .svelte
+                && KeystrokeOverlayStyle.sanitized("keycaps") == .keycaps
+                && KeystrokeOverlaySize.medium.svelteBoxSize == CGSize(width: 200, height: 100),
+               "Svelte theme is the default style and matches KeyCastr's 200x100 medium box")
+        suite.expect(KeystrokeOverlaySupport.svelteModifierCells.map(\.symbol) == ["⇧", "⌃", "⌥", "⌘"],
+               "Svelte bottom bar lists Shift, Control, Option and Command in order")
+        suite.expect(KeystrokeOverlaySupport.modifierPreviewLabel(modifiers: [.shift]) == "⇧"
+                && KeystrokeOverlaySupport.modifierPreviewLabel(modifiers: [.shift, .command]) == "⇧ ⌘"
+                && KeystrokeOverlaySupport.modifierPreviewLabel(modifiers: [], superKeyHeld: true) == "Super"
+                && KeystrokeOverlaySupport.modifierPreviewLabel(modifiers: .validMask) == "Super",
+               "modifier preview renders Shift, modifier chords and Super")
+        suite.expect(KeystrokeOverlaySupport.svelteToken(
+            keyCode: Int64(kVK_Space),
+            modifiers: [],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: false)?.text == "␣",
+               "Svelte token renders Space as ␣")
+        suite.expect(KeystrokeOverlaySupport.svelteToken(
+            keyCode: Int64(kVK_Tab),
+            modifiers: [.shift],
+            mode: .allKeys,
+            isAutoRepeat: false,
+            secureInputActive: false)?.text == "⇤",
+               "Svelte token renders Shift+Tab as ⇤")
+        suite.expect(KeystrokeOverlaySupport.svelteToken(
+            keyCode: Int64(kVK_Space),
+            modifiers: [.command, .option, .control, .shift],
+            mode: .shortcutsOnly,
+            isAutoRepeat: false,
+            secureInputActive: false,
+            superKeyHeld: true)?.text == "Super ␣",
+               "Svelte token renders Super+Space even in shortcuts-only mode")
+        suite.expect(KeystrokeOverlaySupport.keyCaps(
+            keyCode: Int64(SuperKeySupport.triggerKeyCode),
+            modifiers: [],
+            mode: .shortcutsOnly,
+            isAutoRepeat: false,
+            secureInputActive: false) == ["Super"],
+               "standalone Super key trigger renders as Super")
+
+        var svelteBuffer = KeystrokeOverlaySvelteBuffer()
+        svelteBuffer.setTransientModifier("⇧")
+        suite.expect(svelteBuffer.displayText == "⇧",
+               "holding Shift shows ⇧ in the Svelte box before another key is pressed")
+        _ = svelteBuffer.record(token: "H", isStandalone: false, now: 1.0, duration: 1.5)
+        _ = svelteBuffer.record(token: "I", isStandalone: false, now: 1.1, duration: 1.5)
+        _ = svelteBuffer.record(token: "␣", isStandalone: false, now: 1.2, duration: 1.5)
+        suite.expect(svelteBuffer.displayText == "HI␣",
+               "rolling typing in Svelte accumulates characters and Space inside the box")
+        _ = svelteBuffer.record(token: "Super K", isStandalone: true, now: 1.3, duration: 1.5)
+        suite.expect(svelteBuffer.displayText == "Super K",
+               "standalone shortcut replaces rolling text in the Svelte box")
     }
 }
