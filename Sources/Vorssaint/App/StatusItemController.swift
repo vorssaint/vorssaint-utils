@@ -573,7 +573,7 @@ final class StatusItemController {
                 button.imagePosition = .imageOnly
             }
         } else {
-            // The leading space separates the glyph from the text; with the
+            // The leading gap separates the glyph from the title; with the
             // glyph hidden by the metrics-only option or by Dynamic Island it
             // would be pure dead padding on the item's left edge. Same
             // decision inputs as updateIconAppearance, with a sentinel length:
@@ -593,9 +593,15 @@ final class StatusItemController {
                     metricsEnabled: !metrics.isEmpty,
                     renderedTitleLength: 1,
                     mustShowForSignal: signal || keepAwakeSignal)
-            let full = NSMutableAttributedString(string: glyphHidden ? "" : " ")
+            let stacked = title.string.contains("\n")
+            let full = NSMutableAttributedString()
+            if !glyphHidden {
+                let gap = includesCountdown
+                    ? NSAttributedString(string: " ")
+                    : MenuBarRenderer.iconMetricGap(spacing: .current, stacked: stacked)
+                full.append(gap)
+            }
             full.append(title)
-            let stacked = full.string.contains("\n")
             let font = MenuBarRenderer.statusFont(stacked: stacked)
             full.addAttribute(.font, value: font, range: NSRange(location: 0, length: full.length))
             if stacked {
