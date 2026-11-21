@@ -199,6 +199,13 @@ enum SuperKeySupport {
         /// Keyboards disagree: one or more carry different external mappings, so
         /// copying a single table onto every keyboard would be wrong.
         case foreignMapping
+        /// The command returned output, but no recognizable keyboard report.
+        case unreadable
+    }
+
+    static func reportsNoKeyboard(_ report: String) -> Bool {
+        let fields = report.split(whereSeparator: \.isWhitespace)
+        return fields.isEmpty || fields == ["RegistryID", "Key", "Value"]
     }
 
     /// Reads the report into a decision. The empty report means "no keyboard
@@ -209,7 +216,9 @@ enum SuperKeySupport {
         let tables = mappingTables(report, property: property).map { mappings in
             mappings.filter { !isOwnedMapping($0, source: ownedSource) }
         }
-        guard let first = tables.first else { return .noKeyboard }
+        guard let first = tables.first else {
+            return reportsNoKeyboard(report) ? .noKeyboard : .unreadable
+        }
         guard tables.dropFirst().allSatisfy({ mappingsMatch($0, first) }) else {
             return .foreignMapping
         }
@@ -385,6 +394,24 @@ enum SuperKeySupport {
         private(set) var isAlone = false
         private var triggerDownTimestamp: UInt64?
         private var didRepeat = false
+        private var forwardedTriggerDown = false
+
+        /// When an app receives F18 before the mapping is armed, it also needs
+        /// the repeats and release from that press. A fresh down starts a new
+        /// press even if the old keyboard disconnected before sending its up.
+        mutating func shouldCapture(_ event: Event, enabled: Bool) -> Bool {
+            switch event {
+            case .triggerDown(let isRepeat, _, _):
+                if !enabled || !isRepeat { forwardedTriggerDown = !enabled }
+                return enabled && !forwardedTriggerDown
+            case .triggerUp:
+                let capture = enabled && !forwardedTriggerDown
+                forwardedTriggerDown = false
+                return capture
+            case .otherKey, .sourceKey, .otherModifier:
+                return enabled
+            }
+        }
 
         mutating func decide(_ event: Event) -> Decision {
             switch event {
@@ -430,8 +457,8 @@ enum SuperKeySupport {
             }
         }
 
-        /// Forgets the press in progress. Used when the tap goes away, so a key
-        /// held across a teardown cannot leave the state stuck down.
+        /// Forgets the Super Key hold. A forwarded F18 still belongs to its
+        /// recipient until release, even if the tap restarts in the meantime.
         mutating func reset() {
             isHeld = false
             isAlone = false
