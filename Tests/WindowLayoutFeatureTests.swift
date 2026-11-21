@@ -48,8 +48,8 @@ enum WindowLayoutFeatureTests {
                 && WindowLayoutPointerRoute.consumers(for: .leftMouseDragged, active: .directional) == [],
                      "an idle layout routes nothing and a stopped consumer never borrows another's events")
         suite.expect(WindowLayoutPointerRoute.consumers(for: .flagsChanged,
-                                                        active: everyPointerConsumer) == [],
-                     "the modifier chord keeps its own passive tap and stays out of the shared one")
+                                                        active: everyPointerConsumer) == [.edgeSnap],
+                     "the modifier chord keeps its own passive tap, and only edge snapping hears modifier changes")
         suite.expect(WindowLayoutPointerRoute.sharedEventMask
                 == WindowLayoutPointerConsumer.directional.eventMask
                     | WindowLayoutPointerConsumer.gesture.eventMask
