@@ -1262,11 +1262,8 @@ final class BrightnessService: ObservableObject {
         }
     }
 
-    /// Whether a previous run left a display switched off, answered from the
-    /// saved list alone. The launch path asks this before touching `shared`, so
-    /// a launch with nothing to restore never builds the service, its key taps
-    /// or its session binding. A launch for someone who kept the feature off in
-    /// the hub pays nothing either.
+    /// Launch creates the service for recovery only when the saved list contains
+    /// a valid display ID, even if display controls are no longer installed.
     static var hasDisplaysToRestore: Bool {
         BrightnessSupport.hasDisplaysToRestore(
             stored: UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int])
@@ -1283,10 +1280,7 @@ final class BrightnessService: ObservableObject {
         let fingerprints = UserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
             as? [String: String] ?? [:]
         for id in stored {
-            // The list is plain numbers on disk and can arrive edited or
-            // imported, so anything that is not a display number is skipped
-            // rather than converted.
-            guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
+            guard let displayID = BrightnessSupport.restorableDisplayID(id) else { continue }
             let currentFingerprint = Self.restorationDisplayFingerprint(displayID)
             let display = BrightnessDisplay(
                 id: displayID,

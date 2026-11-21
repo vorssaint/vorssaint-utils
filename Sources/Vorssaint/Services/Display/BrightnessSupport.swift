@@ -9,13 +9,15 @@ import Foundation
 /// reply parsing, value scaling and the display-to-service match score. No
 /// IOKit here so the unit tests cover every byte.
 enum BrightnessSupport {
-    /// Whether a previous run left a display off. Checked from the list alone,
-    /// before the launch path builds the brightness service, so a launch with
-    /// nothing to restore never pays for its key taps and session binding.
-    /// The list is plain numbers on disk and can arrive edited or imported, so
-    /// anything that is not a display number is skipped rather than counted.
+    /// A saved display number must fit the system type. Zero means no display.
+    static func restorableDisplayID(_ value: Int) -> CGDirectDisplayID? {
+        guard let id = CGDirectDisplayID(exactly: value), id != kCGNullDirectDisplay else { return nil }
+        return id
+    }
+
+    /// Launch can check the saved list before building the brightness service.
     static func hasDisplaysToRestore(stored: [Int]?) -> Bool {
-        (stored ?? []).contains { CGDirectDisplayID(exactly: $0) != nil }
+        (stored ?? []).contains { restorableDisplayID($0) != nil }
     }
 
     /// Whether the island's brightness slider is on and shows the focused

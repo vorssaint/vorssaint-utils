@@ -4,10 +4,7 @@
 import CoreGraphics
 import Foundation
 
-/// A feature that is installed but off pays nothing at launch: the shelf does
-/// not read its saved items to hand out an anchor, the display repair is asked
-/// from the saved list instead of the service, and the Command Bar does not
-/// build a panel and a view tree for a shortcut nobody pressed.
+/// Launch decisions for display recovery, the shelf anchor and Command Bar shortcuts.
 enum StartupGatingTests {
     static func run(_ suite: TestSuite) {
         func source(_ path: String) -> String {
@@ -32,19 +29,25 @@ enum StartupGatingTests {
                      "an empty saved list asks for nothing")
         suite.expect(BrightnessSupport.hasDisplaysToRestore(stored: [1]),
                      "one saved display asks for the repair")
+        suite.expect(!BrightnessSupport.hasDisplaysToRestore(stored: [0]),
+                     "the null display id does not start a repair")
         suite.expect(BrightnessSupport.hasDisplaysToRestore(stored: [0, 7]),
-                     "any saved display number asks for the repair")
+                     "a null entry does not hide a valid saved display")
         suite.expect(!BrightnessSupport.hasDisplaysToRestore(stored: [-1]),
                      "a negative number is not a display")
         suite.expect(!BrightnessSupport.hasDisplaysToRestore(stored: [Int.max]),
                      "a number past a display id is not a display")
 
         let appDelegate = source("Sources/Vorssaint/App/AppDelegate.swift")
-        suite.expect(line(in: appDelegate, containing: "BrightnessService.hasDisplaysToRestore") != nil,
-                     "launch asks for the saved list before touching the brightness service")
-        suite.expect(line(in: appDelegate, containing: "BrightnessService.shared.restoreDisplaysLeftOff()")
-                        .map { $0.hasPrefix("            ") } == true,
-                     "the repair itself runs only inside that question")
+        let launchStatements = appDelegate.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }.joined(separator: "\n")
+        let repair = """
+            if BrightnessService.hasDisplaysToRestore {
+            BrightnessService.shared.restoreDisplaysLeftOff()
+            }
+            """
+        suite.expect(launchStatements.contains(repair),
+                     "launch recovers a saved display even when brightness is uninstalled")
 
         // MARK: Shelf anchor registered without the service
 
@@ -70,10 +73,80 @@ enum StartupGatingTests {
         suite.expect(hubChangeLine?.contains("AppFeature.commandBar.isAvailable") == true,
                      "a Command Bar that is not installed is not asked about hub changes, got \(hubChangeLine ?? "nothing")")
 
-        let commandBar = source("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift")
-        suite.expect(commandBar.contains("guard enabled, AppFeature.commandBar.isAvailable, let self"),
-                     "the launch warm-up keeps requiring the shortcut to be on")
-        let warmUpLine = line(in: commandBar, containing: "Build the one view tree after launch")
-        suite.expect(warmUpLine != nil, "the warm-up block is still documented in place")
+        testCommandBarShortcuts(suite)
+    }
+
+    private static func testCommandBarShortcuts(_ suite: TestSuite) {
+        typealias Fixture = UninstallerCommandBarCleanupTests
+        let domain = "com.vorssaint.tests.command-bar-startup.\(UUID())"
+        let defaults = UserDefaults(suiteName: domain)!
+        Fixture.Preferences.standard = defaults
+        defer {
+            Fixture.Queue.pending = []
+            Fixture.Feature.available = true
+            Fixture.Preferences.standard = nil
+            defaults.removePersistentDomain(forName: domain)
+        }
+        let service = Fixture.Service()
+        let shortcut = GlobalShortcut(keyCode: 11, modifiers: [.option, .command])
+        let emoji = CommandBarPreferences.emojiBrowserRowID
+        let app = CommandBarRowShortcuts.appKey(bundleID: "com.apple.TextEdit", path: "/Applications/TextEdit.app")
+        func bind(_ rows: [String: GlobalShortcut]) {
+            defaults.set(CommandBarRowShortcuts.encode(rows), forKey: DefaultsKey.commandBarRowShortcuts)
+            service.syncRowHotkeys()
+        }
+
+        bind([:])
+        bind([app: shortcut])
+        suite.expect(Fixture.Queue.pending.isEmpty && service.panel == nil,
+                     "click-only and direct app shortcuts leave the panel unloaded")
+        bind([emoji: shortcut])
+        bind([app: shortcut])
+        Fixture.Queue.drain()
+        suite.expect(service.panel == nil, "replacing the emoji shortcut before warm-up leaves the panel unloaded")
+        bind([emoji: shortcut])
+        Fixture.Queue.drain()
+        suite.expect(service.panel?.displayedAfterLayout == true,
+                     "the emoji shortcut lays out and draws the panel with the main shortcut off")
+
+        service.panel = nil
+        let existingPanel = service.ensurePanel()
+        bind([emoji: shortcut])
+        Fixture.Queue.drain()
+        suite.expect(existingPanel.displayedAfterLayout && existingPanel.displayCount == 1,
+                     "a panel created for an island presentation still prepares for its first window shortcut")
+        existingPanel.isVisible = true
+        bind([emoji: shortcut])
+        Fixture.Queue.drain()
+        suite.expect(existingPanel.displayCount == 1, "synchronizing shortcuts does not redraw a visible panel")
+
+        service.panel = nil
+        bind([emoji: shortcut])
+        service.rowHotkeys[emoji]?.unregister()
+        Fixture.Queue.drain()
+        suite.expect(service.panel == nil, "releasing registered row keys cancels their queued warm-up")
+
+        let mainKey = DefaultsKey.commandBarShortcutEnabled
+        defaults.set(true, forKey: mainKey)
+        _ = service.hotkey.sync(enabled: true, shortcut: shortcut, storageKey: DefaultsKey.commandBarShortcut)
+        bind([:])
+        defaults.set(false, forKey: mainKey)
+        Fixture.Queue.drain()
+        suite.expect(service.panel == nil, "turning off the main shortcut cancels its queued warm-up")
+        defaults.set(true, forKey: mainKey)
+        bind([:])
+        service.hotkey.unregister()
+        Fixture.Queue.drain()
+        suite.expect(service.panel == nil, "suspending the main shortcut cancels its queued warm-up")
+
+        _ = service.hotkey.sync(enabled: true, shortcut: shortcut, storageKey: DefaultsKey.commandBarShortcut)
+        bind([:])
+        Fixture.Feature.available = false
+        Fixture.Queue.drain()
+        suite.expect(service.panel == nil, "uninstalling the Command Bar cancels queued warm-up")
+        Fixture.Feature.available = true
+        bind([:])
+        Fixture.Queue.drain()
+        suite.expect(service.panel != nil, "an active main shortcut prepares the panel for typing")
     }
 }

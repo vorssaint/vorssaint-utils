@@ -960,7 +960,8 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    var rowShortcuts:", "    private var storedAliases:",
                         "    private var storedPins:", "    private var storedHiddenKeys:",
-                        "    private func syncRowHotkeys(", "    func hasStoredApplicationState(",
+                        "    private func syncRowHotkeys(", "    private var needsPreparedPanel:",
+                        "    func hasStoredApplicationState(",
                         "    func removeApplicationState("])
           + "}\n}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"

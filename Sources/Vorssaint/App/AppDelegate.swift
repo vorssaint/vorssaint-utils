@@ -106,12 +106,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // Service Management can stall while answering (issue #2539).
         LaunchAtLogin.repairAtStartup()
 
-        // Switch back on any display a previous run left off. A run that ends
-        // without putting one back leaves a screen dark with no app around to
-        // offer it back, so the repair happens before anything else can care
-        // about which displays are attached. Asked from the saved list, so a
-        // launch with nothing to restore (or with the feature uninstalled)
-        // never builds the service.
+        // Recover displays before other services read the screen layout. The
+        // saved list can outlive an uninstall, so it alone decides whether
+        // this launch needs the brightness service for recovery.
         if BrightnessService.hasDisplaysToRestore {
             BrightnessService.shared.restoreDisplaysLeftOff()
         }
