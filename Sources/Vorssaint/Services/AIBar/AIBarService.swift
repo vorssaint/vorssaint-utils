@@ -237,7 +237,7 @@ final class AIBarService: ObservableObject {
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = KeyablePanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 120),
+        let panel = KeyablePanel(contentRect: NSRect(x: 0, y: 0, width: 580, height: 120),
                                  styleMask: [.borderless, .nonactivatingPanel],
                                  backing: .buffered, defer: false)
         panel.title = "Vorssaint"
@@ -265,7 +265,7 @@ final class AIBarService: ObservableObject {
     /// above the middle of the screen the pointer is on.
     private func position(_ panel: NSPanel, dockedBelow window: NSRect?) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
-        let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 560, height: 120)
+        let size = panel.contentViewController?.view.fittingSize ?? NSSize(width: 580, height: 120)
         let screen = NSScreen.pointerVisibleFrame
         var origin = NSPoint(x: screen.midX - size.width / 2, y: screen.midY + screen.height * 0.12 - size.height)
         if let window {

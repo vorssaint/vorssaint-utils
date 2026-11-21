@@ -247,9 +247,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                   modifiers: [.option])
     // Next to the screenshot's 4, on the same free control-option-command
     // layer, matching how the system numbers its own capture keys.
-    // A for assistant, on the same free control-option-command layer.
+    // A for assistant. Two modifiers keep it easy to hit with one hand, and
+    // nothing else in the app or the system claims option-command-A.
     static let aiBarDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
-                                             modifiers: [.control, .option, .command])
+                                             modifiers: [.option, .command])
     static let screenRecorderDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_5),
                                                       modifiers: [.control, .option, .command])
 
