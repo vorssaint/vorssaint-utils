@@ -11,6 +11,7 @@ import Foundation
 enum MouseExceptionScope: String, CaseIterable {
     case smoothScroll
     case linearScroll
+    case scrollSpeed
     case scrollDirection
     case focusFollowsMouse
     case navigation
@@ -22,6 +23,7 @@ enum MouseExceptionScope: String, CaseIterable {
         switch self {
         case .smoothScroll: return DefaultsKey.smoothScrollExceptions
         case .linearScroll: return DefaultsKey.linearScrollExceptions
+        case .scrollSpeed: return DefaultsKey.scrollSpeedExceptions
         case .scrollDirection: return DefaultsKey.scrollInverterExceptions
         case .focusFollowsMouse: return DefaultsKey.focusFollowsMouseExceptions
         case .navigation: return DefaultsKey.mouseNavigationExceptions
@@ -37,6 +39,7 @@ enum MouseExceptionScope: String, CaseIterable {
         switch self {
         case .smoothScroll: return .smoothScroll
         case .linearScroll: return .linearScroll
+        case .scrollSpeed: return .scrollSpeed
         case .scrollDirection: return .scrollInverter
         case .focusFollowsMouse: return .focusFollowsMouse
         case .navigation: return .mouseNavigation

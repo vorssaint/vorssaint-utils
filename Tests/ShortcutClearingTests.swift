@@ -187,6 +187,7 @@ enum ShortcutClearingTests {
     static func run(_ suite: TestSuite) {
         let defaults = UserDefaults.standard
         defaults.removePersistentDomain(forName: UserDefaults.suiteName)
+        let registration = defaults.volatileDomain(forName: Foundation.UserDefaults.registrationDomain)
         defaults.register(defaults: Defaults.registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
@@ -215,6 +216,7 @@ enum ShortcutClearingTests {
             FeatureRuntime.shared.onSync = { _ in }
             ShortcutRecordingTap.end()
             defaults.removePersistentDomain(forName: UserDefaults.suiteName)
+            defaults.setVolatileDomain(registration, forName: Foundation.UserDefaults.registrationDomain)
         }
 
         for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {

@@ -124,8 +124,10 @@ enum ScreenshotSelectionRefreshContract {
         /// The scale a window capture reports, like a composite recaptured
         /// on a 2x display; `nil` echoes the scale asked for.
         static var windowCaptureScale: CGFloat?
-        static func captureWindow(_ id: CGWindowID, scale: CGFloat) async -> (image: CGImage, scale: CGFloat)? {
-            (CGImage(excluded: []), windowCaptureScale ?? scale)
+        static var windowRequest: (id: CGWindowID, composited: Bool)?
+        static func captureWindow(_ id: CGWindowID, scale: CGFloat, preferComposited: Bool) async -> (image: CGImage, scale: CGFloat)? {
+            windowRequest = (id, preferComposited)
+            return (CGImage(excluded: []), windowCaptureScale ?? scale)
         }
         static func complete(_ index: Int, displays: [CGDirectDisplayID]) {
             let request = requests[index]
@@ -154,14 +156,16 @@ enum ScreenshotSelectionRefreshContract {
                 RecorderSupport.Region), color(NSColor), failed, cancelled
         }
         var activeTool: ScreenCaptureTool?
-        var activeMode: Mode {
-            activeTool == .recording ? .geometry : activeTool == .color ? .color : .image
-        }
+        let baseMode = Mode.image
         var isPickingColor: Bool { activeMode == .color }
         final class Options {
             var offersRepeatLastRegion = false
             var onSelectionProgressChange: ((Bool) -> Void)?
+            var availableTools = ScreenCaptureTool.allCases
+            var onSelect: ((ScreenCaptureTool) -> Void)?
+            func select(_ tool: ScreenCaptureTool) { onSelect?(tool) }
         }
+        let supportsScrollingCapture = true
         var screenCaptureOptions: Options? = Options()
         var capturePolicy: ScreenshotSupport.UnifiedCapturePolicy
         var freeze: Bool
@@ -181,6 +185,7 @@ enum ScreenshotSelectionRefreshContract {
         }
         init(_ tool: ScreenCaptureTool) {
             activeTool = tool
+            scrollingCaptureEnabled = tool == .scrolling
             let d = ReviewDefaults.current
             let p = ScreenshotSupport.unifiedCapturePolicy(
                 for: tool, screenshotFreeze: d.bool(forKey: "freeze"),
@@ -197,6 +202,7 @@ enum ScreenshotSelectionRefreshContract {
                 panel.overlayView.panel = panel
                 panel.overlayView.windows = panel.windows
             }
+            screenCaptureOptions?.onSelect = { [weak self] tool in self?.select(tool) }
         }
         func select(_ tool: ScreenCaptureTool) {
             activeTool = tool
@@ -213,6 +219,8 @@ enum ScreenshotSelectionRefreshContract {
         func region(fromView: CGRect, on: ScreenshotOverlayPanel, windowID: CGWindowID?)
             -> RecorderSupport.Region
         { .init(windowID: windowID, viewRect: fromView) }
+        var panelsRetired = false
+        func retirePanels() { panelsRetired = true }
         func finish(_ outcome: Outcome) {
             self.outcome = outcome
             finished = true
@@ -248,6 +256,50 @@ enum ScreenshotSelectionRefreshContract {
         ScreenshotCaptureEngine.requests = []
         let previousRegion = Chooser.lastRegion
         defer { Chooser.lastRegion = previousRegion }
+        let scrollTool = Chooser(.scrolling)
+        expect(scrollTool.activeMode == .geometry && !scrollTool.freeze
+               && scrollTool.scrollingCaptureEnabled && scrollTool.acceptsWindowClick,
+               "the fifth tool accepts the existing live window and region selection paths")
+        let scrollRect = CGRect(x: 5, y: 10, width: 60, height: 70)
+        scrollTool.confirmRegion(scrollRect, on: scrollTool.panels[0])
+        if case .scrollingRegion(let region) = scrollTool.outcome {
+            expect(region.viewRect == scrollRect && region.windowID == nil,
+                   "scrolling geometry reaches the stitcher with the selected area")
+        } else { expect(false, "scrolling selection routes to stitching rather than recording") }
+        let clicked = Chooser(.scrolling)
+        clicked.confirmWindow(31, frame: scrollRect, on: clicked.panels[0])
+        if case .scrollingRegion(let region) = clicked.outcome {
+            expect(region.windowID == 31 && region.viewRect == scrollRect,
+                   "clicking a window keeps its identity for automatic scrolling")
+        } else { expect(false, "a scrolling window click reaches the stitcher") }
+        let whole = Chooser(.scrolling)
+        whole.confirmSelectionWithKeyboard()
+        if case .scrollingRegion(let region) = whole.outcome {
+            expect(region.windowID == nil && region.viewRect.size == whole.panels[0].screenFrame.size,
+                   "Enter selects a scrolling region covering the display")
+        } else { expect(false, "Enter in the fifth tool reaches the stitcher") }
+        let restricted = Chooser(.screenshot)
+        restricted.screenCaptureOptions?.availableTools = [.screenshot]
+        restricted.toggleScrollingCapture()
+        expect(restricted.scrollingCaptureEnabled && restricted.activeTool == .screenshot
+               && !restricted.acceptsWindowClick, "S still enables region scrolling over a recording")
+        restricted.toggleScrollingCapture()
+        expect(!restricted.scrollingCaptureEnabled && restricted.acceptsWindowClick,
+               "S restores the ordinary screenshot while the recording continues")
+        let changing = Chooser(.screenshot)
+        changing.toggleScrollingCapture()
+        expect(changing.scrollingCaptureEnabled && !changing.freeze,
+               "switching to scrolling clears the frozen screenshot source")
+        changing.toggleScrollingCapture()
+        await drain()
+        // Finish the screenshot source refresh before leaving this fixture.
+        for index in ScreenshotCaptureEngine.requests.indices {
+            ScreenshotCaptureEngine.complete(index, displays: [1, 2])
+        }
+        await drain()
+        ScreenshotCaptureEngine.requests = []
+        expect(!changing.scrollingCaptureEnabled && changing.freeze,
+               "switching back restores ordinary screenshot selection")
         let color = Chooser(.color)
         color.confirmSelectionWithKeyboard()
         if case .color(let picked) = color.outcome {
@@ -484,6 +536,8 @@ enum ScreenshotSelectionRefreshContract {
         for reported: CGFloat? in [nil, 2] {
             ScreenshotCaptureEngine.windowCaptureScale = reported
             let window = Chooser(.screenshot)
+            // Without freeze there is no still, so the window is captured live.
+            window.panels[0].frozenImage = nil
             window.confirmWindow(11, frame: CGRect(x: 0, y: 0, width: 50, height: 50), on: window.panels[0])
             await drain()
             if case .captured(let capture)? = window.outcome {
@@ -494,6 +548,29 @@ enum ScreenshotSelectionRefreshContract {
             }
         }
         ScreenshotCaptureEngine.windowCaptureScale = nil
+        // A frozen desktop can include a third-party window and cannot hold
+        // both halves of a spanning window. Neither should become the source.
+        for tool in [ScreenCaptureTool.screenshot, .text] {
+            for windowFrame in [CGRect(x: 0, y: 0, width: 50, height: 50),
+                                CGRect(x: 75, y: 0, width: 70, height: 50)] {
+                let chooser = Chooser(tool)
+                let panel = chooser.panels[0]
+                ScreenshotCaptureEngine.windowRequest = nil
+                chooser.confirmWindow(11, frame: windowFrame, on: panel)
+                await drain()
+                if case .captured(let capture)? = chooser.outcome {
+                    expect(chooser.panelsRetired
+                           && ScreenshotCaptureEngine.windowRequest?.id == 11
+                           && ScreenshotCaptureEngine.windowRequest?.composited == true
+                           && capture.image.excluded.isEmpty
+                           && capture.anchorRect == ScreenshotSupport.cocoaRect(
+                               fromFlippedView: windowFrame, screenFrame: panel.screenFrame),
+                           "a frozen window click requests the complete isolated composited window")
+                } else {
+                    expect(false, "a frozen window click returns a scoped capture")
+                }
+            }
+        }
         let rapid = Chooser(.recording)
         let r3 = ScreenshotCaptureEngine.requests.count
         rapid.select(.screenshot)
