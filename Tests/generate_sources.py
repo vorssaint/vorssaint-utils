@@ -1289,13 +1289,24 @@ def main():
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
-    write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
+    write("SuperKeyTap.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
+          + declaration(super_key, "enum SuperKeyMappingResult:")
           + "extension SuperKeyTapContract.State {\n"
           + declaration(super_key, "    var keyboardTapForRecording:")
             .replace("CGEvent.tapIsEnabled(tap: keyboard)", "CFMachPortIsValid(keyboard)")
           + "}\nextension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
+          + declaration(super_key, "    private func stop(synchronously:")
+            .replace("private func", "func", 1).replace("CGEvent.tapEnable(", "Tap.enable(")
+          + declaration(super_key, "    private func applyMapping(")
+            .replace("private func", "func", 1).replace("UserDefaults.standard", "self.defaults")
+          + declaration(super_key, "    private func performMapping(")
+            .replace("private func", "func", 1).replace("Shell.run(", "runHidutil(")
+            .replace("UserDefaults.standard", "defaults").replace("SuperKeyMappingGuard.start(", "MappingGuard.start(")
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
+                    for prefix in ["    private func runEventTap()", "    private func tapDidStart(",
+                                   "    private func setMappingFailure(",
+                                   "    private func confirmMapping(", "    private func mappingDidFinish(",
+                                   "    private func waitForKeyboard(", "    private func cancelKeyboardWait()",
                                    "    private func handle(", "    private static func classify(",
                                    "    private func repairMappingIfStale(", "    private func clearUnmappedCapsLock(",
                                    "    private func performSoloAction(", "    private func toggleCapsLock(",
@@ -1304,7 +1315,7 @@ def main():
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
                     .replace("private static func", "static func", 1)
-                    for prefix in ["    static func begin(", "    private static func handle("])
+                    for prefix in ["    static func begin(", "    static func resetSuperKey()", "    private static func handle("])
             .replace("CGEvent.tapCreate(", "Tap.create(")
           + "}\n}\n")
 
