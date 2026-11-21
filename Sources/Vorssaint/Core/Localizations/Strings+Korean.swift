@@ -653,6 +653,7 @@ extension Strings {
         audioPriorityMoveUp: "위로 이동",
         audioPriorityMoveDown: "아래로 이동",
         audioPriorityUnavailable: "사용 불가",
+        audioPriorityRemove: "제거",
         audioPriorityCurrent: "사용 중",
         audioPriorityCaption: "장치는 우선순위에 따라 선택됩니다. 더 높은 순위의 장치가 연결되면 해당 장치로 전환됩니다. 사용 중인 장치의 연결이 끊기면 다음으로 사용 가능한 장치로 전환됩니다.",
 
