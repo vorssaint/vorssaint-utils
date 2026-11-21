@@ -1069,41 +1069,72 @@ enum ScreenshotFeatureTests {
         for tool in ScreenCaptureTool.allCases {
             suite.expect(tool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
                    "an existing install keeps the capture menu for \(tool)")
-            suite.expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool == true
+            let menuOnByDefault = tool != .text && tool != .qr
+            suite.expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool == menuOnByDefault
                     && SettingsBackupSupport.exportKeys().contains(tool.showCaptureMenuOnShortcutKey),
-                   "capture menu preferences default on and travel with settings backups")
+                   "capture menu preferences travel with settings backups")
         }
         captureMenuDefaults.register(defaults: Defaults.registeredDefaults)
+        var shortcutMenu = Dictionary(uniqueKeysWithValues: ScreenCaptureTool.allCases.map { tool in
+            (tool, Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool ?? true)
+        })
+        for (tool, on) in shortcutMenu {
+            captureMenuDefaults.set(on, forKey: tool.showCaptureMenuOnShortcutKey)
+        }
         for hiddenTool in ScreenCaptureTool.allCases {
             captureMenuDefaults.set(false, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
             let reopenedDefaults = UserDefaults(suiteName: captureMenuSuite)!
             for tool in ScreenCaptureTool.allCases {
-                suite.expect(tool.showsCaptureMenu(fromShortcut: true, defaults: reopenedDefaults)
-                        == (tool != hiddenTool),
+                let expected = tool == hiddenTool ? false : shortcutMenu[tool] == true
+                suite.expect(tool.showsCaptureMenu(fromShortcut: true, defaults: reopenedDefaults) == expected,
                        "hiding the menu for \(hiddenTool) persists without changing \(tool)'s preference")
                 suite.expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons still open the capture menu even when a shortcut hides it")
             }
             for tool in ScreenCaptureTool.allCases {
+                let menuOff = tool == hiddenTool || shortcutMenu[tool] == false
                 suite.expect(tool.opensDuringRecording(fromShortcut: true, defaults: reopenedDefaults)
-                        == (tool == hiddenTool && tool != .recording),
-                       "only \(hiddenTool)'s menu-free shortcut may run over a recording, checked for \(tool)")
+                        == (menuOff && tool != .recording),
+                       "a menu-free shortcut may run over a recording, checked for \(tool) while hiding \(hiddenTool)")
                 suite.expect(!tool.opensDuringRecording(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons open the capture menu, so they never run over a recording")
             }
             captureMenuDefaults.set(true, forKey: hiddenTool.showCaptureMenuOnShortcutKey)
+            shortcutMenu[hiddenTool] = true
             suite.expect(hiddenTool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
                    "turning the setting back on restores the shortcut menu")
             suite.expect(!hiddenTool.opensDuringRecording(fromShortcut: true, defaults: captureMenuDefaults),
                    "turning the setting back on blocks the shortcut during a recording again")
         }
+        let shortCopy = CopiedCardLayout.measure(title: "Copied to clipboard",
+                                                 detail: "Hi",
+                                                 showsOpen: false,
+                                                 screenWidth: 1400)
+        let longCopy = CopiedCardLayout.measure(title: "Copied to clipboard",
+                                                detail: String(repeating: "A sentence of copied text. ", count: 40),
+                                                showsOpen: false,
+                                                screenWidth: 1400)
+        let narrowScreen = CopiedCardLayout.measure(title: "Copied to clipboard",
+                                                    detail: "https://example.com/very/long/link",
+                                                    showsOpen: true,
+                                                    screenWidth: 220)
+        suite.expect(shortCopy.cardSize.width < longCopy.cardSize.width
+                && shortCopy.cardSize.height < longCopy.cardSize.height
+                && !shortCopy.scrolls,
+               "a short copy stays smaller than a long one")
+        suite.expect(longCopy.cardSize.width <= CopiedCardLayout.maxCardWidth
+                && longCopy.detailHeight <= CopiedCardLayout.maxDetailHeight
+                && longCopy.scrolls,
+               "a long copy stops at the small cap and scrolls the rest")
+        suite.expect(narrowScreen.cardSize.width <= 180,
+               "a narrow display keeps the card on screen")
         let recordingOnly: Set<AppFeature> = [.screenRecorder]
         suite.expect(ScreenCaptureTool.available(isAvailable: recordingOnly.contains) == [.recording],
                "the capture chooser hides every uninstalled mode")
         let captureFeatures: Set<AppFeature> = [.screenshot, .screenRecorder,
                                                 .screenOCR, .colorPicker]
         suite.expect(ScreenCaptureTool.available(isAvailable: captureFeatures.contains)
-                == [.screenshot, .recording, .text, .color, .scrolling],
+                == [.screenshot, .recording, .text, .color, .scrolling, .qr],
                "the capture chooser keeps a stable order for every installed mode")
         let captureSettingsSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/UI/Settings/ScreenCaptureSettings.swift",
@@ -1150,13 +1181,14 @@ enum ScreenshotFeatureTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
+        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5", "6"]
                 && ScreenCaptureTool.matchingShortcut("1") == .screenshot
                 && ScreenCaptureTool.matchingShortcut("2") == .recording
                 && ScreenCaptureTool.matchingShortcut("3") == .text
                 && ScreenCaptureTool.matchingShortcut("4") == .color
                 && ScreenCaptureTool.matchingShortcut("5") == .scrolling
-                && ScreenCaptureTool.matchingShortcut("6") == nil,
+                && ScreenCaptureTool.matchingShortcut("6") == .qr
+                && ScreenCaptureTool.matchingShortcut("7") == nil,
                "number keys select the same capture mode shown in the chooser")
         suite.expect(ScreenCaptureTool.available(isAvailable: { $0 == .screenshot })
                 == [.screenshot, .scrolling]
@@ -1192,6 +1224,11 @@ enum ScreenshotFeatureTests {
             screenshotFreeze: false,
             screenshotIncludePointer: true,
             screenshotHideVorssaintWindows: true)
+        let qrPolicy = ScreenshotSupport.unifiedCapturePolicy(
+            for: .qr,
+            screenshotFreeze: false,
+            screenshotIncludePointer: true,
+            screenshotHideVorssaintWindows: true)
         suite.expect(liveScreenshotPolicy == .init(freeze: false, includePointer: true,
                                              hideVorssaintWindows: true,
                                              keepsContentWindowsOut: true,
@@ -1203,7 +1240,8 @@ enum ScreenshotFeatureTests {
                 && textPolicy == .init(freeze: true, includePointer: false,
                                        hideVorssaintWindows: true,
                                        keepsContentWindowsOut: true,
-                                       usesGeometry: false),
+                                       usesGeometry: false)
+                && qrPolicy == textPolicy,
                "switching capture mode rebuilds the frozen frame, pointer and window policy")
         let colorPolicy = ScreenshotSupport.unifiedCapturePolicy(
             for: .color,
@@ -4278,8 +4316,16 @@ enum ScreenshotFeatureTests {
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
         suite.expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling],
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling, .screenQR],
                "every capture tool owns a shortcut role, in tool order")
+        suite.expect(ScreenCaptureTool.qr.feature == .screenOCR
+                && ScreenCaptureTool.qr.dedicatedShortcut.enabledKey == DefaultsKey.screenQRShortcutEnabled
+                && GlobalShortcutRole.screenQR.defaultShortcut == .screenQRDefault
+                && GlobalShortcutRole.screenQR.storageKey == DefaultsKey.screenQRShortcut
+                && Defaults.registeredDefaults[DefaultsKey.screenQRShortcutEnabled] as? Bool == false
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenQRShortcut)
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenQRShortcutEnabled),
+               "QR scanning reuses screen text and keeps its own shortcut, off until enabled")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded
         // and the combination did nothing (issue #708).

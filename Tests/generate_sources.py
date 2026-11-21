@@ -2190,6 +2190,7 @@ def main():
                     for prefix in ["    func copyText(", "    func receiveUnifiedCapture(",
                                    "    private func recognize(", "    func syncWithPreferences()",
                                    "    func suspend()", "    private func cancelSession()",
+                                   "    private static func presentCopied(",
                                    "    enum Outcome:"])
           + "}\n}\n")
     write("ScreenshotShareCompletion.swift", "import Foundation\n"

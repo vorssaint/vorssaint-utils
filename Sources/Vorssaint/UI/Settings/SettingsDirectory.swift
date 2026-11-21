@@ -208,6 +208,7 @@ enum SettingsDirectory {
             keywords: [s.showMenuBarIcon, FeatureStrings.generalSettings(language).menuBarIconTitle,
                        FeatureStrings.generalSettings(language).iconMissingTitle, "SF Symbols"]))
         items.append(SettingsSearchSupport.scrollingScreenshotItem(language: language))
+        items.append(SettingsSearchSupport.qrScanItem(s))
         let alerts = FeatureStrings.monitorAlerts(language)
         items.append(SettingsSearchItem(
             id: .setting(.monitorAlerts), destination: FeatureSettingsDestination(.monitor, sectionAnchor: .monitorAlerts),

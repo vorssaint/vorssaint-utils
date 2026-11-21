@@ -353,7 +353,7 @@ struct ClipboardEntryPreviewSidebar: View {
                   AppFeature.screenOCR.isAvailable else { return }
             if case .text(let recognized) = outcome {
                 ScreenTextService.copyToPasteboard(recognized)
-                QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+                QuickToolHUD.showCopied(title: strings.copiedToClipboard, detail: recognized)
             } else {
                 QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
             }

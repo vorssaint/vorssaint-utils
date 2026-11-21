@@ -624,6 +624,8 @@ enum DefaultsKey {
     static let colorPickerBareHex = "colorPickerBareHex"     // copy HEX without the leading #
     static let screenOCRShortcutEnabled = "screenOCRShortcutEnabled"
     static let screenOCRShortcut = "screenOCRShortcut"
+    static let screenQRShortcutEnabled = "screenQRShortcutEnabled"
+    static let screenQRShortcut = "screenQRShortcut"
     static let screenOCRRemoveLineBreaks = "screenOCRRemoveLineBreaks"
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
@@ -694,6 +696,7 @@ enum DefaultsKey {
     static let screenshotShowCaptureMenuOnShortcut = "screenshotShowCaptureMenuOnShortcut"
     static let recorderShowCaptureMenuOnShortcut = "recorderShowCaptureMenuOnShortcut"
     static let screenOCRShowCaptureMenuOnShortcut = "screenOCRShowCaptureMenuOnShortcut"
+    static let screenQRShowCaptureMenuOnShortcut = "screenQRShowCaptureMenuOnShortcut"
     static let colorPickerShowCaptureMenuOnShortcut = "colorPickerShowCaptureMenuOnShortcut"
     // Screenshot capture and editor.
     static let screenshotShortcutEnabled = "screenshotShortcutEnabled"
@@ -1873,6 +1876,8 @@ enum Defaults {
         DefaultsKey.colorPickerBareHex: false,
         DefaultsKey.screenOCRShortcutEnabled: false,
         DefaultsKey.screenOCRShortcut: GlobalShortcut.screenOCRDefault.storageValue,
+        DefaultsKey.screenQRShortcutEnabled: false,
+        DefaultsKey.screenQRShortcut: GlobalShortcut.screenQRDefault.storageValue,
         DefaultsKey.screenOCRRemoveLineBreaks: false,
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
@@ -1937,7 +1942,8 @@ enum Defaults {
         DefaultsKey.panelUtilityPortManager: true,
         DefaultsKey.screenshotShowCaptureMenuOnShortcut: true,
         DefaultsKey.recorderShowCaptureMenuOnShortcut: true,
-        DefaultsKey.screenOCRShowCaptureMenuOnShortcut: true,
+        DefaultsKey.screenOCRShowCaptureMenuOnShortcut: false,
+        DefaultsKey.screenQRShowCaptureMenuOnShortcut: false,
         DefaultsKey.colorPickerShowCaptureMenuOnShortcut: true,
         DefaultsKey.screenshotScrollingAutoScroll: false,
         DefaultsKey.screenshotScrollingShortcutEnabled: false,

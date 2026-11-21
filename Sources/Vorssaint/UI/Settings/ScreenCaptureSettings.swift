@@ -77,6 +77,8 @@ struct ScreenCaptureSettings: View {
                 ScreenRecordingCaptureSettings()
             case .text:
                 ScreenTextCaptureSettings()
+            case .qr:
+                ScreenQRCaptureSettings()
             case .color:
                 ColorCaptureSettings()
             }
@@ -132,6 +134,7 @@ private extension SettingsSectionAnchor {
         case .screenshotScrolling: return .scrolling
         case .screenRecorder: return .recording
         case .screenOCR: return .text
+        case .screenQR: return .qr
         case .colorPicker: return .color
         default: return nil
         }
@@ -206,6 +209,30 @@ private struct ScreenTextCaptureSettings: View {
             Text(l10n.s.ocrName)
         }
         .settingsFormSectionAnchor(.screenOCR)
+    }
+}
+
+private struct ScreenQRCaptureSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
+
+    var body: some View {
+        Section {
+            Button {
+                ScreenTextService.shared.captureQR()
+            } label: {
+                Label(l10n.s.qrScanName, systemImage: "qrcode")
+            }
+            Text(l10n.s.qrScanCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if !permissions.screenRecording {
+                PermissionRow(kind: .screenRecording)
+            }
+        } header: {
+            Text(l10n.s.qrScanName)
+        }
+        .settingsFormSectionAnchor(.screenQR)
     }
 }
 
