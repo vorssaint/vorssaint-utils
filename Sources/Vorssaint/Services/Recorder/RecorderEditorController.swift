@@ -1617,7 +1617,7 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             // the pasteboard's own lane instead of the main thread.
             GeneralPasteboardAccess.shared.async({
                 guard !publication.isCancelled else { return false }
-                return RecorderGIFClipboard.publish(fileURL: url)
+                return RecorderGIFClipboard.publish(fileURL: url) { !publication.isCancelled }
             }) { [weak self] published in
                 guard let self, self.model.completeClipboardPublication(publication) else { return }
                 self.finishClipboardPublication(published, deletesRecording: deletesRecording)

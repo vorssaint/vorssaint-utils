@@ -19,6 +19,11 @@ enum NotchVolumeRoutingTests {
             key == DefaultsKey.preciseVolumeRollerEnabled && precise
         }
     }
+    enum AppFeature {
+        case mixer
+        static var mixerAvailable = true
+        var isAvailable: Bool { Self.mixerAvailable }
+    }
     enum NotchSupport {
         enum Module { case volume }
         static func routes(_ module: Module) -> Bool { true }
@@ -292,7 +297,8 @@ enum NotchVolumeRoutingTests {
         speakers.selectedAudioOutput = (32, "Monitor B")
         speakers.actualDevice = 32
         speakers.audioRoutes[8] = .init(path: "port-b", fingerprint: "fixture-identity",
-                                        service: NSObject(), hasNativeMute: true)
+                                        service: NSObject(), chipAddress: BrightnessSupport.chipAddress,
+                                        hasNativeMute: true, unmutesLeavingZero: false)
         speakers.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: .init(displayID: 8, path: "port-b"), volume: 0.4, muted: false)))
         suite.expect(monitorPress(0x0a01) && monitorPress(0x0b00), "the old hold owns its repeats and release")
         speakers.finish()
