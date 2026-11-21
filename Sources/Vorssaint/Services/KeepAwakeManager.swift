@@ -84,6 +84,8 @@ final class KeepAwakeManager: ObservableObject {
     private var powerSourceRunLoopSource: CFRunLoopSource?
     private var runningAppsObservation: NSKeyValueObservation?
     private var automationEvaluationWorkItem: DispatchWorkItem?
+    private var powerDisconnectGrace = KeepAwakePowerDisconnectGrace()
+    private var powerDisconnectEvaluation: (deadline: ContinuousClock.Instant, task: Task<Void, Never>)?
     private var lastExternalDisplayConnected: Bool?
     private var screenLocked = false
     private var sessionPausedForScreenLock = false
@@ -268,6 +270,7 @@ final class KeepAwakeManager: ObservableObject {
 
     private func activate(end: Date?, trigger: SessionTrigger, minutes: Int? = nil) {
         guard !isTerminating, AppFeature.keepAwake.isAvailable else { return }
+        clearPowerDisconnectGrace()
         lidSleepGeneration &+= 1
         lidSleepAttemptsRemaining = 0
         endTimer?.invalidate()
@@ -356,6 +359,7 @@ final class KeepAwakeManager: ObservableObject {
         // A stop during asynchronous recovery takes precedence over start-at-launch.
         launchActivationPending = false
         let hadSession = isActive
+        clearPowerDisconnectGrace()
         if reason == .quit {
             isTerminating = true
             clamshellSetupID = nil
@@ -580,22 +584,23 @@ final class KeepAwakeManager: ObservableObject {
             return
         }
 
+        let available = AppFeature.keepAwake.isAvailable
+        let automaticSessionActive = isActive && sessionTrigger == .automation
+        let effectiveMatches = available && automaticSessionActive
+            ? activeAutomationMatches(matches, enabled: enabled) : matches
         if screenLocked,
-           UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) {
-            if sessionTrigger == .automation { activeAutomationConditions = matches }
+           UserDefaults.standard.bool(forKey: DefaultsKey.keepAwakePauseWhenLocked) { return }
+        if !satisfied, effectiveMatches != matches, batteryProtectionPercent() != nil {
+            deactivate(reason: .battery)
             return
         }
-
-        if sessionTrigger == .automation {
-            activeAutomationConditions = matches
-        }
         let action = KeepAwakeAutomationSupport.action(
-            featureAvailable: AppFeature.keepAwake.isAvailable,
-            matchingConditions: matches,
+            featureAvailable: available,
+            matchingConditions: effectiveMatches,
             enabledConditions: enabled,
             requireAll: requireAll,
             sessionActive: isActive,
-            automaticSessionActive: isActive && sessionTrigger == .automation
+            automaticSessionActive: automaticSessionActive
         )
         switch action {
         case .none:
@@ -607,6 +612,40 @@ final class KeepAwakeManager: ObservableObject {
         case .deactivate:
             deactivate(reason: .manual)
         }
+    }
+
+    private func activeAutomationMatches(_ matches: Set<KeepAwakeAutomationCondition>,
+                                         enabled: Set<KeepAwakeAutomationCondition>)
+        -> Set<KeepAwakeAutomationCondition> {
+        let delay = Defaults.sanitizedKeepAwakePowerDisconnectDelay(
+            UserDefaults.standard.integer(forKey: DefaultsKey.keepAwakePowerDisconnectDelay)
+        )
+        let deadline = powerDisconnectGrace.deadline(
+            powerEnabled: enabled.contains(.power),
+            wasOnPower: activeAutomationConditions.contains(.power),
+            onPower: matches.contains(.power),
+            delaySeconds: delay
+        )
+        activeAutomationConditions = matches
+        if powerDisconnectEvaluation?.deadline != deadline {
+            powerDisconnectEvaluation?.task.cancel()
+            powerDisconnectEvaluation = deadline.map { deadline in
+                let task = Task { @MainActor [weak self] in
+                    try? await Task.sleep(until: deadline, clock: .continuous)
+                    guard !Task.isCancelled else { return }
+                    self?.evaluateAutomation()
+                }
+                return (deadline, task)
+            }
+        }
+        // Only Power gets a grace period. All still needs every other condition.
+        return deadline == nil ? matches : matches.union([.power])
+    }
+
+    private func clearPowerDisconnectGrace() {
+        powerDisconnectGrace = KeepAwakePowerDisconnectGrace()
+        powerDisconnectEvaluation?.task.cancel()
+        powerDisconnectEvaluation = nil
     }
 
     private func automationRequiresAllConditions() -> Bool {
@@ -627,9 +666,11 @@ final class KeepAwakeManager: ObservableObject {
     /// this instead: under All, a session that stops being wanted still has a
     /// non-empty matching set (issue #1587).
     private func automationConditionsHold() -> Bool {
-        KeepAwakeAutomationSupport.conditionsSatisfied(
-            matching: currentMatchingAutomationConditions(),
-            enabled: currentEnabledAutomationConditions(),
+        let matches = currentMatchingAutomationConditions()
+        let enabled = currentEnabledAutomationConditions()
+        return KeepAwakeAutomationSupport.conditionsSatisfied(
+            matching: sessionTrigger == .automation ? activeAutomationMatches(matches, enabled: enabled) : matches,
+            enabled: enabled,
             requireAll: automationRequiresAllConditions())
     }
 

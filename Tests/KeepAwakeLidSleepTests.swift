@@ -238,5 +238,75 @@ enum KeepAwakeLidSleepTests {
         expect(C.calls == 0 && C.closes == 0, "an unavailable sleep service is not called or closed")
         KeepAwakeClamshellTests.run(expect: expect)
         KeepAwakeDimmingTests.run(expect: expect)
+        powerDisconnectDelay(expect: expect)
+    }
+
+    private static func powerDisconnectDelay(expect: (Bool, String) -> Void) {
+        func poweredSession(delay: Int) -> C.Service {
+            let service = C.reset()
+            service.clamshellPreferred = false
+            service.recoveryCompleted = true
+            C.UserDefaults.standard.set(delay, forKey: C.DefaultsKey.keepAwakePowerDisconnectDelay)
+            service.matchingConditions = [.power]
+            service.evaluateAutomation()
+            return service
+        }
+
+        let immediate = poweredSession(delay: 0)
+        immediate.matchingConditions = []
+        immediate.evaluateAutomation()
+        expect(!immediate.isActive && !immediate.assertionsHeld,
+               "a zero power disconnect delay ends the automatic session immediately")
+
+        let delayed = poweredSession(delay: 5)
+        delayed.matchingConditions = []
+        delayed.evaluateAutomation()
+        let firstDeadline = delayed.powerDisconnectEvaluation?.deadline
+        expect(delayed.isActive && delayed.assertionsHeld && firstDeadline != nil,
+               "disconnecting power retains the automatic session and its assertions")
+        delayed.evaluateAutomation()
+        expect(delayed.powerDisconnectEvaluation?.deadline == firstDeadline,
+               "repeated evaluations do not extend a disconnect delay")
+        delayed.matchingConditions = [.power]
+        delayed.evaluateAutomation()
+        expect(delayed.isActive && delayed.assertionsHeld && delayed.powerDisconnectEvaluation == nil,
+               "reconnecting power cancels the pending stop without releasing assertions")
+        delayed.matchingConditions = []
+        delayed.evaluateAutomation()
+        let timeout = Date().addingTimeInterval(7)
+        while delayed.isActive, Date() < timeout {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
+        expect(!delayed.isActive && !delayed.assertionsHeld && delayed.powerDisconnectEvaluation == nil,
+               "a later disconnect expires on its own and releases assertions")
+        delayed.evaluateAutomation()
+        expect(!delayed.isActive, "a Mac already on battery cannot start a session through the delay")
+        delayed.deactivate(reason: .manual)
+
+        let all = poweredSession(delay: 20)
+        all.enabledConditions = [.externalDisplay, .power]
+        all.requireAll = true
+        all.matchingConditions = [.externalDisplay]
+        all.evaluateAutomation()
+        expect(all.isActive, "All keeps the automatic session when only the power condition is lost")
+        all.matchingConditions = []
+        all.evaluateAutomation()
+        expect(!all.isActive && all.powerDisconnectEvaluation == nil,
+               "All ends immediately if the external display condition is lost during the delay")
+
+        let manual = poweredSession(delay: 20)
+        manual.matchingConditions = []
+        manual.evaluateAutomation()
+        manual.activate(minutes: 0)
+        expect(manual.isActive && manual.sessionTrigger == .manual && manual.powerDisconnectEvaluation == nil,
+               "a manual replacement clears the automatic session's pending stop")
+
+        let lowBattery = poweredSession(delay: 20)
+        C.UserDefaults.standard.set(10, forKey: C.DefaultsKey.batteryLimit)
+        C.SystemInfo.battery = (isOnBattery: true, percent: 5)
+        lowBattery.matchingConditions = []
+        lowBattery.evaluateAutomation()
+        expect(!lowBattery.isActive && lowBattery.powerDisconnectEvaluation == nil,
+               "battery protection can end the session during the delay")
     }
 }

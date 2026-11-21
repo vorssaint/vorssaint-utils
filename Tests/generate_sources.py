@@ -2547,6 +2547,9 @@ def main():
         "    func deactivate(reason:",
         "    private func scheduleEnd(",
         "    private func continueAutomaticallyAfterTimerIfNeeded(",
+        "    private func evaluateAutomation(",
+        "    private func activeAutomationMatches(",
+        "    private func clearPowerDisconnectGrace(",
         "    private func automationConditionsHold(",
         "    private func automaticSessionAllowedByBatteryProtection(",
         "    private func startBatteryWatch(",
@@ -2585,12 +2588,15 @@ def main():
           + "var clamshellSetupRetried = false\nvar passwordlessClamshell = true\n"
           + "var recoveryCompleted = false\nvar launchActivationPending = true\nvar screenLocked = false\nvar assertionsHeld = false\n"
           + "var automationSuppressedUntilConditionsClear = false\n"
+          + "var powerDisconnectGrace = KeepAwakePowerDisconnectGrace()\n"
+          + "var powerDisconnectEvaluation: (deadline: ContinuousClock.Instant, task: Task<Void, Never>)?\n"
           + "var endTimer: Timer?\nvar batteryTimer: Timer?\nvar endDate: Date?\nvar sessionTrigger: SessionTrigger?\nvar sessionMinutes: Int?\n"
           + "var activeAutomationConditions = Set<KeepAwakeAutomationCondition>()\n"
           + "var matchingConditions = Set<KeepAwakeAutomationCondition>()\n"
+          + "var enabledConditions: Set<KeepAwakeAutomationCondition> = [.power]\nvar requireAll = false\n"
           + "func currentMatchingAutomationConditions() -> Set<KeepAwakeAutomationCondition> { matchingConditions }\n"
-          + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { [.power] }\n"
-          + "func automationRequiresAllConditions() -> Bool { false }\n"
+          + "func currentEnabledAutomationConditions() -> Set<KeepAwakeAutomationCondition> { enabledConditions }\n"
+          + "func automationRequiresAllConditions() -> Bool { requireAll }\n"
           + "var onSessionEnded: ((EndReason) -> Void)?\n"
           + "var lidDimmingNotificationPort: IONotificationPortRef?\nvar lidDimmingNotification: io_object_t = 0\n"
           + "var lidClosedForDimming: Bool?\nvar savedDisplayBrightness: Double?\n"

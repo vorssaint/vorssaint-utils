@@ -130,6 +130,15 @@ enum PreferencesFeatureTests {
                "external-display Keep Awake is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.keepAwakePowerDisconnectDelay] as? Int == 0,
+               "power-connected Keep Awake ends without delay by default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePowerDisconnectDelay),
+               "the power disconnect delay follows settings backups")
+        suite.expect(Defaults.sanitizedKeepAwakePowerDisconnectDelay(15) == 15
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(60) == 60
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(-5) == 0
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(65) == 0,
+               "the power disconnect delay accepts offered values and rejects values outside its range")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
                "running-apps Keep Awake is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
