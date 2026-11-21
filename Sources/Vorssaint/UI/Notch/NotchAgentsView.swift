@@ -605,9 +605,17 @@ private struct NotchAgentLiveCard: View {
     let providers: [AgentProvider]
     let text: NotchAgentStrings
     @Environment(\.locale) private var locale
+    @ObservedObject private var inputs = AgentInputMonitor.shared
+    @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
         let live = snapshot.live.filter { providers.contains($0.provider) }
+        let waiting = providers.contains(.claude) ? inputs.requests : []
+        // Waiting sessions whose turn went quiet long enough to stop counting
+        // as working still belong here, by their own name.
+        let quiet = waiting.filter { request in
+            !live.contains { AgentInputSupport.sessionID(forLog: $0.id) == request.session }
+        }
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 7) {
                 NotchAgentCardHeader(title: text.liveCard, symbol: NotchAgentCard.live.symbol,
@@ -617,14 +625,19 @@ private struct NotchAgentLiveCard: View {
                         if let first = live.first { NotchAgentPulse(tint: first.provider.tint, size: 5) }
                     }
                 }
-                if live.isEmpty {
+                if live.isEmpty && quiet.isEmpty {
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(providers) { idleRow($0) }
                     }
                 } else {
                     TimelineView(.periodic(from: .now, by: 1)) { context in
                         VStack(alignment: .leading, spacing: 5) {
-                            ForEach(live.prefix(2)) { row($0, now: context.date) }
+                            ForEach(quiet.prefix(2)) { quietRow($0, now: context.date) }
+                            ForEach(live.prefix(max(0, 2 - quiet.count))) { session in
+                                row(session, now: context.date, request: waiting.first {
+                                    $0.session == AgentInputSupport.sessionID(forLog: session.id)
+                                })
+                            }
                         }
                     }
                 }
@@ -632,7 +645,7 @@ private struct NotchAgentLiveCard: View {
         }
     }
 
-    private func row(_ session: AgentLiveSession, now: Date) -> some View {
+    private func row(_ session: AgentLiveSession, now: Date, request: AgentInputRequest?) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             HStack(spacing: 4) {
                 NotchAgentGlyph(provider: session.provider, size: 9)
@@ -640,12 +653,16 @@ private struct NotchAgentLiveCard: View {
                     .font(.system(size: 11, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if request != nil { NotchAgentInputTag(text: inputText.needsYou) }
                 Spacer(minLength: 4)
                 Text(AgentFormat.clock(now.timeIntervalSince(session.started)))
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
                     .foregroundStyle(session.provider.tint)
             }
+            if let request {
+                waitingLine(request, now: now)
+            } else {
             // Tokens the agent wrote, as its own window counts them; every
             // call also reads the whole context again, which the tooltip and
             // the cost include.
@@ -656,9 +673,39 @@ private struct NotchAgentLiveCard: View {
                 .font(.system(size: 9.5))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
+            }
         }
         .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
+    }
+
+    private var inputText: AgentInputStrings { FeatureStrings.agentInput(l10n.language) }
+
+    /// "Permission · waiting 0:45".
+    private func waitingLine(_ request: AgentInputRequest, now: Date) -> some View {
+        Text([inputText.reason(request.reason),
+              inputText.waitingFor(AgentFormat.clock(max(0, now.timeIntervalSince(request.since))))]
+                .joined(separator: " · "))
+            .font(.system(size: 9.5))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    /// A waiting session no longer counted as working: its name, the tag
+    /// and why it waits.
+    private func quietRow(_ request: AgentInputRequest, now: Date) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 4) {
+                NotchAgentInputGlyph(tint: AgentProvider.claude.tint, size: 9)
+                Text(request.project.isEmpty ? AgentProvider.claude.displayName : request.project)
+                    .font(.system(size: 11, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                NotchAgentInputTag(text: inputText.needsYou)
+                Spacer(minLength: 4)
+            }
+            waitingLine(request, now: now)
+        }
     }
 
     private func idleRow(_ provider: AgentProvider) -> some View {
@@ -1049,5 +1096,20 @@ private struct NotchAgentResetsCard: View {
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+    }
+}
+
+/// The small tag beside a session waiting on its person.
+struct NotchAgentInputTag: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(AgentProvider.claude.tint)
+            .lineLimit(1)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(AgentProvider.claude.tint.opacity(0.18)))
     }
 }

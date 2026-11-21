@@ -263,6 +263,9 @@ enum SelfUninstall {
         try? FileManager.default.removeItem(atPath: "\(home)/Library/HTTPStorages/\(id)")
         try? FileManager.default.removeItem(
             atPath: "\(home)/Library/HTTPStorages/\(id).binarycookies")
+        // The hook "Set up" added to Claude Code would otherwise keep running
+        // for an app that is gone. Only Vorssaint's own entries are removed.
+        try? ClaudeHookSetup.disconnect()
     }
 
     /// Moves the app's own bundle to the Trash after it quits, then quits. The
