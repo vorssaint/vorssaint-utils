@@ -181,6 +181,20 @@ enum CommandBarFileSearchSupport {
         return result
     }
 
+    // MARK: - What Return runs
+
+    /// Whether Return should execute a file the bar found instead of handing
+    /// it to the app that opens it (issue #576). The executable bit on the
+    /// file itself is the whole question: something made runnable runs, and a
+    /// `.sh` without one opens the way it always did. A directory holds
+    /// nothing to run — only search bits, which never read as executable.
+    static func isRunnableFile(atPath path: String) -> Bool {
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory),
+              !isDirectory.boolValue else { return false }
+        return FileManager.default.isExecutableFile(atPath: path)
+    }
+
     // MARK: - What is stored
 
     /// One path or pattern per line, which is what makes the lists readable in
