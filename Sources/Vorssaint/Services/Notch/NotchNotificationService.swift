@@ -199,7 +199,7 @@ final class NotchNotificationService: ObservableObject {
                   let reader = self.reader else { return }
             self.queue.async { [weak self] in
                 let checkedAt = ProcessInfo.processInfo.systemUptime
-                let focused = reader.centerIsFocused()
+                let focused = reader.centerWasFocused(since: check.openedAt)
                 DispatchQueue.main.async {
                     guard let self, self.generation == requested, self.heldCheck == check else { return }
                     self.heldWork = nil; self.heldCheck = nil
