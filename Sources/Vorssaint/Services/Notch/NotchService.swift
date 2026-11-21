@@ -128,6 +128,7 @@ final class NotchService: ObservableObject {
     private let hotkey = QuickToolHotkey(id: 81)
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
+    weak var directMediaDropWorkspace: MediaWorkspaceSelection?
     @Published private(set) var choosingFileDropDestination = false
     @Published private(set) var targetsMediaDrop = false
     @Published private(set) var selectedMetric: MetricDetailKind?
@@ -2283,14 +2284,17 @@ final class NotchService: ObservableObject {
         else { DispatchQueue.main.async(execute: action) }
     }
 
-    var canAcceptFileDrop: Bool {
+    func canAcceptFileDrop(_ pasteboard: NSPasteboard) -> Bool {
+        // Leave file drags to the open media card as they cross the island's
+        // edge. The Files page keeps its own Shelf / Optimize destination.
         acceptsUserInteraction && captureControls == nil && modules.contains(.files)
+            && !(directMediaDropWorkspace != nil && pasteboard.types?.contains(.fileURL) == true)
             && AppFeature.shelf.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
     func beginFileDrop(_ pasteboard: NSPasteboard) {
-        guard canAcceptFileDrop else { return }
+        guard canAcceptFileDrop(pasteboard) else { return }
         choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
@@ -2318,7 +2322,7 @@ final class NotchService: ObservableObject {
 
     func accept(_ pasteboard: NSPasteboard) -> Bool {
         defer { endFileDrop() }
-        guard canAcceptFileDrop else { return false }
+        guard canAcceptFileDrop(pasteboard) else { return false }
         let optimize = choosingFileDropDestination && targetsMediaDrop
         let accepted = optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
@@ -3504,9 +3508,7 @@ final class NotchService: ObservableObject {
 
     private func invalidateMenuSpace() {
         menuSpaceGeneration += 1
-        // Keep the last measured layout until its replacement arrives, so a
-        // switch does not blink; the read that follows withdraws the cutout
-        // once the new menu bar reaches the camera.
+        // Keep a settled layout during a brief remeasurement; a slow read withdraws the old clearance.
         readMenuSpace()
     }
 
@@ -3529,18 +3531,24 @@ final class NotchService: ObservableObject {
         // frontmost application while an accessory app such as a launcher has
         // focus; that app's own menu geometry was never laid out. When our own
         // Settings has focus, the menu owner can briefly be nil.
-        guard menuSpaceTimer != nil, !menuSpaceReading,
-              let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
-                ?? (NSApp.isActive ? getpid() : nil) else { return }
+        guard menuSpaceTimer != nil, !menuSpaceReading else { return }
+        guard let pid = NSWorkspace.shared.menuBarOwningApplication?.processIdentifier
+            ?? (NSApp.isActive ? getpid() : nil) else { applyMenuSpace(nil); return }
         menuSpaceReading = true
         let generation = menuSpaceGeneration
         let geometry = geometry
         let primaryTop = NSScreen.screens.first?.frame.maxY ?? geometry.screen.maxY
         let window = panel?.windowNumber ?? -1
+        let timeout = DispatchWorkItem { [weak self] in
+            guard let self, self.menuSpaceTimer != nil, self.menuSpaceReading else { return }
+            self.applyMenuSpace(nil)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.30, execute: timeout)
         menuSpaceQueue.async { [weak self] in
             let room = NotchMenuBarSpace.measure(pid: pid, geometry: geometry,
                                                 primaryTop: primaryTop, ownWindow: window)
             DispatchQueue.main.async {
+                timeout.cancel()
                 guard let self else { return }
                 self.menuSpaceReading = false
                 guard self.menuSpaceTimer != nil else { return }
@@ -3650,7 +3658,7 @@ final class NotchService: ObservableObject {
         if modules.contains(.files), AppFeature.shelf.isAvailable {
             windowHost?.setFileDropActions(NotchFileDropActions(
                 canAccept: { [weak self] pasteboard in
-                    self?.canAcceptFileDrop == true && !ShelfService.shared.isInternalDragActive
+                    self?.canAcceptFileDrop(pasteboard) == true && !ShelfService.shared.isInternalDragActive
                         && ShelfService.shared.canAcceptPasteboard(pasteboard)
                 },
                 enter: { [weak self] in self?.beginFileDrop($0) },
@@ -3673,7 +3681,7 @@ final class NotchService: ObservableObject {
             cameraWidth = max(0, right.minX - left.maxX)
         } else { cameraWidth = 0 }
         return NotchGeometry(screen: screen.frame, safeAreaTop: screen.safeAreaInsets.top,
-                             cameraWidth: cameraWidth,
+                             cameraWidth: cameraWidth, physicalCameraX: screen.auxiliaryTopLeftArea?.maxX,
                              layout: NotchSize(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.notchSize) ?? "") ?? .spacious,
                              menuBarHeight: menuBarMeasurements.height(
                                 displayID: screen.notchDisplayID, frame: screen.frame,
@@ -3803,6 +3811,13 @@ final class NotchService: ObservableObject {
         }
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
+        }
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            observe(workspace, name) { [weak self] in
+                guard let self, self.menuSpaceTimer != nil else { return }
+                self.applyMenuSpace(nil)
+                self.invalidateMenuSpace()
+            }
         }
         observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
