@@ -2047,6 +2047,8 @@ def main():
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
+                                   "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func applyNativeHotkeySuppressionIfTapLive(",
                                    "    func select(index:", "    func hoverSelect(index:",
                                    "    func hoverSelectEnded(", "    func hoverSelectIconRow(index:",
                                    "    func hoverSelectIconRowEnded(", "    private var selectedItemID:",
