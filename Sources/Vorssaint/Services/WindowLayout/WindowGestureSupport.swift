@@ -1205,84 +1205,33 @@ enum WindowDirectionalModifierCancellation {
     }
 }
 
-/// Which window layout interactions are running. Empty is idle: the shared tap
-/// is torn down then, so an event in an idle layout costs nothing.
-struct WindowLayoutPointerDemand: OptionSet, Equatable {
+/// The persistent pointer tap watches only the events its active features use.
+struct WindowLayoutPointerDemand: OptionSet {
     let rawValue: Int
 
-    static let directional = WindowLayoutPointerDemand(rawValue: 1 << 0)
-    static let gesture = WindowLayoutPointerDemand(rawValue: 1 << 1)
-    static let edgeSnap = WindowLayoutPointerDemand(rawValue: 1 << 2)
-}
+    static let gesture = Self(rawValue: 1 << 0)
+    static let edgeSnap = Self(rawValue: 1 << 1)
 
-/// One consumer of the window layout pointer tap. Each owned a tap and a mask
-/// of its own before they were merged into one port, so the masks stay here: a
-/// consumer must still see exactly the event types it watched on its own.
-enum WindowLayoutPointerConsumer: CaseIterable {
-    case directional
-    case gesture
-    case edgeSnap
+    private static let gestureMask: CGEventMask = [
+        CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp,
+        .rightMouseDown, .rightMouseDragged, .rightMouseUp,
+    ].reduce(0) { $0 | (CGEventMask(1) << $1.rawValue) }
 
-    var demand: WindowLayoutPointerDemand {
-        switch self {
-        case .directional: return .directional
-        case .gesture: return .gesture
-        case .edgeSnap: return .edgeSnap
-        }
-    }
+    private static let edgeSnapMask: CGEventMask = [
+        CGEventType.leftMouseDown, .leftMouseDragged, .leftMouseUp, .flagsChanged,
+    ].reduce(0) { $0 | (CGEventMask(1) << $1.rawValue) }
 
     var eventMask: CGEventMask {
-        let events: [CGEventType]
-        switch self {
-        case .directional:
-            // A running pointer layout owns clicks, keys and the wheel, so it
-            // can turn a modifier chord into a placement or abandon it.
-            events = [.scrollWheel, .leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown]
-        case .gesture:
-            // The move and resize gesture follows the two buttons it can hold.
-            events = [.leftMouseDown, .leftMouseDragged, .leftMouseUp,
-                      .rightMouseDown, .rightMouseDragged, .rightMouseUp]
-        case .edgeSnap:
-            // Edge snapping follows a title bar drag, and the Option-key
-            // take-over macOS performs during that drag only shows itself as a
-            // modifier change, so the gesture can be handed over mid-drag.
-            events = [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .flagsChanged]
-        }
-        return events.reduce(CGEventMask(0)) { mask, event in
-            mask | (CGEventMask(1) << event.rawValue)
-        }
+        var mask: CGEventMask = 0
+        if contains(.gesture) { mask |= Self.gestureMask }
+        if contains(.edgeSnap) { mask |= Self.edgeSnapMask }
+        return mask
     }
 
     func observes(_ type: CGEventType) -> Bool {
-        eventMask & (CGEventMask(1) << type.rawValue) != 0
-    }
-}
-
-/// Who sees an event of the shared pointer tap, and in what order.
-///
-/// One tap now carries the union of the masks three taps watched, so this is
-/// the only place that decides the order the handlers used to settle among
-/// themselves: a running pointer layout first, because it owns clicks, keys and
-/// the wheel while it is up; the gesture next, because it takes custody of a
-/// chord press and hands edge snapping only the window it actually moves; edge
-/// snapping last, so the position it rewrites to protect the system top edge is
-/// the one the event leaves with.
-enum WindowLayoutPointerRoute {
-    /// What the single tap watches, derived from the same masks the handlers
-    /// are held to, so the tap cannot drift from what they accept.
-    static let sharedEventMask: CGEventMask =
-        WindowLayoutPointerConsumer.allCases.reduce(0) { $0 | $1.eventMask }
-
-    static func isTapDisabled(_ type: CGEventType) -> Bool {
-        type == .tapDisabledByTimeout || type == .tapDisabledByUserInput
-    }
-
-    static func consumers(for type: CGEventType,
-                          active demand: WindowLayoutPointerDemand) -> [WindowLayoutPointerConsumer] {
-        let running = WindowLayoutPointerConsumer.allCases.filter { demand.contains($0.demand) }
-        // A tap the system switched off carries no input of its own: every
-        // consumer that is running has to hear about it and recover.
-        guard !isTapDisabled(type) else { return running }
-        return running.filter { $0.observes(type) }
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            return !isEmpty
+        }
+        return eventMask & (CGEventMask(1) << type.rawValue) != 0
     }
 }

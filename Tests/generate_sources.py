@@ -2706,11 +2706,13 @@ def main():
                     .replace("AXIsProcessTrusted()", "WindowEdgeSnapRuntimeTests.accessibilityGranted")
                     for prefix in [
               "    private func observeEdgeSnapEvent(",
+              "    private func handlePointerTapEvent(",
               "    private static func seconds(of event: CGEvent)",
               "    private func handleEdgeSnapInput(",
               "    private func applyDelayedEdgeSnapIfMoved(",
               "    private func finishEdgeSnapRelease(",
               "    private func edgeSnapWindowFollowed(",
+              "    private func edgeSnapConflictsWithWindowGesture(",
               "    private func beginEdgeSnapResolve(",
               "    private func resolveEdgeSnapWindow(",
               "    private func makeEdgeSnapDrag(",
@@ -2772,9 +2774,16 @@ def main():
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     .replace("AXIsProcessTrusted()", "WindowDirectionalModifierRuntimeTests.accessibilityGranted")
                     .replace("CGEvent.tapEnable(", "tapEnable(")
+                    .replace("CGEvent.tapCreate(", "createTap(")
+                    .replace("Unmanaged<WindowLayoutService>", "Unmanaged<Host>")
                     for prefix in [
               "    private func observeDirectionalModifierEvent(",
               "    private func beginDirectionalGesture(",
+              "    private func syncPointerTap(for demand:",
+              "    private func stopPointerTap()",
+              "    private func startDirectionalTap()",
+              "    private func stopDirectionalTap()",
+              "    private func observeDirectionalEvent(",
               "    private func updateDirectionalGesture(",
               "    private func finishDirectionalGesture()",
               "    private func cancelDirectionalGesture("])
