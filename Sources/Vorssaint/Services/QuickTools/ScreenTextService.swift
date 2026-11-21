@@ -39,10 +39,20 @@ final class ScreenTextService: ObservableObject {
         ScreenCaptureService.shared.capture(initial: .text)
     }
 
+    /// The QR shortcut. It uses the same selection surface as screen text,
+    /// then reads codes only, so a region of text is never sent through OCR.
+    func captureQR() {
+        ScreenCaptureService.shared.capture(initial: .qr)
+    }
+
     func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
         recognize(capture.image,
                   detectQRCodes: UserDefaults.standard.bool(
                     forKey: DefaultsKey.screenOCRDetectQRCodes))
+    }
+
+    func receiveQRCapture(_ capture: ScreenshotSelectionController.Capture) {
+        recognizeQR(capture.image)
     }
 
     /// Copies text from an image that has already been captured. Screenshot
@@ -57,6 +67,28 @@ final class ScreenTextService: ObservableObject {
         case qr(BarcodeDetector.Reading)
         case text(String)
         case empty
+    }
+
+    /// A QR-only pass. A code is copied and shown at the top of the screen.
+    /// A single web address can also be opened from that card.
+    private func recognizeQR(_ image: CGImage) {
+        guard AppFeature.screenOCR.isAvailable else { return }
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+        let pasteboardChangeCount = NSPasteboard.general.changeCount
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let reading = BarcodeDetector.read(Self.recognitionImage(image))
+            DispatchQueue.main.async { [weak self] in
+                guard self?.recognitionGeneration == generation,
+                      AppFeature.screenOCR.isAvailable,
+                      NSPasteboard.general.changeCount == pasteboardChangeCount else { return }
+                if let reading {
+                    Self.presentCopied(reading.payload, openURL: reading.url)
+                } else {
+                    QuickToolHUD.show(icon: "qrcode", message: L10n.shared.s.qrScanNone)
+                }
+            }
+        }
     }
 
     private func recognize(_ image: CGImage, detectQRCodes: Bool) {
@@ -81,12 +113,9 @@ final class ScreenTextService: ObservableObject {
                 let strings = L10n.shared.s
                 switch outcome {
                 case .qr(let reading):
-                    // Show what the code holds instead of copying it blindly;
-                    // the panel offers copy and, for a link, open.
-                    QRResultController.shared.show(reading: reading)
+                    Self.presentCopied(reading.payload, openURL: reading.url)
                 case .text(let text):
-                    Self.copyToPasteboard(text)
-                    QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
+                    Self.presentCopied(text, openURL: nil)
                 case .empty:
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)
                 }
@@ -168,6 +197,14 @@ final class ScreenTextService: ObservableObject {
                                                     x: observation.boundingBox.minX,
                                                     y: observation.boundingBox.midY)
         }
+    }
+
+    /// Copies the value and shows that same value in the card at the top.
+    private static func presentCopied(_ value: String, openURL: URL?) {
+        copyToPasteboard(value)
+        QuickToolHUD.showCopied(title: L10n.shared.s.copiedToClipboard,
+                                detail: value,
+                                openURL: openURL)
     }
 
     static func copyToPasteboard(_ value: String) {

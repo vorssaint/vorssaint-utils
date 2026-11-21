@@ -18,6 +18,7 @@ enum QuickToolHUD {
     /// Bumped by every show(). A dismiss whose fade-out was overtaken by a
     /// newer show() must not order the panel out from its completion handler.
     private static var generation = 0
+    private static var collapsesOnDismiss = false
 
     /// The confirmation panel, when one is on screen. A recording in progress
     /// leaves it out of the picture; nothing else needs to know it exists.
@@ -31,6 +32,29 @@ enum QuickToolHUD {
     static var currentScrollingWindowNumber: Int? {
         guard let scrollingPanel, scrollingPanel.isVisible else { return nil }
         return scrollingPanel.windowNumber
+    }
+
+    /// The screen-text and QR confirmation. The title says the copy succeeded
+    /// and the detail is the text or link that landed on the clipboard. It
+    /// stays long enough to read, then folds away on its own.
+    static func showCopied(title: String, detail: String, openURL: URL? = nil) {
+        guard Thread.isMainThread else {
+            DispatchQueue.main.async { showCopied(title: title, detail: detail, openURL: openURL) }
+            return
+        }
+        let screenWidth = NSScreen.pointerVisibleFrame.width
+        let layout = CopiedCardLayout.measure(title: title,
+                                              detail: detail,
+                                              showsOpen: openURL != nil,
+                                              screenWidth: screenWidth)
+        let content = CopiedConfirmationView(title: title,
+                                             detail: detail,
+                                             openURL: openURL,
+                                             layout: layout) {
+            if let openURL { NSWorkspace.shared.open(openURL) }
+            dismiss()
+        }
+        present(AnyView(content), dismissAfter: 5, acceptsMouse: true, collapses: true)
     }
 
     static func show(icon: String, message: String, swatch: NSColor? = nil) {
@@ -159,13 +183,17 @@ enum QuickToolHUD {
 
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
-                                windowShadow: Bool = true) {
+                                windowShadow: Bool = true,
+                                acceptsMouse: Bool = false,
+                                collapses: Bool = false) {
         let host = NSHostingController(rootView: content)
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 
         let panel = ensurePanel()
         panel.hasShadow = windowShadow
+        panel.ignoresMouseEvents = !acceptsMouse
+        collapsesOnDismiss = collapses
         panel.contentViewController = host
 
         let frame = NSScreen.pointerVisibleFrame
@@ -191,13 +219,25 @@ enum QuickToolHUD {
     private static func dismiss() {
         guard let panel else { return }
         let dismissed = generation
+        let collapse = collapsesOnDismiss
+        let start = panel.frame
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.22
+            context.duration = collapse ? 0.28 : 0.22
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panel.animator().alphaValue = 0
+            if collapse {
+                panel.animator().setFrame(NSRect(x: start.minX,
+                                                 y: start.maxY - 8,
+                                                 width: start.width,
+                                                 height: 8),
+                                          display: true)
+            }
         }, completionHandler: {
             guard generation == dismissed else { return }
             panel.orderOut(nil)
             panel.contentViewController = nil
+            panel.ignoresMouseEvents = true
+            collapsesOnDismiss = false
             dismissWork = nil
         })
     }
@@ -239,6 +279,56 @@ enum QuickToolHUD {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
+    }
+}
+
+/// Success line plus the value that was copied. The success line stays
+/// centered. The value keeps its own alignment and grows only up to a small
+/// cap, then scrolls so the start and the end both remain reachable.
+private struct CopiedConfirmationView: View {
+    let title: String
+    let detail: String
+    let openURL: URL?
+    let layout: CopiedCardLayout.Measurement
+    let open: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: CopiedCardLayout.spacing) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.green)
+                Text(title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+            }
+            .frame(maxWidth: .infinity)
+
+            ScrollView {
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.primary.opacity(0.86))
+                    .textSelection(.enabled)
+                    .multilineTextAlignment(.leading)
+                    .frame(width: layout.contentWidth, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(width: layout.contentWidth, height: layout.detailHeight)
+            .scrollDisabled(!layout.scrolls)
+
+            if openURL != nil {
+                HStack {
+                    Spacer(minLength: 0)
+                    Button(L10n.shared.s.qrResultOpen, action: open)
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(width: layout.cardSize.width, height: layout.cardSize.height)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

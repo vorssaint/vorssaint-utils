@@ -105,6 +105,26 @@ enum SettingsFeatureTests {
                     .contains(.screenshotScrolling)
                     && ScreenCaptureTool.scrolling.settingsTitle(strings, language: language) == search.title,
                          "Keyboard shortcuts includes scrolling screenshot among installed capture tools")
+            let qrSearch = SettingsSearchSupport.qrScanItem(strings)
+            suite.expect(qrSearch.destination == ScreenCaptureTool.qr.settingsDestination
+                    && qrSearch.destination.hasValidSectionAnchor
+                    && qrSearch.title == ScreenCaptureTool.qr.settingsTitle(strings, language: language)
+                    && SettingsSearchSupport.route(for: qrSearch, isAvailable: { _ in false })
+                        .targetFeature == .screenOCR,
+                         "QR scan search opens its own tool or the screen text installation page")
+            let captureSearchItems = SettingsDirectory.searchItems(strings, language: language,
+                                                                   state: state())
+            for query in ["OCR", "recognize text", "copy text"] {
+                let opensCopyText = SettingsSearchSupport.groupedMatchingItems(
+                    query: query, items: captureSearchItems, isAvailable: { _ in true })
+                    .flatMap(\.suggestions)
+                    .contains { suggestion in
+                        SettingsSearchSupport.route(for: suggestion, isAvailable: { _ in true })
+                            .destination == AppFeature.screenOCR.settingsDestination
+                    }
+                suite.expect(opensCopyText,
+                             "searching \"\(query)\" opens Copy text from screen in \(language.rawValue)")
+            }
         }
         let captureRouter = SettingsRouter()
         captureRouter.request(ScreenCaptureTool.screenshot.settingsDestination)

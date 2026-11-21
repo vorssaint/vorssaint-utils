@@ -134,6 +134,16 @@ enum SettingsSearchSupport {
         }
     }
 
+    static func qrScanItem(_ strings: Strings) -> SettingsSearchItem {
+        SettingsSearchItem(
+            id: .setting(.screenQR),
+            destination: ScreenCaptureTool.qr.settingsDestination,
+            title: strings.qrScanName,
+            icon: ScreenCaptureTool.qr.systemImageName,
+            keywords: [strings.qrScanCaption],
+            feature: .screenOCR)
+    }
+
     static func scrollingScreenshotItem(language: AppLanguage) -> SettingsSearchItem {
         let strings = FeatureStrings.screenshot(language)
         return SettingsSearchItem(
@@ -390,7 +400,9 @@ enum SettingsSearchSupport {
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,
                                recorder.qualityLabel, recorder.frameRateLabel]),
-            (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle]),
+            (.screenOCR, [strings.ocrName, strings.ocrRemoveLineBreaksToggle, strings.ocrQRToggle,
+                          strings.qrScanName, strings.ocrCaption,
+                          "OCR", "Recognize text", "Copy text", "Text recognition"]),
             (.colorPicker, [strings.colorPickerName, strings.colorPickerFormatLabel]),
         ]
     }

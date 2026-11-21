@@ -94,7 +94,9 @@ final class QRResultController {
         pasteboard.declareVorssaintSource()
         pasteboard.setString(payload, forType: .string)
         close()
-        QuickToolHUD.show(icon: "qrcode", message: L10n.shared.s.ocrQRCopied)
+        QuickToolHUD.showCopied(title: L10n.shared.s.copiedToClipboard,
+                                detail: payload,
+                                openURL: QuickToolsSupport.openableURL(from: payload))
     }
 
     private func open(_ url: URL) {

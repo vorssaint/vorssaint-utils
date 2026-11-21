@@ -15,11 +15,19 @@ enum ScreenCaptureTool: String, CaseIterable {
     case text
     case color
     case scrolling
+    // Append tools. ScreenCaptureService assigns Carbon hotkey ids from this
+    // order, starting at 25, so inserting a case would renumber the rest.
+    case qr
 
     var settingsDestination: FeatureSettingsDestination {
-        self == .scrolling
-            ? FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
-            : feature.settingsDestination
+        switch self {
+        case .scrolling:
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenshotScrolling)
+        case .qr:
+            return FeatureSettingsDestination(.screenshot, sectionAnchor: .screenQR)
+        case .screenshot, .recording, .text, .color:
+            return feature.settingsDestination
+        }
     }
 
     var shortcutKey: String {
@@ -29,6 +37,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .text: return "3"
         case .color: return "4"
         case .scrolling: return "5"
+        case .qr: return "6"
         }
     }
 
@@ -43,6 +52,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
+        case .qr: return .screenOCR
         }
     }
 
@@ -74,6 +84,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .text:
             return DedicatedShortcut(role: .screenOCR,
                                      enabledKey: DefaultsKey.screenOCRShortcutEnabled)
+        case .qr:
+            return DedicatedShortcut(role: .screenQR,
+                                     enabledKey: DefaultsKey.screenQRShortcutEnabled)
         case .color:
             return DedicatedShortcut(role: .colorPicker,
                                      enabledKey: DefaultsKey.colorPickerShortcutEnabled)
@@ -86,6 +99,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .scrolling: return DefaultsKey.screenshotScrollingShowCaptureMenuOnShortcut
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
+        case .qr: return DefaultsKey.screenQRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
         }
     }
@@ -107,6 +121,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .scrolling: return "rectangle.stack"
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
+        case .qr: return "qrcode"
         case .color: return "eyedropper"
         }
     }
@@ -122,6 +137,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .scrolling: return FeatureStrings.screenshot(language).scrollingCaptureTitle
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
+        case .qr: return strings.qrScanName
         case .color: return strings.colorPickerName
         }
     }

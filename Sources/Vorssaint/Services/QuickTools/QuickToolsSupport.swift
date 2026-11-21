@@ -212,3 +212,59 @@ enum QuickToolsSupport {
         return url
     }
 }
+
+/// How big the copy card may get. Short values stay small. Longer values
+/// grow only until this cap, and anything past it scrolls inside the card.
+enum CopiedCardLayout {
+    static let maxCardWidth: CGFloat = 360
+    static let maxDetailHeight: CGFloat = 84
+    static let horizontalPadding: CGFloat = 28
+    static let verticalPadding: CGFloat = 20
+    static let titleRowHeight: CGFloat = 18
+    static let spacing: CGFloat = 6
+    static let openRowHeight: CGFloat = 26
+
+    struct Measurement: Equatable {
+        let cardSize: CGSize
+        let contentWidth: CGFloat
+        let detailHeight: CGFloat
+        let scrolls: Bool
+    }
+
+    static func measure(title: String,
+                        detail: String,
+                        showsOpen: Bool,
+                        screenWidth: CGFloat) -> Measurement {
+        let cap = min(maxCardWidth, max(180, screenWidth - 48))
+        let contentCap = cap - horizontalPadding
+        let titleWidth = min(contentCap, measuredWidth(title, semibold: true) + 28)
+        let detailWidth = min(contentCap, measuredWidth(detail, semibold: false))
+        let contentWidth = min(contentCap, max(titleWidth, detailWidth, 120))
+        let naturalDetailHeight = measuredHeight(detail, width: contentWidth)
+        let detailHeight = min(max(naturalDetailHeight, 16), maxDetailHeight)
+        let width = min(cap, contentWidth + horizontalPadding)
+        var height = verticalPadding + titleRowHeight + spacing + detailHeight
+        if showsOpen { height += openRowHeight }
+        return Measurement(cardSize: CGSize(width: width, height: height),
+                           contentWidth: contentWidth,
+                           detailHeight: detailHeight,
+                           scrolls: naturalDetailHeight > maxDetailHeight + 1)
+    }
+
+    private static func measuredWidth(_ text: String, semibold: Bool) -> CGFloat {
+        ceil(textRect(text, semibold: semibold,
+                      width: .greatestFiniteMagnitude).width)
+    }
+
+    private static func measuredHeight(_ text: String, width: CGFloat) -> CGFloat {
+        ceil(textRect(text, semibold: false, width: width).height)
+    }
+
+    private static func textRect(_ text: String, semibold: Bool, width: CGFloat) -> CGRect {
+        let font = NSFont.systemFont(ofSize: 12, weight: semibold ? .semibold : .regular)
+        return (text as NSString).boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font])
+    }
+}
