@@ -118,7 +118,7 @@ enum SelfTest {
         if Bundle.main.bundleURL.pathExtension == "app" {
             for animation in MenuBarIconAnimation.allCases {
                 let frames = animation.frames
-                if frames.count != animation.frameCount {
+                if frames.count != animation.frameOrder.count {
                     failures.append("missing menu bar animation frames for \(animation.rawValue)")
                 }
                 if frames.contains(where: { $0.size != BlackHoleGlyph.pointSize || inkTouchesEdge(of: $0) }) {

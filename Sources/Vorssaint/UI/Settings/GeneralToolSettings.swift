@@ -80,56 +80,63 @@ private struct MenuBarIconRow: View {
         let name = Defaults.sanitizedMenuBarIconSymbol(savedName)
         let otherName = name.isEmpty || Self.symbols.contains(name) ? "" : name
         let animation = MenuBarIconAnimation(rawValue: animationName)
+        let iconStrings = MenuBarIconStrings.localized(l10n.language)
         VStack(alignment: .leading, spacing: 10) {
             SettingsRow(symbol: nil, title: text.menuBarIconTitle, caption: text.menuBarIconCaption) {
                 EmptyView()
             }
-            // Eager, so the cell the name popover hangs from is never
-            // released while the page scrolls.
-            FlowLayoutLite(spacing: 6) {
-                cell(selected: animation == nil && name.isEmpty) {
-                    savedName = ""
-                    animationName = ""
-                } label: {
-                    vorssaintMark
-                }
-                .help(text.menuBarIconReset)
-                .accessibilityLabel(text.menuBarIconReset)
-                ForEach(MenuBarIconAnimation.allCases) { option in
-                    if let frame = option.frames.first {
-                        cell(selected: animation == option) {
-                            animationName = option.rawValue
-                        } label: {
-                            Image(nsImage: frame)
-                                .renderingMode(.template)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(width: 24, height: 18)
-                        }
-                        .help(option.title(l10n.language))
-                        .accessibilityLabel(option.title(l10n.language))
-                    }
-                }
-                ForEach(Self.symbols, id: \.self) { symbol in
-                    cell(selected: animation == nil && name == symbol) {
-                        savedName = symbol
+            MenuBarIconCategories(title: text.menuBarIconTitle, strings: iconStrings,
+                                  hasAnimation: animation != nil) {
+                // Keep the popover's anchor alive while the page scrolls.
+                FlowLayoutLite(spacing: 6) {
+                    cell(selected: animation == nil && name.isEmpty) {
+                        savedName = ""
                         animationName = ""
                     } label: {
-                        Image(systemName: symbol)
+                        vorssaintMark
                     }
-                    .help(symbol)
+                    .help(text.menuBarIconReset)
+                    .accessibilityLabel(text.menuBarIconReset)
+                    ForEach(Self.symbols, id: \.self) { symbol in
+                        cell(selected: animation == nil && name == symbol) {
+                            savedName = symbol
+                            animationName = ""
+                        } label: {
+                            Image(systemName: symbol)
+                        }
+                        .help(symbol)
+                    }
+                    cell(selected: animation == nil && !otherName.isEmpty) {
+                        typingName = true
+                    } label: {
+                        // A name from a newer macOS has nothing to draw here.
+                        let drawable = NSImage(systemSymbolName: otherName, accessibilityDescription: nil) != nil
+                        Image(systemName: drawable ? otherName : "ellipsis")
+                    }
+                    .help(otherName.isEmpty ? text.menuBarIconOther : otherName)
+                    .accessibilityLabel(text.menuBarIconOther)
+                    .popover(isPresented: $typingName, arrowEdge: .bottom) {
+                        MenuBarIconNameField()
+                    }
                 }
-                cell(selected: animation == nil && !otherName.isEmpty) {
-                    typingName = true
-                } label: {
-                    // A name from a newer macOS has nothing to draw here.
-                    let drawable = NSImage(systemSymbolName: otherName, accessibilityDescription: nil) != nil
-                    Image(systemName: drawable ? otherName : "ellipsis")
-                }
-                .help(otherName.isEmpty ? text.menuBarIconOther : otherName)
-                .accessibilityLabel(text.menuBarIconOther)
-                .popover(isPresented: $typingName, arrowEdge: .bottom) {
-                    MenuBarIconNameField()
+            } animatedIcons: {
+                FlowLayoutLite(spacing: 6) {
+                    ForEach(MenuBarIconAnimation.allCases) { option in
+                        if let frame = option.frames.first {
+                            let title = iconStrings.title(for: option)
+                            cell(selected: animation == option) {
+                                animationName = option.rawValue
+                            } label: {
+                                Image(nsImage: frame)
+                                    .renderingMode(.template)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 24, height: 18)
+                            }
+                            .help(title)
+                            .accessibilityLabel(title)
+                        }
+                    }
                 }
             }
             .padding(.leading, settingsRowTextInset)

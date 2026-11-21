@@ -1,4 +1,4 @@
-The cat and coffee animation frames are from RunCat Neo.
+The bundled runner frames are from RunCat Neo.
 Copyright 2026 Kyome22 (Takuto Nakamura).
 Licensed under the Apache License, Version 2.0 (see LICENSE.txt).
 

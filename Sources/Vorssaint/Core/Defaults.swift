@@ -1129,38 +1129,43 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
 }
 
 enum MenuBarIconAnimation: String, CaseIterable, Identifiable {
-    case cat, coffee
+    case cat, dog, slime, drop, coffee
+    case newtonCradle = "newton-cradle"
+    case engine, mochi
 
     var id: String { rawValue }
 
     static var current: Self? {
         Self(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarIconAnimation) ?? "")
     }
-
-    func title(_ language: AppLanguage) -> String {
-        let titles: (cat: String, coffee: String)
-        switch language {
-        case .enUS: titles = ("Animated cat", "Animated coffee")
-        case .ptBR: titles = ("Gato animado", "Café animado")
-        case .tr: titles = ("Animasyonlu kedi", "Animasyonlu kahve")
-        case .ru: titles = ("Анимированный кот", "Анимированный кофе")
-        case .es: titles = ("Gato animado", "Café animado")
-        case .sk: titles = ("Animovaná mačka", "Animovaná káva")
-        case .de: titles = ("Animierte Katze", "Animierter Kaffee")
-        case .fr: titles = ("Chat animé", "Café animé")
-        case .it: titles = ("Gatto animato", "Caffè animato")
-        case .ja: titles = ("猫のアニメーション", "コーヒーのアニメーション")
-        case .ko: titles = ("고양이 애니메이션", "커피 애니메이션")
-        case .uk: titles = ("Анімований кіт", "Анімована кава")
-        case .zhHans: titles = ("猫咪动画", "咖啡动画")
-        case .zhTW, .zhHK: titles = ("貓咪動畫", "咖啡動畫")
-        }
-        return self == .cat ? titles.cat : titles.coffee
-    }
 }
 
-enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
-    case vorssaint, coffee, eye, moon, light, animatedCat, animatedCoffee
+enum KeepAwakeActiveIcon: RawRepresentable, CaseIterable, Equatable, Identifiable {
+    case vorssaint, coffee, eye, moon, light
+    case animated(MenuBarIconAnimation)
+
+    static let staticIcons: [Self] = [.vorssaint, .coffee, .eye, .moon, .light]
+    static let allCases = staticIcons + MenuBarIconAnimation.allCases.map(Self.animated)
+    private static let iconsByRawValue = Dictionary(uniqueKeysWithValues: allCases.map { ($0.rawValue, $0) })
+
+    init?(rawValue: String) {
+        guard let icon = Self.iconsByRawValue[rawValue] else { return nil }
+        self = icon
+    }
+
+    var rawValue: String {
+        switch self {
+        case .vorssaint: return "vorssaint"
+        case .coffee: return "coffee"
+        case .eye: return "eye"
+        case .moon: return "moon"
+        case .light: return "light"
+        // Keep the keys already written by the first animation build.
+        case .animated(.cat): return "animatedCat"
+        case .animated(.coffee): return "animatedCoffee"
+        case let .animated(runner): return "animated:\(runner.rawValue)"
+        }
+    }
 
     var id: String { rawValue }
 
@@ -1172,7 +1177,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
 
     var systemSymbolName: String? {
         switch self {
-        case .vorssaint, .animatedCat, .animatedCoffee: return nil
+        case .vorssaint, .animated: return nil
         case .coffee: return "cup.and.saucer.fill"
         case .eye: return "eye.fill"
         case .moon: return "moon.fill"
@@ -1185,18 +1190,15 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
     /// as sitting high when their ink is centered geometrically.
     var menuBarDrop: CGFloat {
         switch self {
-        case .coffee, .animatedCoffee: return 1
+        case .coffee: return 1
         case .light: return 0.5
-        case .vorssaint, .eye, .moon, .animatedCat: return 0
+        case .vorssaint, .eye, .moon, .animated: return 0
         }
     }
 
     var animation: MenuBarIconAnimation? {
-        switch self {
-        case .animatedCat: return .cat
-        case .animatedCoffee: return .coffee
-        case .vorssaint, .coffee, .eye, .moon, .light: return nil
-        }
+        if case let .animated(runner) = self { return runner }
+        return nil
     }
 
     func title(_ strings: Strings, language: AppLanguage) -> String {
@@ -1206,8 +1208,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
         case .eye: return strings.keepAwakeActiveIconEye
         case .moon: return strings.keepAwakeActiveIconMoon
         case .light: return strings.keepAwakeActiveIconLight
-        case .animatedCat: return MenuBarIconAnimation.cat.title(language)
-        case .animatedCoffee: return MenuBarIconAnimation.coffee.title(language)
+        case let .animated(runner): return MenuBarIconStrings.localized(language).title(for: runner)
         }
     }
 }

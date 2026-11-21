@@ -1001,8 +1001,7 @@ enum BlackHoleGlyph {
                             tint: KeepAwakeIconTint = .orange) -> NSImage? {
         let source: NSImage?
         if let animation = style.animation {
-            let fallbackSymbol = animation == .cat ? "cat.fill" : "cup.and.saucer.fill"
-            source = animation.frames.first ?? fixedSizeSymbol(named: fallbackSymbol, drop: style.menuBarDrop)
+            source = animation.frames.first ?? fixedSizeSymbol(named: "play.fill")
         } else if let symbolName = style.systemSymbolName {
             source = fixedSizeSymbol(named: symbolName, drop: style.menuBarDrop)
         } else {

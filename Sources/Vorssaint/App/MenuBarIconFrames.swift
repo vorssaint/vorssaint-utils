@@ -4,22 +4,28 @@
 import AppKit
 
 extension MenuBarIconAnimation {
-    var frameCount: Int {
+    private var frameCount: Int {
         switch self {
-        case .cat: return 5
-        case .coffee: return 10
+        case .cat, .dog, .slime, .drop, .newtonCradle, .mochi: return 5
+        case .coffee, .engine: return 10
         }
     }
 
-    var frames: [NSImage] {
+    /// Some runners revisit frames within a loop in RunCat Neo.
+    var frameOrder: [Int] {
         switch self {
-        case .cat: return Self.catFrames
-        case .coffee: return Self.coffeeFrames
+        case .slime: return [0, 1, 2, 3, 4, 4, 3, 2, 1]
+        case .newtonCradle: return [0, 1, 2, 1, 0, 3, 4, 3]
+        case .mochi: return [0, 1, 2, 3, 4, 3, 2, 1]
+        case .cat, .dog, .drop, .coffee, .engine: return Array(0..<frameCount)
         }
     }
 
-    private static let catFrames = Self.cat.loadFrames()
-    private static let coffeeFrames = Self.coffee.loadFrames()
+    var frames: [NSImage] { Self.framesByAnimation[self] ?? [] }
+
+    private static let framesByAnimation = Dictionary(
+        uniqueKeysWithValues: allCases.map { ($0, $0.loadFrames()) }
+    )
 
     private func loadFrames() -> [NSImage] {
         let frames = (0..<frameCount).compactMap { index -> NSImage? in
@@ -41,7 +47,8 @@ extension MenuBarIconAnimation {
             image.isTemplate = true
             return image
         }
-        return frames.count == frameCount ? frames : []
+        guard frames.count == frameCount else { return [] }
+        return frameOrder.map { frames[$0] }
     }
 
     /// CPU usage is a fraction of the whole machine. Keep motion visible at
