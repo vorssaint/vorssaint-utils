@@ -437,6 +437,7 @@ enum DefaultsKey {
     static let menuBarUsageBarHighThreshold = "menuBarUsageBarHighThreshold" // percent
     static let menuBarHideIconWithMetrics = "menuBarHideIconWithMetrics" // glyph hides while metrics render in the main item
     static let menuBarIconSymbol = "menuBarIconSymbol" // system symbol name drawn instead of the glyph; empty keeps the glyph
+    static let menuBarIconAnimation = "menuBarIconAnimation" // MenuBarIconAnimation.rawValue; empty uses the static icon
     static let menuBarMetricOrder = "menuBarMetricOrder" // comma-separated MenuBarMetric raw values
     static let menuBarCombineTemperatures = "menuBarCombineTemperatures" // usage/charge + temperature in one block when possible
     static let menuBarSeparateMetrics = "menuBarSeparateMetrics" // one status item per active metric
@@ -1127,8 +1128,39 @@ enum KeepAwakeIconTint: String, CaseIterable, Identifiable {
     }
 }
 
+enum MenuBarIconAnimation: String, CaseIterable, Identifiable {
+    case cat, coffee
+
+    var id: String { rawValue }
+
+    static var current: Self? {
+        Self(rawValue: UserDefaults.standard.string(forKey: DefaultsKey.menuBarIconAnimation) ?? "")
+    }
+
+    func title(_ language: AppLanguage) -> String {
+        let titles: (cat: String, coffee: String)
+        switch language {
+        case .enUS: titles = ("Animated cat", "Animated coffee")
+        case .ptBR: titles = ("Gato animado", "Café animado")
+        case .tr: titles = ("Animasyonlu kedi", "Animasyonlu kahve")
+        case .ru: titles = ("Анимированный кот", "Анимированный кофе")
+        case .es: titles = ("Gato animado", "Café animado")
+        case .sk: titles = ("Animovaná mačka", "Animovaná káva")
+        case .de: titles = ("Animierte Katze", "Animierter Kaffee")
+        case .fr: titles = ("Chat animé", "Café animé")
+        case .it: titles = ("Gatto animato", "Caffè animato")
+        case .ja: titles = ("猫のアニメーション", "コーヒーのアニメーション")
+        case .ko: titles = ("고양이 애니메이션", "커피 애니메이션")
+        case .uk: titles = ("Анімований кіт", "Анімована кава")
+        case .zhHans: titles = ("猫咪动画", "咖啡动画")
+        case .zhTW, .zhHK: titles = ("貓咪動畫", "咖啡動畫")
+        }
+        return self == .cat ? titles.cat : titles.coffee
+    }
+}
+
 enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
-    case vorssaint, coffee, eye, moon, light
+    case vorssaint, coffee, eye, moon, light, animatedCat, animatedCoffee
 
     var id: String { rawValue }
 
@@ -1140,7 +1172,7 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
 
     var systemSymbolName: String? {
         switch self {
-        case .vorssaint: return nil
+        case .vorssaint, .animatedCat, .animatedCoffee: return nil
         case .coffee: return "cup.and.saucer.fill"
         case .eye: return "eye.fill"
         case .moon: return "moon.fill"
@@ -1153,19 +1185,29 @@ enum KeepAwakeActiveIcon: String, CaseIterable, Identifiable {
     /// as sitting high when their ink is centered geometrically.
     var menuBarDrop: CGFloat {
         switch self {
-        case .coffee: return 1
+        case .coffee, .animatedCoffee: return 1
         case .light: return 0.5
-        case .vorssaint, .eye, .moon: return 0
+        case .vorssaint, .eye, .moon, .animatedCat: return 0
         }
     }
 
-    func title(_ strings: Strings) -> String {
+    var animation: MenuBarIconAnimation? {
+        switch self {
+        case .animatedCat: return .cat
+        case .animatedCoffee: return .coffee
+        case .vorssaint, .coffee, .eye, .moon, .light: return nil
+        }
+    }
+
+    func title(_ strings: Strings, language: AppLanguage) -> String {
         switch self {
         case .vorssaint: return strings.keepAwakeActiveIconVorssaint
         case .coffee: return strings.keepAwakeActiveIconCoffee
         case .eye: return strings.keepAwakeActiveIconEye
         case .moon: return strings.keepAwakeActiveIconMoon
         case .light: return strings.keepAwakeActiveIconLight
+        case .animatedCat: return MenuBarIconAnimation.cat.title(language)
+        case .animatedCoffee: return MenuBarIconAnimation.coffee.title(language)
         }
     }
 }
@@ -1716,6 +1758,7 @@ enum Defaults {
         DefaultsKey.menuBarUsageBarHighThreshold: 90,
         DefaultsKey.menuBarHideIconWithMetrics: false,
         DefaultsKey.menuBarIconSymbol: "",
+        DefaultsKey.menuBarIconAnimation: "",
         DefaultsKey.windowLayoutHiddenActions: "",
         DefaultsKey.windowLayoutWindowGap: 0,
         DefaultsKey.windowLayoutScreenGap: 0,

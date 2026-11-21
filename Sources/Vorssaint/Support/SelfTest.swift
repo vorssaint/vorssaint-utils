@@ -115,6 +115,27 @@ enum SelfTest {
             }
         }
 
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            for animation in MenuBarIconAnimation.allCases {
+                let frames = animation.frames
+                if frames.count != animation.frameCount {
+                    failures.append("missing menu bar animation frames for \(animation.rawValue)")
+                }
+                if frames.contains(where: { $0.size != BlackHoleGlyph.pointSize || inkTouchesEdge(of: $0) }) {
+                    failures.append("menu bar animation \(animation.rawValue) does not fit its canvas")
+                }
+            }
+        }
+        let idleFrameInterval = MenuBarIconAnimation.frameInterval(cpuUsage: nil)
+        let busyFrameInterval = MenuBarIconAnimation.frameInterval(cpuUsage: 1)
+        if busyFrameInterval >= idleFrameInterval
+            || MenuBarIconAnimation.frameInterval(cpuUsage: 0.5) <= busyFrameInterval
+            || MenuBarIconAnimation.frameInterval(cpuUsage: 0.5) >= idleFrameInterval
+            || MenuBarIconAnimation.frameInterval(cpuUsage: 2) != busyFrameInterval
+            || MenuBarIconAnimation.frameInterval(cpuUsage: -.infinity) != idleFrameInterval {
+            failures.append("menu bar animation CPU speed")
+        }
+
         // A symbol chosen for the menu bar shares the active symbols' canvas,
         // so every one the gallery offers must fit it; a name this Mac lacks
         // must leave the mark, never an empty item.

@@ -103,7 +103,7 @@ struct KeepAwakeIconPicker: View {
     private func title(_ icon: KeepAwakeActiveIcon) -> String {
         guard icon == .vorssaint,
               BlackHoleGlyph.customMark(named: Defaults.sanitizedMenuBarIconSymbol(menuBarSymbol)) != nil
-        else { return icon.title(l10n.s) }
+        else { return icon.title(l10n.s, language: l10n.language) }
         return FeatureStrings.generalSettings(l10n.language).menuBarIconTitle
     }
 
