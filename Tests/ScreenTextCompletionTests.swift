@@ -8,7 +8,12 @@ import Foundation
 /// or system pasteboard is touched.
 enum ScreenTextCompletionTests {
     typealias CGImage = Int
-    enum BarcodeDetector { typealias Reading = String }
+    enum BarcodeDetector {
+        struct Reading: Equatable {
+            let payload: String
+            let url: URL?
+        }
+    }
     enum ScreenshotSelectionController {
         struct Capture { let image: CGImage }
     }
@@ -41,7 +46,7 @@ enum ScreenTextCompletionTests {
     struct L10n {
         static let shared = Self()
         struct Language { let rawValue = "en-US" }
-        struct Strings { let ocrCopied = "copied"; let ocrNoText = "empty" }
+        struct Strings { let ocrCopied = "copied"; let ocrNoText = "empty"; let copiedToClipboard = "copied" }
         let language = Language()
         let s = Strings()
     }
@@ -56,7 +61,12 @@ enum ScreenTextCompletionTests {
     }
     enum QuickToolHUD {
         static var messages: [String] = []
+        static var details: [String] = []
         static func show(icon: String, message: String) { messages.append(message) }
+        static func showCopied(title: String, detail: String, openURL: URL? = nil) {
+            messages.append(title)
+            details.append(detail)
+        }
     }
     final class QRResultController {
         static let shared = QRResultController()
@@ -92,6 +102,7 @@ enum ScreenTextCompletionTests {
         NSPasteboard.general.value = "original"
         NSPasteboard.general.changeCount = 0
         QuickToolHUD.messages = []
+        QuickToolHUD.details = []
         QRResultController.shared.readings = []
         State.outcomes = [:]
         State.requests = []
@@ -112,8 +123,10 @@ enum ScreenTextCompletionTests {
         suite.expect(NSPasteboard.general.value == "original" && State.requests.isEmpty,
                      "preview OCR does not block or copy before background recognition")
         finish()
-        suite.expect(NSPasteboard.general.value == "capture 42" && QuickToolHUD.messages == ["copied"],
-                     "an unchanged clipboard receives the recognized text and success feedback")
+        suite.expect(NSPasteboard.general.value == "capture 42"
+                     && QuickToolHUD.messages == ["copied"]
+                     && QuickToolHUD.details == ["capture 42"],
+                     "an unchanged clipboard receives the recognized text and the card shows that text")
         suite.expect(State.requests.count == 1 && State.requests[0].image == 42
                      && !State.requests[0].qr && State.requests[0].joinLines
                      && State.requests[0].languages == ["en-US"],
@@ -212,13 +225,15 @@ enum ScreenTextCompletionTests {
                      "no text leaves the clipboard intact and reports the empty result")
 
         reset()
-        State.outcomes[1] = .qr("https://example.com")
+        State.outcomes[1] = .qr(.init(payload: "https://example.com",
+                                     url: URL(string: "https://example.com")))
         let unified = ScreenTextService()
         unified.receiveUnifiedCapture(.init(image: 1))
         finish()
         suite.expect(State.requests.first?.qr == true
-                     && QRResultController.shared.readings == ["https://example.com"]
-                     && NSPasteboard.general.value == "original",
-                     "unified OCR still honors QR detection and presents its result without copying")
+                     && QuickToolHUD.details == ["https://example.com"]
+                     && NSPasteboard.general.value == "https://example.com"
+                     && QRResultController.shared.readings.isEmpty,
+                     "a detected QR code is copied and the card shows the link")
     }
 }

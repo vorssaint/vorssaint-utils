@@ -218,7 +218,7 @@ final class ScreenshotSelectionController {
         switch activeTool {
         case .recording, .scrolling: return .geometry
         case .color: return .color
-        case .screenshot, .text: return .image
+        case .screenshot, .text, .qr: return .image
         case .none: return baseMode
         }
     }
@@ -2061,8 +2061,10 @@ private struct UnifiedCaptureGuideContent: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .minimumScaleFactor(0.8)
-                .help(options.selectedTool == .text ? l10n.s.ocrCaption : subtitle)
-            if options.availableTools.count > 1 {
+                .help(options.selectedTool == .text ? l10n.s.ocrCaption
+                      : options.selectedTool == .qr ? l10n.s.qrScanCaption
+                      : subtitle)
+            if options.showsCaptureMenu, options.availableTools.count > 1 {
                 CaptureKeyHint(key: options.availableTools.map(\.shortcutKey).joined(separator: " "), icon: "keyboard")
             }
             if options.selectedTool != .color {
@@ -2195,6 +2197,8 @@ private struct UnifiedCaptureGuideContent: View {
                 + "  ·  " + strings.hintDrag + "  ·  " + strings.hintClick
         case .text:
             return isFrozen ? l10n.s.ocrName + "  ·  " + strings.frozenSelectionHint : l10n.s.ocrCaption
+        case .qr:
+            return isFrozen ? l10n.s.qrScanName + "  ·  " + strings.frozenSelectionHint : l10n.s.qrScanCaption
         case .color:
             return l10n.s.colorPickerCaption
         }

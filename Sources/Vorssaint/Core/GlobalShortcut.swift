@@ -192,6 +192,10 @@ struct GlobalShortcut: Equatable, Hashable {
                                                    modifiers: [.control, .option, .command])
     static let screenOCRDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_T),
                                                  modifiers: [.control, .option, .command])
+    // B for a barcode, on the same free control-option-command layer. Off
+    // until the person turns the shortcut on, so an update takes no key.
+    static let screenQRDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_B),
+                                                modifiers: [.control, .option, .command])
     static let micMuteDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_M),
                                                modifiers: [.control, .option, .command])
     // Fallback for Quit all apps (issue #855). The shortcut stays off until the
@@ -717,6 +721,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case finderRename
     case colorPicker
     case screenOCR
+    case screenQR
     case micMute
     case quitAll
     case quitAllExceptFront
@@ -756,6 +761,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .finderRename: return DefaultsKey.finderRenameShortcut
         case .colorPicker: return DefaultsKey.colorPickerShortcut
         case .screenOCR: return DefaultsKey.screenOCRShortcut
+        case .screenQR: return DefaultsKey.screenQRShortcut
         case .micMute: return DefaultsKey.micMuteShortcut
         case .quitAll: return DefaultsKey.quitAppsShortcut
         case .quitAllExceptFront: return DefaultsKey.quitAppsExceptFrontShortcut
@@ -795,6 +801,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .finderRename: return .finderRenameDefault
         case .colorPicker: return .colorPickerDefault
         case .screenOCR: return .screenOCRDefault
+        case .screenQR: return .screenQRDefault
         case .micMute: return .micMuteDefault
         case .quitAll: return .quitAllDefault
         case .quitAllExceptFront: return .quitAllExceptFrontDefault
@@ -866,6 +873,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
         case .colorPicker: return strings.colorPickerName
         case .screenOCR: return strings.ocrName
+        case .screenQR: return strings.qrScanName
         case .micMute: return strings.micMuteName
         case .quitAll: return FeatureStrings.quickToggles(L10n.shared.language).quitAllTitle
         case .quitAllExceptFront:
@@ -942,6 +950,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
         case .colorPicker: return [DefaultsKey.colorPickerShortcutEnabled]
         case .screenOCR: return [DefaultsKey.screenOCRShortcutEnabled]
+        case .screenQR: return [DefaultsKey.screenQRShortcutEnabled]
         case .micMute: return [DefaultsKey.micMuteShortcutEnabled]
         case .quitAll: return [DefaultsKey.quitAppsShortcutEnabled]
         case .quitAllExceptFront: return [DefaultsKey.quitAppsExceptFrontShortcutEnabled]
@@ -981,7 +990,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .pastePlain: return .pastePlain
         case .finderRename: return .finderRename
         case .colorPicker: return .colorPicker
-        case .screenOCR: return .screenOCR
+        case .screenOCR, .screenQR: return .screenOCR
         case .micMute: return .micMute
         case .quitAll, .quitAllExceptFront: return .quitApps
         case .quickLauncher: return .quickLauncher
@@ -1083,7 +1092,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
 
     /// Chooser tools first, in chooser order, then shared history and screenshot extras.
     static let captureDisplayOrder: [GlobalShortcutRole] = [
-        .screenshot, .screenRecorder, .screenOCR, .colorPicker, .screenshotScrolling,
+        .screenshot, .screenRecorder, .screenOCR, .screenQR, .colorPicker, .screenshotScrolling,
         .recentCaptures, .screenshotFullScreen, .screenshotLastCapture, .screenshotClipboard, .screenshotUpload,
     ]
 
