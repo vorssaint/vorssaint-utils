@@ -315,7 +315,7 @@ extension WindowLayoutFeatureStrings {
 extension MonitorAlertFeatureStrings {
     static let ko = MonitorAlertFeatureStrings(
         section: "알림",
-        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량과 온도 알림은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 반복 설정은 같은 알림의 반복만 제한합니다.",
+        caption: "선택한 기준에 도달하면 알림이 표시됩니다. CPU 사용량과 온도 알림은 기준을 약 12초 동안 계속 넘어야 하므로 짧은 급증은 무시됩니다. 디스크 공간 알림은 6시간 후에 반복됩니다. 여유 공간이 선택한 기준의 절반 미만으로 줄어들면 한 번 더 일찍 알립니다. 반복 설정은 그 외 알림에 각각 적용됩니다.",
         notificationsDenied: "시스템 설정에서 Vorssaint 알림이 꺼져 있어 경고를 표시할 수 없습니다.",
         cpu: "높은 CPU 사용량",
         cpuTemperature: "높은 CPU 온도",
@@ -2737,7 +2737,7 @@ struct MonitorAlertFeatureStrings {
 
     static let enUS = MonitorAlertFeatureStrings(
         section: "Alerts",
-        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. The repeat setting only limits repeats of the same alert.",
+        caption: "Alerts fire when their selected limits are reached. CPU use and temperature alerts ignore spikes shorter than about 12 seconds. Disk alerts repeat after 6 hours, with one earlier alert if free space drops below half the selected limit. The repeat setting applies separately to each other alert.",
         notificationsDenied: "Notifications for Vorssaint are off in System Settings, so alerts cannot appear.",
         cpu: "High CPU",
         cpuTemperature: "High CPU temperature",
@@ -2772,7 +2772,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ptBR = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Os alertas disparam quando os limites escolhidos são atingidos. O uso da CPU e os alertas de temperatura ignoram picos com menos de 12 segundos. A opção de repetição só limita o mesmo alerta.",
+        caption: "Os alertas disparam quando os limites escolhidos são atingidos. O uso da CPU e os alertas de temperatura ignoram picos com menos de 12 segundos. Os alertas de disco se repetem após 6 horas, com um aviso antecipado se o espaço livre cair abaixo da metade do limite escolhido. A opção de repetição vale separadamente para cada outro alerta.",
         notificationsDenied: "As notificações do Vorssaint estão desativadas nos Ajustes do Sistema, então os alertas não aparecem.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura alta da CPU",
@@ -2807,7 +2807,7 @@ struct MonitorAlertFeatureStrings {
 
     static let tr = MonitorAlertFeatureStrings(
         section: "Uyarılar",
-        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU kullanımı ve sıcaklık uyarıları yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Tekrarlama ayarı yalnızca aynı uyarının tekrarlanmasını sınırlar.",
+        caption: "Uyarılar seçilen eşiklere ulaşıldığında gönderilir. CPU kullanımı ve sıcaklık uyarıları yaklaşık 12 saniyeden kısa sıçramaları yok sayar. Disk uyarıları 6 saat sonra yinelenir. Boş alan, seçilen eşiğin yarısının altına düşerse bir uyarı daha erken gönderilir. Yineleme ayarı diğer her uyarı için ayrı ayrı geçerlidir.",
         notificationsDenied: "Sistem Ayarları’nda Vorssaint bildirimleri kapalı, bu yüzden uyarılar görünemez.",
         cpu: "Yüksek CPU",
         cpuTemperature: "Yüksek CPU sıcaklığı",
@@ -2842,7 +2842,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ru = MonitorAlertFeatureStrings(
         section: "Оповещения",
-        caption: "Оповещения появляются при достижении выбранных порогов. Загрузка CPU и температурные оповещения игнорируют скачки короче примерно 12 секунд. Настройка повтора ограничивает только повтор одного и того же оповещения.",
+        caption: "Оповещения появляются при достижении выбранных порогов. Загрузка CPU и температурные оповещения игнорируют скачки короче примерно 12 секунд. Оповещения о диске повторяются через 6 часов. Если свободного места станет меньше половины выбранного порога, одно оповещение придёт раньше. Настройка повтора действует отдельно для каждого из остальных оповещений.",
         notificationsDenied: "Уведомления Vorssaint выключены в Системных настройках, поэтому оповещения не появятся.",
         cpu: "Высокая нагрузка CPU",
         cpuTemperature: "Высокая температура CPU",
@@ -2877,7 +2877,7 @@ struct MonitorAlertFeatureStrings {
 
     static let es = MonitorAlertFeatureStrings(
         section: "Alertas",
-        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. El uso de CPU y las alertas de temperatura ignoran los picos de menos de unos 12 segundos. El ajuste de repetición solo limita la repetición de la misma alerta.",
+        caption: "Las alertas aparecen cuando se alcanzan los límites elegidos. El uso de CPU y las alertas de temperatura ignoran los picos de menos de unos 12 segundos. Las alertas de disco se repiten tras 6 horas. Si el espacio libre cae por debajo de la mitad del límite elegido, se emite un aviso antes de tiempo. El ajuste de repetición se aplica por separado a cada una de las demás alertas.",
         notificationsDenied: "Las notificaciones de Vorssaint están desactivadas en Ajustes del Sistema, así que las alertas no aparecen.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura de CPU alta",
@@ -2912,7 +2912,7 @@ struct MonitorAlertFeatureStrings {
 
     static let sk = MonitorAlertFeatureStrings(
         section: "Hlásenia",
-        caption: "Hlásenia sa spustia po dosiahnutí vybraných limitov. Hlásenia o vyťažení a teplote CPU ignorujú výkyvy kratšie ako približne 12 sekúnd. Nastavenie opakovania obmedzuje iba opakovanie toho istého hlásenia.",
+        caption: "Hlásenia sa spustia po dosiahnutí vybraných limitov. Hlásenia o vyťažení a teplote CPU ignorujú výkyvy kratšie ako približne 12 sekúnd. Upozornenia na miesto na disku sa opakujú po 6 hodinách. Ak voľné miesto klesne pod polovicu zvoleného limitu, jedno upozornenie príde skôr. Nastavenie opakovania platí osobitne pre každé ďalšie upozornenie.",
         notificationsDenied: "Hlásenia pre Vorssaint sú vypnuté v Systémových nastaveniach, takže sa nemôžu zobraziť.",
         cpu: "Vysoké vyťaženie CPU",
         cpuTemperature: "Vysoká teplota CPU",
@@ -2947,7 +2947,7 @@ struct MonitorAlertFeatureStrings {
 
     static let de = MonitorAlertFeatureStrings(
         section: "Warnungen",
-        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. CPU-Auslastung und Temperaturwarnungen ignorieren Spitzen, die kürzer als etwa 12 Sekunden dauern. Die Wiederholungseinstellung begrenzt nur die Wiederholung derselben Warnung.",
+        caption: "Warnungen erscheinen, wenn die gewählten Grenzwerte erreicht werden. CPU-Auslastung und Temperaturwarnungen ignorieren Spitzen, die kürzer als etwa 12 Sekunden dauern. Speicherplatzwarnungen werden nach 6 Stunden wiederholt. Fällt der freie Speicherplatz unter die Hälfte des gewählten Grenzwerts, kann eine Warnung früher erscheinen. Die Wiederholungseinstellung gilt für jede andere Warnung einzeln.",
         notificationsDenied: "Mitteilungen für Vorssaint sind in den Systemeinstellungen aus, daher können keine Warnungen erscheinen.",
         cpu: "Hohe CPU",
         cpuTemperature: "Hohe CPU-Temperatur",
@@ -2982,7 +2982,7 @@ struct MonitorAlertFeatureStrings {
 
     static let fr = MonitorAlertFeatureStrings(
         section: "Alertes",
-        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. L’utilisation du processeur et les alertes de température ignorent les pics de moins de 12 secondes environ. Le réglage de répétition limite uniquement la répétition de la même alerte.",
+        caption: "Les alertes apparaissent lorsque les seuils choisis sont atteints. L’utilisation du processeur et les alertes de température ignorent les pics de moins de 12 secondes environ. Les alertes d’espace disque se répètent après 6 heures. Une alerte peut s’afficher plus tôt si l’espace libre passe sous la moitié du seuil choisi. Le réglage de répétition s’applique séparément à chaque autre alerte.",
         notificationsDenied: "Les notifications de Vorssaint sont désactivées dans Réglages Système, les alertes ne peuvent donc pas apparaître.",
         cpu: "CPU élevé",
         cpuTemperature: "Température CPU élevée",
@@ -3017,7 +3017,7 @@ struct MonitorAlertFeatureStrings {
 
     static let it = MonitorAlertFeatureStrings(
         section: "Avvisi",
-        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. L’uso della CPU e gli avvisi di temperatura ignorano i picchi più brevi di circa 12 secondi. L’impostazione di ripetizione limita solo la ripetizione dello stesso avviso.",
+        caption: "Gli avvisi compaiono quando vengono raggiunte le soglie scelte. L’uso della CPU e gli avvisi di temperatura ignorano i picchi più brevi di circa 12 secondi. Gli avvisi sullo spazio su disco si ripetono dopo 6 ore. Se lo spazio libero scende sotto metà della soglia scelta, può comparire un avviso in anticipo. L’impostazione di ripetizione si applica separatamente a ciascun altro avviso.",
         notificationsDenied: "Le notifiche di Vorssaint sono disattivate in Impostazioni di Sistema, quindi gli avvisi non compaiono.",
         cpu: "CPU alta",
         cpuTemperature: "Temperatura CPU alta",
@@ -3052,7 +3052,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ja = MonitorAlertFeatureStrings(
         section: "アラート",
-        caption: "選択したしきい値に達すると通知します。CPU 使用率と温度の通知は約 12 秒未満の短い急上昇を無視します。繰り返し設定は同じ通知の繰り返しだけを制限します。",
+        caption: "選択したしきい値に達すると通知します。CPU 使用率と温度の通知は約 12 秒未満の短い急上昇を無視します。ディスク容量の通知は 6 時間後に繰り返されます。空き容量が設定したしきい値の半分を下回ると、1 回だけ早めに通知します。繰り返し設定はその他の通知に個別に適用されます。",
         notificationsDenied: "システム設定でVorssaintの通知がオフのため、アラートは表示されません。",
         cpu: "CPU 高負荷",
         cpuTemperature: "CPU 温度が高い",
@@ -3087,7 +3087,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHans = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "达到所选阈值时会发出提醒。CPU 使用率和温度提醒会忽略短于约 12 秒的短暂峰值。重复设置仅限制同一提醒的重复频率。",
+        caption: "达到所选阈值时会发出提醒。CPU 使用率和温度提醒会忽略短于约 12 秒的短暂峰值。磁盘空间提醒间隔为 6 小时。可用空间降至所选阈值的一半以下时，会提前提醒一次。重复设置分别适用于其他各项提醒。",
         notificationsDenied: "Vorssaint 的通知已在系统设置中关闭，警报无法显示。",
         cpu: "CPU 过高",
         cpuTemperature: "CPU 温度过高",
@@ -3122,7 +3122,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhTW = MonitorAlertFeatureStrings(
         section: "提醒",
-        caption: "達到所選門檻時會發出提醒。CPU 使用率和溫度提醒會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提醒的重複頻率。",
+        caption: "達到所選門檻時會發出提醒。CPU 使用率和溫度提醒會忽略短於約 12 秒的短暫尖峰。磁碟空間提醒間隔為 6 小時。可用空間降至所選門檻的一半以下時，會提前提醒一次。重複設定分別適用於其他各項提醒。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -3157,7 +3157,7 @@ struct MonitorAlertFeatureStrings {
 
     static let zhHK = MonitorAlertFeatureStrings(
         section: "提示",
-        caption: "達到所選門檻時會發出提示。CPU 使用率和溫度提示會忽略短於約 12 秒的短暫尖峰。重複設定只限制相同提示的重複頻率。",
+        caption: "達到所選門檻時會發出提示。CPU 使用率和溫度提示會忽略短於約 12 秒的短暫尖峰。磁碟空間提示相隔 6 小時。可用空間跌至所選門檻的一半以下時，會提早發出一次提示。重複設定分別適用於其他各項提示。",
         notificationsDenied: "Vorssaint 的通知已在系統設定中關閉，警示無法顯示。",
         cpu: "CPU 使用率過高",
         cpuTemperature: "CPU 溫度過高",
@@ -3368,7 +3368,7 @@ extension WindowLayoutFeatureStrings {
 extension MonitorAlertFeatureStrings {
     static let uk = MonitorAlertFeatureStrings(
         section: "Сповіщення",
-        caption: "Сповіщення спрацьовують, коли досягаються вибрані межі. Сповіщення про використання й температуру CPU ігнорують сплески коротші за 12 секунд. Налаштування повтору обмежує лише повтори того самого сповіщення.",
+        caption: "Сповіщення спрацьовують, коли досягаються вибрані межі. Сповіщення про використання й температуру CPU ігнорують сплески коротші за 12 секунд. Сповіщення про місце на диску повторюються через 6 годин. Якщо вільного місця залишиться менше половини вибраного порога, одне сповіщення з’явиться раніше. Налаштування повтору діє окремо для кожного іншого сповіщення.",
         notificationsDenied: "Сповіщення Vorssaint вимкнено в Системних параметрах, тому вони не можуть з’являтися.",
         cpu: "Високий CPU",
         cpuTemperature: "Висока температура CPU",

@@ -736,9 +736,10 @@ def main():
                                    "    private static func mountedVolumes(", "    private static func importantFree(",
                                    "    private static func positiveUInt(_ value: Int?)",
                                    "    private static func positiveUInt(_ value: Int64?)"])
-          + "}\nfinal class Alerts {\n"
-          + declaration("Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift",
-                        "    private func lowDisk(").replace("private func", "func", 1)
+          + "}\nfinal class Alerts {\nprivate var lastDiskAlert: (sentAt: Date, isCritical: Bool)?\n"
+          + "".join(declaration("Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    private func diskAlert(", "    private func lowDisk("])
           + "}\n}\n")
     write("SystemMonitorCPU.swift", "import Darwin\nimport Foundation\n"
           + "extension SystemMonitorCPUTests {\nfinal class Monitor: Fixture {\n"

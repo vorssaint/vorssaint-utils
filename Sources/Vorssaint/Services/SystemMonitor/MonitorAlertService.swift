@@ -14,6 +14,7 @@ final class MonitorAlertService {
     private var cpuTemperatureGate = SustainedAlertGate()
     private var batteryTemperatureGate = SustainedAlertGate()
     private var lastSent: [MonitorAlertKind: Date] = [:]
+    private var lastDiskAlert: (sentAt: Date, isCritical: Bool)?
 
     private init() {}
 
@@ -100,9 +101,9 @@ final class MonitorAlertService {
         }
 
         if alertOn(DefaultsKey.monitorAlertDisk, .monitorDisk),
-           let disk = lowDisk(from: snapshot, defaults: defaults) {
+           let disk = diskAlert(from: snapshot, defaults: defaults, now: Date()) {
             let body = String(format: strings.diskBodyFormat, disk.name, disk.threshold)
-            send(.disk, title: strings.diskTitle, body: body)
+            Notifier.post(title: strings.diskTitle, body: body)
         }
 
         if alertOn(DefaultsKey.monitorAlertBattery, .monitorPower),
@@ -126,17 +127,37 @@ final class MonitorAlertService {
              body: String(format: strings.cpuBodyFormat, threshold))
     }
 
-    private func lowDisk(from snapshot: SystemSnapshot,
-                         defaults: UserDefaults) -> (name: String, threshold: Int)? {
+    private func diskAlert(from snapshot: SystemSnapshot, defaults: UserDefaults, now: Date)
+        -> (name: String, threshold: Int)? {
+        guard let disk = lowDisk(from: snapshot, defaults: defaults) else { return nil }
+        if let previous = lastDiskAlert,
+           now.timeIntervalSince(previous.sentAt) < 6 * 60 * 60,
+           !(disk.isCritical && !previous.isCritical) {
+            return nil
+        }
+
+        lastDiskAlert = (now, disk.isCritical)
+        return (disk.name, disk.threshold)
+    }
+
+    private func lowDisk(from snapshot: SystemSnapshot, defaults: UserDefaults)
+        -> (name: String, threshold: Int, isCritical: Bool)? {
         let threshold = Defaults.sanitizedPercent(defaults.integer(forKey: DefaultsKey.monitorAlertDiskFreePercent),
                                                   fallback: 10,
                                                   range: 5...30)
-        guard let device = snapshot.disk?.devices.first(where: { device in
-            guard device.totalBytes >= 10_000_000_000 else { return false }
+        guard let devices = snapshot.disk?.devices else { return nil }
+        var firstLowDisk: String?
+        for device in devices where device.totalBytes >= 10_000_000_000 {
             let freePercent = Double(device.freeBytes) / Double(device.totalBytes) * 100.0
-            return freePercent < Double(threshold)
-        }) else { return nil }
-        return (device.name, threshold)
+            if freePercent < Double(threshold) / 2 {
+                return (device.name, threshold, true)
+            }
+            if freePercent < Double(threshold), firstLowDisk == nil {
+                firstLowDisk = device.name
+            }
+        }
+        guard let firstLowDisk else { return nil }
+        return (firstLowDisk, threshold, false)
     }
 
     private func evaluateCPUTemperature(_ snapshot: SystemSnapshot,
@@ -205,5 +226,5 @@ final class MonitorAlertService {
 }
 
 private enum MonitorAlertKind: Hashable {
-    case cpu, cpuTemperature, memory, disk, battery, batteryTemperature
+    case cpu, cpuTemperature, memory, battery, batteryTemperature
 }

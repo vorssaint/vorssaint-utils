@@ -137,6 +137,37 @@ enum DiskCapacityTests {
         let mixed = sample([external, internalVolume])
         suite.expect(mixed.devices.first?.name == "Internal" && lowDisk(mixed) == "External",
                      "the alert finds the low external volume even when the panel defaults to the healthy internal one")
+
+        internalVolume.values.volumeAvailableCapacityForImportantUsage = 60_000_000_000
+        external.values.volumeAvailableCapacity = 50_000_000_000
+        let halfThreshold = sample([external, internalVolume])
+        external.values.volumeAvailableCapacity = 49_000_000_000
+        let worsened = sample([external, internalVolume])
+        let start = Date(timeIntervalSince1970: 1_000)
+        let repeatInterval: TimeInterval = 6 * 60 * 60
+
+        func alert(_ reading: DiskReading?, after seconds: TimeInterval) -> String? {
+            alerts.diskAlert(from: SystemSnapshot(disk: reading), defaults: defaults,
+                             now: start.addingTimeInterval(seconds))?.name
+        }
+
+        defaults.set(2, forKey: DefaultsKey.monitorAlertCooldownMinutes)
+        suite.expect(alert(empty, after: 0) == nil, "a healthy volume does not spend the first disk alert")
+        suite.expect(alert(mixed, after: 1) == "External", "the first low-space alert is delivered immediately")
+        suite.expect(alert(mixed, after: 3_601) == nil, "a low disk stays quiet beyond the shared repeat setting")
+        suite.expect(alert(halfThreshold, after: 3_602) == nil, "exactly half the threshold does not escalate")
+        suite.expect(alert(worsened, after: 3_603) == "External",
+                     "a disk below half the threshold can alert early even behind another low disk")
+        suite.expect(alert(worsened, after: 3_604) == nil, "a critical disk cannot bypass the interval again")
+        suite.expect(alert(nil, after: 3_605) == nil, "missing readings never alert")
+        suite.expect(alert(halfThreshold, after: 3_606) == nil, "recovering above the critical threshold stays quiet")
+        suite.expect(alert(worsened, after: 3_607) == nil, "brief space recovery does not rearm escalation")
+        suite.expect(alert(worsened, after: 3_603 + repeatInterval - 1) == nil,
+                     "the repeat interval runs from the escalation")
+        suite.expect(alert(worsened, after: 3_603 + repeatInterval) == "External",
+                     "persistent low space can alert again after six hours")
+
+        internalVolume.values.volumeAvailableCapacityForImportantUsage = 200_000_000_000
         suite.expect(lowDisk(sample([internalVolume])) == nil,
                      "disconnecting the external volume removes it from the next sample despite cached metadata")
         suite.expect(sample([]).isEmpty, "no mounted volumes produces no cached devices")
