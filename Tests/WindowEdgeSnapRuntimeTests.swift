@@ -282,7 +282,8 @@ enum WindowEdgeSnapRuntimeTests {
     class Fixture {
         static let syntheticEventMarker: Int64 = 0x564F5253
         static let ownProcessID: Int64 = 999
-        var edgeSnapTap: CFMachPort?
+        var pointerTap: CFMachPort?
+        var pointerTapDemand: WindowLayoutPointerDemand = []
         var edgeSnapPressOrigin: CGPoint?
         var edgeSnapPressCandidate: WindowServerWindowCandidate?
         var edgeSnapSequenceSuppressed = false
@@ -300,7 +301,6 @@ enum WindowEdgeSnapRuntimeTests {
         let edgeSnapResolveQueue = DispatchQueue(label: "test lookup", qos: .userInitiated)
         var activeGesture: WindowPointerGesture?
         var pendingGesture: PendingWindowGesture?
-        var gestureTap: CFMachPort?
         var gestureAssistiveMode: EnhancedUserInterfaceSuspension?
         let moveGestureUpdateInterval: TimeInterval = 0
         let resizeGestureUpdateInterval: TimeInterval = 0
@@ -1320,7 +1320,6 @@ enum WindowEdgeSnapRuntimeTests {
 
         // The gesture tap's own callback, with real events carrying the chord.
         let chord: CGEventFlags = [.maskControl, .maskCommand]
-        let dummyTap = CFMachPortCreate(nil, { _, _, _, _ in }, nil, nil)
         /// One event through the move gesture's callback and the jobs it
         /// leaves. Returns whether the event went on to the app.
         func gestureEvent(_ host: Host, _ type: CGEventType, _ point: CGPoint,
@@ -1345,7 +1344,7 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapMove = Host()
-        tapMove.edgeSnapTap = dummyTap
+        tapMove.pointerTapDemand = .edgeSnap
         let tapMoveDrag = chordDrag(tapMove)
         let releaseSwallowed = !gestureEvent(tapMove, .leftMouseUp, edgePoint)
         DispatchQueue.main.drain()
@@ -1357,7 +1356,7 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapResize = Host()
-        tapResize.edgeSnapTap = dummyTap
+        tapResize.pointerTapDemand = .edgeSnap
         let tapResizeDrag = chordDrag(tapResize, flags: chord.union(.maskShift))
         _ = gestureEvent(tapResize, .leftMouseUp, edgePoint, flags: chord.union(.maskShift))
         DispatchQueue.main.drain()
@@ -1376,7 +1375,7 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapClick = Host()
-        tapClick.edgeSnapTap = dummyTap
+        tapClick.pointerTapDemand = .edgeSnap
         _ = gestureEvent(tapClick, .leftMouseDown, pressPoint)
         _ = gestureEvent(tapClick, .leftMouseUp, pressPoint)
         DispatchQueue.main.drain()
@@ -1386,7 +1385,7 @@ enum WindowEdgeSnapRuntimeTests {
         reset()
         windowIDReadable = false
         let tapNoID = Host()
-        tapNoID.edgeSnapTap = dummyTap
+        tapNoID.pointerTapDemand = .edgeSnap
         let tapNoIDDrag = chordDrag(tapNoID)
         _ = gestureEvent(tapNoID, .leftMouseUp, edgePoint)
         DispatchQueue.main.drain()
@@ -1395,7 +1394,7 @@ enum WindowEdgeSnapRuntimeTests {
 
         reset()
         let tapCutOff = Host()
-        tapCutOff.edgeSnapTap = dummyTap
+        tapCutOff.pointerTapDemand = .edgeSnap
         let tapCutOffDrag = chordDrag(tapCutOff)
         _ = tapCutOff.handleGestureEvent(proxy: nil, type: .tapDisabledByTimeout, event: CGEvent(source: nil)!)
         DispatchQueue.main.runDue()
