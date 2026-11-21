@@ -1797,6 +1797,7 @@ enum CommandBarCatalog {
     static func clipboardEntries(matching query: String,
                                  bar: CommandBarFeatureStrings,
                                  limit: Int = 4,
+                                 onDeferredResults: @escaping () -> Void,
                                  paste: @escaping (ClipboardHistoryEntry) -> Void) -> [CommandBarEntry] {
         guard AppFeature.clipboardHistory.isAvailable,
               !query.isEmpty else { return [] }
@@ -1805,14 +1806,15 @@ enum CommandBarCatalog {
             captureEnabled: UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryEnabled),
             hasSavedItems: !history.entries.isEmpty) else { return [] }
         let imageLabel = FeatureStrings.clipboard(L10n.shared.language).imageEntryLabel
-        return history.filteredEntries(matching: query)
+        return history.filteredEntries(matching: query, surface: .commandBar, onDeferredResults: onDeferredResults)
             .prefix(limit)
-            .map { clipboardRow($0, imageLabel: imageLabel, bar: bar, paste: paste) }
+            .map { clipboardRow($0, imageLabel: imageLabel, bar: bar, matchingQuery: query, paste: paste) }
     }
 
     private static func clipboardRow(_ entry: ClipboardHistoryEntry,
                                      imageLabel: String,
                                      bar: CommandBarFeatureStrings,
+                                     matchingQuery: String = "",
                                      paste: @escaping (ClipboardHistoryEntry) -> Void)
         -> CommandBarEntry {
         let icon: CommandBarEntry.Icon
@@ -1821,16 +1823,21 @@ enum CommandBarCatalog {
         case .image: icon = entry.imageFile.map { .clipboardImage(name: $0) } ?? .symbol("photo")
         case .files: icon = entry.filePaths.first.map { .filePath($0) } ?? .symbol("folder")
         }
+        let id = entry.id
         return CommandBarEntry(
             id: "clipboard.\(entry.id.uuidString)",
             title: entry.kind == .image
                 ? entry.searchableText(imageLabel: imageLabel)
                 : entry.preview,
             subtitle: bar.kindClipboard,
+            keywords: matchingQuery,
             icon: icon,
             trouble: Permissions.shared.accessibility ? nil : .needsPermission,
             countsUsage: false,
-            run: { _ in paste(entry) })
+            run: { _ in
+                guard let current = ClipboardHistoryService.shared.entries.first(where: { $0.id == id }) else { return }
+                paste(current)
+            })
     }
 
     /// The last few things copied, for the browse list at the bottom of the
