@@ -73,7 +73,7 @@ enum AgentUsageArchiveTests {
         // The next launch picks up there while the agent keeps writing.
         write(firstHalf + secondHalf)
         let resumed = AgentUsageStore(saved: decoded?.store ?? .init())
-        let restored = decoded?.cursors.first.flatMap(AgentLogCursor.init(saved:))
+        let restored = decoded?.cursors.first.flatMap { AgentLogCursor(saved: $0) }
         var resumedLines = 0
         if let restored {
             AgentLogReader.readAppended(restored) { line in
