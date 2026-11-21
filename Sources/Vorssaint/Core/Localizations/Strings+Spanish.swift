@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "Silenciar micrófono",
         micUnmuteName: "Reactivar micrófono",
         micMuteCaption: "Usa los controles de silencio o volumen de entrada de cada micrófono. Siri y algunas apps pueden seguir escuchándote. No bloquea todo acceso al micrófono.",
+        micMuteFollowCallAppsToggle: "Permitir que las apps de llamadas reactiven el micrófono",
+        micMuteFollowCallAppsCaption: "Si un micrófono se reactiva mientras una app graba con él, Vorssaint restablece todos los micrófonos que había silenciado. Un ajuste automático de la ganancia también puede causar este efecto.",
         micMutedHUD: "Silencio del micrófono activado",
         micUnmutedHUD: "Silencio del micrófono desactivado",
         micMutePartialHUD: "Algunos micrófonos no se pudieron silenciar",
@@ -652,6 +654,7 @@ extension Strings {
         audioPriorityMoveUp: "Subir",
         audioPriorityMoveDown: "Bajar",
         audioPriorityUnavailable: "No disponible",
+        audioPriorityRemove: "Quitar",
         audioPriorityCurrent: "En uso",
         audioPriorityCaption: "Los dispositivos se seleccionan por orden de prioridad. Cuando se conecta uno con mayor prioridad, el sistema cambia a ese dispositivo. Cuando el dispositivo activo se desconecta, se selecciona el siguiente disponible.",
 

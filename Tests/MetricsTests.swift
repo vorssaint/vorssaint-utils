@@ -141,6 +141,7 @@ struct MetricsTests {
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
+                StartupGatingTests.run(suite)
             }),
             ("shortcut-clearing", { ShortcutClearingTests.run(suite) }),
             ("utilities", {

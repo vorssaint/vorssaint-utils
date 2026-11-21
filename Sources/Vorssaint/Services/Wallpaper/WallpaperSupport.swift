@@ -179,7 +179,10 @@ enum WallpaperSupport {
             guard shouldContinue() else { return [] }
             let values = try? url.resourceValues(forKeys: keys)
             // don't walk into .app / Photos Library / other bundles
-            if values?.isSymbolicLink == true || values?.isPackage == true {
+            // The enumerator never follows links; skipDescendants on one would
+            // instead cut short the directory it sits in.
+            if values?.isSymbolicLink == true { continue }
+            if values?.isPackage == true {
                 enumerator.skipDescendants()
                 continue
             }
