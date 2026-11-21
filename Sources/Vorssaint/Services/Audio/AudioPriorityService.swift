@@ -180,6 +180,18 @@ final class AudioPriorityService: ObservableObject {
         }
     }
 
+    /// Removes a disconnected entry. A connected device stays, because the
+    /// list would add it straight back.
+    func removeOutputPriorityUID(_ uid: String) {
+        guard !isOutputAvailable(uid) else { return }
+        setOutputPriorityUIDs(outputPriorityUIDs.filter { $0 != uid })
+    }
+
+    func removeInputPriorityUID(_ uid: String) {
+        guard !isInputAvailable(uid) else { return }
+        setInputPriorityUIDs(inputPriorityUIDs.filter { $0 != uid })
+    }
+
     // MARK: - Device name tracking
 
     /// Updates the stored last-known-name map for UIDs that are currently in a
@@ -223,6 +235,11 @@ final class AudioPriorityService: ObservableObject {
                 currentUID: mixer.currentOutputDeviceUID,
                 tier: outputTier))
         } else {
+            storeOutputPriorityUIDs(MixerRoutingSupport.rebindingAirPlayOutputs(
+                outputPriorityUIDs,
+                connected: outputs.map { (uid: $0.uid, name: $0.name, isAirPlay: $0.isAirPlay) },
+                storedNames: deviceNames))
+            unplacedOutputUIDs.subtract(outputPriorityUIDs)
             let unseen = outputs.map(\.uid).filter { !outputPriorityUIDs.contains($0) }
             unplacedOutputUIDs.formUnion(unseen)
             if !unseen.isEmpty { schedulePlacement() }

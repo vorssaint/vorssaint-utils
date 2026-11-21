@@ -1116,6 +1116,19 @@ enum MixerOutputAdjustmentContract {
                      && sliderDone == true && mixer.systemOutputVolume == 0.05 && mixer.systemOutputMuted == false
                      && Hardware.writes.isEmpty, "a verified low volume can safely lift a native mute")
 
+        // Speakers behind the built-in HDMI port's converter only hear its
+        // address, from discovery through every read and write of a change.
+        mixer = make()
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true,
+                                                     chip: BrightnessSupport.hdmiConverterChipAddress)
+        sliderDone = nil
+        mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+        speakers.finish()
+        suite.expect(sliderDone == true && speakers.writes == [SpeakerWrite(volumeCode, 5), SpeakerWrite(muteCode, 2)]
+                     && speakers.chips.count > 2
+                     && speakers.chips.allSatisfy { $0 == BrightnessSupport.hdmiConverterChipAddress },
+                     "monitor speakers behind the HDMI converter are probed and changed at its address")
+
         for rejects in [true, false] {
             speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: true)
             speakers.rejectVolume = rejects
@@ -1159,6 +1172,39 @@ enum MixerOutputAdjustmentContract {
         suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 2)]
                      && mixer.systemOutputVolume == 0.02 && mixer.systemOutputMuted == false,
                      "software unmute restores exactly the last physical level read at mute time")
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 80, muted: false, unmutedReads: 0)
+        mixer.requestOutputMuteToggle()
+        speakers.finish()
+        mixer.requestOutputMuteToggle()
+        speakers.finish()
+        suite.expect(speakers.writes == [SpeakerWrite(volumeCode, 0), SpeakerWrite(volumeCode, 80), SpeakerWrite(muteCode, 2)]
+                     && mixer.systemOutputMuted == false,
+                     "a mute that reads 0 is volume-only, but leaving zero still unmutes a monitor latched silent there")
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: false, unmutedReads: 0)
+        speakers.nativeMuted = true
+        firstSlider = nil
+        lastSlider = nil
+        speakers.afterSend = { mixer.requestOutputAdjustment(volume: 0.10) { lastSlider = $0 } }
+        mixer.requestOutputAdjustment(volume: 0.05) { firstSlider = $0 }
+        speakers.finish()
+        suite.expect(firstSlider == false && lastSlider == true && speakers.nativeMuted == false
+                     && speakers.writes == [SpeakerWrite(volumeCode, 5), SpeakerWrite(volumeCode, 10), SpeakerWrite(muteCode, 2)],
+                     "a newer slider level finishes the unmute interrupted after the first level write")
+
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: false, unmutedReads: 0)
+        speakers.rejectUnmute = true
+        sliderDone = nil
+        mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+        speakers.finish()
+        suite.expect(sliderDone == false && speakers.refreshes == 1,
+                     "a rejected unmute cannot confirm a positive volume")
+
+        speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 4, muted: true, unmutedReads: 0)
+        sliderDone = nil
+        mixer.requestOutputAdjustment(volume: 0.05) { sliderDone = $0 }
+        speakers.finish()
+        suite.expect(sliderDone == true && speakers.nativeMuted == false && speakers.refreshes == 0,
+                     "a monitor discovered while muted can confirm release with zero")
         speakers = DisplaySpeakerVolumeTests.connect(mixer, raw: 0, muted: nil)
         var muteResult: Mixer.OutputKeyResult?
         mixer.requestOutputMuteToggle { muteResult = $0 }
