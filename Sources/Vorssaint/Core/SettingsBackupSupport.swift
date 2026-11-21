@@ -222,6 +222,7 @@ enum SettingsBackupSupport {
         // a Mac that still holds its own stale verdicts.
         DefaultsKey.brightnessDDCWriteOnlyPathsRechecked,
         DefaultsKey.brightnessDDCReadChecksumRechecked,
+        DefaultsKey.brightnessDDCHDMIConverterRechecked,
         DefaultsKey.brightnessForcedSoftwarePaths,
         DefaultsKey.brightnessExtendedDimmingPaths,
         // A fit measured against one Mac's camera housing would misfit another's.
@@ -239,17 +240,17 @@ enum SettingsBackupSupport {
                 settings[key] = value
             }
         }
-        settings = portableNotchDisplay(settings)
-        settings = portableMediaSettings(settings)
-        settings = portableMouseExceptions(settings)
-        settings = portableWindowLayoutIgnoredApps(settings)
-        settings = portableThumbnailPauseLists(settings)
-        settings = exportedAppVolumes(settings)
         return [
             formatVersionKey: formatVersion,
             appVersionKey: appVersion,
-            settingsKey: settings,
+            settingsKey: portableSettings(settings),
         ]
+    }
+
+    static func portableSettings(_ settings: [String: Any]) -> [String: Any] {
+        let media = portableMediaSettings(portableNotchDisplay(settings))
+        let exceptions = portableWindowLayoutIgnoredApps(portableMouseExceptions(media))
+        return exportedAppVolumes(portableThumbnailPauseLists(exceptions))
     }
 
     /// Validates an incoming file and returns only the keys this build knows
@@ -317,6 +318,29 @@ enum SettingsBackupSupport {
         !arguments.dropFirst().contains { $0.hasPrefix("--") }
     }
 
+    /// These portable values contain JSON re-encoded by both export and import.
+    /// Object key order can change even when the user has changed no setting.
+    static func matchesPortableValue(_ value: Any, local: Any?, key: String) -> Bool {
+        if value as? NSObject == local as? NSObject { return true }
+        let incoming: Data
+        let current: Data
+        switch key {
+        case DefaultsKey.screenshotWatermarkStyle, DefaultsKey.screenshotWatermarkPresets,
+             DefaultsKey.mediaImageProfiles:
+            guard let lhs = value as? String, let rhs = local as? String else { return false }
+            incoming = Data(lhs.utf8)
+            current = Data(rhs.utf8)
+        case DefaultsKey.recorderEditorPresets:
+            guard let lhs = value as? Data, let rhs = local as? Data else { return false }
+            incoming = lhs
+            current = rhs
+        default: return false
+        }
+        guard let lhs = try? JSONSerialization.jsonObject(with: incoming) as? NSObject,
+              let rhs = try? JSONSerialization.jsonObject(with: current) as? NSObject else { return false }
+        return lhs == rhs
+    }
+
     /// These keys have no registered type for the ordinary backup validator
     /// to inspect. A damaged declaration must leave the local choice intact.
     static func configOverrides(from settings: [String: Any]) -> [String: Any] {
@@ -324,9 +348,17 @@ enum SettingsBackupSupport {
         var values = settings.filter { key, value in
             if availability[key] != nil { return isBoolean(value) }
             switch key {
+            case DefaultsKey.autoQuitEnabled, DefaultsKey.shelfEnabled, DefaultsKey.finderCutPasteEnabled,
+                 DefaultsKey.hasOnboarded:
+                return isBoolean(value)
+            case DefaultsKey.onboardingStep:
+                return isInteger(value)
             case DefaultsKey.textSnippets:
                 guard let data = value as? Data else { return false }
                 return (try? JSONDecoder().decode([TextSnippet].self, from: data)) != nil
+            case DefaultsKey.recorderEditorPresets:
+                guard let data = value as? Data else { return false }
+                return data.isEmpty || (try? JSONDecoder().decode([RecorderEditPreset].self, from: data)) != nil
             case DefaultsKey.appVolumes:
                 guard let levels = value as? [String: Any] else { return false }
                 let validUnit = settings[DefaultsKey.appVolumesArePositions].map(isBoolean) ?? true
@@ -336,6 +368,16 @@ enum SettingsBackupSupport {
         }
         if values[DefaultsKey.appVolumes] == nil {
             values.removeValue(forKey: DefaultsKey.appVolumesArePositions)
+        }
+        // These retired switches name choices in the current pickers. Resolve
+        // them in the file so they cannot retrigger a Mac migration next time.
+        if values.removeValue(forKey: DefaultsKey.switcherShowWindowlessFinder) as? Bool == false,
+           values[DefaultsKey.switcherWindowlessApps] == nil {
+            values[DefaultsKey.switcherWindowlessApps] = SwitcherWindowlessApps.migrated(showsWindowlessFinder: false).rawValue
+        }
+        if values.removeValue(forKey: DefaultsKey.screenshotOpenEditorDirectly) as? Bool == true,
+           (values[DefaultsKey.screenshotDefaultAction] as? String ?? "").isEmpty {
+            values[DefaultsKey.screenshotDefaultAction] = ScreenshotDefaultAction.edit.rawValue
         }
         return values
     }

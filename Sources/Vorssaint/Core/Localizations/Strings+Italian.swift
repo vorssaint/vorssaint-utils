@@ -652,6 +652,7 @@ extension Strings {
         audioPriorityMoveUp: "Sposta su",
         audioPriorityMoveDown: "Sposta giù",
         audioPriorityUnavailable: "Non disponibile",
+        audioPriorityRemove: "Rimuovi",
         audioPriorityCurrent: "In uso",
         audioPriorityCaption: "I dispositivi vengono selezionati in ordine di priorità. Quando viene collegato un dispositivo con priorità più alta, il sistema passa a quel dispositivo. Quando il dispositivo attivo viene scollegato, viene selezionato il successivo disponibile.",
 

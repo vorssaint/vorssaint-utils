@@ -20,7 +20,10 @@ enum ScreenshotAttachedCaptureTests {
             return images[id]
         }
     }
-    struct Window { let windowID: CGWindowID }
+    struct Window {
+        let windowID: CGWindowID
+        var frame: CGRect { ScreenshotAttachedCaptureTests.frames[windowID] ?? .zero }
+    }
     struct SCShareableContent {
         let windows: [Window]
         static var ids: [CGWindowID] = [1, 2, 3]
@@ -86,6 +89,23 @@ enum ScreenshotAttachedCaptureTests {
     }
 
     @MainActor private static func checks(_ suite: TestSuite) async {
+        reset(scale: 2)
+        let whole = WindowPreviewProvider.images[1]!
+        SCScreenshotManager.images[1] = whole
+        let isolated = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        let request = SCScreenshotManager.requests.last
+        suite.expect(isolated === whole && request?.id == 1
+                     && request?.configuration.width == whole.width
+                     && request?.configuration.height == whole.height
+                     && request?.configuration.ignoreGlobalClipSingleWindow == true,
+                     "a frozen window beyond one display requests the whole isolated surface")
+        SCScreenshotManager.images[1] = solid(width: 120, height: 120, channel: 0)
+        let partial = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        SCScreenshotManager.images[1] = nil
+        let unavailable = await Engine.captureIndependentWindow(1, scale: 2, requireFullFrame: true)
+        suite.expect(partial == nil && unavailable == nil,
+                     "a clipped or unavailable window cannot be saved as a complete frozen-mode capture")
+
         for scale: CGFloat in [1, 2] {
             reset(scale: scale)
             let capture = await Engine.composeAttached(plan, frames: frames)
