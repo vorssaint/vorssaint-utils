@@ -2714,6 +2714,8 @@ enum SwitcherModelFeatureTests {
                "copy text from screen reads QR codes by default")
         suite.expect(registeredDefaults[DefaultsKey.micMuteMenuBarIndicator] as? Bool == true,
                "mic mute menu bar indicator ships on by default (badge only shows while muted)")
+        suite.expect(registeredDefaults[DefaultsKey.micMuteFollowCallApps] as? Bool == false,
+               "call apps can only release Mic Mute after the user enables the setting")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricSpacing] as? String == "compact",
                "menu bar metric spacing defaults to the compact look")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricAppearance] as? String == "values",

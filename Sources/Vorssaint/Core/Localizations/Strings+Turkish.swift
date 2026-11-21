@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "Mikrofonu sessize al",
         micUnmuteName: "Mikrofonu aç",
         micMuteCaption: "Her mikrofonun sessize alma veya giriş ses düzeyi denetimlerini kullanır. Siri ve bazı uygulamalar sizi duymaya devam edebilir. Mikrofona tüm erişimleri engellemez.",
+        micMuteFollowCallAppsToggle: "Arama uygulamalarının mikrofonun sesini açmasına izin ver",
+        micMuteFollowCallAppsCaption: "Bir uygulama kayıt yaparken kullandığı mikrofon yeniden açılırsa Vorssaint sessize aldığı tüm mikrofonları eski ayarlarına döndürür. Otomatik kazanç ayarı da buna yol açabilir.",
         micMutedHUD: "Mikrofon sessize alma açık",
         micUnmutedHUD: "Mikrofon sessize alma kapalı",
         micMutePartialHUD: "Bazı mikrofonlar sessize alınamadı",

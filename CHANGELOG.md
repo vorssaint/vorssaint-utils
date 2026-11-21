@@ -32,6 +32,7 @@ This update improves microphone muting, display controls, window switching, clip
 - Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
 - The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
 - Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
+- Mic Mute can follow an unmute in Teams and restore your saved microphone levels. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also unmute the microphones.
 
 ### Contributors
 Thanks to @binjamshid, @davidmessem, @EugeneCarldotme, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @TC-Virtuoso, @trenaryja, @whizzzkid and @Zekuath.
