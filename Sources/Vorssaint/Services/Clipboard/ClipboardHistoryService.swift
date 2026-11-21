@@ -735,8 +735,8 @@ final class ClipboardHistoryService: ObservableObject {
     private enum CapturedContent {
         case transient
         case files([String])
-        case image((data: Data, width: Int, height: Int))
-        case text(String)
+        case image((data: Data, width: Int, height: Int), containsSensitiveText: Bool = false)
+        case text(String, original: String? = nil)
     }
 
     private func captureIfChanged(historyPanelClosing: Bool = false) {
@@ -777,6 +777,19 @@ final class ClipboardHistoryService: ObservableObject {
                 return
             }
             guard self.isRunning, self.captureState.accepts(generation) else { return }
+            let content: CapturedContent? = result.content.flatMap { content in
+                if case .image(_, true) = content,
+                   UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText) {
+                    return nil
+                }
+                // History writes plain text. After a restart or a temporary paste,
+                // the same cells can come back without their spreadsheet formats.
+                if case let .text(_, original?) = content,
+                   self.entries.contains(where: { $0.kind == .text && $0.text == original }) {
+                    return .text(original)
+                }
+                return content
+            }
             if baseline {
                 self.lastChangeCount = max(self.lastChangeCount, result.changeCount)
                 self.captureState.didBaseline()
@@ -784,7 +797,7 @@ final class ClipboardHistoryService: ObservableObject {
                 // previously captured entry; no match (nothing recorded it,
                 // or it was copied while history was off) leaves the preview
                 // blank rather than guessing.
-                self.latestPasteboardEntry = result.content.flatMap(self.matchingEntry)
+                self.latestPasteboardEntry = content.flatMap(self.matchingEntry)
                 return
             }
             // Preserve exclusion over the whole time since the previous
@@ -807,13 +820,13 @@ final class ClipboardHistoryService: ObservableObject {
             // must not keep advertising the previous entry as still current.
             // A recording path below sets this back.
             self.latestPasteboardEntry = nil
-            if case .transient? = result.content {
+            if case .transient? = content {
                 // A temporary write can span several polls or replacements.
                 // Keep the first deadline instead of extending it indefinitely.
                 self.pendingRestore = previous.map { (previous: $0, at: Date()) } ?? pending
                 return
             }
-            guard !source.excluded, let content = result.content else { return }
+            guard !source.excluded, let content else { return }
             // A copy out of the history's own panel, such as text selected in
             // the preview, is of an entry already there, and its app stays.
             let keepsSource = source.fromHistoryPanel
@@ -821,9 +834,9 @@ final class ClipboardHistoryService: ObservableObject {
                restored.id == pending.previous.id,
                ClipboardHistoryPasteRestore.isWithinWindow(capturedAt: pending.at, now: Date()) {
                 // A restored entry still faces today's capture preferences.
-                if case .text(let raw) = content {
+                if case .text(let raw, _) = content {
                     let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters,
+                    guard !text.isEmpty, raw.count <= ClipboardHistoryEditing.maxCharacters,
                           !(UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText)
                             && self.looksSensitive(text)) else { return }
                 }
@@ -834,8 +847,8 @@ final class ClipboardHistoryService: ObservableObject {
             switch content {
             case .transient: break
             case .files(let paths): self.promoteFiles(paths, source: source.bundleID, keepsSource: keepsSource)
-            case .image(let image): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
-            case .text(let text): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
+            case .image(let image, _): self.promoteImage(image, source: source.bundleID, keepsSource: keepsSource)
+            case .text(let text, _): self.promote(text, source: source.bundleID, keepsSource: keepsSource)
             }
         }, didFinish: { [weak self] _ in
             self?.captureState.finish()
@@ -848,11 +861,9 @@ final class ClipboardHistoryService: ObservableObject {
     private func matchingEntry(for content: CapturedContent) -> ClipboardHistoryEntry? {
         switch content {
         case .transient: return nil
-        case .text(let text):
-            // Saved the way promote saves it, without the surrounding space.
-            let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        case .text(let text, _):
             return entries.first(where: { $0.kind == .text && $0.text == text })
-        case .image(let image):
+        case .image(let image, _):
             let hash = Self.sha256Hex(image.data)
             return entries.first(where: { $0.kind == .image && $0.imageHash == hash })
         case .files(let paths):
@@ -870,28 +881,41 @@ final class ClipboardHistoryService: ObservableObject {
         // content is never even read, whatever the other options say.
         // Content its app is about to take back, which is how a dictation
         // app types, is no copy either, and is left unread the same way.
-        let types = (pasteboard.types ?? []).map(\.rawValue)
-        if ClipboardHistorySensitiveText.isConcealed(types) { return nil }
-        if ClipboardHistorySensitiveText.isTransient(types) { return .transient }
+        let types = pasteboard.types ?? []
+        let names = types.map(\.rawValue)
+        if ClipboardHistorySensitiveText.isConcealed(names) { return nil }
+        if ClipboardHistorySensitiveText.isTransient(names) { return .transient }
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
-        if includeImagesFiles {
-            if let paths = copiedFilePaths(from: pasteboard) {
-                if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
-                    paths, in: ScreenshotSupport.copiedFilesDirectory()) {
-                    guard let image = copiedPNGImage(from: pasteboard) else { return nil }
-                    return .image(image)
-                }
-                return .files(paths)
+        if includeImagesFiles, let paths = copiedFilePaths(from: pasteboard) {
+            if ClipboardHistoryCapturePolicy.isCopiedScreenshot(
+                paths, in: ScreenshotSupport.copiedFilesDirectory()) {
+                guard let image = copiedPNGImage(from: pasteboard) else { return nil }
+                return .image(image)
             }
-            if let image = copiedPNGImage(from: pasteboard) { return .image(image) }
+            return .files(paths)
         }
+        let cells = ClipboardHistoryPasteboardText.cellText(from: pasteboard, types: types)
+        if let cells, cells.count <= ClipboardHistoryEditing.maxCharacters {
+            return .text(cells)
+        }
+        if includeImagesFiles, let image = copiedPNGImage(from: pasteboard) {
+            // Oversized cells may still have a usable preview. Apply the user's
+            // current sensitive-text preference when the read is delivered.
+            let sensitive = cells.map {
+                ClipboardHistorySensitiveText.looksSensitive($0.trimmingCharacters(in: .whitespacesAndNewlines))
+            } ?? false
+            return .image(image, containsSensitiveText: sensitive)
+        }
+        guard cells == nil else { return nil }
+        let plainText = pasteboard.string(forType: .string)
         guard let text = ClipboardHistoryPasteboardText.preferredText(
             webURLString: webURLString(from: pasteboard),
-            plainText: pasteboard.string(forType: .string)
+            plainText: plainText
         ) else { return nil }
-        return .text(text)
+        let hasURL = types.contains(.URL) || types.contains(NSPasteboard.PasteboardType("NSURLPboardType"))
+        return .text(text, original: !hasURL && plainText != text ? plainText : nil)
     }
 
     private static let maxCopiedFiles = 100
@@ -1000,11 +1024,12 @@ final class ClipboardHistoryService: ObservableObject {
         return (scheme == "http" || scheme == "https") && url.host != nil
     }
 
-    private func promote(_ raw: String, source: String?, keepsSource: Bool) {
-        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, text.count <= ClipboardHistoryEditing.maxCharacters else { return }
+    private func promote(_ text: String, source: String?, keepsSource: Bool) {
+        guard text.count <= ClipboardHistoryEditing.maxCharacters else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
         if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryFilterSensitiveText),
-           looksSensitive(text) {
+           looksSensitive(trimmed) {
             return
         }
 

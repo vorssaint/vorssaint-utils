@@ -640,13 +640,23 @@ def main():
                         "final class NotchAudioLevelService:")
           + "}\n")
     clipboard = "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift"
-    pending_restore = [line for line in (ROOT / clipboard).read_text().splitlines(keepends=True)
-                       if line.startswith("    private var pendingRestore:")]
+    clipboard_lines = (ROOT / clipboard).read_text().splitlines(keepends=True)
+    pending_restore = [line for line in clipboard_lines if line.startswith("    private var pendingRestore:")]
     if len(pending_restore) != 1:
         raise ValueError("Expected one pending clipboard restore declaration")
+    capture_limits = [line for line in clipboard_lines if line.startswith((
+        "    private static let maxCopiedFiles =", "    private static let maxImageBytes =",
+        "    private static let maxRawImageBytes ="))]
+    if len(capture_limits) != 3:
+        raise ValueError("Expected three clipboard capture limits")
     write("ClipboardCaptureRestore.swift", "import AppKit\nimport Foundation\nimport Combine\n"
           + "extension ClipboardCaptureRestoreTests {\nfinal class Service: Fixture {\n"
           + pending_restore[0].replace("private ", "", 1)
+          + "".join(capture_limits)
+          + "".join(declaration(clipboard, prefix).replace("from pasteboard: NSPasteboard)",
+                                                           "from pasteboard: AppKit.NSPasteboard)")
+                    for prefix in ["    private static func copiedFilePaths(", "    private static func copiedPNGImage(",
+                                   "    private static func webURLString(", "    private static func isWebURL("])
           + declaration(clipboard, "    @Published private(set) var entries:")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    private enum CapturedContent", "    private func captureIfChanged(",
