@@ -98,6 +98,8 @@ extension Strings {
         notifySessionEndedBody: "Час вийшов. Mac знову засинатиме як зазвичай.",
         notifyBatteryTitle: "Vorssaint вимкнено",
         notifyBatteryBody: "Низький заряд. Звичайний сон відновлено, щоб зберегти заряд акумулятора.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint потрібен ваш пароль, щоб Mac продовжував працювати з закритою кришкою.",
         adminPromptClamshellOff: "Vorssaint потрібен ваш пароль, щоб відновити звичайний режим сну Mac.",
         adminPromptRecover: "Vorssaint завершився, поки сон Mac був вимкнений. Введіть пароль, щоб відновити звичайний режим сну.",

@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Il tempo è scaduto. Il Mac tornerà allo stop normale.",
         notifyBatteryTitle: "Vorssaint disattivato",
         notifyBatteryBody: "Batteria scarica. Lo stop normale è stato ripristinato per preservare la carica.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint ha bisogno della password per continuare con il coperchio chiuso.",
         adminPromptClamshellOff: "Vorssaint ha bisogno della password per ripristinare lo stop normale del Mac.",
         adminPromptRecover: "Vorssaint è stato chiuso mentre lo stop del Mac era disattivato. Inserisci la password per ripristinare lo stop normale.",

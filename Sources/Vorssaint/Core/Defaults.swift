@@ -521,6 +521,8 @@ enum DefaultsKey {
     static let monitorAlertDiskFreePercent = "monitorAlertDiskFreePercent"
     static let monitorAlertBatteryPercent = "monitorAlertBatteryPercent"
     static let monitorAlertCooldownMinutes = "monitorAlertCooldownMinutes"
+    static let monitorAlertFanRPMImbalance = "monitorAlertFanRPMImbalance"
+    static let monitorAlertFanRPMImbalanceThreshold = "monitorAlertFanRPMImbalanceThreshold"
     // Menu panel layout — the order the major sections appear in and which are
     // collapsed, both comma-joined section ids (see PanelSectionID). Absent keys
     // mean the canonical order and nothing collapsed, so no defaults registration.
@@ -1256,6 +1258,7 @@ enum Defaults {
     static let allowedClipboardMenuBarPreviewLengthRange = 5...50
     static let defaultClipboardMenuBarPreviewLength = 20
     static let allowedMonitorAlertCooldowns = [2, 5, 15, 30, 60]
+    static let allowedFanRPMImbalanceThresholds = [500, 1_000, 1_500]
 
     static let registeredDefaults: [String: Any] = [
         DefaultsKey.appearance: AppAppearance.fallback.rawValue,
@@ -1809,6 +1812,8 @@ enum Defaults {
         DefaultsKey.monitorAlertDiskFreePercent: 10,
         DefaultsKey.monitorAlertBatteryPercent: 15,
         DefaultsKey.monitorAlertCooldownMinutes: 15,
+        DefaultsKey.monitorAlertFanRPMImbalance: false,
+        DefaultsKey.monitorAlertFanRPMImbalanceThreshold: 500,
         DefaultsKey.mediaLastTool: MediaTool.videoCompressor.rawValue,
         DefaultsKey.mediaVideoStart: 0.0,
         DefaultsKey.mediaVideoEnd: 0.0,
@@ -2731,6 +2736,10 @@ enum Defaults {
 
     static func sanitizedMonitorAlertCooldown(_ value: Int) -> Int {
         allowedMonitorAlertCooldowns.contains(value) ? value : 15
+    }
+
+    static func sanitizedFanRPMImbalanceThreshold(_ value: Int) -> Int {
+        allowedFanRPMImbalanceThresholds.contains(value) ? value : 500
     }
 
     static func sanitizedPercent(_ value: Int, fallback: Int, range: ClosedRange<Int>) -> Int {

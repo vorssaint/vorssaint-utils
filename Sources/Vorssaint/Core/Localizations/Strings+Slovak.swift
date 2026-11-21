@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Čas vypršal. Mac bude opäť normálne zaspávať.",
         notifyBatteryTitle: "Vorssaint je vypnutý",
         notifyBatteryBody: "Slabá batéria. Kvôli úspore sa obnovil normálny spánok.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint potrebuje vaše heslo, aby Mac fungoval so zatvoreným vekom.",
         adminPromptClamshellOff: "Vorssaint potrebuje vaše heslo, aby obnovil normálny spánok Macu.",
         adminPromptRecover: "Vorssaint sa ukončil, kým bol spánok Macu vypnutý. Zadajte heslo na obnovenie normálneho spánku.",

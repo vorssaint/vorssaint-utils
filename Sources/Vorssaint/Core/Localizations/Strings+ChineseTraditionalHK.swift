@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "時間到。Mac 會恢復正常睡眠。",
         notifyBatteryTitle: "Vorssaint 已關閉",
         notifyBatteryBody: "電量過低。已恢復正常睡眠以保護電池。",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint 需要你輸入密碼，才能在合上機蓋後繼續運作。",
         adminPromptClamshellOff: "Vorssaint 需要你輸入密碼，才能恢復 Mac 的正常睡眠。",
         adminPromptRecover: "Vorssaint 在 Mac 睡眠被停用時結束了。請輸入密碼以恢復正常睡眠。",

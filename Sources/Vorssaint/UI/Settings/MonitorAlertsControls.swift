@@ -21,6 +21,8 @@ struct MonitorAlertsControls: View {
     @AppStorage(DefaultsKey.monitorAlertDiskFreePercent) private var alertDiskFreePercent = 10
     @AppStorage(DefaultsKey.monitorAlertBatteryPercent) private var alertBatteryPercent = 15
     @AppStorage(DefaultsKey.monitorAlertCooldownMinutes) private var alertCooldown = 15
+    @AppStorage(DefaultsKey.monitorAlertFanRPMImbalance) private var alertFanRPMImbalance = false
+    @AppStorage(DefaultsKey.monitorAlertFanRPMImbalanceThreshold) private var alertFanRPMImbalanceThreshold = 500
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
 
     private var text: MonitorAlertFeatureStrings {
@@ -55,11 +57,13 @@ struct MonitorAlertsControls: View {
         .onChange(of: alertMemory) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertDisk) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertBattery) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
+        .onChange(of: alertFanRPMImbalance) { _, _ in MonitorAlertService.shared.syncWithPreferences(); refreshNotificationStatus() }
         .onChange(of: alertCPUThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertCPUTemperatureThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertBatteryTemperatureThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertDiskFreePercent) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertBatteryPercent) { _, _ in sanitizeAlertValues() }
+        .onChange(of: alertFanRPMImbalanceThreshold) { _, _ in sanitizeAlertValues() }
         .onChange(of: alertCooldown) { _, _ in sanitizeAlertValues() }
     }
 
@@ -91,6 +95,14 @@ struct MonitorAlertsControls: View {
                                limit: .init(label: text.batteryThreshold, value: $alertBatteryPercent,
                                             range: 5...50, step: 5, formatValue: { "\($0)%" }))
                 }
+                if AppFeature.fanControl.isAvailable {
+                    alertToken(text.fanRPMImbalance, symbol: "fanblades.fill", isOn: $alertFanRPMImbalance,
+                               limit: .init(label: text.fanRPMImbalanceThreshold,
+                                            value: $alertFanRPMImbalanceThreshold,
+                                            range: 500...1_500, step: 500,
+                                            formatValue: { String(format: text.fanRPMFormat, $0) },
+                                            options: Defaults.allowedFanRPMImbalanceThresholds))
+                }
             }
             .monitorTokenGroup()
             SettingsRow(symbol: "bell.badge", title: text.cooldown) {
@@ -118,15 +130,31 @@ struct MonitorAlertsControls: View {
         let range: ClosedRange<Int>
         let step: Int
         let formatValue: (Int) -> String
+        /// Exact choices replace the stepper for settings with a short list.
+        var options: [Int]? = nil
     }
 
     /// One alert as a label, with the limit it fires at on its options half.
     private func alertToken(_ title: String, symbol: String, isOn: Binding<Bool>, limit: Limit?) -> some View {
         MonitorToken(symbol: symbol, title: title, included: isOn,
                      options: limit.map { limit in
-                         AnyView(Stepper(value: limit.value, in: limit.range, step: limit.step) {
-                             Text("\(limit.label) \(limit.formatValue(limit.value.wrappedValue))").monospacedDigit()
-                         })
+                         AnyView(
+                            Group {
+                                if let choices = limit.options {
+                                    Picker(limit.label, selection: limit.value) {
+                                        ForEach(choices, id: \.self) { choice in
+                                            Text(limit.formatValue(choice)).tag(choice)
+                                        }
+                                    }
+                                    .pickerStyle(.menu)
+                                    .labelsHidden()
+                                } else {
+                                    Stepper(value: limit.value, in: limit.range, step: limit.step) {
+                                        Text("\(limit.label) \(limit.formatValue(limit.value.wrappedValue))").monospacedDigit()
+                                    }
+                                }
+                            }
+                         )
                      },
                      optionsSummary: limit.map { $0.formatValue($0.value.wrappedValue) } ?? "")
     }
@@ -192,6 +220,17 @@ struct MonitorAlertsControls: View {
                             step: 5)
                 }
             }
+            if AppFeature.fanControl.isAvailable {
+                Toggle(text.fanRPMImbalance, isOn: $alertFanRPMImbalance)
+                if alertFanRPMImbalance {
+                    Picker(text.fanRPMImbalanceThreshold, selection: $alertFanRPMImbalanceThreshold) {
+                        ForEach(Defaults.allowedFanRPMImbalanceThresholds, id: \.self) { value in
+                            Text(String(format: text.fanRPMFormat, value)).tag(value)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+            }
             if repeatSettingApplies {
                 cooldownPicker
             }
@@ -238,6 +277,7 @@ struct MonitorAlertsControls: View {
                                                                      range: 30...50)
         alertDiskFreePercent = Defaults.sanitizedPercent(alertDiskFreePercent, fallback: 10, range: 5...30)
         alertBatteryPercent = Defaults.sanitizedPercent(alertBatteryPercent, fallback: 15, range: 5...50)
+        alertFanRPMImbalanceThreshold = Defaults.sanitizedFanRPMImbalanceThreshold(alertFanRPMImbalanceThreshold)
         alertCooldown = Defaults.sanitizedMonitorAlertCooldown(alertCooldown)
     }
 }

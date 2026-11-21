@@ -21,6 +21,7 @@ struct MetricsTests {
                 ProcessNameContract.run(suite)
                 SystemMonitorCPUTests.run(suite)
                 SystemMonitorPlanTests.run(suite)
+                FanRPMAlertTests.run(suite)
                 SystemSectionBreakdownTests.run(suite)
             }),
             ("clipboard", {

@@ -103,6 +103,8 @@ extension Strings {
         notifySessionEndedBody: "Le temps est écoulé. Le Mac se remettra en veille normalement.",
         notifyBatteryTitle: "Vorssaint désactivé",
         notifyBatteryBody: "Batterie faible. La veille normale a été rétablie pour préserver la charge.",
+        notifyFanNotReportingTitle: "Fan not reporting",
+        notifyFanNotReportingBody: "A fan stopped reporting its speed.",
         adminPromptClamshellOn: "Vorssaint a besoin de votre mot de passe pour continuer écran rabattu.",
         adminPromptClamshellOff: "Vorssaint a besoin de votre mot de passe pour rétablir la veille normale du Mac.",
         adminPromptRecover: "Vorssaint a quitté alors que la veille du Mac était désactivée. Saisissez le mot de passe pour rétablir la veille normale.",
