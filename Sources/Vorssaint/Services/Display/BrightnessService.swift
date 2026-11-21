@@ -1262,21 +1262,25 @@ final class BrightnessService: ObservableObject {
         }
     }
 
+    /// Launch creates the service for recovery only when the saved list contains
+    /// a valid display ID, even if display controls are no longer installed.
+    static var hasDisplaysToRestore: Bool {
+        BrightnessSupport.hasDisplaysToRestore(
+            stored: UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int])
+    }
+
     /// Recovers displays a previous run left off, using the identity saved
     /// before the connection disappeared. Called at startup on main, before
     /// display work. A display that cannot be switched back on yet keeps its
     /// power-on control and is tried again when the screens wake.
     func restoreDisplaysLeftOff() {
         let stored = UserDefaults.standard.array(forKey: DefaultsKey.displaysSwitchedOff) as? [Int] ?? []
-        guard !stored.isEmpty else { return }
+        guard BrightnessSupport.hasDisplaysToRestore(stored: stored) else { return }
         guard DisplayConfigurationBridge.configureEnabled != nil else { return }
         let fingerprints = UserDefaults.standard.dictionary(forKey: DefaultsKey.displaysSwitchedOffFingerprints)
             as? [String: String] ?? [:]
         for id in stored {
-            // The list is plain numbers on disk and can arrive edited or
-            // imported, so anything that is not a display number is skipped
-            // rather than converted.
-            guard let displayID = CGDirectDisplayID(exactly: id) else { continue }
+            guard let displayID = BrightnessSupport.restorableDisplayID(id) else { continue }
             let currentFingerprint = Self.restorationDisplayFingerprint(displayID)
             let display = BrightnessDisplay(
                 id: displayID,
@@ -3550,7 +3554,7 @@ enum BrightnessBridge {
 /// its methods at runtime so unsupported hardware or a future removal simply
 /// hides the control instead of affecting launch.
 private final class KeyboardLightBridge {
-    private typealias CopyIDsFn = @convention(c) (NSObject, Selector) -> Unmanaged<AnyObject>
+    private typealias CopyIDsFn = @convention(c) (NSObject, Selector) -> Unmanaged<AnyObject>?
     private typealias IsBuiltInFn = @convention(c) (NSObject, Selector, UInt64) -> ObjCBool
     private typealias GetBrightnessFn = @convention(c) (NSObject, Selector, UInt64) -> Float
     private typealias SetBrightnessFn = @convention(c)
@@ -3588,7 +3592,7 @@ private final class KeyboardLightBridge {
                 client, selector: setSelector, as: SetBrightnessFn.self),
               let suspendIdleDimming: SuspendIdleDimmingFn = Self.implementation(
                 client, selector: suspendSelector, as: SuspendIdleDimmingFn.self),
-              let ids = copyIDs(client, copySelector).takeRetainedValue() as? [NSNumber],
+              let ids = copyIDs(client, copySelector)?.takeRetainedValue() as? [NSNumber],
               let keyboardID = ids.map(\.uint64Value).first(where: {
                   isBuiltIn(client, builtInSelector, $0).boolValue
               })

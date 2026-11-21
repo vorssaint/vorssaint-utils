@@ -364,6 +364,8 @@ struct Strings {
     let micMuteName: String
     let micUnmuteName: String
     let micMuteCaption: String
+    let micMuteFollowCallAppsToggle: String
+    let micMuteFollowCallAppsCaption: String
     let micMutedHUD: String
     let micUnmutedHUD: String
     let micMutePartialHUD: String
@@ -1535,6 +1537,8 @@ extension Strings {
         micMuteName: "Silenciar microfone",
         micUnmuteName: "Reativar microfone",
         micMuteCaption: "Usa os controles de silenciamento ou volume de entrada de cada microfone. A Siri e alguns apps ainda podem ouvir você. Não bloqueia todo acesso ao microfone.",
+        micMuteFollowCallAppsToggle: "Permitir que apps de chamada reativem o microfone",
+        micMuteFollowCallAppsCaption: "Quando um app está gravando e o microfone em uso é reativado, o Vorssaint restaura todos os microfones que silenciou. Um ajuste automático de ganho também pode causar isso.",
         micMutedHUD: "Silenciamento ativado",
         micUnmutedHUD: "Silenciamento desativado",
         micMutePartialHUD: "Alguns microfones não puderam ser silenciados",
@@ -2666,6 +2670,8 @@ extension Strings {
         micMuteName: "Mute microphone",
         micUnmuteName: "Unmute microphone",
         micMuteCaption: "Uses each microphone’s mute or input-volume controls. Siri and some apps may still hear you. This is not a privacy lock.",
+        micMuteFollowCallAppsToggle: "Allow call apps to unmute the microphone",
+        micMuteFollowCallAppsCaption: "If a microphone reopens while an app is recording from it, Vorssaint restores all microphones it muted. An automatic gain change can also trigger this.",
         micMutedHUD: "Mic Mute on",
         micUnmutedHUD: "Mic Mute off",
         micMutePartialHUD: "Some microphones could not be muted",

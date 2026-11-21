@@ -4189,6 +4189,22 @@ enum ScreenshotFeatureTests {
                 == .unreadable
                 && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
                "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
+        typealias InputControls = MicMuteSupport.InputControls
+        let quiet = InputControls(gain: .silent, muteSwitch: 1)
+        suite.expect(InputControls(gain: .audible, muteSwitch: 1).opened(since: quiet)
+                && InputControls(gain: .silent, muteSwitch: 0).opened(since: quiet),
+               "raising gain or releasing a previously engaged switch opens a verified quiet microphone")
+        suite.expect(!InputControls(gain: .unreadable, muteSwitch: 1).opened(since: quiet)
+                && !InputControls(gain: .unavailable, muteSwitch: nil).opened(since: quiet)
+                && !quiet.opened(since: quiet),
+               "an unreadable or missing control and a still-muted device give no evidence of an opening")
+        let noSwitch = InputControls(gain: .silent, muteSwitch: 0)
+        let unreadable = InputControls(gain: .unreadable, muteSwitch: 1)
+        let switchOnly = InputControls(gain: .unavailable, muteSwitch: 1)
+        suite.expect(!noSwitch.opened(since: noSwitch) && !unreadable.isSilenced
+                && !InputControls(gain: .audible, muteSwitch: 0).opened(since: unreadable)
+                && switchOnly.isSilenced && !InputControls(gain: .audible, muteSwitch: 1).opened(since: switchOnly),
+               "a stuck switch or an unverified mute cannot signal an unmute, and switch-only inputs still work")
         suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]

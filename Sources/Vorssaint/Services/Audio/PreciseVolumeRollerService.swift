@@ -36,7 +36,7 @@ final class PreciseVolumeRollerService: ObservableObject {
         let wanted = (AppFeature.mixer.isAvailable
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)))
-            || BrightnessService.shared.wantsMonitorVolumeKeys
+            || (AppFeature.brightness.isAvailable && BrightnessService.shared.wantsMonitorVolumeKeys)
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {

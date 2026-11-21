@@ -1078,6 +1078,36 @@ enum ClipboardHistoryCapturePolicy {
 }
 
 enum ClipboardHistoryPasteboardText {
+    /// RTFD and HTML can describe a copied image too. Look for cells on a
+    /// single item before preferring its text over the bitmap. Refs #3818.
+    static func cellText(from pasteboard: NSPasteboard, types: [NSPasteboard.PasteboardType]) -> String? {
+        let tabular = types.first { $0 == .tabularText || $0.rawValue == "public.tab-separated-values-text" }
+        let hasPreview = types.contains(.tiff) || types.contains(.png)
+        guard tabular != nil || (hasPreview && types.contains(.html) && types.contains(.string)),
+              let items = pasteboard.pasteboardItems, items.count == 1, let item = items.first
+        else { return nil }
+        if tabular == nil {
+            guard let html = item.string(forType: .html), containsHTMLCells(html) else { return nil }
+        }
+        func nonblankText(_ type: NSPasteboard.PasteboardType) -> String? {
+            guard let text = item.string(forType: type),
+                  text.rangeOfCharacter(from: .whitespacesAndNewlines.inverted) != nil else { return nil }
+            return text
+        }
+        return tabular.flatMap(nonblankText) ?? nonblankText(.string)
+    }
+
+    static func containsHTMLCells(_ html: String) -> Bool {
+        // Inspect the markup without rendering HTML or loading its resources.
+        // An image can itself be wrapped in a layout table.
+        let options: String.CompareOptions = [.regularExpression, .caseInsensitive]
+        guard let table = html.range(of: #"<table(?=[\s>])"#, options: options),
+              let row = html.range(of: #"<tr(?=[\s>])"#, options: options, range: table.upperBound..<html.endIndex),
+              html.range(of: #"<t[dh](?=[\s>])"#, options: options, range: row.upperBound..<html.endIndex) != nil
+        else { return false }
+        return html.range(of: #"<(?:img|picture|svg)(?=[\s/>])"#, options: options) == nil
+    }
+
     static func preferredText(webURLString: String?, plainText: String?) -> String? {
         let plain = trimmed(plainText)
         if let plain,

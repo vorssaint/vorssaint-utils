@@ -28,8 +28,9 @@ enum Notifier {
         }
     }
 
-    static func post(title: String, body: String) {
-        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
+    /// Reports on the main queue whether Notification Center accepted the request.
+    static func post(title: String, body: String, completion: ((Bool) -> Void)? = nil) {
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [:], completion: completion)
     }
 
     static func postWhatsAppOrganization(title: String,
@@ -60,12 +61,19 @@ enum Notifier {
     private static func post(title: String,
                              body: String,
                              categoryIdentifier: String?,
-                             userInfo: [AnyHashable: Any]) {
+                             userInfo: [AnyHashable: Any],
+                             completion: ((Bool) -> Void)? = nil) {
+        func finish(accepted: Bool) {
+            guard let completion else { return }
+            DispatchQueue.main.async { completion(accepted) }
+        }
+
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .authorized
                 || settings.authorizationStatus == .provisional else {
                 log.notice("notification dropped: authorization status \(settings.authorizationStatus.rawValue)")
+                finish(accepted: false)
                 return
             }
             let content = UNMutableNotificationContent()
@@ -78,6 +86,7 @@ enum Notifier {
                 if let error {
                     log.error("notification delivery failed: \(error.localizedDescription, privacy: .public)")
                 }
+                finish(accepted: error == nil)
             }
         }
     }

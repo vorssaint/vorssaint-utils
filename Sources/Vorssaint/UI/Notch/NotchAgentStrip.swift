@@ -152,7 +152,7 @@ struct NotchAgentRestingWing: View {
             if leading {
                 NotchAgentMark(provider: provider, size: 10)
             } else {
-                Text(AgentFormat.cost(snapshot.usage(.today).total.cost))
+                Text(provider == .cursor ? "—" : AgentFormat.cost(snapshot.usage(.today).total.cost))
                     .font(.system(size: 9, weight: .medium))
                     .monospacedDigit()
                     .lineLimit(1)

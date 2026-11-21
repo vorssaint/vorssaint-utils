@@ -20,6 +20,7 @@ enum NotchAgentTests {
         codexParsing(suite)
         openCodeParsing(suite)
         CopilotAgentTests.run(suite)
+        CursorAgentTests.run(suite)
         HarnessReaderContractTests.run(suite)
         timestamps(suite)
         summary(suite)
@@ -2490,6 +2491,14 @@ enum NotchAgentTests {
             for focus in NotchAgentLimitFocus.allCases {
                 let empty = AgentUsageSnapshot()
                 let sample = NotchAgentSupport.stripSampleSnapshot(empty, provider: provider, focus: focus, now: now)
+                if provider == .cursor {
+                    suite.expect(sample.limits.isEmpty
+                                    && NotchAgentSupport.stripReading(sample, readout: .limit, display: .remaining, now: now) == "12:34"
+                                    && NotchAgentSupport.stripReading(sample, readout: .cost, display: .remaining, now: now) == "—"
+                                    && NotchAgentSupport.stripReading(sample, readout: .tokens, display: .remaining, now: now) == "—",
+                                 "the Cursor preview shows elapsed time and leaves unavailable usage readings empty")
+                    continue
+                }
                 let used = focus == .session ? 0.32 : 0.57
                 suite.expect(NotchAgentSupport.stripReading(sample, readout: .limit, display: .used, focus: focus, now: now)
                                 == AgentFormat.percent(used),
@@ -2506,6 +2515,17 @@ enum NotchAgentTests {
             }
         }
         let short = snapshot([session(.claude, startedAgo: 754)])
+        var mixed = short
+        mixed.live.append(AgentLiveSession(id: "cursor", provider: .cursor, started: now, lastActivity: now,
+                                           model: "", project: "", tokens: AgentTokens(), cost: 0))
+        suite.expect(NotchAgentSupport.stripReading(mixed, readout: .cost, display: .remaining, now: now) == "≥ " + AgentFormat.cost(4.56)
+                        && NotchAgentSupport.stripReading(mixed, readout: .tokens, display: .remaining, now: now) == "≥ " + AgentFormat.tokens(300),
+                     "live totals show a lower bound when Cursor runs alongside a metered provider")
+        mixed.live[0].cost = 0
+        mixed.live[0].tokens = AgentTokens()
+        suite.expect(NotchAgentSupport.stripReading(mixed, readout: .cost, display: .remaining, now: now) == "—"
+                        && NotchAgentSupport.stripReading(mixed, readout: .tokens, display: .remaining, now: now) == "—",
+                     "while Cursor works, a metered turn without any usage yet cannot give a positive lower bound")
         let long = snapshot([session(.claude, startedAgo: 3723), session(.codex, startedAgo: 60)])
         suite.expect(NotchAgentSupport.stripReading(short, readout: .elapsed, display: .remaining, now: now) == "12:34"
                         && NotchAgentSupport.stripReading(long, readout: .elapsed, display: .remaining, now: now) == "1:02:03",
@@ -3169,10 +3189,21 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.cards(in: defaults) == [.trend, .spend, .limits, .live, .models, .resets],
                      "the saved order ignores unknown and repeated cards and appends new ones")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCodex)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot], "an agent can be left out")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .opencode, .copilot, .cursor], "an agent can be left out")
         defaults.set(false, forKey: DefaultsKey.notchAgentsOpenCode)
-        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot], "OpenCode keeps its own preference")
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .copilot, .cursor], "OpenCode keeps its own preference")
         defaults.set(false, forKey: DefaultsKey.notchAgentsCopilot)
+        suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude, .cursor], "Copilot keeps its own preference")
+        var installed = AgentUsageSnapshot(loaded: true)
+        installed.cursorProjectsFound = true
+        suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: false,
+                                                     in: defaults) == [.cursor],
+                     "the grid and its window can show Cursor before the first recorded turn")
+        defaults.set(false, forKey: DefaultsKey.notchAgentsCursor)
+        installed.seen.insert(.cursor)
+        suite.expect(NotchAgentSupport.pageProviders(snapshot: installed, hasCodexAccounts: false, hasClaudeAccount: true,
+                                                     in: defaults) == [.claude],
+                     "an existing directory or prior activity cannot bring a disabled Cursor back onto the page")
         suite.expect(NotchAgentSupport.providers(in: defaults) == [.claude], "multiple agents can be left out")
         defaults.set("unknown", forKey: DefaultsKey.notchAgentsLimitFocus)
         suite.expect(NotchAgentSupport.limitFocus(in: defaults) == .mostUsed, "an unknown limit choice shows the most used")
@@ -3186,7 +3217,7 @@ enum NotchAgentTests {
                      "alerts follow their switches and a budget must be positive")
 
         let keys = [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchAgentsClaude, DefaultsKey.notchAgentsCodex,
-                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot,
+                    DefaultsKey.notchAgentsOpenCode, DefaultsKey.notchAgentsCopilot, DefaultsKey.notchAgentsCursor,
                     DefaultsKey.notchAgentsCardOrder, DefaultsKey.notchAgentsHiddenCards, DefaultsKey.notchAgentsPeriod,
                     DefaultsKey.notchAgentsLimitDisplay, DefaultsKey.notchAgentsLimitFocus, DefaultsKey.notchAgentsLiveActivity, DefaultsKey.notchAgentsReadout,
                     DefaultsKey.notchAgentsFinishAlert, DefaultsKey.notchAgentsFinishMinimum, DefaultsKey.notchAgentsLimitAlert,
@@ -3217,6 +3248,21 @@ enum NotchAgentTests {
                      "the resets card belongs to Codex and leaves with it")
         suite.expect(NotchAgentSupport.tiles(cards: [.limits, .resets, .spend], providers: [.copilot]) == [spend],
                      "a Copilot-only dashboard never offers unavailable limits or Codex account resets")
+        let cursorCards = NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor])
+        suite.expect(cursorCards.map(\.card) == [.live] && NotchAgentSupport.contentHeight([cursorCards]) == NotchAgentSupport.cardHeight
+                        && NotchAgentSupport.tiles(cards: [.spend, .projects], providers: [.cursor]).isEmpty,
+                     "Cursor alone shows the Now card at its ordinary height and respects hiding it")
+        let allProviders = AgentProvider.allCases
+        let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
+                                      model: "", project: "demo", tokens: AgentTokens(), cost: 0)
+        for count in 4...5 {
+            let providers = Array(allProviders.suffix(count))
+            let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
+            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, live: [active])
+            suite.expect(NotchAgentSupport.contentHeight([idle]) >= 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1)
+                            && NotchAgentSupport.contentHeight([live]) == NotchAgentSupport.cardHeight,
+                         "the Now card fits all \(count) idle rows and returns to its regular height while working")
+        }
         suite.expect(NotchAgentSupport.rows([limits, codex, spend, trend], width: 424) == [[limits, codex], [spend], [trend]]
                         && NotchAgentSupport.rows([limits, trend, codex], width: 424) == [[limits], [trend], [codex]],
                      "cards pair in reading order, and charts and lone cards take the row")
@@ -3243,6 +3289,12 @@ enum NotchAgentTests {
     }
 
     private static func formatting(_ suite: TestSuite) {
+        for language in AppLanguage.allCases {
+            let copy = FeatureStrings.notchAgents(language)
+            let lists = [copy.hubDescription, copy.settingsDescription, copy.empty, FeatureStrings.notchEditor(language).agentsSummary]
+            suite.expect(lists.allSatisfy { $0.components(separatedBy: "Cursor").count == 2 },
+                         "each provider list names Cursor once in \(language.rawValue)")
+        }
         let english = Locale(identifier: "en_US")
         let portuguese = Locale(identifier: "pt_BR")
         suite.expect(AgentFormat.tokens(950, locale: english) == "950" && AgentFormat.tokens(4_280, locale: english) == "4.2K"

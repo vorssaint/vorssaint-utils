@@ -121,6 +121,19 @@ enum SwitcherHoverSelectionTests {
         let windowInventory = Inventory()
         var sessionActive = false
         let routeLock = NSLock()
+        var routeSessionActive: Bool { sessionActive }
+        var routeCanStartSession = true
+        var routeCapturing = false
+        var yieldsToExclusiveFullscreen = false
+        var routeYieldsToExclusiveFullscreen = false
+        var routePendingSessionStart: SwitcherPendingSessionStart?
+        var secureInputReplays = SwitcherSecureInputReplayState()
+        var isTapLive = false
+        var restoredHotkeys = 0
+        var appliedHotkeys = 0
+        func restoreNativeHotkeys() { restoredHotkeys += 1 }
+        func updateSecureInputHotKeys() {}
+        func applyNativeHotkeySuppression() { appliedHotkeys += 1 }
         var sessionStartGeneration: UInt64 = 0
         let routeShortcut = GlobalShortcut.switcherDefault
         let routeWindowShortcut = GlobalShortcut.switcherWindowDefault
@@ -288,6 +301,47 @@ enum SwitcherHoverSelectionTests {
         let expectedKeyboard = keyboard.windows[3].id
         _ = keyboard.handle(type: .keyDown, event: keyEvent(KeyCode.enter))
         suite.expect(Activator.activated == [expectedKeyboard], "Enter still commits pinned selection")
+
+        let routing = Service()
+        var gameCoversDisplay = false
+        let watch = SwitcherExclusiveFullscreenWatch(frontmostPID: { 400 },
+            read: { _, complete in complete(gameCoversDisplay) },
+            onObservation: routing.setYieldsToExclusiveFullscreen)
+        watch.start()
+        let match = (shortcut: GlobalShortcut.switcherDefault, scope: SwitcherSessionScope.allApps, reversed: false)
+        let initial = routing.claimPendingKey(match: match, secureInputReplay: true)
+        suite.expect(initial?.generation != nil && routing.routePendingSessionStart?.isSecureInputReplay == true,
+                     "a Carbon press starts a pending replay before the game takes focus")
+        routing.routePendingSessionStart?.commitWhenReady = true
+        let replaced = routing.claimPendingKey(match: match, secureInputReplay: true)
+        suite.expect(replaced?.generation != nil && replaced?.generation != initial?.generation
+                     && routing.routePendingSessionStart?.isSecureInputReplay == true,
+                     "a Carbon press replacing an already released chord retains its replay flag")
+        _ = routing.secureInputReplays.enqueue(shortcut: match.shortcut)
+        gameCoversDisplay = true
+        watch.refresh()
+        let staleMatch = routing.claimPendingKey(match: match, secureInputReplay: false)
+        suite.expect(routing.restoredHotkeys == 1 && routing.routePendingSessionStart == nil
+                     && !routing.secureInputReplays.hasPending && staleMatch == nil,
+                     "a hand-back with a disabled tap restores the keys, discards pending work and rejects a stale shortcut match")
+        suite.expect(routing.windows.isEmpty && routing.claimPendingKey(match: match, secureInputReplay: false) == nil,
+                     "a second shortcut with no eligible windows still belongs to macOS")
+        let queued = keyEvent(KeyCode.tab, flags: .maskCommand)
+        suite.expect(routing.handle(type: .keyDown, event: queued)?.takeUnretainedValue() === queued,
+                     "a key already queued on main passes unchanged after the hand-back")
+        routing.isTapLive = true
+        gameCoversDisplay = false
+        watch.refresh()
+        watch.stop()
+        let resumed = routing.claimPendingKey(match: match, secureInputReplay: false)
+        suite.expect(routing.appliedHotkeys == 1 && resumed?.generation != nil
+                     && routing.routePendingSessionStart?.isSecureInputReplay == false,
+                     "the live tap resumes ownership and accepts the next physical shortcut after full screen")
+        let visibleSwitcher = fresh()
+        visibleSwitcher.setYieldsToExclusiveFullscreen(true)
+        suite.expect(!visibleSwitcher.sessionActive && visibleSwitcher.panel?.isVisible == false
+                     && visibleSwitcher.restoredHotkeys == 1,
+                     "a hand-back dismisses the visible switcher and releases its shortcuts")
 
         let middle = fresh()
         Pointer.mouseLocation.x += 10

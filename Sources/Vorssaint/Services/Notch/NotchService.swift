@@ -899,18 +899,17 @@ final class NotchService: ObservableObject {
     /// first read, when the page fills the island with its progress.
     private func agentsContentHeight(width: CGFloat) -> CGFloat? {
         let usage = AgentUsageService.shared.snapshot
-        let enabled = NotchAgentSupport.providers()
         // Added Codex accounts have cards before, or without, any log.
         let accounts = NotchAgentSupport.showsCodexAccounts() ? CodexProfileLimitsService.shared.states.map(\.id) : []
         let claudeProfile = AgentUsageService.shared.claudeProfile
         let claudeAccount = claudeProfile.isDefault ? nil : claudeProfile.id
         guard usage.loaded || !accounts.isEmpty else { return nil }
-        let providers = enabled.filter { usage.seen.contains($0) || ($0 == .codex && !accounts.isEmpty)
-            || ($0 == .claude && claudeAccount != nil) }
+        let providers = NotchAgentSupport.pageProviders(snapshot: usage, hasCodexAccounts: !accounts.isEmpty,
+                                                        hasClaudeAccount: claudeAccount != nil)
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount),
+                                    claudeAccount: claudeAccount, live: usage.live),
             width: width))
     }
     var expandedGeometry: NotchGeometry {
@@ -4254,7 +4253,7 @@ final class NotchService: ObservableObject {
             // ending, the first read landing, which agents have cards, and
             // which are working, since each one's mark widens the strip.
             AgentUsageService.shared.$snapshot
-                .map { ($0.loaded, $0.live.isEmpty, $0.seen, Set($0.live.map(\.provider))) }
+                .map { ($0.loaded, $0.live.isEmpty, $0.seen, $0.cursorProjectsFound, Set($0.live.map(\.provider))) }
                 .removeDuplicates(by: ==)
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in

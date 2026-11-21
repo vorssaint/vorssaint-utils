@@ -61,6 +61,11 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// Cursor's transcript has no message IDs. The ordinal and optional
+    /// prompt timestamp identify the turn when Cursor rewrites the file.
+    var cursorPromptCount = 0
+    var cursorPromptTimestamp: Date?
+    var cursorLastActivity: Date?
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -174,6 +179,60 @@ enum AgentLogParser {
     /// decoded; prompts, replies, reasoning and tool arguments are ignored.
     static func parseCopilot(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
         CopilotReader().parse(line, state: &state, now: now)
+    }
+
+    // MARK: Cursor
+
+    /// Cursor agent transcripts under `~/.cursor/projects`. Only turn edges
+    /// and the project folder name are taken; prompts and replies are not.
+    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CursorReader().parse(line, state: &state, now: now)
+    }
+
+    /// The workspace folder Cursor encodes in
+    /// `~/.cursor/projects/<slug>/agent-transcripts/…`.
+    static func cursorProject(from path: String) -> String {
+        let transcript = CursorTranscriptFiles(path: path)
+        let directory = transcript.flat.deletingLastPathComponent()
+        guard directory.lastPathComponent == "agent-transcripts" else { return "" }
+        let project = directory.deletingLastPathComponent()
+        let slug = project.lastPathComponent
+        // Home is taken from the transcript path, not this Mac's account, so
+        // fixtures and other users' copied logs still name the project.
+        let projects = project.deletingLastPathComponent()
+        let cursor = projects.deletingLastPathComponent()
+        guard projects.lastPathComponent == "projects", cursor.lastPathComponent == ".cursor" else { return native(slug) }
+        let homePath = cursor.deletingLastPathComponent().path
+        let encodedHome = homePath.split(separator: "/").joined(separator: "-")
+        if slug == encodedHome { return projectName(homePath) }
+        if !encodedHome.isEmpty, slug.hasPrefix(encodedHome + "-") {
+            let rest = String(slug.dropFirst(encodedHome.count + 1))
+            if let resolved = resolveHyphenatedPath(base: homePath, encoded: rest) {
+                return projectName(resolved)
+            }
+            return native(rest)
+        }
+        return native(slug)
+    }
+
+    /// Cursor replaces both separators and literal hyphens with the same
+    /// character. Only accept a reconstruction when the full directory exists.
+    private static func resolveHyphenatedPath(base: String, encoded: String) -> String? {
+        let tokens = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        return resolveHyphenatedPath(base: base, tokens: ArraySlice(tokens))
+    }
+
+    private static func resolveHyphenatedPath(base: String, tokens: ArraySlice<String>) -> String? {
+        guard !tokens.isEmpty else { return base }
+        for length in (1...tokens.count).reversed() {
+            let name = tokens.prefix(length).joined(separator: "-")
+            guard !name.isEmpty, name != ".", name != ".." else { continue }
+            let next = (base as NSString).appendingPathComponent(name)
+            var directory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: next, isDirectory: &directory), directory.boolValue,
+               let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) { return found }
+        }
+        return nil
     }
 
     static func copilotEvent(_ type: String) -> Bool {

@@ -226,10 +226,12 @@ final class FeatureRuntime: ObservableObject {
     }
 
     /// One bump for Settings, and the Command Bar drops rows of features that
-    /// just left the hub so a pin cannot linger as a bare id.
+    /// just left the hub so a pin cannot linger as a bare id. A Command Bar
+    /// that is not installed has already dropped all of them in its own sync,
+    /// so it is not asked and its service is never built just to be told.
     private func finishAvailabilityChange() {
         revision += 1
-        CommandBarService.shared.noteHubChange()
+        if AppFeature.commandBar.isAvailable { CommandBarService.shared.noteHubChange() }
         if AppFeature.notch.isAvailable { NotchService.shared.syncWithPreferences() }
     }
 

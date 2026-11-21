@@ -14,6 +14,7 @@ final class MonitorAlertService {
     private var cpuTemperatureGate = SustainedAlertGate()
     private var batteryTemperatureGate = SustainedAlertGate()
     private var lastSent: [MonitorAlertKind: Date] = [:]
+    private var diskAlertGate = DiskAlertGate()
 
     private init() {}
 
@@ -33,8 +34,9 @@ final class MonitorAlertService {
         }
     }
 
-    static func anyEnabled(in defaults: UserDefaults) -> Bool {
+    static func anyEnabled(in defaults: UserDefaults, includingDisk: Bool = true) -> Bool {
         AppFeature.anyMonitorAlertEnabled(
+            includingDisk: includingDisk,
             isAvailable: {
                 defaults.bool(forKey: $0.availabilityKey)
                     && ($0 != .monitorPower || PowerSampler.hasInternalBattery)
@@ -99,10 +101,8 @@ final class MonitorAlertService {
             send(.memory, title: strings.memoryTitle, body: strings.memoryBody)
         }
 
-        if alertOn(DefaultsKey.monitorAlertDisk, .monitorDisk),
-           let disk = lowDisk(from: snapshot, defaults: defaults) {
-            let body = String(format: strings.diskBodyFormat, disk.name, disk.threshold)
-            send(.disk, title: strings.diskTitle, body: body)
+        if alertOn(DefaultsKey.monitorAlertDisk, .monitorDisk) {
+            evaluateDisk(snapshot.disk, defaults: defaults, strings: strings)
         }
 
         if alertOn(DefaultsKey.monitorAlertBattery, .monitorPower),
@@ -126,17 +126,16 @@ final class MonitorAlertService {
              body: String(format: strings.cpuBodyFormat, threshold))
     }
 
-    private func lowDisk(from snapshot: SystemSnapshot,
-                         defaults: UserDefaults) -> (name: String, threshold: Int)? {
+    private func evaluateDisk(_ reading: DiskReading?, defaults: UserDefaults, strings: MonitorAlertFeatureStrings) {
         let threshold = Defaults.sanitizedPercent(defaults.integer(forKey: DefaultsKey.monitorAlertDiskFreePercent),
                                                   fallback: 10,
                                                   range: 5...30)
-        guard let device = snapshot.disk?.devices.first(where: { device in
-            guard device.totalBytes >= 10_000_000_000 else { return false }
-            let freePercent = Double(device.freeBytes) / Double(device.totalBytes) * 100.0
-            return freePercent < Double(threshold)
-        }) else { return nil }
-        return (device.name, threshold)
+        guard let alert = diskAlertGate.next(from: reading, threshold: threshold, now: Date()) else { return }
+        let limit = alert.limitPercent.formatted(.number.precision(.fractionLength(0...1)).locale(MetricFormat.locale))
+        let body = String(format: strings.diskBodyFormat, alert.name, limit)
+        Notifier.post(title: strings.diskTitle, body: body) { [weak self] accepted in
+            self?.diskAlertGate.finish(alert, accepted: accepted, now: Date())
+        }
     }
 
     private func evaluateCPUTemperature(_ snapshot: SystemSnapshot,
@@ -205,5 +204,66 @@ final class MonitorAlertService {
 }
 
 private enum MonitorAlertKind: Hashable {
-    case cpu, cpuTemperature, memory, disk, battery, batteryTemperature
+    case cpu, cpuTemperature, memory, battery, batteryTemperature
+}
+
+/// A volume's first warning and its escalation each start a six-hour interval
+/// once Notification Center accepts the request. Samples arrive on the main
+/// queue, as do the results from Notifier.
+struct DiskAlertGate {
+    struct Alert {
+        fileprivate let volumeID: String
+        let name: String
+        let isCritical: Bool
+        let limitPercent: Double
+    }
+
+    private struct History {
+        var repeatAfter = Date.distantPast
+        var wasCritical = false
+        var retryAfter = Date.distantPast
+    }
+
+    private var history: [String: History] = [:]
+    private var pending = Set<String>()
+
+    mutating func next(from reading: DiskReading?, threshold: Int, now: Date) -> Alert? {
+        guard let reading else { return nil }
+        let limit = Double(threshold)
+        var candidate: Alert?
+        for device in reading.devices where device.totalBytes >= 10_000_000_000 {
+            let freePercent = Double(device.freeBytes) / Double(device.totalBytes) * 100
+            guard freePercent < limit else { continue }
+            let uuid = device.volumeUUID ?? ""
+            let id = uuid.isEmpty ? device.mountPath : uuid
+            let critical = freePercent < limit / 2
+            guard !pending.contains(id) else { continue }
+            if let previous = history[id] {
+                guard now >= previous.retryAfter,
+                      now >= previous.repeatAfter || (critical && !previous.wasCritical) else { continue }
+            }
+
+            if candidate == nil || critical {
+                candidate = Alert(volumeID: id, name: device.name, isCritical: critical,
+                                  limitPercent: critical ? limit / 2 : limit)
+                if critical { break }
+            }
+        }
+        if let candidate { pending.insert(candidate.volumeID) }
+        return candidate
+    }
+
+    mutating func finish(_ alert: Alert, accepted: Bool, now: Date) {
+        guard pending.remove(alert.volumeID) != nil else { return }
+        // Keep cooldowns through a brief unmount without retaining every volume
+        // ever seen. Only notification attempts need to prune this history.
+        history = history.filter { $0.value.repeatAfter > now || $0.value.retryAfter > now }
+        if accepted {
+            history[alert.volumeID] = History(repeatAfter: now.addingTimeInterval(6 * 60 * 60),
+                                              wasCritical: alert.isCritical)
+        } else {
+            // Avoid polling denied permissions on every sampler tick.
+            history[alert.volumeID, default: History()].retryAfter = now.addingTimeInterval(60)
+        }
+    }
 }

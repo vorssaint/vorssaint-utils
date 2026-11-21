@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "靜音麥克風",
         micUnmuteName: "取消靜音麥克風",
         micMuteCaption: "使用各個麥克風的靜音或輸入音量控制。Siri 和部分 App 仍可能聽到你的聲音。此功能無法封鎖所有麥克風存取。",
+        micMuteFollowCallAppsToggle: "允許通話 App 取消麥克風靜音",
+        micMuteFollowCallAppsCaption: "如果 App 正透過麥克風錄音，而該麥克風恢復輸入，Vorssaint 會還原所有先前由它靜音的麥克風。自動調整增益也可能觸發此動作。",
         micMutedHUD: "麥克風靜音功能已開啟",
         micUnmutedHUD: "麥克風靜音功能已關閉",
         micMutePartialHUD: "部分麥克風未能靜音",
