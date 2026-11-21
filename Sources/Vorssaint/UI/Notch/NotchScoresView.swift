@@ -19,14 +19,19 @@ struct NotchScoresSettingsControls: View {
     @AppStorage(DefaultsKey.notchScoresAlerts) private var alerts = true
     @AppStorage(DefaultsKey.notchScoresFollows) private var storedFollows = ""
     @State private var category: NotchScoreCategory = .soccer
-    @State private var leagueID = NotchScoreCategory.soccer.leagues.first?.id ?? ""
+    @State private var region = NotchScoreRegion.preferred()
+    @State private var leagueID = NotchScoreCategory.soccer.leagues.first { $0.region == NotchScoreRegion.preferred() }?.id ?? ""
     @State private var conference = ""
     @State private var query = ""
 
     private var text: NotchScoresStrings { FeatureStrings.notchScores(l10n.language) }
     private var follows: [NotchScoreFollow] { NotchScoresSupport.follows(stored: storedFollows) }
+    /// Soccer's leagues of the chosen country; every other choice's own.
+    private var leagues: [NotchScoreLeague] {
+        category.browsesByRegion ? category.leagues.filter { $0.region == region } : category.leagues
+    }
     private var league: NotchScoreLeague? {
-        category.leagues.first { $0.id == leagueID } ?? category.leagues.first
+        leagues.first { $0.id == leagueID } ?? leagues.first
     }
     private var leagueConferences: [NotchScoreConference] { league.flatMap { scores.conferences[$0.id] } ?? [] }
 
@@ -52,10 +57,15 @@ struct NotchScoresSettingsControls: View {
             if on { loadChoices() }
         }
         .onChange(of: liveActivity) { NotchService.shared.syncWithPreferences() }
-        .onChange(of: category) { _, category in
+        .onChange(of: category) {
             query = ""
             conference = ""
-            leagueID = category.leagues.first?.id ?? ""
+            leagueID = leagues.first?.id ?? ""
+            loadChoices()
+        }
+        .onChange(of: region) {
+            query = ""
+            leagueID = leagues.first?.id ?? ""
             loadChoices()
         }
         .onChange(of: leagueID) {
@@ -99,16 +109,24 @@ struct NotchScoresSettingsControls: View {
             SettingsMenuRow(symbol: category.symbol, title: text.sportLabel, selection: $category) {
                 ForEach(NotchScoreCategory.allCases) { Text($0.title(text)).tag($0) }
             }
-            if category.leagues.count > 1 {
+            if category.browsesByRegion {
+                SettingsMenuRow(symbol: "globe", title: text.country, selection: $region) {
+                    ForEach(NotchScoreRegion.allCases) {
+                        Text($0.title(text, locale: l10n.language.formattingLocale())).tag($0)
+                    }
+                }
+            }
+            if leagues.count > 1 {
                 SettingsMenuRow(symbol: "trophy", title: text.league, selection: $leagueID) {
-                    ForEach(category.leagues) { Text($0.title(text)).tag($0.id) }
+                    ForEach(leagues) { Text($0.title(text)).tag($0.id) }
                 }
             }
             if let league {
-                wholeLeagueRow(league)
+                if league.followsWhole { wholeLeagueRow(league) }
                 // A championship, a tour or a promotion has no one to pick: its
-                // races, tournaments and cards are the news.
-                if !category.sport.followsWhole {
+                // races, tournaments and cards are the news. A continental
+                // cup's clubs are picked in their own country.
+                if !category.sport.followsWhole, league.picksTeams {
                     if leagueConferences.count > 1 {
                         SettingsMenuRow(symbol: "rectangle.3.group", title: text.conference, selection: $conference) {
                             ForEach(leagueConferences) { Text($0.name).tag($0.name) }
@@ -214,11 +232,12 @@ struct NotchScoresSettingsControls: View {
             return text.sport(follow.sport)
         }
         if category.leagues.count == 1 { return category.title(text) }
-        return category.leagues.first { $0.slug == follow.league }?.title(text) ?? category.title(text)
+        // A league no longer offered, as Série B, still reads by its name.
+        return category.allLeagues.first { $0.slug == follow.league }?.title(text) ?? category.title(text)
     }
 
     private func loadChoices() {
-        guard enabled, AppFeature.notchScores.isAvailable, !category.sport.followsWhole, let league else { return }
+        guard enabled, AppFeature.notchScores.isAvailable, !category.sport.followsWhole, let league, league.picksTeams else { return }
         scores.loadChoices(for: league)
     }
 }
@@ -233,33 +252,24 @@ struct NotchScoresView: View {
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchScoresEnabled) private var enabled = true
     @Environment(\.notchSettingsPreview) private var preview
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var chosen: String?
     private var text: NotchScoresStrings { FeatureStrings.notchScores(l10n.language) }
 
     var body: some View {
         Group {
-            if preview || !enabled || scores.follows.isEmpty {
-                NotchEmptyView(symbol: "sportscourt", message: preview ? text.summary : text.emptyPage) {
-                    if !preview {
-                        NotchPillButton(title: text.chooseTeams, prominent: true) {
-                            NotchService.shared.openSettings(showing: .scores)
-                        }
+            if preview {
+                // The games followed as they stand, or a sample of the page
+                // until one is on, so Settings shows what the island will.
+                page(enabled && !scores.follows.isEmpty ? shown ?? sample : sample)
+            } else if !enabled || scores.follows.isEmpty {
+                NotchEmptyView(symbol: "sportscourt", message: text.emptyPage) {
+                    NotchPillButton(title: text.chooseTeams, prominent: true) {
+                        NotchService.shared.openSettings(showing: .scores)
                     }
                 }
             } else if let game = shown {
-                VStack(alignment: .leading, spacing: 8) {
-                    if ordered.count > 1 {
-                        NotchScoreChips(games: ordered, selected: game.id) { chosen = $0 }
-                    }
-                    ScrollView {
-                        NotchScoreDetail(game: game, wide: size.width >= 440)
-                            .padding(.bottom, 4)
-                    }
-                    .scrollIndicators(.never)
-                }
-                .notchBand(trailing: {
-                    NotchIconButton(symbol: "arrow.clockwise", title: text.refresh) { scores.refresh() }
-                })
+                page(game)
             } else {
                 switch scores.phase {
                 case .loading, .idle:
@@ -276,6 +286,31 @@ struct NotchScoresView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear { if !preview { scores.pageVisible = true } }
         .onDisappear { if !preview { scores.pageVisible = false } }
+    }
+
+    private var sample: NotchScoreGame { NotchScoresSupport.sample(text: text, now: Date()) }
+
+    /// The chips to switch games, and the one chosen in full. A new choice
+    /// cross-fades in place; nothing slides, so the page never jumps.
+    private func page(_ game: NotchScoreGame) -> some View {
+        let games = game.id == sample.id ? [game] : ordered
+        return VStack(alignment: .leading, spacing: 8) {
+            if games.count > 1 {
+                NotchScoreChips(games: games, selected: game.id) { id in
+                    withAnimation(reduceMotion ? nil : .smooth(duration: 0.25)) { chosen = id }
+                }
+            }
+            ScrollView {
+                NotchScoreDetail(game: game, wide: size.width >= 440)
+                    .padding(.bottom, 4)
+                    .id(game.id)
+                    .transition(.opacity)
+            }
+            .scrollIndicators(.never)
+        }
+        .notchBand(trailing: {
+            NotchIconButton(symbol: "arrow.clockwise", title: text.refresh) { scores.refresh() }
+        })
     }
 
     /// Games under way, then the next ones, then the latest results.
@@ -327,11 +362,14 @@ private struct NotchScoreChips: View {
             if game.state == .live { Circle().fill(.red).frame(width: 5, height: 5) }
             if game.sport.isField || game.sport == .mma {
                 Image(systemName: game.sport.symbol).font(.system(size: 10, weight: .semibold))
-                Text(game.sport == .racing ? text.session(game.detail ?? (game.title)) : game.title)
+                Text(game.sport == .racing
+                     ? [text.session(game.detail ?? game.title), game.segmentText].compactMap { $0 }.joined(separator: " · ")
+                     : game.title)
                     .frame(maxWidth: 150)
             } else {
                 NotchScoreCrest(url: game.sides.first?.logo, size: 14, placeholder: game.sport.symbol)
                 Text(reading(game, text: text)).monospacedDigit()
+                    .modifier(NotchScoreRolling(value: reading(game, text: text)))
                 NotchScoreCrest(url: game.sides.dropFirst().first?.logo, size: 14, placeholder: game.sport.symbol)
             }
         }
@@ -365,8 +403,16 @@ private struct NotchScoreDetail: View {
     let wide: Bool
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var scores = NotchScoresService.shared
+    @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var text: NotchScoresStrings { FeatureStrings.notchScores(l10n.language) }
     private var locale: Locale { l10n.language.formattingLocale() }
+
+    /// The page's quieter text, brought up near full white with Increase
+    /// Contrast so the small print still reads on the black.
+    private func faint(_ opacity: Double) -> Color {
+        .white.opacity(contrast == .increased ? max(opacity, 0.85) : opacity)
+    }
 
     /// The tables the two teams play in, under a game still to come.
     private var tables: [NotchScoreStandingGroup] {
@@ -428,12 +474,12 @@ private struct NotchScoreDetail: View {
                     Text(text.standingColumn(column, sport: game.sport)).frame(width: width, alignment: .trailing)
                 }
             }
-            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+            .font(.system(size: 9, weight: .semibold)).foregroundStyle(faint(0.45))
             ForEach(table.rows) { row in
                 let playing = teams.contains(row.id)
                 HStack(spacing: 6) {
                     Text("\(row.place)").font(.system(size: 10, weight: .semibold)).monospacedDigit()
-                        .foregroundStyle(.white.opacity(0.5)).frame(width: 18, alignment: .leading)
+                        .foregroundStyle(faint(0.5)).frame(width: 18, alignment: .leading)
                     NotchScoreCrest(url: row.logo, size: 14, placeholder: game.sport.symbol)
                     Text(row.name).font(.system(size: 11, weight: playing ? .bold : .regular)).lineLimit(1)
                     Spacer(minLength: 4)
@@ -444,7 +490,7 @@ private struct NotchScoreDetail: View {
                             .frame(width: width, alignment: .trailing)
                     }
                 }
-                .foregroundStyle(.white.opacity(playing ? 1 : 0.75))
+                .foregroundStyle(faint(playing ? 1 : 0.75))
                 .padding(.vertical, 2).padding(.horizontal, 4)
                 .background(playing ? Color.white.opacity(0.1) : .clear,
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous))
@@ -462,12 +508,13 @@ private struct NotchScoreDetail: View {
                     Text(centerReading)
                         .font(.system(size: game.state == .scheduled ? 20 : 28, weight: .bold)).monospacedDigit()
                         .lineLimit(1).minimumScaleFactor(0.6)
+                        .modifier(NotchScoreRolling(value: centerReading))
                     status
                 }
                 .frame(minWidth: 96)
                 side(1)
             }
-            Text(caption).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45))
+            Text(caption).font(.system(size: 10)).foregroundStyle(faint(0.45))
                 .lineLimit(1).truncationMode(.middle)
                 .frame(maxWidth: .infinity)
         }
@@ -488,14 +535,14 @@ private struct NotchScoreDetail: View {
         case .live:
             HStack(spacing: 4) {
                 Circle().fill(.red).frame(width: 6, height: 6)
-                Text(game.clock.isEmpty ? text.live : game.clock).foregroundStyle(.red)
+                Text(game.segmentText ?? (game.clock.isEmpty ? text.live : game.clock)).foregroundStyle(.red)
             }
             .font(.system(size: 11, weight: .semibold)).monospacedDigit()
         case .scheduled:
             Text(game.start.formatted(Date.FormatStyle().weekday(.wide).day().month(.abbreviated).locale(locale)))
-                .font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.6))
+                .font(.system(size: 11, weight: .medium)).foregroundStyle(faint(0.6))
         case .finished:
-            Text(text.final).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.6))
+            Text(text.final).font(.system(size: 11, weight: .semibold)).foregroundStyle(faint(0.6))
         case .called:
             Text(game.clock).font(.system(size: 11, weight: .semibold)).foregroundStyle(.orange)
         }
@@ -510,7 +557,7 @@ private struct NotchScoreDetail: View {
                 .font(.system(size: 12, weight: game.followed.contains(side?.id ?? "") ? .bold : .semibold))
                 .multilineTextAlignment(.center).lineLimit(2)
             if let record = side?.record {
-                Text(record).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45)).monospacedDigit()
+                Text(record).font(.system(size: 10)).foregroundStyle(faint(0.45)).monospacedDigit()
             }
         }
         .opacity(lost ? 0.6 : 1)
@@ -527,16 +574,16 @@ private struct NotchScoreDetail: View {
             Text(game.title).font(.system(size: 15, weight: .bold)).lineLimit(1).minimumScaleFactor(0.7)
             HStack(spacing: 6) {
                 Text(text.session(game.detail ?? "")).font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(faint(0.75))
                 if game.state == .scheduled {
                     Text(NotchScoresSupport.startText(game.start, locale: locale, now: Date()))
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
+                        .font(.system(size: 11)).foregroundStyle(faint(0.6))
                 } else {
                     status
                 }
             }
             if let venue = game.venue {
-                Text(venue).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                Text(venue).font(.system(size: 10)).foregroundStyle(faint(0.45)).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
@@ -567,7 +614,7 @@ private struct NotchScoreDetail: View {
                         Text(moment.player).font(.system(size: 11, weight: isGoal(moment) ? .semibold : .regular))
                             .lineLimit(1)
                         if let note = note(moment) {
-                            Text(note).font(.system(size: 9)).foregroundStyle(.white.opacity(0.5))
+                            Text(note).font(.system(size: 9)).foregroundStyle(faint(0.5))
                         }
                     }
                     if moment.side == 1 { minute(moment) }
@@ -591,7 +638,7 @@ private struct NotchScoreDetail: View {
 
     private func minute(_ moment: NotchScoreMoment) -> some View {
         Text(moment.minute).font(.system(size: 10, weight: .semibold)).monospacedDigit()
-            .foregroundStyle(.white.opacity(0.55)).frame(minWidth: 26, alignment: moment.side == 0 ? .leading : .trailing)
+            .foregroundStyle(faint(0.55)).frame(minWidth: 26, alignment: moment.side == 0 ? .leading : .trailing)
     }
 
     @ViewBuilder private func momentMark(_ moment: NotchScoreMoment) -> some View {
@@ -615,7 +662,7 @@ private struct NotchScoreDetail: View {
                     HStack {
                         Text(stat.values.first.map { stat.kind.isPercentage ? $0 + "%" : $0 } ?? "")
                         Spacer(minLength: 4)
-                        Text(text.stat(stat.kind)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                        Text(text.stat(stat.kind)).foregroundStyle(faint(0.6)).lineLimit(1)
                         Spacer(minLength: 4)
                         Text(stat.values.last.map { stat.kind.isPercentage ? $0 + "%" : $0 } ?? "")
                     }
@@ -641,12 +688,12 @@ private struct NotchScoreDetail: View {
             HStack(spacing: 6) {
                 if game.sport == .golf, game.period > 0, game.state != .scheduled {
                     Text(text.round(game.period)).font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(faint(0.75))
                 }
                 status
             }
             if let venue = game.venue {
-                Text(venue).font(.system(size: 10)).foregroundStyle(.white.opacity(0.45)).lineLimit(1)
+                Text(venue).font(.system(size: 10)).foregroundStyle(faint(0.45)).lineLimit(1)
             }
         }
         .frame(maxWidth: .infinity)
@@ -671,8 +718,8 @@ private struct NotchScoreDetail: View {
                         }
                     }
                     if let play = situation.lastPlay {
-                        Text(text.lastPlay).font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.5))
-                        Text(play).font(.system(size: 11)).foregroundStyle(.white.opacity(0.8))
+                        Text(text.lastPlay).font(.system(size: 9, weight: .semibold)).foregroundStyle(faint(0.5))
+                        Text(play).font(.system(size: 11)).foregroundStyle(faint(0.8))
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -691,13 +738,13 @@ private struct NotchScoreDetail: View {
                     ForEach(game.leaders, id: \.self) { leader in
                         HStack(spacing: 8) {
                             Text(text.leader(leader.category)).font(.system(size: 10, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.5)).frame(width: 70, alignment: .leading)
+                                .foregroundStyle(faint(0.5)).frame(width: 70, alignment: .leading)
                             if let side = leader.side, game.sides.indices.contains(side) {
                                 NotchScoreCrest(url: game.sides[side].logo, size: 14, placeholder: game.sport.symbol)
                             }
                             Text(leader.player).font(.system(size: 11, weight: .semibold)).lineLimit(1)
                             Spacer(minLength: 6)
-                            Text(leader.line).font(.system(size: 10)).foregroundStyle(.white.opacity(0.7))
+                            Text(leader.line).font(.system(size: 10)).foregroundStyle(faint(0.7))
                                 .lineLimit(1).truncationMode(.tail)
                         }
                     }
@@ -717,7 +764,7 @@ private struct NotchScoreDetail: View {
                     Text(batter).font(.system(size: 11, weight: .semibold)).lineLimit(1)
                 }
                 if let pitcher = situation.pitcher {
-                    Text(pitcher).font(.system(size: 10)).foregroundStyle(.white.opacity(0.6)).lineLimit(1)
+                    Text(pitcher).font(.system(size: 10)).foregroundStyle(faint(0.6)).lineLimit(1)
                 }
             }
         }
@@ -751,7 +798,7 @@ private struct NotchScoreDetail: View {
                 }
                 ForEach(totals, id: \.self) { Text($0) }
             }
-            .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.5))
+            .font(.system(size: 9, weight: .semibold)).foregroundStyle(faint(0.5))
             ForEach(game.sides) { side in
                 GridRow {
                     HStack(spacing: 5) {
@@ -808,23 +855,37 @@ private struct NotchScoreDetail: View {
         section(nil) {
             if game.sides.isEmpty {
                 Text(NotchScoresSupport.startText(game.start, locale: locale, now: Date()))
-                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6))
+                    .font(.system(size: 12)).foregroundStyle(faint(0.6))
                     .frame(maxWidth: .infinity)
             } else {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12, alignment: .leading),
                                          count: wide ? 2 : 1), spacing: 4) {
                     ForEach(game.sides) { driver in
+                        let livery = scores.livery(driver, in: game)
                         HStack(spacing: 6) {
                             Text(driver.position.map { "P\($0)" } ?? "–")
                                 .font(.system(size: 10, weight: .bold)).monospacedDigit()
-                                .foregroundStyle(.white.opacity(driver.position.map { $0 <= 3 } == true ? 0.9 : 0.5))
+                                .foregroundStyle(faint(driver.position.map { $0 <= 3 } == true ? 0.9 : 0.5))
                                 .frame(width: 26, alignment: .leading)
                             NotchScoreCrest(url: driver.logo, size: 14, placeholder: game.sport.symbol)
                             Text(driver.name).font(.system(size: 11, weight: driver.position == 1 ? .bold : .regular))
                                 .lineLimit(1)
+                            Spacer(minLength: 4)
+                            if let number = livery?.number {
+                                Text(number).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+                                    .foregroundStyle(faint(0.6))
+                            }
                         }
+                        .padding(.vertical, 3)
+                        .padding(.leading, livery == nil ? 0 : 9)
+                        .padding(.trailing, livery == nil ? 0 : 6)
+                        .background { if let livery { NotchScoreLiveryBand(color: livery.swiftColor) } }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityValue(livery?.team ?? "")
                     }
                 }
+                // A driver who gains or loses a place slides into it.
+                .animation(reduceMotion ? nil : .smooth(duration: 0.35), value: game.sides.map(\.id))
             }
         }
     }
@@ -839,7 +900,7 @@ private struct NotchScoreDetail: View {
         return section(text.leaderboard) {
             if game.sides.isEmpty {
                 Text(NotchScoresSupport.startText(game.start, locale: locale, now: Date()))
-                    .font(.system(size: 12)).foregroundStyle(.white.opacity(0.6)).frame(maxWidth: .infinity)
+                    .font(.system(size: 12)).foregroundStyle(faint(0.6)).frame(maxWidth: .infinity)
             } else {
                 LazyVStack(spacing: 4) {
                     HStack {
@@ -848,11 +909,11 @@ private struct NotchScoreDetail: View {
                             Text(text.thru).frame(width: 34, alignment: .trailing)
                         }
                     }
-                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(faint(0.45))
                     ForEach(Array(game.sides.enumerated()), id: \.element.id) { index, golfer in
                         HStack(spacing: 6) {
                             Text(places.indices.contains(index) ? places[index] : "").font(.system(size: 10, weight: .bold)).monospacedDigit()
-                                .foregroundStyle(.white.opacity(0.6)).frame(width: 30, alignment: .leading)
+                                .foregroundStyle(faint(0.6)).frame(width: 30, alignment: .leading)
                             NotchScoreCrest(url: golfer.logo, size: 14, placeholder: game.sport.symbol)
                             Text(golfer.name).font(.system(size: 11, weight: index == 0 ? .bold : .regular)).lineLimit(1)
                             Spacer(minLength: 6)
@@ -860,7 +921,7 @@ private struct NotchScoreDetail: View {
                                 .foregroundStyle((golfer.score ?? "").hasPrefix("-") ? Color.red : .white)
                             if game.state == .live {
                                 Text(golfer.thru.map { $0 >= 18 ? "F" : String($0) } ?? "–")
-                                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(.white.opacity(0.6))
+                                    .font(.system(size: 10)).monospacedDigit().foregroundStyle(faint(0.6))
                                     .frame(width: 34, alignment: .trailing)
                             }
                         }
@@ -880,14 +941,14 @@ private struct NotchScoreDetail: View {
                 ForEach(game.bouts.reversed()) { bout in
                     VStack(spacing: 3) {
                         HStack {
-                            Text(bout.division.uppercased()).font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.white.opacity(0.45))
+                            Text(bout.division.uppercased()).font(.system(size: 9, weight: .semibold)).tracking(0.4)
+                                .foregroundStyle(faint(0.45))
                             Spacer()
                             boutStatus(bout)
                         }
                         HStack(spacing: 6) {
                             fighter(bout, 0)
-                            Text("vs").font(.system(size: 9)).foregroundStyle(.white.opacity(0.4))
+                            Text("vs").font(.system(size: 9)).foregroundStyle(faint(0.4))
                             fighter(bout, 1)
                         }
                     }
@@ -911,7 +972,7 @@ private struct NotchScoreDetail: View {
                     if side?.winner == true, index == 0 { Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)) }
                 }
                 if let record = side?.record {
-                    Text(record).font(.system(size: 9)).monospacedDigit().foregroundStyle(.white.opacity(0.45))
+                    Text(record).font(.system(size: 9)).monospacedDigit().foregroundStyle(faint(0.45))
                 }
             }
             if index == 1 { NotchScoreCrest(url: side?.logo, size: 14, placeholder: game.sport.symbol) }
@@ -931,12 +992,12 @@ private struct NotchScoreDetail: View {
             .font(.system(size: 10, weight: .semibold)).monospacedDigit().foregroundStyle(.red)
         case .finished:
             Text(bout.round > 0 ? "R\(bout.round) \(bout.clock)" : text.final)
-                .font(.system(size: 10)).monospacedDigit().foregroundStyle(.white.opacity(0.6))
+                .font(.system(size: 10)).monospacedDigit().foregroundStyle(faint(0.6))
         case .called:
             Text(bout.clock).font(.system(size: 10)).foregroundStyle(.orange)
         case .scheduled:
             Text(NotchScoresSupport.startText(game.start, locale: locale, now: Date()))
-                .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5))
+                .font(.system(size: 10)).foregroundStyle(faint(0.5))
         }
     }
 
@@ -946,7 +1007,7 @@ private struct NotchScoreDetail: View {
         VStack(alignment: .leading, spacing: 7) {
             if let title {
                 Text(title.uppercased())
-                    .font(.system(size: 9, weight: .semibold)).foregroundStyle(.white.opacity(0.45))
+                    .font(.system(size: 9, weight: .semibold)).tracking(0.4).foregroundStyle(faint(0.45))
             }
             content()
         }
@@ -964,22 +1025,71 @@ struct NotchScoreCrest: View {
     var dark = true
     /// Shown until the picture arrives, or for good when there is none.
     var placeholder: String? = nil
+    /// The placeholder's size, when it stands where a symbol of its own did.
+    var placeholderSize: CGFloat? = nil
+    /// A person's photo, filled into a circle.
+    var round = false
+    /// Behind a photo cut out of its background, as a team's color.
+    var backdrop: Color? = nil
     @ObservedObject private var crests = NotchScoresCrests.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let image = crests.image(url, dark: dark)
         Group {
-            if let image = crests.image(url, dark: dark) {
+            if let image, round {
+                Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
+                    .frame(width: size, height: size)
+                    .background(backdrop ?? .clear)
+                    .clipShape(Circle())
+            } else if let image {
                 Image(nsImage: image).resizable().interpolation(.high).scaledToFit()
             } else if let placeholder {
-                Image(systemName: placeholder).font(.system(size: size * 0.55)).foregroundStyle(.secondary)
+                Image(systemName: placeholder)
+                    .font(.system(size: placeholderSize ?? size * 0.55, weight: placeholderSize == nil ? .regular : .semibold))
+                    .foregroundStyle(placeholderSize == nil ? AnyShapeStyle(.secondary) : AnyShapeStyle(.primary))
             } else {
                 Color.clear
             }
         }
         .frame(width: size, height: size)
+        // A crest that arrives fades in over its placeholder, not in a pop.
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: image != nil)
         .onAppear { crests.load(url, dark: dark) }
         .onChange(of: url) { _, url in crests.load(url, dark: dark) }
         .accessibilityHidden(true)
+    }
+}
+
+/// A driver's row in their team's color: a wash of it behind the name and
+/// a solid edge, as timing screens mark each car.
+private struct NotchScoreLiveryBand: View {
+    let color: Color
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(color.opacity(contrast == .increased ? 0.4 : 0.26))
+            Capsule().fill(color).frame(width: 3).padding(.vertical, 3).padding(.leading, 2)
+        }
+    }
+}
+
+extension NotchScoreLivery {
+    var swiftColor: Color { Color(red: color.red, green: color.green, blue: color.blue) }
+}
+
+/// A score that changes rolls its digits over, the way a scoreboard
+/// ticks; Reduce Motion changes it in place.
+struct NotchScoreRolling: ViewModifier {
+    let value: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(.numericText())
+            .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: value)
     }
 }
 
@@ -1057,6 +1167,10 @@ struct NotchScoresStrip: View {
                 HStack(spacing: Self.spacing) {
                     if let game, let marks = NotchScoresSupport.compactMarks(game) {
                         NotchScoreCrest(url: marks.first ?? nil, size: mark)
+                    } else if let game, let leader = NotchScoresSupport.compactLeader(game), let portrait = leader.portrait {
+                        NotchScoreCrest(url: portrait, size: mark, placeholder: game.sport.symbol,
+                                        placeholderSize: textSize, round: true,
+                                        backdrop: scores.livery(leader, in: game)?.swiftColor)
                     } else {
                         Image(systemName: game?.sport.symbol ?? NotchModule.scores.symbol)
                             .font(.system(size: textSize, weight: .semibold))
@@ -1064,6 +1178,7 @@ struct NotchScoresStrip: View {
                     }
                     Text(compact?.leading ?? "").font(Font(Self.mainFont(textSize)))
                         .notchCapCentered(Self.mainFont(textSize))
+                        .modifier(NotchScoreRolling(value: compact?.leading ?? ""))
                 }
                 .lineLimit(1)
                 .padding(.leading, textInset)
@@ -1073,6 +1188,7 @@ struct NotchScoresStrip: View {
                 HStack(spacing: Self.spacing) {
                     Text(compact?.trailing ?? "").font(Font(Self.mainFont(textSize)))
                         .notchCapCentered(Self.mainFont(textSize))
+                        .modifier(NotchScoreRolling(value: compact?.trailing ?? ""))
                     if let game, let marks = NotchScoresSupport.compactMarks(game) {
                         NotchScoreCrest(url: marks.last ?? nil, size: mark)
                     }

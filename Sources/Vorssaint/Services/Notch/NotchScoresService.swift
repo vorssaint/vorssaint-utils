@@ -28,7 +28,23 @@ final class NotchScoresService: ObservableObject {
     private var loadingStandings = Set<String>()
     @Published private(set) var loadingChoices: Set<String> = []
     @Published private(set) var failedChoices: Set<String> = []
-    var pageVisible = false
+    /// Racing drivers' cars by "league/driver", read once a session.
+    @Published private(set) var liveries: [String: NotchScoreLivery] = [:]
+    private var liveriesRead: [String: Date] = [:]
+    /// The scores page is open: a game under way is read every few seconds,
+    /// and opening it reads one at once.
+    var pageVisible = false {
+        didSet {
+            guard pageVisible, !oldValue, running, !polling, games.contains(where: { $0.state == .live }),
+                  (timer?.fireDate.timeIntervalSinceNow ?? 0) > 1 else { return }
+            schedule(after: 0)
+        }
+    }
+
+    private var pace: NotchScorePace {
+        if ProcessInfo.processInfo.isLowPowerModeEnabled { return .saving }
+        return pageVisible ? .watching : .glancing
+    }
 
     private var store: [String: NotchScoreGame] = [:]
     private var lastDiscovery: Date?
@@ -137,12 +153,12 @@ final class NotchScoresService: ObservableObject {
         }
     }
 
-    /// The tables of a game's league, read again after half an hour; a
-    /// table changes only between games.
+    /// The tables of a game's league, read again after ten minutes, and as
+    /// soon as one of its games ends; a table changes only between games.
     func loadStandings(for game: NotchScoreGame) {
         let key = game.sport.rawValue + "/" + game.league
         guard !loadingStandings.contains(key),
-              Date().timeIntervalSince(standingsRead[key] ?? .distantPast) > 30 * 60,
+              Date().timeIntervalSince(standingsRead[key] ?? .distantPast) > NotchScoresSupport.standingsInterval,
               let url = NotchScoresSupport.standingsURL(sport: game.sport, league: game.league) else { return }
         loadingStandings.insert(key)
         let sport = game.sport, league = game.league
@@ -196,8 +212,11 @@ final class NotchScoresService: ObservableObject {
             self.fetch(boards, follows: follows, generation: generation) { [weak self] live, liveFailures in
                 guard let self, generation == self.generation else { return }
                 let attempts = discovery.count + boards.count
-                self.apply(listed + live, discovered: discovers && listedFailures < discovery.count,
-                           failed: attempts > 0 && listedFailures + liveFailures == attempts)
+                self.qualifying(listed + live, generation: generation) { [weak self] games in
+                    guard let self, generation == self.generation else { return }
+                    self.apply(games, discovered: discovers && listedFailures < discovery.count,
+                               failed: attempts > 0 && listedFailures + liveFailures == attempts)
+                }
             }
         }
     }
@@ -222,6 +241,34 @@ final class NotchScoresService: ObservableObject {
         }
     }
 
+    /// A live qualifying's part, read from two drivers' timing, since the
+    /// scoreboard says only that it is under way.
+    private func qualifying(_ games: [NotchScoreGame], generation: Int, completion: @escaping ([NotchScoreGame]) -> Void) {
+        var games = games.map { game -> NotchScoreGame in
+            var game = game
+            game.segment = max(game.segment, store[game.id]?.segment ?? 0)
+            return game
+        }
+        let probes = games.indices.flatMap { index in NotchScoresSupport.segmentProbes(games[index]).map { (index, $0) } }
+        guard !probes.isEmpty else { completion(games); return }
+        var finished: [Int: [Int: Bool]] = [:]
+        var remaining = probes.count
+        for (index, probe) in probes {
+            download(probe.url) { [weak self] data in
+                guard let self, generation == self.generation else { return }
+                if let found = data.flatMap({ NotchScoresSupport.hasQualifyingTime($0, part: probe.part) }) {
+                    finished[index, default: [:]][probe.part] = found
+                }
+                remaining -= 1
+                guard remaining == 0 else { return }
+                for (index, parts) in finished {
+                    games[index].segment = NotchScoresSupport.segment(previous: games[index].segment, finished: parts)
+                }
+                completion(games)
+            }
+        }
+    }
+
     private func apply(_ incoming: [NotchScoreGame], discovered: Bool, failed: Bool) {
         polling = false
         guard running else { return }
@@ -232,7 +279,15 @@ final class NotchScoresService: ObservableObject {
         var changes: [(NotchScoreChange, NotchScoreGame)] = []
         for id in Set(incoming.map(\.id)) {
             guard let old = previous[id], let new = store[id] else { continue }
-            if old.state == .live, new.state == .finished { finishedAt[id] = now }
+            if old.state == .live, new.state == .finished {
+                finishedAt[id] = now
+                // The result moves the table: one already shown is read again.
+                let key = new.sport.rawValue + "/" + new.league
+                if standings[key] != nil {
+                    standingsRead[key] = nil
+                    loadStandings(for: new)
+                }
+            }
             if let change = NotchScoresSupport.change(from: old, to: new) { changes.append((change, new)) }
         }
         finishedAt = finishedAt.filter { store[$0.key] != nil && now.timeIntervalSince($0.value) < NotchScoresSupport.finalHold }
@@ -240,7 +295,8 @@ final class NotchScoresService: ObservableObject {
         publish()
         // The latest change speaks last, so it is the one left on screen.
         for (change, game) in changes.sorted(by: { $0.1.start < $1.1.start }) { announce(change, in: game) }
-        let next = NotchScoresSupport.nextPoll(games, lastDiscovery: lastDiscovery, now: now)
+        loadLiveries()
+        let next = NotchScoresSupport.nextPoll(games, lastDiscovery: lastDiscovery, now: now, pace: pace)
         // A failed reading waits a little longer, without losing a game under way.
         schedule(after: failed ? max(next, 60) : next)
         // A result leaves the island once its time there is up.
@@ -251,6 +307,30 @@ final class NotchScoresService: ObservableObject {
                 self.finishedAt = self.finishedAt.filter { Date().timeIntervalSince($0.value) < NotchScoresSupport.finalHold }
             }
         }
+    }
+
+    /// Each racing session's cars, once its drivers are listed: their team
+    /// colors behind the drivers on the page and the island. A session
+    /// whose cars are all known is not asked; one that did not answer
+    /// waits ten minutes.
+    private func loadLiveries() {
+        for game in store.values where game.sport == .racing && !game.sides.isEmpty {
+            guard game.sides.contains(where: { liveries[game.league + "/" + $0.id] == nil }),
+                  Date().timeIntervalSince(liveriesRead[game.id] ?? .distantPast) > 10 * 60,
+                  let url = NotchScoresSupport.liveryURL(game) else { continue }
+            liveriesRead[game.id] = Date()
+            let league = game.league
+            download(url, tracked: false) { [weak self] data in
+                guard let self, let found = data.flatMap(NotchScoresSupport.liveries(from:)), !found.isEmpty else { return }
+                var merged = self.liveries
+                for (id, livery) in found { merged[league + "/" + id] = livery }
+                if merged != self.liveries { self.liveries = merged }
+            }
+        }
+    }
+
+    func livery(_ side: NotchScoreSide, in game: NotchScoreGame) -> NotchScoreLivery? {
+        liveries[game.league + "/" + side.id]
     }
 
     private func publish() {

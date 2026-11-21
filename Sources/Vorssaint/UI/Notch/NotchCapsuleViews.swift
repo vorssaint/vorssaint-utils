@@ -584,7 +584,15 @@ struct NotchCapsuleScoresStrip: View {
                     NotchScoreCrest(url: marks.first ?? nil, size: CapsuleLayout.symbolWidth)
                     Text(NotchScoresSupport.compactCore(game, text: text)).font(Font(CapsuleLayout.levelFont as CTFont))
                         .notchCapCentered(CapsuleLayout.levelFont)
+                        .modifier(NotchScoreRolling(value: NotchScoresSupport.compactCore(game, text: text)))
                     NotchScoreCrest(url: marks.last ?? nil, size: CapsuleLayout.symbolWidth)
+                } else if let game, let leader = NotchScoresSupport.compactLeader(game), let portrait = leader.portrait {
+                    NotchScoreCrest(url: portrait, size: CapsuleLayout.symbolWidth, placeholder: game.sport.symbol,
+                                    placeholderSize: CapsuleLayout.symbolSize, round: true,
+                                    backdrop: scores.livery(leader, in: game)?.swiftColor)
+                    Text(NotchScoresSupport.compactCore(game, text: text))
+                        .font(Font(CapsuleLayout.levelFont as CTFont))
+                        .modifier(NotchScoreRolling(value: NotchScoresSupport.compactCore(game, text: text)))
                 } else {
                     Image(systemName: game?.sport.symbol ?? NotchModule.scores.symbol)
                         .font(.system(size: CapsuleLayout.symbolSize, weight: .medium))

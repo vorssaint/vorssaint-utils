@@ -97,6 +97,16 @@ struct NotchScoresStrings {
     let lostShort: String
     let goalDifferenceShort: String
     let pointsShort: String
+    let motorsport: String
+    let country: String
+    let international: String
+    let england: String
+    /// The Settings preview’s game, before anything followed is on.
+    let sampleHome: String
+    let sampleAway: String
+    let sampleGame: String
+    /// A free practice session by its number: Practice 2.
+    let practiceFormat: String
 
     func sport(_ sport: NotchScoreSport) -> String {
         switch sport {
@@ -107,7 +117,7 @@ struct NotchScoresStrings {
         case .hockey: return hockey
         case .tennis: return tennis
         case .golf: return golf
-        case .racing: return racing
+        case .racing: return motorsport
         case .mma: return mma
         }
     }
@@ -194,6 +204,8 @@ struct NotchScoresStrings {
         case "race": return race
         case "qual", "qualifying": return qualifying
         case "sprint", "sr": return sprint
+        case let name where name.hasPrefix("fp") && name.dropFirst(2).allSatisfy(\.isNumber):
+            return String(format: practiceFormat, String(name.dropFirst(2)))
         default: return abbreviation
         }
     }
@@ -240,11 +252,12 @@ extension FeatureStrings {
             goal: "Goal", touchdown: "Touchdown", fieldGoal: "Field Goal", safety: "Safety", scored: "Score",
             started: "Started", final: "Final", setWon: "Set",
             race: "Race", qualifying: "Qualifying", sprint: "Sprint", lapFormat: "Lap %@",
-            sportLabel: "Sport", everyGame: "Every game", everyMatch: "Every singles match", everySession: "Qualifying, sprints and races",
+            sportLabel: "Sport", everyGame: "Every game", everyMatch: "Every singles match", everySession: "Practice, qualifying, sprints and races",
             possession: "Possession", shots: "Shots", shotsOnTarget: "On Target", corners: "Corners", fouls: "Fouls", offsides: "Offsides", saves: "Saves", moments: "Key Moments", stats: "Stats", leaders: "Leaders", passing: "Passing", rushing: "Rushing", receiving: "Receiving", ownGoal: "OG", penalty: "pen.", lastPlay: "Last play", openESPN: "Open in ESPN",
             basketball: "Basketball", baseball: "Baseball", hockey: "Hockey", golf: "Golf", mma: "MMA", everyTournament: "Every tournament", everyCard: "Every fight card", run: "Run", fieldGoals: "Field Goals", threePointers: "3-Pointers", freeThrows: "Free Throws", rebounds: "Rebounds", assists: "Assists", savePercentage: "Save %", points: "Points", goals: "Goals", topPerformer: "Top Performer", roundFormat: "Round %@", thru: "Thru", leaderboard: "Leaderboard", fights: "Fights", winsFormat: "%@ wins",
             collegeFootball: "College Football", collegeBasketball: "College Basketball", conference: "Conference",
-            standings: "Standings", playedShort: "P", wonShort: "W", drawnShort: "D", lostShort: "L", goalDifferenceShort: "GD", pointsShort: "Pts")
+            standings: "Standings", playedShort: "P", wonShort: "W", drawnShort: "D", lostShort: "L", goalDifferenceShort: "GD", pointsShort: "Pts",
+            motorsport: "Racing", country: "Country", international: "International", england: "England", sampleHome: "Home", sampleAway: "Away", sampleGame: "Sample game", practiceFormat: "Practice %@")
         case .ptBR: return NotchScoresStrings(
             title: "Placar",
             description: "Acompanhe ao vivo o placar dos seus times e atletas na Dynamic Island: futebol, futebol americano, tênis e Fórmula 1.",
@@ -265,11 +278,12 @@ extension FeatureStrings {
             goal: "Gol", touchdown: "Touchdown", fieldGoal: "Field Goal", safety: "Safety", scored: "Pontos",
             started: "Começou", final: "Fim de jogo", setWon: "Set",
             race: "Corrida", qualifying: "Classificação", sprint: "Sprint", lapFormat: "Volta %@",
-            sportLabel: "Esporte", everyGame: "Todos os jogos", everyMatch: "Todas as partidas de simples", everySession: "Classificações, sprints e corridas",
+            sportLabel: "Esporte", everyGame: "Todos os jogos", everyMatch: "Todas as partidas de simples", everySession: "Treinos, classificações, sprints e corridas",
             possession: "Posse de bola", shots: "Finalizações", shotsOnTarget: "No gol", corners: "Escanteios", fouls: "Faltas", offsides: "Impedimentos", saves: "Defesas", moments: "Lances", stats: "Estatísticas", leaders: "Destaques", passing: "Passes", rushing: "Corridas", receiving: "Recepções", ownGoal: "contra", penalty: "pên.", lastPlay: "Última jogada", openESPN: "Abrir na ESPN",
             basketball: "Basquete", baseball: "Beisebol", hockey: "Hóquei", golf: "Golfe", mma: "MMA", everyTournament: "Todos os torneios", everyCard: "Todos os eventos", run: "Corrida", fieldGoals: "Arremessos", threePointers: "Bolas de 3", freeThrows: "Lances livres", rebounds: "Rebotes", assists: "Assistências", savePercentage: "% de defesas", points: "Pontos", goals: "Gols", topPerformer: "Destaque", roundFormat: "Rodada %@", thru: "Buracos", leaderboard: "Classificação", fights: "Lutas", winsFormat: "%@ vence",
             collegeFootball: "Futebol Americano Universitário", collegeBasketball: "Basquete Universitário", conference: "Conferência",
-            standings: "Classificação", playedShort: "J", wonShort: "V", drawnShort: "E", lostShort: "D", goalDifferenceShort: "SG", pointsShort: "Pts")
+            standings: "Classificação", playedShort: "J", wonShort: "V", drawnShort: "E", lostShort: "D", goalDifferenceShort: "SG", pointsShort: "Pts",
+            motorsport: "Automobilismo", country: "País", international: "Internacional", england: "Inglaterra", sampleHome: "Mandante", sampleAway: "Visitante", sampleGame: "Jogo de exemplo", practiceFormat: "Treino Livre %@")
         case .es: return NotchScoresStrings(
             title: "Marcadores",
             description: "Sigue en vivo los marcadores de tus equipos y deportistas en la Dynamic Island: fútbol, fútbol americano, tenis y Fórmula 1.",
@@ -290,11 +304,12 @@ extension FeatureStrings {
             goal: "Gol", touchdown: "Touchdown", fieldGoal: "Gol de campo", safety: "Safety", scored: "Puntos",
             started: "Empezó", final: "Final", setWon: "Set",
             race: "Carrera", qualifying: "Clasificación", sprint: "Sprint", lapFormat: "Vuelta %@",
-            sportLabel: "Deporte", everyGame: "Todos los partidos", everyMatch: "Todos los partidos individuales", everySession: "Clasificaciones, sprints y carreras",
+            sportLabel: "Deporte", everyGame: "Todos los partidos", everyMatch: "Todos los partidos individuales", everySession: "Libres, clasificaciones, sprints y carreras",
             possession: "Posesión", shots: "Tiros", shotsOnTarget: "A puerta", corners: "Córneres", fouls: "Faltas", offsides: "Fueras de juego", saves: "Atajadas", moments: "Momentos clave", stats: "Estadísticas", leaders: "Líderes", passing: "Pases", rushing: "Carreras", receiving: "Recepciones", ownGoal: "p. p.", penalty: "pen.", lastPlay: "Última jugada", openESPN: "Abrir en ESPN",
             basketball: "Baloncesto", baseball: "Béisbol", hockey: "Hockey", golf: "Golf", mma: "MMA", everyTournament: "Todos los torneos", everyCard: "Todas las veladas", run: "Carrera", fieldGoals: "Tiros de campo", threePointers: "Triples", freeThrows: "Tiros libres", rebounds: "Rebotes", assists: "Asistencias", savePercentage: "% de paradas", points: "Puntos", goals: "Goles", topPerformer: "Figura", roundFormat: "Ronda %@", thru: "Hoyos", leaderboard: "Clasificación", fights: "Combates", winsFormat: "Gana %@",
             collegeFootball: "Fútbol Americano Universitario", collegeBasketball: "Baloncesto Universitario", conference: "Conferencia",
-            standings: "Clasificación", playedShort: "PJ", wonShort: "G", drawnShort: "E", lostShort: "P", goalDifferenceShort: "DG", pointsShort: "Pts")
+            standings: "Clasificación", playedShort: "PJ", wonShort: "G", drawnShort: "E", lostShort: "P", goalDifferenceShort: "DG", pointsShort: "Pts",
+            motorsport: "Automovilismo", country: "País", international: "Internacional", england: "Inglaterra", sampleHome: "Local", sampleAway: "Visitante", sampleGame: "Partido de ejemplo", practiceFormat: "Libres %@")
         case .sk: return NotchScoresStrings(
             title: "Výsledky",
             description: "Sledujte živé výsledky svojich tímov a športovcov v Dynamic Island: futbal, americký futbal, tenis a Formula 1.",
@@ -315,11 +330,12 @@ extension FeatureStrings {
             goal: "Gól", touchdown: "Touchdown", fieldGoal: "Field goal", safety: "Safety", scored: "Body",
             started: "Začalo sa", final: "Koniec", setWon: "Set",
             race: "Preteky", qualifying: "Kvalifikácia", sprint: "Šprint", lapFormat: "Kolo %@",
-            sportLabel: "Šport", everyGame: "Všetky zápasy", everyMatch: "Všetky zápasy dvojhry", everySession: "Kvalifikácie, šprinty a preteky",
+            sportLabel: "Šport", everyGame: "Všetky zápasy", everyMatch: "Všetky zápasy dvojhry", everySession: "Tréningy, kvalifikácie, šprinty a preteky",
             possession: "Držanie lopty", shots: "Strely", shotsOnTarget: "Na bránu", corners: "Rohy", fouls: "Fauly", offsides: "Ofsajdy", saves: "Zákroky", moments: "Kľúčové momenty", stats: "Štatistiky", leaders: "Najlepší", passing: "Prihrávky", rushing: "Behy", receiving: "Chytenia", ownGoal: "vl.", penalty: "pen.", lastPlay: "Posledná akcia", openESPN: "Otvoriť v ESPN",
             basketball: "Basketbal", baseball: "Bejzbal", hockey: "Hokej", golf: "Golf", mma: "MMA", everyTournament: "Všetky turnaje", everyCard: "Všetky galavečery", run: "Bod", fieldGoals: "Streľba z hry", threePointers: "Trojky", freeThrows: "Trestné hody", rebounds: "Doskoky", assists: "Asistencie", savePercentage: "Úspešnosť zákrokov", points: "Body", goals: "Góly", topPerformer: "Najlepší hráč", roundFormat: "%@. kolo", thru: "Jamky", leaderboard: "Poradie", fights: "Zápasy", winsFormat: "Vyhráva %@",
             collegeFootball: "Univerzitný americký futbal", collegeBasketball: "Univerzitný basketbal", conference: "Konferencia",
-            standings: "Tabuľka", playedShort: "Z", wonShort: "V", drawnShort: "R", lostShort: "P", goalDifferenceShort: "+/-", pointsShort: "B")
+            standings: "Tabuľka", playedShort: "Z", wonShort: "V", drawnShort: "R", lostShort: "P", goalDifferenceShort: "+/-", pointsShort: "B",
+            motorsport: "Motorizmus", country: "Krajina", international: "Medzinárodné", england: "Anglicko", sampleHome: "Domáci", sampleAway: "Hostia", sampleGame: "Ukážkový zápas", practiceFormat: "Tréning %@")
         case .de: return NotchScoresStrings(
             title: "Spielstände",
             description: "Verfolge die Live-Spielstände deiner Teams und Sportler in der Dynamic Island: Fußball, American Football, Tennis und Formel 1.",
@@ -340,11 +356,12 @@ extension FeatureStrings {
             goal: "Tor", touchdown: "Touchdown", fieldGoal: "Field Goal", safety: "Safety", scored: "Punkte",
             started: "Angepfiffen", final: "Ende", setWon: "Satz",
             race: "Rennen", qualifying: "Qualifying", sprint: "Sprint", lapFormat: "Runde %@",
-            sportLabel: "Sportart", everyGame: "Alle Spiele", everyMatch: "Alle Einzelmatches", everySession: "Qualifyings, Sprints und Rennen",
+            sportLabel: "Sportart", everyGame: "Alle Spiele", everyMatch: "Alle Einzelmatches", everySession: "Trainings, Qualifyings, Sprints und Rennen",
             possession: "Ballbesitz", shots: "Schüsse", shotsOnTarget: "Aufs Tor", corners: "Ecken", fouls: "Fouls", offsides: "Abseits", saves: "Paraden", moments: "Schlüsselmomente", stats: "Statistiken", leaders: "Bestwerte", passing: "Pässe", rushing: "Läufe", receiving: "Fänge", ownGoal: "ET", penalty: "Elfm.", lastPlay: "Letzter Spielzug", openESPN: "In ESPN öffnen",
             basketball: "Basketball", baseball: "Baseball", hockey: "Eishockey", golf: "Golf", mma: "MMA", everyTournament: "Alle Turniere", everyCard: "Alle Kampfabende", run: "Run", fieldGoals: "Würfe aus dem Feld", threePointers: "Dreier", freeThrows: "Freiwürfe", rebounds: "Rebounds", assists: "Assists", savePercentage: "Fangquote", points: "Punkte", goals: "Tore", topPerformer: "Bester Spieler", roundFormat: "Runde %@", thru: "Loch", leaderboard: "Rangliste", fights: "Kämpfe", winsFormat: "%@ gewinnt",
             collegeFootball: "College Football", collegeBasketball: "College-Basketball", conference: "Conference",
-            standings: "Tabelle", playedShort: "Sp.", wonShort: "S", drawnShort: "U", lostShort: "N", goalDifferenceShort: "Diff.", pointsShort: "Pkt.")
+            standings: "Tabelle", playedShort: "Sp.", wonShort: "S", drawnShort: "U", lostShort: "N", goalDifferenceShort: "Diff.", pointsShort: "Pkt.",
+            motorsport: "Motorsport", country: "Land", international: "International", england: "England", sampleHome: "Heim", sampleAway: "Gast", sampleGame: "Beispielspiel", practiceFormat: "Training %@")
         case .fr: return NotchScoresStrings(
             title: "Scores",
             description: "Suivez en direct les scores de vos équipes et sportifs dans la Dynamic Island : football, football américain, tennis et Formule 1.",
@@ -365,11 +382,12 @@ extension FeatureStrings {
             goal: "But", touchdown: "Touchdown", fieldGoal: "Field goal", safety: "Safety", scored: "Points",
             started: "Coup d’envoi", final: "Fin du match", setWon: "Set",
             race: "Course", qualifying: "Qualifications", sprint: "Sprint", lapFormat: "Tour %@",
-            sportLabel: "Sport", everyGame: "Tous les matchs", everyMatch: "Tous les matchs en simple", everySession: "Qualifications, sprints et courses",
+            sportLabel: "Sport", everyGame: "Tous les matchs", everyMatch: "Tous les matchs en simple", everySession: "Essais, qualifications, sprints et courses",
             possession: "Possession", shots: "Tirs", shotsOnTarget: "Cadrés", corners: "Corners", fouls: "Fautes", offsides: "Hors-jeu", saves: "Arrêts", moments: "Temps forts", stats: "Statistiques", leaders: "Meilleurs joueurs", passing: "Passes", rushing: "Courses", receiving: "Réceptions", ownGoal: "c.s.c.", penalty: "pén.", lastPlay: "Dernière action", openESPN: "Ouvrir dans ESPN",
             basketball: "Basket-ball", baseball: "Baseball", hockey: "Hockey", golf: "Golf", mma: "MMA", everyTournament: "Tous les tournois", everyCard: "Tous les galas", run: "Point", fieldGoals: "Tirs", threePointers: "Tirs à 3 points", freeThrows: "Lancers francs", rebounds: "Rebonds", assists: "Passes décisives", savePercentage: "% d’arrêts", points: "Points", goals: "Buts", topPerformer: "Meilleur joueur", roundFormat: "Tour %@", thru: "Trou", leaderboard: "Classement", fights: "Combats", winsFormat: "%@ l’emporte",
             collegeFootball: "Football américain universitaire", collegeBasketball: "Basket-ball universitaire", conference: "Conférence",
-            standings: "Classement", playedShort: "J", wonShort: "G", drawnShort: "N", lostShort: "P", goalDifferenceShort: "Diff.", pointsShort: "Pts")
+            standings: "Classement", playedShort: "J", wonShort: "G", drawnShort: "N", lostShort: "P", goalDifferenceShort: "Diff.", pointsShort: "Pts",
+            motorsport: "Sport automobile", country: "Pays", international: "International", england: "Angleterre", sampleHome: "Domicile", sampleAway: "Extérieur", sampleGame: "Match d’exemple", practiceFormat: "Essais libres %@")
         case .it: return NotchScoresStrings(
             title: "Risultati",
             description: "Segui in diretta i risultati delle tue squadre e dei tuoi atleti nella Dynamic Island: calcio, football americano, tennis e Formula 1.",
@@ -390,11 +408,12 @@ extension FeatureStrings {
             goal: "Gol", touchdown: "Touchdown", fieldGoal: "Field goal", safety: "Safety", scored: "Punti",
             started: "Iniziata", final: "Finale", setWon: "Set",
             race: "Gara", qualifying: "Qualifiche", sprint: "Sprint", lapFormat: "Giro %@",
-            sportLabel: "Sport", everyGame: "Tutte le partite", everyMatch: "Tutti gli incontri di singolare", everySession: "Qualifiche, sprint e gare",
+            sportLabel: "Sport", everyGame: "Tutte le partite", everyMatch: "Tutti gli incontri di singolare", everySession: "Prove libere, qualifiche, sprint e gare",
             possession: "Possesso palla", shots: "Tiri", shotsOnTarget: "In porta", corners: "Calci d’angolo", fouls: "Falli", offsides: "Fuorigioco", saves: "Parate", moments: "Momenti chiave", stats: "Statistiche", leaders: "Migliori", passing: "Passaggi", rushing: "Corse", receiving: "Ricezioni", ownGoal: "aut.", penalty: "rig.", lastPlay: "Ultima azione", openESPN: "Apri in ESPN",
             basketball: "Basket", baseball: "Baseball", hockey: "Hockey", golf: "Golf", mma: "MMA", everyTournament: "Tutti i tornei", everyCard: "Tutte le serate", run: "Punto", fieldGoals: "Tiri dal campo", threePointers: "Tiri da 3", freeThrows: "Tiri liberi", rebounds: "Rimbalzi", assists: "Assist", savePercentage: "% parate", points: "Punti", goals: "Gol", topPerformer: "Migliore in campo", roundFormat: "Giro %@", thru: "Buca", leaderboard: "Classifica", fights: "Incontri", winsFormat: "Vince %@",
             collegeFootball: "Football americano universitario", collegeBasketball: "Basket universitario", conference: "Conference",
-            standings: "Classifica", playedShort: "G", wonShort: "V", drawnShort: "N", lostShort: "P", goalDifferenceShort: "DR", pointsShort: "Pt")
+            standings: "Classifica", playedShort: "G", wonShort: "V", drawnShort: "N", lostShort: "P", goalDifferenceShort: "DR", pointsShort: "Pt",
+            motorsport: "Motori", country: "Paese", international: "Internazionale", england: "Inghilterra", sampleHome: "Casa", sampleAway: "Ospiti", sampleGame: "Partita di esempio", practiceFormat: "Prove libere %@")
         case .ru: return NotchScoresStrings(
             title: "Счёт",
             description: "Следите за счётом своих команд и спортсменов в Dynamic Island в реальном времени: футбол, американский футбол, теннис и «Формула-1».",
@@ -415,11 +434,12 @@ extension FeatureStrings {
             goal: "Гол", touchdown: "Тачдаун", fieldGoal: "Филд-гол", safety: "Сейфти", scored: "Очки",
             started: "Начался", final: "Конец", setWon: "Сет",
             race: "Гонка", qualifying: "Квалификация", sprint: "Спринт", lapFormat: "Круг %@",
-            sportLabel: "Вид спорта", everyGame: "Все матчи", everyMatch: "Все одиночные матчи", everySession: "Квалификации, спринты и гонки",
+            sportLabel: "Вид спорта", everyGame: "Все матчи", everyMatch: "Все одиночные матчи", everySession: "Практики, квалификации, спринты и гонки",
             possession: "Владение", shots: "Удары", shotsOnTarget: "В створ", corners: "Угловые", fouls: "Фолы", offsides: "Офсайды", saves: "Сейвы", moments: "Ключевые моменты", stats: "Статистика", leaders: "Лидеры", passing: "Пасы", rushing: "Выносы", receiving: "Приёмы", ownGoal: "авт.", penalty: "пен.", lastPlay: "Последний розыгрыш", openESPN: "Открыть в ESPN",
             basketball: "Баскетбол", baseball: "Бейсбол", hockey: "Хоккей", golf: "Гольф", mma: "ММА", everyTournament: "Все турниры", everyCard: "Все бойцовские вечера", run: "Ран", fieldGoals: "Броски с игры", threePointers: "Трёхочковые", freeThrows: "Штрафные", rebounds: "Подборы", assists: "Передачи", savePercentage: "% отражённых", points: "Очки", goals: "Голы", topPerformer: "Лучший игрок", roundFormat: "Раунд %@", thru: "Лунка", leaderboard: "Таблица лидеров", fights: "Бои", winsFormat: "Победа: %@",
             collegeFootball: "Студенческий американский футбол", collegeBasketball: "Студенческий баскетбол", conference: "Конференция",
-            standings: "Таблица", playedShort: "И", wonShort: "В", drawnShort: "Н", lostShort: "П", goalDifferenceShort: "РМ", pointsShort: "О")
+            standings: "Таблица", playedShort: "И", wonShort: "В", drawnShort: "Н", lostShort: "П", goalDifferenceShort: "РМ", pointsShort: "О",
+            motorsport: "Автоспорт", country: "Страна", international: "Международные", england: "Англия", sampleHome: "Хозяева", sampleAway: "Гости", sampleGame: "Пример матча", practiceFormat: "Практика %@")
         case .tr: return NotchScoresStrings(
             title: "Skorlar",
             description: "Takımlarının ve sporcularının skorlarını Dynamic Island’da canlı takip et: futbol, Amerikan futbolu, tenis ve Formula 1.",
@@ -440,11 +460,12 @@ extension FeatureStrings {
             goal: "Gol", touchdown: "Touchdown", fieldGoal: "Field Goal", safety: "Safety", scored: "Sayı",
             started: "Başladı", final: "Maç Sonu", setWon: "Set",
             race: "Yarış", qualifying: "Sıralama", sprint: "Sprint", lapFormat: "Tur %@",
-            sportLabel: "Spor", everyGame: "Tüm maçlar", everyMatch: "Tüm tekler maçları", everySession: "Sıralamalar, sprintler ve yarışlar",
+            sportLabel: "Spor", everyGame: "Tüm maçlar", everyMatch: "Tüm tekler maçları", everySession: "Antrenmanlar, sıralamalar, sprintler ve yarışlar",
             possession: "Topla oynama", shots: "Şut", shotsOnTarget: "İsabetli", corners: "Korner", fouls: "Faul", offsides: "Ofsayt", saves: "Kurtarış", moments: "Önemli anlar", stats: "İstatistikler", leaders: "Liderler", passing: "Pas", rushing: "Koşu", receiving: "Top tutma", ownGoal: "k.k.", penalty: "pen.", lastPlay: "Son oyun", openESPN: "ESPN’de aç",
             basketball: "Basketbol", baseball: "Beyzbol", hockey: "Hokey", golf: "Golf", mma: "MMA", everyTournament: "Tüm turnuvalar", everyCard: "Tüm dövüş geceleri", run: "Sayı", fieldGoals: "Saha içi atış", threePointers: "Üçlük", freeThrows: "Serbest atış", rebounds: "Ribaunt", assists: "Asist", savePercentage: "Kurtarış %", points: "Puan", goals: "Gol", topPerformer: "En iyi oyuncu", roundFormat: "%@. tur", thru: "Delik", leaderboard: "Sıralama", fights: "Dövüşler", winsFormat: "%@ kazandı",
             collegeFootball: "Üniversite Amerikan Futbolu", collegeBasketball: "Üniversite Basketbolu", conference: "Konferans",
-            standings: "Puan Durumu", playedShort: "O", wonShort: "G", drawnShort: "B", lostShort: "M", goalDifferenceShort: "AV", pointsShort: "P")
+            standings: "Puan Durumu", playedShort: "O", wonShort: "G", drawnShort: "B", lostShort: "M", goalDifferenceShort: "AV", pointsShort: "P",
+            motorsport: "Motor Sporları", country: "Ülke", international: "Uluslararası", england: "İngiltere", sampleHome: "Ev Sahibi", sampleAway: "Deplasman", sampleGame: "Örnek maç", practiceFormat: "Antrenman %@")
         case .ja: return NotchScoresStrings(
             title: "スコア",
             description: "応援しているチームや選手のスコアをDynamic Islandでライブ表示します。サッカー、アメフト、テニス、F1に対応。",
@@ -465,11 +486,12 @@ extension FeatureStrings {
             goal: "ゴール", touchdown: "タッチダウン", fieldGoal: "フィールドゴール", safety: "セーフティ", scored: "得点",
             started: "試合開始", final: "試合終了", setWon: "セット",
             race: "決勝", qualifying: "予選", sprint: "スプリント", lapFormat: "%@周",
-            sportLabel: "スポーツ", everyGame: "すべての試合", everyMatch: "すべてのシングルスの試合", everySession: "予選、スプリント、決勝",
+            sportLabel: "スポーツ", everyGame: "すべての試合", everyMatch: "すべてのシングルスの試合", everySession: "フリー走行、予選、スプリント、決勝",
             possession: "ボール支配率", shots: "シュート", shotsOnTarget: "枠内", corners: "コーナー", fouls: "ファウル", offsides: "オフサイド", saves: "セーブ", moments: "主な出来事", stats: "スタッツ", leaders: "リーダー", passing: "パス", rushing: "ラン", receiving: "レシーブ", ownGoal: "OG", penalty: "PK", lastPlay: "直前のプレー", openESPN: "ESPNで開く",
             basketball: "バスケットボール", baseball: "野球", hockey: "アイスホッケー", golf: "ゴルフ", mma: "総合格闘技", everyTournament: "すべての大会", everyCard: "すべての興行", run: "得点", fieldGoals: "フィールドゴール", threePointers: "3ポイント", freeThrows: "フリースロー", rebounds: "リバウンド", assists: "アシスト", savePercentage: "セーブ率", points: "得点", goals: "ゴール", topPerformer: "最優秀選手", roundFormat: "ラウンド%@", thru: "ホール", leaderboard: "リーダーボード", fights: "試合", winsFormat: "%@の勝利",
             collegeFootball: "カレッジフットボール", collegeBasketball: "カレッジバスケットボール", conference: "カンファレンス",
-            standings: "順位表", playedShort: "試合", wonShort: "勝", drawnShort: "分", lostShort: "敗", goalDifferenceShort: "得失", pointsShort: "勝点")
+            standings: "順位表", playedShort: "試合", wonShort: "勝", drawnShort: "分", lostShort: "敗", goalDifferenceShort: "得失", pointsShort: "勝点",
+            motorsport: "モータースポーツ", country: "国", international: "国際", england: "イングランド", sampleHome: "ホーム", sampleAway: "アウェー", sampleGame: "サンプルの試合", practiceFormat: "フリー走行%@")
         case .ko: return NotchScoresStrings(
             title: "스코어",
             description: "응원하는 팀과 선수의 스코어를 Dynamic Island에서 실시간으로 확인하세요. 축구, 미식축구, 테니스, F1을 지원합니다.",
@@ -490,11 +512,12 @@ extension FeatureStrings {
             goal: "골", touchdown: "터치다운", fieldGoal: "필드골", safety: "세이프티", scored: "득점",
             started: "경기 시작", final: "경기 종료", setWon: "세트",
             race: "결승", qualifying: "예선", sprint: "스프린트", lapFormat: "%@랩",
-            sportLabel: "종목", everyGame: "모든 경기", everyMatch: "모든 단식 경기", everySession: "예선, 스프린트, 결승",
+            sportLabel: "종목", everyGame: "모든 경기", everyMatch: "모든 단식 경기", everySession: "연습 주행, 예선, 스프린트, 결승",
             possession: "점유율", shots: "슈팅", shotsOnTarget: "유효 슈팅", corners: "코너킥", fouls: "파울", offsides: "오프사이드", saves: "선방", moments: "주요 장면", stats: "기록", leaders: "리더", passing: "패싱", rushing: "러싱", receiving: "리시빙", ownGoal: "자책", penalty: "PK", lastPlay: "마지막 플레이", openESPN: "ESPN에서 열기",
             basketball: "농구", baseball: "야구", hockey: "아이스하키", golf: "골프", mma: "종합격투기", everyTournament: "모든 대회", everyCard: "모든 이벤트", run: "득점", fieldGoals: "야투", threePointers: "3점슛", freeThrows: "자유투", rebounds: "리바운드", assists: "어시스트", savePercentage: "세이브율", points: "득점", goals: "골", topPerformer: "최고 선수", roundFormat: "%@라운드", thru: "홀", leaderboard: "리더보드", fights: "경기", winsFormat: "%@ 승리",
             collegeFootball: "대학 미식축구", collegeBasketball: "대학 농구", conference: "콘퍼런스",
-            standings: "순위", playedShort: "경기", wonShort: "승", drawnShort: "무", lostShort: "패", goalDifferenceShort: "득실", pointsShort: "승점")
+            standings: "순위", playedShort: "경기", wonShort: "승", drawnShort: "무", lostShort: "패", goalDifferenceShort: "득실", pointsShort: "승점",
+            motorsport: "모터스포츠", country: "국가", international: "국제", england: "잉글랜드", sampleHome: "홈", sampleAway: "원정", sampleGame: "예시 경기", practiceFormat: "연습 주행 %@")
         case .uk: return NotchScoresStrings(
             title: "Рахунок",
             description: "Стежте за рахунком своїх команд і спортсменів у Dynamic Island наживо: футбол, американський футбол, теніс і «Формула-1».",
@@ -515,11 +538,12 @@ extension FeatureStrings {
             goal: "Гол", touchdown: "Тачдаун", fieldGoal: "Філд-гол", safety: "Сейфті", scored: "Очки",
             started: "Почався", final: "Кінець", setWon: "Сет",
             race: "Гонка", qualifying: "Кваліфікація", sprint: "Спринт", lapFormat: "Коло %@",
-            sportLabel: "Вид спорту", everyGame: "Усі матчі", everyMatch: "Усі одиночні матчі", everySession: "Кваліфікації, спринти й гонки",
+            sportLabel: "Вид спорту", everyGame: "Усі матчі", everyMatch: "Усі одиночні матчі", everySession: "Практики, кваліфікації, спринти й гонки",
             possession: "Володіння", shots: "Удари", shotsOnTarget: "У площину", corners: "Кутові", fouls: "Фоли", offsides: "Офсайди", saves: "Сейви", moments: "Ключові моменти", stats: "Статистика", leaders: "Лідери", passing: "Паси", rushing: "Виноси", receiving: "Прийоми", ownGoal: "авт.", penalty: "пен.", lastPlay: "Останній розіграш", openESPN: "Відкрити в ESPN",
             basketball: "Баскетбол", baseball: "Бейсбол", hockey: "Хокей", golf: "Гольф", mma: "ММА", everyTournament: "Усі турніри", everyCard: "Усі бійцівські вечори", run: "Ран", fieldGoals: "Кидки з гри", threePointers: "Триочкові", freeThrows: "Штрафні", rebounds: "Підбирання", assists: "Передачі", savePercentage: "% відбитих", points: "Очки", goals: "Голи", topPerformer: "Найкращий гравець", roundFormat: "Раунд %@", thru: "Лунка", leaderboard: "Таблиця лідерів", fights: "Бої", winsFormat: "Перемога: %@",
             collegeFootball: "Студентський американський футбол", collegeBasketball: "Студентський баскетбол", conference: "Конференція",
-            standings: "Таблиця", playedShort: "І", wonShort: "В", drawnShort: "Н", lostShort: "П", goalDifferenceShort: "РМ", pointsShort: "О")
+            standings: "Таблиця", playedShort: "І", wonShort: "В", drawnShort: "Н", lostShort: "П", goalDifferenceShort: "РМ", pointsShort: "О",
+            motorsport: "Автоспорт", country: "Країна", international: "Міжнародні", england: "Англія", sampleHome: "Господарі", sampleAway: "Гості", sampleGame: "Приклад матчу", practiceFormat: "Практика %@")
         case .zhHans: return NotchScoresStrings(
             title: "比分",
             description: "在灵动岛中实时关注你喜爱的球队和运动员的比分：足球、美式橄榄球、网球和 F1。",
@@ -540,11 +564,12 @@ extension FeatureStrings {
             goal: "进球", touchdown: "达阵", fieldGoal: "射门得分", safety: "安防", scored: "得分",
             started: "比赛开始", final: "比赛结束", setWon: "盘",
             race: "正赛", qualifying: "排位赛", sprint: "冲刺赛", lapFormat: "第 %@ 圈",
-            sportLabel: "运动", everyGame: "所有比赛", everyMatch: "所有单打比赛", everySession: "排位赛、冲刺赛和正赛",
+            sportLabel: "运动", everyGame: "所有比赛", everyMatch: "所有单打比赛", everySession: "练习赛、排位赛、冲刺赛和正赛",
             possession: "控球率", shots: "射门", shotsOnTarget: "射正", corners: "角球", fouls: "犯规", offsides: "越位", saves: "扑救", moments: "关键事件", stats: "统计", leaders: "数据王", passing: "传球", rushing: "冲球", receiving: "接球", ownGoal: "乌龙", penalty: "点球", lastPlay: "上一回合", openESPN: "在 ESPN 中打开",
             basketball: "篮球", baseball: "棒球", hockey: "冰球", golf: "高尔夫", mma: "综合格斗", everyTournament: "所有赛事", everyCard: "所有格斗赛事", run: "得分", fieldGoals: "投篮", threePointers: "三分球", freeThrows: "罚球", rebounds: "篮板", assists: "助攻", savePercentage: "扑救率", points: "得分", goals: "进球", topPerformer: "最佳球员", roundFormat: "第 %@ 轮", thru: "洞", leaderboard: "排行榜", fights: "对决", winsFormat: "%@ 获胜",
             collegeFootball: "大学橄榄球", collegeBasketball: "大学篮球", conference: "联盟",
-            standings: "积分榜", playedShort: "赛", wonShort: "胜", drawnShort: "平", lostShort: "负", goalDifferenceShort: "净胜", pointsShort: "积分")
+            standings: "积分榜", playedShort: "赛", wonShort: "胜", drawnShort: "平", lostShort: "负", goalDifferenceShort: "净胜", pointsShort: "积分",
+            motorsport: "赛车", country: "国家/地区", international: "国际", england: "英格兰", sampleHome: "主队", sampleAway: "客队", sampleGame: "示例比赛", practiceFormat: "练习赛 %@")
         case .zhTW: return NotchScoresStrings(
             title: "比分",
             description: "在動態島中即時追蹤你支持的球隊和選手的比分：足球、美式足球、網球和 F1。",
@@ -565,11 +590,12 @@ extension FeatureStrings {
             goal: "進球", touchdown: "達陣", fieldGoal: "射門得分", safety: "安全分", scored: "得分",
             started: "比賽開始", final: "比賽結束", setWon: "盤",
             race: "正賽", qualifying: "排位賽", sprint: "衝刺賽", lapFormat: "第 %@ 圈",
-            sportLabel: "運動", everyGame: "所有比賽", everyMatch: "所有單打比賽", everySession: "排位賽、衝刺賽和正賽",
+            sportLabel: "運動", everyGame: "所有比賽", everyMatch: "所有單打比賽", everySession: "練習賽、排位賽、衝刺賽和正賽",
             possession: "控球率", shots: "射門", shotsOnTarget: "射正", corners: "角球", fouls: "犯規", offsides: "越位", saves: "撲救", moments: "關鍵事件", stats: "統計", leaders: "數據王", passing: "傳球", rushing: "衝球", receiving: "接球", ownGoal: "烏龍", penalty: "點球", lastPlay: "上一次進攻", openESPN: "在 ESPN 中打開",
             basketball: "籃球", baseball: "棒球", hockey: "冰球", golf: "高爾夫", mma: "綜合格鬥", everyTournament: "所有賽事", everyCard: "所有格鬥賽事", run: "得分", fieldGoals: "投籃", threePointers: "三分球", freeThrows: "罰球", rebounds: "籃板", assists: "助攻", savePercentage: "撲救率", points: "得分", goals: "進球", topPerformer: "最佳球員", roundFormat: "第 %@ 輪", thru: "洞", leaderboard: "排行榜", fights: "對決", winsFormat: "%@ 獲勝",
             collegeFootball: "大學美式足球", collegeBasketball: "大學籃球", conference: "聯盟",
-            standings: "積分榜", playedShort: "賽", wonShort: "勝", drawnShort: "和", lostShort: "負", goalDifferenceShort: "淨勝", pointsShort: "積分")
+            standings: "積分榜", playedShort: "賽", wonShort: "勝", drawnShort: "和", lostShort: "負", goalDifferenceShort: "淨勝", pointsShort: "積分",
+            motorsport: "賽車", country: "國家/地區", international: "國際", england: "英格蘭", sampleHome: "主隊", sampleAway: "客隊", sampleGame: "範例比賽", practiceFormat: "練習賽 %@")
         case .zhHK: return NotchScoresStrings(
             title: "比分",
             description: "在動態島中即時追蹤你支持的球隊和選手的比分：足球、美式足球、網球和 F1。",
@@ -590,11 +616,12 @@ extension FeatureStrings {
             goal: "入球", touchdown: "達陣", fieldGoal: "射門得分", safety: "安全分", scored: "得分",
             started: "比賽開始", final: "比賽完結", setWon: "盤",
             race: "正賽", qualifying: "排位賽", sprint: "衝刺賽", lapFormat: "第 %@ 圈",
-            sportLabel: "運動", everyGame: "所有比賽", everyMatch: "所有單打比賽", everySession: "排位賽、衝刺賽和正賽",
+            sportLabel: "運動", everyGame: "所有比賽", everyMatch: "所有單打比賽", everySession: "練習賽、排位賽、衝刺賽和正賽",
             possession: "控球率", shots: "射門", shotsOnTarget: "射正", corners: "角球", fouls: "犯規", offsides: "越位", saves: "撲救", moments: "關鍵事件", stats: "統計", leaders: "數據王", passing: "傳球", rushing: "衝球", receiving: "接球", ownGoal: "烏龍", penalty: "十二碼", lastPlay: "上一次進攻", openESPN: "在 ESPN 中打開",
             basketball: "籃球", baseball: "棒球", hockey: "冰球", golf: "高爾夫球", mma: "綜合格鬥", everyTournament: "所有賽事", everyCard: "所有格鬥賽事", run: "得分", fieldGoals: "投籃", threePointers: "三分球", freeThrows: "罰球", rebounds: "籃板", assists: "助攻", savePercentage: "撲救率", points: "得分", goals: "入球", topPerformer: "最佳球員", roundFormat: "第 %@ 輪", thru: "洞", leaderboard: "排行榜", fights: "對決", winsFormat: "%@ 勝出",
             collegeFootball: "大學美式足球", collegeBasketball: "大學籃球", conference: "聯盟",
-            standings: "積分榜", playedShort: "賽", wonShort: "勝", drawnShort: "和", lostShort: "負", goalDifferenceShort: "得失球", pointsShort: "積分")
+            standings: "積分榜", playedShort: "賽", wonShort: "勝", drawnShort: "和", lostShort: "負", goalDifferenceShort: "得失球", pointsShort: "積分",
+            motorsport: "賽車", country: "國家/地區", international: "國際", england: "英格蘭", sampleHome: "主隊", sampleAway: "客隊", sampleGame: "示範比賽", practiceFormat: "練習賽 %@")
         }
     }
 }

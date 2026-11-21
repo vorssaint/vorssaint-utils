@@ -150,17 +150,110 @@ enum NotchScoresTests {
     private static func racingContracts(_ suite: TestSuite, _ fixtures: Fixtures) {
         let mexico = NotchScoresSupport.games(from: fixtures["mexicoGrandPrix"]!, request: request(.racing, "f1"),
                                               follows: [formulaOne]) ?? []
-        suite.expect(mexico.map(\.detail) == ["Qual", "Race"],
-                     "Formula 1 is followed through its qualifying and races, practice left out")
+        suite.expect(mexico.map(\.detail) == ["FP1", "Qual", "Race"] && mexico.map(\.isPractice) == [true, false, false]
+                        && mexico.first?.sides.map(\.position) == [1, 2, 3, 4],
+                     "Formula 1 is followed through its practice, qualifying and races, practice in running order")
+        if let practice = mexico.first, let race = mexico.last {
+            let text = FeatureStrings.notchScores(.enUS)
+            let running = NotchScoreGame(id: practice.id, sport: .racing, league: "f1", title: practice.title,
+                                         detail: practice.detail, start: practice.start, state: .live, period: 12,
+                                         sides: practice.sides, followed: [])
+            let scheduled = NotchScoreGame(id: practice.id, sport: .racing, league: "f1", title: practice.title,
+                                           detail: practice.detail, start: practice.start, state: .scheduled,
+                                           sides: [], followed: [])
+            let racing = NotchScoreGame(id: race.id, sport: .racing, league: "f1", title: race.title, detail: race.detail,
+                                        start: race.start, state: .live, period: 12, sides: race.sides, followed: [])
+            suite.expect(NotchScoresSupport.change(from: scheduled, to: running) == nil
+                            && NotchScoresSupport.change(from: running, to: practice) == nil,
+                         "practice never speaks up as it starts or ends")
+            suite.expect(NotchScoresSupport.compactText(running, text: text).trailing == "FP1"
+                            && NotchScoresSupport.statusText(running, text: text, locale: Locale(identifier: "en_US"), now: Date()) == text.live
+                            && text.session("FP2") == "Practice 2"
+                            && FeatureStrings.notchScores(.ptBR).session("FP3") == "Treino Livre 3"
+                            && text.session("FPX") == "FPX",
+                         "practice reads by its session, not a lap count, and is named in the person's language")
+            suite.expect(NotchScoresSupport.featured([running, racing], finishedAt: [:], now: Date())?.id == race.id
+                            && NotchScoresSupport.featured([running], finishedAt: [:], now: Date())?.id == practice.id,
+                         "a live practice takes the closed island only when nothing else is under way")
+        }
         let race = mexico.last
         suite.expect(race?.sides.map(\.abbreviation) == ["VER", "HAM", "ANT", "LEC"]
                         && race?.sides.map(\.position) == [1, 2, 3, 4] && race?.followed.isEmpty == true,
                      "drivers run in order, with the three letters timing screens use")
+        let winner = race?.sides.first
+        let photo = winner?.portrait.map { NotchScoresSupport.crestURLs($0, dark: true) }?.first?.absoluteString ?? ""
+        suite.expect(winner?.portrait?.absoluteString == "https://a.espncdn.com/i/headshots/rpm/players/full/\(winner?.id ?? "").png"
+                        && race.flatMap(NotchScoresSupport.compactPortrait) == winner?.portrait
+                        && photo.contains("scale=crop") && !photo.contains("500-dark")
+                        && NotchScoresSupport.portrait(athlete: "12/../x") == nil,
+                     "the closed island pictures P1 by ESPN's photo of them, cropped square")
+        let future = NotchScoreGame(id: "r", sport: .racing, league: "f1", title: "", start: Date(), state: .scheduled,
+                                    sides: race?.sides ?? [], followed: [])
+        suite.expect(NotchScoresSupport.compactPortrait(future) == nil
+                        && race.map { NotchScoresSupport.crestURLs($0.sides[0].logo!, dark: true) }?.first?.absoluteString
+                            .contains("scale=crop") == false,
+                     "no one is pictured before a session has an order, and flags are not cropped")
+        suite.expect(race?.event == "600057447", "a session keeps its race weekend, which its timing is kept under")
+        suite.expect(race.flatMap(NotchScoresSupport.liveryURL)?.absoluteString
+                        == "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/600057447/competitions/401839127/competitors?limit=60",
+                     "a session's cars are asked for in one list")
+        let cars = Data("""
+        {"count":3,"items":[\
+        {"id":"4665","order":1,"vehicle":{"number":"3","manufacturer":"Red Bull","teamColor":"00327D"}},\
+        {"id":"5503","order":3,"vehicle":{"number":"63","manufacturer":"Mercedes","team":"Mercedes-AMG","teamColor":"00D2BE"}},\
+        {"id":"9","order":4,"vehicle":{"number":"9","manufacturer":"Nobody","teamColor":"not-a-color"}},\
+        {"id":"10","order":5}]}
+        """.utf8)
+        let liveries = NotchScoresSupport.liveries(from: cars)
+        suite.expect(liveries?.count == 2
+                        && liveries?["4665"] == NotchScoreLivery(color: ColorValue(red: 0, green: 50.0 / 255, blue: 125.0 / 255),
+                                                                 team: "Red Bull", number: "3")
+                        && liveries?["5503"]?.team == "Mercedes-AMG" && liveries?["5503"]?.number == "63"
+                        && NotchScoresSupport.liveries(from: Data("[]".utf8)) == nil,
+                     "each car's team color, team and number are read, and a car without a valid color is left plain")
+        let grid = (1...22).map { NotchScoreSide(id: String(5000 + $0), name: "", abbreviation: "", position: $0) }
+        var qualifying = NotchScoreGame(id: "racing/f1#401839136", sport: .racing, league: "f1", title: "Las Vegas",
+                                        detail: "Qual", start: Date(), state: .live, period: 11, sides: grid, followed: [],
+                                        event: "600057449")
+        let probes = NotchScoresSupport.segmentProbes(qualifying)
+        suite.expect(probes.map(\.part) == [1, 2]
+                        && probes.first?.url.absoluteString == "https://sports.core.api.espn.com/v2/sports/racing/leagues/f1/events/"
+                            + "600057449/competitions/401839136/competitors/5017/statistics"
+                        && probes.last?.url.absoluteString.hasSuffix("/competitors/5011/statistics") == true,
+                     "a live qualifying asks after P17, the best out in Q1 of 22 cars, and P11, the best out in Q2")
+        let timing = { (q1: Int, q2: Int) -> Data in
+            Data("""
+            {"splits":{"categories":[{"name":"general","stats":[{"name":"place","value":17.0},\
+            {"name":"qual1TimeMS","value":\(q1).0,"displayValue":"1:36.220"},\
+            {"name":"qual2TimeMS","value":\(q2).0,"displayValue":"0.000"}]}]}}
+            """.utf8)
+        }
+        suite.expect(NotchScoresSupport.hasQualifyingTime(timing(96220, 0), part: 1) == true
+                        && NotchScoresSupport.hasQualifyingTime(timing(96220, 0), part: 2) == false
+                        && NotchScoresSupport.hasQualifyingTime(Data("{}".utf8), part: 1) == nil,
+                     "a knocked-out driver's time tells that part is over")
+        suite.expect(NotchScoresSupport.segment(previous: 0, finished: [1: false, 2: false]) == 1
+                        && NotchScoresSupport.segment(previous: 0, finished: [1: true, 2: false]) == 2
+                        && NotchScoresSupport.segment(previous: 2, finished: [2: true]) == 3
+                        && NotchScoresSupport.segment(previous: 2, finished: [:]) == 2
+                        && NotchScoresSupport.segment(previous: 3, finished: [1: false]) == 3,
+                     "qualifying moves from Q1 to Q3 and never back, a failed reading keeping where it was")
+        let text = FeatureStrings.notchScores(.enUS)
+        suite.expect(NotchScoresSupport.compactText(qualifying, text: text).trailing == "QUAL",
+                     "a live qualifying not yet placed reads by its short name, not by laps")
+        qualifying.segment = 2
+        suite.expect(NotchScoresSupport.segmentProbes(qualifying).map(\.part) == [2]
+                        && NotchScoresSupport.compactText(qualifying, text: text).trailing == "Q2"
+                        && NotchScoresSupport.statusText(qualifying, text: text, locale: Locale(identifier: "en_US"), now: Date()) == "Q2"
+                        && NotchScoresSupport.stripText(qualifying, text: text, locale: Locale(identifier: "en_US"), now: Date()).status == "Q2",
+                     "the island reads Q2, and only P11 is asked after then")
+        qualifying.segment = 3
+        suite.expect(NotchScoresSupport.segmentProbes(qualifying).isEmpty, "nothing is asked once Q3 is on")
         let vegas = NotchScoresSupport.games(from: fixtures["lasVegasGrandPrix"]!, request: request(.racing, "f1"),
                                              follows: [formulaOne]) ?? []
-        suite.expect(vegas.count == 2 && vegas.allSatisfy { $0.state == .scheduled && $0.sides.isEmpty }
+        suite.expect(vegas.count == 5 && vegas.allSatisfy { $0.state == .scheduled && $0.sides.isEmpty }
                         && NotchScoresSupport.kept(Dictionary(uniqueKeysWithValues: vegas.map { ($0.id, $0) }),
-                                                   follows: [formulaOne], now: vegas[0].start).count == 2,
+                                                   follows: [formulaOne], now: vegas[0].start).count == 5,
                      "the coming weekend's sessions are kept before any driver is listed")
         suite.expect(NotchScoresSupport.games(from: fixtures["mexicoGrandPrix"]!, request: request(.racing, "f1"),
                                               follows: [flamengo]) == [],
@@ -353,24 +446,63 @@ enum NotchScoresTests {
                      "college leagues are listed by conference; a promotion is followed whole")
         suite.expect(NotchScoreCategory.allCases.map { $0.title(text) } == [
                         "Soccer", "NFL", "College Football", "NBA", "WNBA", "College Basketball", "MLB", "NHL",
-                        "Tennis", "Golf", "Formula 1", "NASCAR", "UFC"]
-                        && NotchScoreCategory.formulaOne.leagues.map(\.slug) == ["f1"]
-                        && NotchScoreCategory.nascar.leagues.map(\.slug) == ["nascar-premier"]
+                        "Tennis", "Golf", "Racing", "UFC"]
+                        && NotchScoreCategory.racing.leagues.map { $0.title(text) } == ["Formula 1", "NASCAR Cup Series"]
                         && NotchScoreCategory.collegeBasketball.leagues.count == 2
                         && NotchScoreCategory.allCases.allSatisfy { !$0.leagues.isEmpty },
-                     "the Sport menu names each league as fans do, NASCAR apart from Formula 1")
+                     "the Sport menu names each American league as fans do, and puts both series under Racing")
         suite.expect(NotchScoreLeague.catalog.allSatisfy { league in
-                        NotchScoreCategory.allCases.filter { $0.leagues.contains(league) }.count == 1
+                        NotchScoreCategory.allCases.filter { $0.allLeagues.contains(league) }.count == 1
                      } && NotchScoreCategory.containing(sport: .football, league: "college-football") == .collegeFootball,
-                     "every league is offered under exactly one choice of the menu")
+                     "every league belongs to exactly one choice of the menu")
+        let soccer = NotchScoreCategory.soccer.leagues
+        suite.expect(NotchScoreRegion.allCases.allSatisfy { region in soccer.contains { $0.region == region } }
+                        && NotchScoreRegion.allCases.filter { $0 != .international }
+                            .allSatisfy { region in soccer.filter { $0.region == region }.count == 1 }
+                        && soccer.filter { $0.region == .international }.map(\.slug)
+                            == ["conmebol.libertadores", "conmebol.sudamericana", "uefa.champions", "fifa.friendly"]
+                        && soccer.allSatisfy { $0.region != nil },
+                     "soccer is browsed by country, each with its top division, and the international cups apart")
+        let international = soccer.filter { $0.region == .international }
+        suite.expect(international.filter(\.picksTeams).map(\.slug) == ["fifa.friendly"]
+                        && international.filter(\.followsWhole).map(\.slug)
+                            == ["conmebol.libertadores", "conmebol.sudamericana", "uefa.champions"]
+                        && soccer.filter { $0.region != .international }.allSatisfy { $0.picksTeams && $0.followsWhole },
+                     "a continental cup is followed whole, its clubs picked in their country; national teams one by one")
+        suite.expect(!soccer.contains { $0.slug == "bra.2" || $0.slug == "bra.copa_do_brazil" }
+                        && NotchScoreLeague.name(sport: .soccer, slug: "bra.copa_do_brazil") == "Copa do Brasil"
+                        && NotchScoreCategory.containing(sport: .soccer, league: "bra.2") == .soccer,
+                     "lower divisions and cups leave the menu but keep their names for a club's games")
+        let portuguese = FeatureStrings.notchScores(.ptBR)
+        let brazilian = Locale(identifier: "pt-BR")
+        suite.expect(NotchScoreRegion.brazil.title(portuguese, locale: brazilian) == "Brasil"
+                        && NotchScoreRegion.england.title(portuguese, locale: brazilian) == "Inglaterra"
+                        && NotchScoreRegion.international.title(portuguese, locale: brazilian) == "Internacional"
+                        && NotchScoreRegion.preferred(Locale(identifier: "en_US")) == .unitedStates
+                        && NotchScoreRegion.preferred(Locale(identifier: "pt_BR")) == .brazil
+                        && NotchScoreRegion.preferred(Locale(identifier: "ja_JP")) == .brazil
+                        && NotchScoreLeague.catalog.first { $0.slug == "f1" }?.title(portuguese) == "Fórmula 1",
+                     "countries and Formula 1 are named in the person's language; the list opens at their own country")
         let golfLive = NotchScoreGame(id: "golf/pga#1", sport: .golf, league: "pga", title: "", start: now, state: .live,
                                       sides: [], followed: [])
         suite.expect(Support.nextPoll([golfLive], lastDiscovery: now, now: now) == Support.golfInterval
                         && Support.nextPoll([golfLive, game(state: .live)], lastDiscovery: now, now: now) == Support.liveInterval,
-                     "a leaderboard alone is read every minute and a half; any game beside it every 20 seconds")
+                     "a leaderboard alone is read every minute; any game beside it every ten seconds")
+        let live = [game(state: .live)]
+        suite.expect(Support.nextPoll(live, lastDiscovery: now, now: now, pace: .watching) == 5
+                        && Support.nextPoll(live, lastDiscovery: now, now: now, pace: .glancing) == 10
+                        && Support.nextPoll(live, lastDiscovery: now, now: now, pace: .saving) == 20
+                        && Support.nextPoll([golfLive], lastDiscovery: now, now: now, pace: .watching) == 30
+                        && Support.nextPoll([golfLive], lastDiscovery: now, now: now, pace: .saving) == 90,
+                     "a game under way is read every 5 seconds with the page open, 10 from the closed island, 20 in Low Power Mode")
         suite.expect(NotchScoreSport.allCases.filter(\.followsWhole) == [.golf, .racing, .mma]
                         && NotchScoreSport.allCases.filter(\.hasTeams) == [.soccer, .football, .basketball, .baseball, .hockey],
                      "teams are picked one by one; tours, series and promotions are followed whole")
+        let sample = Support.sample(text: FeatureStrings.notchScores(.ptBR), now: now)
+        suite.expect(sample.state == .live && sample.sides.map(\.name) == ["Mandante", "Visitante"]
+                        && sample.sides.allSatisfy { $0.logo == nil } && sample.link == nil && sample.venue == nil
+                        && !sample.moments.isEmpty && !sample.stats.isEmpty,
+                     "the Settings preview's sample game reads in the person's language and fetches nothing")
     }
 
     private static func standingsContracts(_ suite: TestSuite, _ fixtures: Fixtures) {

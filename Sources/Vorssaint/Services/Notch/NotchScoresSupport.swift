@@ -43,35 +43,97 @@ enum NotchScoreSport: String, CaseIterable, Codable, Identifiable {
     var isField: Bool { self == .racing || self == .golf }
 }
 
+/// Where a soccer competition is played: a country's top division, or the
+/// continental cups and national teams, which belong to none.
+enum NotchScoreRegion: String, CaseIterable, Identifiable {
+    case brazil, england, spain, italy, germany, france, portugal, unitedStates, international
+
+    var id: String { rawValue }
+
+    /// The country's name in the person's language, as the system names
+    /// it. England is a nation within a country the system does not name
+    /// apart, so the strings do.
+    func title(_ text: NotchScoresStrings, locale: Locale) -> String {
+        let code: String
+        switch self {
+        case .brazil: code = "BR"
+        case .england: return text.england
+        case .spain: code = "ES"
+        case .italy: code = "IT"
+        case .germany: code = "DE"
+        case .france: code = "FR"
+        case .portugal: code = "PT"
+        case .unitedStates: code = "US"
+        case .international: return text.international
+        }
+        return locale.localizedString(forRegionCode: code) ?? code
+    }
+
+    /// The person's own country when its league is offered, so the list
+    /// opens where they most likely look; otherwise Brazil's.
+    static func preferred(_ locale: Locale = .current) -> NotchScoreRegion {
+        switch locale.region?.identifier {
+        case "GB": return .england
+        case "ES": return .spain
+        case "IT": return .italy
+        case "DE": return .germany
+        case "FR": return .france
+        case "PT": return .portugal
+        case "US": return .unitedStates
+        default: return .brazil
+        }
+    }
+}
+
 /// A competition the picker browses. ESPN identifies it by sport and slug.
 struct NotchScoreLeague: Hashable, Identifiable {
     let sport: NotchScoreSport
     let slug: String
     /// Competitions keep their own names in every language. The national
-    /// teams are a list rather than a competition, so the strings name them.
+    /// teams are a list rather than a competition, and Formula 1 is
+    /// written in each language, so the strings name those two.
     let name: String?
+    /// A soccer competition's country, or the international ones.
+    var region: NotchScoreRegion? = nil
+    /// Offered in the picker. A lower division or a cup is still named
+    /// when a followed club plays in it, and an earlier follow still reads.
+    var listed = true
+    /// Lists its teams to pick from. A continental cup's clubs are picked
+    /// in their own country, so the cup is only followed whole.
+    var picksTeams = true
+    /// Can be followed whole. The national teams are a list, not a
+    /// competition: all of them would be every friendly in the world.
+    var followsWhole = true
 
     var id: String { sport.rawValue + "/" + slug }
 
-    func title(_ text: NotchScoresStrings) -> String { name ?? text.nationalTeams }
+    func title(_ text: NotchScoresStrings) -> String {
+        if let name { return name }
+        return slug == "f1" ? text.racing : text.nationalTeams
+    }
 
     static let catalog: [NotchScoreLeague] = [
-        NotchScoreLeague(sport: .soccer, slug: "bra.1", name: "Brasileirão Série A"),
-        NotchScoreLeague(sport: .soccer, slug: "bra.2", name: "Brasileirão Série B"),
-        NotchScoreLeague(sport: .soccer, slug: "bra.copa_do_brazil", name: "Copa do Brasil"),
-        NotchScoreLeague(sport: .soccer, slug: "conmebol.libertadores", name: "CONMEBOL Libertadores"),
-        NotchScoreLeague(sport: .soccer, slug: "conmebol.sudamericana", name: "CONMEBOL Sudamericana"),
+        // A country's top division; a club followed there brings its cup
+        // and continental games too, as its fixtures span them all.
+        NotchScoreLeague(sport: .soccer, slug: "bra.1", name: "Brasileirão Série A", region: .brazil),
+        NotchScoreLeague(sport: .soccer, slug: "bra.2", name: "Brasileirão Série B", region: .brazil, listed: false),
+        NotchScoreLeague(sport: .soccer, slug: "bra.copa_do_brazil", name: "Copa do Brasil", region: .brazil, listed: false),
+        NotchScoreLeague(sport: .soccer, slug: "eng.1", name: "Premier League", region: .england),
+        NotchScoreLeague(sport: .soccer, slug: "esp.1", name: "LaLiga", region: .spain),
+        NotchScoreLeague(sport: .soccer, slug: "ita.1", name: "Serie A", region: .italy),
+        NotchScoreLeague(sport: .soccer, slug: "ger.1", name: "Bundesliga", region: .germany),
+        NotchScoreLeague(sport: .soccer, slug: "fra.1", name: "Ligue 1", region: .france),
+        NotchScoreLeague(sport: .soccer, slug: "por.1", name: "Primeira Liga", region: .portugal),
+        NotchScoreLeague(sport: .soccer, slug: "usa.1", name: "MLS", region: .unitedStates),
+        NotchScoreLeague(sport: .soccer, slug: "conmebol.libertadores", name: "CONMEBOL Libertadores",
+                         region: .international, picksTeams: false),
+        NotchScoreLeague(sport: .soccer, slug: "conmebol.sudamericana", name: "CONMEBOL Sudamericana",
+                         region: .international, picksTeams: false),
+        NotchScoreLeague(sport: .soccer, slug: "uefa.champions", name: "UEFA Champions League",
+                         region: .international, picksTeams: false),
         // Friendlies list nearly every national side, and a national team's
         // fixtures are found across all its competitions, as a club's are.
-        NotchScoreLeague(sport: .soccer, slug: "fifa.friendly", name: nil),
-        NotchScoreLeague(sport: .soccer, slug: "eng.1", name: "Premier League"),
-        NotchScoreLeague(sport: .soccer, slug: "esp.1", name: "LaLiga"),
-        NotchScoreLeague(sport: .soccer, slug: "ita.1", name: "Serie A"),
-        NotchScoreLeague(sport: .soccer, slug: "ger.1", name: "Bundesliga"),
-        NotchScoreLeague(sport: .soccer, slug: "fra.1", name: "Ligue 1"),
-        NotchScoreLeague(sport: .soccer, slug: "por.1", name: "Primeira Liga"),
-        NotchScoreLeague(sport: .soccer, slug: "usa.1", name: "MLS"),
-        NotchScoreLeague(sport: .soccer, slug: "uefa.champions", name: "UEFA Champions League"),
+        NotchScoreLeague(sport: .soccer, slug: "fifa.friendly", name: nil, region: .international, followsWhole: false),
         NotchScoreLeague(sport: .football, slug: "nfl", name: "NFL"),
         NotchScoreLeague(sport: .football, slug: "college-football", name: "College Football"),
         NotchScoreLeague(sport: .basketball, slug: "nba", name: "NBA"),
@@ -84,7 +146,7 @@ struct NotchScoreLeague: Hashable, Identifiable {
         NotchScoreLeague(sport: .tennis, slug: "wta", name: "WTA"),
         NotchScoreLeague(sport: .golf, slug: "pga", name: "PGA Tour"),
         NotchScoreLeague(sport: .golf, slug: "lpga", name: "LPGA Tour"),
-        NotchScoreLeague(sport: .racing, slug: "f1", name: "Formula 1"),
+        NotchScoreLeague(sport: .racing, slug: "f1", name: nil),
         NotchScoreLeague(sport: .racing, slug: "nascar-premier", name: "NASCAR Cup Series"),
         NotchScoreLeague(sport: .mma, slug: "ufc", name: "UFC"),
     ]
@@ -102,7 +164,7 @@ struct NotchScoreLeague: Hashable, Identifiable {
 /// What the Sport menu lists. Each American league is its own choice, as
 /// fans name them, and a choice may hold several leagues of one kind.
 enum NotchScoreCategory: String, CaseIterable, Identifiable {
-    case soccer, nfl, collegeFootball, nba, wnba, collegeBasketball, mlb, nhl, tennis, golf, formulaOne, nascar, ufc
+    case soccer, nfl, collegeFootball, nba, wnba, collegeBasketball, mlb, nhl, tennis, golf, racing, ufc
 
     var id: String { rawValue }
 
@@ -115,14 +177,14 @@ enum NotchScoreCategory: String, CaseIterable, Identifiable {
         case .nhl: return .hockey
         case .tennis: return .tennis
         case .golf: return .golf
-        case .formulaOne, .nascar: return .racing
+        case .racing: return .racing
         case .ufc: return .mma
         }
     }
 
     private var slugs: [String]? {
         switch self {
-        case .soccer, .tennis, .golf: return nil
+        case .soccer, .tennis, .golf, .racing: return nil
         case .nfl: return ["nfl"]
         case .collegeFootball: return ["college-football"]
         case .nba: return ["nba"]
@@ -130,17 +192,23 @@ enum NotchScoreCategory: String, CaseIterable, Identifiable {
         case .collegeBasketball: return ["mens-college-basketball", "womens-college-basketball"]
         case .mlb: return ["mlb"]
         case .nhl: return ["nhl"]
-        case .formulaOne: return ["f1"]
-        case .nascar: return ["nascar-premier"]
         case .ufc: return ["ufc"]
         }
     }
 
-    var leagues: [NotchScoreLeague] {
+    /// Every league it holds, offered or not, so an earlier follow still
+    /// finds its place.
+    var allLeagues: [NotchScoreLeague] {
         let all = NotchScoreLeague.leagues(for: sport)
         guard let slugs else { return all }
         return slugs.compactMap { slug in all.first { $0.slug == slug } }
     }
+
+    /// The leagues the picker offers.
+    var leagues: [NotchScoreLeague] { allLeagues.filter(\.listed) }
+
+    /// Soccer is browsed country by country.
+    var browsesByRegion: Bool { self == .soccer }
 
     var symbol: String { sport.symbol }
 
@@ -152,19 +220,18 @@ enum NotchScoreCategory: String, CaseIterable, Identifiable {
         case .golf: return text.golf
         case .collegeFootball: return text.collegeFootball
         case .collegeBasketball: return text.collegeBasketball
-        case .formulaOne: return text.racing
+        case .racing: return text.motorsport
         case .nfl: return "NFL"
         case .nba: return "NBA"
         case .wnba: return "WNBA"
         case .mlb: return "MLB"
         case .nhl: return "NHL"
-        case .nascar: return "NASCAR"
         case .ufc: return "UFC"
         }
     }
 
     static func containing(sport: NotchScoreSport, league: String) -> NotchScoreCategory? {
-        allCases.first { $0.sport == sport && $0.leagues.contains { $0.slug == league } }
+        allCases.first { $0.sport == sport && $0.allLeagues.contains { $0.slug == league } }
     }
 }
 
@@ -291,6 +358,9 @@ struct NotchScoreSide: Hashable, Identifiable {
     var position: Int? = nil
     var winner = false
     var logo: URL? = nil
+    /// A driver's photo, which ESPN keeps by athlete though its scoreboard
+    /// names only the flag.
+    var portrait: URL? = nil
     /// The athletes a doubles pair is made of, so either one followed counts.
     var members: [String] = []
     /// Points in each quarter, half, period or inning.
@@ -434,8 +504,23 @@ struct NotchScoreGame: Identifiable, Equatable {
     var end: Date? = nil
     /// A fight card's bouts, the main event last.
     var bouts: [NotchScoreBout] = []
+    /// ESPN's race weekend a session belongs to, which its drivers'
+    /// timing is kept under.
+    var event: String? = nil
+    /// The part of a Formula 1 qualifying under way, Q1 to Q3; 0 unknown.
+    var segment = 0
 
     var followedSide: NotchScoreSide? { sides.first { followed.contains($0.id) } }
+
+    /// A race weekend's free practice: on the page and the closed island,
+    /// in running order, but never a notice, and behind any game that counts.
+    var isPractice: Bool { sport == .racing && (detail ?? "").uppercased().hasPrefix("FP") }
+
+    /// A Formula 1 qualifying, run in three parts that knock drivers out.
+    var isQualifying: Bool { sport == .racing && league == "f1" && (detail ?? "").lowercased().hasPrefix("qual") }
+
+    /// Where a live qualifying stands, Q2, when it is known.
+    var segmentText: String? { isQualifying && state == .live && segment > 0 ? "Q\(segment)" : nil }
 
     /// Whether it carries what only a scoreboard tells, beyond the score.
     var hasDetail: Bool { !stats.isEmpty || !moments.isEmpty || !leaders.isEmpty || situation != nil }
@@ -496,10 +581,50 @@ struct NotchScoreRequest: Hashable {
     let league: String
 }
 
+/// How closely the scores are being followed, which sets how often a
+/// game under way is read. ESPN moves a live scoreboard every few seconds
+/// and lets it be cached for one.
+enum NotchScorePace: Equatable {
+    /// The scores page is open.
+    case watching
+    /// The closed island shows the game, or nothing does.
+    case glancing
+    /// Low Power Mode is on.
+    case saving
+
+    var live: TimeInterval {
+        switch self {
+        case .watching: return 5
+        case .glancing: return NotchScoresSupport.liveInterval
+        case .saving: return 20
+        }
+    }
+
+    /// A golf leaderboard of 150 players moves a stroke at a time over
+    /// four days; it is read less often.
+    var golf: TimeInterval {
+        switch self {
+        case .watching: return 30
+        case .glancing: return NotchScoresSupport.golfInterval
+        case .saving: return 90
+        }
+    }
+}
+
+/// A racing driver's car: the team's color, its name and the number.
+struct NotchScoreLivery: Equatable {
+    let color: ColorValue
+    let team: String?
+    let number: String?
+}
+
 enum NotchScoresSupport {
-    static let liveInterval: TimeInterval = 20
+    static let liveInterval: TimeInterval = 10
     static let startingInterval: TimeInterval = 30
-    static let golfInterval: TimeInterval = 90
+    static let golfInterval: TimeInterval = 60
+    /// Standings are read again after this, and as soon as a game of
+    /// their league ends.
+    static let standingsInterval: TimeInterval = 10 * 60
     static let discoveryInterval: TimeInterval = 3 * 3600
     /// Scoreboards are read from shortly before a game is due to start.
     static let leadTime: TimeInterval = 10 * 60
@@ -680,12 +805,11 @@ enum NotchScoresSupport {
 
     /// Seconds until the next reading: often while a game is on, then not
     /// before the next one is due or the fixtures are listed again.
-    static func nextPoll(_ games: [NotchScoreGame], lastDiscovery: Date?, now: Date) -> TimeInterval {
+    static func nextPoll(_ games: [NotchScoreGame], lastDiscovery: Date?, now: Date,
+                         pace: NotchScorePace = .glancing) -> TimeInterval {
         let live = games.filter { $0.state == .live }
-        // A golf leaderboard of 150 players moves a stroke at a time over
-        // four days; a minute and a half between readings misses little.
-        if live.contains(where: { $0.sport != .golf }) { return liveInterval }
-        if !live.isEmpty { return golfInterval }
+        if live.contains(where: { $0.sport != .golf }) { return pace.live }
+        if !live.isEmpty { return pace.golf }
         if games.contains(where: { needsWatching($0, now: now) }) { return startingInterval }
         let discovery = (lastDiscovery ?? .distantPast).addingTimeInterval(discoveryInterval)
         let nextStart = games.filter { $0.state == .scheduled }
@@ -742,6 +866,8 @@ enum NotchScoresSupport {
     // MARK: Changes
 
     static func change(from old: NotchScoreGame, to new: NotchScoreGame) -> NotchScoreChange? {
+        // Three practices a weekend would speak up six times for nothing decided.
+        guard !new.isPractice else { return nil }
         if old.state == .scheduled, new.state == .live { return .started }
         if old.state == .live, new.state == .finished { return .finished }
         guard old.state == .live, new.state == .live else { return nil }
@@ -787,13 +913,35 @@ enum NotchScoresSupport {
 
     // MARK: Presentation
 
+    /// What the Settings preview shows when nothing followed is on: a
+    /// soccer game under way, with the moments and statistics the page
+    /// lays out, and no crest, link or venue to fetch or open.
+    static func sample(text: NotchScoresStrings, now: Date) -> NotchScoreGame {
+        NotchScoreGame(
+            id: "sample", sport: .soccer, league: "sample", title: text.sampleGame,
+            start: now.addingTimeInterval(-70 * 60), state: .live, clock: "67'", period: 2,
+            sides: [NotchScoreSide(id: "sample-home", name: text.sampleHome, abbreviation: "HOM", score: "2"),
+                    NotchScoreSide(id: "sample-away", name: text.sampleAway, abbreviation: "AWY", score: "1")],
+            followed: ["sample-home"],
+            stats: [NotchScoreStat(kind: .possession, values: ["58", "42"]),
+                    NotchScoreStat(kind: .shots, values: ["14", "7"]),
+                    NotchScoreStat(kind: .shotsOnTarget, values: ["6", "3"]),
+                    NotchScoreStat(kind: .corners, values: ["5", "2"])],
+            moments: [NotchScoreMoment(minute: "12'", kind: .goal, side: 0, player: "Silva"),
+                      NotchScoreMoment(minute: "34'", kind: .yellowCard, side: 1, player: "Moreau"),
+                      NotchScoreMoment(minute: "51'", kind: .goal, side: 1, player: "Martín"),
+                      NotchScoreMoment(minute: "63'", kind: .penalty, side: 0, player: "Costa")])
+    }
+
     /// The game the closed island shows: the first under way, or one that
     /// just ended, for a while.
     /// A followed team's or athlete's game goes before others of a league
     /// followed as a whole.
     static func featured(_ games: [NotchScoreGame], finishedAt: [String: Date], now: Date) -> NotchScoreGame? {
         let live = games.filter { $0.state == .live }
-        if let game = live.first(where: { !$0.followed.isEmpty }) ?? live.first { return game }
+        if let game = live.first(where: { !$0.followed.isEmpty }) ?? live.first(where: { !$0.isPractice }) ?? live.first {
+            return game
+        }
         return games.filter { $0.state == .finished }
             .compactMap { game in finishedAt[game.id].map { (game, $0) } }
             .filter { now.timeIntervalSince($0.1) < finalHold }
@@ -824,7 +972,9 @@ enum NotchScoresSupport {
             let leading = [driver?.position.map { "P\($0)" }, driver?.abbreviation].compactMap { $0 }.joined(separator: " ")
             return NotchScoreStripText(leading: leading.isEmpty ? game.title : leading,
                                        trailing: text.session(game.detail ?? ""),
-                                       status: game.state == .live && game.period > 0 ? "L\(game.period)" : "")
+                                       status: game.segmentText
+                                        ?? (game.state == .live && game.period > 0 && !game.isPractice && !game.isQualifying
+                                            ? "L\(game.period)" : ""))
         case .golf:
             let leader = game.state == .scheduled ? nil : game.sides.first
             return NotchScoreStripText(leading: leader.map { $0.abbreviation + " " + ($0.score ?? "") } ?? game.title,
@@ -858,7 +1008,12 @@ enum NotchScoresSupport {
             return NotchScoreStripText(leading: games(game.sides.first), trailing: games(game.sides.dropFirst().first),
                                        status: "")
         case .racing:
-            let reading = game.state == .live && game.period > 0 ? "L\(game.period)" : text.session(game.detail ?? "")
+            // Practice runs to the clock, not to a lap count; its short name
+            // fits the wing where Practice 2 would not.
+            // Qualifying runs to the clock too: its part, or its short name.
+            let reading = game.segmentText
+                ?? (game.isPractice || (game.isQualifying && game.state == .live) ? (game.detail ?? "").uppercased()
+                    : game.state == .live && game.period > 0 ? "L\(game.period)" : text.session(game.detail ?? ""))
             return NotchScoreStripText(leading: "", trailing: reading, status: "")
         case .golf:
             return NotchScoreStripText(leading: "", trailing: game.state == .scheduled ? "" : game.sides.first?.score ?? "",
@@ -876,6 +1031,81 @@ enum NotchScoresSupport {
         guard !game.sport.isField else { return nil }
         let sides = game.sport == .mma ? (game.currentBout?.sides ?? []) : game.sides
         return [sides.first?.logo, sides.dropFirst().first?.logo]
+    }
+
+    // MARK: Qualifying
+
+    /// A driver's timing, whose qualifying times ESPN fills in only for
+    /// those knocked out, as each part ends.
+    static func timingURL(_ game: NotchScoreGame, driver: String) -> URL? {
+        guard let event = game.event, event.allSatisfy(\.isNumber), driver.allSatisfy(\.isNumber),
+              let session = game.id.split(separator: "#").last, session.allSatisfy(\.isNumber) else { return nil }
+        return URL(string: "https://sports.core.api.espn.com/v2/sports/racing/leagues/\(game.league)/events/\(event)"
+                   + "/competitions/\(session)/competitors/\(driver)/statistics")
+    }
+
+    /// The drivers that tell which part a live qualifying is in: the best
+    /// knocked out in Q1, who has a Q1 time once Q2 is on, and P11, the
+    /// best knocked out in Q2, once Q3 is. Ten reach Q3 and half the rest
+    /// Q2: 16 of 22 cars, 15 of 20. Nothing is asked once Q3 is known.
+    static func segmentProbes(_ game: NotchScoreGame) -> [(part: Int, url: URL)] {
+        let field = game.sides.count
+        guard game.isQualifying, game.state == .live, game.segment < 3, field > 10 else { return [] }
+        let outInQ1 = 10 + (field - 10) / 2
+        var probes: [(Int, Int)] = []
+        if game.segment < 2, outInQ1 < field { probes.append((1, outInQ1)) }
+        probes.append((2, 10))
+        return probes.compactMap { part, index in timingURL(game, driver: game.sides[index].id).map { (part, $0) } }
+    }
+
+    /// Whether a driver's timing holds a time for that part of qualifying;
+    /// nil when it can't be read.
+    static func hasQualifyingTime(_ data: Data, part: Int) -> Bool? {
+        guard let timing = try? JSONDecoder().decode(ESPNTiming.self, from: data) else { return nil }
+        let stats = (timing.splits?.categories?.elements ?? []).flatMap { $0.stats?.elements ?? [] }
+        guard let stat = stats.first(where: { $0.name == "qual\(part)TimeMS" }) else { return nil }
+        return (stat.value?.number ?? 0) > 0
+    }
+
+    /// The part under way from what the probes found: past Q2, past Q1, or
+    /// the first. It never goes back, so a reading that fails keeps it.
+    static func segment(previous: Int, finished: [Int: Bool]) -> Int {
+        let found = finished[2] == true ? 3 : finished[1] == true ? 2 : finished.isEmpty ? 0 : 1
+        return max(previous, found)
+    }
+
+    // MARK: Liveries
+
+    /// Every driver of a session with their car, in one short answer.
+    static func liveryURL(_ game: NotchScoreGame) -> URL? {
+        guard game.sport == .racing, let event = game.event, event.allSatisfy(\.isNumber),
+              game.league.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" }),
+              let session = game.id.split(separator: "#").last, session.allSatisfy(\.isNumber) else { return nil }
+        return URL(string: "https://sports.core.api.espn.com/v2/sports/racing/leagues/\(game.league)/events/\(event)"
+                   + "/competitions/\(session)/competitors?limit=60")
+    }
+
+    /// Each driver's car by their ESPN id; nil when it can't be read.
+    static func liveries(from data: Data) -> [String: NotchScoreLivery]? {
+        guard let page = try? JSONDecoder().decode(ESPNCompetitorPage.self, from: data) else { return nil }
+        var found: [String: NotchScoreLivery] = [:]
+        for item in page.items?.elements ?? [] {
+            guard let id = item.id?.text, let vehicle = item.vehicle, let hex = vehicle.teamColor,
+                  hex.count == 6, let color = ColorValue(text: "#" + hex) else { continue }
+            let team = vehicle.team ?? vehicle.manufacturer
+            found[id] = NotchScoreLivery(color: color, team: team?.isEmpty == false ? team : nil, number: vehicle.number?.text)
+        }
+        return found
+    }
+
+    /// The driver the closed island pictures in place of the checkered
+    /// flag: whoever is P1 once a session has an order.
+    static func compactPortrait(_ game: NotchScoreGame) -> URL? { compactLeader(game)?.portrait }
+
+    /// P1, once a session has an order.
+    static func compactLeader(_ game: NotchScoreGame) -> NotchScoreSide? {
+        guard game.sport == .racing, game.state != .scheduled else { return nil }
+        return game.sides.first { $0.position == 1 }
     }
 
     /// The capsule's one row between its marks: 2 – 1, 6-4 3-2, a lap, a
@@ -925,7 +1155,8 @@ enum NotchScoresSupport {
         switch game.state {
         case .live:
             switch game.sport {
-            case .racing where game.period > 0: return text.lap(game.period)
+            case .racing where game.segmentText != nil: return game.segmentText ?? ""
+            case .racing where game.period > 0 && !game.isPractice && !game.isQualifying: return text.lap(game.period)
             case .golf where game.period > 0: return text.round(game.period)
             case .mma:
                 guard let bout = game.currentBout, bout.state == .live, bout.round > 0 else { return text.live }
@@ -1256,22 +1487,20 @@ enum NotchScoresSupport {
         return short.split(separator: " ").last.map(String.init) ?? short
     }
 
-    /// A followed championship's qualifying, sprints and races.
+    /// A followed championship's practice, qualifying, sprints and races.
     private static func racingGames(_ event: ESPNEvent, request: NotchScoreRequest) -> [NotchScoreGame] {
         let grandPrix = event.shortName ?? event.name ?? ""
         return (event.competitions?.elements ?? []).compactMap { session in
             guard let sessionID = session.id?.text, let start = date(session.date ?? event.date) else { return nil }
             let kind = session.type?.abbreviation ?? ""
             // A series that races once a weekend names no session.
-            // Practice rarely matters to a fan, and would speak up five times a weekend.
-            guard !kind.uppercased().hasPrefix("FP") else { return nil }
             let sides = (session.competitors?.elements ?? []).compactMap { competitor -> NotchScoreSide? in
                 guard let id = competitor.id?.text, let athlete = competitor.athlete else { return nil }
                 let name = athlete.displayName ?? id
                 return NotchScoreSide(id: id, name: name,
                                       abbreviation: athlete.abbreviation ?? driverCode(athlete),
                                       position: competitor.order?.integer, winner: competitor.winner ?? false,
-                                      logo: image(athlete.flag?.href))
+                                      logo: image(athlete.flag?.href), portrait: portrait(athlete: id))
             }.sorted { ($0.position ?? .max) < ($1.position ?? .max) }
             let status = session.status ?? event.status
             let state = state(status)
@@ -1279,8 +1508,15 @@ enum NotchScoresSupport {
                 id: "racing/\(request.league)#\(sessionID)", sport: .racing, league: request.league,
                 title: grandPrix, detail: kind.isEmpty ? nil : kind, start: start, state: state,
                 clock: state == .called ? (status?.type?.shortDetail ?? "") : "",
-                period: status?.period?.integer ?? 0, sides: sides, followed: [], link: link(event))
+                period: status?.period?.integer ?? 0, sides: sides, followed: [], link: link(event),
+                event: event.id?.text)
         }
+    }
+
+    /// Where ESPN keeps a racing driver's photo, Formula 1's and NASCAR's alike.
+    static func portrait(athlete id: String) -> URL? {
+        guard !id.isEmpty, id.allSatisfy(\.isASCII), id.allSatisfy(\.isNumber) else { return nil }
+        return URL(string: "https://a.espncdn.com/i/headshots/rpm/players/full/\(id).png")
     }
 
     /// Scoreboards name drivers without the three letters timing screens
@@ -1319,6 +1555,12 @@ enum NotchScoresSupport {
             components?.queryItems = [URLQueryItem(name: "img", value: path),
                                       URLQueryItem(name: "w", value: String(pixels)),
                                       URLQueryItem(name: "h", value: String(pixels))]
+            // A photo is wider than tall: cropped square around the face,
+            // not squeezed, so it fills a circle.
+            if path.hasPrefix("/i/headshots/") {
+                components?.queryItems? += [URLQueryItem(name: "scale", value: "crop"),
+                                            URLQueryItem(name: "location", value: "origin")]
+            }
             return components?.url
         }
         return resized + [url]
@@ -1556,6 +1798,32 @@ struct ESPNRoot: Decodable {
 struct ESPNLeague: Decodable {
     let name: String?
     let slug: String?
+}
+
+/// A session's drivers with their cars, from ESPN's core API.
+struct ESPNCompetitorPage: Decodable {
+    struct Item: Decodable {
+        let id: ESPNValue?
+        let vehicle: Vehicle?
+    }
+    struct Vehicle: Decodable {
+        let number: ESPNValue?
+        let manufacturer: String?
+        let team: String?
+        let teamColor: String?
+    }
+    let items: ESPNList<Item>?
+}
+
+/// A driver's timing in a session, from ESPN's core API.
+struct ESPNTiming: Decodable {
+    struct Splits: Decodable { let categories: ESPNList<Category>? }
+    struct Category: Decodable { let stats: ESPNList<Stat>? }
+    struct Stat: Decodable {
+        let name: String?
+        let value: ESPNValue?
+    }
+    let splits: Splits?
 }
 
 struct ESPNEvent: Decodable {

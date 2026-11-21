@@ -293,7 +293,7 @@ enum SettingsDirectory {
                    notchScores.add, notchScores.sportLabel, notchScores.league, notchScores.soccer, notchScores.football,
                    notchScores.tennis, notchScores.racing, notchScores.nationalTeams, notchScores.basketball,
                    notchScores.baseball, notchScores.hockey, notchScores.golf, notchScores.mma, notchScores.conference,
-                   notchScores.collegeFootball, notchScores.collegeBasketball, "ESPN", "NFL", "ATP", "WTA",
+                   notchScores.country, notchScores.international, notchScores.motorsport, notchScores.collegeFootball, notchScores.collegeBasketball, "ESPN", "NFL", "ATP", "WTA",
                    "F1", "NBA", "WNBA", "NCAA", "MLB", "NHL", "NASCAR", "PGA", "LPGA", "UFC"],
                   feature: .notchScores, notch: .module(.scores)),
             .init([notchAgents.finishAfter], feature: .notchAgents, notch: .module(.agents), when: state.on(DefaultsKey.notchAgentsFinishAlert)),
