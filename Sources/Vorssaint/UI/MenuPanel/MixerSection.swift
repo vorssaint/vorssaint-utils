@@ -545,6 +545,8 @@ struct MixerOptionsControls: View {
     @ObservedObject private var permissions = Permissions.shared
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
     private var hideInactiveApps = false
+    @AppStorage(DefaultsKey.mixerAllowBoost)
+    private var allowBoost = true
     @AppStorage(DefaultsKey.mixerLowerVolumeOnHeadphonesDisconnect)
     private var lowerOnHeadphonesDisconnect = false
     @AppStorage(DefaultsKey.mixerHeadphonesDisconnectVolumePercent)
@@ -558,6 +560,7 @@ struct MixerOptionsControls: View {
         VStack(alignment: .leading, spacing: 8) {
             if AppVolumeMixer.isSupported {
                 inactiveAppsVisibilityToggle
+                boostToggle
             }
             headphoneDisconnectProtectionToggle
             preciseVolumeRollerToggle
@@ -748,6 +751,22 @@ struct MixerOptionsControls: View {
                 }
             }
         )
+    }
+
+    private var boostToggle: some View {
+        let label = FeatureStrings.mixer(l10n.language).allowBoost
+        return HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 6)
+            Toggle(label, isOn: $allowBoost)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+                .accessibilityLabel(label)
+                .onChange(of: allowBoost) { _, _ in mixer.syncVolumeCeiling() }
+        }
     }
 
     private var inactiveAppsVisibilityToggle: some View {
@@ -968,11 +987,11 @@ private struct MixerRow: View {
                                           isBoosting: isBoosting,
                                           accentRevision: accentRevision,
                                           glassEnabled: glassEnabled,
-                                          maximum: AppVolumeMixer.maxVolume,
+                                          maximum: mixer.volumeCeiling,
                                           accessibilityLabel: app.name)
 
                         EditableVolumePercent(currentPercent: MixerRoutingSupport.displayPercent(forVolume: app.volume),
-                                              maximumPercent: Int(AppVolumeMixer.maxVolume * 100),
+                                              maximumPercent: Int(mixer.volumeCeiling * 100),
                                               width: 42,
                                               editorID: "app:\(app.id)",
                                               editingID: $editingVolumeID,

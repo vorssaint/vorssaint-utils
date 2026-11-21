@@ -380,6 +380,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.mixerUniversalOutputDevice)
                 && backupKeys.contains(DefaultsKey.mixerShowFinder)
                 && backupKeys.contains(DefaultsKey.mixerHideInactiveApps)
+                && backupKeys.contains(DefaultsKey.mixerAllowBoost)
                 && backupKeys.contains(DefaultsKey.keepAwakeActiveIcon)
                 && backupKeys.contains(AppFeature.dockPreview.availabilityKey),
                "backup carries preferences, menu bar pins, Keep Awake appearance, language and hub availability, never a session's all-apps output")

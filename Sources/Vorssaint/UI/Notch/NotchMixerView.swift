@@ -526,11 +526,11 @@ private struct NotchAppFader: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 NotchLevelSlider(value: Binding(get: { app.volume }, set: { mixer.setVolume($0, for: app) }),
-                                 label: app.name, range: 0...AppVolumeMixer.maxVolume,
+                                 label: app.name, range: 0...mixer.volumeCeiling,
                                  tint: boosting ? .orange : .white, vertical: true, trackThickness: 28, marker: 1,
                                  valueLabel: "\(percent)%")
                     .frame(width: 40, height: NotchMixerFaderLayout.trackHeight(in: height))
-                NotchEditablePercent(percent: percent, maximum: Int(AppVolumeMixer.maxVolume * 100),
+                NotchEditablePercent(percent: percent, maximum: Int(mixer.volumeCeiling * 100),
                                      editorID: "notch-app:\(app.id)", editingID: $editingVolumeID,
                                      label: app.name, tint: boosting ? .orange : .secondary,
                                      boosting: boosting, height: 28) {

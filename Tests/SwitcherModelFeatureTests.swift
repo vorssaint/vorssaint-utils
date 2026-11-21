@@ -2579,6 +2579,8 @@ enum SwitcherModelFeatureTests {
                "Finder returns to the mixer by default")
         suite.expect(registeredDefaults[DefaultsKey.mixerHideInactiveApps] as? Bool == false,
                "inactive mixer apps remain visible by default")
+        suite.expect(registeredDefaults[DefaultsKey.mixerAllowBoost] as? Bool == true,
+               "the mixer keeps its boost above 100% unless it is switched off")
         suite.expect(registeredDefaults[DefaultsKey.soundOutputSwitcherEnabled] as? Bool == false,
                "sound output switcher is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.soundOutputSwitcherShortcut] as? String
