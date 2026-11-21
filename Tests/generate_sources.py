@@ -2890,7 +2890,8 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
-                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
+                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged(",
+                                   "    private func pollOpenLogs("])
           + "}\n}\n")
 
     write("AgentClaudeServerService.swift", "import Foundation\n"
