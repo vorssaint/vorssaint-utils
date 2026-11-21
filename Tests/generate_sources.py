@@ -620,13 +620,15 @@ def main():
                         "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
-                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:"])
+                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
+                        "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func requestedLevel(", "    private func performRestore(",
+                        "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
           + "}\n}\n")
     fan_hardware = "Sources/Vorssaint/Services/FanControl/FanControlHardware.swift"

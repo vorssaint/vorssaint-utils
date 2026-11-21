@@ -1087,37 +1087,51 @@ enum FeatureCatalogTests {
                "several temperature rules use their highest demand and require every selected sensor")
         // An idle M1 Pro GPU answered 0 and 9.2 °C from Tg04/Tg05/Tg0C/Tg0D
         // while its cores sat in the forties, which ended five-sensor curves.
-        let sleepingGPU: [Double?] = [0, 9.2, 0, 9.2]
-        suite.expect(FanControlPolicy.gpuIsPoweredDown(sleepingGPU)
-                && !FanControlPolicy.gpuIsPoweredDown([0, nil, 0, 9.2])
-                && !FanControlPolicy.gpuIsPoweredDown([0, 45, 0, 9.2])
-                && !FanControlPolicy.gpuIsPoweredDown([.nan])
-                && !FanControlPolicy.gpuIsPoweredDown([-1])
-                && !FanControlPolicy.gpuIsPoweredDown([]),
-               "only a GPU whose every sensor answers below the chip floor counts as powered down")
+        let m1Pro = "MacBookPro18,3"
+        let sleepingGPU: [(key: String, value: Double?)] = [
+            ("Tg04", 0), ("Tg05", 9.2), ("Tg0C", 0), ("Tg0D", 9.2),
+        ]
+        suite.expect(FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: "MacBookPro17,1", readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: nil, readings: sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: [])
+                && !FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro,
+                                                      readings: sleepingGPU + [("Tg1b", nil)]),
+               "only the verified M1 Pro and its four measured GPU keys qualify for sleep detection")
+        let invalidGPUAnswers: [Double?] = [nil, .nan, .infinity, -1, 0, 5, 9.3, 45, 125]
+        for invalid in invalidGPUAnswers {
+            var readings = sleepingGPU
+            readings[3].value = invalid
+            suite.expect(!FanControlPolicy.gpuIsPoweredDown(modelIdentifier: m1Pro, readings: readings),
+                         "missing or unexpected answers do not establish GPU sleep")
+        }
         let m1Cores = [("Tp01", 45.0), ("Tp05", 47.3), ("Tp09", 46.6)].map { (key: $0.0, value: $0.1) }
         let sleepingTemperatures = FanControlPolicy.aggregatedTemperatures(
-            cpuReadings: m1Cores, gpuReadings: sleepingGPU.compactMap { $0 },
-            platform: .appleM1Family, gpuPoweredDown: true
+            cpuReadings: m1Cores, gpuReadings: sleepingGPU.compactMap(\.value),
+            platform: .appleM1Family
         )
-        suite.expect(sleepingTemperatures.first { $0.source == .hottestGPU }?.celsius
-                        == TemperatureSensorSelector.minimumChipTemperature
+        suite.expect(!sleepingTemperatures.contains { $0.source == .hottestGPU }
                 && sleepingTemperatures.first { $0.source == .hottestSoC }?.celsius == 47.3,
-               "a powered-down GPU reads at the chip floor and stays out of the SoC sources")
+               "a sleeping GPU contributes no measured GPU or SoC temperature")
         let fiveSensorCurves = FanControlTemperatureSource.allCases.map {
             FanControlCurve(sensor: $0,
                             points: [FanControlCurvePoint(temperature: 20, coolingLevel: 50),
                                      FanControlCurvePoint(temperature: 60, coolingLevel: 100)])
         }
-        let lostGPUTemperatures = FanControlPolicy.aggregatedTemperatures(
-            cpuReadings: m1Cores, gpuReadings: [0, 9.2],
-            platform: .appleM1Family, gpuPoweredDown: false
-        )
+        let gpuCurve = FanControlCurve(sensor: .hottestGPU,
+                                       points: [.init(temperature: 25, coolingLevel: 35),
+                                                .init(temperature: 60, coolingLevel: 100)])
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: [gpuCurve], temperatures: [],
+                                                      gpuPoweredDown: true, previousLevel: 95) == 35
+                && FanControlPolicy.curveCoolingLevel(curves: [gpuCurve, cpuCurve], temperatures: [],
+                                                      gpuPoweredDown: true) == nil,
+               "a sleeping GPU requests its own first curve level and cannot substitute for a missing CPU")
         suite.expect(FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
                                                        temperatures: sleepingTemperatures,
+                                                       gpuPoweredDown: true,
                                                        previousLevel: 90) == 90
                 && FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
-                                                      temperatures: lostGPUTemperatures,
+                                                      temperatures: sleepingTemperatures,
                                                       previousLevel: 90) == nil,
                "a sleeping GPU keeps a curve on every sensor running, while a failed GPU sensor still stops it")
         let duplicateCurves = [defaultCurve,
@@ -1154,6 +1168,17 @@ enum FeatureCatalogTests {
         FanControlResumeContract.run(suite)
         FanControlRecoveryContract.run(suite)
         FanControlHardwareContract.run(suite)
+        let legacySnapshotData = Data(#"{"fans":[],"isCooling":false,"temperatures":[{"source":"hottestCPU","celsius":45}]}"#.utf8)
+        let legacySnapshot = try? JSONDecoder().decode(FanControlSnapshot.self, from: legacySnapshotData)
+        suite.expect(legacySnapshot?.availableTemperatureSources == [.hottestCPU],
+                     "the panel offers only measured sources when an older helper omits the GPU sleep flag")
+        var idleSnapshot = legacySnapshot ?? .empty
+        idleSnapshot.gpuPoweredDown = true
+        let encodedIdle = try? JSONEncoder().encode(idleSnapshot)
+        let decodedIdle = encodedIdle.flatMap { try? JSONDecoder().decode(FanControlSnapshot.self, from: $0) }
+        suite.expect(decodedIdle?.availableTemperatureSources == [.hottestCPU, .hottestGPU]
+                        && decodedIdle?.temperatures == [.init(source: .hottestCPU, celsius: 45)],
+                     "a sleeping GPU remains selectable after an IPC round trip without a temperature to display")
         let addedPoints = FanControlPolicy.addingCurvePoint(to: defaultCurve.points)
         suite.expect(FanControlPolicy.nextCurvePoint(for: defaultCurve.points) == FanControlCurvePoint(temperature: 60, coolingLevel: 50)
                 && addedPoints == [
