@@ -11,6 +11,8 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarShortcutEnabled) private var shortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
+    @AppStorage(DefaultsKey.commandBarEmojiTileSize) private var emojiTileSize = CommandBarEmojiTileSize.medium.rawValue
+    @AppStorage(DefaultsKey.commandBarEmojiShortcutEnabled) private var emojiShortcutEnabled = false
     @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
@@ -25,6 +27,33 @@ struct CommandBarSettings: View {
     @State private var showsFileOptions = false
     @State private var showsLayoutOptions = false
     @State private var showsAppShortcuts = false
+    /// The take-over the emoji key's toggle is asking about. Shown until the
+    /// person accepts (the toggle arms with the take-over written) or declines
+    /// (the toggle stays off: a key macOS answers is not taken quietly).
+    @State private var pendingEmojiTakeOver: GlobalShortcut?
+
+    /// The emoji key's toggle asks before it arms. A combination macOS answers
+    /// becomes the grid's key only through the offer; any other key, or one
+    /// whose take-over is already agreed, arms at once.
+    private var emojiShortcutBinding: Binding<Bool> {
+        Binding(get: { emojiShortcutEnabled },
+                set: { wanted in
+                    guard wanted else {
+                        emojiShortcutEnabled = false
+                        return
+                    }
+                    let shortcut = GlobalShortcut.saved(for: DefaultsKey.commandBarEmojiShortcut,
+                                                        fallback: .commandBarEmojiDefault)
+                    if SystemShortcutTakeoverSupport.emojiShortcutMayArm(
+                        conflictsWithMacOS: SystemShortcutTakeover.conflictsWithMacOS(
+                            shortcut, for: .commandBarEmoji),
+                        takenOver: SystemShortcutTakeover.isTakenOver(DefaultsKey.commandBarEmojiShortcut)) {
+                        emojiShortcutEnabled = true
+                    } else {
+                        pendingEmojiTakeOver = shortcut
+                    }
+                })
+    }
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
@@ -92,6 +121,59 @@ struct CommandBarSettings: View {
                     }
                     .pickerStyle(.segmented)
                     Text(text.emojiSkinToneCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Picker(text.emojiTileSizeLabel, selection: $emojiTileSize) {
+                        Text(text.emojiTileSizeSmall).tag(CommandBarEmojiTileSize.small.rawValue)
+                        Text(text.emojiTileSizeMedium).tag(CommandBarEmojiTileSize.medium.rawValue)
+                        Text(text.emojiTileSizeLarge).tag(CommandBarEmojiTileSize.large.rawValue)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(text.emojiTileSizeCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                // The emoji grid's own key, the same row any feature's shortcut
+                // gets: recorded here, offered as a take-over when macOS
+                // answers the combination, and listed on the shortcuts page.
+                // Turning the toggle on with macOS's own key under it is the
+                // moment the offer is asked: the shortcut arms only once the
+                // take-over is agreed, or the picker and the grid would both
+                // answer the same press.
+                VStack(alignment: .leading, spacing: 6) {
+                    Toggle(text.emojiShortcutToggle, isOn: emojiShortcutBinding)
+                        .onChange(of: emojiShortcutEnabled) { _, _ in
+                            CommandBarService.shared.syncWithPreferences()
+                        }
+                    if let takeOver = pendingEmojiTakeOver {
+                        SystemShortcutTakeOverOffer(shortcut: takeOver,
+                                                    onAccept: {
+                                                        SystemShortcutTakeover.setTakeOver(
+                                                            DefaultsKey.commandBarEmojiShortcut, true)
+                                                        emojiShortcutEnabled = true
+                                                        pendingEmojiTakeOver = nil
+                                                    },
+                                                    onDismiss: {
+                                                        pendingEmojiTakeOver = nil
+                                                    })
+                    }
+                    if emojiShortcutEnabled {
+                        ShortcutPreferenceRow(role: .commandBarEmoji,
+                                              isEnabled: emojiShortcutEnabled) {
+                            CommandBarService.shared.syncWithPreferences()
+                        }
+                    }
+                    if emojiShortcutEnabled, service.emojiShortcutRegistrationFailed {
+                        Text(l10n.s.shortcutUnavailable)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    if service.emojiShortcutSwitchedOff {
+                        Text(String(format: l10n.s.shortcutConflictFormat, "macOS"))
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                    Text(text.emojiShortcutCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
