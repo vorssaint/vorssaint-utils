@@ -2156,9 +2156,8 @@ enum SwitcherSupport {
     /// nothing then keeps ⌘Tab working instead of leaving it dead until the
     /// app holding it lets go.
     ///
-    /// A game's own exclusive full screen hands the keys back the same way
-    /// (`frontmostAppRaisesFullscreen`): the switcher's panel would open
-    /// beneath the game, and macOS's switcher still leaves such a game.
+    /// Full-screen games that can cover the panel also release the native
+    /// shortcuts so the user can switch apps through macOS.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
                                 exclusiveFullscreen: Bool = false,
@@ -2179,25 +2178,20 @@ enum SwitcherSupport {
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
     }
 
-    /// A game in its own exclusive full screen raises one window above normal
-    /// windows over the whole display; SDL and GLFW use the shielding level.
-    /// The switcher's panel sits at the status bar level, beneath such a
-    /// window, while macOS's own switcher is switched off for as long as the
-    /// switcher holds its keys, so ⌘Tab did nothing visible in League of
-    /// Legends (issue #2636). True when the frontmost app covers a display
-    /// that way, so the keys go back to macOS while it does. A window in a
-    /// macOS full-screen Space or a borderless game window stays at level 0
-    /// and never qualifies, nor does a raised window that covers only part of
-    /// a display, such as a tooltip, or one raised by another app, such as
-    /// the Dock. Any raised level counts, as GLFW stays just above the menu
-    /// bar, so a Keynote slideshow or a kiosk app also gets the macOS
-    /// switcher while it is in front: degraded to native, never a dead key.
-    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo],
+    /// A frontmost game can cover the switcher with a window at or above its
+    /// status-bar level. An incomplete snapshot leaves the last decision in effect.
+    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo]?,
                                              frontmostPID: pid_t?, ownPID: pid_t,
-                                             displays: [CGRect]) -> Bool {
-        guard let frontmostPID, frontmostPID != ownPID else { return false }
+                                             displays: [CGRect]) -> Bool? {
+        guard let windows, let frontmostPID, !displays.isEmpty,
+              displays.allSatisfy({ frame in
+                  !frame.isInfinite && frame.origin.x.isFinite && frame.origin.y.isFinite
+                      && frame.size.width.isFinite && frame.size.height.isFinite
+                      && frame.size.width > 0 && frame.size.height > 0
+              }) else { return nil }
+        guard frontmostPID != ownPID else { return false }
         return windows.contains { window in
-            window.ownerPID == frontmostPID && window.layer > 0 && window.alpha > 0
+            window.ownerPID == frontmostPID && window.layer >= NSWindow.Level.statusBar.rawValue && window.alpha > 0
                 && displays.contains { NotchAppFullscreen.covers(window.bounds, $0) }
         }
     }
@@ -2238,13 +2232,21 @@ enum SwitcherSupport {
         }
     ) -> [GlobalShortcut] {
         var shortcuts: [GlobalShortcut] = []
+        var actionKeysByLayout: [GlobalShortcutModifiers: [Int64]] = [:]
         for mask in 1...GlobalShortcutModifiers.validMask.rawValue {
             let modifiers = GlobalShortcutModifiers(rawValue: mask)
             guard modifiers.intersection(shortcut.modifiers) == shortcut.modifiers else { continue }
-            for keyCode in Int64(0)...127 {
-                let label = keyLabel(keyCode, modifiers.contains(.command), modifiers.contains(.shift))?.lowercased()
-                guard keyCode == USKeyPosition.q || keyCode == USKeyPosition.w || label == "q" || label == "w"
-                else { continue }
+            // Control and Option do not select a different character table.
+            // Resolve each table once before this Carbon callback returns.
+            let layout = modifiers.intersection([.command, .shift])
+            if actionKeysByLayout[layout] == nil {
+                actionKeysByLayout[layout] = (Int64(0)...127).filter { keyCode in
+                    if keyCode == USKeyPosition.q || keyCode == USKeyPosition.w { return true }
+                    let label = keyLabel(keyCode, layout.contains(.command), layout.contains(.shift))?.lowercased()
+                    return label == "q" || label == "w"
+                }
+            }
+            for keyCode in actionKeysByLayout[layout] ?? [] {
                 let action = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
                 if !registered.contains(action) { shortcuts.append(action) }
             }

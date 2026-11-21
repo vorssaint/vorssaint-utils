@@ -86,13 +86,14 @@ enum NotchAppFullscreen {
     /// The windows on screen, front to back, or nil when the window server
     /// did not answer. Shared with the window switcher's exclusive full
     /// screen check.
-    static func onScreenWindows() -> [WindowInfo]? {
+    static func onScreenWindows(ownerPID: pid_t? = nil) -> [WindowInfo]? {
         guard let entries = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements],
                                                        kCGNullWindowID) as? [[String: Any]]
         else { return nil }
         return entries.compactMap { entry in
-            guard let number = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
-                  let pid = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+            guard let pid = (entry[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value,
+                  ownerPID == nil || ownerPID == pid,
+                  let number = (entry[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
                   let layer = (entry[kCGWindowLayer as String] as? NSNumber)?.intValue,
                   let bounds = entry[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary)
