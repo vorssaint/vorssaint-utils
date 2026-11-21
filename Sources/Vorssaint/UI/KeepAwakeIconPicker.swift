@@ -23,11 +23,23 @@ struct KeepAwakeIconPicker: View {
             choiceHeader(l10n.s.keepAwakeActiveIconLabel,
                          value: title(selectedIcon))
 
-            HStack(spacing: compact ? 5 : 7) {
-                ForEach(KeepAwakeActiveIcon.allCases) { icon in
-                    iconButton(icon)
+            MenuBarIconCategories(title: l10n.s.keepAwakeActiveIconLabel,
+                                  strings: MenuBarIconStrings.localized(l10n.language),
+                                  hasAnimation: selectedIcon.animation != nil) {
+                HStack(spacing: compact ? 5 : 7) {
+                    ForEach(KeepAwakeActiveIcon.staticIcons) { icon in
+                        iconButton(icon)
+                    }
+                }
+            } animatedIcons: {
+                FlowLayoutLite(spacing: compact ? 5 : 7) {
+                    ForEach(MenuBarIconAnimation.allCases) { runner in
+                        iconButton(.animated(runner))
+                            .frame(width: compact ? 32 : 38)
+                    }
                 }
             }
+            .controlSize(compact ? .small : .regular)
 
             choiceHeader(l10n.s.keepAwakeIconTintLabel,
                          value: selectedTint.title(l10n.s))
@@ -96,6 +108,7 @@ struct KeepAwakeIconPicker: View {
         .buttonStyle(.plain)
         .help(title(icon))
         .accessibilityLabel(title(icon))
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     /// The Vorssaint choice draws whatever the menu bar shows, which can be a
@@ -103,7 +116,7 @@ struct KeepAwakeIconPicker: View {
     private func title(_ icon: KeepAwakeActiveIcon) -> String {
         guard icon == .vorssaint,
               BlackHoleGlyph.customMark(named: Defaults.sanitizedMenuBarIconSymbol(menuBarSymbol)) != nil
-        else { return icon.title(l10n.s) }
+        else { return icon.title(l10n.s, language: l10n.language) }
         return FeatureStrings.generalSettings(l10n.language).menuBarIconTitle
     }
 
@@ -155,6 +168,39 @@ struct KeepAwakeIconPicker: View {
         case .purple: return .purple
         case .pink: return .pink
         case .none: return nil
+        }
+    }
+}
+
+/// Both icon pickers open on the active category. Browsing the other group
+/// leaves the selected status icon alone until a cell is chosen.
+struct MenuBarIconCategories<StaticIcons: View, AnimatedIcons: View>: View {
+    let title: String
+    let strings: MenuBarIconStrings
+    let hasAnimation: Bool
+    @ViewBuilder let staticIcons: () -> StaticIcons
+    @ViewBuilder let animatedIcons: () -> AnimatedIcons
+    @State private var browsesAnimations: Bool?
+
+    var body: some View {
+        let showsAnimations = browsesAnimations ?? hasAnimation
+        VStack(alignment: .leading, spacing: 8) {
+            Picker(title, selection: Binding(
+                get: { showsAnimations },
+                set: { browsesAnimations = $0 }
+            )) {
+                Text(strings.staticCategory).tag(false)
+                Text(strings.animatedCategory).tag(true)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize(horizontal: true, vertical: false)
+
+            if showsAnimations {
+                animatedIcons()
+            } else {
+                staticIcons()
+            }
         }
     }
 }

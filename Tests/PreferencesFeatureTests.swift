@@ -168,6 +168,24 @@ enum PreferencesFeatureTests {
                "invalid keep-awake active icon tint falls back to orange")
         suite.expect(Defaults.sanitizedKeepAwakeActiveIcon("coffee") == .coffee,
                "valid keep-awake active icon is preserved")
+        suite.expect(Defaults.sanitizedKeepAwakeActiveIcon("coffee").animation == nil
+                     && Defaults.sanitizedKeepAwakeActiveIcon("animatedCoffee").animation == .coffee
+                     && Defaults.sanitizedKeepAwakeActiveIcon("animatedCat").animation == .cat,
+               "legacy coffee stays static and animated Keep Awake choices select their own frames")
+        let runners = MenuBarIconAnimation.allCases
+        suite.expect(KeepAwakeActiveIcon.allCases.compactMap(\.animation) == runners
+                     && runners.allSatisfy { runner in
+                         let style = KeepAwakeActiveIcon.animated(runner)
+                         return Defaults.sanitizedKeepAwakeActiveIcon(style.rawValue) == style
+                     },
+               "every menu bar runner can be selected and restored as the active Keep Awake icon")
+        suite.expect(AppLanguage.allCases.allSatisfy { language in
+            let labels = MenuBarIconStrings.localized(language)
+            let names = runners.map { labels.title(for: $0) }
+            return !labels.staticCategory.isEmpty && !labels.animatedCategory.isEmpty
+                && labels.staticCategory != labels.animatedCategory
+                && !names.contains("") && Set(names).count == runners.count
+        }, "every locale has distinct icon categories and names for every runner")
         suite.expect(Defaults.sanitizedKeepAwakeActiveIcon("bad") == .vorssaint,
                "invalid keep-awake active icon falls back to the Vorssaint glyph")
         suite.expect(KeepAwakeActiveIcon.eye.systemSymbolName == "eye.fill",
@@ -180,6 +198,9 @@ enum PreferencesFeatureTests {
                "a typed menu bar symbol name loses its surrounding spaces, and blank keeps the glyph")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarIconSymbol),
                "the chosen menu bar symbol follows settings backups")
+        suite.expect(registeredDefaults[DefaultsKey.menuBarIconAnimation] as? String == ""
+                     && SettingsBackupSupport.exportKeys().contains(DefaultsKey.menuBarIconAnimation),
+               "the idle menu bar animation is opt-in and follows settings backups")
         let symbolExists: (String) -> Bool = { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
         suite.expect(Defaults.menuBarIconSymbolToSave(typed: " bolt.fill ", opening: "", exists: symbolExists) == "bolt.fill"
                      && Defaults.menuBarIconSymbolToSave(typed: "bolt.fil", opening: "star.fill", exists: symbolExists) == "star.fill"

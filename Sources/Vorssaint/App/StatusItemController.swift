@@ -24,6 +24,9 @@ final class StatusItemController {
     private var metricStatusItemFocus: [String: MenuBarMetric] = [:]
     private var cancellables = Set<AnyCancellable>()
     private var titleTimer: Timer?
+    private var iconAnimationTimer: Timer?
+    private var iconAnimationFrames: [NSImage] = []
+    private var screensSleeping = false
     private var defaultsObserver: NSObjectProtocol?
     /// Last combination applied by updateIconAppearance, so refresh ticks
     /// don't re-render an unchanged icon every 2 seconds.
@@ -202,6 +205,23 @@ final class StatusItemController {
             }
             .store(in: &cancellables)
 
+        let workspace = NSWorkspace.shared.notificationCenter
+        workspace.publisher(for: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .store(in: &cancellables)
+
+        Publishers.Merge(
+            workspace.publisher(for: NSWorkspace.screensDidSleepNotification).map { _ in true },
+            workspace.publisher(for: NSWorkspace.screensDidWakeNotification).map { _ in false }
+        )
+        .receive(on: DispatchQueue.main)
+        .sink { [weak self] sleeping in
+            self?.screensSleeping = sleeping
+            self?.updateIconAppearance()
+        }
+        .store(in: &cancellables)
+
         NotificationCenter.default.publisher(for: NotchService.fullscreenVisibilityDidChange)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] notification in
@@ -266,6 +286,7 @@ final class StatusItemController {
         // so a future "recreate the status item" path can't leak a firing timer or
         // a block observer that outlives this instance.
         titleTimer?.invalidate()
+        iconAnimationTimer?.invalidate()
         if let defaultsObserver { NotificationCenter.default.removeObserver(defaultsObserver) }
         for item in metricStatusItems.values {
             NSStatusBar.system.removeStatusItem(item)
@@ -275,13 +296,13 @@ final class StatusItemController {
         }
     }
 
-    /// Keeps the background sampler in step with the menu bar settings: it runs
-    /// continuously only while at least one metric is pinned to the menu bar.
+    /// Keeps sampling for pinned metrics and for a running menu bar animation.
     private func syncMonitorMode() {
         let defaults = UserDefaults.standard
         let interval = Defaults.sanitizedMonitorInterval(defaults.integer(forKey: DefaultsKey.monitorInterval))
         SystemMonitor.shared.setInterval(seconds: interval)
-        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults))
+        SystemMonitor.shared.setMenuBarActive(MenuBarMetric.anyEnabled(in: defaults),
+                                              animatesIcon: !iconAnimationFrames.isEmpty)
     }
 
     private func syncTitleTimer(keepAwakeActive: Bool,
@@ -385,18 +406,31 @@ final class StatusItemController {
                 mustShowForSignal: signal || keepAwakeSignal)
         mainItemHiddenByChoice = mainItemHidden
         let keepAwakeActive = KeepAwakeManager.shared.isActive
+        let style = KeepAwakeActiveIcon.current
+        let tint = KeepAwakeIconTint.current
+        let animation = keepAwakeActive ? style.animation : MenuBarIconAnimation.current
+        let animates = animation != nil && !screensSleeping && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
         // refresh() runs on every monitor tick and lands here; re-rendering
         // the same image every 2 seconds would be wasted composition, so the
         // image is only touched when some ingredient actually changed.
         let stateKey = [String(hidden), String(mainItemHidden), String(updateAvailable),
-                        String(keepAwakeActive), KeepAwakeIconTint.current.rawValue,
-                        KeepAwakeActiveIcon.current.rawValue, BlackHoleGlyph.chosenSymbolName,
-                        String(micBadgeActive)].joined(separator: "|")
+                        String(keepAwakeActive), tint.rawValue, style.rawValue,
+                        BlackHoleGlyph.chosenSymbolName, String(micBadgeActive),
+                        animation?.rawValue ?? "", String(animates)].joined(separator: "|")
         guard stateKey != lastIconStateKey else { return }
         lastIconStateKey = stateKey
 
         statusItem.isVisible = !mainItemHidden
+
+        let hadAnimation = !iconAnimationFrames.isEmpty
+        iconAnimationTimer?.invalidate()
+        iconAnimationTimer = nil
+        iconAnimationFrames = []
+        defer {
+            let hasAnimation = !iconAnimationFrames.isEmpty
+            if hadAnimation != hasAnimation { syncMonitorMode() }
+        }
 
         guard !hidden else {
             // A non-nil image lets macOS apply the inactive-display appearance
@@ -404,6 +438,16 @@ final class StatusItemController {
             button.image = Self.emptyStatusImage
             return
         }
+        if !mainItemHidden, !updateAvailable, animates, let animation, !animation.frames.isEmpty {
+            iconAnimationFrames = animation.frames.map { frame in
+                let image = BlackHoleGlyph.applyingTint(keepAwakeActive ? tint : .none, to: frame)
+                return micBadgeActive ? BlackHoleGlyph.micMutedImage(over: image) ?? image : image
+            }
+            button.image = iconAnimationFrames[0]
+            scheduleIconFrame(after: 0)
+            return
+        }
+
         let stateImage: NSImage?
         if updateAvailable {
             stateImage = BlackHoleGlyph.attentionImage()
@@ -415,6 +459,20 @@ final class StatusItemController {
         } else {
             button.image = stateImage
         }
+    }
+
+    private func scheduleIconFrame(after index: Int) {
+        let interval = MenuBarIconAnimation.frameInterval(cpuUsage: SystemMonitor.shared.snapshot.cpuUsage)
+        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+            guard let self, let button = self.statusItem.button,
+                  !self.iconAnimationFrames.isEmpty else { return }
+            let next = (index + 1) % self.iconAnimationFrames.count
+            button.image = self.iconAnimationFrames[next]
+            self.scheduleIconFrame(after: next)
+        }
+        timer.tolerance = interval * 0.1
+        RunLoop.main.add(timer, forMode: .common)
+        iconAnimationTimer = timer
     }
 
     @objc private func clicked() {
@@ -933,24 +991,29 @@ enum BlackHoleGlyph {
 
     static func image(active: Bool) -> NSImage? {
         let tint = KeepAwakeIconTint.current
-        guard active else { return mark() ?? fallback(active: false) }
+        guard active else {
+            return MenuBarIconAnimation.current?.frames.first ?? mark() ?? fallback(active: false)
+        }
         return activeImage(style: .current, tint: tint)
     }
 
     static func activeImage(style: KeepAwakeActiveIcon,
                             tint: KeepAwakeIconTint = .orange) -> NSImage? {
         let source: NSImage?
-        if let symbolName = style.systemSymbolName {
+        if let animation = style.animation {
+            source = animation.frames.first ?? fixedSizeSymbol(named: "play.fill")
+        } else if let symbolName = style.systemSymbolName {
             source = fixedSizeSymbol(named: symbolName, drop: style.menuBarDrop)
         } else {
             source = mark()
         }
         guard let source else { return fallback(active: tint != .none) }
-        guard let color = color(for: tint) else {
-            source.isTemplate = true
-            return source
-        }
-        return tintedImage(source, color: color) ?? fallback(active: true)
+        return applyingTint(tint, to: source)
+    }
+
+    static func applyingTint(_ tint: KeepAwakeIconTint, to source: NSImage) -> NSImage {
+        guard let color = color(for: tint) else { return source }
+        return tintedImage(source, color: color)
     }
 
     /// System symbols have different natural widths. Center them inside the
@@ -1024,7 +1087,7 @@ enum BlackHoleGlyph {
     /// (a real color), drawn by masking blue into the glyph's shape.
     static func attentionImage() -> NSImage? {
         guard let glyph = mark() else { return fallback(active: true) }
-        return tintedImage(glyph, color: .systemBlue) ?? fallback(active: true)
+        return tintedImage(glyph, color: .systemBlue)
     }
 
     /// The given state image with a red slashed microphone beside it, shown
@@ -1062,7 +1125,7 @@ enum BlackHoleGlyph {
         return composed
     }
 
-    private static func tintedImage(_ source: NSImage, color: NSColor) -> NSImage? {
+    private static func tintedImage(_ source: NSImage, color: NSColor) -> NSImage {
         let tinted = NSImage(size: source.size, flipped: false) { rect in
             source.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
             color.setFill()

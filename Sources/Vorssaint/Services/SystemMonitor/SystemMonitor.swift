@@ -149,6 +149,7 @@ final class SystemMonitor: ObservableObject {
     private var notchDetailNeeds: SystemMonitorPanelNeeds = .none
     private var notchAccessoryMonitoring = false
     private var menuBarActive = false
+    private var animatesMenuBarIcon = false
     private var alertsActive = false
     private var refreshInFlight = false
     private var pendingRefresh = false
@@ -390,20 +391,23 @@ final class SystemMonitor: ObservableObject {
         }
     }
 
-    /// Toggles continuous light sampling for the menu bar metrics.
-    func setMenuBarActive(_ active: Bool) {
+    /// Samples pinned menu bar metrics and aggregate CPU load for the icon.
+    func setMenuBarActive(_ active: Bool, animatesIcon: Bool) {
         runOnMain { [weak self] in
             guard let self else { return }
-            guard active != menuBarActive else {
-                if active { resyncIfPlanChanged() }
-                return
-            }
+            let wasActive = menuBarActive || animatesMenuBarIcon
             menuBarActive = active
-            if active {
-                ensureTimer()
-                refresh()
-            } else {
+            animatesMenuBarIcon = animatesIcon
+            if active || animatesIcon {
+                if wasActive {
+                    resyncIfPlanChanged()
+                } else {
+                    ensureTimer()
+                    refresh()
+                }
+            } else if wasActive {
                 stopTimerIfIdle()
+                resyncIfPlanChanged()
             }
         }
     }
@@ -482,7 +486,10 @@ final class SystemMonitor: ObservableObject {
     /// independent surfaces cannot desync.
     private var fullMonitorVisible: Bool { panelClients > 0 }
 
-    private var shouldRun: Bool { fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible || notchAccessoryMonitoring || menuBarActive || alertsActive }
+    private var shouldRun: Bool {
+        fullMonitorVisible || menuPanelNeeds.any || notchDetailNeeds.any || notchVisible
+            || notchAccessoryMonitoring || menuBarActive || animatesMenuBarIcon || alertsActive
+    }
 
     private func shouldSample(defaults: UserDefaults = .standard) -> Bool {
         shouldRun && currentPlan(defaults: defaults).any
@@ -567,7 +574,7 @@ final class SystemMonitor: ObservableObject {
         let alertDisk = defaults.bool(forKey: DefaultsKey.monitorAlertDisk)
         let alertBattery = hasInternalBattery && defaults.bool(forKey: DefaultsKey.monitorAlertBattery)
 
-        plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU
+        plan.needCPU = panelCPU || defaults.bool(forKey: DefaultsKey.menuBarCPU) || alertCPU || animatesMenuBarIcon
         // Per-core bars live under the panel's CPU row only: a CPU shown in the
         // menu bar or watched by an alert never reads every core.
         plan.needCPUCores = menuPanelNeeds.system
@@ -617,7 +624,8 @@ final class SystemMonitor: ObservableObject {
             defaults.bool(forKey: feature.availabilityKey)
         }
         if !available(.monitorCPU) {
-            plan.needCPU = false
+            // The icon needs aggregate load even with the CPU metric uninstalled.
+            plan.needCPU = animatesMenuBarIcon
             plan.needCPUCores = false
             plan.needCPUTemperature = false
         }
