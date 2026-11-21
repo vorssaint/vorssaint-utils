@@ -652,6 +652,7 @@ extension Strings {
         audioPriorityMoveUp: "上へ移動",
         audioPriorityMoveDown: "下へ移動",
         audioPriorityUnavailable: "利用不可",
+        audioPriorityRemove: "削除",
         audioPriorityCurrent: "使用中",
         audioPriorityCaption: "デバイスは優先順位に従って選択されます。優先順位の高いデバイスが接続されると、そのデバイスに切り替わります。使用中のデバイスが切断されると、次に利用可能なデバイスに切り替わります。",
 

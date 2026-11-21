@@ -111,6 +111,17 @@ enum ScreenshotCapturePolicy {
         let bounds: CGRect
     }
 
+    /// A display crop is safe only when that display contains the whole window
+    /// and no other display draws part of it. A shared edge contains no pixels.
+    static func displayCoveringWindow<Display>(_ bounds: CGRect, in displays: [Display],
+                                               frame: KeyPath<Display, CGRect>) -> Display? {
+        guard !bounds.isEmpty else { return nil }
+        let hits = displays.filter { !bounds.intersection($0[keyPath: frame]).isEmpty }
+        guard hits.count == 1, let display = hits.first,
+              display[keyPath: frame].contains(bounds) else { return nil }
+        return display
+    }
+
     /// What a sheet, alert or modal dialog stacked on the clicked window adds
     /// to its capture (issue #1098).
     ///

@@ -27,6 +27,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var mainAXWhileHeld = 0
     static var mainAXAfterRelease = 0
     static var mainLookupsAfterRelease = 0
+    static var serverFrameReads = 0
     /// Seconds since the test began, on which events are stamped and timers
     /// come due. Only a test or a timer moves it.
     static var clock: TimeInterval = 0
@@ -140,6 +141,10 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowEdgeSnapSupport {
         static var isSystemTilingEnabled = false
+        static var optionTilingEnabled = true
+        static func systemTilingEnabledForDrag(optionHeld: Bool) -> Bool {
+            isSystemTilingEnabled || (optionHeld && optionTilingEnabled)
+        }
         static var isSystemTopWindowOverviewDragEnabled = false
         static func needsSizeRestore(from snapped: CGSize, to restore: CGSize) -> Bool {
             EdgeSnapGeometry.needsSizeRestore(from: snapped, to: restore)
@@ -202,7 +207,8 @@ enum WindowEdgeSnapRuntimeTests {
     }
     enum WindowServerSupport {
         static func frame(ofWindowID id: CGWindowID) -> CGRect? {
-            windowExists && id == windowID ? currentFrame : nil
+            serverFrameReads += 1
+            return windowExists && id == windowID ? currentFrame : nil
         }
     }
     final class NSRunningApplication {
@@ -280,6 +286,7 @@ enum WindowEdgeSnapRuntimeTests {
         var edgeSnapPressOrigin: CGPoint?
         var edgeSnapPressCandidate: WindowServerWindowCandidate?
         var edgeSnapSequenceSuppressed = false
+        var edgeSnapSystemDrag = WindowEdgeSnapSystemDrag.idle
         var edgeSnapResolveAttempts = 0
         var edgeSnapLastResolveAt: TimeInterval = 0
         var edgeSnapDrag: WindowEdgeSnapDrag?
@@ -410,6 +417,7 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static func reset() {
+        serverFrameReads = 0
         accessibilityGranted = true
         canBePlaced = true
         currentFrame = initialFrame
@@ -439,6 +447,7 @@ enum WindowEdgeSnapRuntimeTests {
         positionAccepted = true
         NSScreen.screens = [NSScreen.primary]
         WindowEdgeSnapSupport.isSystemTilingEnabled = false
+        WindowEdgeSnapSupport.optionTilingEnabled = true
         WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled = false
         DispatchQueue.main.jobs.removeAll()
         DispatchQueue.main.timers.removeAll()
@@ -582,6 +591,20 @@ enum WindowEdgeSnapRuntimeTests {
     }
 
     private static func runRestoreTests(_ suite: TestSuite) {
+        for drift in [0, 3] {
+            reset()
+            let click = Host()
+            prepareRestore(click)
+            let start = CGPoint(x: snappedFrame.midX, y: snappedFrame.minY + 15)
+            let end = CGPoint(x: start.x + CGFloat(drift), y: start.y)
+            hand(click, .leftMouseDown, start)
+            currentFrame = snappedFrame.offsetBy(dx: CGFloat(drift), dy: 0)
+            if drift > 0 { hand(click, .leftMouseDragged, end) }
+            send(click, .leftMouseUp, end)
+            suite.expect(serverFrameReads == 0 && sizeWrites.isEmpty && click.restoreFrames[restoreKey] != nil,
+                         "a click within drag slop neither probes nor restores a snapped window")
+        }
+
         reset()
         let ordinary = Host()
         prepareRestore(ordinary)
@@ -906,6 +929,32 @@ enum WindowEdgeSnapRuntimeTests {
         suite.expect(previewedWhileHeld && mainAXWhileHeld == 0 && titleBar.placements
                         == [WindowLayoutFrame(origin: initialFrame.origin, size: initialFrame.size)],
                      "a window dragged to an edge previews the zone, snaps on release and keeps its starting frame for Restore")
+
+        for optionAtPress in [true, false] {
+            reset()
+            let host = Host()
+            if !optionAtPress { pressAndTrack(host) }
+            let option = event(.leftMouseDown, at: pressPoint)
+            option.flags = .maskAlternate
+            _ = host.observeEdgeSnapEvent(type: optionAtPress ? .leftMouseDown : .flagsChanged, event: option)
+            DispatchQueue.main.drain()
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(!host.previewShown && host.placements.isEmpty,
+                         "an Option gesture belongs to macOS until mouse-up even after Option is released")
+
+            currentFrame = initialFrame
+            send(host, .leftMouseDown, pressPoint)
+            currentFrame = movedToEdge
+            send(host, .leftMouseDragged, edgePoint)
+            send(host, .leftMouseUp, edgePoint)
+            DispatchQueue.drainLookups()
+            DispatchQueue.main.drain()
+            suite.expect(host.placements.count == 1, "the next unmodified drag can snap")
+        }
 
         reset()
         zoneActions = "right=rightThird"

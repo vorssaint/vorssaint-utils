@@ -135,11 +135,13 @@ enum SettingsSearchSupport {
     }
 
     static func scrollingScreenshotItem(language: AppLanguage) -> SettingsSearchItem {
-        SettingsSearchItem(
+        let strings = FeatureStrings.screenshot(language)
+        return SettingsSearchItem(
             id: .setting(.screenshotScrolling),
             destination: ScreenCaptureTool.scrolling.settingsDestination,
-            title: FeatureStrings.screenshot(language).scrollingCaptureTitle,
+            title: strings.scrollingCaptureTitle,
             icon: ScreenCaptureTool.scrolling.systemImageName,
+            keywords: [strings.scrollingAutoScrollToggle],
             feature: .screenshot)
     }
 

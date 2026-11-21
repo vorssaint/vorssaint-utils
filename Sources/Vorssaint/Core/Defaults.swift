@@ -254,6 +254,9 @@ enum DefaultsKey {
     // The read checksum fix needs its own recheck even if the paired-request
     // migration already ran and cached the monitor as write-only again.
     static let brightnessDDCReadChecksumRechecked = "brightnessDDCReadChecksumRechecked"
+    // Monitors behind an MCDP29XX HDMI converter were probed at an address
+    // it swallows; recheck them once now that it is addressed.
+    static let brightnessDDCHDMIConverterRechecked = "brightnessDDCHDMIConverterRechecked"
     /// A beta already installed the companion for this Command Bar user, once.
     static let notchMascotBetaInstalled = "notchMascotBetaInstalled"
     // Per-monitor connection paths a person has told this app to dim in
@@ -1084,11 +1087,11 @@ enum SupportUpdateIntroInfo {
     /// The stable release that gets this invitation, and the patches after it,
     /// which share one completion marker. The next stable update also includes
     /// people who completed the previous invitation.
-    static let releaseVersion = "3.4.3"
+    static let releaseVersion = "3.4.4"
 
     // Older beta onboarding wrote the release version before this screen was
     // available. A distinct completion marker keeps those upgraders eligible.
-    static let seenVersion = "3.4.3-support"
+    static let seenVersion = "3.4.4-support"
 
     static func matchesRelease(_ appVersion: String) -> Bool {
         guard let version = UpdateServiceSupport.SemanticVersion(raw: appVersion),
@@ -2086,6 +2089,7 @@ enum Defaults {
         migrateAppVolumesToPositions(in: defaults)
         migrateSwitcherWindowlessFinder(in: defaults)
         recheckBrightnessDDCWriteOnlyPaths(in: defaults)
+        recheckBrightnessDDCHDMIConverterPaths(in: defaults)
         hideScratchpadControlOnce(in: defaults)
         hideKeyboardLightControlOnce(in: defaults)
         // The "all apps" output choice now lasts one session; a saved one
@@ -2216,6 +2220,16 @@ enum Defaults {
         }
         defaults.set(true, forKey: DefaultsKey.brightnessDDCWriteOnlyPathsRechecked)
         defaults.set(true, forKey: DefaultsKey.brightnessDDCReadChecksumRechecked)
+        defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
+    }
+
+    /// A monitor behind an MCDP29XX HDMI converter was probed at the
+    /// standard DDC address, which the converter accepts and drops, so it was
+    /// cached as write-only and pinned to writes that never arrive. Drop the cache once so it is probed at the converter's address;
+    /// later verdicts stand.
+    static func recheckBrightnessDDCHDMIConverterPaths(in defaults: UserDefaults) {
+        guard !defaults.bool(forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked) else { return }
+        defaults.set(true, forKey: DefaultsKey.brightnessDDCHDMIConverterRechecked)
         defaults.removeObject(forKey: DefaultsKey.brightnessDDCWriteOnlyPaths)
     }
 
