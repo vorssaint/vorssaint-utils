@@ -1274,7 +1274,8 @@ def main():
                     .replace("private static func", "static func", 1)
                     for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
                                  "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
-                                 "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
+                                 "scanScreenshots(", "isScreenCapture(", "extendedAttribute(",
+                                 "installedAudioPluginBundleIDs("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
           + declaration(cleaner, "    private static func mayRemove(")

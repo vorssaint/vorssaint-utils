@@ -366,6 +366,32 @@ final class JunkCleaner: ObservableObject {
             if let id = app.bundleIdentifier { ids.insert(id.lowercased()) }
             if let url = app.bundleURL { remember(app: url) }
         }
+        return ids.union(installedAudioPluginBundleIDs())
+    }
+
+    /// Audio plugins are not apps, yet they keep preferences, support data
+    /// and licenses under their own identifiers. An installed plugin is a
+    /// living owner like an app; without it, a plugin's license reads as the
+    /// leftover of an uninstalled app.
+    private static func installedAudioPluginBundleIDs() -> Set<String> {
+        let extensions: Set<String> = ["component", "vst", "vst3", "clap", "aaxplugin"]
+        let roots = [NSHomeDirectory() + "/Library", systemLibrary].flatMap {
+            [$0 + "/Audio/Plug-Ins", $0 + "/Application Support/Avid/Audio/Plug-Ins"]
+        }
+        var ids = Set<String>()
+        for root in roots {
+            guard let enumerator = FileManager.default.enumerator(
+                at: URL(fileURLWithPath: root, isDirectory: true),
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { continue }
+            for case let url as URL in enumerator {
+                // Plug-Ins/VST3/Vendor/Name.vst3 is as deep as vendors nest them.
+                if enumerator.level >= 3 { enumerator.skipDescendants() }
+                guard extensions.contains(url.pathExtension.lowercased()),
+                      let id = Bundle(url: url)?.bundleIdentifier else { continue }
+                ids.insert(id.lowercased())
+            }
+        }
         return ids
     }
 

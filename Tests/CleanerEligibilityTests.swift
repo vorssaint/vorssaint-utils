@@ -245,6 +245,41 @@ enum CleanerEligibilityTests {
                      "the orphaned agent is still offered while the installed label stays protected")
     }
 
+    /// A plugin's preferences hold its license (#4180). With the plugin
+    /// installed they stay; once it is gone they are an ordinary leftover.
+    private static func checkAudioPlugins(_ suite: TestSuite, home: URL) throws {
+        let manager = FileManager.default
+        func plugin(_ path: String, id: String, in library: URL = home.appendingPathComponent("Library")) throws {
+            let contents = library.appendingPathComponent(path).appendingPathComponent("Contents")
+            try manager.createDirectory(at: contents, withIntermediateDirectories: true)
+            try PropertyListSerialization.data(fromPropertyList: ["CFBundleIdentifier": id],
+                                               format: .xml, options: 0)
+                .write(to: contents.appendingPathComponent("Info.plist"))
+        }
+        try plugin("Audio/Plug-Ins/Components/Synth.component", id: "com.synthmaker.Synth")
+        try plugin("Audio/Plug-Ins/VST3/Vendor/Reverb.vst3", id: "com.reverbco.Reverb")
+        try plugin("Application Support/Avid/Audio/Plug-Ins/Comp.aaxplugin", id: "com.compco.Comp",
+                   in: URL(fileURLWithPath: systemLibrary))
+        try plugin("Audio/Plug-Ins/Components/Readme.txt.d", id: "com.ignored.NotAPlugin")
+        let installed = installedAudioPluginBundleIDs()
+        suite.expect(installed == ["com.synthmaker.synth", "com.reverbco.reverb", "com.compco.comp"],
+                     "installed audio plugins in either library count as living owners")
+
+        let preferences = home.appendingPathComponent("Library/Preferences", isDirectory: true)
+        try manager.createDirectory(at: preferences, withIntermediateDirectories: true)
+        let license = preferences.appendingPathComponent("com.synthmaker.Synth.plist")
+        let orphan = preferences.appendingPathComponent("com.gonevendor.Delay.plist")
+        try Data().write(to: license)
+        try Data().write(to: orphan)
+        let found = leftovers(in: preferences, installed: installed).map(\.detail)
+        suite.expect(!found.contains("com.synthmaker.Synth") && found.contains("com.gonevendor.Delay"),
+                     "an installed plugin's preferences are not listed, an uninstalled one's still are")
+        suite.expect(!canRemove(Item(url: license, detail: "com.synthmaker.Synth"), installed: installed),
+                     "a stale selection cannot remove an installed plugin's preferences")
+        try manager.removeItem(at: license)
+        try manager.removeItem(at: orphan)
+    }
+
     static func run(_ suite: TestSuite) {
         let manager = FileManager.default
         let sandbox = manager.temporaryDirectory.resolvingSymlinksInPath()
@@ -256,6 +291,7 @@ enum CleanerEligibilityTests {
             try manager.createDirectory(at: root, withIntermediateDirectories: true)
             try checkSupportDirectories(suite, home: root)
             try checkOrphanedAgents(suite, home: root)
+            try checkAudioPlugins(suite, home: root)
             let installed: Set<String> = ["editor.test"]
             for category in [CleanerSupport.Category.caches, .logs] {
                 let dir = root.appendingPathComponent(category == .caches ? "Library/Caches" : "Library/Logs")
