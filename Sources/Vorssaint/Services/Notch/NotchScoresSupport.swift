@@ -612,8 +612,9 @@ enum NotchScorePace: Equatable {
 }
 
 /// A racing driver's car: the team's color, its name and the number.
+/// NASCAR names no colors; its numbers are what fans know a car by.
 struct NotchScoreLivery: Equatable {
-    let color: ColorValue
+    let color: ColorValue?
     let team: String?
     let number: String?
 }
@@ -1090,17 +1091,24 @@ enum NotchScoresSupport {
         guard let page = try? JSONDecoder().decode(ESPNCompetitorPage.self, from: data) else { return nil }
         var found: [String: NotchScoreLivery] = [:]
         for item in page.items?.elements ?? [] {
-            guard let id = item.id?.text, let vehicle = item.vehicle, let hex = vehicle.teamColor,
-                  hex.count == 6, let color = ColorValue(text: "#" + hex) else { continue }
+            guard let id = item.id?.text, let vehicle = item.vehicle else { continue }
+            let color = vehicle.teamColor.flatMap { $0.count == 6 ? ColorValue(text: "#" + $0) : nil }
+            let number = vehicle.number?.text.flatMap { $0.isEmpty || $0.count > 3 ? nil : $0 }
+            guard color != nil || number != nil else { continue }
             let team = vehicle.team ?? vehicle.manufacturer
-            found[id] = NotchScoreLivery(color: color, team: team?.isEmpty == false ? team : nil, number: vehicle.number?.text)
+            found[id] = NotchScoreLivery(color: color, team: team?.isEmpty == false ? team : nil, number: number)
         }
         return found
     }
 
     /// The driver the closed island pictures in place of the checkered
     /// flag: whoever is P1 once a session has an order.
-    static func compactPortrait(_ game: NotchScoreGame) -> URL? { compactLeader(game)?.portrait }
+    static func compactPortrait(_ game: NotchScoreGame) -> URL? {
+        showsCarNumbers(game) ? nil : compactLeader(game)?.portrait
+    }
+
+    /// NASCAR's cars go by their numbers, Formula 1's drivers by their faces.
+    static func showsCarNumbers(_ game: NotchScoreGame) -> Bool { game.sport == .racing && game.league != "f1" }
 
     /// P1, once a session has an order.
     static func compactLeader(_ game: NotchScoreGame) -> NotchScoreSide? {

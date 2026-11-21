@@ -862,24 +862,30 @@ private struct NotchScoreDetail: View {
                                          count: wide ? 2 : 1), spacing: 4) {
                     ForEach(game.sides) { driver in
                         let livery = scores.livery(driver, in: game)
+                        let carNumber = NotchScoresSupport.showsCarNumbers(game) ? livery?.number : nil
+                        let tint = livery?.color.map(Color.init(colorValue:))
                         HStack(spacing: 6) {
                             Text(driver.position.map { "P\($0)" } ?? "–")
                                 .font(.system(size: 10, weight: .bold)).monospacedDigit()
                                 .foregroundStyle(faint(driver.position.map { $0 <= 3 } == true ? 0.9 : 0.5))
                                 .frame(width: 26, alignment: .leading)
-                            NotchScoreCrest(url: driver.logo, size: 14, placeholder: game.sport.symbol)
+                            if let carNumber {
+                                NotchScoreCarNumber(number: carNumber, size: 16)
+                            } else {
+                                NotchScoreCrest(url: driver.logo, size: 14, placeholder: game.sport.symbol)
+                            }
                             Text(driver.name).font(.system(size: 11, weight: driver.position == 1 ? .bold : .regular))
                                 .lineLimit(1)
                             Spacer(minLength: 4)
-                            if let number = livery?.number {
+                            if carNumber == nil, let number = livery?.number {
                                 Text(number).font(.system(size: 10, weight: .semibold)).monospacedDigit()
                                     .foregroundStyle(faint(0.6))
                             }
                         }
                         .padding(.vertical, 3)
-                        .padding(.leading, livery == nil ? 0 : 9)
-                        .padding(.trailing, livery == nil ? 0 : 6)
-                        .background { if let livery { NotchScoreLiveryBand(color: livery.swiftColor) } }
+                        .padding(.leading, tint == nil ? 0 : 9)
+                        .padding(.trailing, tint == nil ? 0 : 6)
+                        .background { if let tint { NotchScoreLiveryBand(color: tint) } }
                         .accessibilityElement(children: .combine)
                         .accessibilityValue(livery?.team ?? "")
                     }
@@ -1076,8 +1082,28 @@ private struct NotchScoreLiveryBand: View {
     }
 }
 
-extension NotchScoreLivery {
-    var swiftColor: Color { Color(red: color.red, green: color.green, blue: color.blue) }
+extension Color {
+    init(colorValue value: ColorValue) {
+        self.init(red: value.red, green: value.green, blue: value.blue, opacity: value.alpha)
+    }
+}
+
+/// A car's number on a plate, as NASCAR fans know each car: slanted and
+/// heavy, scaled down to fit three digits.
+struct NotchScoreCarNumber: View {
+    let number: String
+    let size: CGFloat
+
+    var body: some View {
+        Text(number)
+            .font(.system(size: size * 0.66, weight: .heavy)).italic().monospacedDigit()
+            .lineLimit(1).minimumScaleFactor(0.5)
+            .foregroundStyle(.black)
+            .padding(.horizontal, size * 0.08)
+            .frame(width: size, height: size)
+            .background(.white, in: RoundedRectangle(cornerRadius: size * 0.24, style: .continuous))
+            .accessibilityHidden(true)
+    }
 }
 
 /// A score that changes rolls its digits over, the way a scoreboard
@@ -1167,10 +1193,14 @@ struct NotchScoresStrip: View {
                 HStack(spacing: Self.spacing) {
                     if let game, let marks = NotchScoresSupport.compactMarks(game) {
                         NotchScoreCrest(url: marks.first ?? nil, size: mark)
-                    } else if let game, let leader = NotchScoresSupport.compactLeader(game), let portrait = leader.portrait {
+                    } else if let game, let leader = NotchScoresSupport.compactLeader(game),
+                              NotchScoresSupport.showsCarNumbers(game), let number = scores.livery(leader, in: game)?.number {
+                        NotchScoreCarNumber(number: number, size: mark)
+                    } else if let game, let leader = NotchScoresSupport.compactLeader(game),
+                              let portrait = NotchScoresSupport.compactPortrait(game) {
                         NotchScoreCrest(url: portrait, size: mark, placeholder: game.sport.symbol,
                                         placeholderSize: textSize, round: true,
-                                        backdrop: scores.livery(leader, in: game)?.swiftColor)
+                                        backdrop: scores.livery(leader, in: game)?.color.map(Color.init(colorValue:)))
                     } else {
                         Image(systemName: game?.sport.symbol ?? NotchModule.scores.symbol)
                             .font(.system(size: textSize, weight: .semibold))

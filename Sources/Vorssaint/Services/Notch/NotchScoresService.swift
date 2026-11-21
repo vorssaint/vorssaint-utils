@@ -310,7 +310,8 @@ final class NotchScoresService: ObservableObject {
     }
 
     /// Each racing session's cars, once its drivers are listed: their team
-    /// colors behind the drivers on the page and the island. A session
+    /// colors behind the drivers on the page and the island, and NASCAR's
+    /// numbers in place of the drivers' faces and flags. A session
     /// whose cars are all known is not asked; one that did not answer
     /// waits ten minutes.
     private func loadLiveries() {

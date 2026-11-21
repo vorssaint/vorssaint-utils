@@ -201,16 +201,17 @@ enum NotchScoresTests {
         {"count":3,"items":[\
         {"id":"4665","order":1,"vehicle":{"number":"3","manufacturer":"Red Bull","teamColor":"00327D"}},\
         {"id":"5503","order":3,"vehicle":{"number":"63","manufacturer":"Mercedes","team":"Mercedes-AMG","teamColor":"00D2BE"}},\
-        {"id":"9","order":4,"vehicle":{"number":"9","manufacturer":"Nobody","teamColor":"not-a-color"}},\
-        {"id":"10","order":5}]}
+        {"id":"9","order":4,"vehicle":{"number":"9","manufacturer":"Chevrolet","teamColor":"not-a-color"}},\
+        {"id":"10","order":5},\
+        {"id":"11","order":6,"vehicle":{"manufacturer":"Ford"}}]}
         """.utf8)
         let liveries = NotchScoresSupport.liveries(from: cars)
-        suite.expect(liveries?.count == 2
+        suite.expect(liveries?.count == 3 && liveries?["9"]?.color == nil && liveries?["9"]?.number == "9"
                         && liveries?["4665"] == NotchScoreLivery(color: ColorValue(red: 0, green: 50.0 / 255, blue: 125.0 / 255),
                                                                  team: "Red Bull", number: "3")
                         && liveries?["5503"]?.team == "Mercedes-AMG" && liveries?["5503"]?.number == "63"
                         && NotchScoresSupport.liveries(from: Data("[]".utf8)) == nil,
-                     "each car's team color, team and number are read, and a car without a valid color is left plain")
+                     "each car's team color, team and number are read; a car with only a number keeps it, left plain")
         let grid = (1...22).map { NotchScoreSide(id: String(5000 + $0), name: "", abbreviation: "", position: $0) }
         var qualifying = NotchScoreGame(id: "racing/f1#401839136", sport: .racing, league: "f1", title: "Las Vegas",
                                         detail: "Qual", start: Date(), state: .live, period: 11, sides: grid, followed: [],
@@ -390,6 +391,9 @@ enum NotchScoresTests {
                         && race?.sides.first?.abbreviation == "BLA" && race.flatMap(Support.compactMarks) == nil
                         && race.map { Support.stripText($0, text: text, locale: Locale(identifier: "en_US"), now: Date()).leading } == "P1 BLA",
                      "a NASCAR race reads as one session, its field in order")
+        suite.expect(race.map(Support.showsCarNumbers) == true && race.flatMap(Support.compactPortrait) == nil
+                        && race.flatMap(Support.compactLeader)?.abbreviation == "BLA",
+                     "NASCAR's leader goes by their car number, not their face")
 
         let golf = parse("golfFinal", .golf, "pga").first
         suite.expect(golf?.title == "World Wide Technology Championship" && golf?.state == .finished && golf?.end != nil

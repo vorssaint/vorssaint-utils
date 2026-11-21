@@ -586,10 +586,8 @@ struct NotchCapsuleScoresStrip: View {
                         .notchCapCentered(CapsuleLayout.levelFont)
                         .modifier(NotchScoreRolling(value: NotchScoresSupport.compactCore(game, text: text)))
                     NotchScoreCrest(url: marks.last ?? nil, size: CapsuleLayout.symbolWidth)
-                } else if let game, let leader = NotchScoresSupport.compactLeader(game), let portrait = leader.portrait {
-                    NotchScoreCrest(url: portrait, size: CapsuleLayout.symbolWidth, placeholder: game.sport.symbol,
-                                    placeholderSize: CapsuleLayout.symbolSize, round: true,
-                                    backdrop: scores.livery(leader, in: game)?.swiftColor)
+                } else if let game, let leader = NotchScoresSupport.compactLeader(game), hasLeaderMark(game, leader) {
+                    leaderMark(game, leader)
                     Text(NotchScoresSupport.compactCore(game, text: text))
                         .font(Font(CapsuleLayout.levelFont as CTFont))
                         .modifier(NotchScoreRolling(value: NotchScoresSupport.compactCore(game, text: text)))
@@ -610,6 +608,23 @@ struct NotchCapsuleScoresStrip: View {
                                                                         now: Date()), sport: $0.sport)
         } ?? "")
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+    }
+
+    /// P1's car number in NASCAR, or the driver's face on their team's color.
+    private func hasLeaderMark(_ game: NotchScoreGame, _ leader: NotchScoreSide) -> Bool {
+        NotchScoresSupport.showsCarNumbers(game) ? scores.livery(leader, in: game)?.number != nil
+            : NotchScoresSupport.compactPortrait(game) != nil
+    }
+
+    @ViewBuilder private func leaderMark(_ game: NotchScoreGame, _ leader: NotchScoreSide) -> some View {
+        let livery = scores.livery(leader, in: game)
+        if NotchScoresSupport.showsCarNumbers(game), let number = livery?.number {
+            NotchScoreCarNumber(number: number, size: CapsuleLayout.symbolWidth)
+        } else if let portrait = NotchScoresSupport.compactPortrait(game) {
+            NotchScoreCrest(url: portrait, size: CapsuleLayout.symbolWidth, placeholder: game.sport.symbol,
+                            placeholderSize: CapsuleLayout.symbolSize, round: true,
+                            backdrop: livery?.color.map(Color.init(colorValue:)))
+        }
     }
 }
 
