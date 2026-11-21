@@ -813,6 +813,7 @@ extension Strings {
         menuBarSpacingLabel: "Інтервал на смузі меню",
         menuBarSpacingStandard: "Стандартний",
         menuBarSpacingCompact: "Компактний",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Ховати значок програми, поки показані метрики",
         menuBarHideIconCaption: "Значок повертається сам, коли метрики зникають зі смуги меню, а також коли є що повідомити (готове оновлення, увімкнено «Не давати Mac заснути» або вимкнено мікрофон).",
         monitorLabelStyleLabel: "Підписи",

@@ -840,6 +840,7 @@ extension Strings {
         menuBarSpacingLabel: "Menü çubuğu aralığı",
         menuBarSpacingStandard: "Standart",
         menuBarSpacingCompact: "Sıkışık",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Metrikler gösterilirken uygulama simgesini gizle",
         menuBarHideIconCaption: "Metrikler çubuktan kalktığında ve bildirilecek bir şey olduğunda (güncelleme hazır, “Uyanık tut” açık veya mikrofon sessizde) simge kendiliğinden geri döner.",
         monitorLabelStyleLabel: "Etiketler",

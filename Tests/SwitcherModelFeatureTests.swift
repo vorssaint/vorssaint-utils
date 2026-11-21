@@ -2732,10 +2732,20 @@ enum SwitcherModelFeatureTests {
                "battery temperature alerts are opt-in")
         suite.expect(registeredDefaults[DefaultsKey.monitorAlertBatteryTemperatureThreshold] as? Int == 40,
                "battery temperature alerts default to forty degrees")
-        suite.expect(Defaults.sanitizedMenuBarMetricSpacing("standard") == "standard",
-               "standard menu bar spacing is a valid stored choice")
+        suite.expect(Defaults.sanitizedMenuBarMetricSpacing("standard") == "standard"
+               && Defaults.sanitizedMenuBarMetricSpacing("ultra") == "ultra",
+               "standard and ultra menu bar spacing are valid stored choices")
         suite.expect(Defaults.sanitizedMenuBarMetricSpacing("banana") == "compact",
                "unknown menu bar spacing values fall back to the compact default")
+        suite.expect(MenuBarSpacingSupport.blockGlue(readableStyle: false, spacing: .compact) == "\u{200A}"
+               && MenuBarSpacingSupport.blockGlue(readableStyle: false, spacing: .ultra) == "",
+               "ultra spacing removes dense block glue entirely")
+        suite.expect(MenuBarSpacingSupport.blockGlue(readableStyle: true, spacing: .compact) == " "
+               && MenuBarSpacingSupport.blockGlue(readableStyle: true, spacing: .ultra) == "\u{200A}",
+               "ultra spacing tightens readable block glue to a hair space")
+        suite.expect(MenuBarMetricSpacing(rawValue: "ultra") == .ultra
+               && MenuBarMetricSpacing.allCases.map(\.rawValue) == ["standard", "compact", "ultra"],
+               "the spacing enum keeps stable raw values for all three options")
         suite.expect(Defaults.sanitizedMenuBarMetricAppearance("bars") == "bars",
                "bar appearance is a valid stored choice")
         suite.expect(Defaults.sanitizedMenuBarMetricAppearance("banana") == "values",
@@ -2803,6 +2813,14 @@ enum SwitcherModelFeatureTests {
                "a three digit value raises the floor")
         suite.expect(MenuBarSpacingSupport.compactFloor(currentDigits: 2, highWater: 3) == 3,
                "the session high-water mark keeps a block from shrinking back and wobbling")
+        suite.expect(MenuBarSpacingSupport.ultraFloor(currentDigits: 1, highWater: nil) == 1
+               && MenuBarSpacingSupport.ultraFloor(currentDigits: 1, highWater: 2) == 2,
+               "ultra starts at one digit but still respects the session high-water mark")
+        suite.expect(MenuBarSpacingSupport.compactReserve(label: "reserve-compact-test", value: "7%") == "88%"
+               && MenuBarSpacingSupport.ultraReserve(label: "reserve-ultra-test", value: "7%") == "8%",
+               "ultra reserves one digit for a single-digit reading where compact reserves two")
+        suite.expect(MenuBarSpacingSupport.ultraReserve(label: "reserve-ultra-test", value: "42%") == "88%",
+               "a two-digit value widens the ultra reserve and raises its high-water mark")
         suite.expect(MenuBarSpacingSupport.blockGlue(readableStyle: false, spacing: .standard) == " ",
                "standard dense spacing keeps the full space between blocks")
         suite.expect(MenuBarSpacingSupport.blockGlue(readableStyle: false, spacing: .compact) == "\u{200A}",

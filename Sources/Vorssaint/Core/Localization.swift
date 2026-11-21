@@ -1035,6 +1035,7 @@ struct Strings {
     let menuBarSpacingLabel: String
     let menuBarSpacingStandard: String
     let menuBarSpacingCompact: String
+    let menuBarSpacingUltra: String
     let menuBarHideIconToggle: String
     let menuBarHideIconCaption: String
     let monitorLabelStyleLabel: String
@@ -2181,6 +2182,7 @@ extension Strings {
         menuBarSpacingLabel: "Espaçamento na barra",
         menuBarSpacingStandard: "Padrão",
         menuBarSpacingCompact: "Compacto",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Ocultar o ícone do app enquanto houver métricas",
         menuBarHideIconCaption: "O ícone volta sozinho quando as métricas saem da barra e quando há algo a avisar (atualização pronta, “Manter acordado” ativo ou microfone silenciado).",
         monitorLabelStyleLabel: "Rótulos",
@@ -3317,6 +3319,7 @@ extension Strings {
         menuBarSpacingLabel: "Menu bar spacing",
         menuBarSpacingStandard: "Standard",
         menuBarSpacingCompact: "Compact",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Hide the app icon while metrics are shown",
         menuBarHideIconCaption: "The icon returns by itself when metrics leave the bar and when there is something to signal (an update ready, “Keep awake” running or the microphone muted).",
         monitorLabelStyleLabel: "Labels",

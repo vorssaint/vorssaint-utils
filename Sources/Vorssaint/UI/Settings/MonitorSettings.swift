@@ -143,6 +143,7 @@ struct MonitorSettings: View {
                 Picker(l10n.s.menuBarSpacingLabel, selection: $metricSpacing) {
                     Text(l10n.s.menuBarSpacingStandard).tag("standard")
                     Text(l10n.s.menuBarSpacingCompact).tag("compact")
+                    Text(l10n.s.menuBarSpacingUltra).tag("ultra")
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

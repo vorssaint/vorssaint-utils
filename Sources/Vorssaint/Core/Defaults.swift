@@ -429,7 +429,7 @@ enum DefaultsKey {
     static let menuBarPower = "menuBarPower"
     static let menuBarFanSpeed = "menuBarFanSpeed"
     static let menuBarPreset = "menuBarPreset"           // dense
-    static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact
+    static let menuBarMetricSpacing = "menuBarMetricSpacing" // standard | compact | ultra
     static let menuBarMetricAppearance = "menuBarMetricAppearance" // values | bars
     static let menuBarUsageBarNormalColor = "menuBarUsageBarNormalColor" // #RRGGBB
     static let menuBarUsageBarElevatedColor = "menuBarUsageBarElevatedColor" // #RRGGBB
@@ -1236,7 +1236,7 @@ enum Defaults {
     static let defaultMouseClickDebounceWindowMs = 25
     static let allowedMouseClickDebounceWindowRange = 5...100
     static let allowedMenuBarPresets = ["dense"]
-    static let allowedMenuBarMetricSpacings = ["standard", "compact"]
+    static let allowedMenuBarMetricSpacings = ["standard", "compact", "ultra"]
     static let allowedMenuBarMetricAppearances = ["values", "bars"]
     static let defaultMenuBarMetricOrder = [
         "cpu", "cpuTemperature",

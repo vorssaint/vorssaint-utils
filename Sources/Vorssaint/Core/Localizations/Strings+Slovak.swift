@@ -840,6 +840,7 @@ extension Strings {
         menuBarSpacingLabel: "Rozostupy v lište s ponukami",
         menuBarSpacingStandard: "Štandardné",
         menuBarSpacingCompact: "Kompaktné",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Skryť ikonu aplikácie, kým sú zobrazené metriky",
         menuBarHideIconCaption: "Ikona sa vráti sama, keď metriky z lišty zmiznú a keď treba niečo signalizovať (pripravenú aktualizáciu, zapnutý „Bdelý režim“ alebo stlmený mikrofón).",
         monitorLabelStyleLabel: "Označenia",

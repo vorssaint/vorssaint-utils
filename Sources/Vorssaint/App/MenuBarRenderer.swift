@@ -880,11 +880,15 @@ enum MenuBarRenderer {
                                          warning: BatteryWarning) -> NSImage {
         // Compact spacing hugs the value's digit count (with a stability
         // floor, see MenuBarSpacingSupport) instead of the metric's absolute
-        // maximum; the reserve participates in the cache key, so both modes
-        // cache correctly side by side.
-        let minimumValue = MenuBarMetricSpacing.current == .compact
-            ? MenuBarSpacingSupport.compactReserve(label: label, value: value)
-            : reservedValue
+        // maximum; ultra hugs the current digit count with a one-digit floor.
+        // The reserve participates in the cache key, so all three modes cache
+        // correctly side by side and keep their own high-water marks.
+        let minimumValue: String
+        switch MenuBarMetricSpacing.current {
+        case .standard: minimumValue = reservedValue
+        case .compact: minimumValue = MenuBarSpacingSupport.compactReserve(label: label, value: value)
+        case .ultra: minimumValue = MenuBarSpacingSupport.ultraReserve(label: label, value: value)
+        }
         let pressureKey = pressure.map(String.init(describing:)) ?? "none"
         let cacheKey = "metric|\(label)|\(value)|\(minimumValue)|\(style)|\(pressureKey)|\(warning)" as NSString
         if let cached = blockImageCache.object(forKey: cacheKey) { return cached }

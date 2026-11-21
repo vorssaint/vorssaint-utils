@@ -840,6 +840,7 @@ extension Strings {
         menuBarSpacingLabel: "Espaciado en la barra",
         menuBarSpacingStandard: "Estándar",
         menuBarSpacingCompact: "Compacto",
+        menuBarSpacingUltra: "Ultra",
         menuBarHideIconToggle: "Ocultar el icono de la app mientras se muestran métricas",
         menuBarHideIconCaption: "El icono vuelve solo cuando las métricas salen de la barra y cuando hay algo que avisar (una actualización lista, “Mantener activo” en marcha o el micrófono silenciado).",
         monitorLabelStyleLabel: "Etiquetas",
