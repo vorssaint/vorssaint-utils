@@ -627,7 +627,7 @@ struct NotchSettings: View {
                     toggleCard(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboard,
                                available: clipboardAvailable, reason: clipboardFeedbackReason, reservesReason: reserves,
                                unavailableAction: { openClipboardFeedbackSetup() })
-                    toggleCard(text.captures, symbol: "camera.viewfinder", value: $capture, available: capturesAvailable,
+                    toggleCard(text.captures, symbol: NotchModule.captures.symbol, value: $capture, available: capturesAvailable,
                                reason: pageReason(.captures, feature: .screenshot), reservesReason: reserves,
                                unavailableAction: pageAction(.captures, feature: .screenshot))
                     toggleCard(text.newTrack, symbol: "music.note", value: $trackChange, available: musicAvailable,
@@ -734,7 +734,7 @@ struct NotchSettings: View {
                 destination(text.tools, symbol: NotchModule.tools.symbol, value: $quickPanel, available: AppFeature.quickLauncher.isAvailable)
                 destination(FeatureStrings.clipboard(l10n.language).title, symbol: "doc.on.clipboard", value: $clipboardWindow, available: AppFeature.clipboardHistory.isAvailable)
                 destination(text.files, symbol: "tray.full", value: $shelfWindow, available: AppFeature.shelf.isAvailable)
-                destination(text.captures, symbol: "camera.viewfinder", value: $captureControls)
+                destination(text.captures, symbol: NotchModule.captures.symbol, value: $captureControls)
                 destination(FeatureStrings.scratchpad(l10n.language).pageTitle, symbol: "note.text", value: $scratchpad, available: AppFeature.scratchpad.isAvailable)
             }
             SettingsCard(title: editor.privacy) {
