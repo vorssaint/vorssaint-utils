@@ -33,14 +33,9 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        // Cursor transcripts have no token totals; treat an existing projects
-        // folder like local history so the page still lists it.
-        let cursorInstalled = AgentLogRoot.all().contains { $0.provider == .cursor && $0.exists }
-        return [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil,
-                copilot ? .copilot : nil, cursor ? .cursor : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault)
-                || ($0 == .cursor && cursorInstalled) }
+        _ = (claude, codex, opencode, copilot, cursor)
+        return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
+                                               hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -48,7 +43,8 @@ struct NotchAgentsView: View {
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
+                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
+                                                              live: usage.snapshot.live),
                                       width: size.width)
     }
 
@@ -655,15 +651,17 @@ private struct NotchAgentLiveCard: View {
             // Tokens the agent wrote, as its own window counts them; every
             // call also reads the whole context again, which the tooltip and
             // the cost include.
-            Text([AgentPricing.displayName(session.model),
-                  session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
-                  session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
-                    .filter { !$0.isEmpty }.joined(separator: " · "))
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if session.provider != .cursor {
+                Text([AgentPricing.displayName(session.model),
+                      session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
+                      session.cost > 0 ? AgentFormat.cost(session.cost) : ""]
+                        .filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
+        .help(session.provider == .cursor ? session.provider.displayName : text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
     }
 

@@ -19,9 +19,14 @@ enum DiskImageHomebrewTests {
     enum DispatchQueue { static let main = Queue() }
     final class Files: Foundation.FileManager, @unchecked Sendable {
         var root: URL!
+        override var temporaryDirectory: URL { root.appendingPathComponent("Temp", isDirectory: true) }
         override func urls(for directory: SearchPathDirectory, in domainMask: SearchPathDomainMask) -> [URL] {
-            [root.appendingPathComponent(directory == .libraryDirectory ? "Library" : "Applications",
-                                          isDirectory: true)]
+            let name = switch directory {
+            case .libraryDirectory: "Library"
+            case .downloadsDirectory: "Downloads"
+            default: "Applications"
+            }
+            return [root.appendingPathComponent(name, isDirectory: true)]
         }
     }
     enum FileManager { static let `default` = Files() }
@@ -72,9 +77,14 @@ enum DiskImageHomebrewTests {
             let library = root.appendingPathComponent("Library", isDirectory: true)
             let cache = library.appendingPathComponent("Caches/Homebrew", isDirectory: true)
             let cached = cache.appendingPathComponent("downloads/example.dmg")
-            let manual = root.appendingPathComponent("Downloads/manual.dmg")
+            let manual = root.appendingPathComponent("Desktop/manual.dmg")
+            let downloaded = root.appendingPathComponent("Downloads/Apps/downloaded.dmg")
             let sibling = library.appendingPathComponent("Caches/Homebrew-backup/example.dmg")
-            for url in [cached, manual, sibling] {
+            let buildRoot = root.appendingPathComponent("Downloads/Project/build", isDirectory: true)
+            let built = buildRoot.appendingPathComponent("release/App.dmg")
+            let temporary = fm.temporaryDirectory.appendingPathComponent("clip.dmg")
+            let fetched = root.appendingPathComponent("Project/vendor/fetched.dmg")
+            for url in [cached, manual, downloaded, sibling, built, fetched, temporary] {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data([0]).write(to: url)
             }
@@ -95,8 +105,35 @@ enum DiskImageHomebrewTests {
             suite.expect(service.candidate(mountedAt: mount) == nil,
                          "production candidate selection rejects a Homebrew cache mount")
             try info(manual)
-            suite.expect(service.candidate(mountedAt: mount)?.imageURL == manual,
-                         "production candidate selection retains a manual app image")
+            let desktop = service.candidate(mountedAt: mount)
+            suite.expect(desktop?.imageURL == manual && desktop?.downloadTrashPreference(true) == nil
+                         && desktop?.downloadTrashPreference(false) == nil,
+                         "a manual image outside Downloads starts with Trash unchecked and leaves the saved choice untouched")
+            try info(downloaded)
+            let download = service.candidate(mountedAt: mount)
+            suite.expect(download?.imageURL == downloaded && download?.downloadTrashPreference(true) == true
+                         && download?.downloadTrashPreference(false) == false,
+                         "ordinary downloads honor and can update either saved cleanup choice")
+            try Data().write(to: buildRoot.appendingPathComponent(".vorssaint-no-install"))
+            try info(temporary)
+            suite.expect(service.candidate(mountedAt: mount) == nil,
+                         "an image in the system temporary directory is not offered")
+            let quarantine = Data("0083;00000000;Safari;".utf8)
+            let tagged = quarantine.withUnsafeBytes { bytes in
+                built.path.withCString { setxattr($0, "com.apple.quarantine", bytes.baseAddress, bytes.count, 0, 0) }
+            }
+            try info(built)
+            suite.expect(tagged == 0 && service.candidate(mountedAt: mount) == nil,
+                         "a marked build tree under Downloads is excluded even for a quarantined image")
+            try info(fetched)
+            suite.expect(service.candidate(mountedAt: mount)?.imageURL == fetched,
+                         "ordinary images outside Downloads do not need quarantine to be offered")
+            let taggedFetch = quarantine.withUnsafeBytes { bytes in
+                fetched.path.withCString { setxattr($0, "com.apple.quarantine", bytes.baseAddress, bytes.count, 0, 0) }
+            }
+            suite.expect(taggedFetch == 0 && service.candidate(mountedAt: mount)?.downloadTrashPreference(true) == true,
+                         "a downloaded image saved elsewhere retains its normal cleanup preference")
+            try info(manual)
             service.inspect(mountURL: mount)
             service.inspect(mountURL: mount)
             suite.expect(service.workQueue.work.count == 1,

@@ -24,7 +24,7 @@ enum AgentUsageArchive {
 
     private static let fileName = "agent-usage.bin"
     private static let magic: [UInt8] = Array("VAUA".utf8)
-    private static let format = 4
+    private static let format = 5
 
     /// The parser and the store change between versions; what one build
     /// read is not taken for what another would have.
@@ -71,12 +71,14 @@ enum AgentUsageArchive {
     /// read, not the log, so the latest reading stays: a fresh read would
     /// fall back to an older one. `unchanged` tells whether the result is
     /// still what was saved.
-    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date)
+    static func resume(_ contents: Contents, logs found: Set<String>, since horizon: Date, cursorRoot: URL? = nil)
         -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
         let store = AgentUsageStore(saved: contents.store)
         var cursors: [String: AgentLogCursor] = [:]
+        let root = cursorRoot.map { AgentLogRoot(provider: .cursor, url: $0) }
         for saved in contents.cursors where found.contains(saved.path) {
-            cursors[saved.path] = AgentLogCursor(saved: saved)
+            guard (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
+            cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot)
         }
         var gone = store.files.subtracting(cursors.keys)
         let sharing = store.files(sharingWith: gone).subtracting(gone)
@@ -134,7 +136,7 @@ enum AgentUsageArchive {
             body.unsigned(cursor.identity)
             body.bool(cursor.discarding)
             body.date(cursor.modified)
-            body.state(cursor.state)
+            body.state(cursor.state, provider: cursor.provider)
             body.unsigned(cursor.fingerprint)
         }
         var data = Data(magic)
@@ -202,10 +204,14 @@ enum AgentUsageArchive {
             for _ in 0..<(try reader.count()) { store.waiting.append(try reader.session()) }
             var cursors: [AgentLogCursor.Saved] = []
             for _ in 0..<(try reader.count()) {
-                cursors.append(AgentLogCursor.Saved(path: try reader.string(), provider: try reader.provider(),
-                                                    offset: try reader.unsigned(), identity: try reader.unsigned(),
+                let path = try reader.string()
+                let provider = try reader.provider()
+                let offset = try reader.unsigned()
+                cursors.append(AgentLogCursor.Saved(path: path, provider: provider,
+                                                    offset: offset, identity: try reader.unsigned(),
                                                     discarding: try reader.bool(), modified: try reader.date(),
-                                                    state: try reader.state(), fingerprint: try reader.unsigned()))
+                                                    state: try reader.state(provider: provider, offset: offset),
+                                                    fingerprint: try reader.unsigned()))
             }
             guard reader.atEnd else { return nil }
             return Contents(providers: providers, store: store, cursors: cursors)
@@ -315,7 +321,7 @@ enum AgentUsageArchive {
             double(value.cost)
         }
 
-        mutating func state(_ value: AgentLogState) {
+        mutating func state(_ value: AgentLogState, provider: AgentProvider) {
             string(value.session)
             string(value.project)
             string(value.model)
@@ -333,6 +339,11 @@ enum AgentUsageArchive {
             dictionary(value.copilotReportedRequests) { $0.int($1) }
             optional(value.copilotTurnID) { $0.string($1) }
             bool(value.copilotFinalResponse)
+            if provider == .cursor {
+                int(value.cursorPromptCount)
+                optional(value.cursorPromptTimestamp) { $0.date($1) }
+                optional(value.cursorLastActivity) { $0.date($1) }
+            }
         }
     }
 
@@ -477,7 +488,7 @@ enum AgentUsageArchive {
                              tokens: try tokens(), cost: try double())
         }
 
-        mutating func state() throws -> AgentLogState {
+        mutating func state(provider: AgentProvider, offset: UInt64) throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
                                       sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
             value.codexSubagent = try bool()
@@ -490,6 +501,13 @@ enum AgentUsageArchive {
             value.copilotReportedRequests = try dictionary { try $0.amount() }
             value.copilotTurnID = try optional { try $0.string() }
             value.copilotFinalResponse = try bool()
+            if provider == .cursor {
+                value.cursorPromptCount = try amount()
+                // Each prompt consumed at least one JSON line before this offset.
+                guard UInt64(value.cursorPromptCount) <= offset / 8 else { throw Malformed() }
+                value.cursorPromptTimestamp = try optional { try $0.date() }
+                value.cursorLastActivity = try optional { try $0.date() }
+            }
             return value
         }
     }

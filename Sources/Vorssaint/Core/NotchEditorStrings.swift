@@ -166,7 +166,7 @@ extension FeatureStrings {
             cameraSummary: "A mirror to check yourself before a call.",
             downloadsSummary: "Downloads in progress and just finished.",
             scratchpadSummary: "Quick notes that save by themselves.",
-            agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot, Cursor usage, limits and costs.",
+            agentsSummary: "Claude Code, Codex, OpenCode, GitHub Copilot and Cursor usage, limits and costs.",
             watchSummary: "Any part of a window, read live, with an alert when it changes."
         )
         case .ptBR: return NotchEditorStrings(
@@ -302,7 +302,7 @@ extension FeatureStrings {
             cameraSummary: "Un espejo para verte antes de una llamada.",
             downloadsSummary: "Descargas en curso y las recién terminadas.",
             scratchpadSummary: "Notas rápidas que se guardan solas.",
-            agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode, GitHub Copilot, Cursor y Cursor.",
+            agentsSummary: "Uso, límites y costes de Claude Code, Codex, OpenCode, GitHub Copilot y Cursor.",
             watchSummary: "Cualquier parte de una ventana, leída en directo, con aviso cuando cambie."
         )
         case .sk: return NotchEditorStrings(
@@ -438,7 +438,7 @@ extension FeatureStrings {
             cameraSummary: "Ein Spiegel, um dich vor einem Anruf zu sehen.",
             downloadsSummary: "Laufende und gerade fertige Downloads.",
             scratchpadSummary: "Schnelle Notizen, die sich selbst sichern.",
-            agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode, GitHub Copilot, Cursor und Cursor.",
+            agentsSummary: "Nutzung, Limits und Kosten von Claude Code, Codex, OpenCode, GitHub Copilot und Cursor.",
             watchSummary: "Ein beliebiger Teil eines Fensters, live gelesen, mit Hinweis bei Änderungen."
         )
         case .fr: return NotchEditorStrings(
@@ -506,7 +506,7 @@ extension FeatureStrings {
             cameraSummary: "Un miroir pour vous voir avant un appel.",
             downloadsSummary: "Les téléchargements en cours et ceux qui viennent de finir.",
             scratchpadSummary: "Des notes rapides qui s’enregistrent seules.",
-            agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode, GitHub Copilot, Cursor et Cursor.",
+            agentsSummary: "Utilisation, limites et coûts de Claude Code, Codex, OpenCode, GitHub Copilot et Cursor.",
             watchSummary: "N’importe quelle partie d’une fenêtre, lue en direct, avec une alerte quand elle change."
         )
         case .it: return NotchEditorStrings(
@@ -574,7 +574,7 @@ extension FeatureStrings {
             cameraSummary: "Uno specchio per guardarti prima di una chiamata.",
             downloadsSummary: "Download in corso e appena completati.",
             scratchpadSummary: "Note veloci che si salvano da sole.",
-            agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode, GitHub Copilot, Cursor e Cursor.",
+            agentsSummary: "Uso, limiti e costi di Claude Code, Codex, OpenCode, GitHub Copilot e Cursor.",
             watchSummary: "Qualsiasi parte di una finestra, letta dal vivo, con un avviso quando cambia."
         )
         case .ru: return NotchEditorStrings(
@@ -642,7 +642,7 @@ extension FeatureStrings {
             cameraSummary: "Зеркало, чтобы посмотреть на себя перед звонком.",
             downloadsSummary: "Текущие и только что завершённые загрузки.",
             scratchpadSummary: "Быстрые заметки, которые сохраняются сами.",
-            agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode, GitHub Copilot, Cursor и Cursor.",
+            agentsSummary: "Использование, лимиты и стоимость Claude Code, Codex, OpenCode, GitHub Copilot и Cursor.",
             watchSummary: "Любая часть окна, читаемая вживую, с оповещением об изменениях."
         )
         case .tr: return NotchEditorStrings(

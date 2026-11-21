@@ -61,6 +61,11 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// Cursor's transcript has no message IDs. The ordinal and optional
+    /// prompt timestamp identify the turn when Cursor rewrites the file.
+    var cursorPromptCount = 0
+    var cursorPromptTimestamp: Date?
+    var cursorLastActivity: Date?
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -187,16 +192,18 @@ enum AgentLogParser {
     /// The workspace folder Cursor encodes in
     /// `~/.cursor/projects/<slug>/agent-transcripts/…`.
     static func cursorProject(from path: String) -> String {
-        let parts = (path as NSString).pathComponents
-        guard let projects = parts.firstIndex(of: "projects"),
-              projects >= 2, parts[projects - 1] == ".cursor",
-              projects + 1 < parts.count else { return "" }
-        let slug = parts[projects + 1]
+        let transcript = CursorTranscriptFiles(path: path)
+        let directory = transcript.flat.deletingLastPathComponent()
+        guard directory.lastPathComponent == "agent-transcripts" else { return "" }
+        let project = directory.deletingLastPathComponent()
+        let slug = project.lastPathComponent
         // Home is taken from the transcript path, not this Mac's account, so
         // fixtures and other users' copied logs still name the project.
-        let homeParts = Array(parts[1..<(projects - 1)])
-        let homePath = "/" + homeParts.joined(separator: "/")
-        let encodedHome = homeParts.joined(separator: "-")
+        let projects = project.deletingLastPathComponent()
+        let cursor = projects.deletingLastPathComponent()
+        guard projects.lastPathComponent == "projects", cursor.lastPathComponent == ".cursor" else { return native(slug) }
+        let homePath = cursor.deletingLastPathComponent().path
+        let encodedHome = homePath.split(separator: "/").joined(separator: "-")
         if slug == encodedHome { return projectName(homePath) }
         if !encodedHome.isEmpty, slug.hasPrefix(encodedHome + "-") {
             let rest = String(slug.dropFirst(encodedHome.count + 1))
@@ -208,23 +215,22 @@ enum AgentLogParser {
         return native(slug)
     }
 
-    /// Recovers a path Cursor wrote with `/` turned into `-`, preferring
-    /// components that still exist on disk and accepting a final missing one.
+    /// Cursor replaces both separators and literal hyphens with the same
+    /// character. Only accept a reconstruction when the full directory exists.
     private static func resolveHyphenatedPath(base: String, encoded: String) -> String? {
         let tokens = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
-        guard !tokens.isEmpty else { return nil }
         return resolveHyphenatedPath(base: base, tokens: ArraySlice(tokens))
     }
 
     private static func resolveHyphenatedPath(base: String, tokens: ArraySlice<String>) -> String? {
         guard !tokens.isEmpty else { return base }
-        for length in 1...tokens.count {
+        for length in (1...tokens.count).reversed() {
             let name = tokens.prefix(length).joined(separator: "-")
+            guard !name.isEmpty, name != ".", name != ".." else { continue }
             let next = (base as NSString).appendingPathComponent(name)
-            let exists = FileManager.default.fileExists(atPath: next)
-            if length == tokens.count { return exists || FileManager.default.fileExists(atPath: base) ? next : nil }
-            guard exists, let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) else { continue }
-            return found
+            var directory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: next, isDirectory: &directory), directory.boolValue,
+               let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) { return found }
         }
         return nil
     }

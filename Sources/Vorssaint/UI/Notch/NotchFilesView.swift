@@ -52,7 +52,7 @@ struct NotchFilesView: View {
                 MediaWorkspaceView(compact: true, onClose: archives.closeMedia,
                                    media: media, initialInputs: session.inputs,
                                    initialTool: session.tool, preservesServiceState: true,
-                                   workspace: archives.mediaSelection,
+                                   acceptsDirectDrops: false, workspace: archives.mediaSelection,
                                    onContentHeightChange: { mediaHeightChanged($0, id: session.id) },
                                    onToolChange: { service.refreshPresentation(transitionContent: .replace) })
                     .id(session.id)

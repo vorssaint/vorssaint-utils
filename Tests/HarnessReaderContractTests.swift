@@ -155,8 +155,9 @@ enum HarnessReaderContractTests {
                      "a Cursor transcript path names the session and project")
         let prompt = line(#"{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Wednesday, Nov 18, 2026, 6:00 PM (UTC+0)</timestamp>\n<user_query>hi</user_query>"}]}}"#)
         let began = reader.parse(prompt, state: &state, now: now)
-        suite.expect(began.contains { if case .turnBegan = $0 { return true }; return false } && state.turnOpen,
-                     "a Cursor user prompt opens its turn")
+        suite.expect(began == [.turnBegan(now), .turnContext(model: "", project: state.project)]
+                        && state.turnOpen && state.cursorPromptCount == 1,
+                     "a Cursor user prompt supplies turn activity without inventing usage")
         let step = line(#"{"role":"assistant","message":{"content":[{"type":"tool_use","name":"Shell","input":{}}]}}"#)
         suite.expect(reader.parse(step, state: &state, now: now).contains {
             if case .turnActive = $0 { return true }; return false
