@@ -250,6 +250,7 @@ final class FeatureRuntime: ObservableObject {
             PointerDisplayService.shared.syncWithPreferences()
         },
         .autoQuit: { AutoQuitService.shared.syncWithPreferences() },
+        .autoFullscreen: { AutoFullscreenService.shared.syncWithPreferences() },
         .spacesOrder: { SpacesOrderHold.shared.syncWithPreferences() },
         .scrollInverter: { ScrollInverter.shared.syncWithPreferences() },
         .scrollHorizontal: { ScrollInverter.shared.syncWithPreferences() },
