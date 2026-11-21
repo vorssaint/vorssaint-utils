@@ -329,7 +329,7 @@ struct NotchLockScreenActivities: View {
         return NotchLockScreenSupport.activities(
             timer: gates.timer && timer.session.hasSession,
             calendar: calendar.countdown.map {
-                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date)
+                ($0.ongoing ? gates.timeLeft : gates.countdown || calendar.isChosen($0.event)) && $0.isShown(at: date, leadTime: calendar.countdownLeadTime)
             } == true,
             agents: gates.agents && !usage.snapshot.live.isEmpty,
             downloads: gates.downloads && downloads.items.contains { $0.active && !$0.completed })

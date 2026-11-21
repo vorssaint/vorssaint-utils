@@ -613,6 +613,10 @@ struct WindowEdgeSnapPointerTrail {
     }
 }
 
+enum WindowEdgeSnapSystemDrag {
+    case idle, watchingOption, claimed
+}
+
 enum WindowEdgeSnapSupport {
     static let activationDistance: CGFloat = 12
     static let resizeCornerDistance: CGFloat = 12
@@ -623,15 +627,12 @@ enum WindowEdgeSnapSupport {
     static let desktopAndDockSettingsURL = URL(
         string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension"
     )!
-    private static let systemTilingKeys = [
-        "EnableTilingByEdgeDrag",
-        "EnableTilingOptionAccelerator",
-        "EnableTopTilingByEdgeDrag",
-    ]
     private static let movementThreshold: CGFloat = 2
     private static let sizeTolerance: CGFloat = 2
 
-    static var isSystemTilingEnabled: Bool {
+    static var isSystemTilingEnabled: Bool { systemTilingEnabledForDrag() }
+
+    static func systemTilingEnabledForDrag(optionHeld: Bool = false) -> Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
         return systemTilingEnabled(
@@ -639,7 +640,8 @@ enum WindowEdgeSnapSupport {
                 guard defaults.object(forKey: key) != nil else { return nil }
                 return defaults.bool(forKey: key)
             },
-            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+            displaysSpan: displaysSpan(spacesPreference("spans-displays")),
+            optionHeld: optionHeld
         )
     }
 
@@ -651,9 +653,12 @@ enum WindowEdgeSnapSupport {
     /// out and the system's own tiling is inert, even if a key was written
     /// as enabled. The warning's instruction is unreachable then (issue #1079).
     static func systemTilingEnabled(valueFor: (String) -> Bool?,
-                                    displaysSpan: Bool = false) -> Bool {
+                                    displaysSpan: Bool = false,
+                                    optionHeld: Bool = false) -> Bool {
         if displaysSpan { return false }
-        return systemTilingKeys.contains { valueFor($0) ?? true }
+        let edgeDrag = valueFor("EnableTilingByEdgeDrag") ?? true
+        let topDrag = valueFor("EnableTopTilingByEdgeDrag") ?? true
+        return edgeDrag || topDrag || (optionHeld && (valueFor("EnableTilingOptionAccelerator") ?? true))
     }
 
     /// Separate Spaces off is the only configuration where displays span.
@@ -665,6 +670,38 @@ enum WindowEdgeSnapSupport {
     private static func spacesPreference(_ key: String) -> Bool? {
         guard let defaults = UserDefaults(suiteName: "com.apple.spaces") else { return nil }
         return defaults.object(forKey: key).map { _ in defaults.bool(forKey: key) }
+    }
+
+    /// Whether a snapped window differs enough from the size it had before to
+    /// be worth resizing while the drag is already under way.
+    static func needsSizeRestore(from snapped: CGSize, to restore: CGSize) -> Bool {
+        restore.width > 0 && restore.height > 0
+            && (abs(snapped.width - restore.width) > sizeTolerance
+                || abs(snapped.height - restore.height) > sizeTolerance)
+    }
+
+    /// Where a window that returns to `restoreSize` goes once the pointer has
+    /// pulled it out of its snapped place. The pointer keeps its relative spot
+    /// along the title bar and its distance below the window's top, and the
+    /// result stays on the display under the pointer. All in Quartz points.
+    static func restoredFrame(snapped: CGRect,
+                              restoreSize: CGSize,
+                              pointerStart: CGPoint,
+                              pointerNow: CGPoint,
+                              screenFrame: CGRect?) -> CGRect {
+        let ratio = snapped.width > 0
+            ? min(max((pointerStart.x - snapped.minX) / snapped.width, 0), 1)
+            : 0.5
+        let grabY = min(max(pointerStart.y - snapped.minY, 0), restoreSize.height)
+        var origin = CGPoint(x: pointerNow.x - ratio * restoreSize.width,
+                             y: pointerNow.y - grabY)
+        if let screenFrame {
+            if restoreSize.width <= screenFrame.width {
+                origin.x = min(max(origin.x, screenFrame.minX), screenFrame.maxX - restoreSize.width)
+            }
+            origin.y = max(origin.y, screenFrame.minY)
+        }
+        return CGRect(origin: origin, size: restoreSize)
     }
 
     static var isSystemTopWindowOverviewDragEnabled: Bool {

@@ -123,6 +123,12 @@ enum MediaFeatureTests {
         let legacyResize = legacyResizeJSON.data(using: .utf8).flatMap { try? JSONDecoder().decode(MediaImageResizeMode.self, from: $0) }
         suite.expect(legacyResize?.exactMode == .stretch,
                "Image resize profiles created before exact fit/fill decode with stretch")
+        suite.expect(MediaImageWatermark(kind: .text, text: "Sample", margin: 0).margin == 0,
+               "Image watermark keeps a margin of zero chosen in the stepper")
+        suite.expect(MediaImageWatermark().margin == 32
+               && MediaImageWatermark(margin: 48).margin == 48
+               && MediaImageWatermark(margin: 5_000).margin == 2000,
+               "Image watermark margin defaults to 32 and keeps chosen values within 2000")
         suite.expect(MediaSupport.imageDecodeMaxPixel(sourceSize: CGSize(width: 1_000, height: 100),
                                                 targetSize: CGSize(width: 100, height: 100),
                                                 resizeMode: .exact(width: 100, height: 100, mode: .fit)) == 100,

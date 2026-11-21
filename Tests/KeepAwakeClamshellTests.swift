@@ -5,9 +5,9 @@ import Foundation
 
 extension KeepAwakeLidSleepContract {
     enum EndReason { case manual, timer, battery, quit }
-    enum SessionTrigger { case manual, automation }
+    enum SessionTrigger { case manual, launch, automation }
     enum AppFeature {
-        enum keepAwake { static let isAvailable = true }
+        enum keepAwake { static var isAvailable = true }
     }
     enum DefaultsKey {
         static let clamshellPreferred = "preferred"
@@ -16,24 +16,32 @@ extension KeepAwakeLidSleepContract {
         static let dimScreenOnLidClose = "dimScreen"
         static let dimmedDisplaySavedBrightness = "dimmedDisplaySavedBrightness"
         static let defaultDuration = "defaultDuration"
+        static let batteryLimit = "batteryLimit"
         static let keepAwakeSwitchUsesUntil = "switchUsesUntil"
         static let keepAwakeUntilTime = "untilTime"
+        static let keepAwakeSessionEnd = "sessionEnd"
+        static let keepAwakeAutoStart = "autoStart"
     }
     enum UserDefaults {
         static let standard = Store()
         final class Store {
-            var values: [String: Bool] = [:]
-            var doubles: [String: Double] = [:]
-            var integers: [String: Int] = [:]
-            func bool(forKey key: String) -> Bool { values[key] ?? false }
-            func set(_ value: Bool, forKey key: String) { values[key] = value }
-            func set(_ value: Double, forKey key: String) { doubles[key] = value }
-            func set(_ value: Int, forKey key: String) { integers[key] = value }
-            func integer(forKey key: String) -> Int { integers[key] ?? 0 }
-            func double(forKey key: String) -> Double { doubles[key] ?? 0 }
-            func object(forKey key: String) -> Any? { doubles[key] }
-            func removeObject(forKey key: String) { doubles[key] = nil }
+            var values: [String: Any] = [:]
+            func set(_ value: Any, forKey key: String) { values[key] = value }
+            func bool(forKey key: String) -> Bool { values[key] as? Bool ?? false }
+            func integer(forKey key: String) -> Int { values[key] as? Int ?? 0 }
+            func double(forKey key: String) -> Double { values[key] as? Double ?? 0 }
+            func object(forKey key: String) -> Any? { values[key] }
+            func removeObject(forKey key: String) { values.removeValue(forKey: key) }
         }
+    }
+    enum SystemInfo {
+        static var battery: (isOnBattery: Bool, percent: Int)?
+        static func batterySnapshot() -> (isOnBattery: Bool, percent: Int)? { battery }
+    }
+    struct RunLoop {
+        static let main = RunLoop()
+        // Tests fire the timers explicitly, without scheduling work on the host.
+        func add(_ timer: Timer, forMode mode: Foundation.RunLoop.Mode) {}
     }
     enum Thread {
         static var waits = 0
@@ -123,6 +131,8 @@ extension KeepAwakeLidSleepContract {
 /// The only substituted pieces are native transports, time and unrelated UI.
 enum KeepAwakeClamshellTests {
     private typealias C = KeepAwakeLidSleepContract
+    private typealias Key = C.DefaultsKey
+    private static var prefs: C.UserDefaults.Store { C.UserDefaults.standard }
 
     private static func active() -> C.Service {
         let service = C.reset()
@@ -130,6 +140,170 @@ enum KeepAwakeClamshellTests {
         C.Sudoers.disabled = true
         C.UserDefaults.standard.set(true, forKey: C.DefaultsKey.sleepDisabledFlag)
         return service
+    }
+
+    /// A fresh process enters the same recovery callback as AppDelegate. Only
+    /// the preferences carry over; the system observations are chosen per launch.
+    private static func relaunch(configure: (C.Service) -> Void = { _ in }) -> C.Service {
+        let saved = prefs.values
+        let service = C.reset()
+        prefs.values = saved
+        configure(service)
+        service.recoverIfNeeded { service.activateOnLaunchIfNeeded() }
+        C.drain()
+        return service
+    }
+
+    private static func manualSessions(expect: (Bool, String) -> Void) {
+        let indefinite = C.reset()
+        indefinite.activate(minutes: 0)
+        indefinite.deactivate(reason: .quit); C.drain()
+        let resumed = relaunch()
+        expect(resumed.isActive && resumed.endDate == nil && resumed.sessionMinutes == 0 && resumed.assertionsHeld,
+               "a session until turned off resumes and holds the assertions again")
+        resumed.toggle()
+        expect(!relaunch().isActive, "turning a restored session off keeps it off after the next relaunch")
+
+        let timed = C.reset()
+        timed.activate(minutes: 30)
+        let end = timed.endDate
+        // Energy Settings changes the next pick without replacing a running session.
+        prefs.set(60, forKey: Key.defaultDuration)
+        timed.deactivate(reason: .quit); C.drain()
+        let resumedTimed = relaunch()
+        expect(resumedTimed.isActive && resumedTimed.endDate == end && resumedTimed.sessionMinutes == 30
+               && prefs.integer(forKey: Key.defaultDuration) == 60,
+               "the panel keeps the original preset and deadline after the default duration changes")
+        let oldTimer = resumedTimed.endTimer
+        resumedTimed.extend(minutes: 15)
+        let extended = resumedTimed.endDate
+        expect(extended == end?.addingTimeInterval(15 * 60) && oldTimer?.isValid == false,
+               "extending a restored preset replaces its timer and advances the original deadline")
+        // No quit cleanup: the active record also exists before a forced exit.
+        let afterExtension = relaunch()
+        expect(afterExtension.endDate == extended && afterExtension.sessionMinutes == 30,
+               "an extended session survives an interrupted run with its own preset")
+        afterExtension.toggle()
+        expect(!afterExtension.isActive && !relaunch().isActive, "stopping the original preset clears the extended session")
+
+        let until = C.reset()
+        let untilEnd = Date().addingTimeInterval(3600)
+        until.activate(until: untilEnd)
+        prefs.set(60, forKey: Key.defaultDuration)
+        prefs.set(false, forKey: Key.keepAwakeSwitchUsesUntil)
+        until.deactivate(reason: .quit); C.drain()
+        let resumedUntil = relaunch()
+        expect(resumedUntil.isActive && resumedUntil.endDate == untilEnd && resumedUntil.sessionMinutes == nil,
+               "a chosen end time stays on its own panel control after choosing a new default preset")
+        var timerEnds = 0
+        resumedUntil.onSessionEnded = { if $0 == .timer { timerEnds += 1 } }
+        resumedUntil.endTimer?.fire()
+        expect(timerEnds == 1 && !resumedUntil.assertionsHeld && !relaunch().isActive,
+               "the scheduled timer ends a restored session and clears its record")
+
+        prefs.set(["end": Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate, "minutes": 30],
+                  forKey: Key.keepAwakeSessionEnd)
+        let expired = relaunch()
+        expect(!expired.isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a session that expired while the app was closed is discarded")
+        // The old, unreleased scalar record cannot tell a launch start from a manual one.
+        prefs.set(0.0, forKey: Key.keepAwakeSessionEnd)
+        expect(!relaunch().isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "an ambiguous legacy record never starts an indefinite session")
+    }
+
+    private static func launchAndAutomation(expect: (Bool, String) -> Void) {
+        let timed = C.reset()
+        timed.activate(minutes: 30)
+        timed.matchingConditions = [.power]
+        timed.endTimer?.fire()
+        expect(timed.isActive && timed.sessionTrigger == .automation && timed.endDate == nil
+               && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a matching automation takes over the expired timer and clears its manual record")
+        timed.deactivate(reason: .quit); C.drain()
+        expect(!relaunch().isActive, "an automatic session is left to its conditions after a relaunch")
+
+        prefs.set(true, forKey: Key.keepAwakeAutoStart)
+        prefs.set(30, forKey: Key.defaultDuration)
+        prefs.set(["end": Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate],
+                  forKey: Key.keepAwakeSessionEnd)
+        let autoStart = relaunch()
+        expect(autoStart.isActive && autoStart.sessionTrigger == .launch && autoStart.sessionMinutes == 30,
+               "an expired manual record allows a fresh start at launch with the default preset")
+        autoStart.extend(minutes: 15)
+        expect(prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "starting at launch and extending its timer create no manual record")
+        prefs.set(false, forKey: Key.keepAwakeAutoStart)
+        autoStart.deactivate(reason: .quit); C.drain()
+        expect(!relaunch().isActive, "turning off start at launch takes effect on the next restart")
+    }
+
+    private static func batteryProtection(expect: (Bool, String) -> Void) {
+        let timed = C.reset()
+        timed.activate(minutes: 30)
+        timed.deactivate(reason: .quit); C.drain()
+        prefs.set(true, forKey: Key.keepAwakeAutoStart)
+        prefs.set(10, forKey: Key.batteryLimit)
+        let aboveLimit = relaunch { _ in C.SystemInfo.battery = (true, 11) }
+        expect(aboveLimit.isActive && aboveLimit.sessionTrigger == .manual && aboveLimit.batteryTimer != nil,
+               "a saved manual session above the battery limit takes precedence over start at launch")
+        aboveLimit.deactivate(reason: .quit); C.drain()
+        var batteryEnds = 0
+        let atLimit = relaunch { service in
+            C.SystemInfo.battery = (true, 10)
+            service.passwordlessClamshell = false
+            C.Sudoers.configured = false
+            service.onSessionEnded = { if $0 == .battery { batteryEnds += 1 } }
+        }
+        expect(batteryEnds == 1 && !atLimit.isActive && !atLimit.assertionsHeld && atLimit.endTimer == nil
+               && atLimit.batteryTimer == nil && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil
+               && C.Sudoers.installCompletions.isEmpty,
+               "battery protection ends the restore once without retrying start at launch or starting lid setup")
+    }
+
+    private static func delayedRecovery(expect: (Bool, String) -> Void) {
+        func pendingLaunch() -> C.Service {
+            let running = C.reset()
+            running.activate(minutes: 0)
+            prefs.set(true, forKey: Key.sleepDisabledFlag)
+            prefs.set(true, forKey: Key.keepAwakeAutoStart)
+            return relaunch { _ in
+                C.Sudoers.disabled = true
+                C.Sudoers.results = [false]
+            }
+        }
+        let running = C.reset()
+        running.activate(minutes: 0)
+        C.AppFeature.keepAwake.isAvailable = false
+        running.syncWithFeatures()
+        expect(!running.isActive && !running.assertionsHeld && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "removing an active feature ends its session and clears the record")
+
+        let closing = C.reset()
+        closing.activate(minutes: 30)
+        closing.deactivate(reason: .quit); C.drain()
+        let unavailable = relaunch { _ in C.AppFeature.keepAwake.isAvailable = false }
+        expect(!unavailable.isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a cold launch with the feature disabled discards the saved session")
+
+        let waiting = pendingLaunch()
+        expect(!waiting.recoveryCompleted && C.AdminShell.prompts == 1, "launch recovery is waiting for authorization")
+        C.AppFeature.keepAwake.isAvailable = false
+        waiting.syncWithFeatures()
+        C.AppFeature.keepAwake.isAvailable = true
+        waiting.syncWithFeatures()
+        C.AdminShell.answer(true); C.drain()
+        expect(waiting.recoveryCompleted && !waiting.isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "removing and reinstalling Keep Awake during recovery cancels that launch's pending session")
+        let nextLaunch = relaunch()
+        expect(nextLaunch.sessionTrigger == .launch, "a later launch still honors the enabled start-at-launch preference")
+
+        let stopped = pendingLaunch()
+        stopped.activate(minutes: 15)
+        stopped.toggle()
+        C.AdminShell.answer(true); C.drain()
+        expect(stopped.recoveryCompleted && !stopped.isActive && prefs.object(forKey: Key.keepAwakeSessionEnd) == nil,
+               "a deliberate stop while recovery is pending wins over both restore and start at launch")
     }
 
     static func run(expect: (Bool, String) -> Void) {
@@ -143,8 +317,6 @@ enum KeepAwakeClamshellTests {
                "a preset replacing an end-time session selects that preset")
         switching.deactivate(reason: .manual); C.drain()
 
-        typealias prefs = KeepAwakeLidSleepContract.UserDefaults
-        typealias Key = KeepAwakeLidSleepContract.DefaultsKey
         let lastPick = C.reset()
         let end = Date().addingTimeInterval(3600)
         lastPick.activate(until: end)
@@ -158,9 +330,8 @@ enum KeepAwakeClamshellTests {
         expect(lastPick.sessionMinutes == 30,
                "a preset started from any entry point is what the switch restarts")
         lastPick.deactivate(reason: .manual); C.drain()
-        prefs.standard.set(true, forKey: Key.keepAwakeSwitchUsesUntil)
-        prefs.standard.set(Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate,
-                                  forKey: Key.keepAwakeUntilTime)
+        prefs.set(true, forKey: Key.keepAwakeSwitchUsesUntil)
+        prefs.set(Date().addingTimeInterval(-60).timeIntervalSinceReferenceDate, forKey: Key.keepAwakeUntilTime)
         lastPick.startLastPick()
         expect(lastPick.sessionMinutes == 30,
                "an end time that already passed restarts the saved duration, not a session into tomorrow")
@@ -168,9 +339,11 @@ enum KeepAwakeClamshellTests {
         expect(lastPick.isActive && lastPick.sessionMinutes == 30,
                "clearing permissions keeps the running preset selected")
         lastPick.deactivate(reason: .manual); C.drain()
-        prefs.standard.integers = [:]
-        prefs.standard.set(false, forKey: Key.keepAwakeSwitchUsesUntil)
-        prefs.standard.removeObject(forKey: Key.keepAwakeUntilTime)
+
+        manualSessions(expect: expect)
+        launchAndAutomation(expect: expect)
+        batteryProtection(expect: expect)
+        delayedRecovery(expect: expect)
 
         let staleStatus = C.reset(); staleStatus.isActive = true
         staleStatus.refreshPasswordlessStatus()
@@ -254,6 +427,29 @@ enum KeepAwakeClamshellTests {
                "quit restores the system and ends the session before requesting lid sleep synchronously")
         expect(!C.UserDefaults.standard.bool(forKey: C.DefaultsKey.sleepDisabledFlag) && C.AdminShell.prompts == 0,
                "successful quit clears recovery before returning and never asks for a password")
+
+        for policy in [true, false, nil] as [Bool?] {
+            let cutoff = active()
+            C.connectedToPower = false
+            C.externalDisplay = nil
+            C.policy = policy
+            cutoff.deactivate(reason: .battery)
+            C.drain()
+            let expectedCalls = policy == true ? 1 : 0
+            expect(!C.Sudoers.disabled && C.calls == expectedCalls,
+                   "with an unreadable display list the battery cutoff follows the lid policy \(String(describing: policy))")
+        }
+
+        for display in [true, false, nil] as [Bool?] {
+            let timed = active()
+            C.connectedToPower = nil
+            C.externalDisplay = display
+            timed.deactivate(reason: .timer)
+            C.drain()
+            let expectedCalls = display == false ? 1 : 0
+            expect(!C.Sudoers.disabled && C.calls == expectedCalls,
+                   "with unknown power the timer needs a confirmed absence of external displays, got \(String(describing: display))")
+        }
 
         for lid in [false, nil] as [Bool?] {
             let service = active(); C.BrightnessService.lid = lid

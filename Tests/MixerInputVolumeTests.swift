@@ -13,9 +13,20 @@ enum MixerInputVolumeContract {
         static let main = DispatchQueue(label: "main", qos: .default)
         static var queues: [DispatchQueue] = []
         var work: [() -> Void] = []
+        var delayed: [DispatchWorkItem] = []
+        var timedEnqueues = 0
         init(label: String, qos: DispatchQoS) { Self.queues.append(self) }
         func async(execute: @escaping () -> Void) { work.append(execute) }
-        func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) { work.append(execute) }
+        func asyncAfter(deadline: DispatchTime, execute: @escaping () -> Void) {
+            timedEnqueues += 1
+            work.append(execute)
+        }
+        func asyncAfter(deadline: DispatchTime, execute: DispatchWorkItem) { delayed.append(execute) }
+        func runTimers() {
+            let pending = delayed
+            delayed.removeAll()
+            for item in pending where !item.isCancelled { item.perform() }
+        }
         func sync<T>(execute: () -> T) -> T {
             while !work.isEmpty { run() }
             return execute()
@@ -31,7 +42,13 @@ enum MixerInputVolumeContract {
     }
     enum AppFeature {
         case mixer, audioPriority, micMute
-        var isAvailable: Bool { true }
+        static var micMuteAvailable = true
+        var isAvailable: Bool {
+            switch self {
+            case .micMute: return Self.micMuteAvailable
+            default: return true
+            }
+        }
     }
     enum DefaultsKey {
         static let preferredInputDevice = "preferred"
@@ -39,6 +56,7 @@ enum MixerInputVolumeContract {
         static let micMuteActive = "mute"
         static let micMuteSavedVolumes = "savedVolumes"
         static let micMuteSavedChannelVolumes = "savedChannelVolumes"
+        static let micMuteSavedControls = "savedControls"
         static let micMuteMutedDevices = "owned"
         static let micMuteSavedVolume = "legacyVolume"
         static let micMuteShortcutEnabled = "shortcutEnabled"
@@ -49,12 +67,16 @@ enum MixerInputVolumeContract {
         static let standard = Store()
         final class Store {
             var values: [String: Any] = [:]
+            var writtenKeys: [String] = []
             func string(forKey k: String) -> String? { values[k] as? String }
             func bool(forKey k: String) -> Bool { values[k] as? Bool ?? false }
             func double(forKey k: String) -> Double { values[k] as? Double ?? 0 }
             func dictionary(forKey k: String) -> [String: Any]? { values[k] as? [String: Any] }
             func stringArray(forKey k: String) -> [String]? { values[k] as? [String] }
-            func set(_ v: Any, forKey k: String) { values[k] = v }
+            func set(_ v: Any, forKey k: String) {
+                values[k] = v
+                writtenKeys.append(k)
+            }
             func removeObject(forKey k: String) { values[k] = nil }
         }
     }
@@ -112,10 +134,12 @@ enum MixerInputVolumeContract {
         static var readFails: Set<Key> = []
         static var writeFails: Set<Key> = []
         static var mute: [UInt32: UInt32] = [:]
+        static var muteElements: [Key: UInt32] = [:]
         static var writes: [Key] = []
         static var listeners: Set<Key> = []
         static var listenerFails = false
         static var ignoreWrites = false
+        static var ignoredWrites: Set<Key> = []
         static var devices: [UInt32] = [10]
         static var streamChannels: [UInt32: [UInt32]] = [:]
         static var streamReadFails = false
@@ -124,6 +148,7 @@ enum MixerInputVolumeContract {
         static var current: UInt32 = 10
         static var uids: [UInt32: String] = [:]
         static var aggregates: Set<UInt32> = []
+        static var virtual: Set<UInt32> = []
         static var running: Set<UInt32> = []
         static func key(_ d: UInt32, _ e: UInt32 = 0, _ s: UInt32 = kAudioDevicePropertyVolumeScalar)
             -> Key
@@ -139,25 +164,30 @@ enum MixerInputVolumeContract {
             readFails = []
             writeFails = []
             mute = [:]
+            muteElements = [:]
             writes = []
             listeners = []
             listenerFails = false
             ignoreWrites = false
+            ignoredWrites = []
             devices = [10]
             current = 10
             uids = [:]
             aggregates = []
+            virtual = []
             running = []
             streamChannels = [:]
             streamReadFails = false
             afterWrite = nil
             afterUIDRead = nil
             UserDefaults.standard.values = [:]
+            AppFeature.micMuteAvailable = true
             MicMuteService.shared = MicMuteService()
         }
         static func HasProperty(_ d: UInt32, _ a: UnsafePointer<AudioObjectPropertyAddress>) -> Bool {
             let k = Key(d, a.pointee)
-            return levels[k] != nil || (a.pointee.mSelector == kAudioDevicePropertyMute && mute[d] != nil)
+            return levels[k] != nil || (a.pointee.mSelector == kAudioDevicePropertyMute
+                && (muteElements[k] != nil || (a.pointee.mElement == 0 && mute[d] != nil)))
         }
         static func IsPropertySettable(
             _ d: UInt32, _ a: UnsafePointer<AudioObjectPropertyAddress>,
@@ -214,12 +244,17 @@ enum MixerInputVolumeContract {
                 p.storeBytes(of: UInt32(1), as: UInt32.self)
             case kAudioDevicePropertyIsHidden: p.storeBytes(of: UInt32(0), as: UInt32.self)
             case kAudioDevicePropertyTransportType:
-                guard aggregates.contains(d) else { return -1 }
-                p.storeBytes(of: kAudioDeviceTransportTypeAggregate, as: UInt32.self)
+                if virtual.contains(d) {
+                    p.storeBytes(of: kAudioDeviceTransportTypeVirtual, as: UInt32.self)
+                } else if aggregates.contains(d) {
+                    p.storeBytes(of: kAudioDeviceTransportTypeAggregate, as: UInt32.self)
+                } else {
+                    return -1
+                }
             case kAudioDevicePropertyDeviceIsRunningSomewhere:
                 p.storeBytes(of: UInt32(running.contains(d) ? 1 : 0), as: UInt32.self)
             case kAudioDevicePropertyMute:
-                guard let v = mute[d] else { return -1 }
+                guard let v = muteElements[k] ?? (a.pointee.mElement == 0 ? mute[d] : nil) else { return -1 }
                 p.storeBytes(of: v, as: UInt32.self)
             default: return -1
             }
@@ -232,13 +267,19 @@ enum MixerInputVolumeContract {
             let k = Key(d, a.pointee)
             writes.append(k)
             if writeFails.contains(k) { return -1 }
-            if ignoreWrites { return noErr }
+            if ignoreWrites || ignoredWrites.contains(k) { return noErr }
             if a.pointee.mSelector == kAudioHardwarePropertyDefaultInputDevice {
                 current = p.load(as: UInt32.self)
                 return noErr
             }
             if a.pointee.mSelector == kAudioDevicePropertyMute {
-                mute[d] = p.load(as: UInt32.self)
+                if muteElements[k] != nil {
+                    muteElements[k] = p.load(as: UInt32.self)
+                } else if a.pointee.mElement == 0, mute[d] != nil {
+                    mute[d] = p.load(as: UInt32.self)
+                } else {
+                    return -1
+                }
                 return noErr
             }
             guard levels[k] != nil else { return -1 }
@@ -728,6 +769,71 @@ enum MixerInputVolumeContract {
         check(m.inputVolume == nil, "channel discovery failure does not guess channel addresses")
         m.stop()
         HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.readOnly.insert(HAL.key(10))
+        HAL.running = [10]
+        NotchService.shared.showsMicrophone = true
+        NotchService.shared.microphone = []
+        NotchService.shared.reactions = []
+        NotchService.shared.retractions = 0
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(QuickToolHUD.messages == ["mute partial"]
+                && NotchService.shared.microphone.isEmpty
+                && NotchService.shared.reactions.isEmpty
+                && NotchService.shared.retractions == 1,
+              "a wholly refused mute warns and retracts an older island confirmation")
+        check(!MicMuteService.shared.isMuted
+                && !UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+                && !MicMuteService.shared.hasOutstandingClaims
+                && MicMuteService.shared.inputVolumeAdjustmentLifetime != nil
+                && HAL.levels[HAL.key(10)] == 0.5,
+              "a wholly refused mute keeps its state off and the original gain unclaimed")
+        HAL.reset()
+        HAL.mute[10] = 0
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.writeFails.insert(HAL.key(10, 0, kAudioDevicePropertyMute))
+        NotchService.shared.microphone = []
+        NotchService.shared.reactions = []
+        NotchService.shared.retractions = 0
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(QuickToolHUD.messages == ["unmute partial"]
+                && NotchService.shared.microphone.isEmpty
+                && NotchService.shared.reactions.isEmpty
+                && NotchService.shared.retractions == 1,
+              "a wholly refused unmute warns without announcing that mute is off")
+        check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+                && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive)
+                && MicMuteService.shared.inputVolumeAdjustmentLifetime == nil
+                && HAL.mute[10] == 1,
+              "a wholly refused unmute preserves the state and claim for retry")
+        HAL.writeFails = []
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && !MicMuteService.shared.hasOutstandingClaims
+                && HAL.mute[10] == 0,
+              "retrying a refused unmute releases the device still owned by the app")
+        HAL.reset()
+        HAL.mute[10] = 0
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.mute[10] = 0
+        HAL.running = [10]
+        HAL.writeFails.insert(HAL.key(10, 0, kAudioDevicePropertyMute))
+        NotchService.shared.microphone = []
+        NotchService.shared.retractions = 0
+        QuickToolHUD.messages = []
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        check(QuickToolHUD.messages.isEmpty && NotchService.shared.microphone.isEmpty
+                && NotchService.shared.retractions == 0,
+              "a failed background reapply stays silent instead of repeating the warning")
+        NotchService.shared.showsMicrophone = false
+        HAL.reset()
         HAL.devices = [10, 20]
         HAL.levels[HAL.key(10)] = 0.5
         HAL.levels[HAL.key(20)] = 0.5
@@ -858,5 +964,562 @@ enum MixerInputVolumeContract {
             !MicMuteService.shared.isMuted && HAL.levels[HAL.key(10)] == 0.5
                 && HAL.levels[HAL.key(10, 1)] == 0.5 && HAL.levels[HAL.key(10, 2)] == 0.5,
             "an unmute after updating brings back the channels an earlier version lowered")
+
+        HAL.reset()
+        HAL.mute[10] = 1
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 1 && HAL.levels[HAL.key(10)] == 0,
+              "mute also zeros gain when the user already engaged the hardware switch")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 1 && HAL.levels[HAL.key(10)] == 0.5
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "unmute preserves the user's pre-existing hardware mute while restoring gain")
+
+        let firstMute = HAL.key(10, 1, kAudioDevicePropertyMute)
+        let secondMute = HAL.key(10, 2, kAudioDevicePropertyMute)
+        HAL.reset()
+        HAL.muteElements = [firstMute: 1, secondMute: 0]
+        check(!MicMuteService.isSilenced(10), "one muted channel does not silence the whole input")
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(HAL.muteElements[firstMute] == 1 && HAL.muteElements[secondMute] == 1
+                && MicMuteService.isSilenced(10), "channel-only mute closes every input channel")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.muteElements[firstMute] == 1 && HAL.muteElements[secondMute] == 0,
+              "channel-only unmute preserves independently muted channels")
+
+        HAL.reset()
+        HAL.streamChannels[10] = [1]
+        HAL.muteElements[firstMute] = 0
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(MicMuteService.isSilenced(10), "a mono input needs no nonexistent second mute switch")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.muteElements[firstMute] == 0, "a mono channel mute restores normally")
+
+        HAL.reset()
+        HAL.devices = [10, 20]
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.readOnly.insert(HAL.key(10))
+        HAL.levels[HAL.key(20)] = 0.4
+        QuickToolHUD.messages = []
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 1 && HAL.levels[HAL.key(10)] == 0.5
+                && QuickToolHUD.messages == ["mute partial"]
+                && UserDefaults.standard.stringArray(forKey: DefaultsKey.micMuteMutedDevices)?.contains("device-10") == true,
+              "a successful switch with refused gain retains its partial change for restore")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 0 && HAL.levels[HAL.key(20)] == 0.4
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "partial mute releases both the changed switch and the other microphone")
+
+        for ignoredControl in [HAL.key(10, 0, kAudioDevicePropertyMute), HAL.key(10)] {
+            HAL.reset()
+            HAL.mute[10] = 0
+            HAL.levels[HAL.key(10)] = 0.5
+            MicMuteService.shared.setMuted(true)
+            DispatchQueue.drain()
+            HAL.ignoredWrites.insert(ignoredControl)
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            check(MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims
+                    && (HAL.mute[10] == 1 || HAL.levels[HAL.key(10)] == 0),
+                  "an ignored switch or volume restore retains the obligation despite another successful control")
+            HAL.ignoredWrites = []
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0.5
+                    && !MicMuteService.shared.hasOutstandingClaims,
+                  "retry restores the original state after an ignored control write")
+        }
+
+        HAL.reset()
+        HAL.muteElements = [firstMute: 0, secondMute: 0]
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.writeFails.insert(secondMute)
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.muteElements[firstMute] == 0 && HAL.muteElements[secondMute] == 1
+                && MicMuteService.shared.hasOutstandingClaims,
+              "a later channel failure cannot be hidden by an earlier successful unmute")
+        HAL.writeFails = []
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.muteElements[secondMute] == 0 && !MicMuteService.shared.hasOutstandingClaims,
+              "a later channel can be restored on retry without losing its snapshot")
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.readFails.insert(HAL.key(10))
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0 && MicMuteService.shared.hasOutstandingClaims
+                && !(UserDefaults.standard.dictionary(forKey: DefaultsKey.micMuteSavedControls) ?? [:]).isEmpty,
+              "an unreadable zeroed volume retains its saved level after clearing the switch")
+        HAL.readFails = []
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0.5 && HAL.mute[10] == 0
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "the original volume returns once the property can be read again")
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(10, 1)] = 0
+        HAL.levels[HAL.key(10, 2)] = 0.6
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        MicMuteService.shared = MicMuteService()
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0.5 && HAL.levels[HAL.key(10, 1)] == 0
+                && HAL.levels[HAL.key(10, 2)] == 0.6 && HAL.mute[10] == 0,
+              "the exact zero channel and other levels survive a relaunch while muted")
+
+        HAL.reset()
+        HAL.streamChannels[10] = [4]
+        for channel in 1...4 { HAL.levels[HAL.key(10, UInt32(channel))] = Float(channel) / 10 }
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        let raisedChannel = HAL.key(10, 3)
+        check(HAL.listeners.contains(raisedChannel), "mute watches channels beyond the stereo pair")
+        HAL.levels[raisedChannel] = 0.9
+        var changedAddress = AudioObjectPropertyAddress(mSelector: raisedChannel.s,
+                                                        mScope: kAudioDevicePropertyScopeInput,
+                                                        mElement: raisedChannel.e)
+        _ = MicMuteService.listenerCallback(10, 1, &changedAddress, MicMuteService.shared.listenerClient)
+        DispatchQueue.drain()
+        check(HAL.levels[raisedChannel] == 0 && MicMuteService.isSilenced(10),
+              "a listener reasserts mute when a later channel rises while the first stays at zero")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check((1...4).allSatisfy { HAL.levels[HAL.key(10, UInt32($0))] == Float($0) / 10 },
+              "reapplying an external gain change preserves every original channel level")
+
+        HAL.reset()
+        let virtualMain = HAL.key(10, 0, kAudioHardwareServiceDeviceProperty_VirtualMainVolume)
+        HAL.levels[virtualMain] = 0.5
+        HAL.levels[HAL.key(10, 1)] = 0
+        HAL.levels[HAL.key(10, 2)] = 0.5
+        HAL.afterWrite = {
+            HAL.levels[HAL.key(10, 1)] = 0
+            HAL.levels[HAL.key(10, 2)] = 0
+        }
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(HAL.levels[virtualMain] == 0.5 && HAL.levels[HAL.key(10, 1)] == 0
+                && HAL.levels[HAL.key(10, 2)] == 0.5,
+              "channel snapshots precede the virtual master write that also changes their levels")
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.devices = []
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.hasOutstandingClaims,
+              "an unplugged microphone keeps its control snapshot after mute is switched off")
+        HAL.devices = [20]
+        HAL.uids[20] = "device-10"
+        HAL.mute[20] = 1
+        HAL.levels[HAL.key(20)] = 0
+        MicMuteService.shared.reapplyIfNeeded()
+        DispatchQueue.drain()
+        check(HAL.mute[20] == 0 && HAL.levels[HAL.key(20)] == 0.5
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "a returning device restores by stable uid even after its audio object id changes")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.devices = []
+        AppFeature.micMuteAvailable = false
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        var devicesChanged = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
+                                                        mScope: kAudioObjectPropertyScopeGlobal,
+                                                        mElement: kAudioObjectPropertyElementMain)
+        let system = AudioObjectID(kAudioObjectSystemObject)
+        check(HAL.listeners.contains(Key(system, devicesChanged)),
+              "disabling mic mute keeps device discovery until an unplugged microphone is restored")
+        HAL.devices = [10]
+        if HAL.listeners.contains(Key(system, devicesChanged)) {
+            _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, MicMuteService.shared.listenerClient)
+        }
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0.5 && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "a claimed microphone regains its volume on reconnection with the feature disabled")
+
+        HAL.reset()
+        HAL.mute[10] = 1
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        AppFeature.micMuteAvailable = false
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && !MicMuteService.shared.hasOutstandingClaims
+                && HAL.mute[10] == 1 && HAL.levels[HAL.key(10)] == 0.5 && HAL.listeners.isEmpty,
+              "disabling the feature restores only its own changes and removes all listeners")
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        MicMuteService.shared.unmuteForTeardown()
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0.5
+                && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "teardown drains an in-flight combined mute and restores its exact controls")
+
+        for mainMute in [UInt32(0), 1] {
+            HAL.reset()
+            HAL.mute[10] = mainMute
+            HAL.levels[HAL.key(10, 1)] = 0
+            HAL.levels[HAL.key(10, 2)] = 0.5
+            HAL.muteElements[firstMute] = 1
+            UserDefaults.standard.set(true, forKey: DefaultsKey.micMuteActive)
+            UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+            MicMuteService.shared = MicMuteService()
+            MicMuteService.shared.syncWithPreferences()
+            DispatchQueue.drain()
+            MicMuteService.shared.setMuted(false)
+            DispatchQueue.drain()
+            check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10, 2)] == 0.5
+                    && HAL.levels[HAL.key(10, 1)] == 0 && HAL.muteElements[firstMute] == 1
+                    && !MicMuteService.shared.hasOutstandingClaims,
+                  "a legacy switch mute preserves the channel mix even if another client already released the switch")
+        }
+
+        HAL.reset()
+        HAL.mute[10] = 0
+        HAL.levels[HAL.key(10)] = 0
+        UserDefaults.standard.set(0.625, forKey: DefaultsKey.micMuteSavedVolume)
+        UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        check(HAL.levels[HAL.key(10)] == 0.625 && !MicMuteService.shared.hasOutstandingClaims,
+              "a zeroed legacy gain mute still uses its saved fallback when the main switch is off")
+
+        HAL.reset()
+        HAL.mute[10] = 1
+        HAL.levels[HAL.key(10)] = 0
+        HAL.muteElements[firstMute] = 1
+        UserDefaults.standard.set(["device-10"], forKey: DefaultsKey.micMuteMutedDevices)
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        check(HAL.mute[10] == 0 && HAL.levels[HAL.key(10)] == 0 && HAL.muteElements[firstMute] == 1
+                && !MicMuteService.shared.hasOutstandingClaims,
+              "a pending legacy unmute restores only the claimed main switch when the microphone returns")
+
+        HAL.reset()
+        var now: TimeInterval = 10
+        MicMuteService.shared = MicMuteService(uptime: { now })
+        let retryService = MicMuteService.shared
+        HAL.uids[10] = "MSLoopbackDriverDevice_UID"
+        HAL.devices = [10, 20]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.levels[HAL.key(20)] = 0.75
+        HAL.ignoredWrites.insert(HAL.key(10))
+        retryService.setMuted(true)
+        DispatchQueue.drain()
+        var refusedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                      mScope: kAudioDevicePropertyScopeInput,
+                                                      mElement: kAudioObjectPropertyElementMain)
+        func changed(_ device: UInt32) {
+            _ = MicMuteService.listenerCallback(device, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+            DispatchQueue.drain()
+        }
+        for _ in 0..<10 { changed(10) }
+        let refusingWrites = HAL.writes.filter { $0 == HAL.key(10) }.count
+        check(refusingWrites == 3 && HAL.listeners.contains(HAL.key(10)),
+              "a refusing driver stops receiving writes from its callbacks but remains watched")
+        let backoffGeneration = retryService.applyGeneration
+        UserDefaults.standard.writtenKeys = []
+        for _ in 0..<8 {
+            _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, retryService.listenerClient)
+        }
+        DispatchQueue.drain()
+        check(retryService.applyGeneration == backoffGeneration + 1 && UserDefaults.standard.writtenKeys.isEmpty
+                && HAL.writes.filter { $0 == HAL.key(10) }.count == refusingWrites
+                && retryService.retryDeadline == now + 0.25,
+              "a callback burst during driver backoff preserves the retry deadline without writing hardware or defaults")
+        HAL.levels[HAL.key(20)] = 0.8
+        changed(20)
+        check(HAL.levels[HAL.key(20)] == 0 && HAL.writes.filter { $0 == HAL.key(10) }.count == refusingWrites,
+              "another input is silenced immediately without retrying the refusing device")
+        now += 0.25
+        retryService.halQueue.runTimers()
+        check(HAL.writes.filter { $0 == HAL.key(10) }.count == refusingWrites + 1
+                && retryService.retryDeadline == now + 0.5,
+              "a refusing device retries without a notification and doubles its backoff")
+        HAL.ignoredWrites.removeAll()
+        HAL.levels[HAL.key(10)] = 0
+        changed(10)
+        HAL.levels[HAL.key(10)] = 0.5
+        changed(10)
+        check(HAL.levels[HAL.key(10)] == 0 && retryService.retryDeadline == nil,
+              "delayed silence restores immediate enforcement on the next gain change")
+        retryService.setMuted(false)
+        DispatchQueue.drain()
+        retryService.halQueue.runTimers()
+        check(HAL.levels[HAL.key(10)] == 0.5 && HAL.levels[HAL.key(20)] == 0.75,
+              "a canceled retry cannot remute inputs after an explicit unmute")
+
+        HAL.reset()
+        now = 20
+        MicMuteService.shared = MicMuteService(uptime: { now })
+        HAL.virtual = [10]
+        HAL.levels[HAL.key(10)] = 1
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        for _ in 0..<10 {
+            HAL.levels[HAL.key(10)] = 1
+            changed(10)
+        }
+        check(HAL.writes.filter { $0 == HAL.key(10) }.count == 3,
+              "a virtual driver that resets after successful readback cannot loop on its own notifications")
+        now += 0.25
+        MicMuteService.shared.halQueue.runTimers()
+        check(HAL.levels[HAL.key(10)] == 0, "a virtual driver that recovers without notifying is silenced")
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        now += 1
+        MicMuteService.shared.halQueue.runTimers()
+        check(HAL.levels[HAL.key(10)] == 1, "an explicit unmute cancels a pending virtual driver retry")
+
+        HAL.reset()
+        now = 30
+        MicMuteService.shared = MicMuteService(uptime: { now })
+        HAL.virtual = [10]
+        HAL.levels[HAL.key(10)] = 1
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        for _ in 0..<3 {
+            HAL.levels[HAL.key(10)] = 1
+            changed(10)
+        }
+        let runningKey = HAL.key(10, 0, kAudioDevicePropertyDeviceIsRunningSomewhere)
+        check(HAL.listeners.contains(runningKey) && MicMuteService.shared.retryDeadline != nil,
+              "a virtual driver in backoff keeps its recording-start listener")
+        HAL.running = [10]
+        var runningAddress = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
+                                                        mScope: kAudioObjectPropertyScopeGlobal, mElement: 0)
+        _ = MicMuteService.listenerCallback(10, 1, &runningAddress, MicMuteService.shared.listenerClient)
+        DispatchQueue.drain()
+        for _ in 0..<5 {
+            HAL.levels[HAL.key(10)] = 1
+            changed(10)
+            check(HAL.levels[HAL.key(10)] == 0, "a recording virtual input is immediately silenced")
+        }
+        check(MicMuteService.shared.retryDeadline == nil,
+              "starting capture bypasses a previously idle virtual input's backoff")
+
+        HAL.reset()
+        now = 40
+        MicMuteService.shared = MicMuteService(uptime: { now })
+        HAL.uids = [10: "first input"]
+        HAL.virtual = [10]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.ignoredWrites = [HAL.key(10)]
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        changed(10)
+        changed(10)
+        let hotPlugged = MicMuteService.shared
+        HAL.ignoredWrites = []
+        HAL.uids = [10: "replacement input"]
+        HAL.levels[HAL.key(10)] = 0.35
+        changed(10)
+        check(HAL.levels[HAL.key(10)] == 0 && hotPlugged.retryDeadline == nil,
+              "a new UID reusing an old audio object ID is not subject to the old cooldown")
+        hotPlugged.setMuted(false)
+        DispatchQueue.drain()
+        now += 1
+        hotPlugged.halQueue.runTimers()
+        check(HAL.levels[HAL.key(10)] == 0.35 && hotPlugged.hasOutstandingClaims,
+              "the new input restores its own gain and retains the disconnected input's separate claim")
+
+        HAL.reset()
+        now = 50
+        MicMuteService.shared = MicMuteService(uptime: { now })
+        HAL.virtual = [10]
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.ignoredWrites = [HAL.key(10)]
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        changed(10)
+        changed(10)
+        HAL.levels[HAL.key(10)] = 0.2
+        MicMuteService.shared.setMuted(false)
+        DispatchQueue.drain()
+        check(MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline != nil,
+              "a wholly failed manual unmute keeps the active mute's retry")
+        AppFeature.micMuteAvailable = false
+        MicMuteService.shared.syncWithPreferences()
+        DispatchQueue.drain()
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil,
+              "disabling the feature cancels mute retries even if unmute fails")
+        MicMuteService.shared.unmuteForTeardown()
+        HAL.ignoredWrites = []
+        now += 1
+        MicMuteService.shared.halQueue.runTimers()
+        check(!MicMuteService.shared.isMuted && MicMuteService.shared.retryDeadline == nil
+                && HAL.levels[HAL.key(10)] == 0.2,
+              "teardown cancels retries even when the audio driver refuses restoration")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.ignoreWrites = true
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        for _ in 0..<5 { changed(10) }
+        check(MicMuteService.shared.retryDeadline == nil && HAL.writes.filter { $0 == HAL.key(10) }.count == 6,
+              "an unclassified or physical microphone never enters virtual-driver backoff")
+        HAL.ignoreWrites = false
+        changed(10)
+        check(HAL.levels[HAL.key(10)] == 0, "a slow physical microphone is silenced on its next change")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        HAL.levels[HAL.key(10)] = 0.5
+        HAL.afterWrite = { HAL.levels[HAL.key(10)] = 0.5 }
+        _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+        DispatchQueue.drain()
+        check(HAL.listeners.contains(HAL.key(10)),
+              "a gain raised again right after the re-mute keeps the microphone watched")
+
+        HAL.reset()
+        HAL.levels[HAL.key(10)] = 0.5
+        MicMuteService.shared.setMuted(true)
+        DispatchQueue.drain()
+        var changedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                      mScope: kAudioDevicePropertyScopeInput,
+                                                      mElement: kAudioObjectPropertyElementMain)
+        let sweepsBefore = MicMuteService.shared.applyGeneration
+        UserDefaults.standard.writtenKeys = []
+        for _ in 0..<5 {
+            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, MicMuteService.shared.listenerClient)
+        }
+        DispatchQueue.drain()
+        check(MicMuteService.shared.applyGeneration == sweepsBefore + 1,
+              "a burst of device changes is answered by one sweep")
+        check(UserDefaults.standard.writtenKeys.isEmpty,
+              "a re-assert that finds everything muted writes no preferences")
+        let service = MicMuteService.shared
+        let timersBefore = DispatchQueue.main.timedEnqueues
+        HAL.levels[HAL.key(10)] = 0.5
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        DispatchQueue.main.run()
+        check(DispatchQueue.main.timedEnqueues == timersBefore && service.halQueue.work.count == 1,
+              "the first callback queues an audio sweep immediately, without a mute delay")
+        let firstSweep = service.applyGeneration
+        // Let main handle each arrival separately while the audio queue is busy.
+        for _ in 0..<8 {
+            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+            DispatchQueue.main.run()
+        }
+        check(service.applyGeneration == firstSweep && service.halQueue.work.count == 1,
+              "a busy audio queue never accumulates additional listener sweeps")
+        service.halQueue.run()
+        HAL.levels[HAL.key(10)] = 0.75
+        DispatchQueue.drain()
+        check(service.applyGeneration == firstSweep + 1 && HAL.levels[HAL.key(10)] == 0,
+              "one trailing sweep covers changes the busy sweep missed")
+
+        HAL.writeFails.insert(HAL.key(10))
+        QuickToolHUD.messages = []
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        service.setMuted(false)
+        DispatchQueue.main.run()
+        service.syncWithPreferences()
+        DispatchQueue.drain()
+        check(QuickToolHUD.messages == ["unmute partial"] && service.isMuted && service.hasOutstandingClaims,
+              "an older device notification or preference sync cannot hide a failed manual unmute")
+        HAL.writeFails = []
+        service.setMuted(false)
+        DispatchQueue.drain()
+        check(!service.isMuted && HAL.levels[HAL.key(10)] == 0.5,
+              "a later manual retry restores the original input gain")
+
+        HAL.reset()
+        let stopped = MicMuteService.shared
+        HAL.levels[HAL.key(10)] = 0.65
+        HAL.mute[20] = 1
+        HAL.devices = [10, 20]
+        stopped.toggle()
+        stopped.toggle()
+        check(!stopped.wantsMute, "a second toggle cancels a mute that is still on the audio queue")
+        QuickToolHUD.messages = []
+        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, stopped.listenerClient)
+        stopped.unmuteForTeardown()
+        check(stopped.halQueue.work.isEmpty && HAL.levels[HAL.key(10)] == 0.65 && HAL.mute[20] == 1,
+              "teardown drains a queued mute and unmute without opening a user-muted input")
+        DispatchQueue.drain()
+        check(HAL.listeners.isEmpty && !stopped.isMuted && QuickToolHUD.messages.isEmpty,
+              "old callbacks cannot publish, remute or reinstall listeners after teardown")
+
+        HAL.reset()
+        let removed = MicMuteService.shared
+        HAL.levels[HAL.key(10)] = 0.6
+        removed.setMuted(true)
+        DispatchQueue.drain()
+        HAL.devices = []
+        removed.unmuteForTeardown()
+        _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, removed.listenerClient)
+        DispatchQueue.drain()
+        check(removed.hasOutstandingClaims && HAL.listeners.isEmpty,
+              "a late HAL callback for an absent claim cannot reinstall listeners after teardown")
+
+        // Deliver a topology callback before the manual sweep, and change the
+        // device list after that sweep but before it can publish on main.
+        for mute in [true, false] {
+            HAL.reset()
+            HAL.levels[HAL.key(10)] = 0.5
+            HAL.levels[HAL.key(20)] = 0.75
+            let pending = MicMuteService.shared
+            if !mute {
+                HAL.devices = [10, 20]
+                pending.setMuted(true)
+                DispatchQueue.drain()
+                HAL.devices = [10]
+            }
+            pending.setMuted(mute)
+            _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, pending.listenerClient)
+            DispatchQueue.main.run()
+            check(UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) != mute
+                    && pending.halQueue.work.count == 1,
+                  "a device change during a manual request cannot queue the stale persisted state")
+            pending.halQueue.run()
+            HAL.devices = [10, 20]
+            DispatchQueue.drain()
+            check(pending.isMuted == mute
+                    && UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) == mute
+                    && HAL.levels[HAL.key(10)] == (mute ? 0 : 0.5)
+                    && HAL.levels[HAL.key(20)] == (mute ? 0 : 0.75),
+                  "the requested mute or unmute reaches a device that arrives before publication")
+        }
     }
 }

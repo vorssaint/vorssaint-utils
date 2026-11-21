@@ -239,6 +239,20 @@ enum CommandBarSearch {
     /// keep a heavy, rare command out of the list until it is asked for, in
     /// every language: the verb is whatever the format says around the name,
     /// and languages written without spaces match by containment.
+    static func matchesVerb(_ query: String, in formats: [String]) -> Bool {
+        formats.contains { format in
+            if matchesVerb(query, in: format) { return true }
+            // Japanese can place the verb directly after the app name. Match
+            // the format's fixed ends too, without admitting a name alone.
+            let pieces = format.components(separatedBy: "%@")
+            guard pieces.count == 2 else { return false }
+            let prefix = normalized(pieces[0]), suffix = normalized(pieces[1])
+            guard !prefix.isEmpty || !suffix.isEmpty else { return false }
+            let text = normalized(query)
+            return text.hasPrefix(prefix) && text.hasSuffix(suffix)
+        }
+    }
+
     static func matchesVerb(_ query: String, in format: String) -> Bool {
         let verb = normalized(format.replacingOccurrences(of: "%@", with: " "))
             .trimmingCharacters(in: .whitespaces)

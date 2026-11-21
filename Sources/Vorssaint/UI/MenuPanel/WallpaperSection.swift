@@ -306,26 +306,11 @@ private struct WallpaperThumbButton: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             Button(action: action) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.secondary.opacity(0.15))
-                    if let image {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Image(systemName: "photo")
-                            .font(.system(size: 16))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(isApplied ? Color.accentColor : Color.clear, lineWidth: 2)
-                )
+                WallpaperThumbnailView(image: image, height: height)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(isApplied ? Color.accentColor : Color.clear, lineWidth: 2)
+                    )
             }
             .buttonStyle(.plain)
             .disabled(!appliesEnabled)

@@ -192,6 +192,12 @@ final class BoostLookaheadBufferListLimiter {
                                     * self.channelCapacity)
     }
 
+    /// Called only by the IO callback. The next valid buffer clears the
+    /// delay and envelope before rendering, without allocating new storage.
+    func reset() {
+        activeChannels = 0
+    }
+
     @discardableResult
     func process(_ buffers: UnsafeMutableAudioBufferListPointer,
                  frames: Int,
