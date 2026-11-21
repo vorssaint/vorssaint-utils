@@ -27,7 +27,9 @@ enum MiddleClickSupport {
     static let minimumSettle: TimeInterval = 0.04
 
     /// Window after a transformed click in which another qualifying click is
-    /// treated as a synthesizer bounce and dropped.
+    /// treated as a synthesizer bounce and dropped. Only the tap option puts
+    /// one of our clicks right in front of a synthesized one, so
+    /// `actionForClick` applies the guard there alone.
     static let repeatGuard: TimeInterval = 0.30
 
     /// Decides what an incoming press becomes. Only real presses count
@@ -36,16 +38,20 @@ enum MiddleClickSupport {
     /// owns three-finger touches: it synthesizes clicks from unpressed
     /// contact that are indistinguishable from real presses here, so the
     /// press moves to four fingers, as the tap does (issue #2061).
+    /// `tapEnabled` says whether the tap-to-middle-click option is on: it is
+    /// the only place a press is followed by a synthesized click, so with
+    /// taps off a quick repeat is the user clicking again (issue #3987).
     static func actionForClick(fingerCount: Int,
                                frameAge: TimeInterval,
                                settledFor: TimeInterval,
                                sinceLastTransformEnd: TimeInterval?,
-                               systemDragGestureEnabled: Bool) -> MiddleClickClickAction {
+                               systemDragGestureEnabled: Bool,
+                               tapEnabled: Bool = true) -> MiddleClickClickAction {
         let pressFingers = systemDragGestureEnabled ? 4 : 3
         guard fingerCount == pressFingers, frameAge >= 0, frameAge <= fingerFreshness else {
             return .passThrough
         }
-        if let sinceLastTransformEnd, sinceLastTransformEnd >= 0,
+        if tapEnabled, let sinceLastTransformEnd, sinceLastTransformEnd >= 0,
            sinceLastTransformEnd < repeatGuard {
             return .swallow
         }
