@@ -1769,6 +1769,14 @@ enum FeatureCatalogTests {
                                                   boolFor: { $0 == DefaultsKey.monitorAlertDisk }),
                "an alert with its metric off in the hub stays disarmed")
 
+        let savedAlerts: Set<String> = [DefaultsKey.monitorAlertDisk, DefaultsKey.monitorAlertCPU]
+        suite.expect(!AppFeature.anyMonitorAlertEnabled(includingDisk: false, isAvailable: { $0 != .monitorCPU },
+                                                       boolFor: savedAlerts.contains),
+                     "the repeat picker stays inactive with disk and a saved alert for a removed CPU monitor")
+        suite.expect(AppFeature.anyMonitorAlertEnabled(includingDisk: false, isAvailable: { _ in true },
+                                                      boolFor: savedAlerts.contains),
+                     "restoring the CPU monitor makes the repeat picker available again")
+
         for role in [GlobalShortcutRole.keepAwake, .snippetLibrary] {
             let key = role.storageKey
             let cleared = GlobalShortcutRole.clearedShortcutStorageValue

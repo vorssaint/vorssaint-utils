@@ -6,6 +6,7 @@ import UserNotifications
 
 struct MonitorAlertsControls: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
     let compact: Bool
     @State private var notificationsDenied = false
     @AppStorage(DefaultsKey.monitorAlertCPU) private var alertCPU = false
@@ -210,12 +211,11 @@ struct MonitorAlertsControls: View {
     }
 
     private var anyAlertEnabled: Bool {
-        repeatSettingApplies || alertDisk
+        MonitorAlertService.anyEnabled(in: .standard)
     }
 
     private var repeatSettingApplies: Bool {
-        alertCPU || alertCPUTemperature || alertMemory
-            || (PowerSampler.hasInternalBattery && (alertBatteryTemperature || alertBattery))
+        MonitorAlertService.anyEnabled(in: .standard, includingDisk: false)
     }
 
     /// Checked slightly delayed so a just-fired authorization prompt has a
