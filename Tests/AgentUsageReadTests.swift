@@ -122,6 +122,13 @@ enum AgentUsageReadTests {
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"token_count","rate_limits":{"plan_type":"pro","primary":{"used_percent":42,"window_minutes":300}}}}"#,
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"task_complete","duration_ms":20000}}"#
             ]),
+            (.cursor, [
+                #"{"role":"user","timestamp":\#(timestamp),"message":{"content":[{"type":"text","text":"look around"}]}}"#,
+                #"{"role":"assistant","timestamp":\#(timestamp),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":10,"output_tokens":2}}}"#,
+                #"{"role":"assistant","timestamp":\#(timestamp),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#,
+                #"{"role":"assistant","timestamp":\#(timestamp + 2),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"more"}],"usage":{"input_tokens":20,"output_tokens":30}}}"#,
+                #"{"type":"turn_ended","timestamp":\#(timestamp + 40),"status":"success"}"#
+            ]),
             (.copilot, [
                 #"{"id":"start","timestamp":\#(timestamp),"type":"session.start","data":{"sessionId":"s","selectedModel":"gpt-6-sol","context":{"cwd":"/tmp/example"}}}"#,
                 #"{"id":"turn","timestamp":\#(timestamp),"type":"user.message","data":{"turnId":"0","content":"private"}}"#,
@@ -145,6 +152,7 @@ enum AgentUsageReadTests {
                 case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
+                case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
                 }
             }
@@ -391,7 +399,10 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            let file = root.url.appending(path: "session/events.jsonl")
+            // Every log sits along its usual layout; a Cursor transcript
+            // under its project's agent-transcripts folder.
+            let file = root.url.appending(path: provider == .cursor
+                ? "sample-project/agent-transcripts/chat.jsonl" : "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)
