@@ -333,10 +333,27 @@ enum FanControlPolicy {
         value.isFinite && value >= 1 && value < 125
     }
 
+    /// Apple Silicon powers an idle GPU down, and its sensors then answer with
+    /// values below any working die (0 and about 9 °C on an M1 Pro) until it
+    /// wakes. Every key must have answered: a read that failed is a missing
+    /// sensor, not a sleeping GPU.
+    static func gpuIsPoweredDown(_ readings: [Double?]) -> Bool {
+        !readings.isEmpty && readings.allSatisfy { reading in
+            guard let reading else { return false }
+            return reading.isFinite && reading >= 0
+                && reading < TemperatureSensorSelector.minimumChipTemperature
+        }
+    }
+
+    /// `gpuPoweredDown` reports a sleeping GPU at the chip floor. That is below
+    /// every curve point, so a GPU curve asks for its lowest level instead of
+    /// counting as an unavailable sensor that ends control. The SoC sources
+    /// leave it out, as they leave out any other reading below the floor.
     static func aggregatedTemperatures(
         cpuReadings: [(key: String, value: Double)],
         gpuReadings: [Double],
-        platform: CPUTemperaturePlatform
+        platform: CPUTemperaturePlatform,
+        gpuPoweredDown: Bool = false
     ) -> [FanControlTemperatureReading] {
         let validCPU = cpuReadings.filter {
             $0.value >= TemperatureSensorSelector.minimumChipTemperature
@@ -375,6 +392,9 @@ enum FanControlPolicy {
         }
         if let hottest = gpu.max() {
             readings.append(.init(source: .hottestGPU, celsius: hottest))
+        } else if gpuPoweredDown {
+            readings.append(.init(source: .hottestGPU,
+                                  celsius: TemperatureSensorSelector.minimumChipTemperature))
         }
         return readings
     }

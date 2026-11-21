@@ -165,7 +165,13 @@ final class FanControlHardware {
         }
     }
 
-    func updateCooling(level: Int) throws -> [FanControlFanReading] {
+    /// The watchdog's write: it moves an active session to `level`, or puts a
+    /// manual target the firmware reclaimed back in place. A failure leaves the
+    /// fans at their last manual target and is only reported, so the watchdog
+    /// can retry within its verification tolerance instead of handing the fans
+    /// to a firmware that idles them at 0 RPM after a single transient refusal.
+    /// It reads no telemetry the watchdog would discard.
+    func holdCooling(level: Int) throws {
         let fans = try discoverControlledFans()
         guard FanControlPolicy.validCoolingLevel(level) else {
             throw FanControlHardwareError.operationFailed
@@ -180,15 +186,24 @@ final class FanControlHardware {
         }
         for (fan, target) in zip(fans, targets) {
             guard setTargetRPM(target, for: fan, attempts: 10) else {
-                _ = restoreAutomatic()
                 throw FanControlHardwareError.operationFailed
             }
         }
+        guard verifyCooling(fans, targets: targets, attempts: 10) else {
+            throw FanControlHardwareError.operationFailed
+        }
+        activeTargets = targets
+    }
+
+    /// A user's change to an active session. Unlike the watchdog's hold, any
+    /// failure here returns the fans to the system at once.
+    func updateCooling(level: Int) throws -> [FanControlFanReading] {
+        let fans = try discoverControlledFans()
+        guard FanControlPolicy.validCoolingLevel(level) else {
+            throw FanControlHardwareError.operationFailed
+        }
         do {
-            guard verifyCooling(fans, targets: targets, attempts: 10) else {
-                throw FanControlHardwareError.operationFailed
-            }
-            activeTargets = targets
+            try holdCooling(level: level)
             return try readings(for: fans)
         } catch {
             _ = restoreAutomatic()
@@ -249,10 +264,14 @@ final class FanControlHardware {
     func readTemperatures() -> [FanControlTemperatureReading] {
         let keys = discoverTemperatureKeys()
         let cpuReadings = temperatureReadings(keys.cpu)
+        // Read each GPU key once: the raw answers tell a sleeping GPU from a
+        // failed sensor, and the aggregation applies the usual validity floor.
+        let gpuReadings = keys.gpu.map { client.readValue($0) }
         return FanControlPolicy.aggregatedTemperatures(
             cpuReadings: cpuReadings,
-            gpuReadings: temperatureReadings(keys.gpu).map(\.value),
-            platform: temperaturePlatform
+            gpuReadings: gpuReadings.compactMap { $0 },
+            platform: temperaturePlatform,
+            gpuPoweredDown: FanControlPolicy.gpuIsPoweredDown(gpuReadings)
         )
     }
 

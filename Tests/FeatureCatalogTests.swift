@@ -1085,6 +1085,41 @@ enum FeatureCatalogTests {
                 && FanControlPolicy.curveCoolingLevel(curves: [defaultCurve, cpuCurve],
                                                       temperatures: [curveTemperatures[0]]) == nil,
                "several temperature rules use their highest demand and require every selected sensor")
+        // An idle M1 Pro GPU answered 0 and 9.2 °C from Tg04/Tg05/Tg0C/Tg0D
+        // while its cores sat in the forties, which ended five-sensor curves.
+        let sleepingGPU: [Double?] = [0, 9.2, 0, 9.2]
+        suite.expect(FanControlPolicy.gpuIsPoweredDown(sleepingGPU)
+                && !FanControlPolicy.gpuIsPoweredDown([0, nil, 0, 9.2])
+                && !FanControlPolicy.gpuIsPoweredDown([0, 45, 0, 9.2])
+                && !FanControlPolicy.gpuIsPoweredDown([.nan])
+                && !FanControlPolicy.gpuIsPoweredDown([-1])
+                && !FanControlPolicy.gpuIsPoweredDown([]),
+               "only a GPU whose every sensor answers below the chip floor counts as powered down")
+        let m1Cores = [("Tp01", 45.0), ("Tp05", 47.3), ("Tp09", 46.6)].map { (key: $0.0, value: $0.1) }
+        let sleepingTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1Cores, gpuReadings: sleepingGPU.compactMap { $0 },
+            platform: .appleM1Family, gpuPoweredDown: true
+        )
+        suite.expect(sleepingTemperatures.first { $0.source == .hottestGPU }?.celsius
+                        == TemperatureSensorSelector.minimumChipTemperature
+                && sleepingTemperatures.first { $0.source == .hottestSoC }?.celsius == 47.3,
+               "a powered-down GPU reads at the chip floor and stays out of the SoC sources")
+        let fiveSensorCurves = FanControlTemperatureSource.allCases.map {
+            FanControlCurve(sensor: $0,
+                            points: [FanControlCurvePoint(temperature: 20, coolingLevel: 50),
+                                     FanControlCurvePoint(temperature: 60, coolingLevel: 100)])
+        }
+        let lostGPUTemperatures = FanControlPolicy.aggregatedTemperatures(
+            cpuReadings: m1Cores, gpuReadings: [0, 9.2],
+            platform: .appleM1Family, gpuPoweredDown: false
+        )
+        suite.expect(FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
+                                                       temperatures: sleepingTemperatures,
+                                                       previousLevel: 90) == 90
+                && FanControlPolicy.curveCoolingLevel(curves: fiveSensorCurves,
+                                                      temperatures: lostGPUTemperatures,
+                                                      previousLevel: 90) == nil,
+               "a sleeping GPU keeps a curve on every sensor running, while a failed GPU sensor still stops it")
         let duplicateCurves = [defaultCurve,
                                FanControlCurve(sensor: .hottestSoC, points: cpuCurve.points)]
         let descendingCurve = FanControlCurve(
