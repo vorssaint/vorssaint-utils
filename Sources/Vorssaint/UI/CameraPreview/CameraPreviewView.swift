@@ -158,7 +158,11 @@ private struct CameraLayerView: NSViewRepresentable {
             previewLayer = AVCaptureVideoPreviewLayer(session: session)
             super.init(frame: .zero)
             wantsLayer = true
-            previewLayer.videoGravity = .resizeAspectFill
+            // A mirror must show the whole frame the camera sees: a fill
+            // gravity crops the sides of a wide camera (16:9 external,
+            // Continuity, Center Stage) on this 4:3 surface. Letterboxing on
+            // black costs a few points and never hides part of the image.
+            previewLayer.videoGravity = .resizeAspect
             layer = previewLayer
             applyMirroring()
         }

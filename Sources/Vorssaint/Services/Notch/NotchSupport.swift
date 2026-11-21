@@ -356,8 +356,9 @@ enum NotchLayout {
         min(30, max(16, ((height - calendarMonthWeekdayHeight) / 6).rounded(.down)))
     }
 
-    /// The preview fills the page. A wide strip crops the camera to 16:9 and a
-    /// narrow, tall island to 4:3, so a face stays in frame on either.
+    /// The preview fills the page. A wide strip gets a 16:9 surface and a
+    /// narrow, tall island a 4:3 one, so the black bars around a camera of
+    /// either shape stay small.
     static func cameraPreviewSize(in size: CGSize) -> CGSize {
         let width = max(0, size.width), height = max(0, size.height)
         return CGSize(width: min(width, height * 16 / 9), height: min(height, width * 3 / 4))
