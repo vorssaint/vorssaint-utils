@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "メニューバー",
         monitorMenuBarPreview: "メニューバーのプレビュー",
         monitorMenuBarCaption: "メニューバーのアイコンの横に表示する項目を選びます。",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "使用率と温度をまとめる",
         monitorCombineTemperaturesCaption: "同じ項目の使用率と温度が有効な場合、1つのブロックにまとめて表示します。",
         monitorSeparateMenuBarMetrics: "メトリクスを個別の項目に分ける",

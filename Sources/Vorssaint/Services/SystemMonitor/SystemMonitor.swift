@@ -51,6 +51,10 @@ struct SystemSnapshot {
     var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
     var fanSpeeds: [Double] = []
+    /// Each fan's hardware maximum from `F<index>Mx`, used only to size the
+    /// menu bar's steady reserve. Empty on Macs that do not expose the keys;
+    /// missing entries fall back to four digits when the reserve is built.
+    var fanMaxSpeeds: [Double] = []
 
     // Network
     var netDownBytesPerSec: Double?
@@ -201,6 +205,7 @@ final class SystemMonitor: ObservableObject {
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
     private var lastFanSpeeds: [Double] = []
+    private var lastFanMaxSpeeds: [Double] = []
     private var missedFanSpeedSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
@@ -948,6 +953,7 @@ final class SystemMonitor: ObservableObject {
                     }
                 }
                 next.fanSpeeds = self.lastFanSpeeds
+                next.fanMaxSpeeds = self.lastFanMaxSpeeds
             }
 
             if plan.needConnectedDevices {
@@ -1065,6 +1071,14 @@ final class SystemMonitor: ObservableObject {
             if count > 0 {
                 let keys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
                 if keys.count == count { fanKeys = keys }
+                // The maximum is a fixed hardware property, so resolve it once
+                // with the fan keys instead of spending an SMC read each tick.
+                lastFanMaxSpeeds = (0..<count).map { index in
+                    guard let key = client.key(named: "F\(index)Mx") else {
+                        return FanControlPolicy.fanReserveMaximum(nil)
+                    }
+                    return FanControlPolicy.fanReserveMaximum(client.readValue(key))
+                }
             }
         }
 

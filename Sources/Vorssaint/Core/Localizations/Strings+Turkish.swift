@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "Menü çubuğunda",
         monitorMenuBarPreview: "Menü çubuğu önizlemesi",
         monitorMenuBarCaption: "Menü çubuğunda simgenin yanında ne görüneceğini seç.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "Kullanımı ve sıcaklığı birleştir",
         monitorCombineTemperaturesCaption: "Aynı öğe için kullanım ve sıcaklık etkinse, bunları tek blokta göster.",
         monitorSeparateMenuBarMetrics: "Metrikleri kendi öğelerine ayır",

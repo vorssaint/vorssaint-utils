@@ -747,6 +747,8 @@ extension Strings {
         monitorMenuBarSection: "메뉴 막대",
         monitorMenuBarPreview: "메뉴 막대 미리보기",
         monitorMenuBarCaption: "메뉴 막대의 아이콘 옆에 표시할 항목을 선택합니다.",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "사용량과 온도 결합",
         monitorCombineTemperaturesCaption: "같은 항목의 사용량과 온도가 모두 활성화되면 하나의 블록으로 묶어 표시합니다.",
         monitorSeparateMenuBarMetrics: "지표를 개별 메뉴 막대 항목으로 분리",

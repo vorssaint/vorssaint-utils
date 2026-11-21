@@ -442,9 +442,84 @@ enum FanControlPolicy {
         return speeds.map { String(Int($0.rounded())) }.joined(separator: "/")
     }
 
-    static func menuBarWidthUnits(fanCount: Int) -> Int {
+    /// Hardware that does not report a usable maximum still reserves the
+    /// historical four-digit "9999" width. Kept as a pure policy value so the
+    /// standalone fan helper does not need sensor fixtures to use it.
+    static let fallbackFanMaximumRPM = 9_999.0
+    static let minimumFanReserveDigits = 4
+
+    /// A maximum is only useful for sizing when it is a real, positive reading
+    /// inside the same safe range fan readings use. Missing keys and nonsense
+    /// values become the four-digit fallback.
+    static func fanReserveMaximum(_ value: Double?) -> Double {
+        guard let value, validReading(value), value > 0 else { return fallbackFanMaximumRPM }
+        return value
+    }
+
+    /// Digits needed to show `maxRPM`. The reserve is a floor: a live reading
+    /// above the reported maximum still grows the block, it is never clipped.
+    static func menuBarReserveDigits(maxRPM: Double?) -> Int {
+        let maximum = fanReserveMaximum(maxRPM)
+        return max(minimumFanReserveDigits, String(Int(maximum.rounded())).count)
+    }
+
+    /// Widest reserve across the reported maxima; a short or empty list keeps
+    /// the four-digit fallback.
+    static func menuBarReserveDigits(maxSpeeds: [Double]) -> Int {
+        maxSpeeds.map { menuBarReserveDigits(maxRPM: $0) }.max() ?? minimumFanReserveDigits
+    }
+
+    /// Per-fan "8888/8888"-style reservation. Each fan uses its own maximum,
+    /// and any fan without a reported maximum falls back to four digits.
+    static func menuBarReserveString(fanCount: Int, maxSpeeds: [Double]) -> String {
+        guard fanCount > 0 else { return "" }
+        return (0..<fanCount).map { index in
+            let maximum = index < maxSpeeds.count ? maxSpeeds[index] : nil
+            return String(repeating: "8", count: menuBarReserveDigits(maxRPM: maximum))
+        }.joined(separator: "/")
+    }
+
+    /// Single-number reservation, sized by the fastest fan's maximum.
+    static func menuBarAverageReserveString(maxSpeeds: [Double]) -> String {
+        String(repeating: "8", count: menuBarReserveDigits(maxSpeeds: maxSpeeds))
+    }
+
+    static func menuBarWidthUnits(fanCount: Int, digits: Int = 5) -> Int {
         guard (1...maximumFanCount).contains(fanCount) else { return 0 }
-        return 7 + fanCount * 5 + (fanCount - 1)
+        return 7 + fanCount * digits + (fanCount - 1)
+    }
+
+    /// The single averaged RPM number for the menu bar. Every reading must be
+    /// valid, just like the per-fan form, so an absent or malformed fan hides
+    /// the readout instead of skewing the mean. Zero is a valid reading and
+    /// takes part in the average.
+    static func averageMenuBarValue(for speeds: [Double]) -> String? {
+        guard !speeds.isEmpty, speeds.allSatisfy(validReading) else { return nil }
+        let total = speeds.reduce(0, +)
+        return String(Int((total / Double(speeds.count)).rounded()))
+    }
+
+    /// Width for the single-number average form, as opposed to the joined
+    /// per-fan form. Both reserve the same per-number digit count.
+    static func menuBarAverageWidthUnits(fanCount: Int, digits: Int = 5) -> Int {
+        guard (1...maximumFanCount).contains(fanCount) else { return 0 }
+        return menuBarWidthUnits(fanCount: 1, digits: digits)
+    }
+
+    /// Averaging only makes sense for two-fan Macs with Fan Control available.
+    static func averageMenuBarValueAvailable(fanCount: Int, featureAvailable: Bool) -> Bool {
+        featureAvailable && fanCount >= 2
+    }
+
+    /// Opt-in gate shared by the menu bar renderer and the settings row. The
+    /// preference is supplied by the caller so this file stays compilable in
+    /// the standalone fan helper, which does not link the app's Defaults keys.
+    static func usesAverageMenuBarValue(fanCount: Int,
+                                        featureAvailable: Bool,
+                                        isEnabled: Bool) -> Bool {
+        guard averageMenuBarValueAvailable(fanCount: fanCount,
+                                           featureAvailable: featureAvailable) else { return false }
+        return isEnabled
     }
 
     static func restoreReason(now: Date,

@@ -67,6 +67,8 @@ enum LocalizationTests {
         let diskEnglish = diskPickerText(.enUS)
         suite.expect(diskEnglish == ["Disk display", "Used percentage", "Available space", "Used space"],
                      "disk picker uses a dedicated label and complete option names")
+        suite.expect(Strings.enUS.monitorAverageFanRPM == "Average RPM",
+                     "the average fan RPM toggle keeps its canonical label")
         for (language, strings) in languages {
             suite.expect(!strings.zoomControlNote.isEmpty,
                          "Pinch Zoom explains screen-zoom overlap in \(language.rawValue)")

@@ -377,6 +377,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .monitor, title: s.tabMonitor, icon: "chart.line.uptrend.xyaxis",
                                        keywords: [s.menuBarSpacingLabel, s.menuBarHideIconToggle, barStyle.label,
                                                   barStyle.bars, barStyle.values, s.monitorSeparateMenuBarMetrics,
+                                                  s.monitorAverageFanRPM, s.monitorAverageFanRPMCaption,
                                                   s.monitorIntervalLabel, s.temperatures, GraphScaleStrings.localized(language).title],
                                        featureKeywords: [
                                         (.monitorMemory, [s.monitorMemoryPressureDot, s.monitorMemoryMetricLabel]),

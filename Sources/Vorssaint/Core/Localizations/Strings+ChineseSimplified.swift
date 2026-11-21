@@ -746,6 +746,8 @@ extension Strings {
         monitorMenuBarSection: "在菜单栏中",
         monitorMenuBarPreview: "菜单栏预览",
         monitorMenuBarCaption: "选择菜单栏中图标旁显示的内容。",
+        monitorAverageFanRPM: "Average RPM",
+        monitorAverageFanRPMCaption: "Shows one averaged RPM number instead of a reading per fan.",
         monitorCombineTemperatures: "合并使用率和温度",
         monitorCombineTemperaturesCaption: "同一项目的使用率和温度都启用时，在一个区块中显示。",
         monitorSeparateMenuBarMetrics: "将指标分成独立项目",
