@@ -48,6 +48,7 @@ struct AIBarFeatureStrings {
     let presetOllama: String
     let presetLMStudio: String
     let presetOpenAI: String
+    let presetOpenRouter: String
     let close: String
 }
 
@@ -119,6 +120,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Close"
     )
 
@@ -167,6 +169,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Fechar"
     )
 
@@ -215,6 +218,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Kapat"
     )
 
@@ -263,6 +267,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Закрыть"
     )
 
@@ -311,6 +316,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Cerrar"
     )
 
@@ -359,6 +365,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Zavrieť"
     )
 
@@ -407,6 +414,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Schließen"
     )
 
@@ -455,6 +463,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Fermer"
     )
 
@@ -503,6 +512,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Chiudi"
     )
 
@@ -551,6 +561,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "閉じる"
     )
 
@@ -599,6 +610,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "닫기"
     )
 
@@ -647,6 +659,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "Закрити"
     )
 
@@ -695,6 +708,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "关闭"
     )
 
@@ -743,6 +757,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "關閉"
     )
 
@@ -791,6 +806,7 @@ extension AIBarFeatureStrings {
         presetOllama: "Ollama",
         presetLMStudio: "LM Studio",
         presetOpenAI: "OpenAI",
+        presetOpenRouter: "OpenRouter",
         close: "關閉"
     )
 

@@ -35,6 +35,7 @@ struct AIBarSettings: View {
                         Button(strings.presetOllama) { endpoint = "http://localhost:11434/v1" }
                         Button(strings.presetLMStudio) { endpoint = "http://localhost:1234/v1" }
                         Button(strings.presetOpenAI) { endpoint = "https://api.openai.com/v1" }
+                        Button(strings.presetOpenRouter) { endpoint = "https://openrouter.ai/api/v1" }
                     } label: { Image(systemName: "chevron.down.circle") }
                     .menuStyle(.borderlessButton)
                     .fixedSize()

@@ -25,6 +25,12 @@ enum AIBarTests {
                         && !AIBarEndpoint.isTransportAcceptable("http://192.168.1.5:11434/v1"),
                      "plain http is only accepted for this Mac")
 
+        suite.expect(AIBarEndpoint.chatCompletionsURL("https://openrouter.ai/api/v1")?.absoluteString
+                        == "https://openrouter.ai/api/v1/chat/completions"
+                        && AIBarEndpoint.isTransportAcceptable("https://openrouter.ai/api/v1")
+                        && !AIBarEndpoint.isLocal("https://openrouter.ai/api/v1"),
+                     "the OpenRouter template is a secure, remote endpoint")
+
         // MARK: Privacy levels
 
         let items = [AIBarItem(url: URL(fileURLWithPath: "/Users/someone/Private Taxes/return 2025.pdf"), isDirectory: false),
