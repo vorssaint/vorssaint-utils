@@ -698,6 +698,24 @@ enum UninstallerSupport {
             kind: .support, extraChildDepth: 0, crashReporter: false,
             readsContainerMetadata: false, allowsNameMatches: false,
             requiresSignedGroup: false))
+        // XDG state holds per-app data as `~/.local/state/<app>`, the same way
+        // Application Support holds it as `~/Library/Application Support/<app>`.
+        result.append(SearchFolder(
+            url: home.appendingPathComponent(".local", isDirectory: true)
+                .appendingPathComponent("state", isDirectory: true),
+            kind: .state, extraChildDepth: 0, crashReporter: false,
+            readsContainerMetadata: false, allowsNameMatches: true,
+            requiresSignedGroup: false))
+        // Hidden folders directly under home are per-app data too
+        // (`~/.lmstudio`). Each one is a root of its own: home itself is
+        // never scanned, and entries are matched by identifier only.
+        for folderURL in hiddenHomeFolders(home: home) {
+            result.append(SearchFolder(url: folderURL, kind: .support,
+                                       extraChildDepth: 0, crashReporter: false,
+                                       readsContainerMetadata: false,
+                                       allowsNameMatches: false,
+                                       requiresSignedGroup: false))
+        }
         if let darwinCache {
             result.append(SearchFolder(url: darwinCache, kind: .caches,
                                        extraChildDepth: 0, crashReporter: false,
@@ -721,6 +739,61 @@ enum UninstallerSupport {
             readsContainerMetadata: false, allowsNameMatches: true,
             requiresSignedGroup: false))
         return result
+    }
+
+    /// Dot-entries under home that never belong to a third-party app: login
+    /// and shell configuration, credentials, macOS bookkeeping and the shared
+    /// Unix roots that are scanned separately.
+    private static let hiddenHomeDeniedFolders: Set<String> = [
+        ".", "..",
+        // Shared Unix roots, scanned through their own well-known children.
+        ".config", ".cache", ".local",
+        // Credentials and identity.
+        ".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".pki",
+        ".password-store", ".netrc", ".git-credentials", ".npmrc",
+        // Shell, editor and tool configuration.
+        ".zshrc", ".zprofile", ".zshenv", ".zlogin", ".zlogout", ".zsh_sessions",
+        ".zsh_history", ".bashrc", ".bash_profile", ".bash_login", ".bash_logout",
+        ".bash_history", ".profile", ".inputrc", ".viminfo", ".lesshst",
+        ".wgetrc", ".curlrc", ".screenrc", ".tmux.conf", ".hushlogin",
+        ".gitconfig", ".gitignore", ".git", ".cfusertextencoding",
+        // macOS bookkeeping and Vorssaint itself.
+        ".trash", ".trashes", ".trash-1000", ".ds_store",
+        ".documentrevisions-v100", ".fseventsd", ".spotlight-v100",
+        ".temporaryitems", ".vol", ".appledouble", ".vorssaint",
+    ]
+
+    /// Hidden folders directly under home, each usable as a root of its own
+    /// (`~/.lmstudio`). Home is never returned, symlinks are refused and the
+    /// deny list keeps personal or system dot-entries out of the scan.
+    static func hiddenHomeFolders(home: URL) -> [URL] {
+        let home = home.standardizedFileURL
+        let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: home, includingPropertiesForKeys: Array(keys), options: []) else { return [] }
+        return entries.filter { entry in
+            let name = entry.lastPathComponent
+            guard name.hasPrefix("."), name.count > 1,
+                  !hiddenHomeDeniedFolders.contains(name.lowercased()),
+                  let values = try? entry.resourceValues(forKeys: keys) else { return false }
+            return values.isDirectory == true && values.isSymbolicLink != true
+        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    /// A hidden home folder belongs to the app only when its name is one of
+    /// the app's own identifiers or an exact display-name token. Prefixes,
+    /// version stems and substrings never claim one, so `~/.sshd` cannot
+    /// follow from an app that merely contains "ssh".
+    static func hiddenHomeFolderMatches(_ name: String, identity: Identity) -> Bool {
+        let lowered = name.lowercased()
+        guard lowered.hasPrefix("."), lowered.count > 1,
+              !lowered.contains("/"), !lowered.contains(".."),
+              !hiddenHomeDeniedFolders.contains(lowered) else { return false }
+        let bare = String(lowered.dropFirst())
+        if identity.bundleIDs.contains(where: { $0.lowercased() == bare }) { return true }
+        if identity.groupIDs.contains(where: { $0.lowercased() == bare }) { return true }
+        let token = normalizedToken(bare)
+        return token.count >= 3 && identity.nameTokens.contains(token)
     }
 
     /// Spotlight query scoped later to Library-like roots. Bundle identifiers
