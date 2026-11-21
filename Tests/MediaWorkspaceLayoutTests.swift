@@ -3,6 +3,7 @@
 
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Measures production layout and native drop registration without displaying
 /// a window, capturing pixels, or sending any input to the user's session.
@@ -28,6 +29,15 @@ enum MediaWorkspaceLayoutTests {
             return view
         }
         func updateNSView(_ view: NSView, context: Context) { fixture.pickerView = view }
+    }
+
+    final class DropFixture {
+        var tool = MediaTool.videoCompressor
+        var running = false
+        var pendingDrop: UUID?
+        var inputs: [URL] = []
+        var rejections = 0
+        func rejectUnsupportedInput() { rejections += 1 }
     }
 
     final class PanelBudget: ObservableObject {
@@ -273,20 +283,80 @@ enum MediaWorkspaceLayoutTests {
         func types(in view: NSView) -> Set<NSPasteboard.PasteboardType> {
             view.subviews.reduce(into: Set(view.registeredDraggedTypes)) { $0.formUnion(types(in: $1)) }
         }
-        for embedded in [false, true] {
-            let input = NSHostingView(rootView: Input(inNotch: embedded))
+        for direct in [true, false] {
+            let input = NSHostingView(rootView: Input(acceptsDirectDrops: direct))
             input.frame = CGRect(x: 0, y: 0, width: 300, height: 70)
             input.layoutSubtreeIfNeeded()
             _ = input.fittingSize
-            if embedded {
-                suite.expect(types(in: input).isEmpty,
-                       "embedded media leaves file drops to the island's destination chooser")
-            } else {
-                // SwiftUI registers broad transport types and filters the
-                // requested file URL type in its own drop coordinator.
-                suite.expect(settle { !types(in: input).isEmpty },
-                       "standalone media retains its native direct file drop target")
+            suite.expect(direct ? settle { !types(in: input).isEmpty } : types(in: input).isEmpty,
+                         "the media tool accepts a direct drop while the Files session leaves its chooser in control")
+        }
+        inputDelivery(suite, settle: settle)
+    }
+
+    private static func inputDelivery(_ suite: TestSuite, settle: (() -> Bool) -> Bool) {
+        typealias Routing = ShelfDropRoutingContract
+        let board = NSPasteboard.withUniqueName()
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let previousShelf = Routing.UserDefaults.standard.enabled
+        defer {
+            board.releaseGlobally()
+            try? FileManager.default.removeItem(at: directory)
+            Routing.UserDefaults.standard.enabled = previousShelf
+        }
+        func provider(_ url: URL) -> NSItemProvider {
+            NSItemProvider(item: url as NSURL, typeIdentifier: UTType.fileURL.identifier)
+        }
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+            let image = directory.appendingPathComponent("sample.png")
+            let video = directory.appendingPathComponent("clip.mp4")
+            let note = directory.appendingPathComponent("notes.txt")
+            for url in [image, video, note] { try Data([0]).write(to: url) }
+            let selection = DropFixture()
+            let receiver = Input(acceptsDirectDrops: true, fixture: selection)
+            let notch = Routing.Notch()
+            notch.directMediaDropWorkspace = selection
+            for shelfEnabled in [false, true] {
+                Routing.UserDefaults.standard.enabled = shelfEnabled
+                for (tool, url) in [(MediaTool.videoCompressor, video), (.gifMaker, video),
+                                    (.imageCompressor, image), (.textExtractor, image)] {
+                    board.clearContents()
+                    board.writeObjects([url as NSURL])
+                    notch.beginFileDrop(board)
+                    suite.expect(notch.opened.isEmpty && !notch.choosingFileDropDestination,
+                                 "entering from the edge leaves the active media card visible with Shelf on or off")
+                    selection.tool = tool
+                    selection.inputs = []
+                    suite.expect(receiver.acceptDrop([provider(url)]) && settle { selection.inputs == [url] },
+                                 "Finder file reaches the selected \(tool.rawValue) tool with Shelf enabled=\(shelfEnabled)")
+                }
             }
+            selection.tool = .imageCompressor
+            selection.inputs = []
+            suite.expect(receiver.acceptDrop([provider(image), provider(note)])
+                            && settle { selection.rejections == 1 } && selection.inputs.isEmpty,
+                         "unsupported companions cannot be dropped silently from an image batch")
+            let second = directory.appendingPathComponent("second.png")
+            try Data([1]).write(to: second)
+            suite.expect(receiver.acceptDrop([provider(second), provider(image)])
+                            && settle { selection.inputs == [second, image] },
+                         "a supported image batch arrives together in provider order")
+            selection.running = true
+            suite.expect(!receiver.acceptDrop([provider(image)]) && selection.inputs == [second, image],
+                         "dropping on a running conversion cannot replace the active inputs")
+            selection.running = false
+            suite.expect(receiver.acceptDrop([provider(image)]), "a drop can start loading while idle")
+            selection.running = true
+            suite.expect(settle { selection.pendingDrop == nil } && selection.inputs == [second, image]
+                            && selection.rejections == 1,
+                         "a conversion started during provider loading keeps its inputs and running state")
+            notch.directMediaDropWorkspace = nil
+            notch.beginFileDrop(board)
+            suite.expect(notch.choosingFileDropDestination && notch.opened == [.files],
+                         "after closing the media tool, the island offers Files and Optimize again")
+        } catch {
+            suite.expect(false, "could not create media drop fixture: \(error)")
         }
     }
 }

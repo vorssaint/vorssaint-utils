@@ -70,6 +70,14 @@ final class WindowUseTracker {
 
     var historyRevision: UUID { stateLock.withLock { focusHistory.revision } }
 
+    func recordObservedFocus(windowID: CGWindowID, pid: pid_t) {
+        stateLock.withLock {
+            guard recording, let request = focusHistory.current, request.pid == pid,
+                  focusHistory.focus(windowID, for: request) else { return }
+            windowHistory = WindowUseOrder.promoting(windowID, in: windowHistory)
+        }
+    }
+
     /// Rank of an application; one never seen sorts after every known one.
     func rank(of pid: pid_t) -> Int {
         stateLock.withLock { appHistory.firstIndex(of: pid) ?? Int.max }

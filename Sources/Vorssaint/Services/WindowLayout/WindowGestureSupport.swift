@@ -613,6 +613,10 @@ struct WindowEdgeSnapPointerTrail {
     }
 }
 
+enum WindowEdgeSnapSystemDrag {
+    case idle, watchingOption, claimed
+}
+
 enum WindowEdgeSnapSupport {
     static let activationDistance: CGFloat = 12
     static let resizeCornerDistance: CGFloat = 12
@@ -623,15 +627,12 @@ enum WindowEdgeSnapSupport {
     static let desktopAndDockSettingsURL = URL(
         string: "x-apple.systempreferences:com.apple.Desktop-Settings.extension"
     )!
-    private static let systemTilingKeys = [
-        "EnableTilingByEdgeDrag",
-        "EnableTilingOptionAccelerator",
-        "EnableTopTilingByEdgeDrag",
-    ]
     private static let movementThreshold: CGFloat = 2
     private static let sizeTolerance: CGFloat = 2
 
-    static var isSystemTilingEnabled: Bool {
+    static var isSystemTilingEnabled: Bool { systemTilingEnabledForDrag() }
+
+    static func systemTilingEnabledForDrag(optionHeld: Bool = false) -> Bool {
         guard #available(macOS 15.0, *),
               let defaults = UserDefaults(suiteName: "com.apple.WindowManager") else { return false }
         return systemTilingEnabled(
@@ -639,7 +640,8 @@ enum WindowEdgeSnapSupport {
                 guard defaults.object(forKey: key) != nil else { return nil }
                 return defaults.bool(forKey: key)
             },
-            displaysSpan: displaysSpan(spacesPreference("spans-displays"))
+            displaysSpan: displaysSpan(spacesPreference("spans-displays")),
+            optionHeld: optionHeld
         )
     }
 
@@ -651,9 +653,12 @@ enum WindowEdgeSnapSupport {
     /// out and the system's own tiling is inert, even if a key was written
     /// as enabled. The warning's instruction is unreachable then (issue #1079).
     static func systemTilingEnabled(valueFor: (String) -> Bool?,
-                                    displaysSpan: Bool = false) -> Bool {
+                                    displaysSpan: Bool = false,
+                                    optionHeld: Bool = false) -> Bool {
         if displaysSpan { return false }
-        return systemTilingKeys.contains { valueFor($0) ?? true }
+        let edgeDrag = valueFor("EnableTilingByEdgeDrag") ?? true
+        let topDrag = valueFor("EnableTopTilingByEdgeDrag") ?? true
+        return edgeDrag || topDrag || (optionHeld && (valueFor("EnableTilingOptionAccelerator") ?? true))
     }
 
     /// Separate Spaces off is the only configuration where displays span.
