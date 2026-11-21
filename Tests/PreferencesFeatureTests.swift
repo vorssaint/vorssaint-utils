@@ -170,6 +170,13 @@ enum PreferencesFeatureTests {
                "valid keep-awake active icon is preserved")
         suite.expect(Defaults.sanitizedKeepAwakeActiveIcon("bad") == .vorssaint,
                "invalid keep-awake active icon falls back to the Vorssaint glyph")
+        // The menu bar item and the closed island's strip read one mapping, so
+        // a session cannot show two colours. "No color" leaves the menu bar
+        // item a template and the island yellow, so it is the only nil.
+        suite.expect(KeepAwakeIconTint.allCases.filter { $0 != .none }.allSatisfy { $0.color != nil },
+               "every Keep Awake icon tint except none has a colour for the menu bar item and the island")
+        suite.expect(KeepAwakeIconTint.none.color == nil,
+               "no icon colour leaves the menu bar icon a template instead of tinting it")
         suite.expect(KeepAwakeActiveIcon.eye.systemSymbolName == "eye.fill",
                "keep-awake eye option maps to its menu bar symbol")
         suite.expect(registeredDefaults[DefaultsKey.menuBarIconSymbol] as? String == "",
