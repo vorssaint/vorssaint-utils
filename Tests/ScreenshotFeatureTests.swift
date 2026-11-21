@@ -4189,35 +4189,22 @@ enum ScreenshotFeatureTests {
                 == .unreadable
                 && MicMuteSupport.restoreNeed(muteSwitch: 0, volume: nil) == .unreadable,
                "unmuting clears the mute switch and restores volume when each is needed, not one or the other")
-        // A call app that opens the microphone is followed; everything else is
-        // still put back, as the mute always did.
-        suite.expect(MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: false,
-                                                     switchWasEngaged: true, muteSwitch: 0,
-                                                     capturedByOtherProcess: true),
-               "a call app that raises a muted microphone's level while recording from it is followed")
-        suite.expect(MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
-                                                     switchWasEngaged: true, muteSwitch: 0,
-                                                     capturedByOtherProcess: true),
-               "a call app that only clears the mute switch, level still zero, is followed too")
-        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: false,
-                                                      switchWasEngaged: true, muteSwitch: 0,
-                                                      capturedByOtherProcess: false),
-               "with nobody recording, a raised level is an app nudging gain and is put back")
-        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: false, silenced: false,
-                                                      switchWasEngaged: false, muteSwitch: 0,
-                                                      capturedByOtherProcess: true),
-               "a microphone the mute never silenced is not reported as unmuted by a call app")
-        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
-                                                      switchWasEngaged: false, muteSwitch: 0,
-                                                      capturedByOtherProcess: true),
-               "a driver that reads its mute switch as 0 whatever it is told never looks like an unmute")
-        suite.expect(!MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
-                                                      switchWasEngaged: true, muteSwitch: 1,
-                                                      capturedByOtherProcess: true)
-                && !MicMuteSupport.isExternalUnmute(wasSilenced: true, silenced: true,
-                                                    switchWasEngaged: true, muteSwitch: nil,
-                                                    capturedByOtherProcess: true),
-               "a microphone still quiet, or a switch that cannot be read, stays muted")
+        typealias InputControls = MicMuteSupport.InputControls
+        let quiet = InputControls(gain: .silent, muteSwitch: 1)
+        suite.expect(InputControls(gain: .audible, muteSwitch: 1).opened(since: quiet)
+                && InputControls(gain: .silent, muteSwitch: 0).opened(since: quiet),
+               "raising gain or releasing a previously engaged switch opens a verified quiet microphone")
+        suite.expect(!InputControls(gain: .unreadable, muteSwitch: 1).opened(since: quiet)
+                && !InputControls(gain: .unavailable, muteSwitch: nil).opened(since: quiet)
+                && !quiet.opened(since: quiet),
+               "an unreadable or missing control and a still-muted device give no evidence of an opening")
+        let noSwitch = InputControls(gain: .silent, muteSwitch: 0)
+        let unreadable = InputControls(gain: .unreadable, muteSwitch: 1)
+        let switchOnly = InputControls(gain: .unavailable, muteSwitch: 1)
+        suite.expect(!noSwitch.opened(since: noSwitch) && !unreadable.isSilenced
+                && !InputControls(gain: .audible, muteSwitch: 0).opened(since: unreadable)
+                && switchOnly.isSilenced && !InputControls(gain: .audible, muteSwitch: 1).opened(since: switchOnly),
+               "a stuck switch or an unverified mute cannot signal an unmute, and switch-only inputs still work")
         suite.expect(MicMuteSupport.inputChannelElements(channelCount: 3) == [0, 1, 2, 3] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 1) == [0, 1, 2] as [UInt32]
                 && MicMuteSupport.inputChannelElements(channelCount: 0) == [0, 1, 2] as [UInt32]

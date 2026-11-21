@@ -573,7 +573,7 @@ enum SettingsDirectory {
                 SettingsDirectoryItem(page: .quickTools, title: s.quickToolsTab, icon: "wand.and.rays",
                                        featureKeywords: [
                                         (.quickLauncher, [s.launcherName]),
-                                        (.micMute, [s.micMuteName, s.micMuteMenuBarToggle]),
+                                        (.micMute, [s.micMuteName, s.micMuteFollowCallAppsToggle, s.micMuteMenuBarToggle]),
                                         (.quickToggles, [FeatureStrings.quickToggles(language).pageTitle,
                                                          FeatureStrings.quickToggles(language)
                                                             .darkModeToDark,

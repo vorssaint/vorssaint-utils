@@ -63,23 +63,20 @@ enum MicMuteSupport {
         !owned && captureSilenced
     }
 
-    /// Whether a change to a microphone this app muted is the person opening
-    /// it from the call they are in, rather than an app nudging a level.
-    /// Re-asserting the mute against that change leaves the call app showing
-    /// "unmuted" over a microphone that is still cut, so it is followed.
-    /// Three things have to hold together: the device was verifiably quiet
-    /// after this app's own last sweep (a mute that never took cannot be
-    /// "undone"), it has since opened, and another process is capturing from
-    /// it right now. Without that last one, a device arriving or an app
-    /// nudging gain with no call running is still put back.
-    /// A mute switch only counts if it was seen engaged after the sweep, so a
-    /// driver that reads 0 whatever it is told cannot look like an unmute.
-    static func isExternalUnmute(wasSilenced: Bool, silenced: Bool,
-                                 switchWasEngaged: Bool, muteSwitch: UInt32?,
-                                 capturedByOtherProcess: Bool) -> Bool {
-        guard wasSilenced, capturedByOtherProcess else { return false }
-        if !silenced { return true }
-        return switchWasEngaged && muteSwitch == 0
+    struct InputControls {
+        enum Gain { case unavailable, unreadable, silent, audible }
+        let gain: Gain
+        let muteSwitch: UInt32?
+
+        var isSilenced: Bool {
+            gain == .silent || (gain == .unavailable && muteSwitch == 1)
+        }
+
+        /// A driver losing a readable gain control does not establish that it opened.
+        func opened(since previous: InputControls) -> Bool {
+            previous.isSilenced && ((previous.gain == .silent && gain == .audible)
+                || (previous.muteSwitch == 1 && muteSwitch == 0))
+        }
     }
 
     /// What an unmute has to do to a device this app muted. The mute switch
