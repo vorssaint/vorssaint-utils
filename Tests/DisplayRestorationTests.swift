@@ -33,6 +33,7 @@ enum DisplayRestorationTests {
     enum DispatchQueue { static var main = Queue() }
     enum Hardware {
         static var lid: Bool? = true
+        static var session: [String: Any]? = [:]
         static var succeeds = true
         static var transactions = 0
         static var configurations: [(id: UInt32, enabled: Bool)] = []
@@ -100,6 +101,7 @@ enum DisplayRestorationTests {
         }
     }
     static func CGDisplayIsBuiltin(_ id: UInt32) -> UInt32 { id == 1 ? 1 : 0 }
+    static func CGSessionCopyCurrentDictionary() -> CFDictionary? { Hardware.session as CFDictionary? }
     static func CGBeginDisplayConfiguration(_ reference: inout Int?) -> CGError {
         Hardware.transactions += 1
         reference = 1
@@ -200,6 +202,7 @@ enum DisplayRestorationTests {
             DispatchQueue.main = Queue()
             UserDefaults.standard = UserDefaults()
             Hardware.lid = true
+            Hardware.session = [:]
             Hardware.succeeds = true
             Hardware.transactions = 0
             Hardware.configurations = []
@@ -883,6 +886,7 @@ enum DisplayRestorationTests {
 
         service = externalSwitchedOff()
         service.displaysWillSleep()
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
         Hardware.online = [1, 2]
         Hardware.active = [1, 2]
         let beforeWake = service.refreshes
@@ -898,7 +902,7 @@ enum DisplayRestorationTests {
                      && service.refreshes == beforeWake + 1
                      && !service.displayPowerIsSuspended && service.wakeRebuild == nil
                      && service.managedDisabledIDs == [2] && UserDefaults.standard.stored == [2],
-                     "one settled wake disables the returned monitor once without erasing manual intent")
+                     "one settled wake disables the returned external monitor once even while locked")
 
         service = externalSwitchedOff()
         service.displaysWokeUp()
@@ -943,6 +947,44 @@ enum DisplayRestorationTests {
         Hardware.lid = false
         service.commitDisplayToggle(BrightnessDisplay(id: 1, isActive: true), enabled: false)
         Hardware.configurations = []
+        let unlockCenter = NotificationCenter()
+        let unlockObserver = service.observeScreenUnlock(in: unlockCenter)
+        let unlock = Notification.Name("com.apple.screenIsUnlocked")
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
+        service.displaysWillSleep()
+        service.displaysWokeUp()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty && service.managedDisabledIDs == [1]
+                     && UserDefaults.standard.stored == [1],
+                     "a locked wake with both displays active keeps the built-in panel up and its off choice saved")
+        service.recordDiscoveredTopology(online: [1, 2], active: [1, 2], mirrorSources: [:])
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "later screen notifications also leave the lock screen up")
+
+        Hardware.session = [:]
+        unlockCenter.post(name: unlock, object: nil)
+        Hardware.online = [1]
+        Hardware.active = [1]
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "unplugging HDMI before the unlock retry keeps the last panel up")
+
+        Hardware.online = [1, 2]
+        Hardware.active = [1, 2]
+        Hardware.session = nil
+        service.screensChanged()
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.isEmpty, "an unreadable session cannot authorize an automatic panel disable")
+        Hardware.session = [:]
+        unlockCenter.post(name: unlock, object: nil)
+        DispatchQueue.main.drain()
+        suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1
+                     && Hardware.configurations.first?.enabled == false && UserDefaults.standard.stored == [1],
+                     "unlock alone reapplies the built-in off choice with another drawable display")
+        unlockCenter.removeObserver(unlockObserver)
+
+        Hardware.configurations = []
+        Hardware.session = ["CGSSessionScreenIsLocked": true]
         service.displaysWillSleep()
         Hardware.online = []
         Hardware.active = []
@@ -951,7 +993,7 @@ enum DisplayRestorationTests {
         suite.expect(Hardware.configurations.count == 1 && Hardware.configurations.first?.id == 1
                      && Hardware.configurations.first?.enabled == true
                      && service.managedDisabledIDs.isEmpty && UserDefaults.standard.stored.isEmpty,
-                     "settled wake restores a manually disabled built-in panel if its external monitor was unplugged during sleep")
+                     "a locked wake restores the disabled built-in panel if its external monitor was unplugged during sleep")
 
         service = externalSwitchedOff()
         Hardware.online = [2]
