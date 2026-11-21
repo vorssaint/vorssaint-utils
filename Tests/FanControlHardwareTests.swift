@@ -289,5 +289,54 @@ enum FanControlHardwareContract {
         suite.expect(operationFails { try invalidLevel.startCooling(level: 101) }
                         && invalidLevelState.writes.isEmpty,
                      "an invalid cooling level cannot begin a manual write")
+
+        let (holding, holdingState) = fresh()
+        suite.expect((try? holding.startCooling(level: 50)) != nil,
+                     "the hold fixture starts manual control")
+        holdingState.readValue = { key, _, value in key.hasSuffix("Ac") ? nil : value }
+        suite.expect((try? holding.holdCooling(level: 80)) != nil
+                        && holdingState.values["F0Tg"] == 4_880
+                        && holdingState.values["F1Tg"] == 4_880 && holding.coolingIsIntact(),
+                     "a held level is written and verified without depending on fan telemetry")
+
+        holdingState.bytes["F0md"] = [0]
+        holdingState.bytes["F1md"] = [0]
+        suite.expect(!holding.coolingIsIntact() && (try? holding.holdCooling(level: 80)) != nil
+                        && holdingState.bytes["F0md"] == [1] && holdingState.bytes["F1md"] == [1]
+                        && holding.coolingIsIntact(),
+                     "holding the same level puts back manual mode the firmware reclaimed")
+
+        let (sensing, sensingState) = fresh()
+        sensingState.values["TC0P"] = 45
+        sensingState.values["Tg04"] = 0
+        sensingState.values["Tg05"] = 9.2
+        suite.expect(sensing.readTemperatures().first { $0.source == .hottestGPU }?.celsius == 10
+                        && sensing.readTemperatures().first { $0.source == .hottestSoC }?.celsius == 45,
+                     "a GPU answering below the chip floor is read as powered down, not missing")
+        sensingState.readValue = { key, _, value in key == "Tg05" ? nil : value }
+        suite.expect(!sensing.readTemperatures().contains { $0.source == .hottestGPU },
+                     "a GPU sensor that fails to answer still leaves the GPU source unavailable")
+        sensingState.readValue = nil
+        sensingState.values["Tg05"] = 52
+        suite.expect(sensing.readTemperatures().first { $0.source == .hottestGPU }?.celsius == 52,
+                     "a working GPU sensor reports its own temperature")
+
+        for index in 0..<2 {
+            let (refused, refusedState) = fresh()
+            suite.expect((try? refused.startCooling(level: 50)) != nil,
+                         "the refused-hold fixture starts manual control")
+            refusedState.rejectWrite = { $0.key == "F\(index)Tg" && $0.value > 0 }
+            let failed: Bool
+            do {
+                try refused.holdCooling(level: 75)
+                failed = false
+            } catch {
+                failed = true
+            }
+            suite.expect(failed && !refusedState.automatic
+                            && !refusedState.writes.contains { $0.key.hasSuffix("md") && $0.value == 0 }
+                            && refusedState.values["F\(index)Tg"] == 3_500,
+                         "a refused hold on fan \(index) reports failure and leaves the fans manual at a safe target")
+        }
     }
 }

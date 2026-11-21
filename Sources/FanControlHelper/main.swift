@@ -368,7 +368,9 @@ private final class FanControlController {
         lastStopReason = reason
         ownership.release()
         stopWatchdogIfIdle()
-        log.notice("Automatic fan control restored")
+        // The reason is the only trace of why a session ended; the app's card
+        // folds most of them into one generic message.
+        log.notice("Automatic fan control restored: \(reason?.rawValue ?? "requested", privacy: .public)")
         return true
     }
 
@@ -411,31 +413,40 @@ private final class FanControlController {
             stopWatchdogIfIdle()
             return
         }
-        var controlIntact = false
+        // A curve follows its sensors; without a fresh reading, and for a
+        // manual speed, the session keeps the level it already holds.
+        var level = coolingLevel
         if activeConfiguration?.mode == .curve,
            let configuration = activeConfiguration,
            let hardware {
             if let requested = requestedLevel(for: configuration, hardware: hardware,
                                               previousLevel: coolingLevel) {
                 temperatureFailures = 0
-                if requested == coolingLevel {
-                    controlIntact = hardware.coolingIsIntact()
-                } else {
-                    do {
-                        _ = try hardware.updateCooling(level: requested)
-                        coolingLevel = requested
-                        controlIntact = true
-                    } catch {
-                        _ = performRestore(reason: .hardwareChanged)
-                        return
-                    }
-                }
+                level = requested
             } else {
                 temperatureFailures += 1
-                controlIntact = hardware.coolingIsIntact()
             }
-        } else {
-            controlIntact = hardware?.coolingIsIntact() == true
+        }
+        var controlIntact = false
+        if let hardware, let level {
+            if level == coolingLevel, hardware.coolingIsIntact() {
+                controlIntact = true
+            } else {
+                // A new curve level, or a manual target the firmware took back.
+                // Writing it again is what keeps the fans under control; a
+                // refused write leaves the last manual target in place and
+                // counts against the same tolerance as a failed verification.
+                do {
+                    try hardware.holdCooling(level: level)
+                    if level == coolingLevel {
+                        log.info("Manual fan control reasserted")
+                    }
+                    coolingLevel = level
+                    controlIntact = true
+                } catch {
+                    log.error("Fan control write failed (\(self.verificationFailures + 1, privacy: .public) of \(FanControlPolicy.verificationFailureLimit, privacy: .public))")
+                }
+            }
         }
         if controlIntact {
             verificationFailures = 0
