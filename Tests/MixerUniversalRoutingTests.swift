@@ -32,6 +32,11 @@ enum MixerUniversalRoutingContract {
         static let standard = Preferences()
         var values: [String: String] = [:]
         var arrays: [String: [String]] = [:]
+        var savedLevels: [String: Double] = [:]
+        func set(_ values: [String: Double], forKey key: String) {
+            precondition(key == DefaultsKey.appVolumes)
+            savedLevels = values
+        }
         func string(forKey key: String) -> String? { values[key] }
         func set(_ value: String?, forKey key: String) { values[key] = value }
         func stringArray(forKey key: String) -> [String]? { arrays[key] }
@@ -63,7 +68,13 @@ enum MixerUniversalRoutingContract {
         var outputSwitchError: String?
         var apps: [MixerApp] = []
         var savedRoutes: [String: String] = [:]
-        var volumes: [String: Double] = [:]
+        var volumes: [String: Double] {
+            get { Preferences.standard.savedLevels }
+            set { Preferences.standard.savedLevels = newValue }
+        }
+        var lastAudibleVolume: [String: Double] = [:]
+        func isUnity(_ value: Double) -> Bool { MixerRoutingSupport.isUnity(value) }
+        func reconcileEngines(with apps: [MixerApp]) {}
         var sessionRoutes: [String: String] = [:]
         var sessionVolumes: [String: Double] = [:]
         var refresh = MixerRefreshCoordinator()
@@ -91,6 +102,37 @@ enum MixerUniversalRoutingContract {
                  audioObjects: objects, isPlaying: true, isBypassed: bypassed,
                  selectedOutputDeviceUID: selectedUID, effectiveOutputDeviceUID: "airpods",
                  outputDeviceUnavailable: false, volume: 1)
+    }
+
+    // The workspace can return a regular application whose reported pid is -1.
+    // HAL still supplies its real pid. Exercise discovery and persistence through
+    // the same methods a refresh and a volume slider use.
+    private static func distinctProcessVolumes(_ suite: TestSuite) {
+        let mixer = Mixer()
+        mixer.volumes = [:]
+        defer { mixer.volumes = [:] }
+        let levels = ["com.valvesoftware.steam": 0.25, "org.example.devicehub": 0.5,
+                      "com.example.gloomhaven": 0.75]
+        func discover() -> [MixerApp] {
+            let request = Mixer.RefreshRequest(savedVolumes: mixer.savedVolumes())
+            let rows = Mixer.processRows(for: [101, 102, 103, 104], request: request,
+                                         availableUIDs: [], defaultUID: nil)
+            return Mixer.coalescingAppsWithDuplicateIDs(rows)
+        }
+        mixer.apps = discover()
+        suite.expect(Set(mixer.apps.map(\.id)) == Set(levels.keys) && mixer.apps.count == 3,
+                     "Steam, Device Hub and a Steam-launched game get three separate sliders")
+        for app in mixer.apps {
+            guard let level = levels[app.id] else { continue }
+            mixer.setVolume(level, for: app)
+        }
+        suite.expect(mixer.savedVolumes() == levels && mixer.sessionVolumes.isEmpty,
+                     "each slider writes its own bundle preference, never its launcher or a pid")
+        let refreshed = discover()
+        suite.expect(refreshed.count == 3 && refreshed.allSatisfy { $0.volume == levels[$0.id] }
+                     && refreshed.first(where: { $0.ownerPid == 14271 })?.audioObjects == [101, 104]
+                     && refreshed.first(where: { $0.ownerPid == 44794 })?.audioObjects == [103],
+                     "rediscovery restores individual volumes and keeps the audio helper with Steam")
     }
 
     private static func callAudioCompatibility(_ suite: TestSuite) {
@@ -178,6 +220,7 @@ enum MixerUniversalRoutingContract {
     static func run(_ suite: TestSuite) {
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
+        distinctProcessVolumes(suite)
         callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
@@ -345,4 +388,54 @@ enum MixerUniversalRoutingContract {
         suite.expect(publishing.applyingCurrentVolumes(to: read)[0].volume == 1,
                      "a volume returned to 100 percent while the pass read publishes as unity, not the old gain")
     }
+}
+
+
+extension MixerUniversalRoutingContract.Mixer {
+    struct RefreshRequest {
+        let savedVolumes: [String: Double]
+        let ownPid: pid_t = 1
+        let callAppVolumeEnabled = Set<String>()
+        let hiddenRowIDs = Set<String>()
+        let savedOutputs: [String: String] = [:]
+        let sessionRoutes: [String: String] = [:]
+        let sessionVolumes: [String: Double] = [:]
+    }
+
+    struct NSRunningApplication {
+        let processIdentifier: pid_t = -1
+        let bundleIdentifier: String?
+        let localizedName: String?
+        init?(processIdentifier pid: pid_t) {
+            switch pid {
+            case 14271: (bundleIdentifier, localizedName) = ("com.valvesoftware.steam", "Steam")
+            case 2836: (bundleIdentifier, localizedName) = ("org.example.devicehub", "Device Hub")
+            case 44794: (bundleIdentifier, localizedName) = ("com.example.gloomhaven", "Gloomhaven")
+            default: return nil
+            }
+        }
+    }
+
+    enum ResponsibleProcess {
+        static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
+            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 ? 2836 : 14271,
+                isRegularApp: { NSRunningApplication(processIdentifier: $0) != nil }, parentPid: { _ in 0 })
+        }
+        static func displayName(pid: pid_t, fallback: String) -> String {
+            NSRunningApplication(processIdentifier: pid)?.localizedName ?? fallback
+        }
+    }
+
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ pid: inout pid_t) -> Bool {
+        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000]
+        guard selector == kAudioProcessPropertyPID, let value = owners[object] else { return false }
+        pid = value
+        return true
+    }
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ running: inout UInt32) -> Bool {
+        guard selector == kAudioProcessPropertyIsRunningOutput else { return false }
+        running = 1
+        return true
+    }
+    static func processBundleIdentifier(of object: AudioObjectID) -> String? { nil }
 }
