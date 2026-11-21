@@ -25,9 +25,11 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case extraBrightness
     case bluetoothSleep
     case scrollDirection
+    case scrollZoom
     case focusFollowsMouse
     case smoothScroll
     case linearScroll
+    case scrollSpeed
     case mouseAcceleration
     case mouseNavigation
     case mouseButtonShortcuts
@@ -43,7 +45,9 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case pastePlain
     case quickLauncher
     case quickToggles
+    case quitApps
     case screenshot
+    case screenshotScrolling
     case screenRecorder
     case colorPicker
     case screenOCR
@@ -55,6 +59,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case soundOutputSwitcher
     case keyboardBrightnessShortcuts
     case fanControl
+    case monitorAlerts
     case windowMaximizer
 
     var page: SettingsPage {
@@ -63,20 +68,54 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
              .soundOutputSwitcher:
             return .general
         case .keepAwake, .brightness, .extraBrightness, .bluetoothSleep: return .energy
-        case .scrollDirection, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+        case .scrollDirection, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
              .middleClick, .mouseClickDebounce:
             return .mouse
         case .switcher: return .switcher
         case .dock, .dockClick, .spacesOrder: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
         case .clipboardHistory, .pastePlain: return .clipboard
-        case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .wallpaper, .scratchpad, .cleaningMode:
+        case .quickLauncher, .quickToggles, .quitApps, .micMute, .cameraPreview, .wallpaper, .scratchpad,
+             .cleaningMode:
             return .quickTools
-        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
+        case .screenshot, .screenshotScrolling, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
-        case .fanControl: return .monitor
+        case .fanControl, .monitorAlerts: return .monitor
         case .windowMaximizer: return .windowLayout
+        }
+    }
+}
+
+enum NotchSettingsLocation: Hashable {
+    case layout, activity, behavior
+    case module(NotchModule)
+
+    var tab: NotchSettingsTab {
+        switch self {
+        case .layout: return .layout
+        case .activity: return .activity
+        case .behavior: return .behavior
+        case .module: return .content
+        }
+    }
+
+    var id: String {
+        switch self {
+        case .layout: return "layout"
+        case .activity: return "activity"
+        case .behavior: return "behavior"
+        case .module(let module): return "content." + module.rawValue
+        }
+    }
+
+    func title(_ language: AppLanguage) -> String {
+        let editor = FeatureStrings.notchEditor(language)
+        switch self {
+        case .layout: return editor.layout
+        case .activity: return editor.activity
+        case .behavior: return editor.behavior
+        case .module(let module): return module.title(language)
         }
     }
 }
@@ -86,10 +125,18 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
 struct FeatureSettingsDestination: Hashable {
     let page: SettingsPage
     let sectionAnchor: SettingsSectionAnchor?
+    let notchLocation: NotchSettingsLocation?
 
     init(_ page: SettingsPage, sectionAnchor: SettingsSectionAnchor? = nil) {
         self.page = page
         self.sectionAnchor = sectionAnchor
+        self.notchLocation = nil
+    }
+
+    init(notch location: NotchSettingsLocation) {
+        page = .notch
+        sectionAnchor = nil
+        notchLocation = location
     }
 
     var hasValidSectionAnchor: Bool {
@@ -160,9 +207,6 @@ final class SettingsRouter: ObservableObject {
     /// One-shot hint for the Cleaner page's tool switcher, so a panel surface
     /// can land directly on a specific tool. Consumed and cleared on arrival.
     @Published var cleanerTool: String?
-    /// One-shot hint for the Dynamic Island page, so a section of the island
-    /// can open its own options. Consumed and cleared on arrival.
-    @Published var notchModule: NotchModule?
     /// One-shot hint for the Dynamic Island page to show the companion's tab,
     /// where its settings live. Consumed and cleared on arrival.
     @Published var notchCompanion = false
@@ -214,7 +258,7 @@ final class SettingsRouter: ObservableObject {
     }
 
     private static func anchorSelectsTool(on page: SettingsPage) -> Bool {
-        page == .general || page == .energy
+        page == .general || page == .energy || page == .screenshot
     }
 
     func goBack(isPageVisible: (SettingsPage) -> Bool = { _ in true }) {
@@ -238,7 +282,6 @@ final class SettingsRouter: ObservableObject {
         historyIndex = index
         isTraversingHistory = true
         cleanerTool = nil
-        notchModule = nil
         let entry = history[index]
         request(entry.destination, sidebarFeature: entry.sidebarFeature)
         isTraversingHistory = false
@@ -293,12 +336,16 @@ extension AppFeature {
 
         case .scrollInverter, .scrollHorizontal:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollDirection)
+        case .scrollZoom:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollZoom)
         case .focusFollowsMouse:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .focusFollowsMouse)
         case .smoothScroll:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .smoothScroll)
         case .linearScroll:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .linearScroll)
+        case .scrollSpeed:
+            return FeatureSettingsDestination(.mouse, sectionAnchor: .scrollSpeed)
         case .mouseAcceleration:
             return FeatureSettingsDestination(.mouse, sectionAnchor: .mouseAcceleration)
         case .mouseNavigation:
@@ -349,6 +396,8 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .quickLauncher)
         case .quickToggles:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .quickToggles)
+        case .quitApps:
+            return FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
         case .colorPicker:
             return FeatureSettingsDestination(.screenshot, sectionAnchor: .colorPicker)
         case .screenOCR:
@@ -368,7 +417,17 @@ extension AppFeature {
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .cameraPreview)
         case .wallpaper:
             return FeatureSettingsDestination(.quickTools, sectionAnchor: .wallpaper)
-        case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories, .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch: return FeatureSettingsDestination(.notch)
+        case .notch: return FeatureSettingsDestination(.notch)
+        case .notchCalendar: return FeatureSettingsDestination(notch: .module(.calendar))
+        case .notchNotifications: return FeatureSettingsDestination(notch: .module(.notifications))
+        case .notchGestures: return FeatureSettingsDestination(notch: .behavior)
+        case .notchTimer: return FeatureSettingsDestination(notch: .module(.timer))
+        case .notchAccessories: return FeatureSettingsDestination(notch: .activity)
+        case .notchLyrics, .notchQueue, .notchLiveEqualizer:
+            return FeatureSettingsDestination(notch: .module(.music))
+        case .notchDownloads: return FeatureSettingsDestination(notch: .module(.downloads))
+        case .notchAgents: return FeatureSettingsDestination(notch: .module(.agents))
+        case .notchWatch: return FeatureSettingsDestination(notch: .module(.watch))
         case .notchMascot: return FeatureSettingsDestination(.notchMascot)
         case .radialMenu: return FeatureSettingsDestination(.radialMenu)
         case .scratchpad:
@@ -399,7 +458,7 @@ enum FeatureVisibilitySupport {
         switch page {
         case .energy: return [.keepAwake, .brightness, .extraBrightness, .bluetoothSleep]
         case .monitor: return monitorFeatures
-        case .mouse: return [.scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
+        case .mouse: return [.scrollInverter, .scrollHorizontal, .scrollZoom, .focusFollowsMouse, .smoothScroll, .linearScroll, .scrollSpeed, .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts,
                              .middleClick, .mouseClickDebounce]
         case .switcher: return [.switcher]
         case .dock: return [.dockPreview, .dockClick, .spacesOrder]
@@ -410,7 +469,7 @@ enum FeatureVisibilitySupport {
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]
-        case .quickTools: return [.quickLauncher, .quickToggles, .micMute,
+        case .quickTools: return [.quickLauncher, .quickToggles, .quitApps, .micMute,
                                   .cameraPreview, .wallpaper, .scratchpad, .cleaningMode]
         case .urlCleaner: return [.urlCleaner]
         case .cleaner: return [.cleaner]

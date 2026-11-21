@@ -15,7 +15,7 @@ final class RecorderIndicator {
 
     private var panel: NSPanel?
     private var pill: PillView?
-    private var regionGuide: NSPanel?
+    private let regionGuide = CaptureRegionGuide()
     private let onPause: () -> Void
     private let onStop: () -> Void
 
@@ -23,7 +23,7 @@ final class RecorderIndicator {
     /// on screen, the panel, the settings, the command bar, belongs in the
     /// recording: showing the app itself is a thing people record.
     var excludedWindowNumbers: [Int] {
-        [panel?.windowNumber, regionGuide?.windowNumber].compactMap { number in
+        [panel?.windowNumber, regionGuide.windowNumber].compactMap { number in
             guard let number, number > 0 else { return nil }
             return number
         }
@@ -34,38 +34,9 @@ final class RecorderIndicator {
         self.onStop = onStop
     }
 
-    /// Keeps the chosen area visible without trapping clicks. The panel is
-    /// app-owned capture chrome, so the recorder leaves it out of the video.
     func showRegionGuide(for region: RecorderSupport.Region) {
-        guard regionGuide == nil, region.windowID == nil,
-              let screen = NSScreen.screens.first(where: { $0.displayID == region.displayID })
-        else { return }
-
-        let selection = CGRect(x: region.anchorRect.minX - screen.frame.minX,
-                               y: region.anchorRect.minY - screen.frame.minY,
-                               width: region.anchorRect.width,
-                               height: region.anchorRect.height)
-            .intersection(CGRect(origin: .zero, size: screen.frame.size))
-        guard selection.width >= 1, selection.height >= 1 else { return }
-
-        let guide = RegionGuideView(frame: CGRect(origin: .zero, size: screen.frame.size),
-                                    selection: selection)
-        let panel = OverlayPanel(contentRect: screen.frame,
-                                 styleMask: [.borderless, .nonactivatingPanel],
-                                 backing: .buffered,
-                                 defer: false)
-        panel.contentView = guide
-        panel.isOpaque = false
-        panel.backgroundColor = .clear
-        panel.hasShadow = false
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
-        panel.isReleasedWhenClosed = false
-        panel.hidesOnDeactivate = false
-        panel.ignoresMouseEvents = true
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
-                                    .stationary, .ignoresCycle]
-        panel.orderFrontRegardless()
-        regionGuide = panel
+        guard region.windowID == nil else { return }
+        regionGuide.show(for: region)
     }
 
     /// Shows the pill centered under the menu bar of the screen being
@@ -123,8 +94,7 @@ final class RecorderIndicator {
     }
 
     func hide() {
-        regionGuide?.orderOut(nil)
-        regionGuide = nil
+        regionGuide.hide()
         guard let panel else { return }
         self.panel = nil
         pill = nil
@@ -134,32 +104,6 @@ final class RecorderIndicator {
         }, completionHandler: {
             panel.orderOut(nil)
         })
-    }
-
-    private final class RegionGuideView: NSView {
-        private let selection: CGRect
-
-        init(frame frameRect: NSRect, selection: CGRect) {
-            self.selection = selection
-            super.init(frame: frameRect)
-        }
-
-        @available(*, unavailable)
-        required init?(coder: NSCoder) { nil }
-
-        override func draw(_ dirtyRect: NSRect) {
-            guard let context = NSGraphicsContext.current?.cgContext else { return }
-            context.beginPath()
-            context.addRect(bounds)
-            context.addRect(selection)
-            context.setFillColor(CGColor(gray: 0, alpha: 0.3))
-            context.fillPath(using: .evenOdd)
-
-            context.addRect(selection.insetBy(dx: 1, dy: 1))
-            context.setStrokeColor(CGColor(srgbRed: 0.18, green: 0.55, blue: 1, alpha: 0.95))
-            context.setLineWidth(2)
-            context.strokePath()
-        }
     }
 
     // MARK: - The pill

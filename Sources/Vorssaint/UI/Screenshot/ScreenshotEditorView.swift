@@ -1715,7 +1715,7 @@ struct ScreenshotEditorView: View {
         return "\(width) × \(height) px\(retina)"
     }
 
-    /// A draggable control that exports the flattened PNG. Lives in infoChip
+    /// A draggable control that exports the flattened image. Lives in infoChip
     /// (bottom row), not the top toolbar — that region overlaps the
     /// window's real system title bar, where no subview-level override
     /// can reliably stop AppKit from treating a click as "move the
@@ -1732,7 +1732,8 @@ struct ScreenshotEditorView: View {
                       let provider = ScreenshotService.dragItemProvider(
                           image: export.image,
                           scale: export.scale,
-                          strings: strings
+                          strings: strings,
+                          preferredFormat: controller.sourceFormat
                       )
                 else { return NSItemProvider() }
                 model.markExported()

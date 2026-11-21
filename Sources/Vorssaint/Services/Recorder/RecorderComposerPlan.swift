@@ -23,7 +23,8 @@ extension RecorderComposer {
                          sourceSize: CGSize,
                          frameRate: Int,
                          duration: Double,
-                         outputScale: CGFloat = 1) -> Plan? {
+                         outputScale: CGFloat = 1,
+                         outputFormat: RecorderSupport.ExportFormat = .video) -> Plan? {
         guard sourceSize.width > 0, sourceSize.height > 0, duration > 0 else { return nil }
 
         let style = document.resolvedBackdrop
@@ -34,27 +35,35 @@ extension RecorderComposer {
                                                     padding: padding,
                                                     aspect: aspect,
                                                     cropsToAspect: !hasBackdrop)
-        let scale = outputScale.isFinite ? min(1, max(0.1, outputScale)) : 1
-        let canvas = scale == 1
-            ? fullCanvas
-            : RecorderSupport.evenSize(CGSize(width: fullCanvas.width * scale,
-                                              height: fullCanvas.height * scale))
+        let scale = outputScale.isFinite ? min(1, max(0.01, outputScale)) : 1
+        let canvas: CGSize
+        if outputFormat == .gif {
+            canvas = RecorderSupport.gifOutputSize(source: fullCanvas,
+                scalePercent: Int((scale * 100).rounded()))
+        } else {
+            canvas = scale == 1 ? fullCanvas : RecorderSupport.evenSize(
+                CGSize(width: fullCanvas.width * scale, height: fullCanvas.height * scale))
+        }
         let card = RecorderSupport.cardRect(
             canvas: canvas,
             source: sourceSize,
             padding: padding,
-            fillsCanvas: !hasBackdrop && aspect != .original)
+            // Even output dimensions can slightly change the aspect ratio.
+            // Without a backdrop, cover the canvas rather than introducing
+            // transparent edge pixels that force full GIF frame redraws.
+            fillsCanvas: !hasBackdrop)
 
         let showsPointer = document.showsPointer && !track.samples.isEmpty
         let segments = document.activeZoomSegments(duration: duration)
-        let needsCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
+        let changesCanvas = hasBackdrop || fullCanvas != RecorderSupport.evenSize(sourceSize)
+        let needsCanvas = scale != 1 || changesCanvas
         let hasCuts = !document.cuts.isEmpty
         let texts = RecorderTextOverlay.normalized(document.texts, duration: duration)
         let images = RecorderImageOverlay.normalized(document.images, duration: duration)
         let blurs = RecorderBlurRegion.normalized(document.blurs, duration: duration)
-        guard showsPointer || !segments.isEmpty || needsCanvas || hasCuts || !texts.isEmpty
-            || !images.isEmpty || !blurs.isEmpty
-        else { return nil }
+        let hasEdits = showsPointer || !segments.isEmpty || changesCanvas || hasCuts
+            || !texts.isEmpty || !images.isEmpty || !blurs.isEmpty
+        guard hasEdits || scale != 1 else { return nil }
 
         // Everything the pointer track knows is in the RECORDING's own time,
         // and every frame drawn is in the FINISHED video's time. The path is
@@ -225,6 +234,7 @@ extension RecorderComposer {
 
         return Plan(sourceSize: RecorderSupport.evenSize(sourceSize),
                     canvasSize: canvas,
+                    isScaleOnly: !hasEdits,
                     cardRect: card,
                     frameRate: frameRate,
                     positions: positions,
@@ -253,6 +263,7 @@ extension RecorderComposer {
                     mask: mask,
                     texts: texts,
                     textOpacity: textOpacity,
+                    textCanvasSize: outputFormat == .gif ? fullCanvas : canvas,
                     images: images,
                     imageSprites: imageSprites,
                     imageOpacity: imageOpacity,

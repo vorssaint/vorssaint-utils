@@ -48,4 +48,6 @@ final class ScrollWheelTarget {
     func contains(_ point: CGPoint) -> Bool {
         cache.contains(point)
     }
+
+    var clickThroughWindowIDs: Set<CGWindowID> { cache.clickThroughWindowIDs }
 }

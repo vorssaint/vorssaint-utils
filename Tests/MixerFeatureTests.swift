@@ -326,21 +326,40 @@ enum MixerFeatureTests {
                "a regular app within the depth cap is still found")
         suite.expect(owningApp(of: 0) == nil,
                "a missing responsible pid maps to no app")
-        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100]) -> pid_t? {
-            let isRegular: (pid_t) -> Bool = { regularApps.contains($0) }
-            let parent: (pid_t) -> pid_t = { helperParents[$0] ?? 0 }
-            return MixerRoutingSupport.owningRegularAppPid(
+        func resolvedOwningApp(responsible: pid_t, pid: pid_t, regularApps: Set<pid_t> = [100],
+                               preferProcessItself: Bool = true) -> pid_t? {
+            MixerRoutingSupport.regularAppOwnerPid(
+                of: pid,
                 responsiblePid: responsible,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) ?? (responsible != pid ? MixerRoutingSupport.owningRegularAppPid(
-                responsiblePid: pid,
-                isRegularApp: isRegular,
-                parentPid: parent
-            ) : nil)
+                preferProcessItself: preferProcessItself,
+                isRegularApp: { regularApps.contains($0) },
+                parentPid: { helperParents[$0] ?? 0 })
         }
         suite.expect(resolvedOwningApp(responsible: 700, pid: 500) == 100,
                "a helper whose responsibility returns a daemon still falls back to its parent app")
+        suite.expect(resolvedOwningApp(responsible: 100, pid: 500) == 100,
+               "a helper is billed to the regular app responsible for it")
+        // Issue #3929: Steam (real pid 14271) and Device Hub (2836) both report
+        // a running-application pid of -1. Rows are keyed by the real pid that
+        // was checked, so they stay apart, and a game Steam launched is a
+        // regular app of its own and gets its own row.
+        let steamApps: Set<pid_t> = [14271, 2836, 44794]
+        let steamOwners = [(responsible: pid_t(14271), pid: pid_t(14271)),
+                           (responsible: 2836, pid: 2836),
+                           (responsible: 14271, pid: 44794)]
+            .map { resolvedOwningApp(responsible: $0.responsible, pid: $0.pid, regularApps: steamApps) }
+        suite.expect(steamOwners == [14271, 2836, 44794],
+               "apps the workspace lists with pid -1 are keyed by their real pids, never merged")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: steamApps,
+                                       preferProcessItself: false) == 14271,
+               "Secure Input and Now Playing still attribute a regular child to its responsible app")
+        suite.expect(resolvedOwningApp(responsible: 700, pid: 500, preferProcessItself: false) == 100,
+               "a legacy owner lookup still falls back to the child's parent when responsibility dead-ends")
+        suite.expect(resolvedOwningApp(responsible: 14271, pid: 44794, regularApps: [14271]) == 14271,
+               "a non-regular process launched by Steam is still billed to Steam")
+        suite.expect([pid_t(-1), 0].allSatisfy {
+            resolvedOwningApp(responsible: $0, pid: $0, regularApps: [-1, 0]) == nil
+        }, "a non-positive pid is never a row key")
         suite.expect(!MixerRoutingSupport.requiresEngine(volume: 1,
                                                    selectedOutputDeviceUID: nil,
                                                    targetOutputDeviceUID: "BuiltInSpeakerDevice",
@@ -1014,6 +1033,43 @@ enum MixerFeatureTests {
                "Studio Pro is kept out of process-tap audio routing")
         suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.spotify.client", name: "Spotify"),
                "music players remain eligible for process-tap audio routing")
+        for id in ["com.hnc.Discord", "com.hnc.Discord.helper.Renderer", "com.hnc.DiscordPTB",
+                   "com.hnc.DiscordCanary", "com.hnc.DiscordDevelopment", "COM.HNC.DISCORD",
+                   "com.microsoft.teams", "com.microsoft.teams2", "com.microsoft.teams2.helper"] {
+            suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call"),
+                         "\(id) bypasses processing before any user override, preventing screen-share echo")
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                allowCallAppVolume: true),
+                         "\(id) volume control is available after explicit opt-in")
+        }
+        for id in ["com.hnc.discordian", "com.microsoft.teams2000", "com.microsoft.teamspeak",
+                   "com.spotify.client", "com.apple.Safari"] {
+            suite.expect(!MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Discord"),
+                         "\(id) is not blocked by a similar bundle prefix or app name")
+        }
+        suite.expect(!MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: nil),
+                     "an unknown process is not assumed to be a call app")
+        suite.expect(MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "us.zoom.xos", name: "Zoom",
+                                                            allowCallAppVolume: true)
+                     && MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: "com.apple.logic10", name: "Logic Pro",
+                                                               allowCallAppVolume: true),
+                     "the optional call app override cannot remove permanent Zoom or DAW bypasses")
+        suite.expect(MixerRoutingSupport.sanitizedCallAppVolumeIDs([
+            "com.hnc.Discord", "COM.HNC.DISCORD", "com.microsoft.teams2", "com.microsoft.teams2000", "", "us.zoom.xos"
+        ]) == ["com.hnc.discord", "com.microsoft.teams2"],
+                     "saved opt-ins normalize bundle case, deduplicate and reject unrelated apps")
+        let callSettings: [String: Any] = [DefaultsKey.mixerCallAppVolumeEnabled: ["com.hnc.discord"]]
+        let callBackup = SettingsBackupSupport.payload(appVersion: "test") { callSettings[$0] }
+        let restoredCalls = SettingsBackupSupport.sanitizedSettings(from: callBackup)
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.mixerCallAppVolumeEnabled)
+                     && restoredCalls?[DefaultsKey.mixerCallAppVolumeEnabled] as? [String] == ["com.hnc.discord"],
+                     "explicit call app volume choices round-trip through settings backup")
+        for language in AppLanguage.allCases {
+            let strings = MixerScreenSharingStrings.localized(language)
+            suite.expect(!strings.allowVolumeControl.isEmpty && !strings.protectedCaption.isEmpty
+                         && !strings.sharingWarning.isEmpty,
+                         "\(language) explains call audio protection and the override")
+        }
         suite.expect(MixerRoutingSupport.effectiveDeviceUID(selectedUID: "ExternalDisplay",
                                                       availableUIDs: ["BuiltInSpeakerDevice"],
                                                       defaultUID: "BuiltInSpeakerDevice") == "BuiltInSpeakerDevice",

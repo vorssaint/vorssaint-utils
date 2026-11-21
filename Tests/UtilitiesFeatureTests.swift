@@ -670,11 +670,36 @@ enum UtilitiesFeatureTests {
                "library folders come alphabetically with loose snippets closing the list")
         suite.expect(allSections.last?.snippets == [loose],
                "disabled and hidden snippets never reach the library")
-        suite.expect(allSections[1].snippets == [workMail, workSig],
-               "snippets keep their stored order inside a folder")
+        suite.expect(allSections[1].snippets == [workSig, workMail],
+               "snippets inside a folder come alphabetically, not in creation order")
         suite.expect(TextSnippetSupport.libraryRows(allSections).map(\.name)
-                == ["Address", "Work mail", "Signature", "Loose"],
+                == ["Address", "Signature", "Work mail", "Loose"],
                "the flat row list walks the sections in reading order")
+
+        // MARK: Snippet display order (issue #3291)
+
+        let zebra = TextSnippet(name: "Zebra", trigger: ";z", replacement: "z",
+                                expansion: .afterDelimiter, enabled: true)
+        let lowerApple = TextSnippet(name: "apple", trigger: ";a", replacement: "a",
+                                     expansion: .afterDelimiter, enabled: true)
+        let unnamed = TextSnippet(name: "", trigger: ";mango", replacement: "m",
+                                  expansion: .afterDelimiter, enabled: true)
+        let item10 = TextSnippet(name: "Item 10", trigger: ";i10", replacement: "10",
+                                 expansion: .afterDelimiter, enabled: true)
+        let item2 = TextSnippet(name: "Item 2", trigger: ";i2", replacement: "2",
+                                expansion: .afterDelimiter, enabled: true)
+        let firstTwin = TextSnippet(name: "Twin", trigger: ";t1", replacement: "1",
+                                    expansion: .afterDelimiter, enabled: true)
+        let secondTwin = TextSnippet(name: "Twin", trigger: ";t2", replacement: "2",
+                                     expansion: .afterDelimiter, enabled: true)
+        let displayed = TextSnippetSupport.sortedForDisplay(
+            [zebra, secondTwin, unnamed, item10, lowerApple, firstTwin, item2])
+        suite.expect(displayed.map(\.trigger) == [";mango", ";a", ";i2", ";i10", ";t2", ";t1", ";z"],
+               "snippet lists sort by shown title ignoring case, numbers in numeric order, the trigger standing in for a missing name")
+        suite.expect(displayed.firstIndex(of: secondTwin)! < displayed.firstIndex(of: firstTwin)!,
+               "snippets with the same title keep their stored order")
+        suite.expect(TextSnippetSupport.sortedForDisplay([]).isEmpty,
+               "an empty snippet list stays empty")
 
         suite.expect(TextSnippetSupport.librarySections(libraryPool, query: "WORK").flatMap(\.snippets).count == 2,
                "searching matches the folder name regardless of casing")
@@ -838,6 +863,28 @@ enum UtilitiesFeatureTests {
                 && RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: true, info: [:])
                 && !RadialNowPlayingSupport.playbackIsActive(remoteIsPlaying: false, info: nowPlayingInfo),
                "Now Playing accepts the remote state or a positive playback rate")
+        // Safari reports its WebKit GPU helper, whose icon is blank (#3590).
+        // Pids as measured: Safari 1479, its GPU helper 1490, and another
+        // app's GPU helper 27306 under the same identifier.
+        let regularApps: Set<pid_t> = [1479, 900]
+        let owners: [pid_t: pid_t] = [1490: 1479, 27306: 900]
+        func player(_ bundleMatch: pid_t?, _ reading: pid_t?) -> pid_t? {
+            RadialNowPlayingSupport.playerPID(bundleMatch: bundleMatch, readingPID: reading,
+                                              isRegularApp: { regularApps.contains($0) },
+                                              regularOwner: { owners[$0] })
+        }
+        suite.expect(player(900, 900) == 900 && player(nil, 1479) == 1479,
+               "a regular player is shown as itself")
+        suite.expect(player(1490, 1490) == 1479,
+               "a WebKit helper is shown as the app it plays for")
+        suite.expect(player(27306, 1490) == 1479,
+               "the reading's own helper decides the app when another app's helper shares its identifier")
+        suite.expect(player(1490, nil) == 1490 && player(27306, nil) == 27306,
+               "a shared helper stays unresolved when the reading has no pid")
+        suite.expect(player(900, nil) == 900 && player(27306, 1479) == 1479,
+               "a regular player still resolves by its bundle or its reading's pid")
+        suite.expect(player(nil, 4242) == 4242 && player(nil, nil) == nil,
+               "a helper no app answers for is still shown as itself")
         let nowPlayingSnapshot = RadialNowPlayingSupport.snapshot(
             info: nowPlayingInfo,
             isPlaying: true,

@@ -31,8 +31,16 @@ enum MixerUniversalRoutingContract {
     final class Preferences {
         static let standard = Preferences()
         var values: [String: String] = [:]
+        var arrays: [String: [String]] = [:]
+        var savedLevels: [String: Double] = [:]
+        func set(_ values: [String: Double], forKey key: String) {
+            precondition(key == DefaultsKey.appVolumes)
+            savedLevels = values
+        }
         func string(forKey key: String) -> String? { values[key] }
         func set(_ value: String?, forKey key: String) { values[key] = value }
+        func stringArray(forKey key: String) -> [String]? { arrays[key] }
+        func set(_ value: [String], forKey key: String) { arrays[key] = value }
     }
 
     final class Mixer {
@@ -60,7 +68,13 @@ enum MixerUniversalRoutingContract {
         var outputSwitchError: String?
         var apps: [MixerApp] = []
         var savedRoutes: [String: String] = [:]
-        var volumes: [String: Double] = [:]
+        var volumes: [String: Double] {
+            get { Preferences.standard.savedLevels }
+            set { Preferences.standard.savedLevels = newValue }
+        }
+        var lastAudibleVolume: [String: Double] = [:]
+        func isUnity(_ value: Double) -> Bool { MixerRoutingSupport.isUnity(value) }
+        func reconcileEngines(with apps: [MixerApp]) {}
         var sessionRoutes: [String: String] = [:]
         var sessionVolumes: [String: Double] = [:]
         var refresh = MixerRefreshCoordinator()
@@ -78,6 +92,7 @@ enum MixerUniversalRoutingContract {
         }
         func applyRouting(for app: MixerApp) { applied.append(app) }
         func chooseAirPlaySpeaker(for app: MixerApp) {}
+        func clearPermissionIfNoActiveAdjustments() {}
     }
 
     static func row(_ id: String = "process:77", objects: [AudioObjectID] = [100],
@@ -89,8 +104,124 @@ enum MixerUniversalRoutingContract {
                  outputDeviceUnavailable: false, volume: 1)
     }
 
+    // The workspace can return a regular application whose reported pid is -1.
+    // HAL still supplies its real pid. Exercise discovery and persistence through
+    // the same methods a refresh and a volume slider use.
+    private static func distinctProcessVolumes(_ suite: TestSuite) {
+        let mixer = Mixer()
+        mixer.volumes = [:]
+        defer { mixer.volumes = [:] }
+        let levels = ["com.valvesoftware.steam": 0.25, "org.example.devicehub": 0.5,
+                      "com.example.gloomhaven": 0.75]
+        func discover() -> [MixerApp] {
+            let request = Mixer.RefreshRequest(savedVolumes: mixer.savedVolumes())
+            let rows = Mixer.processRows(for: [101, 102, 103, 104], request: request,
+                                         availableUIDs: [], defaultUID: nil)
+            return Mixer.coalescingAppsWithDuplicateIDs(rows)
+        }
+        mixer.apps = discover()
+        suite.expect(Set(mixer.apps.map(\.id)) == Set(levels.keys) && mixer.apps.count == 3,
+                     "Steam, Device Hub and a Steam-launched game get three separate sliders")
+        for app in mixer.apps {
+            guard let level = levels[app.id] else { continue }
+            mixer.setVolume(level, for: app)
+        }
+        suite.expect(mixer.savedVolumes() == levels && mixer.sessionVolumes.isEmpty,
+                     "each slider writes its own bundle preference, never its launcher or a pid")
+        let refreshed = discover()
+        suite.expect(refreshed.count == 3 && refreshed.allSatisfy { $0.volume == levels[$0.id] }
+                     && refreshed.first(where: { $0.ownerPid == 14271 })?.audioObjects == [101, 104]
+                     && refreshed.first(where: { $0.ownerPid == 44794 })?.audioObjects == [103],
+                     "rediscovery restores individual volumes and keeps the audio helper with Steam")
+    }
+
+    private static func callAudioCompatibility(_ suite: TestSuite) {
+        for id in ["com.hnc.Discord", "com.microsoft.teams2"] {
+            let mixer = Mixer()
+            var app = row(id, persistenceID: id, selectedUID: "airpods")
+            app.supportsVolumeOverride = MixerRoutingSupport.needsScreenSharingProtection(bundleIdentifier: id)
+            app.isBypassed = MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call")
+            // Old installations may already have a boost and a route saved.
+            app.volume = 1.2
+            mixer.apps = [app]
+            mixer.volumes[id] = 1.2
+            mixer.savedRoutes[id] = "airpods"
+            suite.expect(!mixer.appNeedsEngine(app) && !mixer.rowMayBeTapped(app),
+                         "\(id) cannot be tapped by saved gain or routing while protected")
+            suite.expect(mixer.applyingCurrentVolumes(to: [app])[0].volume == 1,
+                         "\(id) publishes unity while preserving the saved boost")
+
+            mixer.setCallAppVolumeControl(true, for: app)
+            suite.expect(!mixer.apps[0].isBypassed && mixer.apps[0].volume == 1.2
+                         && mixer.apps[0].selectedOutputDeviceUID == "airpods"
+                         && mixer.appNeedsEngine(mixer.apps[0]) && mixer.rowMayBeTapped(mixer.apps[0]),
+                         "\(id) opt-in restores the saved level and output")
+            let allowed = mixer.savedCallAppVolumeEnabled()
+            suite.expect(allowed.contains(id.lowercased())
+                         && !MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: id, name: "Call",
+                                                                   allowCallAppVolume: allowed.contains(id.lowercased())),
+                         "\(id) explicit opt-in survives a new discovery pass")
+
+            let staleRead = mixer.refresh.begin()!
+            let staleBuild = mixer.builds.begin(id)!
+            let unrelatedBuild = mixer.builds.begin("com.spotify.client")!
+            mixer.setCallAppVolumeControl(false, for: mixer.apps[0])
+            let protected = mixer.apps[0]
+            suite.expect(protected.isBypassed && protected.volume == 1
+                         && protected.selectedOutputDeviceUID == nil && protected.effectiveOutputDeviceUID == nil
+                         && protected.universalOutputRouteUID == nil && !protected.outputDeviceUnavailable,
+                         "\(id) protection clears all live gain and route requests")
+            suite.expect(mixer.applied.last == protected && !mixer.appNeedsEngine(protected)
+                         && !mixer.rowMayBeTapped(protected),
+                         "\(id) protection immediately asks routing to release the tap")
+            suite.expect(!mixer.refresh.finish(staleRead) && !mixer.builds.isCurrent(id, token: staleBuild)
+                         && mixer.builds.isCurrent("com.spotify.client", token: unrelatedBuild),
+                         "\(id) rejects late reads and builds without cancelling another app's build")
+            suite.expect(mixer.volumes[id] == 1.2 && mixer.savedRoutes[id] == "airpods"
+                         && !mixer.savedCallAppVolumeEnabled().contains(id.lowercased()),
+                         "\(id) protection preserves settings and removes the opt-in")
+
+            mixer.setCallAppVolumeControl(true, for: protected)
+            let replacement = mixer.builds.begin(id)
+            mixer.builds.finish(id, token: staleBuild)
+            suite.expect(mixer.apps[0].volume == 1.2 && mixer.apps[0].selectedOutputDeviceUID == "airpods"
+                         && replacement.map { mixer.builds.isCurrent(id, token: $0) } == true,
+                         "\(id) can resume after protection without an old build cancelling its replacement")
+        }
+
+        for id in ["com.hnc.Discord", "com.microsoft.teams2"] {
+            for bypassed in [false, true] {
+                for (firstSupports, secondSupports) in [(true, true), (true, false), (false, true)] {
+                    let mixer = Mixer()
+                    var first = row(id, persistenceID: id, bypassed: bypassed)
+                    var second = row(id, objects: [101], persistenceID: id, bypassed: bypassed)
+                    first.supportsVolumeOverride = firstSupports
+                    second.supportsVolumeOverride = secondSupports
+                    mixer.apps = Mixer.coalescingAppsWithDuplicateIDs([first, second])
+                    suite.expect(mixer.apps.count == 1 && mixer.apps[0].supportsVolumeOverride,
+                                 "\(id) keeps its volume control option after combining owner processes")
+                    mixer.setCallAppVolumeControl(bypassed, for: mixer.apps[0])
+                    suite.expect(mixer.apps[0].isBypassed != bypassed
+                                 && mixer.applied.last == mixer.apps[0],
+                                 "\(id) can change call protection after combining rows, bypassed: \(bypassed)")
+                }
+            }
+        }
+
+        let mixer = Mixer()
+        let zoom = row("us.zoom.xos", persistenceID: "us.zoom.xos", bypassed: true)
+        mixer.apps = [zoom]
+        mixer.setCallAppVolumeControl(true, for: zoom)
+        suite.expect(mixer.apps == [zoom] && mixer.applied.isEmpty,
+                     "the override cannot enable taps for apps with a permanent bypass")
+        Preferences.standard.arrays = [:]
+    }
+
     static func run(_ suite: TestSuite) {
         Preferences.standard.values = [:]
+        Preferences.standard.arrays = [:]
+        distinctProcessVolumes(suite)
+        callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
         let wine = row()
@@ -257,4 +388,54 @@ enum MixerUniversalRoutingContract {
         suite.expect(publishing.applyingCurrentVolumes(to: read)[0].volume == 1,
                      "a volume returned to 100 percent while the pass read publishes as unity, not the old gain")
     }
+}
+
+
+extension MixerUniversalRoutingContract.Mixer {
+    struct RefreshRequest {
+        let savedVolumes: [String: Double]
+        let ownPid: pid_t = 1
+        let callAppVolumeEnabled = Set<String>()
+        let hiddenRowIDs = Set<String>()
+        let savedOutputs: [String: String] = [:]
+        let sessionRoutes: [String: String] = [:]
+        let sessionVolumes: [String: Double] = [:]
+    }
+
+    struct NSRunningApplication {
+        let processIdentifier: pid_t = -1
+        let bundleIdentifier: String?
+        let localizedName: String?
+        init?(processIdentifier pid: pid_t) {
+            switch pid {
+            case 14271: (bundleIdentifier, localizedName) = ("com.valvesoftware.steam", "Steam")
+            case 2836: (bundleIdentifier, localizedName) = ("org.example.devicehub", "Device Hub")
+            case 44794: (bundleIdentifier, localizedName) = ("com.example.gloomhaven", "Gloomhaven")
+            default: return nil
+            }
+        }
+    }
+
+    enum ResponsibleProcess {
+        static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
+            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 ? 2836 : 14271,
+                isRegularApp: { NSRunningApplication(processIdentifier: $0) != nil }, parentPid: { _ in 0 })
+        }
+        static func displayName(pid: pid_t, fallback: String) -> String {
+            NSRunningApplication(processIdentifier: pid)?.localizedName ?? fallback
+        }
+    }
+
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ pid: inout pid_t) -> Bool {
+        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000]
+        guard selector == kAudioProcessPropertyPID, let value = owners[object] else { return false }
+        pid = value
+        return true
+    }
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ running: inout UInt32) -> Bool {
+        guard selector == kAudioProcessPropertyIsRunningOutput else { return false }
+        running = 1
+        return true
+    }
+    static func processBundleIdentifier(of object: AudioObjectID) -> String? { nil }
 }

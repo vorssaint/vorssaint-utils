@@ -29,6 +29,7 @@ struct ClipboardHistoryImageEditorTests {
             let image: CGImage
             let scale: CGFloat
             let anchorRect: CGRect
+            var sourceFormat: MediaImageFormat = .png
         }
     }
     final class ScreenshotService {

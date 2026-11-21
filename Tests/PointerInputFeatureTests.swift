@@ -2061,10 +2061,19 @@ enum PointerInputFeatureTests {
                 && MouseSpacesGestureSupport.resolved(.spaceLeft, followsDrag: false) == .spaceLeft,
                "the Space can follow the hand instead of the pointer, and the overviews never swap")
 
-        suite.expect(MouseSpacesGestureSupport.canBind(3) && MouseSpacesGestureSupport.canBind(31)
-                && !MouseSpacesGestureSupport.canBind(2) && !MouseSpacesGestureSupport.canBind(32)
-                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelLeftInput),
-               "the drag lives on an extra button, never on a side-wheel tick there is no way to hold")
+        suite.expect(MouseSpacesGestureSupport.canBind(2) && MouseSpacesGestureSupport.canBind(3)
+                && MouseSpacesGestureSupport.canBind(31) && !MouseSpacesGestureSupport.canBind(32)
+                && !MouseSpacesGestureSupport.canBind(0) && !MouseSpacesGestureSupport.canBind(1)
+                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelLeftInput)
+                && !MouseSpacesGestureSupport.canBind(MouseButtonShortcutSupport.sideWheelRightInput),
+               "the drag accepts middle and extra buttons, leaving primary buttons and side-wheel ticks alone")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.mouseButtons(language)
+            suite.expect(!strings.middleButtonName.isEmpty
+                    && MouseButtonShortcutSupport.buttonName(for: 2, strings: strings) == strings.middleButtonName,
+                   "the middle button has a clear name in \(language.rawValue)")
+        }
 
         suite.expect(MouseSpacesGestureSupport.boundButton(isAvailable: true, isEnabled: true, button: 4,
                                                      hasShortcut: { _ in false },
@@ -2153,7 +2162,7 @@ enum PointerInputFeatureTests {
         } ?? ""
         let mouseButtonToggleID = "toggle.\(AppFeature.mouseButtonShortcuts.rawValue)"
         suite.expect(mouseButtonToggleCode.contains("DefaultsKey.mouseButtonShortcutsEnabled")
-                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub)")
+                && mouseButtonToggleCode.contains("feature.hubTitle(s, hub: hub, language: language)")
                 && mouseButtonToggleCode.contains("id: \"\(mouseButtonToggleID)\""),
                "the Command Bar keeps the mouse-button shortcut row's key, title and stable id")
         suite.expect(mouseButtonToggleCode.contains("FeatureStrings.mouseButtons(language)")
@@ -2503,6 +2512,13 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        suite.expect(SuperKeySupport.hasNativeCapsLock(in: nil)
+                && SuperKeySupport.hasNativeCapsLock(in: [])
+                && SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.rightCommand.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["unrecognized": 1]])
+                && !SuperKeySupport.hasNativeCapsLock(in: "unrecognized"),
+               "a keyboard must have a native Caps Lock before its lock is cleared during repair")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",
@@ -2864,6 +2880,7 @@ enum PointerInputFeatureTests {
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
                 && MouseExceptionScope.linearScroll.feature == .linearScroll
+                && MouseExceptionScope.scrollSpeed.feature == .scrollSpeed
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
@@ -3865,6 +3882,8 @@ enum PointerInputFeatureTests {
             .dropFirst().first?.components(separatedBy: "Permissions.shared.$screenRecording").first ?? ""
         suite.expect(accessibilitySink.contains(".quitWindowProtection"),
                "granting Accessibility starts quit protection without a relaunch")
+        suite.expect(accessibilitySink.contains(".scrollSpeed"),
+               "an Accessibility change re-syncs speed when it is the only installed wheel feature")
         let smoothSchedulerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
             encoding: .utf8)) ?? ""
@@ -3879,6 +3898,12 @@ enum PointerInputFeatureTests {
         let scrollInverterSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/ScrollInverter.swift",
             encoding: .utf8)) ?? ""
+        suite.expect(smoothSchedulerCode.contains("ScrollInverter.shared.consumeZoom(event, direction: direction)")
+                && smoothSchedulerCode.contains("stopGlide()"),
+               "Smooth Scrolling consumes configured zoom before creating a glide")
+        suite.expect(scrollInverterSource.contains("pinchZoomLock")
+                && scrollInverterSource.contains("zoomState.update(direction.zoom)"),
+               "pinch zoom ends under the same lock that guards the tap callback")
         for (name, source) in [("scroll inverter", scrollInverterSource),
                                ("smooth scroll", smoothSchedulerCode)] {
             suite.expect(source.contains("guard !tapCreationRetryUsed")
@@ -4014,6 +4039,38 @@ enum PointerInputFeatureTests {
                                                  bundleIdentifier: "com.example.other",
                                                  exceptions: ["com.example.editor"]),
                "all-except scope protects an unselected bundle")
+
+        let commandTab = GlobalShortcut(keyCode: 48, modifiers: [.command])
+        let commandShiftTab = GlobalShortcut(keyCode: 48, modifiers: [.command, .shift])
+        let factorySwitcher = [
+            LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: true),
+            LiveSystemShortcut(id: 2, shortcut: commandShiftTab, enabled: true),
+        ]
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand,
+                                                               entries: factorySwitcher)
+                && QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskShift],
+                                                             entries: factorySwitcher),
+               "⌘Tab and ⌘⇧Tab open macOS's own switcher")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: commandTab, enabled: false),
+                ]),
+               "⌘Tab with the system row off, as the App Switcher's take-over leaves it, opens Vorssaint's switcher only")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 50, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]) && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 1, shortcut: GlobalShortcut(keyCode: 50, modifiers: [.command]),
+                                       enabled: true),
+                ]),
+               "a remapped system switcher key is followed, and ⌘Tab then is not it")
+        suite.expect(!QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: [
+                    LiveSystemShortcut(id: 27, shortcut: commandTab, enabled: true),
+                ]),
+               "only the app switcher rows count, not another system shortcut on the same keys")
+        suite.expect(QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: .maskCommand, entries: nil)
+                && !QuitProtectionSupport.opensNativeSwitcher(keyCode: 48, flags: [.maskCommand, .maskAlternate],
+                                                              entries: nil),
+               "without the system table only the factory ⌘Tab is assumed")
 
         suite.expect(QuitProtectionSupport.matchesKey(keyCharacter: "\u{439}", keyCode: 12,
                                                 commandLabel: "Q", shortcut: .quit),
