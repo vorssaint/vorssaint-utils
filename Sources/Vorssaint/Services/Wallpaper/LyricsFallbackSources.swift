@@ -38,11 +38,11 @@ enum LyricsFallbackSources {
     /// no word can match.
     private static func plausible(title: String, artist: String, duration: Double, for track: NotchMusicIdentity) -> Bool {
         let distance = abs(duration - track.duration)
-        guard distance <= 3 else { return false }
+        guard distance <= 1.6 else { return false }
         let wanted = tokens(track.title).union(tokens(track.artist))
         let found = tokens(title).union(tokens(artist))
         if !wanted.isDisjoint(with: found) { return true }
-        return distance <= 1.2
+        return distance <= 1.0
     }
 
     private static func fetch(_ url: URL) async -> Data? {

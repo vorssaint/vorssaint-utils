@@ -21,7 +21,6 @@ struct LyricsWallpaperView: View {
             Color.black
             if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
                 ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset)
-                    .id(playback.sampledAt)
             } else {
                 Text(service.state == .loading ? "…" : "♪").font(.system(size: 60, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.25)).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,7 +92,6 @@ struct LyricsWallpaperView: View {
                 let position = playback.position(at: context.date)
                 synced(lyrics, active: lyrics.activeIndex(at: position, offset: service.offset))
             }
-            .id(playback.sampledAt)
         } else if let lyrics = service.lyrics, !lyrics.plain.isEmpty {
             ScrollView { Text(lyrics.plain).font(.system(size: 28, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
                 .frame(maxWidth: .infinity, alignment: .leading) }

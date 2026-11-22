@@ -25,6 +25,7 @@ final class LyricsWallpaperService: ObservableObject {
     private var task: URLSessionDataTask?
     private var searchTask: URLSessionDataTask?
     private var generation = UUID()
+    private var hideWork: DispatchWorkItem?
     private var running = false
     private var session: URLSession = {
         let configuration = URLSessionConfiguration.ephemeral
@@ -66,6 +67,13 @@ final class LyricsWallpaperService: ObservableObject {
         sync()
     }
 
+    /// The island's button and the panel's switch both land here: the windows
+    /// close in the same turn, with no wait for a song or a lookup.
+    func setEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        sync()
+    }
+
     private func start() {
         guard !running else { return }
         running = true
@@ -88,6 +96,7 @@ final class LyricsWallpaperService: ObservableObject {
         running = false
         LyricsLockScreenService.shared.stop()
         cancellables.removeAll()
+        hideWork?.cancel(); hideWork = nil
         cancelLookup()
         track = nil
         lyrics = nil
@@ -102,12 +111,17 @@ final class LyricsWallpaperService: ObservableObject {
     private func playbackChanged(_ playback: NotchPlayback?) {
         guard running else { return }
         guard let playback, playback.track.title?.isEmpty == false else {
-            // Nothing playing, or the feed restarting around a lock: the desktop
-            // window leaves but the lyrics are kept, so the same song coming back
-            // needs no new lookup.
-            closeWindows()
+            // A player between songs, or the feed restarting around a lock, reports
+            // nothing for a moment. The windows stay up through that so nothing
+            // flashes, and leave only if the silence lasts.
+            guard hideWork == nil else { return }
+            let work = DispatchWorkItem { [weak self] in self?.hideWork = nil; self?.closeWindows() }
+            hideWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
             return
         }
+        hideWork?.cancel()
+        hideWork = nil
         let identity = NotchMusicIdentity(playback)
         showWindows()
         guard identity != track else { return }
@@ -211,6 +225,7 @@ final class LyricsWallpaperService: ObservableObject {
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
         window.contentView = NSHostingView(rootView: LyricsWallpaperView(service: self))
         window.setFrame(screen.frame, display: true)
         window.orderFrontRegardless()

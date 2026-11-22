@@ -101,7 +101,6 @@ private struct LyricsLockScreenView: View {
                            startPoint: .top, endPoint: .bottom)
             if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
                 ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset, compact: true)
-                    .id(playback.sampledAt)
             }
         }
         .ignoresSafeArea()

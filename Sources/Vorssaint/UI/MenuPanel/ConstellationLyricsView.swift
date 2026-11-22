@@ -29,7 +29,7 @@ struct ConstellationLyricsView: View {
     private static let soft = Color(red: 0.62, green: 0.69, blue: 0.88)
 
     var body: some View {
-        TimelineView(.animation(paused: !playback.isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playback.isPlaying)) { context in
             Canvas { gc, size in draw(&gc, size: size, now: context.date) }
         }
     }
@@ -43,12 +43,21 @@ struct ConstellationLyricsView: View {
 
         let start = line.time + offset
         let next = index + 1 < lyrics.lines.count ? lyrics.lines[index + 1].time + offset : start + 5
-        let spoken = min(max(next - start, 1), max(1.5, Double(words.count) * 0.45))
+        // The line's own span is the best clock there is: sing it across nearly
+        // all of it, unless a long instrumental gap follows, then a natural pace.
+        let gap = max(next - start, 0.8)
+        let natural = Double(words.count) * 0.6 + 1
+        let spoken = gap <= natural + 2 ? gap * 0.94 : natural
         let progress = min(1, max(0, (position - start) / spoken))
         let appear = min(1, max(0, (position - start) / 0.6))
 
         // Word intervals in progress space, weighted by length.
-        let weights = words.map { Double(max($0.count, 2)) }
+        // Longer words take longer, and a word before a comma or full stop
+        // carries the pause that follows it.
+        let weights = words.map { word -> Double in
+            let pause = word.last.map { ",.;:!?…".contains($0) } == true ? 2.5 : 0
+            return Double(max(word.count, 2)) + pause
+        }
         let total = weights.reduce(0, +)
         var edges: [(Double, Double)] = []
         var run = 0.0
@@ -99,13 +108,13 @@ struct ConstellationLyricsView: View {
             let color = e > 0.05 ? Self.glow.opacity(0.55 + 0.45 * e) : Self.soft.opacity(reached[i] ? 0.8 : 0.5)
             let anchor = CGPoint(x: points[i].x, y: points[i].y + size * 0.55)
             let text = Text(words[i]).font(.system(size: size, weight: .bold, design: .rounded)).foregroundColor(color)
-            if e > 0.6 {
-                gc.drawLayer { layer in
-                    layer.addFilter(.blur(radius: 16))
-                    layer.opacity = e * appear
-                    layer.draw(layer.resolve(Text(words[i]).font(.system(size: size, weight: .bold, design: .rounded))
-                        .foregroundColor(Self.glow)), at: anchor, anchor: .center)
-                }
+            if e > 0.3 {
+                // A cheap glow: a soft radial wash behind the word, no per-frame blur.
+                let width = size * Double(max(words[i].count, 2)) * 0.62, height = size * 1.5
+                let rect = CGRect(x: anchor.x - width / 2, y: anchor.y - height / 2, width: width, height: height)
+                gc.fill(Path(ellipseIn: rect), with: .radialGradient(
+                    Gradient(colors: [Self.glow.opacity(0.35 * e * appear), .clear]),
+                    center: anchor, startRadius: 0, endRadius: width / 2))
             }
             gc.opacity = appear
             gc.draw(gc.resolve(text), at: anchor, anchor: .center)

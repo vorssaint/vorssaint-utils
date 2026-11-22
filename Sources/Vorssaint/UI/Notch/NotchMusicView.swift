@@ -8,6 +8,7 @@ struct NotchMusicView: View {
     /// Room lyrics or the queue may add below the player.
     let extrasHeight: CGFloat
     @ObservedObject private var service = NotchMusicService.shared
+    @AppStorage(DefaultsKey.lyricsWallpaperEnabled) private var lyricsWallpaperOn = true
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var shuffle = NotchShuffleService.shared
@@ -220,6 +221,16 @@ struct NotchMusicView: View {
         }
         if showsQueue {
             extraButton(.queue, title: FeatureStrings.notchMusicExtras(l10n.language).queue, symbol: "list.bullet")
+        }
+        wallpaperButton
+    }
+
+    /// Switches the lyrics wallpaper, desktop and lock screen, on or off at once.
+    private var wallpaperButton: some View {
+        NotchIconButton(symbol: lyricsWallpaperOn ? "sparkles.tv.fill" : "sparkles.tv",
+                        title: lyricsWallpaperOn ? "Turn off lyrics wallpaper" : "Turn on lyrics wallpaper",
+                        selected: lyricsWallpaperOn) {
+            LyricsWallpaperService.shared.setEnabled(!lyricsWallpaperOn)
         }
     }
 
