@@ -50,10 +50,12 @@ enum UninstallerCommandBarCleanupTests {
         static var registrations = 0
         static var unregistrations = 0
         var onPress: (() -> Void)?
+        var isRegistered = false
         init(id: UInt32) {}
-        func unregister() { Self.unregistrations += 1 }
+        func unregister() { Self.unregistrations += 1; isRegistered = false }
         func sync(enabled: Bool, shortcut: GlobalShortcut, storageKey: String) -> Bool {
             if enabled { Self.registrations += 1 }
+            isRegistered = enabled
             return true
         }
     }
@@ -68,9 +70,33 @@ enum UninstallerCommandBarCleanupTests {
         typealias AppFeature = Feature
         typealias QuickToolHotkey = Hotkey
         typealias SystemShortcutTakeover = Takeover
+        typealias DispatchQueue = Queue
+        final class Panel {
+            final class View {
+                private(set) var didLayout = false
+                func layoutSubtreeIfNeeded() { didLayout = true }
+            }
+            struct Controller { let view = View() }
+            let contentViewController: Controller? = Controller()
+            var isVisible = false
+            private(set) var displayCount = 0
+            private(set) var displayedAfterLayout = false
+            func display() {
+                displayCount += 1
+                displayedAfterLayout = contentViewController?.view.didLayout == true
+            }
+        }
+        var panel: Panel?
+        func ensurePanel() -> Panel {
+            if let panel { return panel }
+            let panel = Panel()
+            self.panel = panel
+            return panel
+        }
         var cachedApps: [App] = []
         var uninstallSelectionEntries: [Entry] = []
-        var rowHotkeys: [Hotkey] = []
+        let hotkey = Hotkey(id: 20)
+        var rowHotkeys: [String: Hotkey] = [:]
         var refusedRowShortcutKeys: Set<String> = []
         var refreshes = 0
         static func spotlightApplicationPaths() -> [String] { [] }
@@ -135,7 +161,7 @@ enum UninstallerCommandBarCleanupTests {
             Queue.pending = []
             service.cachedApps = []
             service.uninstallSelectionEntries = []
-            service.rowHotkeys = []
+            service.rowHotkeys = [:]
             Apps.remaining = []
             PackageManager.shared.operationStatus = nil
             Preferences.standard = nil
@@ -165,7 +191,7 @@ enum UninstallerCommandBarCleanupTests {
                                   App(bundleID: bundleID, url: survivor),
                                   App(bundleID: "org.vorssaint.fixture.other", url: other)]
             service.uninstallSelectionEntries = [Entry(uninstallAppURL: removed)]
-            service.rowHotkeys = [Hotkey(id: 200)]
+            service.rowHotkeys = [sharedKey: Hotkey(id: 200)]
             service.refreshes = 0
             Apps.scans = 0
             Apps.scannedOnMain = false

@@ -31,7 +31,6 @@ final class VirtualOutputService: ObservableObject {
     private var perceptualVolume = false // Applied driver mode, lifecycle queue only.
     private var volumeCurveVerified = false
     private var previousOutput: String?
-    private var previousSystemOutput: String?
     private var lastCycles: Int64 = 0
     private var lastProgress = ProcessInfo.processInfo.systemUptime
     private var suspended = false
@@ -71,14 +70,8 @@ final class VirtualOutputService: ObservableObject {
                 updateVolumeCurve()
                 let current = VirtualOutputHAL.defaultUID()
                 if current != virtualUID {
-                    if let current, VirtualOutputHAL.physicalDevices().contains(where: { $0.uid == current }) {
-                        previousOutput = current
-                        previousSystemOutput = current
-                        if VirtualOutputHAL.hasHardwareVolume(current) {
-                            deactivate()
-                        } else {
-                            replaceBridge(physicalUID: current)
-                        }
+                    if let current, VirtualOutputHAL.restorableOutputs(systemSounds: false).contains(current) {
+                        routeOutput(current)
                     } else {
                         deactivate(); suspended = false
                     }
@@ -111,7 +104,6 @@ final class VirtualOutputService: ObservableObject {
             virtual = device
             virtualUID = VirtualOutputHAL.uid(device) ?? VirtualOutputSupport.deviceUID
             previousOutput = VirtualOutputSupport.isSoftwareOutput(current) ? target : current
-            previousSystemOutput = VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice)
             replaceBridge(physicalUID: target)
         }
     }
@@ -133,19 +125,24 @@ final class VirtualOutputService: ObservableObject {
             publish(error: .outputUnavailable); return
         }
         let physical = VirtualOutputHAL.physicalDevices().contains(where: { $0.uid == uid })
-        let hadSession = bridge != nil || virtual != nil
         suspended = false
-        if bridge?.physicalUID == uid, VirtualOutputHAL.defaultUID() == virtualUID { return }
+        let playback = VirtualOutputHAL.defaultUID()
+        if bridge?.physicalUID == uid, playback == virtualUID { return }
         previousOutput = uid
-        if physical {
-            previousSystemOutput = hadSession ? uid : VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice)
-        }
         if !physical || VirtualOutputHAL.hasHardwareVolume(uid) {
+            let effects = VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice)
+            let followsPlayback = effects == virtualUID ? ownsVirtualOutput : effects == playback
             deactivate()
             // An earlier queued choice may already have released the virtual
             // owner, so restoring on deactivation alone is insufficient.
-            guard VirtualOutputHAL.select(uid) else { publish(error: .outputUnavailable); return }
-            if physical && hadSession { _ = VirtualOutputHAL.select(uid, selector: kAudioHardwarePropertyDefaultSystemOutputDevice) }
+            if VirtualOutputHAL.defaultUID() != uid, !VirtualOutputHAL.select(uid) {
+                publish(error: .outputUnavailable); return
+            }
+            if let effects, followsPlayback, effects != uid,
+               VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice) == effects,
+               VirtualOutputHAL.restorableOutputs(systemSounds: true).contains(uid) {
+                _ = VirtualOutputHAL.select(uid, selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
+            }
         } else {
             if virtual == nil {
                 guard let device = VirtualOutputHAL.componentDevice() else { publish(error: .setupFailed); return }
@@ -228,6 +225,7 @@ final class VirtualOutputService: ObservableObject {
                         self.error = removed ? nil : VirtualOutputStrings.localized(L10n.shared.language).message(.removalFailed)
                         if removed {
                             UserDefaults.standard.removeObject(forKey: DefaultsKey.mixerSoftwareVolumes)
+                            UserDefaults.standard.removeObject(forKey: DefaultsKey.mixerSoftwareMutedDecibels)
                             UserDefaults.standard.removeObject(forKey: DefaultsKey.softwareVolumePhysicalOutputUID)
                         }
                         completion?(removed)
@@ -266,14 +264,18 @@ final class VirtualOutputService: ObservableObject {
         do {
             try applyVolumeCurve()
             let levels = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes)
-            let level = MixerSoftwareVolumeSupport.savedLevel(levels?[physicalUID], perceptual: perceptualVolume)
+            var level = MixerSoftwareVolumeSupport.savedLevel(levels?[physicalUID], perceptual: perceptualVolume)
+            let muted: UInt32 = level == 0 ? 1 : 0
+            let mutedDecibels = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareMutedDecibels)
+            if muted != 0, let decibels = mutedDecibels?[physicalUID] as? Double, (-64.0...0.0).contains(decibels) {
+                level = MixerSoftwareVolumeSupport.level(forDecibels: decibels, perceptual: perceptualVolume)
+            }
             // The virtual default may already carry playback from another
             // physical destination. Its pump must see the new controls before
             // the bridge constructor starts physical IO, including mute.
             guard VirtualOutputHAL.setOutputLevel(virtual, level: level) else {
                 throw VirtualOutputBridge.Failure("Could not initialize native master volume")
             }
-            let muted: UInt32 = level == 0 ? 1 : 0
             var actualMuted: UInt32 = 0
             let muteStatus = VirtualOutputHAL.write(virtual, kAudioDevicePropertyMute, value: muted, scope: kAudioObjectPropertyScopeOutput)
             guard muteStatus == noErr else {
@@ -293,11 +295,15 @@ final class VirtualOutputService: ObservableObject {
             }
             let next = try VirtualOutputBridge(virtual: virtual, physicalUID: physicalUID)
             bridge = next
-            guard VirtualOutputHAL.select(virtualUID) else {
+            let playback = VirtualOutputHAL.defaultUID()
+            let effects = VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice)
+            if playback != virtualUID, !VirtualOutputHAL.select(virtualUID) {
                 throw VirtualOutputBridge.Failure("Could not select the Vorssaint Audio system output")
             }
-            // Route alerts and sound effects through the same native mute.
-            guard VirtualOutputHAL.select(virtualUID, selector: kAudioHardwarePropertyDefaultSystemOutputDevice) else {
+            // Follow playback only while alerts still use its previous destination.
+            if let effects, effects == playback, effects != virtualUID,
+               VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice) == effects,
+               !VirtualOutputHAL.select(virtualUID, selector: kAudioHardwarePropertyDefaultSystemOutputDevice) {
                 throw VirtualOutputBridge.Failure("Could not route system sound effects")
             }
             UserDefaults.standard.set(physicalUID, forKey: DefaultsKey.softwareVolumePhysicalOutputUID)
@@ -346,7 +352,8 @@ final class VirtualOutputService: ObservableObject {
         guard ownsVirtualOutput, let virtual, let uid = bridge?.physicalUID,
               let decibels = VirtualOutputHAL.outputDecibels(virtual) else { return }
         var muted: UInt32 = 0
-        _ = VirtualOutputHAL.read(virtual, kAudioDevicePropertyMute, into: &muted, scope: kAudioObjectPropertyScopeOutput)
+        guard VirtualOutputHAL.read(virtual, kAudioDevicePropertyMute, into: &muted,
+                                    scope: kAudioObjectPropertyScopeOutput) else { return }
         var saved = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareVolumes) ?? [:]
         // Keep the original numeric, linear-dB storage coordinate. It is
         // independent of the selected UI curve and remains readable by older
@@ -356,6 +363,15 @@ final class VirtualOutputService: ObservableObject {
             saved[uid] = stored
             UserDefaults.standard.set(saved, forKey: DefaultsKey.mixerSoftwareVolumes)
         }
+        // Older builds read zero as mute. Keep the gain for unmuting separately.
+        var mutedDecibels = UserDefaults.standard.dictionary(forKey: DefaultsKey.mixerSoftwareMutedDecibels) ?? [:]
+        if muted != 0 {
+            guard (mutedDecibels[uid] as? Double) != decibels else { return }
+            mutedDecibels[uid] = decibels
+        } else {
+            guard mutedDecibels.removeValue(forKey: uid) != nil else { return }
+        }
+        UserDefaults.standard.set(mutedDecibels, forKey: DefaultsKey.mixerSoftwareMutedDecibels)
     }
     private func updateVolumeCurve() {
         guard bridge != nil, ownsVirtualOutput else { return }
@@ -392,9 +408,10 @@ final class VirtualOutputService: ObservableObject {
                                                         fallback: physicals, owned: ownsVirtualOutput) {
             _ = VirtualOutputHAL.select(restore)
         }
+        let effectsOutputs = VirtualOutputHAL.restorableOutputs(systemSounds: true)
         if let restore = VirtualOutputSupport.restoreUID(current: VirtualOutputHAL.defaultUID(kAudioHardwarePropertyDefaultSystemOutputDevice),
-                                                        virtual: virtualUID, previous: previousSystemOutput,
-                                                        available: VirtualOutputHAL.restorableOutputs(systemSounds: true), fallback: physicals, owned: ownsVirtualOutput) {
+                                                        virtual: virtualUID, previous: previousOutput, available: effectsOutputs,
+                                                        fallback: physicals.filter(effectsOutputs.contains), owned: ownsVirtualOutput) {
             _ = VirtualOutputHAL.select(restore, selector: kAudioHardwarePropertyDefaultSystemOutputDevice)
         }
         bridge?.stop(); bridge = nil
@@ -403,7 +420,7 @@ final class VirtualOutputService: ObservableObject {
         }
         ownsVirtualOutput = false
         virtual = nil
-        previousOutput = nil; previousSystemOutput = nil
+        previousOutput = nil
         publish()
     }
 }

@@ -1,12 +1,14 @@
 # Vorssaint Audio
 
-Local build of main plus PR #3136, extended with an optional virtual output for native macOS volume UI and concurrent per-app controls.
+Vorssaint Audio is an optional virtual output that gives fixed-volume devices native macOS volume controls while keeping the per-app mixer available.
 
 ## Use
 
 Build/install the separate development app with `./build.sh --dev --install`. For an optimized local build retaining its separate identity, use `VORSSAINT_DEV_OPTIMIZED=1 ./build.sh --dev --install`. The normal mixer needs no driver. Enabling **Software volume fallback** in Mixer > Options offers the bundled installer when the optional Vorssaint Audio driver is missing or too old. Cancelling the confirmation leaves the option off. Confirming opens Apple Installer and stores the desired On setting; processing starts only when a compatible driver is available. Cancelling Apple Installer leaves this visible pending setting on, so turn it off to cancel that request. A later HAL notification never re-enables a setting the user turned off. The administrator installer adds only `/Library/Audio/Plug-Ins/HAL/VorssaintAudio.driver` and restarts Core Audio, briefly interrupting audio.
 
-With **Software volume fallback** enabled, the app uses writable native device volume first: AirPods and built-in speakers retain native master volume without the virtual driver. Previously controlled apps can still use the separate per-app renderer on these outputs. For a fixed-volume physical device such as a Samsung DisplayPort monitor, it selects **Vorssaint Audio** as the system output and forwards the final mixed stream to the selected physical device. Volume and mute remain normal macOS controls. Per-app sliders remain available. Per-app routes explicitly sent to a different physical device follow native semantics: default-output master volume does not control another device.
+With **Software volume fallback** enabled, AirPods and built-in speakers retain their writable Core Audio volume controls. For a physical output without writable Core Audio volume, the app selects **Vorssaint Audio** as the default playback device. Sound effects follow the virtual output when they were using the same device as playback. A separately selected effects output keeps its route. The bridge plays the virtual mix on the selected physical output. The macOS volume and mute controls apply to the virtual mix, and the per-app sliders remain available.
+
+For a call to follow the master, select the system default or **Vorssaint Audio** in the call app. Selecting the physical TV or USB interface directly bypasses the bridge, even when it is the same device that plays the virtual mix. An explicit physical route in a mixer row or in the sound effects picker also bypasses the master. Keep the mixer's call protection enabled when testing screen sharing.
 
 The per-app format watcher distinguishes a new format suspension from a routine refresh queued during validation. A successful validation can resume rendering even when the trailing routine read is throttled; a newer format notification still keeps the old callback silent until its own validation. Regression checks cover initial/repeated validation, unchanged polling, changed formats and stop/invalidation. This fixes a reproduced startup race that otherwise left the callback suspended and exhausted recovery.
 
@@ -16,7 +18,7 @@ At displayed 100%, per-app gain is exactly unity. The per-app boost peak limiter
 
 Before starting a replacement physical bridge, the app writes and verifies the destination’s saved master level and mute. Its pump and physical IO start only after those controls match, so a new destination cannot inherit the previous output’s level during initialization. A failed write/readback aborts startup. Clearing the last per-app/universal route releases unity processing if no separate saved volume or active edit still requires it; remembered volume control remains prepared.
 
-Select outputs in the mixer or macOS. Returning to a native-volume output removes the virtual path; returning to a fixed-volume output recreates it. If a connection, format, rendering or owner heartbeat fails, the app/driver gives control back to available physical output. Quitting or disabling normally restores the previous output and alert-sound route. A fixed-volume physical output regains its unattenuated path when software processing stops.
+Select outputs in the mixer or macOS. Returning to a native-volume output removes the virtual path. Returning to a fixed-volume output recreates it. If the bridge fails, the app tries to restore an available physical output. Quitting or disabling normally restores the previous playback and sound effects routes. Audio can then resume at the physical device's own level, even if the virtual output was muted.
 
 The Sound output switcher package and audio output priority use the underlying physical destination while fallback is active. Vorssaint's internal driver and loopback devices are excluded from their choices; other vendors' virtual outputs remain selectable. Existing switcher selections containing Vorssaint Audio migrate to its remembered physical output. Repeated shortcut presses track the latest requested destination and discard superseded queued changes.
 
@@ -37,6 +39,8 @@ The original software master-volume curve remains the default: 50% is −32 dB, 
 With the checkbox on, 50% is approximately −10 dB and 25% is −20 dB. Above 1/64 of the slider, amplitude follows `position^(log(10)/log(4))`. A smooth quiet tail below that point retains the −64 dB floor; zero remains silent and 100% remains exact unity. This is an approximate loudness-oriented control curve, not acoustic calibration, a guarantee of equal perceived loudness or hearing protection. Actual loudness depends on content, output hardware, listening conditions and the listener.
 
 Switching curves preserves the driver's current linear gain and mute without rebuilding audio IO; the slider position changes instead. The driver notifies clients of the new scalar value and conversion functions. Device-level saves retain the original numeric linear-dB coordinate, `(actualDB + 64) / 64`, independently of the selected UI curve. Restoring them under either curve preserves audible gain, and older app builds can still read their original meaning. Intermediate local dB dictionaries can also be read. Missing/invalid settings retain the previous safe default attenuation (−32 dB); no migration flag or bulk preference rewrite is needed.
+
+While an output is muted, the app saves zero for older builds and keeps the verified gain in a separate local preference for that device. The bridge starts with the output muted and the saved gain ready for unmuting. Older zero-only records contain no previous gain to restore.
 
 The driver resets the curve to the original mapping on genuine owner-session transitions (claim, release or expiration), preserving gain/mute. Same-owner heartbeats keep the selected mode. This protects older app builds that do not know about the new option.
 
@@ -81,7 +85,7 @@ Third-party source, pin and modifications are recorded in `ThirdParty/BlackHole/
 
 BlackHole source at the recorded pin is GPLv3; Vorssaint is GPL-3.0-or-later, so this distribution uses the compatible GPLv3 terms. The package contains our own build of the source, uses Vorssaint Audio branding, preserves upstream notices and includes the exact driver Corresponding Source and build script inside the driver bundle. It does not include upstream's proprietary official installer/binaries or artwork. See `ThirdParty/BlackHole/UPSTREAM.md` and `LICENSE` for the applicable notices and redistribution requirements.
 
-Local signatures are not Developer ID distribution signatures. Official packaging must configure `VORSSAINT_DRIVER_SIGN_IDENTITY` and `VORSSAINT_INSTALLER_SIGN_IDENTITY`, complete its notarization/release review, and retain matching source access.
+For official distribution, configure `VORSSAINT_DRIVER_SIGN_IDENTITY` with the same Developer ID Application certificate used for the app, and `VORSSAINT_INSTALLER_SIGN_IDENTITY` with the team's Developer ID Installer certificate. Verify both signatures and the installer’s Gatekeeper assessment in the final disk image before release.
 
 ## Driver updates
 

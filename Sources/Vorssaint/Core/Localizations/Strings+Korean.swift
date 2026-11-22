@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "마이크 음소거",
         micUnmuteName: "마이크 음소거 해제",
         micMuteCaption: "각 마이크의 음소거 또는 입력 음량 제어를 사용합니다. Siri와 일부 앱은 여전히 사용자의 소리를 들을 수 있습니다. 개인정보 보호를 위해 마이크 접근을 차단하는 기능은 아닙니다.",
+        micMuteFollowCallAppsToggle: "통화 앱에서 마이크 음소거 해제 허용",
+        micMuteFollowCallAppsCaption: "앱에서 녹음 중인 마이크의 입력이 다시 켜지면 Vorssaint가 음소거했던 모든 마이크를 복원합니다. 입력 게인이 자동으로 조정될 때도 음소거가 해제될 수 있습니다.",
         micMutedHUD: "마이크 음소거 기능 켜짐",
         micUnmutedHUD: "마이크 음소거 기능 꺼짐",
         micMutePartialHUD: "일부 마이크를 음소거하지 못했습니다",
@@ -653,6 +655,7 @@ extension Strings {
         audioPriorityMoveUp: "위로 이동",
         audioPriorityMoveDown: "아래로 이동",
         audioPriorityUnavailable: "사용 불가",
+        audioPriorityRemove: "제거",
         audioPriorityCurrent: "사용 중",
         audioPriorityCaption: "장치는 우선순위에 따라 선택됩니다. 더 높은 순위의 장치가 연결되면 해당 장치로 전환됩니다. 사용 중인 장치의 연결이 끊기면 다음으로 사용 가능한 장치로 전환됩니다.",
 

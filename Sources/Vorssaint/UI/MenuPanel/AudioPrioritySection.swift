@@ -78,7 +78,8 @@ struct AudioPriorityDisclosure: View {
                 currentUID: VirtualOutputSupport.logicalOutputUID(current: mixer.currentOutputDeviceUID,
                     physical: virtualOutput.physicalOutputUID, requested: virtualOutput.requestedOutputUID),
                 emptyText: l10n.s.mixerSystemOutputNoDevices,
-                onMove: { priority.setOutputPriorityUIDs($0) })
+                onMove: { priority.setOutputPriorityUIDs($0) },
+                onRemove: { priority.removeOutputPriorityUID($0) })
         }
     }
 
@@ -114,7 +115,8 @@ struct AudioPriorityDisclosure: View {
                 displayName: priority.displayName,
                 currentUID: inputManager.currentInputDeviceUID,
                 emptyText: l10n.s.mixerInputNoDevices,
-                onMove: { priority.setInputPriorityUIDs($0) })
+                onMove: { priority.setInputPriorityUIDs($0) },
+                onRemove: { priority.removeInputPriorityUID($0) })
         }
     }
 
@@ -136,8 +138,9 @@ struct AudioPriorityDisclosure: View {
 }
 
 /// A selected-device priority list. Disconnected entries remain in their
-/// stored position and use their last-known name. The visible control is a
-/// drag handle; VoiceOver keeps equivalent move actions without adding UI.
+/// stored position and use their last-known name, and only they show a remove
+/// button. The visible control is a drag handle, and VoiceOver gets matching
+/// move actions.
 private struct PriorityDeviceList: View {
     @ObservedObject private var l10n = L10n.shared
     let priorityUIDs: [String]
@@ -147,6 +150,7 @@ private struct PriorityDeviceList: View {
     /// A list is only empty while the Mac has no such device.
     let emptyText: String
     let onMove: ([String]) -> Void
+    let onRemove: (String) -> Void
 
     @State private var draggingUID: String?
 
@@ -201,10 +205,26 @@ private struct PriorityDeviceList: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
+            if !available {
+                Button {
+                    onRemove(uid)
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(l10n.s.audioPriorityRemove)
+                .accessibilityLabel(l10n.s.audioPriorityRemove)
+                .accessibilityValue(name)
+            }
+
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.tertiary)
-                .frame(width: 16, height: 22)
+                .frame(width: 22, height: 22)
                 .contentShape(Rectangle())
         }
         .font(.system(size: 9, weight: .semibold))
@@ -240,6 +260,11 @@ private struct PriorityDeviceList: View {
         }
         .accessibilityAction(named: Text(l10n.s.audioPriorityMoveDown)) {
             move(uid, by: 1)
+        }
+        .contextMenu {
+            if !available {
+                Button(l10n.s.audioPriorityRemove) { onRemove(uid) }
+            }
         }
         .onDrop(of: [UTType.text],
                 delegate: PriorityDeviceDropDelegate(

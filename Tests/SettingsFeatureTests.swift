@@ -419,7 +419,9 @@ enum SettingsFeatureTests {
         suite.expect(backupKeys.contains(DefaultsKey.launchAtLoginWanted),
                "the launch at login choice travels with the settings backup")
         suite.expect(backupKeys.contains(DefaultsKey.mixerSoftwareVolumeEnabled)
-                && !backupKeys.contains(DefaultsKey.mixerSoftwareVolumes),
+                && !backupKeys.contains(DefaultsKey.mixerSoftwareVolumes)
+                && !backupKeys.contains(DefaultsKey.mixerSoftwareMutedDecibels)
+                && SettingsBackupSupport.machineStateKeys.contains(DefaultsKey.mixerSoftwareMutedDecibels),
                "software volume choice is portable but output UID levels stay on this Mac")
         let islandKeys: Set<String> = [
             DefaultsKey.notchEnabled,

@@ -43,6 +43,11 @@ enum MixerUniversalRoutingContract {
         static let standard = Preferences()
         var values: [String: String] = [:]
         var arrays: [String: [String]] = [:]
+        var savedLevels: [String: Double] = [:]
+        func set(_ values: [String: Double], forKey key: String) {
+            precondition(key == DefaultsKey.appVolumes)
+            savedLevels = values
+        }
         func string(forKey key: String) -> String? { values[key] }
         func bool(forKey key: String) -> Bool { values[key] == "1" }
         func set(_ value: Bool, forKey key: String) { values[key] = value ? "1" : "0" }
@@ -164,7 +169,8 @@ enum MixerUniversalRoutingContract {
         var physicalOutputUID: String? = "fixed"
         var requestedOutputUID: String?
         let outputRequests = VirtualOutputSupport.OutputRequests()
-        var previousOutput: String?, previousSystemOutput: String?
+        var previousOutput: String?
+        var ownsVirtualOutput: Bool { bridge != nil }
         var virtual: AudioObjectID? = 99
         var virtualUID = VirtualOutputSupport.deviceUID
         var bridge: Bridge? = Bridge(physicalUID: "fixed")
@@ -217,7 +223,13 @@ enum MixerUniversalRoutingContract {
         var volumeEdits: Set<String> = []
         var engines: [String: Bool] = [:]
         var savedRoutes: [String: String] = [:]
-        var volumes: [String: Double] = [:]
+        var volumes: [String: Double] {
+            get { Preferences.standard.savedLevels }
+            set { Preferences.standard.savedLevels = newValue }
+        }
+        var lastAudibleVolume: [String: Double] = [:]
+        func isUnity(_ value: Double) -> Bool { MixerRoutingSupport.isUnity(value) }
+        func reconcileEngines(with apps: [MixerApp]) {}
         var sessionRoutes: [String: String] = [:]
         var sessionVolumes: [String: Double] = [:]
         var refresh = MixerRefreshCoordinator()
@@ -250,6 +262,37 @@ enum MixerUniversalRoutingContract {
                  audioObjects: objects, isPlaying: playing, isBypassed: bypassed,
                  selectedOutputDeviceUID: selectedUID, effectiveOutputDeviceUID: "airpods",
                  outputDeviceUnavailable: false, volume: 1)
+    }
+
+    // The workspace can return a regular application whose reported pid is -1.
+    // HAL still supplies its real pid. Exercise discovery and persistence through
+    // the same methods a refresh and a volume slider use.
+    private static func distinctProcessVolumes(_ suite: TestSuite) {
+        let mixer = Mixer()
+        mixer.volumes = [:]
+        defer { mixer.volumes = [:] }
+        let levels = ["com.valvesoftware.steam": 0.25, "org.example.devicehub": 0.5,
+                      "com.example.gloomhaven": 0.75]
+        func discover() -> [MixerApp] {
+            let request = Mixer.RefreshRequest(savedVolumes: mixer.savedVolumes())
+            let rows = Mixer.processRows(for: [101, 102, 103, 104], request: request,
+                                         availableUIDs: [], defaultUID: nil)
+            return Mixer.coalescingAppsWithDuplicateIDs(rows)
+        }
+        mixer.apps = discover()
+        suite.expect(Set(mixer.apps.map(\.id)) == Set(levels.keys) && mixer.apps.count == 3,
+                     "Steam, Device Hub and a Steam-launched game get three separate sliders")
+        for app in mixer.apps {
+            guard let level = levels[app.id] else { continue }
+            mixer.setVolume(level, for: app)
+        }
+        suite.expect(mixer.savedVolumes() == levels && mixer.sessionVolumes.isEmpty,
+                     "each slider writes its own bundle preference, never its launcher or a pid")
+        let refreshed = discover()
+        suite.expect(refreshed.count == 3 && refreshed.allSatisfy { $0.volume == levels[$0.id] }
+                     && refreshed.first(where: { $0.ownerPid == 14271 })?.audioObjects == [101, 104]
+                     && refreshed.first(where: { $0.ownerPid == 44794 })?.audioObjects == [103],
+                     "rediscovery restores individual volumes and keeps the audio helper with Steam")
     }
 
     private static func callAudioCompatibility(_ suite: TestSuite) {
@@ -381,11 +424,13 @@ enum MixerUniversalRoutingContract {
     private static func rememberedControl(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.remembered-mixer-volume"
         let defaults = Foundation.UserDefaults(suiteName: domain)!
+        let originalLevels = Preferences.standard.savedLevels
         defaults.removePersistentDomain(forName: domain)
         VolumeDefaults.current = defaults
         defer {
             defaults.removePersistentDomain(forName: domain)
             VolumeDefaults.current = nil
+            Preferences.standard.savedLevels = originalLevels
         }
         let app = row("controlled", persistenceID: "com.example.Controlled")
         let writer = VolumeHost()
@@ -437,11 +482,15 @@ enum MixerUniversalRoutingContract {
         let mixer = Mixer()
         mixer.currentOutputDeviceUID = "airpods"
         let app = row("route-only", persistenceID: "com.example.RouteOnly")
+        let originalLevels = mixer.volumes
+        defer { mixer.volumes = originalLevels }
+        let unrelated = ["com.example.Other": 0.6]
+        mixer.volumes = unrelated
         mixer.apps = [app]
         mixer.setOutputDeviceUID("airpods", for: app)
         mixer.engines[app.id] = true
-        suite.expect(mixer.appNeedsEngine(mixer.apps[0]) && mixer.volumes.isEmpty,
-                     "an explicit same-device route requires processing without inventing a saved volume")
+        suite.expect(mixer.appNeedsEngine(mixer.apps[0]) && mixer.volumes == unrelated,
+                     "an explicit same-device route needs processing and keeps every saved app volume unchanged")
         mixer.setOutputDeviceUID(nil, for: mixer.apps[0])
         let cleared = mixer.apps[0]
         suite.expect(cleared.selectedOutputDeviceUID == nil && cleared.effectiveOutputDeviceUID == "airpods"
@@ -495,6 +544,7 @@ enum MixerUniversalRoutingContract {
 
         Preferences.standard.values = [:]
         Preferences.standard.arrays = [:]
+        distinctProcessVolumes(suite)
         callAudioCompatibility(suite)
         Mixer.deviceLists = [100: [10], 200: [20]]
         Mixer.reads = []; Mixer.writes = []; Mixer.writeStatus = noErr
@@ -584,8 +634,19 @@ enum MixerUniversalRoutingContract {
         coldFixed.isActive = false; coldFixed.virtual = nil; coldFixed.bridge = nil
         suite.expect(coldFixed.selectOutput("fixed"), "fixed output is prepared before switching the default from native playback")
         coldFixed.queue.flush(); SelectionQueues.main.flush()
-        suite.expect(coldFixed.bridge?.physicalUID == "fixed" && coldFixed.previousSystemOutput == "alerts",
-                     "starting fallback from native output preserves the previous alert destination for restoration")
+        suite.expect(coldFixed.bridge?.physicalUID == "fixed" && SelectionHAL.systemCurrent == "alerts",
+                     "entering fallback from the mixer preserves a separate alert destination")
+        for playback in [VirtualOutputSupport.deviceUID, "nativeB"] {
+            // macOS may already have changed the playback default before the service rechecks it.
+            for (effects, expected) in [(VirtualOutputSupport.deviceUID, "nativeB"), ("nativeA", "nativeA")] {
+                SelectionHAL.current = playback; SelectionHAL.systemCurrent = effects
+                let active = SelectionSession()
+                _ = active.selectOutput("nativeB")
+                active.queue.flush(); SelectionQueues.main.flush()
+                suite.expect(SelectionHAL.current == "nativeB" && SelectionHAL.systemCurrent == expected,
+                             "a mixer or macOS output change preserves independent alerts and restores following alerts")
+            }
+        }
 
         SelectionHAL.current = VirtualOutputSupport.deviceUID
         let queuedForeign = SelectionSession()
@@ -628,6 +689,25 @@ enum MixerUniversalRoutingContract {
         VirtualOutputService.shared.isActive = true
         VirtualOutputService.shared.physicalOutputUID = "speakers"
         VirtualOutputService.shared.selectedUIDs = []
+        fallbackCycle.apps = [native]
+        for uid in ["speakers", "airpods"] {
+            fallbackCycle.setOutputDeviceUID(uid, for: native)
+            let routed = fallbackCycle.apps[0]
+            suite.expect(fallbackCycle.savedRoutes[native.id] == uid && routed.effectiveOutputDeviceUID == uid
+                         && fallbackCycle.appNeedsEngine(routed),
+                         "an explicit app route to \(uid) stays physical while the bridge drives speakers")
+        }
+        fallbackCycle.setOutputDeviceUID(nil, for: native)
+        let followsDefault = fallbackCycle.apps[0]
+        suite.expect(followsDefault.effectiveOutputDeviceUID == softwareUID && !fallbackCycle.rowMayBeTapped(followsDefault),
+                     "System Default uses the virtual master without tapping the unadjusted player")
+        let teamsID = "com.microsoft.teams2"
+        var call = row(teamsID, persistenceID: teamsID, selectedUID: "speakers",
+                       bypassed: MixerRoutingSupport.bypassesProcessTap(bundleIdentifier: teamsID, name: "Teams"))
+        call.effectiveOutputDeviceUID = "speakers"
+        fallbackCycle.savedRoutes[teamsID] = "speakers"
+        suite.expect(!fallbackCycle.appNeedsEngine(call) && !fallbackCycle.rowMayBeTapped(call),
+                     "the bridge destination in a protected call's saved route cannot start a process tap")
         suite.expect(fallbackCycle.switchToNextSoundOutput(in: ["speakers", "airpods", softwareUID])
                      && VirtualOutputService.shared.selectedUIDs == ["airpods"],
                      "shortcut advances from the actual speaker behind the software output and skips the driver")
@@ -789,4 +869,54 @@ enum MixerUniversalRoutingContract {
         suite.expect(publishing.applyingCurrentVolumes(to: read)[0].volume == 1,
                      "a volume returned to 100 percent while the pass read publishes as unity, not the old gain")
     }
+}
+
+
+extension MixerUniversalRoutingContract.Mixer {
+    struct RefreshRequest {
+        let savedVolumes: [String: Double]
+        let ownPid: pid_t = 1
+        let callAppVolumeEnabled = Set<String>()
+        let hiddenRowIDs = Set<String>()
+        let savedOutputs: [String: String] = [:]
+        let sessionRoutes: [String: String] = [:]
+        let sessionVolumes: [String: Double] = [:]
+    }
+
+    struct NSRunningApplication {
+        let processIdentifier: pid_t = -1
+        let bundleIdentifier: String?
+        let localizedName: String?
+        init?(processIdentifier pid: pid_t) {
+            switch pid {
+            case 14271: (bundleIdentifier, localizedName) = ("com.valvesoftware.steam", "Steam")
+            case 2836: (bundleIdentifier, localizedName) = ("org.example.devicehub", "Device Hub")
+            case 44794: (bundleIdentifier, localizedName) = ("com.example.gloomhaven", "Gloomhaven")
+            default: return nil
+            }
+        }
+    }
+
+    enum ResponsibleProcess {
+        static func regularAppOwnerPid(of pid: pid_t) -> pid_t? {
+            MixerRoutingSupport.regularAppOwnerPid(of: pid, responsiblePid: pid == 2836 ? 2836 : 14271,
+                isRegularApp: { NSRunningApplication(processIdentifier: $0) != nil }, parentPid: { _ in 0 })
+        }
+        static func displayName(pid: pid_t, fallback: String) -> String {
+            NSRunningApplication(processIdentifier: pid)?.localizedName ?? fallback
+        }
+    }
+
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ pid: inout pid_t) -> Bool {
+        let owners: [AudioObjectID: pid_t] = [101: 14271, 102: 2836, 103: 44794, 104: 20000]
+        guard selector == kAudioProcessPropertyPID, let value = owners[object] else { return false }
+        pid = value
+        return true
+    }
+    static func read(_ object: AudioObjectID, _ selector: AudioObjectPropertySelector, _ running: inout UInt32) -> Bool {
+        guard selector == kAudioProcessPropertyIsRunningOutput else { return false }
+        running = 1
+        return true
+    }
+    static func processBundleIdentifier(of object: AudioObjectID) -> String? { nil }
 }

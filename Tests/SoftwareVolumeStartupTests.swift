@@ -35,7 +35,20 @@ enum SoftwareVolumeStartupTests {
             guard selector == kAudioDevicePropertyMute, muteReadSucceeds else { return false }
             value = (muteReadback ?? muted) as! T; return true
         }
-        static func select(_ uid: String, selector: AudioObjectPropertySelector = kAudioHardwarePropertyDefaultOutputDevice) -> Bool { true }
+        static var playback = "physical", effects = "physical"
+        static var effectsOnPlaybackSelection: String?
+        static func defaultUID(_ selector: AudioObjectPropertySelector = kAudioHardwarePropertyDefaultOutputDevice) -> String? {
+            selector == kAudioHardwarePropertyDefaultSystemOutputDevice ? effects : playback
+        }
+        static func select(_ uid: String, selector: AudioObjectPropertySelector = kAudioHardwarePropertyDefaultOutputDevice) -> Bool {
+            if selector == kAudioHardwarePropertyDefaultSystemOutputDevice {
+                effects = uid
+            } else {
+                playback = uid
+                if let effectsOnPlaybackSelection { effects = effectsOnPlaybackSelection }
+            }
+            return true
+        }
     }
     final class Bridge {
         struct FirstCallback: Equatable { let uid: String; let level: Double; let muted: UInt32 }
@@ -98,15 +111,30 @@ enum SoftwareVolumeStartupTests {
             HAL.levelWriteSucceeds = true; HAL.muteWriteSucceeds = true; HAL.curveWriteSucceeds = true
             HAL.levelReadback = nil; HAL.muteReadback = nil; HAL.muteReadSucceeds = true
             HAL.decibelsReadback = nil
+            HAL.playback = "physical"; HAL.effects = "physical"; HAL.effectsOnPlaybackSelection = nil
             let host = Host()
             host.bridge = try! Bridge(virtual: 99, physicalUID: "previous")
             Bridge.firstCallbacks = []
             preferences.set(saved.map { ["destination": ["decibels": MixerSoftwareVolumeSupport.decibels(for: $0)]] } ?? [:], forKey: DefaultsKey.mixerSoftwareVolumes)
+            preferences.removeObject(forKey: DefaultsKey.mixerSoftwareMutedDecibels)
             preferences.set(false, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
             configure()
             host.replaceBridge(physicalUID: "destination")
             return host
         }
+        _ = replace(saved: nil)
+        suite.expect(HAL.playback == VirtualOutputSupport.deviceUID && HAL.effects == HAL.playback,
+                     "effects following physical playback enter the virtual master with it")
+        let split = replace(saved: nil) { HAL.effects = "alerts" }
+        suite.expect(HAL.playback == VirtualOutputSupport.deviceUID && HAL.effects == "alerts",
+                     "activating the virtual master leaves an independent effects destination alone")
+        HAL.effects = "manual-alerts"
+        split.replaceBridge(physicalUID: "destination")
+        suite.expect(HAL.effects == "manual-alerts",
+                     "rebuilding the bridge preserves a manual effects selection made during fallback")
+        _ = replace(saved: nil) { HAL.effectsOnPlaybackSelection = "new-alerts" }
+        suite.expect(HAL.effects == "new-alerts",
+                     "an effects change during the playback handoff supersedes the captured follow preference")
         for (saved, muted, expected) in [(0.1, UInt32(0), 0.1), (0, 0, 0), (0.2, 1, 0.2)] {
             let host = replace(saved: saved, previousMuted: muted)
             suite.expect(Bridge.firstCallbacks.count == 1 && Bridge.firstCallbacks[0].uid == "destination" && abs(Bridge.firstCallbacks[0].level - expected) < 0.000001 && Bridge.firstCallbacks[0].muted == (saved == 0 ? 1 : 0),
@@ -117,6 +145,46 @@ enum SoftwareVolumeStartupTests {
             suite.expect((levels?["previous"] as? NSNumber)?.doubleValue == (muted == 0 ? 0.8 : 0),
                          "replacement remembers the previous output before installing destination controls")
         }
+        func savedValue(_ key: String, _ uid: String) -> Double? {
+            preferences.dictionary(forKey: key)?[uid] as? Double
+        }
+        for perceptual in [false, true] {
+            let host = replace(saved: 0.7, previousMuted: 1) {
+                HAL.decibelsReadback = -24
+                preferences.set(perceptual, forKey: DefaultsKey.mixerPerceptualVolumeEnabled)
+            }
+            suite.expect(savedValue(DefaultsKey.mixerSoftwareVolumes, "previous") == 0
+                         && savedValue(DefaultsKey.mixerSoftwareMutedDecibels, "previous") == -24,
+                         "muting stores zero for older builds while retaining the actual gain")
+            HAL.decibelsReadback = nil
+            Bridge.firstCallbacks = []
+            host.replaceBridge(physicalUID: "previous")
+            let expected = MixerSoftwareVolumeSupport.level(forDecibels: -24, perceptual: perceptual)
+            suite.expect(Bridge.firstCallbacks == [.init(uid: "previous", level: expected, muted: 1)],
+                         "returning to the muted output starts silent with its own gain in either curve")
+            _ = HAL.write(99, kAudioDevicePropertyMute, value: UInt32(0), scope: kAudioObjectPropertyScopeOutput)
+            suite.expect(HAL.muted == 0 && abs(MixerSoftwareVolumeSupport.decibels(for: HAL.level, perceptual: perceptual) + 24) < 0.00001,
+                         "unmuting after a rebuild recovers the level without moving the volume slider")
+            HAL.decibelsReadback = -24
+            host.rememberLevel()
+            suite.expect(savedValue(DefaultsKey.mixerSoftwareMutedDecibels, "previous") == nil
+                         && savedValue(DefaultsKey.mixerSoftwareVolumes, "previous") == 0.625,
+                         "unmuting restores the numeric gain used by older builds")
+        }
+
+        let failedReadHost = replace(saved: 0.4)
+        HAL.muted = 1; HAL.decibelsReadback = -20
+        failedReadHost.rememberLevel()
+        HAL.muteReadSucceeds = false; HAL.decibelsReadback = -10
+        failedReadHost.rememberLevel()
+        suite.expect(savedValue(DefaultsKey.mixerSoftwareVolumes, "destination") == 0
+                     && savedValue(DefaultsKey.mixerSoftwareMutedDecibels, "destination") == -20,
+                     "an unreadable mute control preserves both saved values")
+        HAL.muteReadSucceeds = true; HAL.decibelsReadback = nil
+        Bridge.firstCallbacks = []
+        Host().replaceBridge(physicalUID: "destination")
+        suite.expect(Bridge.firstCallbacks == [.init(uid: "destination", level: 0.6875, muted: 1)],
+                     "restarting after a failed mute read keeps the first callback silenced at the previous gain")
         _ = replace(saved: nil)
         suite.expect(Bridge.firstCallbacks == [.init(uid: "destination", level: MixerSoftwareVolumeSupport.savedLevel(nil), muted: 0)],
                      "a new destination's first callback starts at the safe default rather than inherited gain")
