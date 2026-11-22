@@ -73,18 +73,39 @@
 
 Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. The utilities Mac users usually buy one by one, together behind a single menu bar icon, with no account, no telemetry and no subscription.
 
-## Music wallpaper with synced lyrics (this fork)
+## What this fork adds
 
-This fork of Vorssaint 3.4.4 adds a music wallpaper. While a song plays, your desktop shows its lyrics in time with the music, and the lock screen shows them too.
+This is a fork of Vorssaint 3.4.4. Everything below is on top of the upstream app, which is otherwise unchanged. The release is signed with a local self-signed identity and is not notarized, so right-click Open on first launch.
 
-- **Constellation style.** Each lyric line becomes a constellation: every word is a star joined to its neighbours, and the word being sung swells into a glowing blue headline. A second style shows the blurred cover beside scrolling lyrics. Pick one in the menu bar panel's Wallpaper section.
-- **Desktop and lock screen.** The lyrics sit behind your desktop icons and appear between the clock and the login controls on the lock screen. When nothing plays, your normal wallpaper returns.
-- **Starts with the app.** It is on by default and launches with Vorssaint. Both the wallpaper and the lock screen lyrics have their own switches.
-- **Many languages.** Lyrics come from LRCLIB, with a relaxed search that matches by song length and a NetEase Cloud Music fallback, which helps with Hindi, Telugu, Tamil, Punjabi and other regional songs whose titles are spelled differently across catalogs.
-- **Asks first.** On first launch it asks before sending a song's title and artist to those services. Declining turns the wallpaper off.
-- **Timing.** Catalogs time whole lines, so each word's moment inside a line is estimated from its length.
+### Music wallpaper with synced lyrics
 
-Build it with Xcode installed: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./build.sh --install`. The release DMG is signed with a local self-signed identity and is not notarized, so right-click Open on first launch. Everything else below is upstream Vorssaint, unchanged.
+While a song plays, the desktop shows the album cover in full quality with its own colours drifting over it and the lyrics in time with the music. It sits behind your icons and goes away when nothing plays.
+
+- **Eight ways to show lyrics.** Graph (a constellation where each word is a star and the sung word glows), Scrolling, Typewriter, Big, Karaoke, Word pop, Highlight and Stack. Switch from the Wallpaper section of the menu bar panel, from the island's lyrics wallpaper page, or from the lock screen.
+- **Cover-driven background.** Dominant colours are pulled from the artwork and animated as soft washes and rising particles, and everything cross-fades on a track change.
+- **Lock screen.** The lyrics show between the clock and the login, with one pill at the bottom holding the song, play/pause/next, the style, timing nudges and an off switch. Tapping the island at the camera opens a style picker that grows from the notch.
+- **Island page.** The lyrics wallpaper button next to the equalizer opens a page like Lyrics or Up next, with every style, the lock screen and keep-awake switches and timing.
+- **Keep the screen on while lyrics play**, on the desktop and the lock screen, without touching your own Keep Awake sessions.
+- **Lyrics finder.** It uses Vorssaint's own lyrics finder, then falls back to a relaxed LRCLIB search and NetEase Cloud Music, which helps with Hindi, Telugu, Tamil, Punjabi and other regional songs whose titles are spelled differently across catalogs.
+- **Starts with the app and asks first.** A dialog on first launch asks before song titles are sent to lyric services. Declining turns the wallpaper off.
+- **Timing.** Catalogs time whole lines, so each word's moment inside a line is estimated. Nudge the offset in 0.25 second steps if a song runs early or late.
+
+### Claude Code on the island
+
+When Claude Code asks a question or for permission, it pops up on the island as a black shape hanging from the camera. Click an answer there and Claude Code carries on as if you had answered in the terminal. "Answer in terminal" hands the question back untouched, and an unanswered question falls back to the terminal after about 100 seconds.
+
+This works through two hooks in `~/.claude/settings.json` and a small local socket that only your account can open. Everything stays on your Mac. It is switched on in the Dynamic Island settings, asks before it edits anything, keeps a backup of the file next to it, and puts your original settings back when you turn it off. It covers Claude Code only.
+
+### AI page
+
+- **Live limits.** The session and weekly percentages come from the numbers Claude Code itself reports to its status line, so they match your terminal. A small wrapper in front of your status line saves them and runs your own script unchanged.
+- **Claude's card is expanded** with the model, branch, how full the context is, tokens in and out, cache, session cost, time and lines changed.
+- **Layout.** Claude's card runs tall on the left with Resets at the top right at half width, and a card left without a partner keeps its half of the row.
+- **Used by default.** Limits show how much is used, not how much is left. Switch it back in the AI settings.
+
+### Build it
+
+You need Xcode: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./build.sh --install`. `./Tools/make-dmg.sh` then packages the DMG into `dist/`.
 
 ## Install only what you use
 
