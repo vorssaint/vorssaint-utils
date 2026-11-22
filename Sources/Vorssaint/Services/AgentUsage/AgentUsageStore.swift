@@ -14,6 +14,8 @@ final class AgentUsageStore {
     /// archived session's again in another.
     private var sources: [[String]] = []
     private var index: [String: Int] = [:]
+    /// Only responses present in multiple Cursor transcripts need per-file readings.
+    private var cursorCopies: [Int: [String: AgentUsageRecord]] = [:]
     private let summary = AgentUsageSummaryCache()
     private(set) var limits: [AgentProvider: AgentLimits] = [:]
     private(set) var codexPlan: String?
@@ -48,9 +50,18 @@ final class AgentUsageStore {
     var live: [AgentLiveSession] { Array(turns.values) }
 
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
-                  calendar: Calendar = .current) -> AgentUsageSnapshot {
-        summary.snapshot(records: records, limits: limits, live: live, plans: plans,
-                         providers: providers, now: now, calendar: calendar)
+                  calendar: Calendar = .current, cursorProjectsFound: Bool = false,
+                  cursorLastActivity: Date? = nil) -> AgentUsageSnapshot {
+        var result = summary.snapshot(records: records, limits: limits, live: live, plans: plans,
+                                      providers: providers, now: now, calendar: calendar)
+        if providers.contains(.cursor) {
+            result.cursorProjectsFound = cursorProjectsFound
+            if let cursorLastActivity {
+                result.seen.insert(.cursor)
+                result.lastActivity[.cursor] = cursorLastActivity
+            }
+        }
+        return result
     }
 
     /// Applies one file's entries and returns the turns they finished.
@@ -62,9 +73,10 @@ final class AgentUsageStore {
         for entry in entries {
             switch entry {
             case .usage(let key, let record, let billable):
-                // Copilot exposes response activity and session-wide token
-                // totals, neither of which measures the current root task.
-                let turn = provider == .copilot ? nil : tracksTurns ? file : parent
+                // Copilot's session totals and Cursor's occasional metered replies
+                // do not describe a complete live turn.
+                let historyOnly = provider == .copilot || (provider == .cursor && key.hasPrefix("cursor-transcript:"))
+                let turn = historyOnly ? nil : tracksTurns ? file : parent
                 add(record, billable: billable, key: key, source: file, turn: turn, subagent: !tracksTurns)
             case .usageModel(let key, let model):
                 guard let position = index[key], records[position].model.isEmpty else { continue }
@@ -165,6 +177,10 @@ final class AgentUsageStore {
         var delta = record.tokens
         var extra = record.cost ?? 0
         if let position = index[key] {
+            if key.hasPrefix("cursor-transcript:"), record.provider == .cursor {
+                updateCursorResponse(record, at: position, from: source)
+                return
+            }
             if !sources[position].contains(source) { sources[position].append(source) }
             let old = records[position]
             let merged = old.tokens.merged(with: record.tokens)
@@ -256,6 +272,59 @@ final class AgentUsageStore {
             if !record.project.isEmpty { turn.project = record.project }
         }
         turns[file] = turn
+    }
+
+    private func updateCursorResponse(_ incoming: AgentUsageRecord, at position: Int, from file: String) {
+        let singleSource = sources[position].count == 1 && sources[position][0] == file
+        let previous = singleSource ? records[position] : cursorCopies[position]?[file]
+        let reading: AgentUsageRecord
+        if let previous {
+            let tokens = previous.tokens.merged(with: incoming.tokens)
+            let model = previous.model.isEmpty ? incoming.model : previous.model
+            guard tokens != previous.tokens || model != previous.model else { return }
+            reading = AgentUsageRecord(provider: .cursor, date: previous.date, model: model, project: previous.project,
+                                       session: previous.session, tokens: tokens, cost: nil, savings: 0)
+        } else {
+            reading = incoming
+        }
+        if singleSource {
+            selectCursorReading(reading, at: position)
+        } else {
+            if cursorCopies[position] == nil {
+                cursorCopies[position] = [sources[position][0]: records[position]]
+            }
+            cursorCopies[position]?[file] = reading
+            if !sources[position].contains(file) { sources[position].append(file) }
+            selectCursorCopy(at: position)
+        }
+    }
+
+    /// Copies can contain different streamed prefixes. Choose one whole reading
+    /// so a copied transcript cannot synthesize new totals or move between projects
+    /// according to scan order.
+    @discardableResult
+    private func selectCursorCopy(at position: Int) -> Bool {
+        guard let winner = cursorCopies[position]?.min(by: { lhs, rhs in
+            if lhs.value.tokens.total != rhs.value.tokens.total { return lhs.value.tokens.total > rhs.value.tokens.total }
+            return lhs.key < rhs.key
+        }) else { return false }
+        return selectCursorReading(winner.value, at: position)
+    }
+
+    @discardableResult
+    private func selectCursorReading(_ reading: AgentUsageRecord, at position: Int) -> Bool {
+        let old = records[position]
+        let newBucket = old.date != reading.date || old.project != reading.project || old.model != reading.model
+        guard newBucket || old.tokens != reading.tokens else { return false }
+        if newBucket { summary.invalidate() } else { summary.recordChanged(at: position, previous: old) }
+        let billable = AgentBillable(tokens: reading.tokens)
+        let priced = AgentPricing.cost(billable, model: reading.model)
+        var selected = reading
+        selected.cost = priced.cost
+        selected.savings = priced.savings
+        records[position] = selected
+        billables[position] = billable
+        return true
     }
 
     /// Prices every response again, after a newer list arrives. List-derived
@@ -424,14 +493,30 @@ final class AgentUsageStore {
     /// reading every log from its start would: a response only they held
     /// goes, one another log also holds stays. Their turns end without a
     /// notice.
-    func forget(files: Set<String>) {
-        for file in files { forget(file: file) }
+    @discardableResult
+    func forget(files: Set<String>) -> Bool {
+        var changed = false
+        for file in files where forget(file: file) { changed = true }
+        return forgetUsage(files: files) || changed
+    }
+
+    /// Rebuild a rewritten transcript's counters without losing its observed turn.
+    @discardableResult
+    func forgetUsage(files: Set<String>) -> Bool {
+        guard !files.isEmpty else { return false }
         var emptied = false
+        var replaced = false
         for position in sources.indices where sources[position].contains(where: files.contains) {
             sources[position].removeAll(where: files.contains)
+            if cursorCopies[position] != nil {
+                cursorCopies[position] = cursorCopies[position]?.filter { !files.contains($0.key) }
+                if selectCursorCopy(at: position) { replaced = true }
+                if sources[position].count < 2 { cursorCopies[position] = nil }
+            }
             emptied = emptied || sources[position].isEmpty
         }
         if emptied { keepRecords { !sources[$0].isEmpty } }
+        return emptied || replaced
     }
 
     /// The logs holding a response that one of `files` also holds.
@@ -458,6 +543,9 @@ final class AgentUsageStore {
             keptBillables.append(billables[offset])
             keptSources.append(sources[offset])
         }
+        cursorCopies = Dictionary(uniqueKeysWithValues: cursorCopies.compactMap { old, copies in
+            positions[old].map { ($0, copies) }
+        })
         index = index.compactMapValues { positions[$0] }
         records = kept
         billables = keptBillables
@@ -473,11 +561,16 @@ struct AgentLogRoot: Equatable {
     /// Canonical, because file events report real paths: a folder kept as a
     /// link elsewhere, as dotfile setups do, would otherwise never match.
     static func all(home: URL = FileManager.default.homeDirectoryForCurrentUser,
-                    claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile()) -> [AgentLogRoot] {
-        let claude = claudeProfile.logURLs(home: home).map { AgentLogRoot(provider: .claude, url: canonical($0)) }
+                    claudeProfile: ClaudeAccountProfile = ClaudeAccountProfile(),
+                    providers: Set<AgentProvider> = Set(AgentProvider.allCases)) -> [AgentLogRoot] {
+        let claude = providers.contains(.claude) ? claudeProfile.logURLs(home: home).map {
+            AgentLogRoot(provider: .claude, url: canonical($0))
+        } : []
         return claude + [(AgentProvider.codex, ".codex/sessions"), (.codex, ".codex/archived_sessions"),
-         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state")].map { provider, path in
-            AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
+         (.opencode, ".local/share/opencode"), (.copilot, ".copilot/session-state"),
+         (.cursor, ".cursor/projects")].compactMap { provider, path in
+            guard providers.contains(provider) else { return nil }
+            return AgentLogRoot(provider: provider, url: canonical(home.appending(path: path, directoryHint: .isDirectory)))
         }
     }
 
@@ -490,6 +583,7 @@ struct AgentLogRoot: Equatable {
     }
 
     var exists: Bool {
+        if provider == .cursor { return CursorTranscriptAccess(root: url).exists }
         var directory: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &directory) && directory.boolValue
     }
@@ -500,9 +594,63 @@ struct AgentLogRoot: Equatable {
         guard path.hasPrefix(prefix) else { return false }
         if provider == .opencode { return path == url.appending(path: AgentOpenCodeReader.database).path }
         guard path.hasSuffix(".jsonl") else { return false }
-        guard provider == .copilot else { return true }
         let parts = path.dropFirst(prefix.count).split(separator: "/", omittingEmptySubsequences: false)
-        return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        if provider == .copilot {
+            return parts.count == 2 && !parts[0].isEmpty && !parts[0].hasPrefix(".") && parts[1] == "events.jsonl"
+        }
+        if provider == .cursor {
+            guard (3...4).contains(parts.count), !parts[0].isEmpty, !parts[0].hasPrefix("."),
+                  parts[1] == "agent-transcripts", !parts[2].isEmpty, !parts[2].hasPrefix(".") else { return false }
+            return parts.count == 3 || parts[3] == parts[2] + ".jsonl"
+        }
+        return true
+    }
+}
+
+/// The two on-disk layouts for one Cursor session. Newer versions may leave
+/// the old flat copy in place after moving a conversation into its own folder.
+struct CursorTranscriptFiles {
+    let flat: URL
+    let nested: URL
+
+    init(directory: URL, session: String) {
+        let filename = session + ".jsonl"
+        flat = directory.appending(path: filename, directoryHint: .notDirectory)
+        nested = directory.appending(path: session, directoryHint: .isDirectory)
+            .appending(path: filename, directoryHint: .notDirectory)
+    }
+
+    /// `path` has already been admitted by the Cursor log root.
+    init(path: String) {
+        let file = URL(fileURLWithPath: path, isDirectory: false)
+        let parent = file.deletingLastPathComponent()
+        let session = file.deletingPathExtension().lastPathComponent
+        let nested = parent.lastPathComponent == session && parent.deletingLastPathComponent().lastPathComponent == "agent-transcripts"
+        self.init(directory: nested ? parent.deletingLastPathComponent() : parent, session: session)
+    }
+
+    func preferred(in access: CursorTranscriptAccess) -> (path: String, modified: Date)? {
+        for file in [nested, flat] {
+            if let info = access.info(at: file.path) {
+                return (file.path, AgentLogCursor.modificationDate(info))
+            }
+        }
+        return nil
+    }
+
+    /// On a move or deletion, remove the old cursor, turn and activity
+    /// together before reading the selected copy. A change to either filename
+    /// can be the first event macOS delivers.
+    func select(root: URL, cursors: inout [String: AgentLogCursor], store: AgentUsageStore) -> (path: String?, changed: Bool) {
+        let selected = preferred(in: CursorTranscriptAccess(root: root))?.path
+        var removed = false
+        for path in [flat.path, nested.path] where path != selected {
+            if cursors.removeValue(forKey: path) != nil {
+                store.forget(files: [path])
+                removed = true
+            }
+        }
+        return (selected, removed)
     }
 }
 
@@ -553,6 +701,7 @@ struct AgentSessionRegistry: Equatable {
 final class AgentLogCursor {
     let path: String
     let provider: AgentProvider
+    let cursorAccess: CursorTranscriptAccess?
     /// Subagents report to a turn another file tracks.
     var tracksTurns: Bool {
         provider == .claude ? parent == nil : (provider == .codex ? !state.codexSubagent : true)
@@ -566,6 +715,10 @@ final class AgentLogCursor {
     var pending = Data()
     var discarding = false
     var state = AgentLogState()
+    /// Matches an open prompt across rewrites in this process. Never archived.
+    var cursorPromptFingerprint: UInt64?
+    /// Restored copies share one archived total. Replay to recover each file's own contribution.
+    var needsUsageReplay = false
     var modified = Date.distantPast
     /// Set when the log turned out replaced, cut short or written again after
     /// part of it was read. What its old contents gave is still counted, so
@@ -576,11 +729,13 @@ final class AgentLogCursor {
     private var codexParentLog: String?
     private var codexParentSearch = -1
 
-    init(path: String, provider: AgentProvider) {
+    init(path: String, provider: AgentProvider, cursorRoot: URL? = nil) {
         self.path = path
         self.provider = provider
+        cursorAccess = provider == .cursor ? cursorRoot.map { CursorTranscriptAccess(root: $0) } : nil
         let parent = provider == .claude ? AgentLogCursor.parent(of: path) : nil
         self.parent = parent
+        if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
     }
 
     /// The log whose turn a Codex subagent's responses count toward. It can
@@ -629,22 +784,38 @@ final class AgentLogCursor {
         pending = Data()
         discarding = false
         state = AgentLogState()
+        cursorPromptFingerprint = nil
+        if provider == .cursor { CursorReader.adopt(path: path, into: &state) }
         fingerprinted = nil
         codexParentSearch = -1
     }
 
-    func fingerprintRead() {
+    private func fingerprint(upTo end: UInt64, descriptor: Int32? = nil) -> UInt64? {
+        if let descriptor { return AgentLogReader.fingerprint(descriptor, upTo: end) }
+        if provider == .cursor {
+            guard let file = cursorAccess?.openFile(at: path) else { return nil }
+            return file.fingerprint(upTo: end)
+        }
+        return AgentLogReader.fingerprint(path, upTo: end)
+    }
+
+    func fingerprintRead(descriptor: Int32? = nil) {
         let end = boundary
         if let taken = fingerprinted, taken.offset == end, taken.identity == identity { return }
-        fingerprinted = AgentLogReader.fingerprint(path, upTo: end).map { (end, identity, $0) }
+        fingerprinted = fingerprint(upTo: end, descriptor: descriptor).map { (end, identity, $0) }
+    }
+
+    static func modificationDate(_ file: stat) -> Date {
+        Date(timeIntervalSince1970: TimeInterval(file.st_mtimespec.tv_sec)
+             + TimeInterval(file.st_mtimespec.tv_nsec) / 1_000_000_000)
     }
 
     /// False once the log no longer holds what was read: written again in
     /// place, perhaps past where reading stopped, which its size and inode
     /// alone do not show.
-    var holdsWhatWasRead: Bool {
+    func holdsWhatWasRead(descriptor: Int32?) -> Bool {
         guard let taken = fingerprinted, taken.identity == identity else { return true }
-        return AgentLogReader.fingerprint(path, upTo: taken.offset) == taken.value
+        return fingerprint(upTo: taken.offset, descriptor: descriptor) == taken.value
     }
 
     var saved: Saved {
@@ -653,7 +824,7 @@ final class AgentLogCursor {
         if let taken = fingerprinted, taken.offset == end, taken.identity == identity {
             fingerprint = taken.value
         } else {
-            fingerprint = AgentLogReader.fingerprint(path, upTo: end) ?? 0
+            fingerprint = self.fingerprint(upTo: end) ?? 0
             fingerprinted = (end, identity, fingerprint)
         }
         return Saved(path: path, provider: provider, offset: end, identity: identity, discarding: discarding,
@@ -663,11 +834,18 @@ final class AgentLogCursor {
     /// Nil when the path no longer holds the log that was read up to the
     /// saved offset: replaced by another file, or cut short and written
     /// again in place.
-    convenience init?(saved: Saved) {
-        var info = stat()
-        guard stat(saved.path, &info) == 0, UInt64(info.st_ino) == saved.identity,
-              AgentLogReader.fingerprint(saved.path, upTo: saved.offset) == saved.fingerprint else { return nil }
-        self.init(path: saved.path, provider: saved.provider)
+    convenience init?(saved: Saved, cursorRoot: URL? = nil) {
+        if saved.provider == .cursor {
+            guard let cursorRoot, let file = CursorTranscriptAccess(root: cursorRoot).openFile(at: saved.path),
+                  UInt64(file.info.st_ino) == saved.identity,
+                  file.fingerprint(upTo: saved.offset) == saved.fingerprint
+            else { return nil }
+        } else {
+            var info = stat()
+            guard stat(saved.path, &info) == 0, UInt64(info.st_ino) == saved.identity,
+                  AgentLogReader.fingerprint(saved.path, upTo: saved.offset) == saved.fingerprint else { return nil }
+        }
+        self.init(path: saved.path, provider: saved.provider, cursorRoot: cursorRoot)
         offset = saved.offset
         identity = saved.identity
         discarding = saved.discarding
@@ -696,6 +874,90 @@ enum AgentLogReader {
         return path.hasSuffix(".jsonl")
     }
 
+    /// Cursor can replace a transcript at the end of a turn. During a replay,
+    /// keep only the final turn. Only a turn that was already open can finish
+    /// with a notice, using the start observed before the rewrite.
+    static func readCursor(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
+                           since horizon: Date = .distantPast, shouldContinue: () -> Bool = { true }, report: (AgentUsageEvent) -> Void) -> Bool {
+        guard shouldContinue() else { return false }
+        guard let file = cursor.cursorAccess?.openFile(at: cursor.path) else {
+            let hadActivity = cursor.state.cursorLastActivity != nil
+            cursor.startOver(identity: 0)
+            return store.forget(files: [cursor.path]) || hadActivity
+        }
+        let previous = cursor.state
+        let previousPrompt = cursor.cursorPromptFingerprint
+        defer { if !cursor.state.turnOpen { cursor.cursorPromptFingerprint = nil } }
+        var preservedPrefix = false
+        var replay = cursor.offset == 0
+        var replayStart: Date?
+        var succeeded = false
+        var changed = false
+        func apply(_ entries: [AgentLogEntry]) {
+            store.apply(entries, file: cursor.path, provider: .cursor, tracksTurns: true,
+                        modified: cursor.modified, now: now).forEach(report)
+        }
+        readRegularFile(cursor, secured: file, shouldContinue: shouldContinue, onRestart: {
+            replay = true
+            if cursor.offset > 0 { changed = store.forgetUsage(files: [cursor.path]) }
+            // After a cache restore there is no in-memory prompt fingerprint.
+            // An atomic replacement may still contain the saved file prefix.
+            if previous.turnOpen && previousPrompt == nil && cursor.offset > 0 {
+                preservedPrefix = cursor.holdsWhatWasRead(descriptor: file.handle.fileDescriptor)
+            }
+        }) { line in
+            let moment = min(cursor.modified, now)
+            let promptCount = cursor.state.cursorPromptCount
+            let entries = CursorReader(replaying: replay).parse(line, state: &cursor.state, now: moment)
+            guard !entries.isEmpty else { return }
+            if cursor.state.cursorPromptCount != promptCount {
+                cursor.cursorPromptFingerprint = CursorReader.promptFingerprint(line)
+            }
+            changed = true
+            for entry in entries {
+                if case .usage(_, let record, _) = entry {
+                    // An incomplete set of replies cannot measure this live turn.
+                    if record.date >= horizon, record.date <= now {
+                        store.apply([entry], file: cursor.path, provider: .cursor, tracksTurns: false,
+                                    modified: cursor.modified, now: now)
+                    }
+                } else if replay {
+                    switch entry {
+                    case .turnBegan(let date): replayStart = date; succeeded = false
+                    case .turnEnded(_, let completed, _): succeeded = completed
+                    default: break
+                    }
+                } else {
+                    apply([entry])
+                }
+            }
+        }
+        guard replay else { return changed }
+        guard shouldContinue(), cursor.offset == UInt64(max(0, file.info.st_size)) else {
+            // No partial replay is a valid checkpoint for a later launch.
+            cursor.startOver(identity: cursor.identity)
+            return store.forget(files: [cursor.path]) || changed
+        }
+        let sameTurn = previous.turnOpen && previous.cursorPromptCount > 0
+            && previous.cursorPromptCount == cursor.state.cursorPromptCount
+            && previous.cursorPromptTimestamp == cursor.state.cursorPromptTimestamp
+            && (previousPrompt.map { $0 == cursor.cursorPromptFingerprint } ?? preservedPrefix)
+        let moment = min(cursor.modified, now)
+        if cursor.state.turnOpen, let start = replayStart, let last = cursor.state.cursorLastActivity {
+            if !sameTurn || (store.turns[cursor.path] == nil && store.waiting[cursor.path] == nil) {
+                store.forget(file: cursor.path)
+                // An attached file can already contain history. The clock on a
+                // newly observed live turn starts at its last write.
+                apply([.turnBegan(store.reportsTransitions ? moment : start)])
+            }
+            apply([.turnActive(last), .turnContext(model: "", project: cursor.state.project)])
+        } else if previous.turnOpen {
+            apply([.turnEnded(moment, completed: sameTurn && succeeded, duration: nil)])
+            changed = true
+        }
+        return changed || previous.cursorLastActivity != cursor.state.cursorLastActivity
+    }
+
     /// A hash of the log's first and last few kilobytes before `offset`, and
     /// of the offset itself. A log rewritten with a different start, or
     /// different lines just before where reading stopped, no longer matches.
@@ -708,6 +970,11 @@ enum AgentLogReader {
         defer { close(descriptor) }
         var info = stat()
         guard fstat(descriptor, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return nil }
+        return fingerprint(descriptor, upTo: offset)
+    }
+
+    static func fingerprint(_ descriptor: Int32, upTo offset: UInt64) -> UInt64? {
+        guard offset <= UInt64(Int64.max) else { return nil }
         let span: UInt64 = 4096
         // FNV-1a: stable across launches, unlike `Hasher`.
         var hash: UInt64 = 0xCBF2_9CE4_8422_2325
@@ -739,7 +1006,26 @@ enum AgentLogReader {
             let subagent = root.provider == .claude && AgentLogCursor.parent(of: url.path) != nil
             found.append((url.path, root.provider, modified, subagent))
         }
-        for root in roots where root.exists {
+        for root in roots {
+            // Cursor keeps tools, terminals and canvases beside transcripts.
+            // Enumerate only the two expected directory levels under the root.
+            if root.provider == .cursor {
+                let access = CursorTranscriptAccess(root: root.url)
+                for project in access.entries(at: []) {
+                    let directory = root.url.appending(path: project, directoryHint: .isDirectory)
+                        .appending(path: "agent-transcripts", directoryHint: .isDirectory)
+                    let entries = access.entries(at: [project, "agent-transcripts"])
+                    let sessions = Set(entries.map { $0.hasSuffix(".jsonl") ? String($0.dropLast(6)) : $0 })
+                    for session in sessions {
+                        let files = CursorTranscriptFiles(directory: directory, session: session)
+                        if let file = files.preferred(in: access), file.modified >= horizon {
+                            found.append((file.path, .cursor, file.modified, false))
+                        }
+                    }
+                }
+                continue
+            }
+            guard root.exists else { continue }
             // OpenCode keeps its database beside the snapshots, clones and
             // logs of its data folder, which are never walked.
             if root.provider == .opencode {
@@ -781,19 +1067,38 @@ enum AgentLogReader {
             AgentOpenCodeReader.readAppended(cursor, since: horizon, shouldContinue: shouldContinue, line: line)
             return
         }
+        if cursor.provider == .cursor {
+            guard let file = cursor.cursorAccess?.openFile(at: cursor.path) else { return }
+            readRegularFile(cursor, secured: file, shouldContinue: shouldContinue, including: including, line: line)
+        } else {
+            readRegularFile(cursor, secured: nil, shouldContinue: shouldContinue, including: including, line: line)
+        }
+    }
+
+    private static func readRegularFile(_ cursor: AgentLogCursor, secured: CursorTranscriptAccess.File?,
+                                        shouldContinue: () -> Bool, onRestart: () -> Void = {},
+                                        including: ((Data, Range<Int>) -> Bool)? = nil, line: (Data) -> Void) {
         var info = stat()
-        guard stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
+        if let secured {
+            info = secured.info
+        } else {
+            guard cursor.provider != .cursor, stat(cursor.path, &info) == 0, (info.st_mode & S_IFMT) == S_IFREG else { return }
+        }
         let size = UInt64(max(0, info.st_size))
         let identity = UInt64(info.st_ino)
-        cursor.modified = Date(timeIntervalSince1970: TimeInterval(info.st_mtimespec.tv_sec)
-                                + TimeInterval(info.st_mtimespec.tv_nsec) / 1_000_000_000)
-        if identity != cursor.identity || size < cursor.offset
-            || (size > cursor.offset && !cursor.holdsWhatWasRead) {
+        let previousModification = cursor.modified
+        cursor.modified = AgentLogCursor.modificationDate(info)
+        let sameSizeRewrite = cursor.provider == .cursor && size == cursor.offset && cursor.modified != previousModification
+        // A same-length edit can change counters in the unsampled middle.
+        if cursor.needsUsageReplay || identity != cursor.identity || size < cursor.offset || sameSizeRewrite
+            || (size > cursor.offset && !cursor.holdsWhatWasRead(descriptor: secured?.handle.fileDescriptor)) {
+            onRestart()
+            cursor.needsUsageReplay = false
             cursor.startOver(identity: identity)
         }
-        defer { cursor.fingerprintRead() }
-        guard size > cursor.offset, let handle = FileHandle(forReadingAtPath: cursor.path) else { return }
-        defer { try? handle.close() }
+        defer { cursor.fingerprintRead(descriptor: secured?.handle.fileDescriptor) }
+        guard size > cursor.offset, let handle = secured?.handle ?? FileHandle(forReadingAtPath: cursor.path) else { return }
+        defer { if secured == nil { try? handle.close() } }
         do { try handle.seek(toOffset: cursor.offset) } catch { return }
         while cursor.offset < size, shouldContinue() {
             let wanted = Int(min(UInt64(chunkSize), size - cursor.offset))

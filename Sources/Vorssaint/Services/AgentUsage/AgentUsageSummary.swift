@@ -100,6 +100,8 @@ struct AgentUsageSnapshot: Equatable {
     var lastActivity: [AgentProvider: Date] = [:]
     /// Providers with anything on disk: usage, limits or a turn.
     var seen: Set<AgentProvider> = []
+    /// The enabled Cursor transcript root can exist before the first session.
+    var cursorProjectsFound = false
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }

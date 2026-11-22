@@ -16,6 +16,7 @@ struct QuickToolsSettings: View {
     @ObservedObject private var brightness = BrightnessService.shared
     @AppStorage(DefaultsKey.quickLauncherShortcutEnabled) private var launcherShortcutEnabled = true
     @AppStorage(DefaultsKey.micMuteShortcutEnabled) private var micShortcutEnabled = false
+    @AppStorage(DefaultsKey.micMuteFollowCallApps) private var micFollowCallApps = false
     @AppStorage(DefaultsKey.quitAppsShortcutEnabled) private var quitAllShortcutEnabled = false
     @AppStorage(DefaultsKey.quitAppsExceptFrontShortcutEnabled) private var quitOthersShortcutEnabled = false
     @AppStorage(DefaultsKey.cameraPreviewShortcutEnabled) private var cameraShortcutEnabled = false
@@ -163,6 +164,13 @@ struct QuickToolsSettings: View {
                             .foregroundStyle(.orange)
                     }
                     Text(l10n.s.micMuteCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(l10n.s.micMuteFollowCallAppsToggle, isOn: $micFollowCallApps)
+                        .onChange(of: micFollowCallApps) { _, _ in
+                            micMute.syncWithPreferences()
+                        }
+                    Text(l10n.s.micMuteFollowCallAppsCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     Toggle(l10n.s.micMuteMenuBarToggle, isOn: $micMenuBarIndicator)

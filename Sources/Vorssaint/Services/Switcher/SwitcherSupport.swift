@@ -2155,13 +2155,17 @@ enum SwitcherSupport {
     /// pass true only when no Carbon stand-in is registered, and asking for
     /// nothing then keeps ⌘Tab working instead of leaving it dead until the
     /// app holding it lets go.
+    ///
+    /// Full-screen games that can cover the panel also release the native
+    /// shortcuts so the user can switch apps through macOS.
     static func nativeHotkeyIDs(takeOverSystemShortcuts: Bool,
                                 secureInputEnabled: Bool,
+                                exclusiveFullscreen: Bool = false,
                                 appsShortcut: GlobalShortcut,
                                 windowShortcut: GlobalShortcut,
                                 allWindowsShortcut: GlobalShortcut? = nil,
                                 liveEntries: [LiveSystemShortcut]) -> Set<Int32> {
-        guard !secureInputEnabled else { return [] }
+        guard !secureInputEnabled, !exclusiveFullscreen else { return [] }
         let nativeShortcuts = Dictionary(
             liveEntries.compactMap { entry -> (SwitcherNativeSymbolicHotKey, GlobalShortcut)? in
                 SwitcherNativeSymbolicHotKey(rawValue: entry.id).map { ($0, entry.shortcut) }
@@ -2172,6 +2176,24 @@ enum SwitcherSupport {
                                            windowShortcut: windowShortcut,
                                            allWindowsShortcut: allWindowsShortcut,
                                            nativeShortcuts: nativeShortcuts).map(\.rawValue))
+    }
+
+    /// A frontmost game can cover the switcher with a window at or above its
+    /// status-bar level. An incomplete snapshot leaves the last decision in effect.
+    static func frontmostAppRaisesFullscreen(windows: [NotchAppFullscreen.WindowInfo]?,
+                                             frontmostPID: pid_t?, ownPID: pid_t,
+                                             displays: [CGRect]) -> Bool? {
+        guard let windows, let frontmostPID, !displays.isEmpty,
+              displays.allSatisfy({ frame in
+                  !frame.isInfinite && frame.origin.x.isFinite && frame.origin.y.isFinite
+                      && frame.size.width.isFinite && frame.size.height.isFinite
+                      && frame.size.width > 0 && frame.size.height > 0
+              }) else { return nil }
+        guard frontmostPID != ownPID else { return false }
+        return windows.contains { window in
+            window.ownerPID == frontmostPID && window.layer >= NSWindow.Level.statusBar.rawValue && window.alpha > 0
+                && displays.contains { NotchAppFullscreen.covers(window.bounds, $0) }
+        }
     }
 
     static func secureInputHotKeysWanted(canStartSession: Bool, capturingShortcut: Bool,
@@ -2210,13 +2232,21 @@ enum SwitcherSupport {
         }
     ) -> [GlobalShortcut] {
         var shortcuts: [GlobalShortcut] = []
+        var actionKeysByLayout: [GlobalShortcutModifiers: [Int64]] = [:]
         for mask in 1...GlobalShortcutModifiers.validMask.rawValue {
             let modifiers = GlobalShortcutModifiers(rawValue: mask)
             guard modifiers.intersection(shortcut.modifiers) == shortcut.modifiers else { continue }
-            for keyCode in Int64(0)...127 {
-                let label = keyLabel(keyCode, modifiers.contains(.command), modifiers.contains(.shift))?.lowercased()
-                guard keyCode == USKeyPosition.q || keyCode == USKeyPosition.w || label == "q" || label == "w"
-                else { continue }
+            // Control and Option do not select a different character table.
+            // Resolve each table once before this Carbon callback returns.
+            let layout = modifiers.intersection([.command, .shift])
+            if actionKeysByLayout[layout] == nil {
+                actionKeysByLayout[layout] = (Int64(0)...127).filter { keyCode in
+                    if keyCode == USKeyPosition.q || keyCode == USKeyPosition.w { return true }
+                    let label = keyLabel(keyCode, layout.contains(.command), layout.contains(.shift))?.lowercased()
+                    return label == "q" || label == "w"
+                }
+            }
+            for keyCode in actionKeysByLayout[layout] ?? [] {
                 let action = GlobalShortcut(keyCode: keyCode, modifiers: modifiers)
                 if !registered.contains(action) { shortcuts.append(action) }
             }
