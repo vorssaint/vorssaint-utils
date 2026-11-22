@@ -7,11 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots.
+This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins.
 
 ### Added
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
+- AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
@@ -23,6 +24,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 ### Fixed
 - After wake, fan control retries a saved curve if the hardware takes time to respond. It respects System mode and the hardware’s safety limits, and the panel shows when a curve could not be restored. Thanks to @SanRive.
 - The uninstaller and cleaner count files next to symbolic links. Nested app components are detected, and wallpaper scans still skip packages. Thanks to @retomi and @salvatoremiceli.
+- Cleaner keeps preferences, support files and caches it can match to audio plugins found in the standard plugin folders. It checks again before moving a selected item to the Trash. Thanks to @heisdanne and @imuhammadnadeem.
 - Monitor speakers that stay silent at zero volume can play again when you turn the volume up. Restoring sound respects the configured volume limit. Thanks to @trenaryja.
 - Brightness and speaker controls can reach compatible monitors connected through the built-in HDMI converter on certain Macs. Thanks to @davidmessem.
 - When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. Thanks to @razeenwasif.
@@ -44,7 +46,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
 
 ### Contributors
-Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
+Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @heisdanne, @imuhammadnadeem, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
 ## [3.4.4] - 2026-11-11
 
