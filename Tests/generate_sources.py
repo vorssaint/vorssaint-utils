@@ -1192,12 +1192,14 @@ def main():
           + "Hardware.volumeReads += 1; if let read = Hardware.readVolume { return read() }; return Hardware.volume\n}\n"
           + "static func outputMuted(for device: AudioObjectID) -> Bool? {\n"
           + "Hardware.muteReads += 1; if let read = Hardware.readMute { return read() }; return Hardware.muted\n}\n"
-          + "static func requiresQuantizedOutputKeys(for device: AudioObjectID) -> Bool { Hardware.requiresQuantizedKeys }\n"
+          + "static func requiresQuantizedOutputKeys(for device: AudioObjectID, ifTransportUnknown: Bool = true) -> Bool { Hardware.requiresQuantizedKeys }\n"
+          + "static func hasSettableMainOutputScalar(for device: AudioObjectID) -> Bool { Hardware.supportsScalarConversion }\n"
           + "static func hasSettableScalarOutput(for device: AudioObjectID, matching volume: Double) -> Bool { Hardware.supportsScalarConversion }\n"
           + "static func quantizedOutputVolume(_ volume: Double, for device: AudioObjectID) -> Double? {\n"
           + "let value = Float32(volume); Hardware.queries.append(value)\n"
           + "if let quantizes = Hardware.quantizes { return quantizes(value).map(Double.init) }; return Double(value)\n}\n"
           + "var systemOutputVolume: Double?\nvar systemOutputMuted: Bool?\n"
+          + "private(set) var volumeStepsNeedNativeKeys: Bool?\n"
           + "private var coreAudioOutputVolume: Double? = nil { didSet { republishSystemOutput() } }\n"
           + "private var coreAudioOutputMuted: Bool? = nil { didSet { republishSystemOutput() } }\n"
           + "var monitorOutput: BrightnessSupport.MonitorSpeakerOutput? = nil { didSet { republishSystemOutput() } }\n"
@@ -1223,7 +1225,9 @@ def main():
           + "func scheduleListenerRefresh() { listenerRefreshes += 1 }\n"
           + "func scheduleOutputControlRefresh(for device: AudioObjectID) { controlRefreshes.append(device) }\n"
           + "func selectOutput(_ device: AudioObjectID?, volume: Double?, muted: Bool?) {\n"
-          + "removeOutputControlListeners(); outputControlListenerDevice = device; applyOutputControls(volume: volume, muted: muted)\n}\n"
+          + "removeOutputControlListeners()\noutputControlListenerDevice = device\n"
+          + "volumeStepsNeedNativeKeys = Self.volumeStepsNeedNativeKeys(for: device)\n"
+          + "applyOutputControls(volume: volume, muted: muted)\n}\n"
           + "func readSnapshot(volume: Double?, muted: Bool?) { applyOutputControls(volume: volume, muted: muted) }\n"
           + "".join(declaration(mixer, prefix) for prefix in [
               "    func requestOutputAdjustment(", "    private func enqueueOutputAdjustment(",
@@ -1236,6 +1240,8 @@ def main():
               "    private func confirmDirectOutputAdjustment(", "    private static func outputAdjustmentIsConfirmed(",
               "    private func beginOutputKeyAdjustment(", "    private func confirmOutputKeyAdjustment(",
               "    private func scheduleOutputKeyConfirmation(", "    private static func outputKeyVolumeTarget(",
+              "    private static func volumeStepsNeedNativeKeys(", "    func prefersNativeOutputKey(",
+              "    var currentOutputControlLifetime:",
               "    private func isCurrentOutputAdjustment(", "    private var hasCurrentOutputAdjustment:",
               "    private func applyOutputControls(", "    private func drainOutputAdjustment(",
               "    static func setSystemOutputVolume("])
@@ -1256,6 +1262,8 @@ def main():
           + "extension NotchVolumeRoutingTests {\nfinal class Service: State {\n"
           + "".join(declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
+                        "    private func routeVolumeKey(", "    private func routeNativeOutputKey(",
+                        "    private static func volumePress(",
                         "    private func routeNotchVolume(", "    private func routeMonitorVolume(",
                         "    private func applyMonitorVolumeKey("])
           + "}\n}\n")

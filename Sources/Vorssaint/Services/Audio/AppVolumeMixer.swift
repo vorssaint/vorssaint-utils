@@ -84,10 +84,17 @@ final class AppVolumeMixer: ObservableObject {
 
     @Published private(set) var apps: [MixerApp] = []
     @Published private(set) var outputDevices: [MixerOutputDevice] = []
-    @Published private(set) var currentOutputDeviceUID: String?
+    @Published private(set) var currentOutputDeviceUID: String? {
+        didSet {
+            if currentOutputDeviceUID != oldValue { volumeStepsNeedNativeKeys = nil }
+        }
+    }
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
+    /// A USB output can have a working slider with only a virtual main volume.
+    /// Nil while waiting for the new output's HAL snapshot.
+    private var volumeStepsNeedNativeKeys: Bool?
     /// The output's volume and mute as CoreAudio reports them. The published
     /// pair above shows the monitor's speakers instead while one carries the
     /// sound; see `republishSystemOutput()`.
@@ -222,9 +229,12 @@ final class AppVolumeMixer: ObservableObject {
     private var outputStepReadGeneration = 0
     private let outputControlLock = NSLock()
     private var outputControlLifetime = UUID()
+    var currentOutputControlLifetime: UUID {
+        outputControlLock.withLock { outputControlLifetime }
+    }
     private var outputKeyGeneration = 0
-    /// HAL-queue only. Once a lifetime needs native keys, its volume and
-    /// mute presses must keep the same ordering through the system.
+    /// Protected by outputControlLock. Volume and mute share native ordering
+    /// once a hardware write or conversion has fallen back for this lifetime.
     private var nativeOutputKeyLifetime: UUID?
     private let halQueue = DispatchQueue(label: "com.vorssaint.utils.mixer.hal", qos: .userInitiated)
 
@@ -437,6 +447,7 @@ final class AppVolumeMixer: ObservableObject {
             }
         }
         outputControlListenerDevice = nil
+        volumeStepsNeedNativeKeys = nil
         outputControlListenerAddresses.removeAll()
         outputControlRefreshGeneration &+= 1
         outputControlLock.withLock { outputControlLifetime = UUID() }
@@ -549,6 +560,16 @@ final class AppVolumeMixer: ObservableObject {
     /// Whether the output in use is a monitor's own speakers. The panel and the
     /// volume keys then work on the monitor's level instead of CoreAudio's.
     var outputIsMonitorSpeakers: Bool { monitorOutput != nil }
+
+    /// Main thread. A physical key must not overtake an earlier HAL write or
+    /// the native events that its completion still has to post.
+    func prefersNativeOutputKey(_ key: PreciseVolumeMediaKey) -> Bool {
+        guard key != .play, !outputIsMonitorSpeakers, outputControlListenerDevice != nil,
+              let volumeStepsNeedNativeKeys, queuedOutputSteps.isEmpty, !outputStepReadInFlight,
+              outputWriteInFlight == nil, pendingOutputAdjustment == nil else { return false }
+        return (volumeStepsNeedNativeKeys && coreAudioOutputVolume != nil && key.rollerDirection != nil)
+            || outputControlLock.withLock { nativeOutputKeyLifetime == outputControlLifetime }
+    }
 
     /// Reads which monitor, if any, carries the sound. The brightness service
     /// calls this when its display list or the default output changes. Main
@@ -838,13 +859,16 @@ final class AppVolumeMixer: ObservableObject {
         // This method runs on the HAL queue. A listener may not have reached
         // main yet when the default changes during a read or a failed write.
         let result = Self.defaultOutputDeviceID() == adjustment.device ? result : .superseded
-        let current = adjustment.step == nil ? isCurrentOutputAdjustment(adjustment)
-            : isCurrentOutputKey(adjustment)
-        if current, result == .unconfirmed || (adjustment.step != nil && result == .fallback) {
+        if result == .unconfirmed || (adjustment.step != nil && result == .fallback) {
             // Unconfirmed writes must not leave future keys on an ineffective
             // path. Later presses go native; never replay a key whose write
             // was accepted and may still arrive late.
-            nativeOutputKeyLifetime = adjustment.lifetime
+            outputControlLock.withLock {
+                if outputControlLifetime == adjustment.lifetime,
+                   adjustment.step == nil || outputKeyGeneration == adjustment.keyGeneration {
+                    nativeOutputKeyLifetime = adjustment.lifetime
+                }
+            }
         }
         DispatchQueue.main.async {
             self.outputWriteInFlight = nil
@@ -885,7 +909,7 @@ final class AppVolumeMixer: ObservableObject {
             finishOutputAdjustment(adjustment, result: .superseded)
             return
         }
-        if nativeOutputKeyLifetime == adjustment.lifetime {
+        if outputControlLock.withLock({ nativeOutputKeyLifetime == adjustment.lifetime }) {
             finishOutputAdjustment(adjustment, result: .fallback)
             return
         }
@@ -1064,23 +1088,33 @@ final class AppVolumeMixer: ObservableObject {
         return (chosen, muted == nil ? nil : mutes, true)
     }
 
-    private static func requiresQuantizedOutputKeys(for device: AudioObjectID) -> Bool {
+    private static func requiresQuantizedOutputKeys(for device: AudioObjectID, ifTransportUnknown: Bool = true) -> Bool {
         var transport: UInt32 = 0
-        guard read(device, kAudioDevicePropertyTransportType, &transport) else { return true }
+        guard read(device, kAudioDevicePropertyTransportType, &transport) else { return ifTransportUnknown }
         return transport == kAudioDeviceTransportTypeUSB
+    }
+
+    private static func volumeStepsNeedNativeKeys(for device: AudioObjectID?) -> Bool {
+        guard let device else { return false }
+        return requiresQuantizedOutputKeys(for: device, ifTransportUnknown: false)
+            && !hasSettableMainOutputScalar(for: device)
+    }
+
+    private static func hasSettableMainOutputScalar(for device: AudioObjectID) -> Bool {
+        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
+                                                 mScope: kAudioObjectPropertyScopeOutput,
+                                                 mElement: kAudioObjectPropertyElementMain)
+        var settable = DarwinBoolean(false)
+        return AudioObjectHasProperty(device, &address)
+            && AudioObjectIsPropertySettable(device, &address, &settable) == noErr && settable.boolValue
     }
 
     /// Virtual main volume can aggregate channels while preserving balance.
     /// Its curve must not be inferred from one channel's conversion. Only a
     /// matching, settable main scalar is eligible for the single-write path.
     private static func hasSettableScalarOutput(for device: AudioObjectID, matching volume: Double) -> Bool {
-        var address = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                                 mScope: kAudioObjectPropertyScopeOutput,
-                                                 mElement: kAudioObjectPropertyElementMain)
-        var settable = DarwinBoolean(false)
         var actual: Float32 = 0
-        return AudioObjectHasProperty(device, &address)
-            && AudioObjectIsPropertySettable(device, &address, &settable) == noErr && settable.boolValue
+        return hasSettableMainOutputScalar(for: device)
             && read(device, kAudioDevicePropertyVolumeScalar, &actual, scope: kAudioObjectPropertyScopeOutput)
             && actual.isFinite && abs(Double(actual) - volume) < 0.0001
     }
@@ -1592,6 +1626,7 @@ final class AppVolumeMixer: ObservableObject {
         let defaultDeviceID: AudioObjectID?
         let systemOutputVolume: Double?
         let systemOutputMuted: Bool?
+        let volumeStepsNeedNativeKeys: Bool
         /// Nil where process taps do not exist (before macOS 14.4): the app
         /// list stays empty and no process object is looked at.
         let apps: [MixerApp]?
@@ -1706,6 +1741,7 @@ final class AppVolumeMixer: ObservableObject {
             outputDevices = snapshot.outputDevices
         }
         subscribeToOutputControls(of: snapshot.defaultDeviceID)
+        volumeStepsNeedNativeKeys = snapshot.volumeStepsNeedNativeKeys
         applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
         guard let readApps = snapshot.apps else {
@@ -1758,6 +1794,7 @@ final class AppVolumeMixer: ObservableObject {
                 : nil
         }
         let systemOutputMuted = defaultDevice.flatMap { outputMuted(for: $0.audioObjectID) }
+        let nativeVolumeSteps = request.includeApps && volumeStepsNeedNativeKeys(for: defaultDevice?.audioObjectID)
 
         guard request.includeApps, isSupported else {
             return RefreshSnapshot(defaultUID: defaultUID,
@@ -1766,6 +1803,7 @@ final class AppVolumeMixer: ObservableObject {
                                    defaultDeviceID: defaultDevice?.audioObjectID,
                                    systemOutputVolume: systemOutputVolume,
                                    systemOutputMuted: systemOutputMuted,
+                                   volumeStepsNeedNativeKeys: nativeVolumeSteps,
                                    apps: nil,
                                    processObjects: [],
                                    lowered: lowered)
@@ -1824,6 +1862,7 @@ final class AppVolumeMixer: ObservableObject {
                                defaultDeviceID: defaultDevice?.audioObjectID,
                                systemOutputVolume: systemOutputVolume,
                                systemOutputMuted: systemOutputMuted,
+                               volumeStepsNeedNativeKeys: nativeVolumeSteps,
                                apps: next,
                                processObjects: processObjects,
                                lowered: lowered)

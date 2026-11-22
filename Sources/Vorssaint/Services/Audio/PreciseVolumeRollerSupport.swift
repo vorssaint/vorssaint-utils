@@ -7,6 +7,11 @@ enum PreciseVolumeRollerDirection: Equatable {
     case up, down
 }
 
+/// The disposition of one physical press on an output that uses native keys.
+enum NativeVolumeKeyPress: Equatable {
+    case unchanged, fine, suppressed
+}
+
 struct PreciseVolumeRollerGate {
     var minimumSpacing: TimeInterval = 0.03
     var reversalWindow: TimeInterval = 0.30

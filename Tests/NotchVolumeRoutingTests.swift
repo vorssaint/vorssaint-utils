@@ -64,10 +64,15 @@ enum NotchVolumeRoutingTests {
         static func showMonitorFeedback() { NotchService.shared.showCurrentVolume() }
         var notchKeyGate = NotchVolumeKeyGate()
         var gate = PreciseVolumeRollerGate()
+        var keyOwnership = PreciseVolumeKeyOwnership()
+        var nativeOutputKeysHeld: [Int32: NativeVolumeKeyPress] = [:]
+        var pendingNotchKeys = 0
         var feedbackStep = 0
         var feedback: (key: Int32, step: Int, released: Bool, applied: Bool)?
         static var forwardedReleases: [Int32] = []
         static func postForwardedRelease(_ code: Int32) { forwardedReleases.append(code) }
+        static var fineSteps: [Int32] = []
+        static func postFineStep(_ code: Int32) { fineSteps.append(code) }
         func playFeedbackIfReady() {}
     }
 
@@ -81,6 +86,7 @@ enum NotchVolumeRoutingTests {
             AppVolumeMixer.shared = MixerOutputAdjustmentContract.Mixer()
             AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
             Service.forwardedReleases = []
+            Service.fineSteps = []
             NotchService.shared.shownLevels = []
             return Service()
         }
@@ -96,6 +102,124 @@ enum NotchVolumeRoutingTests {
         }
 
         var service = reset()
+        let tap = [0x0a00, 0x0b00]
+        let fullPress = [0x0a00, 0x0a01, 0x0b00]
+        let fineFlags: CGEventFlags = [.maskAlternate, .maskShift]
+        func route(_ key: PreciseVolumeMediaKey, states: [Int], flags: CGEventFlags = [])
+            -> (consumed: [Bool], events: [CGEvent]) {
+            var events = [CGEvent]()
+            let consumed = states.map { state in
+                let event = CGEvent()
+                event.flags = flags
+                events.append(event)
+                return service.routeVolumeKey(NSEvent(data1: Int(key.rawValue) << 16 | state), event: event)
+            }
+            return (consumed, events)
+        }
+        func checkLearnedNativeKeys() {
+            let priorWrites = Hardware.writes
+            let priorReleases = Service.forwardedReleases
+            let priorQueries = Hardware.queries
+            UserDefaults.precise = true
+            service.gate.minimumSpacing = -1
+            service.gate.reversalWindow = 0
+            let down = route(.volumeUp, states: [0x0a00])
+            UserDefaults.precise = false
+            let held = route(.volumeUp, states: [0x0a01, 0x0b00])
+            UserDefaults.precise = true
+            let mute = route(.mute, states: tap)
+            drain()
+            suite.expect(down.consumed == [false] && held.consumed == [false, false]
+                         && (down.events + held.events).allSatisfy { $0.flags == fineFlags && $0.posts == 0 && $0.marker == nil },
+                         "known native volume keeps fine modifiers through release even when the roller is turned off")
+            suite.expect(mute.consumed == [false, false]
+                         && mute.events.allSatisfy { $0.flags.isEmpty && $0.posts == 0 && $0.marker == nil },
+                         "known native mute keeps its original down and up without fine modifiers")
+            suite.expect(Hardware.writes == priorWrites && Hardware.queries == priorQueries
+                         && Service.forwardedReleases == priorReleases && Service.fineSteps.isEmpty
+                         && NotchService.shared.shownLevels.isEmpty,
+                         "later native keys neither repeat the failed plan nor enqueue synthetic feedback")
+        }
+
+        Hardware.requiresQuantizedKeys = true
+        Hardware.supportsScalarConversion = false
+        let mixer = AppVolumeMixer.shared
+        mixer.selectOutput(1, volume: nil, muted: false)
+        suite.expect(!mixer.prefersNativeOutputKey(.volumeUp),
+                     "a mute-only device is not classified as having adjustable virtual volume")
+        mixer.selectOutput(1, volume: 0.5, muted: false)
+        let nativeUp = route(.volumeUp, states: fullPress)
+        suite.expect(nativeUp.consumed == [false, false, false],
+                     "virtual-only USB leaves the first physical down, repeat and release to macOS")
+        drain()
+        suite.expect(nativeUp.events.allSatisfy { $0.posts == 0 && $0.flags.isEmpty && $0.marker == nil }
+                     && Service.forwardedReleases.isEmpty && Service.fineSteps.isEmpty
+                     && Hardware.writes.isEmpty && Hardware.queries.isEmpty
+                     && mixer.systemOutputVolume == 0.5 && NotchService.shared.shownLevels.isEmpty,
+                     "native keys do not synthesize a pair, plan a write or announce an unobserved level")
+        Hardware.volume = 0.5625
+        mixer.readSnapshot(volume: 0.5625, muted: false)
+        suite.expect(mixer.systemOutputVolume == 0.5625,
+                     "the late native level reaches the mixer after the physical key")
+
+        UserDefaults.precise = true
+        let physicalFine = route(.volumeDown, states: fullPress, flags: fineFlags)
+        suite.expect(physicalFine.consumed == [false, false, false]
+                     && physicalFine.events.allSatisfy { $0.flags == fineFlags && $0.posts == 0 },
+                     "an Option-Shift physical press stays native with the precise roller enabled")
+        service.gate.minimumSpacing = -1
+        service.gate.reversalWindow = 0
+        let roller = route(.volumeUp, states: fullPress)
+        drain()
+        suite.expect(roller.consumed == [false, false, false]
+                     && roller.events.allSatisfy { $0.flags == fineFlags && $0.posts == 0 }
+                     && Service.fineSteps.isEmpty && Service.forwardedReleases.isEmpty
+                     && Hardware.writes.isEmpty && NotchService.shared.shownLevels.isEmpty,
+                     "the roller applies fine modifiers to each original native event without a synthetic pair")
+
+        service.gate.minimumSpacing = .infinity
+        let suppressed = route(.volumeUp, states: fullPress)
+        suite.expect(suppressed.consumed == [true, true, true] && Service.fineSteps.isEmpty,
+                     "a roller down rejected for spacing also consumes its repeats and release")
+
+        UserDefaults.precise = false
+        suite.expect(route(.mute, states: tap).consumed == [true, true],
+                     "a separate USB mute control remains available to the island")
+        drain()
+        suite.expect(Hardware.muted == true && NotchService.shared.shownLevels == [0],
+                     "mute confirms independently of volume-step support")
+        mixer.requestOutputAdjustment(volume: 0.375)
+        drain()
+        suite.expect(Hardware.volume == 0.375 && Hardware.scalarWrites == 0 && mixer.systemOutputVolume == 0.375,
+                     "the slider still sets the virtual main volume directly")
+
+        suite.expect(route(.volumeDown, states: [0x0a00]).consumed == [false],
+                     "the virtual-only output starts a native hold before the device switches")
+        Hardware.device = 2
+        Hardware.requiresQuantizedKeys = false
+        Hardware.volume = 0.5
+        Hardware.muted = false
+        mixer.selectOutput(2, volume: 0.5, muted: false)
+        suite.expect(route(.volumeDown, states: [0x0a01, 0x0b00]).consumed == [false, false],
+                     "a new output leaves the native hold's repeat and release with macOS")
+        suite.expect(route(.volumeUp, states: tap).consumed == [true, true],
+                     "selecting an ordinary output restores island key ownership")
+        drain()
+        suite.expect(Hardware.volume == 0.5625 && NotchService.shared.shownLevels.last == 0.5625,
+                     "the replacement output applies and announces its first ordinary step")
+
+        service = reset()
+        let pendingPress = route(.volumeDown, states: tap)
+        suite.expect(pendingPress.consumed == [true, true],
+                     "the island claims the press on the initial output")
+        Hardware.device = 2
+        AppVolumeMixer.shared.selectOutput(2, volume: 0.5, muted: false)
+        drain()
+        suite.expect(Hardware.writes.isEmpty && pendingPress.events.allSatisfy { $0.posts == 0 }
+                     && NotchService.shared.shownLevels.isEmpty,
+                     "a device switch before dispatch cannot apply or replay the old press on the new output")
+
+        service = reset()
         let lostMute = CGEvent()
         suite.expect(press(.mute, service: service, event: lostMute), "supported mute is accepted before dispatch")
         AppVolumeMixer.shared.systemOutputMuted = nil
@@ -180,19 +304,28 @@ enum NotchVolumeRoutingTests {
                      "one fine USB key leaves muted stored volume at the first audible step and announces it")
 
         service = reset()
+        Hardware.requiresQuantizedKeys = true
+        Hardware.quantizes = { ($0 * 8).rounded() / 8 }
         Hardware.accepts = { _ in 0.5 }
-        let ignoredKey = CGEvent()
-        _ = press(.volumeDown, service: service, event: ignoredKey)
+        AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
+        let ignoredKey = route(.volumeDown, states: tap)
         drain()
-        suite.expect(ignoredKey.posts == 0 && Service.forwardedReleases.isEmpty
+        suite.expect(ignoredKey.consumed == [true, true] && ignoredKey.events.allSatisfy { $0.posts == 0 }
+                     && Service.forwardedReleases.isEmpty
                      && Hardware.writes.compactMap(\.volume).count == 1
                      && NotchService.shared.shownLevels.isEmpty,
                      "an unconfirmed successful write is neither escalated nor replayed and shows no false confirmation")
         suite.expect(AppVolumeMixer.shared.systemOutputVolume == 0.5,
                      "an ignored key leaves the last confirmed volume published")
+        checkLearnedNativeKeys()
+        Hardware.volume = 0.375
+        AppVolumeMixer.shared.readSnapshot(volume: 0.375, muted: false)
+        suite.expect(AppVolumeMixer.shared.systemOutputVolume == 0.375 && Hardware.writes.count == 1,
+                     "a late USB acknowledgement is published without reapplying the unconfirmed key")
 
         service = reset()
         Hardware.requiresQuantizedKeys = true
+        AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
         Hardware.supportsScalarConversion = false
         let unsupportedPlan = CGEvent()
         _ = press(.volumeUp, service: service, event: unsupportedPlan)
@@ -200,11 +333,12 @@ enum NotchVolumeRoutingTests {
         suite.expect(Hardware.writes.isEmpty && unsupportedPlan.posts == 1
                      && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
                      && NotchService.shared.shownLevels.isEmpty,
-                     "an output without a safe volume plan receives native handling before any hardware write")
+                     "a volume control lost after the snapshot receives native handling before any hardware write")
 
         service = reset()
         UserDefaults.precise = true
         Hardware.requiresQuantizedKeys = true
+        AppVolumeMixer.shared.selectOutput(1, volume: 0.5, muted: false)
         Hardware.supportsScalarConversion = false
         let preciseFallback = CGEvent()
         _ = press(.volumeUp, service: service, event: preciseFallback)
@@ -213,7 +347,7 @@ enum NotchVolumeRoutingTests {
                      && preciseFallback.flags.contains([.maskAlternate, .maskShift])
                      && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
                      && NotchService.shared.shownLevels.isEmpty,
-                     "unsupported USB native fallback preserves a precise roller's fine step with one press and release")
+                     "a USB control lost after the snapshot forwards the precise step with one press and release")
 
         service = reset()
         UserDefaults.precise = true
@@ -226,15 +360,42 @@ enum NotchVolumeRoutingTests {
                      && Service.forwardedReleases == [PreciseVolumeMediaKey.mute.rawValue],
                      "precise roller mode adds no fine-step modifiers to a native mute fallback")
 
-        service = reset()
-        Hardware.requiresQuantizedKeys = true
-        let continuousConversion = CGEvent()
-        _ = press(.volumeUp, service: service, event: continuousConversion)
-        drain()
-        suite.expect(Hardware.writes.isEmpty && continuousConversion.posts == 1
-                     && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
-                     && NotchService.shared.shownLevels.isEmpty,
-                     "a continuous USB conversion receives native handling without treating equivalence as a hardware step")
+        for missingConversion in [false, true] {
+            service = reset()
+            Hardware.requiresQuantizedKeys = true
+            if missingConversion { Hardware.quantizes = { _ in nil } }
+            let selected = AppVolumeMixer.shared
+            selected.selectOutput(1, volume: 0.5, muted: false)
+            let firstDown = route(.volumeUp, states: [0x0a00])
+            drain()
+            let firstUp = route(.volumeUp, states: [0x0b00])
+            suite.expect(firstDown.consumed == [true] && firstDown.events[0].posts == 1
+                         && firstUp.consumed == [true] && firstUp.events[0].posts == 0
+                         && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue]
+                         && Hardware.writes.isEmpty && NotchService.shared.shownLevels.isEmpty,
+                         "a missing or continuous conversion forwards the first intercepted press once and owns its release")
+            var sliderConfirmed = false
+            selected.requestOutputAdjustment(volume: 0.375) { sliderConfirmed = $0 }
+            let queued = route(.volumeDown, states: tap)
+            suite.expect(queued.consumed == [true, true] && queued.events[0].posts == 0 && !sliderConfirmed,
+                         "a known native key waits behind a slider write in the same output lifetime")
+            drain()
+            suite.expect(sliderConfirmed && Hardware.volume == 0.375 && queued.events[0].posts == 1
+                         && Service.forwardedReleases == [PreciseVolumeMediaKey.volumeUp.rawValue,
+                                                         PreciseVolumeMediaKey.volumeDown.rawValue],
+                         "the queued fallback is forwarded once after the slider finishes")
+            checkLearnedNativeKeys()
+
+            UserDefaults.precise = false
+            Hardware.requiresQuantizedKeys = false
+            Hardware.volume = 0.5
+            selected.selectOutput(1, volume: 0.5, muted: false)
+            let renewed = route(.volumeDown, states: tap)
+            drain()
+            suite.expect(renewed.consumed == [true, true] && Hardware.volume == 0.4375
+                         && NotchService.shared.shownLevels == [0.4375],
+                         "a new lifetime revalidates a reused device ID before intercepting a fresh press")
+        }
 
         service = reset()
         Hardware.requiresQuantizedKeys = true
