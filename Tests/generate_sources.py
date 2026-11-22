@@ -2040,6 +2040,14 @@ def main():
     click_names = ["clickCard", "clickPreview", "clickTitle", "clickAppIcon", "clickWindowIcon"]
     if len(click_bodies) != len(click_names):
         raise ValueError("Expected all five switcher click callbacks")
+    # Keep the real failure and publication paths on either side of port creation.
+    worker = declaration(switcher_service, "    private func runEventTap()")
+    registration = "userInfo: Unmanaged.passUnretained(self).toOpaque()\n            ) else {\n"
+    source_created = "let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)\n"
+    attach_source = "            CFRunLoopAddSource("
+    if any(worker.count(anchor) != 1 for anchor in (registration, source_created, attach_source)):
+        raise ValueError("Expected one switcher tap publication before the run loop starts")
+    publish_tap = worker.split(registration)[1].split(attach_source)[0]
     write("SwitcherHoverSelection.swift", "import AppKit\nimport Combine\n"
           + "extension SwitcherHoverSelectionTests {\n"
           + declaration(switcher_service, "private struct SwitcherSourceContext").replace("private struct", "struct", 1)
@@ -2051,8 +2059,14 @@ def main():
               .replace("CFMachPortIsValid(", "Tap.isValid(")
           + declaration(switcher_service, "    private var isTapLive:").replace("private var", "var", 1)
               .replace("CFMachPortIsValid(", "Tap.isValid(").replace("CGEvent.tapIsEnabled(", "Tap.isEnabled(")
+          + declaration(switcher_service, "    private func removeTap(").replace("private func", "func", 1)
+              .replace("CGEvent.tapEnable(", "Tap.enable(")
+          + "func runEventTap() {\nguard let tap = createPort() else {\n"
+          + publish_tap.replace(source_created, "let source: CFRunLoopSource? = nil\n")
+          + "tap.enabled = true\nstartedTaps += 1\n}\n"
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
+                                   "    private func installTap(", "    private func finishEventTapThread(", "    func suspend(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
                                    "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",

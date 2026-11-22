@@ -96,6 +96,7 @@ final class AppSwitcher: ObservableObject {
     private var tapThread: Thread?
     private var shouldStopTapThread = false
     private var pendingStartAfterStop = false
+    private var tapLifecycleGeneration: UInt = 0
     /// Alive only while the Switcher's tap needs layout labels off main.
     private var keyboardLayoutObserver: NSObjectProtocol?
     /// Registered only while the switcher takes macOS's keys over.
@@ -420,6 +421,7 @@ final class AppSwitcher: ObservableObject {
             }
             shouldStopTapThread = false
             pendingStartAfterStop = false
+            tapLifecycleGeneration &+= 1
             let thread = Thread { [weak self] in
                 self?.runEventTap()
             }
@@ -433,6 +435,7 @@ final class AppSwitcher: ObservableObject {
 
     private func removeTap() {
         if sessionActive { cancelSession() }
+        swallowingMiddleMouseUp = false
         routeLock.withLock { routePendingSessionStart = nil }
         invalidateSecureInputReplays()
         unregisterSecureInputActionHotKeys()
@@ -440,6 +443,7 @@ final class AppSwitcher: ObservableObject {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
             pendingStartAfterStop = false
+            tapLifecycleGeneration &+= 1
             return (tapRunLoop, tap, tapThread != nil)
         }
         if let tap = snapshot.tap {
@@ -465,7 +469,7 @@ final class AppSwitcher: ObservableObject {
 
             let shouldStopBeforeCreatingTap = lifecycleLock.withLock { shouldStopTapThread }
             guard !shouldStopBeforeCreatingTap else {
-                if clearEventTapThread() { installTap() }
+                finishEventTapThread()
                 return
             }
 
@@ -488,10 +492,7 @@ final class AppSwitcher: ObservableObject {
                 },
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             ) else {
-                _ = clearEventTapThread()
-                // Without a tap there is nothing to replace ⌘Tab, so give the
-                // system switcher back rather than leaving the shortcut dead.
-                DispatchQueue.main.async { [weak self] in self?.restoreNativeHotkeys() }
+                finishEventTapThread(creationFailed: true)
                 return
             }
 
@@ -517,7 +518,7 @@ final class AppSwitcher: ObservableObject {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
             CFMachPortInvalidate(tap)
-            if clearEventTapThread() { installTap() }
+            finishEventTapThread()
         }
     }
 
@@ -769,8 +770,8 @@ final class AppSwitcher: ObservableObject {
         CFRunLoopWakeUp(runLoop)
     }
 
-    private func clearEventTapThread() -> Bool {
-        lifecycleLock.withLock {
+    private func finishEventTapThread(creationFailed: Bool = false) {
+        let completion = lifecycleLock.withLock { () -> (shouldRestart: Bool, generation: UInt) in
             let shouldRestart = pendingStartAfterStop
             tap = nil
             runLoopSource = nil
@@ -778,7 +779,17 @@ final class AppSwitcher: ObservableObject {
             tapThread = nil
             shouldStopTapThread = false
             pendingStartAfterStop = false
-            return shouldRestart
+            return (shouldRestart, tapLifecycleGeneration)
+        }
+        guard creationFailed || completion.shouldRestart else { return }
+        DispatchQueue.main.async { [weak self] in
+            // A suspension or a new install supersedes work left by this thread.
+            guard let self, self.lifecycleLock.withLock({ self.tapLifecycleGeneration == completion.generation })
+            else { return }
+            if creationFailed { self.restoreNativeHotkeys() }
+            if completion.shouldRestart, self.routeLock.withLock({ self.routeCanStartSession }), self.tapIsWanted {
+                self.installTap()
+            }
         }
     }
 
