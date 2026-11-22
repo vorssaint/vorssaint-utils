@@ -43,6 +43,7 @@ extension FeatureStrings {
     static func killProcess(_ language: AppLanguage) -> KillProcessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -554,5 +555,38 @@ extension KillProcessFeatureStrings {
         killFailedTitle: "Не вдалося завершити процес",
         killFailedMessage: "Процес, можливо, вже завершився або потребує додаткових привілеїв.",
         adminPromptFormat: "Vorssaint потрібен адміністративний доступ для завершення «%@»."
+    )
+
+    static let idID = KillProcessFeatureStrings(
+        pageTitle: "Hentikan Proses",
+        browseSubtitle: "Telusuri & Hentikan",
+        hubDescription: "Cari proses yang sedang berjalan lalu paksa keluar, mulai ulang, atau hentikan pohon proses",
+        searchPlaceholder: "Filter menurut nama",
+        columnProcess: "Proses",
+        columnCPU: "CPU",
+        columnMemory: "Memori",
+        columnPID: "PID",
+        groupToggle: "Kelompokkan proses terkait",
+        groupCaption: "Mengelompokkan proses pembantu di bawah app yang menjalankannya.",
+        commandBarToggle: "Tampilkan di Command Bar",
+        commandBarCaption: "Menambahkan proses yang berjalan ke Command Bar, sehingga kamu bisa mencari dan menghentikannya tanpa membuka Pengaturan.",
+        refreshTooltip: "Refresh",
+        pidLabelFormat: "PID %d",
+        processCountFormat: "Proses: %d",
+        killButton: "Hentikan",
+        forceKillButton: "Hentikan paksa",
+        killAllFormat: "Hentikan semua “%@”",
+        killTreeButton: "Hentikan pohon proses",
+        restartButton: "Mulai ulang",
+        copyPID: "Salin PID",
+        copyPath: "Salin jalur",
+        emptyStateTitle: "Proses tidak ditemukan",
+        confirmKillFormat: "Hentikan %@?",
+        confirmForceKillFormat: "Hentikan paksa %@?",
+        confirmKillAllFormat: "Hentikan semua proses “%@”?",
+        confirmKillTreeFormat: "Hentikan %@ beserta semua proses turunannya?",
+        killFailedTitle: "Gagal menghentikan proses",
+        killFailedMessage: "Proses mungkin sudah berhenti atau memerlukan hak akses tambahan.",
+        adminPromptFormat: "Vorssaint membutuhkan akses administrator untuk menghentikan “%@”."
     )
 }

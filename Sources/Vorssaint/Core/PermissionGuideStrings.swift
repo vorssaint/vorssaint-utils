@@ -27,6 +27,7 @@ extension FeatureStrings {
     static func permissionGuide(_ language: AppLanguage) -> PermissionGuideStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -240,5 +241,18 @@ extension PermissionGuideStrings {
         staleHint: "清單裡已經開啟了？那筆項目屬於此 App 的早期副本。重新開始以取代它。",
         startOver: "重新開始",
         relaunch: "重新啟動以套用"
+    )
+
+    static let idID = PermissionGuideStrings(
+        title: "Tinggal satu langkah",
+        stepOpen: "macOS sudah membuka Pengaturan Sistem pada daftar yang tepat.",
+        stepToggle: "Nyalakan Vorssaint di daftar tersebut.",
+        stepReturn: "Kembali ke sini. Kartu ini akan mendeteksinya otomatis.",
+        waiting: "Menunggu izin…",
+        granted: "Izin diberikan!",
+        closeHelp: "Tutup",
+        staleHint: "Sudah menyala di daftar itu? Entri tersebut milik salinan app sebelumnya. Mulai ulang langkahnya untuk menggantinya.",
+        startOver: "Mulai ulang langkah",
+        relaunch: "Buka ulang untuk menerapkan"
     )
 }

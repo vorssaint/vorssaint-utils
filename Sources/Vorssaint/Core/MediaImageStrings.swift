@@ -65,6 +65,7 @@ struct MediaImageConverterStrings {
     static func localized(_ language: AppLanguage) -> MediaImageConverterStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -980,6 +981,66 @@ extension MediaImageConverterStrings {
         batchSavedFormat: "Збережено зображень: %d",
         batchPartialFormat: "Збережено: %d, не вдалося: %d",
         batchSummaryHeaderFormat: "Збережено: %d, не вдалося: %d",
+        batchSummaryItemFormat: "%@ -> %@"
+    )
+
+    static let idID = MediaImageConverterStrings(
+        filesSelectedFormat: "%d file dipilih",
+        profile: "Profil",
+        noProfile: "Tanpa profil",
+        profileName: "Nama profil",
+        saveAsNew: "Simpan baru",
+        updateProfile: "Perbarui",
+        deleteProfile: "Hapus profil",
+        profileModified: "Diubah",
+        profileDefaultNameFormat: "Profil %d",
+        presetWeb: "Web",
+        presetSocial: "Sosial",
+        presetDocs: "Dokumen",
+        resize: "Ubah ukuran",
+        resizeNone: "Tanpa perubahan",
+        resizeMax: "Sisi terpanjang",
+        resizeWidth: "Lebar",
+        resizeHeight: "Tinggi",
+        resizeExact: "Kustom",
+        exactStretch: "Rentangkan",
+        exactFit: "Paskan",
+        exactFill: "Isi penuh",
+        height: "Tinggi",
+        watermark: "Watermark",
+        watermarkOff: "Mati",
+        watermarkText: "Teks",
+        watermarkLogo: "Logo",
+        watermarkBoth: "Teks + logo",
+        watermarkTextPlaceholder: "Teks watermark",
+        noLogo: "Tanpa logo",
+        chooseLogo: "Pilih logo",
+        position: "Posisi",
+        topLeft: "Kiri atas",
+        topRight: "Kanan atas",
+        center: "Tengah",
+        bottomLeft: "Kiri bawah",
+        bottomRight: "Kanan bawah",
+        opacity: "Opasitas",
+        margin: "Margin",
+        scale: "Skala",
+        rename: "Ganti nama",
+        preview: "Pratinjau",
+        outputName: "Hasil",
+        background: "Latar",
+        backgroundTransparent: "Transparan",
+        backgroundWhite: "Putih",
+        backgroundBlack: "Hitam",
+        preserveDate: "Pertahankan tanggal ubah asli",
+        saveInSubfolder: "Simpan di subfolder “Converted”",
+        moreOptions: "Opsi lainnya",
+        tooLarge: "Dimensi ini terlalu besar untuk diproses dengan aman. Pilih ukuran yang lebih kecil.",
+        copySummary: "Salin ringkasan",
+        savedBytesFormat: "Hemat %@",
+        grewBytesFormat: "%@ lebih besar",
+        batchSavedFormat: "%d gambar disimpan",
+        batchPartialFormat: "%d disimpan, %d gagal",
+        batchSummaryHeaderFormat: "%d disimpan, %d gagal",
         batchSummaryItemFormat: "%@ -> %@"
     )
 }

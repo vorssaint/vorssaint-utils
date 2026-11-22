@@ -12,6 +12,9 @@ extension FeatureStrings {
         case .enUS:
             return .init(allWindows: "All windows",
                          allWindowsCaption: "Use a separate shortcut to cycle through windows from all apps in any layout. Your window filters still apply.")
+        case .idID:
+            return .init(allWindows: "Semua jendela",
+                         allWindowsCaption: "Gunakan shortcut terpisah untuk berpindah antarjendela dari semua app di tata letak mana pun. Filter jendelamu tetap berlaku.")
         case .ptBR:
             return .init(allWindows: "Todas as janelas",
                          allWindowsCaption: "Use um atalho separado para percorrer janelas de todos os apps em qualquer layout. Os filtros de janelas continuam valendo.")

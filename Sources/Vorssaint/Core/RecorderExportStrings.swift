@@ -17,6 +17,10 @@ extension FeatureStrings {
             return RecorderExportStrings(
                 speed: "Export speed", custom: "Custom speed", duration: "Export duration",
                 previewNote: "Applies to video, GIF and shared links. The editing preview stays at 1×; the original recording is unchanged.")
+        case .idID:
+            return RecorderExportStrings(
+                speed: "Kecepatan ekspor", custom: "Kecepatan kustom", duration: "Durasi ekspor",
+                previewNote: "Berlaku untuk video, GIF, dan link yang dibagikan. Pratinjau pengeditan tetap 1×; rekaman asli tidak berubah.")
         case .ptBR:
             return RecorderExportStrings(
                 speed: "Velocidade de exportação", custom: "Velocidade personalizada", duration: "Duração exportada",

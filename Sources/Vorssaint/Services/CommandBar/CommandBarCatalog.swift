@@ -1326,6 +1326,8 @@ enum CommandBarCatalog {
     private static func dateAnswerEntries(bar: CommandBarFeatureStrings) -> [CommandBarEntry] {
         let now = Date()
         let longDate = DateFormatter()
+        // Only the subtitle someone reads; the copied values keep the Mac's own format.
+        longDate.locale = L10n.shared.language.formattingLocale()
         longDate.dateStyle = .full
         longDate.timeStyle = .none
         let shortDate = DateFormatter()

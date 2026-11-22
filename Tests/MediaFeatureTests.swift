@@ -260,7 +260,7 @@ enum MediaFeatureTests {
         let sizeTargetStrings: [(String, Strings)] = [
             ("en-US", .enUS), ("pt-BR", .ptBR), ("tr", .tr), ("ru", .ru), ("es", .es),
             ("de", .de), ("fr", .fr), ("it", .it), ("ja", .ja), ("ko", .ko),
-            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW),
+            ("zh-Hans", .zhHans), ("zh-HK", .zhHK), ("zh-TW", .zhTW), ("id-ID", .idID),
         ]
         for (name, strings) in sizeTargetStrings {
             suite.expect(!strings.mediaSizingResolution.isEmpty
@@ -498,6 +498,8 @@ enum MediaFeatureTests {
                "Media OCR maps Taiwan Chinese to Vision traditional Chinese")
         suite.expect(MediaSupport.recognitionLanguages(for: "zh-HK") == ["zh-Hant", "en-US"],
                "Media OCR maps Hong Kong Chinese to Vision traditional Chinese")
+        suite.expect(MediaSupport.recognitionLanguages(for: "id") == ["id-ID", "en-US"],
+               "Media OCR language defaults include Indonesian and English")
         scratchPaths.forEach { try? FileManager.default.removeItem(at: $0) }
     }
 }

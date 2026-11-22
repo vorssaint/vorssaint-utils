@@ -18,12 +18,32 @@ struct CommandBarView: View {
     /// everywhere: the maths is language-free, the conversion parser already
     /// takes each language's own word for "to", and the emoji names come from
     /// Unicode, which spells them in English on purpose.
-    static func examples(_ text: CommandBarFeatureStrings) -> [String] {
-        var examples = ["100 km to mi", "2+2*3"]
+    ///
+    /// Indonesian writes the conversion with its own "ke" and shows an emoji
+    /// whose English name is also the Indonesian word, so every chip reads in
+    /// the interface's language and still runs as typed.
+    static func examples(_ text: CommandBarFeatureStrings,
+                         language: AppLanguage = L10n.shared.language) -> [String] {
+        let indonesian = language == .idID
+        var examples = [indonesian ? "100 km ke mi" : "100 km to mi", "2+2*3"]
         if PowerSampler.hasInternalBattery {
             examples.append(text.answerBatteryLabel.lowercased())
         }
-        examples.append("fire")
+        examples.append(indonesian ? "robot" : "fire")
+        return examples
+    }
+
+    /// The Settings page also shows the brightness row taking a value, written
+    /// with the row's own word in Indonesian.
+    static func settingsExamples(_ text: CommandBarFeatureStrings,
+                                 language: AppLanguage = L10n.shared.language) -> [String] {
+        let indonesian = language == .idID
+        var examples = [indonesian ? "100 km ke mi" : "100 km to mi", "2+2*3",
+                        indonesian ? "kecerahan 40" : "brightness 40",
+                        indonesian ? "robot" : "fire"]
+        if PowerSampler.hasInternalBattery {
+            examples.append(text.answerBatteryLabel.lowercased())
+        }
         return examples
     }
     /// As tall as the list is ever allowed to be, so the panel never grows

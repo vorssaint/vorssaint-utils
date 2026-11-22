@@ -29,6 +29,7 @@ extension FeatureStrings {
     static func backup(_ language: AppLanguage) -> BackupFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -332,5 +333,19 @@ extension BackupFeatureStrings {
         configFileConfirmTitle: "要儲存到設定檔嗎?",
         configFileConfirmFormat: "而家所有設定會寫入 %@,如果檔案已經存在就會被取代。Vorssaint 每次啟動都會套用呢個檔案,所以喺呢度改完設定之後要再儲存一次。",
         configFileAction: "儲存"
+    )
+
+    static let idID = BackupFeatureStrings(
+        title: "Cadangan",
+        description: "Bawa pengaturanmu ke Mac lain: ekspor semua preferensi ke file lalu impor di sana. Isi Catatan cepat, riwayat clipboard, item Rak file, dan izin sistem tidak pernah keluar dari Mac ini.",
+        exportButton: "Ekspor pengaturan…",
+        importButton: "Impor pengaturan…",
+        exported: "Cadangan tersimpan",
+        exportFailed: "Gagal menyimpan cadangan.",
+        importConfirmTitle: "Impor pengaturan ini?",
+        importConfirmBody: "Pengaturan saat ini akan diganti dengan isi file dan app dimulai ulang. Hal lain di Mac ini tidak disentuh.",
+        importMissingIslandBody: "Cadangan ini tidak berisi pengaturan Dynamic Island. Pengaturan Dynamic Island di Mac ini tetap dipertahankan. Ekspor ulang dengan Vorssaint 3.4 atau lebih baru di Mac satunya untuk menyalinnya. Pengaturan lain akan diimpor lalu app dimulai ulang.",
+        importAction: "Impor dan mulai ulang",
+        invalidFile: "File ini bukan cadangan Vorssaint yang valid."
     )
 }

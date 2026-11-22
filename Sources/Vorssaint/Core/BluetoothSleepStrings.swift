@@ -20,6 +20,7 @@ extension FeatureStrings {
     static func bluetoothSleep(_ language: AppLanguage) -> BluetoothSleepStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -186,5 +187,15 @@ extension BluetoothSleepStrings {
         restoreToggle: "Ввімкнути Bluetooth назад, коли Mac прокидається",
         restoreCaption: "Лише коли Vorssaint сам його вимкнув.",
         unsupported: "На цьому Mac немає Bluetooth-контролера."
+    )
+
+    static let idID = BluetoothSleepStrings(
+        pageTitle: "Bluetooth saat tidur",
+        hubDescription: "Mematikan Bluetooth saat Mac tidur agar headphone di dalam tas berhenti tersambung.",
+        enable: "Matikan Bluetooth saat Mac tidur",
+        enableCaption: "Bluetooth yang sudah mati sebelum tidur dibiarkan apa adanya dan tetap mati saat Mac bangun.",
+        restoreToggle: "Nyalakan kembali Bluetooth saat Mac bangun",
+        restoreCaption: "Hanya jika Vorssaint yang mematikannya.",
+        unsupported: "Mac ini tidak memiliki pengontrol Bluetooth."
     )
 }

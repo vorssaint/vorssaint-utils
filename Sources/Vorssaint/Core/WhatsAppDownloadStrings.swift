@@ -48,6 +48,7 @@ struct WhatsAppDownloadStrings {
     static func localized(_ language: AppLanguage) -> WhatsAppDownloadStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .es: return .es
         case .sk: return .sk
@@ -509,6 +510,13 @@ extension WhatsAppDownloadStrings {
             lastRunFormat: enUS.lastRunFormat, nextRunFormat: enUS.nextRunFormat,
             firstMessageFormat: enUS.firstMessageFormat, localNote: enUS.localNote,
             notificationFormat: enUS.notificationFormat, scanFailed: enUS.scanFailed, manageButton: enUS.manageButton)
+        case .idID: return OperationalStrings(
+            automaticCaption: idID.automaticCaption, retentionCaption: idID.retentionCaption,
+            manualIntro: idID.manualIntro, resultsFormat: idID.resultsFormat,
+            selectRules: idID.selectRules, cleanSelectedFormat: idID.cleanSelectedFormat,
+            lastRunFormat: idID.lastRunFormat, nextRunFormat: idID.nextRunFormat,
+            firstMessageFormat: idID.firstMessageFormat, localNote: idID.localNote,
+            notificationFormat: idID.notificationFormat, scanFailed: idID.scanFailed, manageButton: idID.manageButton)
         case .ptBR: return OperationalStrings(
             automaticCaption: ptBR.automaticCaption, retentionCaption: ptBR.retentionCaption,
             manualIntro: ptBR.manualIntro, resultsFormat: ptBR.resultsFormat,
@@ -602,5 +610,48 @@ extension WhatsAppDownloadStrings {
         notificationFormat: "Переміщено в Смітник: %1$d (%2$@). Не вдалося: %3$d.",
         scanFailed: "Не вдалося перевірити папку «Викачане». Перевірте «Файли та папки» в Системних параметрах.",
         manageButton: "Керувати…"
+    )
+
+    static let idID = WhatsAppDownloadStrings(
+        title: "Unduhan WhatsApp",
+        hubDescription: "Menjaga file WhatsApp di Unduhan tetap terkendali",
+        intro: "Menemukan file yang dikonfirmasi macOS berasal dari WhatsApp. Isi file dan obrolan tidak pernah dibaca.",
+        automatic: "Bersihkan otomatis",
+        automaticCaption: "Memeriksa sekali sehari dan memindahkan file yang cocok serta melebihi batas waktu ke Sampah.",
+        folder: "Folder yang dipantau",
+        accessReady: "Unduhan bisa diakses",
+        accessDenied: "Vorssaint tidak bisa mengakses Unduhan. Izinkan di File & Folder.",
+        fileTypes: "Jenis file",
+        allTypes: "Semua",
+        image: "Gambar",
+        video: "Video",
+        audio: "Audio dan pesan suara",
+        document: "Dokumen",
+        archive: "Arsip",
+        other: "Lainnya",
+        retention: "Simpan selama",
+        retentionCaption: "File yang baru diedit menunggu masa penuh dari awal lagi.",
+        daysFormat: "%d hari",
+        manualIntro: "Pindai kapan saja. Pilihan awal mengikuti jenis dan batas umur pilihanmu; kamu bisa meninjau setiap file yang terkonfirmasi.",
+        noFiles: "Tidak ditemukan file WhatsApp terkonfirmasi di Unduhan.",
+        resultsFormat: "%1$d file terkonfirmasi · %2$@",
+        selectRules: "Pilih sesuai aturanku",
+        cleanSelectedFormat: "Pindahkan %1$d ke Sampah · %2$@",
+        keep: "Simpan",
+        manageAgain: "Kelola lagi",
+        activity: "Aktivitas",
+        neverRun: "Belum ada pembersihan yang dijalankan.",
+        lastRunFormat: "Pembersihan terakhir %@: %d file · %@ · %d gagal",
+        nextRunFormat: "Pemeriksaan otomatis berikutnya %@.",
+        firstTitle: "Bagaimana dengan file yang sudah ada?",
+        firstMessageFormat: "%d file yang sudah ada cocok dengan aturanmu. Pilih apakah otomatisasi boleh mengelolanya atau hanya unduhan berikutnya.",
+        futureOnly: "Hanya unduhan berikutnya",
+        includeExisting: "Sertakan file yang sudah ada",
+        trashNote: "File dipindahkan ke Sampah dan masih bisa dipulihkan sampai Sampah dikosongkan.",
+        localNote: "Hanya metadata file lokal yang diperiksa. Vorssaint tidak pernah membaca obrolan atau isi file.",
+        notificationTitle: "Pembersihan WhatsApp",
+        notificationFormat: "%1$d file (%2$@) dipindahkan ke Sampah. %3$d gagal.",
+        scanFailed: "Unduhan gagal dipindai. Periksa File & Folder di Pengaturan Sistem.",
+        manageButton: "Kelola…"
     )
 }

@@ -724,6 +724,7 @@ struct UpdatesView: View {
 
     private static func format(_ date: Date) -> String {
         let f = DateFormatter()
+        f.locale = L10n.shared.language.formattingLocale()
         f.dateStyle = .short
         f.timeStyle = .short
         return f.string(from: date)

@@ -62,6 +62,7 @@ extension FeatureStrings {
     static func brightness(_ language: AppLanguage) -> BrightnessFeatureStrings {
         switch language {
         case .enUS: return .enUS
+        case .idID: return .idID
         case .ptBR: return .ptBR
         case .tr: return .tr
         case .ru: return .ru
@@ -858,5 +859,57 @@ extension BrightnessFeatureStrings {
         speakersMinimumCaption: "Зменшення гучності зупиняється тут. Вимкнення звуку все одно глушить монітор.",
         speakersMaximum: "Максимальна гучність",
         speakersMaximumCaption: "Збільшення гучності зупиняється тут."
+    )
+
+    static let idID = BrightnessFeatureStrings(
+        pageTitle: "Layar",
+        hubDescription: "Kontrol kecerahan dan daya untuk setiap layar",
+        enable: "Kontrol layar",
+        enableCaption: "Kontrol kecerahan serta nyala atau mati untuk layar bawaan dan monitor eksternal, di sini maupun di panel bar menu.",
+        externalCaption: "Monitor eksternal diatur lewat protokol yang sama dengan tombol fisiknya. Jika sambungan tidak mendukungnya, seperti pada adaptor HDMI, penggeser akan meredupkan gambar sehingga kontrol kecerahan tetap berfungsi.",
+        noDisplays: "Tidak ada layar yang ditemukan.",
+        displayOff: "Mati",
+        turnOffDisplay: "Matikan layar",
+        turnOnDisplay: "Nyalakan layar",
+        lastDisplayCaption: "Setidaknya satu layar harus tetap menyala.",
+        switchUnavailable: "Pengaturan nyala/mati layar tidak tersedia di Mac ini.",
+        switchFailed: "Gagal mengubah layar ini.",
+        openLidToEnable: "Buka penutup Mac untuk menyalakan layar bawaan.",
+        keysToggle: "Tombol kecerahan mengikuti kursor",
+        keysCaption: "Tombol kecerahan di keyboard mengubah layar tempat kursor berada.",
+        keyStep: "Langkah tombol kecerahan",
+        keyStepCaption: "Langkah perubahan yang lebih halus setiap menekan tombol kecerahan dan shortcut kecerahan layar.",
+        keyStepStandard: "Standar",
+        keyStepHalf: "Setengah langkah",
+        keyStepQuarter: "Seperempat langkah",
+        osdToggle: "Tampilkan kecerahan saat mengatur",
+        osdCaption: "Menampilkan persentase kecerahan saat kamu memakai tombol atau penggeser kecerahan.",
+        displayBrightnessShortcuts: "Gunakan shortcut kecerahan layar",
+        displayBrightnessShortcutCaption: "Shortcut mengatur layar utama, atau layar di bawah kursor saat opsi ikuti kursor menyala.",
+        displayBrightnessDecrease: "Turunkan kecerahan layar",
+        displayBrightnessIncrease: "Naikkan kecerahan layar",
+        keyboardLight: "Lampu keyboard",
+        keyboardLightCaption: "Menyalakan atau mematikan lampu latar keyboard.",
+        volumeToggle: "Speaker monitor",
+        volumeCaption: "Monitor yang memiliki speaker sendiri mendapat penggeser volume di sini melalui jalur yang sama dengan tombol fisiknya. Layar tanpa speaker tidak menampilkannya.",
+        volumeLabel: "Volume",
+        mute: "Bisukan",
+        unmute: "Bunyikan",
+        volumeKeysToggle: "Tombol volume mengatur speaker monitor",
+        volumeKeysCaption: "Selama suara keluar dari monitor, tombol volume di keyboard mengatur monitor tersebut alih-alih level sistem yang terkunci di macOS.",
+        keyboardBrightnessShortcuts: "Gunakan shortcut kecerahan keyboard",
+        keyboardBrightnessDecrease: "Turunkan kecerahan keyboard",
+        keyboardBrightnessIncrease: "Naikkan kecerahan keyboard",
+        softwareDimming: "Redupkan gambar",
+        extendedDimming: "Peredupan ekstra",
+        islandPromptTitle: "Tampilkan kecerahan di Dynamic Island?",
+        islandPromptMessage: "Dynamic Island hanya menampilkan perubahan kecerahan selama “Kontrol layar” menyala di pengaturan Layar.",
+        islandPromptKeepOff: "Biarkan mati",
+        speakersStep: "Langkah volume",
+        speakersStepStandard: "Standar (6,25%)",
+        speakersMinimum: "Volume minimum",
+        speakersMinimumCaption: "Penurunan volume berhenti di batas ini. Bisukan tetap membisukan monitor sepenuhnya.",
+        speakersMaximum: "Volume maksimum",
+        speakersMaximumCaption: "Kenaikan volume berhenti di batas ini."
     )
 }
