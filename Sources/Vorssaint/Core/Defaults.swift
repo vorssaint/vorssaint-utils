@@ -1603,7 +1603,7 @@ enum Defaults {
         DefaultsKey.notchTrackChange: true,
         DefaultsKey.notchMusicActivity: false,
         DefaultsKey.notchShowInCaptures: true,
-        DefaultsKey.notchLockScreen: false,
+        DefaultsKey.notchLockScreen: true,
         DefaultsKey.notchLockSounds: false,
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
