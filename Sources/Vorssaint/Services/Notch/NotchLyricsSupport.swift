@@ -116,14 +116,22 @@ enum NotchLyricsSupport {
     static let maximumBytes = 128 * 1024
     static let maximumLines = 2000
 
+    /// The music wallpaper, switched on and consented to, runs the same finder
+    /// as the island's lyrics page, with or without the island.
+    static func wallpaperActive(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.bool(forKey: DefaultsKey.lyricsWallpaperEnabled)
+            && defaults.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked)
+    }
+
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
-            && NotchSupport.modules(in: defaults).contains(.music)
+        wallpaperActive(in: defaults)
+            || (NotchSupport.isEnabled(in: defaults) && AppFeature.notchLyrics.isAvailable(in: defaults)
+                && defaults.bool(forKey: DefaultsKey.notchLyricsEnabled)
+                && NotchSupport.modules(in: defaults).contains(.music))
     }
 
     static func onlineEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchLyricsOnline)
+        isEnabled(in: defaults) && (wallpaperActive(in: defaults) || defaults.bool(forKey: DefaultsKey.notchLyricsOnline))
     }
 
     static func lookupURL(for track: NotchMusicIdentity) -> URL? {

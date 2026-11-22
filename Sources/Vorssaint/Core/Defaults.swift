@@ -901,6 +901,7 @@ enum DefaultsKey {
     static let lyricsWallpaperEnabled = "lyricsWallpaperEnabled"
     static let lyricsWallpaperStyle = "lyricsWallpaperStyle"
     static let lyricsLockScreenEnabled = "lyricsLockScreenEnabled"
+    static let lyricsKeepAwake = "lyricsKeepAwake"
     static let lyricsWallpaperConsentAsked = "lyricsWallpaperConsentAsked"
     static let notchBrowserCovers = "notchBrowserCovers"
     static let notchLiveEqualizer = "notchLiveEqualizer"
@@ -1554,6 +1555,7 @@ enum Defaults {
         DefaultsKey.lyricsWallpaperEnabled: true,
         DefaultsKey.lyricsWallpaperStyle: "constellation",
         DefaultsKey.lyricsLockScreenEnabled: true,
+        DefaultsKey.lyricsKeepAwake: true,
         DefaultsKey.lyricsWallpaperConsentAsked: false,
         DefaultsKey.notchBrowserCovers: false,
         DefaultsKey.notchLiveEqualizer: false,

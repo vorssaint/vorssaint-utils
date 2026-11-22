@@ -222,7 +222,6 @@ struct NotchMusicView: View {
         if showsQueue {
             extraButton(.queue, title: FeatureStrings.notchMusicExtras(l10n.language).queue, symbol: "list.bullet")
         }
-        wallpaperButton
     }
 
     /// Switches the lyrics wallpaper, desktop and lock screen, on or off at once.
@@ -231,6 +230,14 @@ struct NotchMusicView: View {
                         title: lyricsWallpaperOn ? "Turn off lyrics wallpaper" : "Turn on lyrics wallpaper",
                         selected: lyricsWallpaperOn) {
             LyricsWallpaperService.shared.setEnabled(!lyricsWallpaperOn)
+        }
+        .contextMenu {
+            Button("Lyrics earlier (-0.25 s)") { LyricsWallpaperService.shared.adjustOffset(by: -0.25) }
+            Button("Lyrics later (+0.25 s)") { LyricsWallpaperService.shared.adjustOffset(by: 0.25) }
+            Button("Reset timing") { LyricsWallpaperService.shared.resetOffset() }
+            Divider()
+            Button("Graph lyrics") { UserDefaults.standard.set("constellation", forKey: DefaultsKey.lyricsWallpaperStyle) }
+            Button("Scrolling lyrics") { UserDefaults.standard.set("scroll", forKey: DefaultsKey.lyricsWallpaperStyle) }
         }
     }
 
@@ -307,6 +314,7 @@ struct NotchMusicView: View {
                 // bars rest flat while paused, so the title keeps its width.
                 NotchLiveEqualizerBars(isPlaying: playback.isPlaying, bars: 4, barWidth: 2.5, height: 15,
                                        tint: .white.opacity(0.5))
+                wallpaperButton
                 if band.besideCamera { sectionsButton }
             } corner: {
                 extraButtons

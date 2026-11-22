@@ -3,73 +3,93 @@
 
 import SwiftUI
 
-/// Full-screen music wallpaper: blurred cover, the song's name and its lyrics
-/// scrolling in time. Highlighting only moves at verse boundaries, so nothing
-/// ticks while paused.
+/// Full-screen music wallpaper. The cover fills the screen under a veil, the
+/// cover's own colours drift over it, and the lyrics sit on top as a graph
+/// of stars or as an ordinary scrolling column, as the style says.
 struct LyricsWallpaperView: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
 
     var body: some View {
-        if style == "constellation" { constellation } else { classic }
+        ZStack(alignment: .bottomLeading) {
+            backdrop
+            if style == "constellation" { graph } else { scrolling }
+        }
+        .ignoresSafeArea()
     }
 
-    /// Black sky, one constellation per lyric line, a small caption below.
-    private var constellation: some View {
-        ZStack(alignment: .bottomLeading) {
+    // MARK: Backdrop
+
+    /// The cover, the palette's moving colour and a vignette; the first two
+    /// cross-fade together on a track change.
+    private var backdrop: some View {
+        ZStack {
             Color.black
-            if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
-                ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset)
+            ZStack {
+                if let cover = service.cover {
+                    Image(nsImage: cover).resizable().interpolation(.high).scaledToFill()
+                }
+                Color.black.opacity(0.4)
+                AuroraBackdrop(palette: service.palette).blendMode(.screen).opacity(0.75)
+            }
+            .id(service.coverID)
+            .transition(.opacity)
+            RadialGradient(colors: [.clear, .black.opacity(0.5)], center: .center, startRadius: 220, endRadius: 1500)
+        }
+        .clipped()
+        .animation(.easeInOut(duration: 0.9), value: service.coverID)
+    }
+
+    /// The lyrics' colour follows the cover, lifted toward white.
+    private var accent: Color {
+        service.palette.first.map { Color(nsColor: NSColor($0).blended(withFraction: 0.35, of: .white) ?? .white) }
+            ?? Color(red: 0.43, green: 0.61, blue: 1.0)
+    }
+
+    private var playbackInfo: (NotchLyrics, NotchPlayback)? {
+        guard let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition
+        else { return nil }
+        return (lyrics, playback)
+    }
+
+    // MARK: Graph
+
+    private var graph: some View {
+        ZStack(alignment: .bottomLeading) {
+            if let (lyrics, playback) = playbackInfo {
+                ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset, accent: accent)
             } else {
                 Text(service.state == .loading ? "…" : "♪").font(.system(size: 60, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.25)).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(music.playback?.track.title ?? "").font(.system(size: 16, weight: .semibold))
-                Text(music.playback?.track.artist ?? "").font(.system(size: 13)).opacity(0.7)
-            }
-            .foregroundStyle(.white.opacity(0.55)).padding(40)
+            caption
         }
-        .ignoresSafeArea()
     }
 
-    private var classic: some View {
-        ZStack {
-            backdrop
-            HStack(alignment: .center, spacing: 72) {
-                cover
-                lyricsColumn
-            }
-            .padding(.horizontal, 96)
+    private var caption: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(music.playback?.track.title ?? "").font(.system(size: 16, weight: .semibold))
+            Text(music.playback?.track.artist ?? "").font(.system(size: 13)).opacity(0.7)
         }
-        .ignoresSafeArea()
-        .animation(.easeInOut(duration: 0.8), value: music.artwork == nil)
+        .foregroundStyle(.white.opacity(0.6)).padding(40)
     }
 
-    private var tint: Color {
-        music.artworkTint.map { Color(red: $0.red, green: $0.green, blue: $0.blue) } ?? .gray
-    }
+    // MARK: Scrolling
 
-    private var backdrop: some View {
-        ZStack {
-            Color.black
-            if let artwork = music.artwork {
-                Image(nsImage: artwork)
-                    .resizable().scaledToFill()
-                    .blur(radius: 90).saturation(1.3).opacity(0.75)
-                    .scaleEffect(1.3)
-            }
-            LinearGradient(colors: [tint.opacity(0.35), .black.opacity(0.55)], startPoint: .topLeading, endPoint: .bottomTrailing)
+    private var scrolling: some View {
+        HStack(alignment: .center, spacing: 72) {
+            coverCard
+            lyricsColumn
         }
-        .clipped()
+        .padding(.horizontal, 96)
     }
 
-    private var cover: some View {
+    private var coverCard: some View {
         VStack(alignment: .leading, spacing: 18) {
             Group {
-                if let artwork = music.artwork {
-                    Image(nsImage: artwork).resizable().scaledToFill()
+                if let cover = service.cover ?? music.artwork {
+                    Image(nsImage: cover).resizable().interpolation(.high).scaledToFill()
                 } else {
                     Rectangle().fill(.white.opacity(0.1))
                         .overlay(Image(systemName: "music.note").font(.system(size: 80)).foregroundStyle(.white.opacity(0.5)))
@@ -87,49 +107,17 @@ struct LyricsWallpaperView: View {
     }
 
     @ViewBuilder private var lyricsColumn: some View {
-        if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
-            TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: Date()))) { context in
-                let position = playback.position(at: context.date)
-                synced(lyrics, active: lyrics.activeIndex(at: position, offset: service.offset))
-            }
+        if let (lyrics, playback) = playbackInfo {
+            ScrollLyricsView(lyrics: lyrics, playback: playback, offset: service.offset)
         } else if let lyrics = service.lyrics, !lyrics.plain.isEmpty {
-            ScrollView { Text(lyrics.plain).font(.system(size: 28, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
-                .frame(maxWidth: .infinity, alignment: .leading) }
+            ScrollView {
+                Text(lyrics.plain).font(.system(size: 28, weight: .semibold)).foregroundStyle(.white.opacity(0.85))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         } else {
             Text(service.state == .loading ? "…" : (service.lyrics?.instrumental == true ? "♪ Instrumental" : "No synced lyrics for this song"))
                 .font(.system(size: 28, weight: .semibold)).foregroundStyle(.white.opacity(0.55))
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
-    }
-
-    private func synced(_ lyrics: NotchLyrics, active: Int?) -> some View {
-        GeometryReader { proxy in
-            ScrollViewReader { reader in
-                ScrollView(.vertical, showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        Color.clear.frame(height: proxy.size.height * 0.35)
-                        ForEach(Array(lyrics.lines.enumerated()), id: \.offset) { index, line in
-                            let distance = active.map { abs(index - $0) } ?? 99
-                            Text(line.text.isEmpty ? "♪" : line.text)
-                                .font(.system(size: index == active ? 46 : 36, weight: .bold))
-                                .foregroundStyle(.white.opacity(index == active ? 1 : max(0.18, 0.55 - Double(distance) * 0.12)))
-                                .blur(radius: index == active ? 0 : min(3, Double(distance) * 0.8))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(index)
-                        }
-                        Color.clear.frame(height: proxy.size.height * 0.5)
-                    }
-                }
-                .scrollDisabled(true)
-                .onChange(of: active) { _, new in
-                    guard let new else { return }
-                    withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) { reader.scrollTo(new, anchor: .init(x: 0, y: 0.38)) }
-                }
-                .onAppear { if let active { reader.scrollTo(active, anchor: .init(x: 0, y: 0.38)) } }
-            }
-        }
-        .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12),
-                                     .init(color: .black, location: 0.85), .init(color: .clear, location: 1)],
-                             startPoint: .top, endPoint: .bottom))
     }
 }

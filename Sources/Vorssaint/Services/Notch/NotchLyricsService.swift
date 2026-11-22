@@ -29,7 +29,7 @@ final class NotchLyricsService: ObservableObject {
     func update(playback: NotchPlayback?, visible: Bool) {
         guard NotchLyricsSupport.isEnabled() else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
-        let wanted = visible && next != nil
+        let wanted = (visible || NotchLyricsSupport.wallpaperActive()) && next != nil
         let online = NotchLyricsSupport.onlineEnabled()
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }

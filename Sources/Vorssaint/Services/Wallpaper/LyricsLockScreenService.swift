@@ -92,15 +92,38 @@ final class LyricsLockScreenService {
 private struct LyricsLockScreenView: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
+    @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
+
+    private static let band = LinearGradient(
+        stops: [.init(color: .clear, location: 0.2), .init(color: .black, location: 0.36),
+                .init(color: .black, location: 0.46), .init(color: .clear, location: 0.6)],
+        startPoint: .top, endPoint: .bottom)
+
+    private var accent: Color {
+        service.palette.first.map { Color(nsColor: NSColor($0).blended(withFraction: 0.35, of: .white) ?? .white) }
+            ?? Color(red: 0.43, green: 0.61, blue: 1.0)
+    }
 
     var body: some View {
         ZStack {
-            // A soft dark band keeps the words readable over any lock wallpaper.
-            LinearGradient(stops: [.init(color: .clear, location: 0.2), .init(color: .black.opacity(0.4), location: 0.38),
-                                   .init(color: .black.opacity(0.4), location: 0.46), .init(color: .clear, location: 0.58)],
-                           startPoint: .top, endPoint: .bottom)
+            // The clock and login stay clear: the cover's colours and a dark
+            // band live only between them, fading out at both edges.
+            ZStack {
+                Color.black.opacity(0.45)
+                AuroraBackdrop(palette: service.palette).blendMode(.screen)
+            }
+            .mask(Self.band)
             if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
-                ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset, compact: true)
+                if style == "constellation" {
+                    ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset,
+                                            compact: true, accent: accent)
+                } else {
+                    GeometryReader { proxy in
+                        ScrollLyricsView(lyrics: lyrics, playback: playback, offset: service.offset, compact: true)
+                            .frame(width: proxy.size.width * 0.6, height: proxy.size.height * 0.26)
+                            .position(x: proxy.size.width / 2, y: proxy.size.height * 0.385)
+                    }
+                }
             }
         }
         .ignoresSafeArea()

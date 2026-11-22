@@ -3,36 +3,48 @@
 
 import AppKit
 import Combine
+import IOKit.pwr_mgt
 import SwiftUI
 
-/// Music wallpaper: while a song plays, the desktop shows its cover blurred
-/// behind time-synced lyrics. The window sits at desktop level, below icons
-/// and every app, and disappears when nothing plays so the real wallpaper
-/// returns. Lyrics come from the same catalog and matching rules as the
-/// island's lyrics page, but this feature keeps its own switch and cache.
+/// Music wallpaper: while a song plays, the desktop shows its cover in full
+/// quality behind time-synced lyrics. The window sits at desktop level, below
+/// icons and every app, and disappears when nothing plays so the real
+/// wallpaper returns. Lyrics, their matching and their timing offset come from
+/// Vorssaint's own lyrics finder (the one behind the island's lyrics page);
+/// only songs it cannot find go on to the extra catalogs for regional music.
 final class LyricsWallpaperService: ObservableObject {
     static let shared = LyricsWallpaperService()
 
     enum State: Equatable { case idle, loading, ready, unavailable }
 
-    @Published private(set) var state: State = .idle
-    @Published private(set) var lyrics: NotchLyrics?
-    @Published private(set) var offset: Double = 0
+    private let finder = NotchLyricsService.shared
+    /// Lyrics from the extra catalogs, for the song named by `track` only.
+    @Published private var extra: NotchLyrics?
+    @Published private(set) var cover: NSImage?
+    /// Changes with each new cover, so views can cross-fade between them.
+    @Published private(set) var coverID = 0
+    /// The cover's dominant colours, most prominent first.
+    @Published private(set) var palette: [Color] = []
+
+    var lyrics: NotchLyrics? { finder.lyrics ?? extra }
+    var offset: Double { finder.offset }
+    var state: State {
+        if lyrics != nil { return .ready }
+        switch finder.state {
+        case .loading: return .loading
+        case .unavailable, .failed: return extraLookup == nil ? .unavailable : .loading
+        default: return .idle
+        }
+    }
 
     private var windows: [CGDirectDisplayID: NSWindow] = [:]
     private var cancellables = Set<AnyCancellable>()
     private var track: NotchMusicIdentity?
-    private var task: URLSessionDataTask?
-    private var searchTask: URLSessionDataTask?
-    private var generation = UUID()
+    private var coverSource: Data?
+    private var extraLookup: Task<Void, Never>?
     private var hideWork: DispatchWorkItem?
     private var running = false
-    private var session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 10
-        configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint lyrics wallpaper"]
-        return URLSession(configuration: configuration)
-    }()
+    private var awakeAssertion = IOPMAssertionID(0)
 
     private init() {}
 
@@ -84,6 +96,11 @@ final class LyricsWallpaperService: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.playbackChanged($0) }
             .store(in: &cancellables)
+        // The finder publishes when lyrics arrive or the offset moves.
+        finder.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.finderChanged() }
+            .store(in: &cancellables)
         NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuildWindows() }
@@ -97,14 +114,19 @@ final class LyricsWallpaperService: ObservableObject {
         LyricsLockScreenService.shared.stop()
         cancellables.removeAll()
         hideWork?.cancel(); hideWork = nil
-        cancelLookup()
+        extraLookup?.cancel(); extraLookup = nil
         track = nil
-        lyrics = nil
-        state = .idle
+        extra = nil
+        cover = nil
+        palette = []
+        coverSource = nil
+        setAwake(false)
         closeWindows()
+        objectWillChange.send()
     }
 
-    func adjustOffset(by delta: Double) { offset = min(10, max(-10, offset + delta)) }
+    func adjustOffset(by delta: Double) { finder.adjustOffset(by: delta) }
+    func resetOffset() { finder.resetOffset() }
 
     // MARK: Playback
 
@@ -115,78 +137,80 @@ final class LyricsWallpaperService: ObservableObject {
             // nothing for a moment. The windows stay up through that so nothing
             // flashes, and leave only if the silence lasts.
             guard hideWork == nil else { return }
-            let work = DispatchWorkItem { [weak self] in self?.hideWork = nil; self?.closeWindows() }
+            let work = DispatchWorkItem { [weak self] in self?.hideWork = nil; self?.setAwake(false); self?.closeWindows() }
             hideWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
             return
         }
         hideWork?.cancel()
         hideWork = nil
-        let identity = NotchMusicIdentity(playback)
         showWindows()
+        setAwake(playback.isPlaying)
+        updateCover(from: playback.track.artworkData)
+
+        let identity = NotchMusicIdentity(playback)
+        // Vorssaint's finder does the matching, caching and offset memory.
+        finder.update(playback: playback, visible: true)
         guard identity != track else { return }
         track = identity
-        lyrics = nil
-        offset = 0
-        load(identity)
+        extra = nil
+        extraLookup?.cancel(); extraLookup = nil
     }
 
-    // MARK: Lookup
-
-    private func cancelLookup() {
-        generation = UUID()
-        task?.cancel(); task = nil
-        searchTask?.cancel(); searchTask = nil
+    private func finderChanged() {
+        objectWillChange.send()
+        // Not in its catalog: try the extra ones once for this song.
+        guard finder.lyrics == nil, extra == nil, extraLookup == nil, let identity = track,
+              finder.state == .unavailable || finder.state == .failed else { return }
+        extraLookup = Task { [weak self] in
+            let found = await LyricsFallbackSources.find(for: identity)
+            await MainActor.run {
+                guard let self, self.track == identity else { return }
+                self.extra = found
+                self.extraLookup = nil
+            }
+        }
     }
 
-    private func load(_ identity: NotchMusicIdentity) {
-        cancelLookup()
-        let mine = generation
-        guard let url = NotchLyricsSupport.lookupURL(for: identity) else { state = .unavailable; return }
-        state = .loading
-        task = session.dataTask(with: url) { [weak self] data, response, _ in
-            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-            let exact = status == 200 ? data.flatMap {
-                NotchLyricsSupport.decode($0, for: identity) ?? NotchLyricsSupport.decodeCatalogMatch($0, for: identity)
-            } : nil
+    /// The cover at full quality, decoded once per image off the main thread:
+    /// the island's own copy is a small thumbnail and looks soft across a
+    /// whole display.
+    private func updateCover(from data: Data?) {
+        guard data != coverSource else { return }
+        coverSource = data
+        guard let data else { return }
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let image = ImageThumbnailer.thumbnail(data: data, pointSize: 1600, scale: 2)
+            let colors = ArtworkPalette.colors(from: data).map { Color(nsColor: $0) }
             DispatchQueue.main.async {
-                guard let self, self.generation == mine else { return }
-                if let exact { self.finish(exact) } else { self.search(identity, generation: mine, remaining: NotchLyricsSupport.searchURLs(for: identity)) }
+                guard let self, self.coverSource == data, let image else { return }
+                self.cover = image
+                self.palette = colors
+                self.coverID += 1
             }
         }
-        task?.resume()
     }
 
-    /// The exact lookup misses songs whose titles or credits differ between
-    /// catalogs, so the search endpoint gets the same bounded matching.
-    private func search(_ identity: NotchMusicIdentity, generation mine: UUID, remaining: [URL]) {
-        guard let url = remaining.first else {
-            Task { [weak self] in
-                let result = await LyricsFallbackSources.find(for: identity)
-                await MainActor.run {
-                    guard let self, self.generation == mine else { return }
-                    self.finish(result)
-                }
-            }
-            return
-        }
-        searchTask = session.dataTask(with: url) { [weak self] data, _, _ in
-            let best = data.flatMap {
-                NotchLyricsSupport.searchCandidates($0, for: identity)
-                    .max { ($0.score, -$0.distance) < ($1.score, -$1.distance) }
-            }
-            DispatchQueue.main.async {
-                guard let self, self.generation == mine else { return }
-                if let best { self.finish(best.lyrics) }
-                else { self.search(identity, generation: mine, remaining: Array(remaining.dropFirst())) }
-            }
-        }
-        searchTask?.resume()
-    }
+    // MARK: Keep awake
 
-    private func finish(_ result: NotchLyrics?) {
-        lyrics = result
-        state = result == nil ? .unavailable : .ready
+    /// While a song plays and the lyrics are up, the display stays on, on the
+    /// desktop and the lock screen alike. It is the same assertion Keep Awake
+    /// takes, held on its own so it never touches a session of the person's.
+    func refreshAwake() { setAwake(NotchMusicService.shared.playback?.isPlaying == true) }
+
+    private func setAwake(_ playing: Bool) {
+        let wanted = running && playing && UserDefaults.standard.bool(forKey: DefaultsKey.lyricsKeepAwake)
+        if wanted, awakeAssertion == 0 {
+            var id = IOPMAssertionID(0)
+            if IOPMAssertionCreateWithName("PreventUserIdleDisplaySleep" as CFString,
+                                           IOPMAssertionLevel(kIOPMAssertionLevelOn),
+                                           "Vorssaint lyrics wallpaper" as CFString, &id) == kIOReturnSuccess {
+                awakeAssertion = id
+            }
+        } else if !wanted, awakeAssertion != 0 {
+            IOPMAssertionRelease(awakeAssertion)
+            awakeAssertion = 0
+        }
     }
 
     // MARK: Windows

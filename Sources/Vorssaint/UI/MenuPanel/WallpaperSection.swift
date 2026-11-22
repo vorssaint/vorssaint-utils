@@ -126,12 +126,22 @@ struct WallpaperSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
+            Toggle("Keep the screen on while lyrics play", isOn: Binding(
+                get: { UserDefaults.standard.bool(forKey: DefaultsKey.lyricsKeepAwake) },
+                set: {
+                    UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsKeepAwake)
+                    LyricsWallpaperService.shared.refreshAwake()
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
             Picker("Lyrics style", selection: Binding(
                 get: { UserDefaults.standard.string(forKey: DefaultsKey.lyricsWallpaperStyle) ?? "constellation" },
                 set: { UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperStyle) }
             )) {
-                Text("Constellation").tag("constellation")
-                Text("Cover and lyrics").tag("classic")
+                Text("Graph (constellation)").tag("constellation")
+                Text("Scrolling lyrics").tag("scroll")
             }
             .pickerStyle(.menu).controlSize(.small)
 
