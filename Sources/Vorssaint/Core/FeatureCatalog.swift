@@ -602,9 +602,12 @@ extension AppFeature {
         (DefaultsKey.monitorAlertBattery, .monitorPower),
     ]
 
-    static func anyMonitorAlertEnabled(isAvailable: (AppFeature) -> Bool,
+    static func anyMonitorAlertEnabled(includingDisk: Bool = true,
+                                       isAvailable: (AppFeature) -> Bool,
                                        boolFor: (String) -> Bool) -> Bool {
-        monitorAlertPairs.contains { boolFor($0.key) && isAvailable($0.feature) }
+        monitorAlertPairs.contains {
+            (includingDisk || $0.feature != .monitorDisk) && boolFor($0.key) && isAvailable($0.feature)
+        }
     }
 
     /// Runtime convenience over the injectable core.

@@ -308,6 +308,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorReader.swift
+        Sources/Vorssaint/Services/AgentUsage/Harness/CursorTranscriptAccess.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
@@ -327,6 +329,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchCalendarSupport.swift
         Sources/Vorssaint/Services/Notch/NotchKeepAwakeSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchMenuBarSpace.swift
         Sources/Vorssaint/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Vorssaint/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Vorssaint/Services/Notch/NotchMusicSupport.swift
@@ -552,6 +555,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Switcher/SwitcherModels.swift
         Sources/Vorssaint/Services/Switcher/WindowServerCaptureQueue.swift
         Sources/Vorssaint/Services/Switcher/SwitcherSupport.swift
+        Sources/Vorssaint/Services/Switcher/SwitcherExclusiveFullscreenWatch.swift
         Sources/Vorssaint/Services/Switcher/SpaceHopSupport.swift
         Sources/Vorssaint/Services/Switcher/WindowUseOrder.swift
         Sources/Vorssaint/Services/Switcher/WindowEnumeratorAccessibilityPrefetch.swift
@@ -668,7 +672,9 @@ swiftc -O -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" -emit-library \
     -o "build/$NOW_PLAYING_ADAPTER"
 
 echo "▸ Generating app icon…"
-swift Tools/MakeIcon.swift build/AppIcon.iconset
+# Use the same pinned SDK as the app build: the default MacOSX.sdk may be 27,
+# whose Command Line Tools copy is missing Foundation headers MakeIcon needs.
+swift -sdk "$SDK" Tools/MakeIcon.swift build/AppIcon.iconset
 xattr -c -r build/AppIcon.iconset build/AppIcon.icns build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png 2>/dev/null || true
 ACTOOL_BIN="$(xcrun --find actool 2>/dev/null || true)"
 ICON_TMP="$(mktemp -d)"

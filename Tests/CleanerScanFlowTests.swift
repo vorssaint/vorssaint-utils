@@ -33,10 +33,19 @@ enum CleanerScanFlowTests {
             onScan?(category)
             return [Item(url: URL(fileURLWithPath: "/fixture/\(category.rawValue)"))]
         }
-        static func installedBundleIDs() -> Set<String> { [] }
-        static func scanLeftovers(installed: Set<String>) -> [Item] { record(.leftovers) }
+        static var leftoverOwners: Set<String> = []
+        static var cachePluginIDs: Set<String> = []
+        static func installedBundleIDs() -> Set<String> { ["com.fixture.editor"] }
+        static func installedAudioPluginBundleIDs() -> Set<String> { ["com.fixture.synth"] }
+        static func scanLeftovers(installed: Set<String>) -> [Item] {
+            leftoverOwners = installed
+            return record(.leftovers)
+        }
         static func scanOrphanedLaunchPlists(installed: Set<String>) -> [Item] { record(.loginItems) }
-        static func scanCaches(excluding: Set<String>) -> [Item] { record(.caches) }
+        static func scanCaches(excluding: Set<String>, audioPluginIDs: Set<String>) -> [Item] {
+            cachePluginIDs = audioPluginIDs
+            return record(.caches)
+        }
         static func scanLogs(excluding: Set<String>) -> [Item] { record(.logs) }
         static func scanDeveloperJunk() -> [Item] { record(.developer) }
         static func scanTrash() -> [Item] { record(.trash) }
@@ -87,9 +96,14 @@ enum CleanerScanFlowTests {
 
         cleaner.reset()
         Scanner.scanned = []
+        Scanner.leftoverOwners = []
+        Scanner.cachePluginIDs = []
         cleaner.scan(attended: false)
         Queue.drain()
         suite.expect(Scanner.scanned == all.filter { $0 != .screenshots } && cleaner.phase == .results,
                      "an unattended scan never reads the screenshot folders")
+        suite.expect(Scanner.leftoverOwners == ["com.fixture.editor", "com.fixture.synth"]
+                     && Scanner.cachePluginIDs == ["com.fixture.synth"],
+                     "scheduled scans protect plugin caches and keep ordinary app caches eligible")
     }
 }

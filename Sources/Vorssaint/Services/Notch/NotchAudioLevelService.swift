@@ -601,7 +601,7 @@ private final class NotchAudioLevelReader {
         for object in AppVolumeMixer.audioProcessObjects() {
             var owner: pid_t = -1
             guard read(object, kAudioProcessPropertyPID, &owner), owner > 0,
-                  owner == pid || ResponsibleProcess.regularAppOwner(of: owner)?.processIdentifier == pid
+                  owner == pid || ResponsibleProcess.regularAppOwnerPid(of: owner) == pid
             else { continue }
             objects.append(object)
         }
