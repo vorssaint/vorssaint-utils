@@ -6,6 +6,99 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Summary
+This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins.
+
+### Added
+- Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
+- Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
+- AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.
+
+### Changed
+- Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
+- The window switcher keeps a list of windows in the background so repeated shortcuts can open it sooner. Current Space filtering and windowless Finder selections are preserved. Thanks to @LeLocTai.
+- Vorssaint starts without loading unused Shelf, display and Command Bar services. Active shortcuts and recovery for displays previously left off still work. Thanks to @iva-zhu.
+- Window move gestures and edge snapping share pointer events. Starting another drag or handing it to macOS with Option cancels a pending snap. Thanks to @iva-zhu.
+- Low disk space alerts repeat at most once every six hours per volume, with an earlier alert if free space drops below half the warning threshold. Thanks to @ywu73.
+
+### Fixed
+- After wake, fan control retries a saved curve if the hardware takes time to respond. It respects System mode and the hardware’s safety limits, and the panel shows when a curve could not be restored. Thanks to @SanRive.
+- The uninstaller and cleaner count files next to symbolic links. Nested app components are detected, and wallpaper scans still skip packages. Thanks to @retomi and @salvatoremiceli.
+- Cleaner keeps preferences, support files and caches it can match to audio plugins found in the standard plugin folders. It checks again before moving a selected item to the Trash. Thanks to @heisdanne and @imuhammadnadeem.
+- Monitor speakers that stay silent at zero volume can play again when you turn the volume up. Restoring sound respects the configured volume limit. Thanks to @trenaryja.
+- Dynamic Island lets macOS handle volume keys on USB outputs that lack a compatible main volume control. If an output cannot provide a reliable volume step or confirm a change, subsequent presses also go to macOS, including fine steps. Thanks to @royhenengel and @Snrlx-Media.
+- Brightness and speaker controls can reach compatible monitors connected through the built-in HDMI converter on certain Macs. Thanks to @davidmessem.
+- When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. Thanks to @razeenwasif.
+- Drop images or videos from Finder onto the open Media tool in Dynamic Island. A new drop leaves an active conversion running. Thanks to @KushagraIndurkhya.
+- The disk image installer skips hidden mounts, temporary build images and folders marked with `.vorssaint-no-install`. For images outside Downloads that have no quarantine flag, the option to move the image to the Trash starts unchecked. Thanks to @Zekuath.
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It rechecks mute immediately on device notifications and keeps the observers for unchanged input controls. A failed manual unmute is reported. Thanks to @JosueM1109, @howardyu60211 and @hash00.
+- The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
+- Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
+- Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
+- Shelf stays responsive while it prepares a file drag from iCloud or another slow volume. Files inside a package remain protected from moves. Thanks to @iva-zhu.
+- Click a window in the frozen screenshot picker to capture its current contents, including visible video, without capturing overlapping apps. Dragging a region still uses the frozen image. Thanks to @iva-zhu.
+- The screenshot editor limits image memory across undo and redo, preserves history after a canceled drawing, and avoids keeping a full capture for a small crop. Thanks to @iva-zhu.
+- Audio device priority recognizes a returning AirPlay receiver when its session identifier changes and merges its existing duplicates. Other audio devices keep their saved priorities, including devices with the same name. Unavailable entries can be removed from either list. Thanks to @EugeneCarldotme and @TC-Virtuoso.
+- When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
+- Clipboard history saves copied spreadsheet cells as text and preserves the tabs and line breaks supplied by the spreadsheet. Image and file copies keep their original types. Thanks to @ego1s1.
+- macOS handles app switching while an exclusive full-screen game covers the window switcher. Vorssaint resumes its shortcuts when the game leaves full screen. Thanks to @nh4ttruong.
+- If macOS pauses the window switcher's input filter, the switcher waits until it can dismiss the interrupted session before filtering keys and clicks again. Thanks to @GeezusChrotch.
+- Settings opens on Macs without a backlit keyboard and only offers keyboard light controls on supported hardware. Thanks to @13v13reddy.
+- Super Key waits for a Bluetooth keyboard after login or wake and checks its existing mappings before turning on. Thanks to @iva-zhu.
+- On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
+
+### Contributors
+Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
+
+## [3.4.4] - 2026-11-11
+
+### Summary
+This update fixes a startup crash on macOS Sonoma 14.0 and 14.1. It also adds volume controls for supported monitors, automatic scrolling screenshots, and faster GIF exports.
+
+### Added
+- Control supported monitor speakers from Displays settings, the mixer or Dynamic Island. Set the step size and limits for volume up and down. Thanks to @jairuspace, @sambet1997, @morhaf-ko, @ruvelro and @Wahab417.
+- Start a scrolling screenshot with its own shortcut. You can scroll manually or let Vorssaint scroll the selected window. Thanks to @EugeneCarldotme.
+- The uninstaller can offer to review leftover files when you move the last copy of an app to the Trash in Finder. This is off by default. Both uninstaller result views now offer Select all, and cleanup still asks for confirmation. Thanks to @zamai, @ilim-cell and @heyseere.
+- Hold a modifier key to scroll faster with a mouse wheel. Set the speed from 2× to 15× in Mouse settings. Thanks to @VlodekH.
+- You can turn off hover selection in the window switcher and choose windows by click or keyboard. Hovering at either end still scrolls a long row of icons. Thanks to @victorioustr.
+- Edge snapping can restore a window’s previous size when you drag its title bar. A click leaves it snapped. This is off by default and respects ignored apps. Thanks to @nisayera.
+- Load shared preferences at launch from a read-only settings file. The default path is `~/.config/vorssaint/settings.plist`. Unlisted settings stay local, including your snippet library if you leave it out. Thanks to @whizzzkid.
+
+### Changed
+- GIF exports use less memory and run faster on supported GPUs. Choose a frame rate and export at full resolution or scale down with matching captions. Canceling Copy as GIF during preparation preserves your clipboard. Thanks to @COMEBACKISREAL and @oskarsss.
+- Resize large clipboard images before editing. The screenshot editor keeps supported formats and the primary HEIC image’s orientation. Thanks to @kit101.
+- Keep Awake resumes a manual session when Vorssaint restarts, with its original end time. Thanks to @stieludv.
+- Clear a Keep Awake or Quick Snippet Menu shortcut without disabling the feature. It stays cleared after restarts and backup imports. Thanks to @maxmeis.
+- Supported DDC monitors can use software dimming. Switching to it cancels pending hardware brightness changes. Thanks to @yavuzmeteafsar.
+- Clipboard history remembers where you placed its list window and keeps it on screen when displays change. Thanks to @maxmeis.
+- AI Agents includes API cost estimates for GPT-6.1 Terra and GPT-Rosalind Discovery.
+
+### Fixed
+- Opening Vorssaint no longer requires audio features missing from early macOS Sonoma. Thanks to @oyjt for tracking down the startup crash.
+- If a disabled MacBook display wakes at the lock screen, Vorssaint waits until you unlock and an external display is active before turning the built-in display off again. Thanks to @jankorbay.
+- When a closed-lid Keep Awake session ends, Vorssaint skips the sleep request if the Mac is plugged in and using an external display. On battery it requests sleep if macOS allows it. Thanks to @ruvelro.
+- The window switcher opens faster and flashes less when restoring minimized windows. Its shortcuts also work during secure input, including All windows. Quit and close stay disabled in that mode. Thanks to @zhanghao87 and @phatina.
+- Focus follows mouse can recover keyboard focus without raising the window. Drag and resize still work when an app can’t identify the control under the pointer. Thanks to @jerome-queck and @carlhuareforge.
+- Tapping Caps Lock toggles capitals when that’s its Super Key solo action. Fixed a crash when Super Key reapplied the keyboard mapping at startup. Shortcut recording also recognizes Super Key combinations while the mapping starts. Thanks to @iva-zhu and @roypadina.
+- Mic Mute lowers input volume to zero on supported microphones and reapplies mute if another app changes it. It remembers each channel’s level across upgrades and reconnects. Thanks to @samueljim.
+- Per-app volume changes sound smoother. Mute takes effect immediately across audio interruptions, and routine mixer checks preserve per-app levels. Thanks to @Chubi01 and @meowvan666.
+- Brightness controls read the correct range from DDC monitors and refresh previously saved ranges. Thanks to @nikigan.
+- Dynamic Island hides over full-screen apps on each display and returns when you exit full screen. Thanks to @sugar-king.
+- Mirrored banners no longer flash on macOS 26, and opening Notification Center no longer brings old messages back into Dynamic Island. Dynamic Island settings now explain which macOS alerts to enable for each app. Thanks to @heyseere, @CanSonmezz, @0mgABear and @Tomaubier.
+- A click on a Dynamic Island notice is canceled if the notice changes before release. Swiping across mixer faders leaves the volume alone. Sliders follow the pointer to both ends. Thanks to @stieludv.
+- The music player shows and opens the Safari or WebKit app playing the audio. Thanks to @Zekuath.
+- Recording previews and exports reuse graphics resources to limit memory growth and keep imported videos in their original orientation. Compact media panels scroll as one page. Thanks to @Zekuath, @zepeng-jin and @kit101.
+- Settings search opens the right section for low disk space alerts, scrolling screenshots and Trash cleanup. Thanks to @MaximilianMauroner.
+- In Windows App and Microsoft Remote Desktop, picking a clipboard entry leaves it ready to paste manually and avoids typing a stray “v”. Thanks to @mevichitra.
+- Smooth Scrolling preserves normal wheel distance in Vorssaint panels. Its switch appears in the menu panel even when it’s the only control. Thanks to @iva-zhu and @EugeneCarldotme.
+- Cleaner protects installed apps’ support folders, including Battle.net’s, during scans and cleanup. Thanks to @lsopenad.
+- Reopen the last Homebrew log from App Updates, even with the Homebrew page off. It stays until you clear it, run another command or quit. Thanks to @iva-zhu.
+- Resetting a Claude Code session stops its activity timer without a completion notification. Thanks to @iva-zhu.
+- Command Bar outlines the selected result on dark backgrounds and keeps destructive actions red. It also converts mixed feet and inches, such as `5ft 11 in cm`. Thanks to @heyseere and @andy-kelly.
+
+### Contributors
+Thanks to @0mgABear, @andy-kelly, @CanSonmezz, @carlhuareforge, @Chubi01, @COMEBACKISREAL, @EugeneCarldotme, @heyseere, @ilim-cell, @iva-zhu, @jairuspace, @jankorbay, @jerome-queck, @kit101, @lsopenad, @MaximilianMauroner, @maxmeis, @meowvan666, @mevichitra, @morhaf-ko, @nikigan, @nisayera, @oskarsss, @oyjt, @phatina, @roypadina, @ruvelro, @sambet1997, @samueljim, @stieludv, @sugar-king, @Tomaubier, @victorioustr, @VlodekH, @Wahab417, @whizzzkid, @yavuzmeteafsar, @zamai, @Zekuath, @zepeng-jin and @zhanghao87.
+
 ## [3.4.3] - 2026-10-29
 
 ### Summary

@@ -15,6 +15,7 @@ if let command = CommandLineSupport.command(in: CommandLine.arguments) {
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
 Defaults.register()
+let configuredFeatureKeys = SettingsBackup.applyConfigFileAtLaunch()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()
 MouseAccelerationService.recoverPendingAtLaunch()
@@ -41,5 +42,6 @@ if NotchPresentationProbe.isRequested(by: CommandLine.arguments) {
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
+delegate.configuredFeatureKeys = configuredFeatureKeys
 app.delegate = delegate
 app.run()

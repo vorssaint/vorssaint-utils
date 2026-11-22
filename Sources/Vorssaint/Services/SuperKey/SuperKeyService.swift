@@ -6,8 +6,20 @@ import ApplicationServices
 import Carbon.HIToolbox
 import Combine
 import CoreGraphics
+import HIDEventSystem
 import IOKit
 import IOKit.hidsystem
+
+/// The outcome of one mapping write. Richer than `SuperKeyMappingFailure`
+/// because a missing keyboard is a transient "not yet", not a refusal to show.
+enum SuperKeyMappingResult: Equatable {
+    /// The mapping is in place and the readback confirms it.
+    case applied
+    /// No keyboard was available to read or confirm the mapping.
+    case noKeyboard
+    /// A refusal the feature must surface.
+    case failed(SuperKeyMappingFailure)
+}
 
 /// Turns one key into the user's chosen modifiers.
 ///
@@ -30,10 +42,17 @@ final class SuperKeyService: ObservableObject {
     @Published private(set) var modifiers = SuperKeySupport.defaultModifiers
     @Published private(set) var source = SuperKeySource.capsLock
 
-    /// Read by the shortcut recording tap, which sits ahead of this one while a
-    /// field is listening and would otherwise see the bare trigger key instead
-    /// of the combination it stands for. Written and read on the main thread.
+    /// Published on the main thread after the system confirms the mapping.
     private(set) static var isEngaged = false
+
+    /// The recorder sits ahead of our tap. It must handle the same F18 events
+    /// as that tap, including ones that arrive before mapping readback finishes.
+    var keyboardTapForRecording: CFMachPort? {
+        guard stateLock.withLock({ capturesMappedKeys }),
+              let keyboard = lifecycleLock.withLock({ shouldStopTapThread ? nil : tap }),
+              CGEvent.tapIsEnabled(tap: keyboard) else { return nil }
+        return keyboard
+    }
 
     /// A held gesture can follow this virtual modifier. True means the key was
     /// released; false means the hold was cancelled by teardown or recovery.
@@ -75,9 +94,16 @@ final class SuperKeyService: ObservableObject {
     private var mappingGeneration: UInt = 0
     private let stateLock = NSLock()
     private var state = SuperKeySupport.State()
+    /// Protected by stateLock. The kernel can deliver F18 as soon as we write
+    /// the mapping, but a physical or externally mapped F18 is free until then.
+    private var capturesMappedKeys = false
     private var soloAction: SuperKeySoloAction = .none
     private var eventModifiers = SuperKeySupport.defaultModifiers
     private var eventSource = SuperKeySource.capsLock
+    // Protected by stateLock. Track event order across the hop from the tap
+    // to main, including two solo releases waiting for the same busy queue.
+    private var rawCapsLockCount: UInt = 0
+    private var soloCapsLockWrite: (generation: UInt, count: UInt, on: Bool)?
     private var wakeObserver: NSObjectProtocol?
     private var exceptionObservation: AnyCancellable?
     /// The mapping is written off the main thread, and in the order it was
@@ -93,6 +119,9 @@ final class SuperKeyService: ObservableObject {
     /// it, even though the persistent marker is not written until readback.
     private var pendingMappingEnableCount = 0
     private let mappingRepairInterval: TimeInterval = 3
+    /// Main-thread only, and scheduled only while the keyboard is absent.
+    private var keyboardRetry: DispatchWorkItem?
+    private var keyboardRetryDelay: TimeInterval = 0.25
     /// Lets go of a press whose release never arrived. Without it the chosen
     /// modifiers would ride every keystroke from then on, with no way back but
     /// pressing the key again, and typing would be dead in the meantime.
@@ -215,11 +244,13 @@ final class SuperKeyService: ObservableObject {
     }
 
     private func stop(synchronously: Bool = false) {
+        cancelKeyboardWait()
         let snapshot = lifecycleLock.withLock {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, mouseTap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
             pendingTapRestart = false
             mappingGeneration &+= 1
+            stateLock.withLock { capturesMappedKeys = false }
             return (tapRunLoop, tap, mouseTap, tapThread != nil)
         }
         if let tap = snapshot.tap { CGEvent.tapEnable(tap: tap, enable: false) }
@@ -418,8 +449,9 @@ final class SuperKeyService: ObservableObject {
     private func applyMapping(_ enabled: Bool,
                               expectedTap: CFMachPort? = nil,
                               generation: UInt? = nil,
+                              checkingKeyboardPresence: Bool = false,
                               synchronously: Bool = false,
-                              completion: ((SuperKeyMappingFailure?) -> Void)? = nil) {
+                              completion: ((SuperKeyMappingResult) -> Void)? = nil) {
         let source = stateLock.withLock { eventSource }
         stateLock.withLock {
             lastMappingAt = ProcessInfo.processInfo.systemUptime
@@ -449,23 +481,28 @@ final class SuperKeyService: ObservableObject {
             let ownedSource = previousMarker ? SuperKeySource.sanitized(
                 defaults.string(forKey: DefaultsKey.superKeyMappedSource)
             ) : nil
-            let failure = self.performMapping(
-                enabled,
-                source: source,
-                ownedSource: ownedSource
-            )
+            let result: SuperKeyMappingResult
+            if checkingKeyboardPresence, Self.hasKeyboardService() == false {
+                result = .noKeyboard
+            } else {
+                result = self.performMapping(enabled, source: source, ownedSource: ownedSource,
+                                             generation: generation)
+            }
+            if enabled, result == .noKeyboard {
+                self.stateLock.withLock { self.capturesMappedKeys = false }
+            }
             if !enabled {
                 let guardConfirmed = self.mappingGuard?.stop() ?? false
                 self.mappingGuard = nil
                 let marker = SuperKeySupport.mappingMarkerAfterClear(
                     previous: previousMarker,
-                    readbackConfirmed: failure == nil || guardConfirmed
+                    readbackConfirmed: result == .applied || guardConfirmed
                 )
                 defaults.set(marker, forKey: DefaultsKey.superKeyMappingApplied)
                 if !marker { defaults.removeObject(forKey: DefaultsKey.superKeyMappedSource) }
             }
             if let completion {
-                DispatchQueue.main.async { completion(failure) }
+                DispatchQueue.main.async { completion(result) }
             }
         }
         if synchronously {
@@ -475,32 +512,46 @@ final class SuperKeyService: ObservableObject {
         }
     }
 
-    /// Applies or clears the mapping, and answers with the reason it could not
-    /// be done, or nil when it was.
+    /// Applies or clears the mapping, and answers with what happened. A missing
+    /// keyboard is a distinct "not yet", not a refusal.
     ///
     /// Modifier Keys rules cannot be read here: hidd keeps
     /// `HIDKeyboardModifierMappingPairs` per client connection, so hidutil
     /// answers null for rules written by System Settings.
     private func performMapping(_ enabled: Bool,
                                 source: SuperKeySource,
-                                ownedSource: SuperKeySource?) -> SuperKeyMappingFailure? {
+                                ownedSource: SuperKeySource?,
+                                generation: UInt?) -> SuperKeyMappingResult {
         let report = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard report.status == 0 else { return .systemRefused }
-        guard let existing = SuperKeySupport.consistentMappings(
+        guard report.status == 0 else { return .failed(.systemRefused) }
+        let existing: [SuperKeyMapping]
+        switch SuperKeySupport.readMappings(
             report.output,
             property: SuperKeySupport.userMappingProperty,
             ownedSource: ownedSource
-        ) else { return .foreignMapping }
+        ) {
+        case .noKeyboard:
+            // No keyboard is present yet. Nothing was read, so nothing can be
+            // written or refused; the caller keeps the tap up and retries once
+            // a keyboard appears.
+            return .noKeyboard
+        case .foreignMapping:
+            return .failed(.foreignMapping)
+        case .unreadable:
+            return .failed(.systemRefused)
+        case .consistent(let mappings):
+            existing = mappings
+        }
         guard !enabled || !SuperKeySupport.hasMappingConflict(
             in: existing,
             source: source,
             ownedSource: ownedSource
         )
-        else { return .foreignMapping }
+        else { return .failed(.foreignMapping) }
         let wanted = SuperKeySupport.mappings(
             enablingSuperKey: enabled,
             existing: existing,
@@ -508,17 +559,17 @@ final class SuperKeyService: ObservableObject {
             ownedSource: ownedSource
         )
         if !enabled, ownedSource == nil,
-           SuperKeySupport.mappingsMatch(existing, wanted) { return nil }
+           SuperKeySupport.mappingsMatch(existing, wanted) { return .applied }
         var startedGuard = false
         var mappingConfirmed = false
         if enabled {
             if let mappingGuard, mappingGuard.source != source {
-                guard mappingGuard.stop() else { return .systemRefused }
+                guard mappingGuard.stop() else { return .failed(.systemRefused) }
                 self.mappingGuard = nil
             }
             if mappingGuard == nil {
                 guard let guardHandle = SuperKeyMappingGuard.start(source: source) else {
-                    return .systemRefused
+                    return .failed(.systemRefused)
                 }
                 mappingGuard = guardHandle
                 startedGuard = true
@@ -531,6 +582,7 @@ final class SuperKeyService: ObservableObject {
         }
         defer {
             if startedGuard, !mappingConfirmed {
+                stateLock.withLock { capturesMappedKeys = false }
                 let cleared = mappingGuard?.stop() ?? false
                 mappingGuard = nil
                 if cleared {
@@ -539,55 +591,127 @@ final class SuperKeyService: ObservableObject {
                 }
             }
         }
+        // A wake or an already queued repair can adopt a new keyboard before
+        // the work for its raw key runs. Clear its native lock while the
+        // missing mapping still identifies that keyboard.
+        if enabled, source == .capsLock,
+           !SuperKeySupport.mappingReportConfirms(report.output, expected: wanted) {
+            clearUnmappedCapsLock(reportedOn: false)
+        }
+        if enabled {
+            let armed = lifecycleLock.withLock {
+                guard generation == mappingGeneration, !shouldStopTapThread else { return false }
+                stateLock.withLock { capturesMappedKeys = true }
+                return true
+            }
+            guard armed else { return .failed(.systemRefused) }
+        }
         let write = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--set", SuperKeySupport.mappingArgument(wanted)]
         )
-        guard write.status == 0 else { return .systemRefused }
+        guard write.status == 0 else { return .failed(.systemRefused) }
         let readback = Shell.run(
             hidutilPath,
             ["property", "--matching", keyboardMatch,
              "--get", SuperKeySupport.userMappingProperty]
         )
-        guard readback.status == 0 else { return .systemRefused }
+        guard readback.status == 0 else { return .failed(.systemRefused) }
         mappingConfirmed = SuperKeySupport.mappingReportConfirms(readback.output, expected: wanted)
-        return mappingConfirmed ? nil : .systemRefused
+        if enabled, !mappingConfirmed, SuperKeySupport.reportsNoKeyboard(readback.output) {
+            return .noKeyboard
+        }
+        return mappingConfirmed ? .applied : .failed(.systemRefused)
     }
 
     private func confirmMapping(for expectedTap: CFMachPort,
                                 generation: UInt,
-                                publishingRunState: Bool) {
-        applyMapping(true, expectedTap: expectedTap, generation: generation) { [weak self] failure in
-            guard let self else { return }
-            let active = self.lifecycleLock.withLock {
-                SuperKeySupport.mappingRequestIsAuthorized(
-                    requestGeneration: generation,
-                    currentGeneration: self.mappingGeneration,
-                    tapIsCurrent: self.tap === expectedTap,
-                    stopping: self.shouldStopTapThread
-                )
-            }
-            guard active else { return }
-            guard let failure else {
-                self.setMappingFailure(nil)
-                if publishingRunState || !self.isRunning { self.finishStart() }
-                return
-            }
-            if publishingRunState {
-                self.stop()
-            } else {
-                // A failed repair keeps the existing tap alive so a later
-                // repair can recover without rebuilding the event pipeline.
-                self.isRunning = false
-            }
-            self.setMappingFailure(failure)
+                                publishingRunState: Bool,
+                                checkingKeyboardPresence: Bool = false) {
+        applyMapping(true, expectedTap: expectedTap, generation: generation,
+                     checkingKeyboardPresence: checkingKeyboardPresence) { [weak self] result in
+            self?.mappingDidFinish(result, for: expectedTap, generation: generation,
+                                   publishingRunState: publishingRunState)
         }
+    }
+
+    private func mappingDidFinish(_ result: SuperKeyMappingResult, for expectedTap: CFMachPort,
+                                  generation: UInt, publishingRunState: Bool) {
+        let active = lifecycleLock.withLock {
+            SuperKeySupport.mappingRequestIsAuthorized(
+                requestGeneration: generation, currentGeneration: mappingGeneration,
+                tapIsCurrent: tap === expectedTap, stopping: shouldStopTapThread
+            )
+        }
+        guard active else { return }
+        switch result {
+        case .applied:
+            cancelKeyboardWait()
+            setMappingFailure(nil)
+            if publishingRunState || !isRunning { finishStart() }
+        case .noKeyboard:
+            if keyboardRetry == nil {
+                forgetHeldKey()
+                ShortcutRecordingTap.resetSuperKey()
+                isRunning = false
+                Self.isEngaged = false
+            }
+            setMappingFailure(nil)
+            waitForKeyboard(for: expectedTap, generation: generation)
+        case .failed(let failure):
+            if publishingRunState || keyboardRetry != nil {
+                stop()
+            } else {
+                // Other keyboards can still be using a previously confirmed mapping.
+                isRunning = false
+            }
+            setMappingFailure(failure)
+        }
+    }
+
+    private func waitForKeyboard(for expectedTap: CFMachPort, generation: UInt) {
+        keyboardRetry?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.confirmMapping(for: expectedTap, generation: generation,
+                                 publishingRunState: true, checkingKeyboardPresence: true)
+        }
+        keyboardRetry = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + keyboardRetryDelay, execute: work)
+        keyboardRetryDelay = min(mappingRepairInterval, keyboardRetryDelay * 2)
+    }
+
+    private func cancelKeyboardWait() {
+        keyboardRetry?.cancel()
+        keyboardRetry = nil
+        keyboardRetryDelay = 0.25
+    }
+
+    /// Use hidutil when enumeration fails. Only a known absence can skip it.
+    private static func hasKeyboardService() -> Bool? {
+        let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+        defer { withExtendedLifetime(client) {} }
+        guard let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] else { return nil }
+        for service in services where IOHIDServiceClientConformsTo(
+            service, UInt32(kHIDPage_GenericDesktop), UInt32(kHIDUsage_GD_Keyboard)
+        ) != 0 {
+            // A mouse with keyboard buttons can also conform to Keyboard.
+            // hidutil's keyboard selector matches the primary usage.
+            guard let page = IOHIDServiceClientCopyProperty(service, kIOHIDPrimaryUsagePageKey as CFString) as? NSNumber,
+                  let usage = IOHIDServiceClientCopyProperty(service, kIOHIDPrimaryUsageKey as CFString) as? NSNumber
+            else { return nil }
+            if page.uint32Value == UInt32(kHIDPage_GenericDesktop),
+               usage.uint32Value == UInt32(kHIDUsage_GD_Keyboard) { return true }
+        }
+        return false
     }
 
     private func finishStart() {
         // Caps Lock left on would have no way back once the key stops locking.
-        if source == .capsLock { setCapsLock(false) }
+        let lastSoloGeneration = stateLock.withLock { soloCapsLockWrite?.generation }
+        if source == .capsLock, lastSoloGeneration != lifecycleLock.withLock({ mappingGeneration }) {
+            setCapsLock(false)
+        }
         observeWake()
         isRunning = true
         Self.isEngaged = true
@@ -604,10 +728,20 @@ final class SuperKeyService: ObservableObject {
     /// raw source; the first press on it is the signal to map it too. Repaired
     /// at most once every few seconds. A keyboard that refuses the mapping
     /// cannot turn typing into a stream of commands.
-    private func repairMappingIfStale() {
+    private func repairMappingIfStale(rawCapsLockOn: Bool?) {
         guard let active = lifecycleLock.withLock({
             shouldStopTapThread ? nil : tap.map { ($0, mappingGeneration) }
         }) else { return }
+        if let rawCapsLockOn {
+            // Inspect the devices before our queued repair installs F18. Even
+            // a throttled repair must neutralize a newly attached keyboard.
+            mappingQueue.async { [weak self] in
+                guard let self, self.lifecycleLock.withLock({
+                    self.tap === active.0 && self.mappingGeneration == active.1 && !self.shouldStopTapThread
+                }) else { return }
+                self.clearUnmappedCapsLock(reportedOn: rawCapsLockOn)
+            }
+        }
         let now = ProcessInfo.processInfo.systemUptime
         let shouldRepair = stateLock.withLock {
             now - lastMappingAt >= mappingRepairInterval
@@ -635,7 +769,10 @@ final class SuperKeyService: ObservableObject {
         }
         let source = stateLock.withLock { eventSource }
         let event0 = SuperKeyService.classify(type: type, source: source, event: event)
-        let decision = stateLock.withLock { state.decide(event0) }
+        guard let decision = stateLock.withLock({ () -> SuperKeySupport.Decision? in
+            guard state.shouldCapture(event0, enabled: capturesMappedKeys) else { return nil }
+            return state.decide(event0)
+        }) else { return Unmanaged.passUnretained(event) }
         // Only the key's own events say it is still down: the first press and
         // the repeats the system sends while it is held. Keys pressed meanwhile
         // must NOT push the deadline out. Someone whose keyboard is stuck under
@@ -671,23 +808,14 @@ final class SuperKeyService: ObservableObject {
             event.flags = event.flags.union(modifierFlags)
             return Unmanaged.passUnretained(event)
         case .soloTap(repeated: let repeated):
-            performSoloAction(longHold: false, repeated: repeated)
+            performSoloAction(longHold: false, repeated: repeated, flags: event.flags)
             return nil
         case .soloHold(repeated: let repeated):
-            performSoloAction(longHold: true, repeated: repeated)
+            performSoloAction(longHold: true, repeated: repeated, flags: event.flags)
             return nil
         case .interceptAndRemap:
-            repairMappingIfStale()
-            // A missing Caps Lock mapping may already have flipped the lock
-            // state. Put it back off while the mapping repairs.
-            DispatchQueue.main.async { [weak self] in
-                guard let self,
-                      self.lifecycleLock.withLock({
-                          self.tap != nil && !self.shouldStopTapThread
-                      })
-                else { return }
-                if source == .capsLock { self.setCapsLock(false) }
-            }
+            if source == .capsLock { stateLock.withLock { rawCapsLockCount &+= 1 } }
+            repairMappingIfStale(rawCapsLockOn: source == .capsLock ? event.flags.contains(.maskAlphaShift) : nil)
             return nil
         }
     }
@@ -795,7 +923,7 @@ final class SuperKeyService: ObservableObject {
 
     // MARK: - Tapped on its own
 
-    private func performSoloAction(longHold: Bool, repeated: Bool) {
+    private func performSoloAction(longHold: Bool, repeated: Bool, flags: CGEventFlags) {
         let action = stateLock.withLock { soloAction }
         switch SuperKeySupport.soloEffect(action: action,
                                           longHold: longHold,
@@ -805,7 +933,7 @@ final class SuperKeyService: ObservableObject {
         case .escape:
             runOnMainIfNeeded { _ = Self.postKey(CGKeyCode(kVK_Escape)) }
         case .capsLock:
-            runOnMainIfNeeded { self.setCapsLock(!self.capsLockIsOn()) }
+            toggleCapsLock(flags: flags)
         case .inputSource:
             // Must finish before this tap returns: the next keystroke is already
             // in flight, and hopping to main (or waiting on Accessibility) left
@@ -869,6 +997,50 @@ final class SuperKeyService: ObservableObject {
 
     // MARK: - Caps Lock itself
 
+    private func toggleCapsLock(flags: CGEventFlags) {
+        let generation = lifecycleLock.withLock { mappingGeneration }
+        let atRelease = stateLock.withLock { (raw: rawCapsLockCount, write: soloCapsLockWrite?.count) }
+        runOnMainIfNeeded {
+            guard self.lifecycleLock.withLock({
+                self.tap != nil && self.mappingGeneration == generation && !self.shouldStopTapThread
+            }) else { return }
+            let (rawCount, lastWrite) = self.stateLock.withLock { (self.rawCapsLockCount, self.soloCapsLockWrite) }
+            let wasOn: Bool
+            if let lastWrite, lastWrite.generation == generation, lastWrite.count != atRelease.write {
+                wasOn = lastWrite.on  // An earlier queued solo action just ran.
+            } else if rawCount != atRelease.raw {
+                wasOn = flags.contains(.maskAlphaShift)  // The live lock can already reflect a later raw press.
+            } else {
+                wasOn = self.capsLockIsOn() ?? flags.contains(.maskAlphaShift)
+            }
+            if self.setCapsLock(!wasOn) {
+                self.stateLock.withLock {
+                    self.soloCapsLockWrite = (generation, (lastWrite?.count ?? 0) &+ 1, !wasOn)
+                }
+            }
+        }
+    }
+
+    /// Setting the system lock emits flagsChanged on mapped keyboards too.
+    /// Only a keyboard that still has a native Caps Lock needs a corrective
+    /// write. A system-wide reset here would undo a solo tap on another device.
+    private func clearUnmappedCapsLock(reportedOn: Bool) {
+        let client = IOHIDEventSystemClientCreateSimpleClient(kCFAllocatorDefault)
+        // The services read and write properties through their client's connection.
+        defer { withExtendedLifetime(client) {} }
+        let services = IOHIDEventSystemClientCopyServices(client) as? [IOHIDServiceClient] ?? []
+        for keyboard in services {
+            guard IOHIDServiceClientConformsTo(keyboard, UInt32(kHIDPage_GenericDesktop),
+                                               UInt32(kHIDUsage_GD_Keyboard)) != 0 else { continue }
+            let mapping = IOHIDServiceClientCopyProperty(keyboard, SuperKeySupport.userMappingProperty as CFString)
+            guard SuperKeySupport.hasNativeCapsLock(in: mapping) else { continue }
+            let lockKey = "HIDCapsLockState" as CFString
+            if reportedOn || IOHIDServiceClientCopyProperty(keyboard, lockKey) as? Bool != false {
+                _ = IOHIDServiceClientSetProperty(keyboard, lockKey, kCFBooleanFalse)
+            }
+        }
+    }
+
     /// The lock state lives with the system's own keyboard service, which is
     /// also what lights the key.
     private func withHIDSystem<T>(_ body: (io_connect_t) -> T?) -> T? {
@@ -882,18 +1054,18 @@ final class SuperKeyService: ObservableObject {
         return body(connection)
     }
 
-    private func capsLockIsOn() -> Bool {
+    private func capsLockIsOn() -> Bool? {
         withHIDSystem { connection in
             var state = false
             guard IOHIDGetModifierLockState(connection, Int32(kIOHIDCapsLockState), &state) == KERN_SUCCESS
             else { return nil }
             return state
-        } ?? false
+        }
     }
 
-    private func setCapsLock(_ on: Bool) {
-        _ = withHIDSystem { connection in
-            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on)
-        }
+    @discardableResult private func setCapsLock(_ on: Bool) -> Bool {
+        withHIDSystem { connection in
+            IOHIDSetModifierLockState(connection, Int32(kIOHIDCapsLockState), on) == KERN_SUCCESS
+        } ?? false
     }
 }

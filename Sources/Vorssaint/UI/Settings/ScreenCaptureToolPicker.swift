@@ -3,7 +3,7 @@
 
 import SwiftUI
 
-/// Chooses the tool whose options the page shows. Four tool names can need
+/// Chooses the tool whose options the page shows. Five tool names can need
 /// more room than the narrowest window leaves the page, in English and more so
 /// in longer languages, and a page wider than its column is centered and cut
 /// on both sides, under the sidebar. The segments give way to a menu whenever

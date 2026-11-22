@@ -8,7 +8,15 @@ enum ShelfDragCompletionContract {
     final class Window {}
     typealias NSWindow = Window
     typealias ShelfService = Service
-    struct NSEvent {}
+    struct NSEvent { static var pressedMouseButtons = 1 }
+    enum QuickToolHUD {
+        static func show(icon: String, message: String) {}
+    }
+    struct L10n {
+        static let shared = L10n()
+        var s: Self { self }
+        let shelfFileMissing = "Missing"
+    }
 
     /// The production tile builds native pasteboard items. Only starting the
     /// interactive drag is replaced, so tests need no window or mouse gesture.
@@ -17,9 +25,14 @@ enum ShelfDragCompletionContract {
         var window: Window? = Window()
         let bounds = CGRect(x: 0, y: 0, width: 40, height: 40)
         var draggedIDs: [UUID] = []
+        var pendingDragEvent: NSEvent?
+        var pendingDragID: UUID?
+        var dragPreparation: DispatchWorkItem?
         var draggingItems: [NSDraggingItem] = []
+        var replacementsAtStart = -1
         init(item: Service.Item) { self.item = item }
         func beginDraggingSession(with items: [NSDraggingItem], event: NSEvent, source: AnyObject) {
+            replacementsAtStart = Service.shared.replacements.count
             draggingItems = items
         }
     }
@@ -64,6 +77,7 @@ enum ShelfDragCompletionContract {
         UserDefaults.standard = UserDefaults.Store()
         NotchService.shared = NotchService()
         Service.shared = Service()
+        NSEvent.pressedMouseButtons = 1
     }
 }
 
@@ -82,7 +96,7 @@ enum ShelfDragCompletionTests {
                         service.isPinned = !pinned
                         Context.UserDefaults.standard.closeAfterDrop = close
                         let id = UUID()
-                        service.beginInternalDrag(items: Context.dragItems([id]), from: notch.presentationWindow)
+                        service.beginInternalDrag(items: Context.dragItems([id]), from: notch.presentationWindow, containsPackageContent: false)
                         service.internalDragWasMerged = merged
                         suite.expect(notch.heldDrag, "a drag from the notch holds its working surface")
                         service.completeInternalDrag(dropAccepted: accepted)
@@ -110,7 +124,7 @@ enum ShelfDragCompletionTests {
             service.dockedVisible = docked
             notch.pinned = true
             Context.UserDefaults.standard.removeAfterDrop = false
-            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source)
+            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source, containsPackageContent: false)
             suite.expect(!notch.heldDrag, "a separate shelf cannot hold an unrelated notch open")
             service.completeInternalDrag(dropAccepted: true)
             suite.expect(service.floatingClosures == (docked ? 0 : 1) && service.dockedClosures == (docked ? 1 : 0)
@@ -127,7 +141,7 @@ enum ShelfDragCompletionTests {
             let source = fromNotch ? notch.presentationWindow! : Context.Window()
             if !fromNotch { service.panel = source; service.isVisible = true }
             service.internalDragMoved(to: CGPoint(x: 1, y: 1))
-            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source)
+            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source, containsPackageContent: false)
             service.internalDragMoved(to: CGPoint(x: 2, y: 2))
             service.completeInternalDrag(dropAccepted: false)
             service.internalDragMoved(to: CGPoint(x: 3, y: 3))
@@ -139,7 +153,7 @@ enum ShelfDragCompletionTests {
         let pinnedService = Context.Service()
         let pinnedID = UUID(), looseID = UUID()
         pinnedService.protectedIDs = [pinnedID]
-        pinnedService.beginInternalDrag(items: Context.dragItems([pinnedID, looseID]), from: Context.Window())
+        pinnedService.beginInternalDrag(items: Context.dragItems([pinnedID, looseID]), from: Context.Window(), containsPackageContent: false)
         pinnedService.completeInternalDrag(dropAccepted: true)
         suite.expect(pinnedService.removed == [looseID],
                "a pinned shelf item survives a drag-out that removes the rest")
@@ -151,7 +165,7 @@ enum ShelfDragCompletionTests {
             let source = notch.presentationWindow!
             service.panel = Context.Window()
             service.isVisible = true
-            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source)
+            service.beginInternalDrag(items: Context.dragItems([UUID()]), from: source, containsPackageContent: false)
             switch changedSurface {
             case 0: notch.selected = .music
             case 1: notch.showingSections = true
@@ -164,6 +178,16 @@ enum ShelfDragCompletionTests {
                    "an old drag cannot close a different destination or a replacement notch window")
         }
         fileDragProtection(suite)
+    }
+
+    private static func drain(until done: () -> Bool) {
+        let deadline = Date().addingTimeInterval(3)
+        while !done() && Date() < deadline { RunLoop.current.run(until: Date().addingTimeInterval(0.005)) }
+    }
+
+    private static func beginAndWait(_ tile: Context.Tile) {
+        tile.beginItemDrag(with: Context.NSEvent())
+        drain { tile.pendingDragID == nil }
     }
 
     private static func fileDragProtection(_ suite: TestSuite) {
@@ -189,6 +213,36 @@ enum ShelfDragCompletionTests {
                 Context.Service.Item(payload: .file(url), title: url.lastPathComponent,
                                      icon: NSImage(), isImage: false, bookmark: bookmark)
             }
+            // Hold the real preparation queue before the tile handles its event.
+            // Main must be able to process cancellation before the I/O can start.
+            Context.reset()
+            let early = item(plain)
+            let slowService = Context.Service.shared
+            slowService.items = [early]
+            let slowTile = Context.Tile(item: early)
+            let releaseIO = DispatchSemaphore(value: 0)
+            Context.Service.dragFileQueue.async { _ = releaseIO.wait(timeout: .now() + 3) }
+            slowTile.beginItemDrag(with: Context.NSEvent())
+            suite.expect(slowTile.pendingDragID != nil && slowTile.draggingItems.isEmpty
+                         && slowService.activeInternalDragIDs.isEmpty,
+                         "a delayed disk returns the mouse callback without taking the drag session")
+            slowTile.cancelDragPreparation()
+            releaseIO.signal()
+            beginAndWait(slowTile)
+            suite.expect(slowTile.draggedIDs == [early.id], "the next gesture can drag normally after cancellation")
+            slowService.completeInternalDrag(dropAccepted: false)
+
+            let held = DispatchSemaphore(value: 0)
+            Context.Service.dragFileQueue.async { _ = held.wait(timeout: .now() + 3) }
+            let released = Context.Tile(item: early)
+            released.beginItemDrag(with: Context.NSEvent())
+            Context.NSEvent.pressedMouseButtons = 0
+            held.signal()
+            drain { released.pendingDragID == nil }
+            suite.expect(released.draggingItems.isEmpty && slowService.activeInternalDragIDs.isEmpty,
+                         "a worker finishing after mouse-up cannot start a stale session")
+            Context.reset()
+
             let cases: [(URL, Bool, String)] = [
                 (inside, true, "package content"),
                 (resources, true, "a directory inside a package"),
@@ -204,7 +258,7 @@ enum ShelfDragCompletionTests {
                 let entry = item(url)
                 service.items = [entry]
                 let tile = Context.Tile(item: entry)
-                tile.beginItemDrag(with: Context.NSEvent())
+                beginAndWait(tile)
                 let writer = tile.draggingItems.first?.item as? NSURL
                 suite.expect(writer?.path == url.path && service.activeInternalDragIDs == [entry.id],
                        "the production tile keeps the selected payload and identity for \(label)")
@@ -247,11 +301,11 @@ enum ShelfDragCompletionTests {
             let service = Context.Service.shared
             service.items = [saved]
             let healedTile = Context.Tile(item: saved)
-            healedTile.beginItemDrag(with: Context.NSEvent())
+            beginAndWait(healedTile)
             let writer = healedTile.draggingItems.first?.item as? NSURL
             suite.expect(writer.map { ($0 as URL).standardizedFileURL.path } == recovered.standardizedFileURL.path
                     && service.items.first?.payload == .file(plain)
-                    && service.replacements.isEmpty,
+                    && healedTile.replacementsAtStart == 0,
                    "the bookmark reaches the actual drag before the deferred saved-item replacement")
             suite.expect(service.sourceOperationMask(for: .outsideApplication) == .copy,
                    "a healed bookmark moved into a package cannot offer Finder a move")
@@ -267,11 +321,12 @@ enum ShelfDragCompletionTests {
             let exportedService = Context.Service.shared
             exportedService.items = [savedInside]
             let exportedTile = Context.Tile(item: savedInside)
-            exportedTile.beginItemDrag(with: Context.NSEvent())
+            beginAndWait(exportedTile)
             let exportedWriter = exportedTile.draggingItems.first?.item as? NSURL
-            suite.expect(exportedWriter.map { ($0 as URL).standardizedFileURL.path } == exported.standardizedFileURL.path
-                    && exportedService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
-                   "a bookmark moved out of a package regains ordinary move behavior")
+            suite.expect(exportedWriter.map { ($0 as URL).standardizedFileURL.path } == exported.standardizedFileURL.path,
+                   "a bookmark heals into the drag even outside its package")
+            suite.expect(exportedService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
+                   "a bookmark moved out of a package is checked at its new location and can move")
             exportedService.completeInternalDrag(dropAccepted: false)
 
             // Batch flattening and mixed selections use the same copy-only
@@ -285,13 +340,37 @@ enum ShelfDragCompletionTests {
             batchService.items = [batch]
             batchService.selection = [batch.id]
             let batchTile = Context.Tile(item: batch)
-            batchTile.beginItemDrag(with: Context.NSEvent())
+            beginAndWait(batchTile)
             suite.expect(batchTile.draggedIDs == [note.id, entry.id]
                     && batchService.sourceOperationMask(for: .outsideApplication) == .copy,
                    "a mixed batch protects its package content while retaining every leaf")
             batchService.completeInternalDrag(dropAccepted: false)
+            // The earlier bookmark scenarios moved plain into and then out of
+            // the package. Its current, ordinary path is exported.
+            let ordinary = item(exported)
+            let web = Context.Service.Item(payload: .link(URL(string: "https://example.com")!),
+                                           title: "link", icon: NSImage(), isImage: false)
+            batchService.items = [ordinary, note, web]
+            batchService.selection = [ordinary.id, note.id, web.id]
+            let ordinaryTile = Context.Tile(item: ordinary)
+            beginAndWait(ordinaryTile)
+            suite.expect(ordinaryTile.draggedIDs == [ordinary.id, note.id, web.id],
+                         "a mixed drag preserves all three live items and their order")
+            suite.expect(batchService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
+                         "a text or link next to an ordinary file does not remove its move operation")
+            batchService.completeInternalDrag(dropAccepted: false)
+
+            let missing = item(root.appendingPathComponent("missing"))
+            let offline = item(URL(fileURLWithPath: "/Volumes/VorssaintOffline-\(UUID())/offline"))
+            batchService.items = [missing, offline]
+            batchService.selection = [missing.id, offline.id]
+            let missingTile = Context.Tile(item: missing)
+            beginAndWait(missingTile)
+            suite.expect(missingTile.draggingItems.isEmpty && batchService.removed.contains(missing.id)
+                         && !batchService.removed.contains(offline.id),
+                         "an all-missing grab retires only confirmed missing files on mounted volumes")
             let link = item(fileLink)
-            batchService.beginInternalDrag(items: [link], from: Context.Window())
+            batchService.beginInternalDrag(items: [link], from: Context.Window(), containsPackageContent: false)
             suite.expect(batchService.sourceOperationMask(for: .outsideApplication) == [.copy, .move],
                    "a subsequent ordinary drag does not retain the previous package protection")
             batchService.protectedIDs = [link.id]

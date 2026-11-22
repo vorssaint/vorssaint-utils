@@ -2512,6 +2512,13 @@ enum PointerInputFeatureTests {
                                               longHold: true,
                                               repeated: true) == .capsLock,
                "the input-source action switches on a quick press and reserves a hold for Caps Lock")
+        suite.expect(SuperKeySupport.hasNativeCapsLock(in: nil)
+                && SuperKeySupport.hasNativeCapsLock(in: [])
+                && SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.rightCommand.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["HIDKeyboardModifierMappingSrc": NSNumber(value: SuperKeySource.capsLock.usage)]])
+                && !SuperKeySupport.hasNativeCapsLock(in: [["unrecognized": 1]])
+                && !SuperKeySupport.hasNativeCapsLock(in: "unrecognized"),
+               "a keyboard must have a native Caps Lock before its lock is cleared during repair")
         suite.expect(SuperKeySupport.nextInputSourceID(currentID: "abc",
                                                  enabledIDs: ["abc", "pinyin", "kana"]) == "pinyin"
                 && SuperKeySupport.nextInputSourceID(currentID: "kana",
@@ -2683,6 +2690,29 @@ enum PointerInputFeatureTests {
             source: .capsLock
         ) == [foreignMapping],
                "the crash guard removes only the mapping owned by the Super key")
+
+        suite.expect(SuperKeySupport.readMappings(
+            "", property: SuperKeySupport.userMappingProperty
+        ) == .noKeyboard
+            && SuperKeySupport.readMappings(
+                "RegistryID  Key  Value\n", property: SuperKeySupport.userMappingProperty
+            ) == .noKeyboard,
+            "an empty hidutil report means no keyboard yet, not a foreign mapping")
+        suite.expect(SuperKeySupport.readMappings(
+            "unexpected output", property: SuperKeySupport.userMappingProperty
+        ) == .unreadable, "an unreadable report cannot leave the service waiting for a keyboard")
+        suite.expect(SuperKeySupport.readMappings(
+            heterogeneousUserMappingReport,
+            property: SuperKeySupport.userMappingProperty
+        ) == .foreignMapping,
+            "keyboards that disagree still read as a foreign mapping")
+        suite.expect(SuperKeySupport.readMappings(
+            mappingReport, property: SuperKeySupport.userMappingProperty
+        ) == .consistent([capsMapping])
+            && SuperKeySupport.consistentMappings(
+                mappingReport, property: SuperKeySupport.userMappingProperty
+            ) == [capsMapping],
+            "a consistent report reads as one safe table, and the legacy helper keeps it")
 
         let noActionReport = """
         HIDKeyboardModifierMappingPairs = {
@@ -2863,6 +2893,24 @@ enum PointerInputFeatureTests {
         suite.expect(unmappedKeyboardState.decide(.sourceKey) == .interceptAndRemap,
                "a raw source key is intercepted while that keyboard's mapping is repaired")
 
+        var waitingState = SuperKeySupport.State()
+        let f18Down = SuperKeySupport.Event.triggerDown(
+            isRepeat: false, hasPrimaryModifiers: false, timestamp: 1)
+        let f18Repeat = SuperKeySupport.Event.triggerDown(
+            isRepeat: true, hasPrimaryModifiers: false, timestamp: 2)
+        let f18Up = SuperKeySupport.Event.triggerUp(timestamp: 3)
+        suite.expect(!waitingState.shouldCapture(f18Down, enabled: false),
+               "native F18 reaches the app while the mapping is pending")
+        waitingState.reset()
+        suite.expect(!waitingState.shouldCapture(f18Repeat, enabled: true)
+                && !waitingState.shouldCapture(f18Up, enabled: true)
+                && waitingState.shouldCapture(f18Down, enabled: true),
+               "arming after a forwarded F18 preserves its repeats and release, then captures the next press")
+        _ = waitingState.shouldCapture(f18Down, enabled: false)
+        suite.expect(waitingState.shouldCapture(f18Down, enabled: true)
+                && waitingState.shouldCapture(f18Up, enabled: true),
+               "a lost native F18 release cannot prevent capture of a fresh press")
+
         // MARK: Mouse app exceptions (issue #358)
 
         suite.expect(MouseExceptionScope.allCases.allSatisfy {
@@ -2873,6 +2921,7 @@ enum PointerInputFeatureTests {
                "each feature keeps its own list, never a key shared with another")
         suite.expect(MouseExceptionScope.smoothScroll.feature == .smoothScroll
                 && MouseExceptionScope.linearScroll.feature == .linearScroll
+                && MouseExceptionScope.scrollSpeed.feature == .scrollSpeed
                 && MouseExceptionScope.scrollDirection.feature == .scrollInverter
                 && MouseExceptionScope.focusFollowsMouse.feature == .focusFollowsMouse
                 && MouseExceptionScope.navigation.feature == .mouseNavigation
@@ -3808,7 +3857,12 @@ enum PointerInputFeatureTests {
                     if depth == 0 { break }
                 }
             }
-            suite.expect(rearm.contains("SessionActivity.shared.isActive"),
+            let usesSwitcherPolicy = tapOwner.hasSuffix("/AppSwitcher.swift") && rearm.contains("if self.tapIsWanted,")
+            let sessionCheck = usesSwitcherPolicy
+                ? code.components(separatedBy: "private var tapIsWanted: Bool {").dropFirst().first?
+                    .components(separatedBy: "\n    }").first ?? ""
+                : rearm
+            suite.expect(sessionCheck.contains("SessionActivity.shared.isActive"),
                    "\(tapOwner) does not re-arm a disabled tap into a switched-away session")
             if tapOwner.contains("MouseNavigation")
                 || tapOwner.contains("MouseButtonShortcut")
@@ -3874,6 +3928,8 @@ enum PointerInputFeatureTests {
             .dropFirst().first?.components(separatedBy: "Permissions.shared.$screenRecording").first ?? ""
         suite.expect(accessibilitySink.contains(".quitWindowProtection"),
                "granting Accessibility starts quit protection without a relaunch")
+        suite.expect(accessibilitySink.contains(".scrollSpeed"),
+               "an Accessibility change re-syncs speed when it is the only installed wheel feature")
         let smoothSchedulerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/SmoothScrollService.swift",
             encoding: .utf8)) ?? ""

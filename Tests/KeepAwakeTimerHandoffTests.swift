@@ -9,7 +9,7 @@ import Foundation
 /// question the automation asks itself: under All, one matching condition is
 /// not a session (issue #1587).
 enum KeepAwakeTimerHandoffContract {
-    enum SessionTrigger { case manual, automation }
+    enum SessionTrigger { case manual, launch, automation }
     enum AppFeature {
         static let keepAwake = Feature()
         final class Feature { var isAvailable = true }
@@ -53,6 +53,11 @@ enum KeepAwakeTimerHandoffTests {
                 && plugged.activations.count == 1
                 && plugged.activeAutomationConditions == [.externalDisplay, .power],
                "All hands the session over once every selected condition is met")
+
+        let launch = dockedOnBattery(requireAll: false)
+        launch.sessionTrigger = .launch
+        expect(launch.continueAutomaticallyAfterTimerIfNeeded() && launch.activations.first?.trigger == .automation,
+               "a timer started at launch can still hand over to a matching automation")
 
         // The guards the handoff already had stay in force under either mode.
         for requireAll in [false, true] {

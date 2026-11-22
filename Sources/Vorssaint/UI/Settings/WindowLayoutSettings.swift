@@ -19,6 +19,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowEdgeSnapEnabled) private var edgeSnapEnabled = false
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
+    @AppStorage(DefaultsKey.windowEdgeSnapRestoreOnDrag) private var edgeSnapRestoreOnDrag = false
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -93,6 +94,12 @@ struct WindowLayoutSettings: View {
                         .onChange(of: edgeSnapDisabledZones) { _, _ in
                             WindowLayoutService.shared.syncWithPreferences()
                         }
+                    Toggle(WindowEdgeSnapRestoreStrings.localized(l10n.language).title,
+                           isOn: $edgeSnapRestoreOnDrag)
+                        .disabled(!edgeSnapEnabled)
+                    Text(WindowEdgeSnapRestoreStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     if systemTilingEnabled {
                         Label(text.edgeSnapSystemConflict, systemImage: "exclamationmark.triangle.fill")
                             .font(.caption)
