@@ -69,14 +69,14 @@ final class AppSwitcher: ObservableObject {
     /// confirmation cannot survive a switcher session that has already ended.
     var keyboardInputOwnership: (isOwned: Bool, generation: UInt64) {
         routeLock.withLock {
-            (!routeCapturing && (routeSessionActive
+            (!routeCapturing && !routeTapRecoveryPending && (routeSessionActive
                 || (routeCanStartSession && (routePendingSessionStart != nil || secureInputReplays.hasPending))),
              sessionStartGeneration)
         }
     }
 
     var scrollNavigationActive: Bool {
-        routeLock.withLock { routeSessionActive && !routeCapturing }
+        routeLock.withLock { routeSessionActive && !routeCapturing && !routeTapRecoveryPending }
     }
 
     private var panel: NSPanel?
@@ -96,6 +96,7 @@ final class AppSwitcher: ObservableObject {
     private var tapThread: Thread?
     private var shouldStopTapThread = false
     private var pendingStartAfterStop = false
+    private var tapLifecycleGeneration: UInt = 0
     /// Alive only while the Switcher's tap needs layout labels off main.
     private var keyboardLayoutObserver: NSObjectProtocol?
     /// Registered only while the switcher takes macOS's keys over.
@@ -127,6 +128,7 @@ final class AppSwitcher: ObservableObject {
     /// touching the main thread; mutated only under `routeLock`.
     private let routeLock = NSLock()
     private var routeSessionActive = false
+    private var routeTapRecoveryPending = false
     private var routeShortcut = GlobalShortcut.switcherDefault
     private var routeWindowShortcut = GlobalShortcut.switcherWindowDefault
     private var routeAllWindowsShortcut: GlobalShortcut?
@@ -419,6 +421,7 @@ final class AppSwitcher: ObservableObject {
             }
             shouldStopTapThread = false
             pendingStartAfterStop = false
+            tapLifecycleGeneration &+= 1
             let thread = Thread { [weak self] in
                 self?.runEventTap()
             }
@@ -432,6 +435,7 @@ final class AppSwitcher: ObservableObject {
 
     private func removeTap() {
         if sessionActive { cancelSession() }
+        swallowingMiddleMouseUp = false
         routeLock.withLock { routePendingSessionStart = nil }
         invalidateSecureInputReplays()
         unregisterSecureInputActionHotKeys()
@@ -439,6 +443,7 @@ final class AppSwitcher: ObservableObject {
             () -> (runLoop: CFRunLoop?, tap: CFMachPort?, threadExists: Bool) in
             shouldStopTapThread = true
             pendingStartAfterStop = false
+            tapLifecycleGeneration &+= 1
             return (tapRunLoop, tap, tapThread != nil)
         }
         if let tap = snapshot.tap {
@@ -464,7 +469,7 @@ final class AppSwitcher: ObservableObject {
 
             let shouldStopBeforeCreatingTap = lifecycleLock.withLock { shouldStopTapThread }
             guard !shouldStopBeforeCreatingTap else {
-                if clearEventTapThread() { installTap() }
+                finishEventTapThread()
                 return
             }
 
@@ -487,14 +492,12 @@ final class AppSwitcher: ObservableObject {
                 },
                 userInfo: Unmanaged.passUnretained(self).toOpaque()
             ) else {
-                _ = clearEventTapThread()
-                // Without a tap there is nothing to replace ⌘Tab, so give the
-                // system switcher back rather than leaving the shortcut dead.
-                DispatchQueue.main.async { [weak self] in self?.restoreNativeHotkeys() }
+                finishEventTapThread(creationFailed: true)
                 return
             }
 
             let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+            routeLock.withLock { routeTapRecoveryPending = false }
             lifecycleLock.withLock {
                 self.tap = tap
                 runLoopSource = source
@@ -515,7 +518,7 @@ final class AppSwitcher: ObservableObject {
             CGEvent.tapEnable(tap: tap, enable: false)
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
             CFMachPortInvalidate(tap)
-            if clearEventTapThread() { installTap() }
+            finishEventTapThread()
         }
     }
 
@@ -738,7 +741,7 @@ final class AppSwitcher: ObservableObject {
         // enumeration can be delayed. A click can cancel this queued start.
         guard let accepted = routeLock.withLock({ () -> (generation: UInt64, shortcut: GlobalShortcut,
                                                         requestedShortcut: GlobalShortcut)? in
-            guard routeCanStartSession, !routeCapturing, !routeYieldsToExclusiveFullscreen,
+            guard routeCanStartSession, !routeCapturing, !routeYieldsToExclusiveFullscreen, !routeTapRecoveryPending,
                   let match = SwitcherSupport.shortcutMatch(event: event, appsShortcut: routeShortcut,
                                                              windowShortcut: routeWindowShortcut,
                                                              allWindowsShortcut: routeAllWindowsShortcut)
@@ -767,8 +770,8 @@ final class AppSwitcher: ObservableObject {
         CFRunLoopWakeUp(runLoop)
     }
 
-    private func clearEventTapThread() -> Bool {
-        lifecycleLock.withLock {
+    private func finishEventTapThread(creationFailed: Bool = false) {
+        let completion = lifecycleLock.withLock { () -> (shouldRestart: Bool, generation: UInt) in
             let shouldRestart = pendingStartAfterStop
             tap = nil
             runLoopSource = nil
@@ -776,7 +779,17 @@ final class AppSwitcher: ObservableObject {
             tapThread = nil
             shouldStopTapThread = false
             pendingStartAfterStop = false
-            return shouldRestart
+            return (shouldRestart, tapLifecycleGeneration)
+        }
+        guard creationFailed || completion.shouldRestart else { return }
+        DispatchQueue.main.async { [weak self] in
+            // A suspension or a new install supersedes work left by this thread.
+            guard let self, self.lifecycleLock.withLock({ self.tapLifecycleGeneration == completion.generation })
+            else { return }
+            if creationFailed { self.restoreNativeHotkeys() }
+            if completion.shouldRestart, self.routeLock.withLock({ self.routeCanStartSession }), self.tapIsWanted {
+                self.installTap()
+            }
         }
     }
 
@@ -788,37 +801,47 @@ final class AppSwitcher: ObservableObject {
     /// then the handful of keys typed while the panel is up.
     private func route(type: CGEventType, event: CGEvent, secureInputReplay: Bool = false) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            // Never resurrect a tap that removeTap is already tearing down:
-            // it switches the tap off itself, and that is reported here like
-            // a disable by the system. Syncing then would start the tap again
-            // under a suspend().
-            let currentTap = lifecycleLock.withLock { shouldStopTapThread ? nil : tap }
-            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let currentTap {
-                CGEvent.tapEnable(tap: currentTap, enable: true)
-            } else if currentTap != nil {
-                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            guard let currentTap = lifecycleLock.withLock({ shouldStopTapThread ? nil : tap }) else {
+                return Unmanaged.passUnretained(event)
             }
-            routeLock.withLock { routePendingSessionStart = nil }
-            invalidateSecureInputReplays()
+            let needsRecovery = routeLock.withLock {
+                guard !routeTapRecoveryPending else { return false }
+                routeTapRecoveryPending = true
+                routePendingSessionStart = nil
+                secureInputReplays.invalidate()
+                return true
+            }
+            guard needsRecovery else { return Unmanaged.passUnretained(event) }
+            // Quartz has stopped filtering. Keep it that way until main can
+            // discard the session that may have missed a click or key release.
             DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
+                guard let self, self.lifecycleLock.withLock({ !self.shouldStopTapThread && self.tap === currentTap })
+                else { return }
                 if self.sessionActive { self.cancelSession() }
+                self.swallowingMiddleMouseUp = false
                 self.releaseSecureInputActionsIfIdle()
-                // Full screen may have ended while the tap was disabled.
-                self.applyNativeHotkeySuppressionIfTapLive()
+                if self.tapIsWanted, CFMachPortIsValid(currentTap) {
+                    self.routeLock.withLock { self.routeTapRecoveryPending = false }
+                    CGEvent.tapEnable(tap: currentTap, enable: true)
+                    if self.isTapLive {
+                        self.applyNativeHotkeySuppressionIfTapLive()
+                        return
+                    }
+                }
+                // Permission can return before the preference sync checks
+                // again. Stop this tap so that sync can start a replacement.
+                self.restoreNativeHotkeys()
+                self.removeTap()
+                self.syncWithPreferences()
             }
             return Unmanaged.passUnretained(event)
         }
 
-        let (active, shortcut, windowShortcut, allWindowsShortcut, capturing, canStartSession, hasPendingStart,
-             yieldsToExclusiveFullscreen) = routeLock.withLock {
-            (routeSessionActive, routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCapturing,
-             routeCanStartSession, routePendingSessionStart != nil, routeYieldsToExclusiveFullscreen)
+        let (active, shortcut, windowShortcut, allWindowsShortcut, canStartSession, hasPendingStart, passThrough) = routeLock.withLock {
+            (routeSessionActive, routeShortcut, routeWindowShortcut, routeAllWindowsShortcut, routeCanStartSession,
+             routePendingSessionStart != nil, routeCapturing || routeYieldsToExclusiveFullscreen || routeTapRecoveryPending)
         }
-        // A shortcut field in Settings has the keyboard: hand every key
-        // straight through so the user can record this feature's own
-        // combination instead of opening the switcher with it.
-        if capturing || yieldsToExclusiveFullscreen { return Unmanaged.passUnretained(event) }
+        if passThrough { return Unmanaged.passUnretained(event) }
         if !active {
             guard canStartSession else { return Unmanaged.passUnretained(event) }
             if type == .flagsChanged {

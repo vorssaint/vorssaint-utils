@@ -115,6 +115,18 @@ struct AgentLogObject {
         fields[key].flatMap { Self.string(data, range: $0) }
     }
 
+    /// Do not decode an oversized or nested value as response metadata.
+    func string(_ key: String, maxBytes: Int) -> String? {
+        guard let range = fields[key], range.count <= maxBytes + 2 else { return nil }
+        return Self.string(data, range: range)
+    }
+
+    func unsignedInteger(_ key: String) -> Int? {
+        guard let range = fields[key], (1...15).contains(range.count),
+              data[range].allSatisfy({ (48...57).contains($0) }) else { return nil }
+        return Int(String(decoding: data[range], as: UTF8.self))
+    }
+
     private static func string(_ data: Data, range: Range<Int>) -> String? {
         guard range.count >= 2, data[range.lowerBound] == 0x22, data[range.upperBound - 1] == 0x22 else { return nil }
         let contents = (range.lowerBound + 1)..<(range.upperBound - 1)

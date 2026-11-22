@@ -26,8 +26,8 @@ enum AgentUsageReadTests {
             }
         }
         static func readCursor(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
-                               shouldContinue: () -> Bool, report: (AgentUsageEvent) -> Void) -> Bool {
-            AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now,
+                               since horizon: Date = .distantPast, shouldContinue: () -> Bool, report: (AgentUsageEvent) -> Void) -> Bool {
+            AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now, since: horizon,
                                                     shouldContinue: shouldContinue, report: report)
         }
         static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast, shouldContinue: () -> Bool,

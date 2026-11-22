@@ -442,7 +442,7 @@ final class AgentUsageService: ObservableObject {
         for (path, cursor) in cursors {
             if cursor.provider == .cursor && (cursorRoot == nil || cursor.cursorAccess?.root.path != cursorRoot?.path) {
                 cursors[path] = nil
-                store.forget(file: path)
+                store.forget(files: [path])
                 changed = true
                 continue
             }
@@ -527,7 +527,8 @@ final class AgentUsageService: ObservableObject {
             guard let path = selection.path else { return selection.changed }
             let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: .cursor, cursorRoot: root)
             cursors[path] = cursor
-            return AgentLogReader.readCursor(cursor, into: store, now: Date(),
+            let now = Date()
+            return AgentLogReader.readCursor(cursor, into: store, now: now, since: now.addingTimeInterval(-Self.horizon),
                                              shouldContinue: { !cancellation.isCancelled }, report: report) || selection.changed
         }
         let path = changedPath
@@ -568,7 +569,7 @@ final class AgentUsageService: ObservableObject {
         let cursorRoot = existing.first { $0.provider == .cursor }?.url
         for (path, cursor) in cursors where cursor.provider == .cursor && cursor.cursorAccess?.root.path != cursorRoot?.path {
             cursors[path] = nil
-            store.forget(file: path)
+            store.forget(files: [path])
         }
         watchedRoots = existing
         lastRootCheck = Date()
@@ -589,7 +590,7 @@ final class AgentUsageService: ObservableObject {
             let cursorFiles = Set(files.lazy.filter { $0.provider == .cursor }.map(\.path))
             for (path, cursor) in cursors where cursor.provider == .cursor && !cursorFiles.contains(path) {
                 cursors[path] = nil
-                store.forget(file: path)
+                store.forget(files: [path])
                 changed = true
             }
             for file in files {

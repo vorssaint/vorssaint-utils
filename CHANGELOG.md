@@ -7,11 +7,12 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Summary
-This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots.
+This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots. Cleaner also protects data it can match to installed audio plugins.
 
 ### Added
 - Save current preferences to the XDG settings file from Settings > Advanced > Backup. The confirmation shows where the file will be saved. Thanks to @whizzzkid.
 - Dynamic Island can show Cursor's active project, new turns and completion notices from local transcripts. Thanks to @Arhurpro77.
+- AI Agents shows Cursor token usage when a local transcript includes a dated response with usage counts. Thanks to @iva-zhu.
 
 ### Changed
 - Clipboard history searches index the start of long entries and search the remaining text in the background. Searches in different panels keep their own results. Thanks to @iva-zhu.
@@ -23,12 +24,14 @@ This update reduces the work Vorssaint does at startup and improves window switc
 ### Fixed
 - After wake, fan control retries a saved curve if the hardware takes time to respond. It respects System mode and the hardware’s safety limits, and the panel shows when a curve could not be restored. Thanks to @SanRive.
 - The uninstaller and cleaner count files next to symbolic links. Nested app components are detected, and wallpaper scans still skip packages. Thanks to @retomi and @salvatoremiceli.
+- Cleaner keeps preferences, support files and caches it can match to audio plugins found in the standard plugin folders. It checks again before moving a selected item to the Trash. Thanks to @heisdanne and @imuhammadnadeem.
 - Monitor speakers that stay silent at zero volume can play again when you turn the volume up. Restoring sound respects the configured volume limit. Thanks to @trenaryja.
+- Dynamic Island lets macOS handle volume keys on USB outputs that lack a compatible main volume control. If an output cannot provide a reliable volume step or confirm a change, subsequent presses also go to macOS, including fine steps. Thanks to @royhenengel and @Snrlx-Media.
 - Brightness and speaker controls can reach compatible monitors connected through the built-in HDMI converter on certain Macs. Thanks to @davidmessem.
 - When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. Thanks to @razeenwasif.
 - Drop images or videos from Finder onto the open Media tool in Dynamic Island. A new drop leaves an active conversion running. Thanks to @KushagraIndurkhya.
 - The disk image installer skips hidden mounts, temporary build images and folders marked with `.vorssaint-no-install`. For images outside Downloads that have no quarantine flag, the option to move the image to the Trash starts unchecked. Thanks to @Zekuath.
-- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. Bursts of device notifications still trigger an immediate mute check, and a failed manual unmute is reported. Thanks to @JosueM1109.
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It rechecks mute immediately on device notifications and keeps the observers for unchanged input controls. A failed manual unmute is reported. Thanks to @JosueM1109, @howardyu60211 and @hash00.
 - The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
 - Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
 - Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
@@ -39,12 +42,13 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
 - Clipboard history saves copied spreadsheet cells as text and preserves the tabs and line breaks supplied by the spreadsheet. Image and file copies keep their original types. Thanks to @ego1s1.
 - macOS handles app switching while an exclusive full-screen game covers the window switcher. Vorssaint resumes its shortcuts when the game leaves full screen. Thanks to @nh4ttruong.
+- If macOS pauses the window switcher's input filter, the switcher waits until it can dismiss the interrupted session before filtering keys and clicks again. Thanks to @GeezusChrotch.
 - Settings opens on Macs without a backlit keyboard and only offers keyboard light controls on supported hardware. Thanks to @13v13reddy.
 - Super Key waits for a Bluetooth keyboard after login or wake and checks its existing mappings before turning on. Thanks to @iva-zhu.
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
 
 ### Contributors
-Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @salvatoremiceli, @SanRive, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
+Thanks to @13v13reddy, @Arhurpro77, @binjamshid, @davidmessem, @ego1s1, @EugeneCarldotme, @GeezusChrotch, @hash00, @heisdanne, @howardyu60211, @imuhammadnadeem, @iva-zhu, @JosueM1109, @KushagraIndurkhya, @LeLocTai, @Narangor, @nh4ttruong, @nodegan, @razeenwasif, @retomi, @royhenengel, @salvatoremiceli, @SanRive, @Snrlx-Media, @STUXKY, @TC-Virtuoso, @trenaryja, @whizzzkid, @ywu73 and @Zekuath.
 
 ## [3.4.4] - 2026-11-11
 

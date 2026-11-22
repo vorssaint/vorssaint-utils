@@ -314,8 +314,9 @@ enum NotchAgentSupport {
     /// card, the usual home among them when they add it.
     static func tiles(cards: [NotchAgentCard], providers: [AgentProvider],
                       codexAccounts: [String] = [], claudeAccount: String? = nil,
-                      live: [AgentLiveSession] = []) -> [NotchAgentTile] {
-        let shown = providers == [.cursor] ? cards.filter { $0 == .live } : cards
+                      snapshot: AgentUsageSnapshot = AgentUsageSnapshot()) -> [NotchAgentTile] {
+        let activityOnly = providers == [.cursor] && !snapshot.days.contains { ($0.byProvider[.cursor]?.tokens.total ?? 0) > 0 }
+        let shown = activityOnly ? cards.filter { $0 == .live } : cards
         return shown.flatMap { card -> [NotchAgentTile] in
             switch card {
             case .limits: return providers.filter(\.reportsLimits).flatMap { provider -> [NotchAgentTile] in
@@ -330,7 +331,7 @@ enum NotchAgentSupport {
             case .resets: return providers.contains(.codex)
                 ? [NotchAgentTile(card: .resets, provider: .codex, namesDefaultAccount: !codexAccounts.isEmpty)] : []
             case .live:
-                let working = live.contains { providers.contains($0.provider) }
+                let working = snapshot.live.contains { providers.contains($0.provider) }
                 return [NotchAgentTile(card: .live, provider: nil, idleProviderCount: working ? 0 : providers.count)]
             default: return [NotchAgentTile(card: card, provider: nil)]
             }
