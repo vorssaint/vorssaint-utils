@@ -109,6 +109,25 @@ struct WallpaperSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
+            Toggle("Music wallpaper with synced lyrics", isOn: Binding(
+                get: { UserDefaults.standard.bool(forKey: DefaultsKey.lyricsWallpaperEnabled) },
+                set: {
+                    UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperEnabled)
+                    LyricsWallpaperService.shared.sync()
+                }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Picker("Lyrics style", selection: Binding(
+                get: { UserDefaults.standard.string(forKey: DefaultsKey.lyricsWallpaperStyle) ?? "constellation" },
+                set: { UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperStyle) }
+            )) {
+                Text("Constellation").tag("constellation")
+                Text("Cover and lyrics").tag("classic")
+            }
+            .pickerStyle(.menu).controlSize(.small)
+
             HStack(spacing: 8) {
                 Button(text.addImage) { service.addImages(inNotch: inNotch) }
                     .buttonStyle(.bordered)
