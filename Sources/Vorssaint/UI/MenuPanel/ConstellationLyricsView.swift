@@ -11,6 +11,8 @@ struct ConstellationLyricsView: View {
     let lyrics: NotchLyrics
     let playback: NotchPlayback
     let offset: Double
+    /// A smaller band for the lock screen, between its clock and its login.
+    var compact = false
 
     private struct SplitMix: RandomNumberGenerator {
         var state: UInt64
@@ -54,7 +56,10 @@ struct ConstellationLyricsView: View {
 
         // Layout: jittered rows in reading order, steady for this line.
         var rng = SplitMix(state: UInt64(truncatingIfNeeded: index) &* 7919 &+ UInt64(words.count))
-        let area = CGRect(x: size.width * 0.12, y: size.height * 0.22, width: size.width * 0.76, height: size.height * 0.56)
+        let area = compact
+            ? CGRect(x: size.width * 0.1, y: size.height * 0.27, width: size.width * 0.8, height: size.height * 0.24)
+            : CGRect(x: size.width * 0.12, y: size.height * 0.22, width: size.width * 0.76, height: size.height * 0.56)
+        let scale: CGFloat = compact ? 0.55 : 1
         let columns = max(2, Int(ceil(sqrt(Double(words.count) * 1.7))))
         let rows = max(1, Int(ceil(Double(words.count) / Double(columns))))
         let cell = CGSize(width: area.width / CGFloat(columns), height: area.height / CGFloat(rows))
@@ -90,7 +95,7 @@ struct ConstellationLyricsView: View {
 
         for i in words.indices {
             let e = emphasis[i]
-            let size = 22 + 66 * e * e + (reached[i] ? 6 : 0)
+            let size = (22 + 66 * e * e + (reached[i] ? 6 : 0)) * scale
             let color = e > 0.05 ? Self.glow.opacity(0.55 + 0.45 * e) : Self.soft.opacity(reached[i] ? 0.8 : 0.5)
             let anchor = CGPoint(x: points[i].x, y: points[i].y + size * 0.55)
             let text = Text(words[i]).font(.system(size: size, weight: .bold, design: .rounded)).foregroundColor(color)
@@ -105,9 +110,9 @@ struct ConstellationLyricsView: View {
             gc.opacity = appear
             gc.draw(gc.resolve(text), at: anchor, anchor: .center)
             gc.opacity = 1
-            star(&gc, at: points[i], radius: 6 + 10 * e, color: e > 0.05 ? Self.glow : Self.soft, alpha: appear)
+            star(&gc, at: points[i], radius: (6 + 10 * e) * scale, color: e > 0.05 ? Self.glow : Self.soft, alpha: appear)
             if e > 0.6 {
-                let halo = Path(ellipseIn: CGRect(x: points[i].x - 26, y: points[i].y - 26, width: 52, height: 52))
+                let halo = Path(ellipseIn: CGRect(x: points[i].x - 26 * scale, y: points[i].y - 26 * scale, width: 52 * scale, height: 52 * scale))
                 gc.stroke(halo, with: .color(Self.glow.opacity(0.7 * e * appear)), lineWidth: 1.6)
             }
         }

@@ -73,6 +73,19 @@
 
 Per app volume, a real system monitor, a better app switcher, window snapping, Dock previews, clipboard history, text snippets, a file shelf, an uninstaller. The utilities Mac users usually buy one by one, together behind a single menu bar icon, with no account, no telemetry and no subscription.
 
+## Music wallpaper with synced lyrics (this fork)
+
+This fork of Vorssaint 3.4.4 adds a music wallpaper. While a song plays, your desktop shows its lyrics in time with the music, and the lock screen shows them too.
+
+- **Constellation style.** Each lyric line becomes a constellation: every word is a star joined to its neighbours, and the word being sung swells into a glowing blue headline. A second style shows the blurred cover beside scrolling lyrics. Pick one in the menu bar panel's Wallpaper section.
+- **Desktop and lock screen.** The lyrics sit behind your desktop icons and appear between the clock and the login controls on the lock screen. When nothing plays, your normal wallpaper returns.
+- **Starts with the app.** It is on by default and launches with Vorssaint. Both the wallpaper and the lock screen lyrics have their own switches.
+- **Many languages.** Lyrics come from LRCLIB, with a relaxed search that matches by song length and a NetEase Cloud Music fallback, which helps with Hindi, Telugu, Tamil, Punjabi and other regional songs whose titles are spelled differently across catalogs.
+- **Asks first.** On first launch it asks before sending a song's title and artist to those services. Declining turns the wallpaper off.
+- **Timing.** Catalogs time whole lines, so each word's moment inside a line is estimated from its length.
+
+Build it with Xcode installed: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./build.sh --install`. The release DMG is signed with a local self-signed identity and is not notarized, so right-click Open on first launch. Everything else below is upstream Vorssaint, unchanged.
+
 ## Install only what you use
 
 Choose individual features or start with a preset. Uninstalled features stop loading and disappear from the interface; reinstalling restores their settings. Setup asks only for the permissions your choices need.

@@ -119,6 +119,13 @@ struct WallpaperSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
+            Toggle("Show lyrics on the lock screen", isOn: Binding(
+                get: { UserDefaults.standard.bool(forKey: DefaultsKey.lyricsLockScreenEnabled) },
+                set: { UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsLockScreenEnabled) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
             Picker("Lyrics style", selection: Binding(
                 get: { UserDefaults.standard.string(forKey: DefaultsKey.lyricsWallpaperStyle) ?? "constellation" },
                 set: { UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperStyle) }

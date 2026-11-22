@@ -71,6 +71,7 @@ final class LyricsWallpaperService: ObservableObject {
         running = true
         let music = NotchMusicService.shared
         music.start()
+        LyricsLockScreenService.shared.start()
         music.$playback
             .receive(on: RunLoop.main)
             .sink { [weak self] in self?.playbackChanged($0) }
@@ -85,6 +86,7 @@ final class LyricsWallpaperService: ObservableObject {
     private func stop() {
         guard running else { return }
         running = false
+        LyricsLockScreenService.shared.stop()
         cancellables.removeAll()
         cancelLookup()
         track = nil
@@ -100,12 +102,9 @@ final class LyricsWallpaperService: ObservableObject {
     private func playbackChanged(_ playback: NotchPlayback?) {
         guard running else { return }
         guard let playback, playback.track.title?.isEmpty == false else {
-            // A player between songs reports nothing for a moment; the music
-            // service already holds its own grace period before this fires.
-            track = nil
-            lyrics = nil
-            state = .idle
-            cancelLookup()
+            // Nothing playing, or the feed restarting around a lock: the desktop
+            // window leaves but the lyrics are kept, so the same song coming back
+            // needs no new lookup.
             closeWindows()
             return
         }
