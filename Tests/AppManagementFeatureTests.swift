@@ -1035,10 +1035,12 @@ enum AppManagementFeatureTests {
             encoding: .utf8)) ?? ""
         let cleanSelectedBody = sourceBody(of: junkCleanerSource, from: "func cleanSelected(",
                                            to: "private static func mayRemove")
-        suite.expect(cleanSelectedBody.contains("chosen.contains { $0.category == .leftovers }")
-               && cleanSelectedBody.contains("? Self.installedBundleIDs() : []")
-               && !cleanSelectedBody.contains("let installed = Self.installedBundleIDs()"),
+        suite.expect(cleanSelectedBody.contains("let hasLeftovers = chosen.contains { $0.category == .leftovers }")
+               && cleanSelectedBody.contains("hasLeftovers ? Self.installedBundleIDs().union(audioPluginIDs) : []"),
                "a clean builds the installed-apps oracle only when a leftover row is selected")
+        suite.expect(cleanSelectedBody.contains("let needsPluginIDs = hasLeftovers || chosen.contains { $0.category == .caches }")
+               && cleanSelectedBody.contains("needsPluginIDs ? Self.installedAudioPluginBundleIDs() : []"),
+               "a clean refreshes plugin ownership even for a cache-only selection")
         let mayRemoveBody = sourceBody(of: junkCleanerSource, from: "private static func mayRemove",
                                        to: "private static func trashViaFinder")
         let leftoverBranch = mayRemoveBody.range(of: "if item.category == .leftovers")
