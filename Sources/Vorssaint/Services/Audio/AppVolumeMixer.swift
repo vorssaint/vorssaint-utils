@@ -86,15 +86,16 @@ final class AppVolumeMixer: ObservableObject {
     @Published private(set) var outputDevices: [MixerOutputDevice] = []
     @Published private(set) var currentOutputDeviceUID: String? {
         didSet {
-            if currentOutputDeviceUID != oldValue { volumeStepsNeedNativeKeys = nil }
+            if currentOutputDeviceUID != oldValue, outputControlDeviceID != nil {
+                removeOutputControlListeners()
+            }
         }
     }
     @Published private(set) var currentSystemSoundOutputDeviceUID: String?
     @Published private(set) var systemOutputVolume: Double?
     @Published private(set) var systemOutputMuted: Bool?
     /// A USB output can have a working slider with only a virtual main volume.
-    /// Nil while waiting for the new output's HAL snapshot.
-    private var volumeStepsNeedNativeKeys: Bool?
+    private var volumeStepsNeedNativeKeys = false
     /// The output's volume and mute as CoreAudio reports them. The published
     /// pair above shows the monitor's speakers instead while one carries the
     /// sound; see `republishSystemOutput()`.
@@ -164,11 +165,14 @@ final class AppVolumeMixer: ObservableObject {
     /// Running-state listeners per live process object, kept so every
     /// registration can be removed when the process disappears.
     private var runningListeners: [AudioObjectID: Set<AudioObjectPropertySelector>] = [:]
-    /// Volume and mute belong to the current output device, not the HAL's
-    /// system object, so these listeners move whenever that device changes.
-    private var outputControlListenerDevice: AudioObjectID?
+    /// The default in the last accepted snapshot, even when subscriptions failed.
+    private var outputControlDeviceID: AudioObjectID?
     private var outputControlListenerAddresses: [AudioObjectPropertyAddress] = []
+    private var outputControlListenerDevice: AudioObjectID? {
+        outputControlListenerAddresses.isEmpty ? nil : outputControlDeviceID
+    }
     private var outputControlRefreshGeneration = 0
+    private var nativeKeyReadGeneration: Int?
     private var stopped = false
     /// Waking can invalidate a live tap without an audio notification, so it
     /// requests a fresh snapshot and restarts the render observations.
@@ -233,6 +237,9 @@ final class AppVolumeMixer: ObservableObject {
         outputControlLock.withLock { outputControlLifetime }
     }
     private var outputKeyGeneration = 0
+    var currentOutputKeyGeneration: Int {
+        outputControlLock.withLock { outputKeyGeneration }
+    }
     /// Protected by outputControlLock. Volume and mute share native ordering
     /// once a hardware write or conversion has fallen back for this lifetime.
     private var nativeOutputKeyLifetime: UUID?
@@ -417,9 +424,7 @@ final class AppVolumeMixer: ObservableObject {
     }
 
     private func subscribeToOutputControls(of device: AudioObjectID?) {
-        guard outputControlListenerDevice != device else { return }
-        removeOutputControlListeners()
-        guard let device else { return }
+        guard let device, outputControlListenerDevice == nil else { return }
 
         let selectors = Self.outputVolumeSelectors + [kAudioDevicePropertyMute]
         for selector in selectors {
@@ -433,9 +438,6 @@ final class AppVolumeMixer: ObservableObject {
                 outputControlListenerAddresses.append(address)
             }
         }
-        if !outputControlListenerAddresses.isEmpty {
-            outputControlListenerDevice = device
-        }
     }
 
     private func removeOutputControlListeners() {
@@ -446,8 +448,8 @@ final class AppVolumeMixer: ObservableObject {
                                                   listenerClient)
             }
         }
-        outputControlListenerDevice = nil
-        volumeStepsNeedNativeKeys = nil
+        outputControlDeviceID = nil
+        volumeStepsNeedNativeKeys = false
         outputControlListenerAddresses.removeAll()
         outputControlRefreshGeneration &+= 1
         outputControlLock.withLock { outputControlLifetime = UUID() }
@@ -459,19 +461,26 @@ final class AppVolumeMixer: ObservableObject {
         settleQueuedOutputSteps(result: .superseded)
     }
 
-    private func scheduleOutputControlRefresh(for device: AudioObjectID) {
-        guard listenerInstalled, outputControlListenerDevice == device else { return }
+    private func scheduleOutputControlRefresh(for device: AudioObjectID, unobservedKey: Bool = false) {
+        guard listenerInstalled, outputControlDeviceID == device else { return }
         outputControlRefreshGeneration &+= 1
         let generation = outputControlRefreshGeneration
+        nativeKeyReadGeneration = unobservedKey ? generation : nil
+        let baseline = unobservedKey ? (coreAudioOutputVolume, coreAudioOutputMuted) : nil
         // A drag and the volume keys can emit several properties for each
-        // step. Read once after the burst so an older callback cannot pull the
-        // slider back while a newer value is already on screen.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
+        // step. Coalesce their reads so an older callback cannot pull the slider back.
+        readOutputControls(for: device, generation: generation, after: 0.03, retryIfUnchanged: baseline)
+    }
+
+    private func readOutputControls(for device: AudioObjectID, generation: Int, after delay: TimeInterval,
+                                    retryIfUnchanged baseline: (volume: Double?, muted: Bool?)? = nil) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             guard let self,
                   self.listenerInstalled,
-                  self.outputControlListenerDevice == device,
+                  self.outputControlDeviceID == device,
                   self.outputControlRefreshGeneration == generation else { return }
             self.halQueue.async { [weak self] in
+                guard Self.defaultOutputDeviceID() == device else { return }
                 let volume = Self.hasSettableOutputVolume(for: device)
                     ? Self.outputVolume(for: device).map(Double.init)
                     : nil
@@ -479,9 +488,18 @@ final class AppVolumeMixer: ObservableObject {
                 DispatchQueue.main.async {
                     guard let self,
                           self.listenerInstalled,
-                          self.outputControlListenerDevice == device,
+                          self.outputControlDeviceID == device,
                           self.outputControlRefreshGeneration == generation else { return }
                     self.applyOutputControls(volume: volume, muted: muted)
+                    guard self.nativeKeyReadGeneration == generation,
+                          self.outputControlRefreshGeneration == generation else { return }
+                    // A USB driver can accept the native press after the first
+                    // read. Take one later sample while the same press is current.
+                    if let baseline, baseline.volume == volume, baseline.muted == muted {
+                        self.readOutputControls(for: device, generation: generation, after: 0.32)
+                    } else {
+                        self.nativeKeyReadGeneration = nil
+                    }
                 }
             }
         }
@@ -564,11 +582,32 @@ final class AppVolumeMixer: ObservableObject {
     /// Main thread. A physical key must not overtake an earlier HAL write or
     /// the native events that its completion still has to post.
     func prefersNativeOutputKey(_ key: PreciseVolumeMediaKey) -> Bool {
-        guard key != .play, !outputIsMonitorSpeakers, outputControlListenerDevice != nil,
-              let volumeStepsNeedNativeKeys, queuedOutputSteps.isEmpty, !outputStepReadInFlight,
+        guard key != .play, !outputIsMonitorSpeakers, outputControlDeviceID != nil,
+              queuedOutputSteps.isEmpty, !outputStepReadInFlight,
               outputWriteInFlight == nil, pendingOutputAdjustment == nil else { return false }
         return (volumeStepsNeedNativeKeys && coreAudioOutputVolume != nil && key.rollerDirection != nil)
             || outputControlLock.withLock { nativeOutputKeyLifetime == outputControlLifetime }
+    }
+
+    /// Native presses pass through the tap before macOS updates the output.
+    /// If this control has no listener, collect its actual level after the press.
+    func refreshNativeKeyLevelIfUnobserved(_ key: PreciseVolumeMediaKey) {
+        guard key != .play, let device = outputControlDeviceID else { return }
+        let observed = outputControlListenerAddresses.contains { address in
+            if key == .mute { return address.mSelector == kAudioDevicePropertyMute }
+            if volumeStepsNeedNativeKeys {
+                return address.mSelector == kAudioHardwareServiceDeviceProperty_VirtualMainVolume
+            }
+            return Self.outputVolumeSelectors.contains(address.mSelector)
+        }
+        if observed { cancelUnobservedNativeKeyRead() }
+        else { scheduleOutputControlRefresh(for: device, unobservedKey: true) }
+    }
+
+    private func cancelUnobservedNativeKeyRead() {
+        guard nativeKeyReadGeneration == outputControlRefreshGeneration else { return }
+        nativeKeyReadGeneration = nil
+        outputControlRefreshGeneration &+= 1
     }
 
     /// Reads which monitor, if any, carries the sound. The brightness service
@@ -1740,9 +1779,8 @@ final class AppVolumeMixer: ObservableObject {
         if snapshot.outputDevices != outputDevices {
             outputDevices = snapshot.outputDevices
         }
-        subscribeToOutputControls(of: snapshot.defaultDeviceID)
-        volumeStepsNeedNativeKeys = snapshot.volumeStepsNeedNativeKeys
-        applyOutputControls(volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
+        applyOutputControlSnapshot(device: snapshot.defaultDeviceID, nativeVolumeSteps: snapshot.volumeStepsNeedNativeKeys,
+                                   volume: snapshot.systemOutputVolume, muted: snapshot.systemOutputMuted)
 
         guard let readApps = snapshot.apps else {
             if !apps.isEmpty {
@@ -1767,6 +1805,20 @@ final class AppVolumeMixer: ObservableObject {
         }
         reconcileEngines(with: next)
         clearPermissionIfNoActiveAdjustments()
+    }
+
+    private func applyOutputControlSnapshot(device: AudioObjectID?, nativeVolumeSteps: Bool,
+                                            volume: Double?, muted: Bool?) {
+        if coreAudioOutputVolume != volume || coreAudioOutputMuted != muted {
+            cancelUnobservedNativeKeyRead()
+        }
+        if outputControlDeviceID != device {
+            removeOutputControlListeners()
+            outputControlDeviceID = device
+        }
+        subscribeToOutputControls(of: device)
+        volumeStepsNeedNativeKeys = nativeVolumeSteps
+        applyOutputControls(volume: volume, muted: muted)
     }
 
     /// Runs on `halQueue`. Every CoreAudio read of a refresh happens here and

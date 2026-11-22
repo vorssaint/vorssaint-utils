@@ -18,6 +18,7 @@ final class PreciseVolumeRollerService: ObservableObject {
     private var notchKeyGate = NotchVolumeKeyGate()
     private var nativeOutputKeysHeld: [Int32: NativeVolumeKeyPress] = [:]
     private var drainingNativeKeys = false
+    private var nativeDrainWork: DispatchWorkItem?
     /// Includes presses waiting for their main-queue dispatch or native replay.
     private var pendingNotchKeys = 0
     /// Monitor volume presses this tap claimed and has not yet seen released,
@@ -41,7 +42,14 @@ final class PreciseVolumeRollerService: ObservableObject {
             && (UserDefaults.standard.bool(forKey: DefaultsKey.preciseVolumeRollerEnabled)
                 || (NotchSupport.routes(.volume) && NotchService.shared.acceptsSystemFeedback)))
             || (AppFeature.brightness.isAvailable && BrightnessService.shared.wantsMonitorVolumeKeys)
+        let wasDraining = drainingNativeKeys
         drainingNativeKeys = !wanted && nativeOutputKeysHeld.values.contains { $0 != .unchanged }
+        if drainingNativeKeys && !wasDraining {
+            renewNativeKeyDrain()
+        } else if !drainingNativeKeys {
+            nativeDrainWork?.cancel()
+            nativeDrainWork = nil
+        }
         if SessionActivitySupport.tapShouldRun(featureWanted: wanted || drainingNativeKeys,
                                                accessibilityGranted: AXIsProcessTrusted(),
                                                sessionIsActive: SessionActivity.shared.isActive) {
@@ -53,6 +61,25 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     func suspend() {
         stop()
+    }
+
+    /// A keyboard can disappear without releasing its volume key. While the
+    /// features are off, only repeats from a held key renew this deadline.
+    private func renewNativeKeyDrain() {
+        nativeDrainWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.drainingNativeKeys else { return }
+            self.nativeOutputKeysHeld.removeAll()
+            self.syncWithPreferences()
+        }
+        nativeDrainWork = work
+        scheduleNativeDrainExpiry(work)
+    }
+
+    private func scheduleNativeDrainExpiry(_ work: DispatchWorkItem) {
+        let repeatDelay = max(NSEvent.keyRepeatDelay, NSEvent.keyRepeatInterval)
+        let quietInterval = min(10, max(2, repeatDelay + 1))
+        DispatchQueue.main.asyncAfter(deadline: .now() + quietInterval, execute: work)
     }
 
     func stop() {
@@ -74,6 +101,8 @@ final class PreciseVolumeRollerService: ObservableObject {
         keyOwnership = PreciseVolumeKeyOwnership()
         nativeOutputKeysHeld.removeAll()
         drainingNativeKeys = false
+        nativeDrainWork?.cancel()
+        nativeDrainWork = nil
         monitorVolumeKeysHeld = [:]
     }
 
@@ -119,7 +148,11 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     private func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
+            if drainingNativeKeys {
+                // A release may have passed while the tap was disabled.
+                nativeOutputKeysHeld.removeAll()
+                DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
+            } else if SessionActivity.shared.isActive, AXIsProcessTrusted(), let tap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             } else {
                 DispatchQueue.main.async { [weak self] in self?.syncWithPreferences() }
@@ -170,7 +203,8 @@ final class PreciseVolumeRollerService: ObservableObject {
 
     /// Keep the original HID press together. Only a fresh down can choose this
     /// route; repeats and releases from the island or roller return to their owner.
-    private func routeNativeOutputKey(_ nsEvent: NSEvent, event: CGEvent) -> Bool? {
+    private func routeNativeOutputKey(_ nsEvent: NSEvent, event: CGEvent,
+                                      at time: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool? {
         let code = Int32((nsEvent.data1 >> 16) & 0xffff)
         guard let key = PreciseVolumeMediaKey(rawValue: code), key != .play else { return nil }
         let state = (nsEvent.data1 >> 8) & 0xff
@@ -188,19 +222,37 @@ final class PreciseVolumeRollerService: ObservableObject {
         }
         guard let press = nativeOutputKeysHeld[code] else { return nil }
         if state == 0x0b { nativeOutputKeysHeld[code] = nil }
+        if drainingNativeKeys && state == 0x0a && !startsPress && press != .unchanged {
+            renewNativeKeyDrain()
+        }
         switch press {
-        case .unchanged: return false
-        case .suppressed: return true
+        case .unchanged: break
+        case .suppressed:
+            guard state == 0x0a, !drainingNativeKeys, let direction = key.rollerDirection,
+                  gate.accepts(direction, at: time) else { return true }
+            // The original down was filtered. Give each accepted repeat a
+            // complete fine step; its real release still belongs to this tap.
+            event.flags.formUnion([.maskAlternate, .maskShift])
+            guard Self.postFineStep(code, preserving: event.flags) else { return true }
         case .fine:
             if state == 0x0a, let direction = key.rollerDirection,
-               !gate.accepts(direction, at: ProcessInfo.processInfo.systemUptime) {
-                // A filtered down has no native counterpart to repeat or release.
+               !gate.accepts(direction, at: time) {
                 if startsPress { nativeOutputKeysHeld[code] = .suppressed }
                 return true
             }
             event.flags.formUnion([.maskAlternate, .maskShift])
-            return false
         }
+        if state == 0x0a, key != .mute || startsPress { noteNativeVolumeKey(key, flags: event.flags) }
+        return press == .suppressed
+    }
+
+    private func noteNativeVolumeKey(_ key: PreciseVolumeMediaKey, flags: CGEventFlags) {
+        guard AppFeature.mixer.isAvailable, flags.isDisjoint(with: [.maskCommand, .maskControl]),
+              !flags.contains(.maskAlternate) || flags.contains(.maskShift) else { return }
+        if NotchSupport.routes(.volume), NotchService.shared.showsSystemFeedback {
+            NotchService.shared.noteNativeVolumeKey(key)
+        }
+        AppVolumeMixer.shared.refreshNativeKeyLevelIfUnobserved(key)
     }
 
     /// Routes a volume press to the monitor the sound plays through, when macOS
@@ -355,9 +407,10 @@ final class PreciseVolumeRollerService: ObservableObject {
                     if precise, key.rollerDirection != nil {
                         fallback.flags.formUnion([.maskAlternate, .maskShift])
                     }
+                    self?.noteNativeVolumeKey(key, flags: fallback.flags)
                     fallback.setIntegerValueField(.eventSourceUserData, value: PreciseVolumeKeyEvents.postedMarker)
                     fallback.post(tap: .cgSessionEventTap)
-                    Self.postForwardedRelease(code)
+                    Self.postForwardedRelease(code, flags: fallback.flags)
                 }
             }
             // Both keys start from the device's own reading, so the island
@@ -399,9 +452,10 @@ final class PreciseVolumeRollerService: ObservableObject {
         Self.volumeFeedback?.play()
     }
 
-    private static func postForwardedRelease(_ code: Int32) {
+    private static func postForwardedRelease(_ code: Int32, flags: CGEventFlags) {
+        let modifiers = UInt(flags.rawValue) & NSEvent.ModifierFlags.deviceIndependentFlagsMask.rawValue
         let event = NSEvent.otherEvent(with: .systemDefined, location: .zero,
-                                      modifierFlags: NSEvent.ModifierFlags(rawValue: 0xB00),
+                                      modifierFlags: NSEvent.ModifierFlags(rawValue: 0xB00 | modifiers),
                                       timestamp: 0, windowNumber: 0, context: nil,
                                       subtype: 8, data1: Int(code << 16) | 0xB00, data2: -1)?.cgEvent
         event?.setIntegerValueField(.eventSourceUserData, value: PreciseVolumeKeyEvents.postedMarker)
@@ -419,7 +473,11 @@ final class PreciseVolumeRollerService: ObservableObject {
         return (keyCode, direction, state == 0x0a, data1 & 1 != 0)
     }
 
-    private static func postFineStep(_ keyCode: Int32) {
-        PreciseVolumeKeyEvents.fineStep(keyCode).forEach { $0.post(tap: .cghidEventTap) }
+    @discardableResult
+    private static func postFineStep(_ keyCode: Int32, preserving flags: CGEventFlags = []) -> Bool {
+        let pair = PreciseVolumeKeyEvents.fineStep(keyCode, preserving: flags)
+        guard !pair.isEmpty else { return false }
+        pair.forEach { $0.post(tap: .cghidEventTap) }
+        return true
     }
 }
