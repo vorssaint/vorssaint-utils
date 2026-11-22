@@ -1475,7 +1475,7 @@ final class AppSwitcher: ObservableObject {
             windows.contains { $0.id == item.id } ? item : nil
         }
 
-        let list = SwitcherSupport.orderedForSession(windows, currentID: listedSource?.id)
+        var list = SwitcherSupport.orderedForSession(windows, currentID: listedSource?.id)
         let handedOverPending = routeLock.withLock({ () -> SwitcherPendingSessionStart? in
             guard !routeYieldsToExclusiveFullscreen,
                   SwitcherSupport.isCurrentSessionStart(
@@ -1499,6 +1499,11 @@ final class AppSwitcher: ObservableObject {
             endSession()
             return
         }
+        // The cards name the Space and display each window sits on. Resolved
+        // here rather than inside the shared window walk: Dock Preview and the
+        // Command Bar read that walk too and must not pay for a query only
+        // this panel draws.
+        list = Self.addingSpaceMarkers(to: list)
         sessionItems = list
         sessionWindowServerSnapshot = windowServerSnapshot
         totalWindowCount = list.count
@@ -1767,6 +1772,59 @@ final class AppSwitcher: ObservableObject {
                                                              previousIndex: selectedIndex)
         recomputeLayouts(for: windows)
         resizePanel()
+    }
+
+    /// Adds the Space and display ordinals a card needs to name where its
+    /// window lives. Only the entries this session will actually show are
+    /// asked about, and the answer is dropped for a window that no single
+    /// Space describes, so an unavailable window server keeps the previous
+    /// look instead of inventing a position.
+    ///
+    /// Main thread only: `SpaceWindowBridge.topology()` reads `NSScreen`.
+    private static func addingSpaceMarkers(to items: [SwitcherItem]) -> [SwitcherItem] {
+        guard items.contains(where: { $0.windowID != nil }),
+              let topology = SpaceWindowBridge.topology()
+        else { return items }
+        return items.map { item in
+            guard let windowID = item.windowID,
+                  let markers = topology.spaceMarkers(for: SpaceWindowBridge.spaces(of: windowID))
+            else { return item }
+            return item.withSpaceMarkers(spaceIndex: markers.spaceIndex,
+                                         displayIndex: markers.displayIndex)
+        }
+    }
+
+    /// Minimizes one card's window without ending the session.
+    ///
+    /// Native fullscreen windows are refused: they own their Space and macOS
+    /// has no minimized state to give them. Everything else goes through the
+    /// same Accessibility action Dock Preview uses. A window that was already
+    /// minimized is left alone rather than restored, so the button never does
+    /// the opposite of what it shows.
+    func minimizeWindow(_ item: SwitcherItem) {
+        guard sessionActive,
+              !item.isFullscreen,
+              !item.isMinimized,
+              let windowID = item.windowID,
+              windows.contains(where: { $0.id == item.id })
+        else { return }
+        guard WindowActivator.setWindowMinimized(true, windowID: windowID, pid: item.windowOwnerPID) else {
+            return
+        }
+        // The list was built with the user's minimized placement in force.
+        // "Hidden" means a minimized window should not stay on screen, so the
+        // entry leaves exactly as a closed one does; the other placements keep
+        // it as a selectable card with the minimized badge.
+        let placement = WindowSwitchMinimizedPlacement(
+            rawValue: UserDefaults.standard.string(forKey: DefaultsKey.switcherMinimizedPlacement) ?? ""
+        ) ?? .normal
+        guard placement != .hidden else {
+            applyClosedWindowRemoval(itemID: item.id, windowID: windowID)
+            return
+        }
+        let minimizedItem = item.withMinimized(true)
+        sessionItems = sessionItems.map { $0.id == item.id ? minimizedItem : $0 }
+        windows = windows.map { $0.id == item.id ? minimizedItem : $0 }
     }
 
     func closeWindow(_ item: SwitcherItem) {

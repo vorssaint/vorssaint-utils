@@ -54,6 +54,7 @@ enum SwitcherScrollContract {
         func commitSession() {}
         func hoverSelect(index: Int) {}
         func hoverSelectEnded(index: Int) {}
+        func minimizeWindow(_ item: Item) {}
     }
     struct SwitcherWindowPreviewTile: View {
         let window: Item
@@ -61,6 +62,7 @@ enum SwitcherScrollContract {
         let isSelected: Bool
         let instantSelection: Bool
         let onCommit: () -> Void
+        let onMinimize: () -> Void
         let onClose: () -> Void
         var body: some View { Color.clear.frame(width: SwitcherIconRowLayout.previewCardWidth, height: SwitcherIconRowLayout.previewCardHeight) }
     }
