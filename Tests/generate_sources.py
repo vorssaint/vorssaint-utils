@@ -2046,10 +2046,17 @@ def main():
           + declaration(switcher_service, "    private enum KeyCode {").replace("private enum", "enum", 1)
           + "final class Service: Fixture, ObservableObject {\n"
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
+          + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
+              .replace("CGEvent.tapEnable(", "Tap.enable(")
+              .replace("CFMachPortIsValid(", "Tap.isValid(")
+          + declaration(switcher_service, "    private var isTapLive:").replace("private var", "var", 1)
+              .replace("CFMachPortIsValid(", "Tap.isValid(").replace("CGEvent.tapIsEnabled(", "Tap.isEnabled(")
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
                                    "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func invalidateSecureInputReplays(", "    private func releaseSecureInputActionsIfIdle(",
                                    "    private func applyNativeHotkeySuppressionIfTapLive(",
+                                   "    var keyboardInputOwnership:", "    var scrollNavigationActive:",
                                    "    func select(index:", "    func hoverSelect(index:",
                                    "    func hoverSelectEnded(", "    func hoverSelectIconRow(index:",
                                    "    func hoverSelectIconRowEnded(", "    private var selectedItemID:",
