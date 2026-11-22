@@ -231,6 +231,21 @@ enum ConvertSelfTest {
             } else { skip("video conversions", "could not make a test clip") }
         } else { skip("video conversions", "no ffmpeg") }
 
+        // The island's service: what it does with a pasteboard carrying a real file, as a drop does.
+        do {
+            let service = ConvertService.shared
+            service.close()
+            record("service: enabled by default", UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled))
+            record("service: canConvert(url)", service.canConvert([png]))
+            let board = NSPasteboard(name: NSPasteboard.Name("vorssaint-convert-test-\(UUID().uuidString)"))
+            board.clearContents()
+            board.writeObjects([png as NSURL])
+            record("service: shelf reads the file from a pasteboard", ShelfService.shared.fileURLs(from: board) == [png.standardizedFileURL] || ShelfService.shared.fileURLs(from: board).count == 1,
+                   "\(ShelfService.shared.fileURLs(from: board).count) urls, items=\(board.pasteboardItems?.count ?? -1)")
+            record("service: canConvert(pasteboard)", service.canConvert(board))
+            record("service: begin(pasteboard) opens a session", service.begin(board) && service.session != nil && !service.tiles.isEmpty, "tiles=\(service.tiles.count)")
+            service.close()
+        }
         await ocrChecks(root)
         await toolChecks(root, png: png, wav: wav, txt: txt)
 

@@ -6,7 +6,7 @@ import Foundation
 
 /// Diagnostics are explicitly opt-in because converter errors may contain filenames.
 enum DiagnosticLog {
-    static let enabled = ProcessInfo.processInfo.environment["OPEN_TANGERINE_DEBUG"] == "1"
+    static let enabled = ProcessInfo.processInfo.environment["OPEN_TANGERINE_DEBUG"] == "1" || ProcessInfo.processInfo.environment["VORSSAINT_CONVERT_DEBUG"] == "1"
     static let directory = FileManager.default.temporaryDirectory.appendingPathComponent("OpenTangerine-Diagnostics")
     static let logFile = directory.appendingPathComponent("debug.log")
     private static let queue = DispatchQueue(label: "com.sintaxerror.opentangerine.log")

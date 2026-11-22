@@ -2298,10 +2298,17 @@ final class NotchService: ObservableObject {
 
     /// The key went down during a file drag: open on the formats, ready to drop on.
     func presentConvertDrag(_ urls: [URL], mode: ConvertService.Mode = .convert) {
+        DiagnosticLog.log("convert-drag: present \(urls.count) urls mode=\(mode) canAccept=\(canAcceptFileDrop)")
         guard canAcceptFileDrop, MainActor.assumeIsolated({ ConvertService.shared.beginDrag(urls, mode: mode) }) else { return }
         choosingFileDropDestination = false
         convertDragOpened = true
         open(.files, takeFocus: false)
+    }
+
+    /// The converter is finished with the island: it goes back to its normal state.
+    func closeConvertPage() {
+        convertDragOpened = false
+        if !pinned { collapse() }
     }
 
     /// A different key was pressed mid-drag: the page switches to its mode.

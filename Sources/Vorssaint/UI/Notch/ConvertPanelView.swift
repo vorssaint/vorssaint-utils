@@ -55,6 +55,9 @@ struct ConvertPanelView: View {
                 .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.84), value: jobsFinished)
                 .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: service.note)
             }
+            // The pointer on the island holds the countdown that puts it back to normal.
+            .contentShape(Rectangle())
+            .onHover { service.setPointerInside($0) }
         }
     }
 }
@@ -543,7 +546,7 @@ private struct ConvertRing: View {
     let progress: Double
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+        TimelineView(.animation) { context in
             let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.4) / 2.4
             ZStack {
                 Circle().stroke(.white.opacity(0.1), lineWidth: 7)
@@ -653,12 +656,11 @@ private struct ConvertDoneView: View {
                 if let message = failures.first.flatMap({ job -> String? in if case .failed(let text) = job.status { return text } else { return nil } }) {
                     Text(message).font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)).lineLimit(3)
                 } else {
-                    Text(outputs.isEmpty ? "Copied to the clipboard" : outputs.count == 1 ? outputs[0].lastPathComponent : "\(outputs.count) files saved")
-                        .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)).lineLimit(2)
+                    Text(savedText).font(.system(size: 11)).foregroundStyle(.white.opacity(0.6)).lineLimit(2)
                 }
                 HStack(spacing: 6) {
-                    pill("Show in Finder", "folder") { NSWorkspace.shared.activateFileViewerSelecting(outputs) }.disabled(outputs.isEmpty)
-                    if outputs.count == 1 { pill("Open", "arrow.up.forward.app") { NSWorkspace.shared.open(outputs[0]) } }
+                    pill("Show file", "folder", prominent: true) { service.showFile(outputs) }.disabled(outputs.isEmpty)
+                    if outputs.count == 1, outputs[0].hasDirectoryPath == false { pill("Open", "arrow.up.forward.app") { service.open(outputs[0]) } }
                     pill("Again", "arrow.counterclockwise") { service.again() }
                 }
             }
@@ -666,10 +668,22 @@ private struct ConvertDoneView: View {
         .onAppear { withAnimation(.spring(response: 0.55, dampingFraction: 0.55).delay(0.08)) { landed = true } }
     }
 
-    private func pill(_ title: String, _ symbol: String, action: @escaping () -> Void) -> some View {
+    /// Where the results went, in words: beside the original unless the person chose elsewhere.
+    private var savedText: String {
+        guard let first = outputs.first else { return "Copied to the clipboard" }
+        let folder = first.deletingLastPathComponent()
+        let source = service.session?.urls.first?.deletingLastPathComponent()
+        let place = folder.standardizedFileURL == source?.standardizedFileURL ? "beside the original" : "in \(folder.lastPathComponent)"
+        let name = outputs.count == 1 ? first.lastPathComponent : "\(outputs.count) files"
+        return "\(name), saved \(place)"
+    }
+
+    private func pill(_ title: String, _ symbol: String, prominent: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-                .padding(.horizontal, 10).frame(height: 28).background(.white.opacity(0.12), in: Capsule()).contentShape(Capsule())
+            Label(title, systemImage: symbol).font(.system(size: 11, weight: .semibold)).foregroundStyle(prominent ? .black : .white)
+                .padding(.horizontal, 10).frame(height: 28)
+                .background(prominent ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.white.opacity(0.12)), in: Capsule())
+                .contentShape(Capsule())
         }
         .buttonStyle(.plain)
     }
@@ -684,7 +698,7 @@ private struct ConvertBurst: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { context in
+        TimelineView(.animation) { context in
             let t = min(1, context.date.timeIntervalSince(start) / 0.9)
             Canvas { gc, size in
                 guard t < 1 else { return }

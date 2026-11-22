@@ -105,6 +105,7 @@ final class ConvertDragMonitor {
         pressInFinder = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder"
         pressChangeCount = NSPasteboard(name: .drag).changeCount
         lastReadChange = pressChangeCount
+        DiagnosticLog.log("convert-drag: press in \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?") changeCount=\(pressChangeCount)")
         activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
                                                          reason: "Tracking a file drag")
         schedulePoll(interval: Self.dragInterval)
@@ -124,6 +125,7 @@ final class ConvertDragMonitor {
         }
         guard dragInFlight else { return }
         let mode = heldMode
+        if mode != nil || presenting { DiagnosticLog.log("convert-drag: mode=\(String(describing: mode)) presenting=\(presenting) urls=\(activeURLs.count)") }
         if let mode, !presenting, !activeURLs.isEmpty {
             presenting = true
             presentedMode = mode
@@ -146,6 +148,7 @@ final class ConvertDragMonitor {
         guard change > pressChangeCount else { return }
         activeURLs = Self.fileURLs(on: pasteboard)
         dragInFlight = !activeURLs.isEmpty || (pasteboard.types ?? []).contains(.fileURL)
+        DiagnosticLog.log("convert-drag: pasteboard change=\(change) urls=\(activeURLs.count) inFlight=\(dragInFlight)")
     }
 
     static func fileURLs(on pasteboard: NSPasteboard) -> [URL] {

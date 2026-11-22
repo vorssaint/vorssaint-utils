@@ -55,9 +55,62 @@ final class ConvertService: ObservableObject {
     /// The page's height while it is open, as the island sizes its files page.
     static let pageHeight: CGFloat = 292
 
-    private init() {}
+    private var autoCloseWork: DispatchWorkItem?
+    private var pointerInside = false
+    private var batchSubscription: AnyCancellable?
+
+    private init() {
+        // A finished batch starts the clock that puts the island back to normal.
+        batchSubscription = JobRunner.shared.finishedBatch.receive(on: DispatchQueue.main).sink { [weak self] _ in self?.rearmAutoClose() }
+    }
 
     var isOpen: Bool { session != nil }
+
+    // MARK: Returning to the normal island
+
+    /// How long the page waits before it closes itself, or nil while work is under way or a
+    /// drag is in progress. Results go after a few seconds, a failure after longer so its
+    /// message can be read, and a page nobody touched after a while.
+    private var autoCloseDelay: TimeInterval? {
+        guard session != nil, !dragging else { return nil }
+        let jobs = JobRunner.shared.jobs
+        if case .running = stage {
+            guard !jobs.isEmpty, jobs.allSatisfy({ $0.status.isFinished }) else { return nil }
+            let failed = jobs.contains { if case .failed = $0.status { return true } else { return false } }
+            return failed ? 12 : 6
+        }
+        return 25
+    }
+
+    /// Restarts the countdown. The pointer on the island holds it off, so a result being read is not taken away.
+    func rearmAutoClose() {
+        autoCloseWork?.cancel()
+        autoCloseWork = nil
+        guard let delay = autoCloseDelay, !pointerInside else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.session != nil, !self.pointerInside, self.autoCloseDelay != nil else { return }
+            self.close()
+        }
+        autoCloseWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    func setPointerInside(_ inside: Bool) {
+        pointerInside = inside
+        rearmAutoClose()
+    }
+
+    /// Shows the results in Finder and puts the island back.
+    func showFile(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.close() }
+    }
+
+    func open(_ url: URL) {
+        NSWorkspace.shared.open(url)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in self?.close() }
+    }
 
     var tiles: [Tile] {
         guard let session else { return [] }
@@ -104,6 +157,7 @@ final class ConvertService: ObservableObject {
                           tools: known ? ConvertTools.available(for: sources) : [])
         stage = .tiles
         note = nil
+        rearmAutoClose()
         // A mode with nothing to offer falls back to the next that has something.
         setMode(start)
         if tiles.isEmpty, let other = Mode.allCases.first(where: { modeHasTiles($0) }) { setMode(other) }
@@ -125,6 +179,7 @@ final class ConvertService: ObservableObject {
     }
 
     func setMode(_ next: Mode) {
+        defer { rearmAutoClose() }
         guard mode != next || stage != .tiles else { return }
         mode = next
         if case .running = stage {} else { stage = .tiles }
@@ -175,7 +230,7 @@ final class ConvertService: ObservableObject {
     func choose(_ format: FileFormat) {
         guard session != nil else { return }
         options = ConvertOptions()
-        if ConvertOptionCatalog.hasOptions(for: format, from: session?.category ?? .document) { stage = .options(format) } else { run(format) }
+        if ConvertOptionCatalog.hasOptions(for: format, from: session?.category ?? .document) { stage = .options(format); rearmAutoClose() } else { run(format) }
     }
 
     func chooseTool(_ tool: ToolID) {
@@ -188,6 +243,7 @@ final class ConvertService: ObservableObject {
         }
         toolValues = values
         stage = .tool(tool)
+        rearmAutoClose()
         Task { [urls = session.urls] in
             await ConvertTools.prepare(tool, urls: urls, values: &values)
             if case .tool(tool) = stage { toolValues = values }
@@ -208,17 +264,22 @@ final class ConvertService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.2, execute: work)
     }
 
-    func back() { if stage != .tiles, stage != .running { stage = .tiles } }
+    func back() {
+        if stage != .tiles, stage != .running { stage = .tiles }
+        rearmAutoClose()
+    }
 
     func run(_ format: FileFormat) {
         guard let session else { return }
         stage = .running
+        rearmAutoClose()
         JobRunner.shared.convert(session.urls, to: format, options: options)
     }
 
     func runTool(_ tool: ToolID) {
         guard let session else { return }
         stage = .running
+        rearmAutoClose()
         ConvertToolRunner.run(tool, urls: session.urls, values: toolValues)
     }
 
@@ -226,15 +287,21 @@ final class ConvertService: ObservableObject {
     func again() {
         JobRunner.shared.dismissAll()
         stage = .tiles
+        rearmAutoClose()
     }
 
+    /// Ends the page and puts the island back to its normal state.
     func close() {
+        autoCloseWork?.cancel()
+        autoCloseWork = nil
+        pointerInside = false
         dragging = false
         hoverTile = nil
         JobRunner.shared.cancelAll()
         session = nil
         stage = .tiles
         options = ConvertOptions()
+        NotchService.shared.closeConvertPage()
     }
 }
 

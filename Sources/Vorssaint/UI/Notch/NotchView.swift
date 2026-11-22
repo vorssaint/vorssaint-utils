@@ -103,6 +103,16 @@ struct NotchView: View {
             } else {
                 expanded
             }
+        } else if service.dragPlaceholder, UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) {
+            // A drag has started somewhere on the screen: the island already offers both choices.
+            HStack(spacing: NotchFileToolsSupport.dropSpacing) {
+                ConvertDropZone(title: text.dropHint, symbol: "tray.and.arrow.down", selected: false, tint: .white, compact: true)
+                ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath", selected: false,
+                                tint: Color(red: 1, green: 0.62, blue: 0.3), compact: true)
+            }
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .padding(.horizontal, 18)
+            .padding(.top, service.geometry.safeContentTop)
         } else if service.dragPlaceholder {
             Group {
                 if service.mascotOn {
