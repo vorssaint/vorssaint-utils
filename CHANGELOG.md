@@ -41,6 +41,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - When a call app unmutes a microphone, Mic Mute can restore the saved levels for every microphone it muted. Enable this in Settings > Quick panel. It is off by default because an automatic gain change during recording can also trigger it. Thanks to @Narangor.
 - Clipboard history saves copied spreadsheet cells as text and preserves the tabs and line breaks supplied by the spreadsheet. Image and file copies keep their original types. Thanks to @ego1s1.
 - macOS handles app switching while an exclusive full-screen game covers the window switcher. Vorssaint resumes its shortcuts when the game leaves full screen. Thanks to @nh4ttruong.
+- If macOS pauses the window switcher's input filter, the switcher waits until it can dismiss the interrupted session before filtering keys and clicks again. Thanks to @GeezusChrotch.
 - Settings opens on Macs without a backlit keyboard and only offers keyboard light controls on supported hardware. Thanks to @13v13reddy.
 - Super Key waits for a Bluetooth keyboard after login or wake and checks its existing mappings before turning on. Thanks to @iva-zhu.
 - On the 14-inch M1 Pro MacBook Pro (MacBookPro18,3), Fan Control can keep a custom curve active while the GPU sleeps. It returns the fans to system control when it cannot verify a safe configuration. Thanks to @STUXKY.
