@@ -288,6 +288,14 @@ enum AgentUsageArchive {
             tokens(value.tokens)
             optional(value.cost) { $0.double($1) }
             double(value.savings)
+            count(value.skills.count)
+            for (skill, calls) in value.skills.sorted(by: {
+                $0.key.name == $1.key.name ? $0.key.byPerson && !$1.key.byPerson : $0.key.name < $1.key.name
+            }) {
+                string(skill.name)
+                bool(skill.byPerson)
+                int(calls)
+            }
         }
 
         mutating func limits(_ value: AgentLimits) {
@@ -329,6 +337,14 @@ enum AgentUsageArchive {
             bool(value.sawUsageRecords)
             optional(value.lastTotal) { $0.tokens($1) }
             bool(value.fast)
+            count(value.pendingSkills.count)
+            for (skill, calls) in value.pendingSkills.sorted(by: { $0.key.name < $1.key.name }) {
+                string(skill.name)
+                bool(skill.byPerson)
+                int(calls)
+            }
+            count(value.turnSkills.count)
+            for skill in value.turnSkills.sorted() { string(skill) }
             bool(value.codexSubagent)
             bool(value.codexHeaderRead)
             string(value.codexRoot)
@@ -454,10 +470,23 @@ enum AgentUsageArchive {
         }
 
         mutating func record() throws -> AgentUsageRecord {
-            AgentUsageRecord(provider: try provider(), date: try date(), model: try string(), project: try string(),
-                             session: try string(), requests: try amount(),
-                             tokens: try tokens(), cost: try optional { try $0.double() },
-                             savings: try double())
+            let provider = try provider()
+            let date = try date()
+            let model = try string()
+            let project = try string()
+            let session = try string()
+            let requests = try amount()
+            let tokens = try tokens()
+            let cost = try optional { try $0.double() }
+            let savings = try double()
+            var skills: [AgentSkill: Int] = [:]
+            for _ in 0..<(try count()) {
+                let skill = AgentSkill(name: try string(), byPerson: try bool())
+                skills[skill] = try amount()
+            }
+            return AgentUsageRecord(provider: provider, date: date, model: model, project: project,
+                                    session: session, requests: requests, tokens: tokens, cost: cost,
+                                    savings: savings, skills: skills)
         }
 
         mutating func limits() throws -> AgentLimits {
@@ -491,6 +520,11 @@ enum AgentUsageArchive {
         mutating func state(provider: AgentProvider, offset: UInt64) throws -> AgentLogState {
             var value = AgentLogState(session: try string(), project: try string(), model: try string(), turnOpen: try bool(),
                                       sawUsageRecords: try bool(), lastTotal: try optional { try $0.tokens() }, fast: try bool())
+            for _ in 0..<(try count()) {
+                let skill = AgentSkill(name: try string(), byPerson: try bool())
+                value.pendingSkills[skill] = try amount()
+            }
+            for _ in 0..<(try count()) { value.turnSkills.insert(try string()) }
             value.codexSubagent = try bool()
             value.codexHeaderRead = try bool()
             value.codexRoot = try string()

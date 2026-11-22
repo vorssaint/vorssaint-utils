@@ -15,6 +15,10 @@ struct CodexReader: AgentHarnessReader {
         case "token_usage_record", "turn_context", "session_meta": break
         case "event_msg":
             guard let event = AgentLogParser.firstType(line, from: kind.end), AgentLogParser.codexEvents.contains(event.name) else { return [] }
+        case "response_item":
+            guard let item = AgentLogParser.firstType(line, from: kind.end),
+                  ["message", "function_call", "custom_tool_call"].contains(item.name),
+                  AgentLogParser.contains(line, "/SKILL.md") || AgentLogParser.contains(line, "<skill>") else { return [] }
         default: return []
         }
         guard let json = AgentLogParser.object(line), let payload = json["payload"] as? [String: Any] else { return [] }
@@ -51,7 +55,12 @@ struct CodexReader: AgentHarnessReader {
             }
             let response = payload["response_id"] as? String ?? ""
             let key = response.isEmpty ? "codex:\(state.session):\(date.timeIntervalSince1970)" : "codex:\(response)"
-            return [codexUsage(AgentLogParser.codexTokens(usage), key: key, date: date, state: state)]
+            return [codexUsage(AgentLogParser.codexTokens(usage), key: key, date: date, state: &state)]
+        case "response_item":
+            for skill in codexSkills(payload) where state.turnSkills.insert(skill.name).inserted {
+                state.pendingSkills[skill, default: 0] += 1
+            }
+            return []
         case "event_msg":
             return codexEvent(payload, date: date, state: &state)
         default:
@@ -90,7 +99,7 @@ struct CodexReader: AgentHarnessReader {
                                             reasoning: max(0, total.reasoning - previous.reasoning))
                     }
                     let key = "codex:\(state.codexTotalsSession):total:\(total.total)"
-                    entries.append(codexUsage(delta, key: key, date: date, state: state))
+                    entries.append(codexUsage(delta, key: key, date: date, state: &state))
                 }
                 state.lastTotal = total
             }
@@ -102,6 +111,7 @@ struct CodexReader: AgentHarnessReader {
             return []
         case "task_started":
             state.turnOpen = true
+            state.turnSkills = []
             return [.turnBegan(AgentLogParser.seconds(payload["started_at"]) ?? date)]
         case "task_complete", "turn_aborted":
             let open = state.turnOpen
@@ -115,12 +125,47 @@ struct CodexReader: AgentHarnessReader {
         }
     }
 
-    private func codexUsage(_ tokens: AgentTokens, key: String, date: Date, state: AgentLogState) -> AgentLogEntry {
+    private func codexUsage(_ tokens: AgentTokens, key: String, date: Date, state: inout AgentLogState) -> AgentLogEntry {
         var billable = AgentBillable(tokens: tokens)
         billable.fast = state.fast
         let priced = AgentPricing.cost(billable, model: state.model)
+        let skills = state.pendingSkills
+        state.pendingSkills = [:]
         return .usage(key: key, record: AgentUsageRecord(
             provider: .codex, date: date, model: state.model, project: state.project, session: state.session,
-            tokens: tokens, cost: priced.cost, savings: priced.savings), billable: billable)
+            tokens: tokens, cost: priced.cost, savings: priced.savings, skills: skills), billable: billable)
+    }
+
+    private func codexSkills(_ payload: [String: Any]) -> [AgentSkill] {
+        switch payload["type"] as? String {
+        case "message":
+            guard payload["role"] as? String == "user",
+                  let content = payload["content"] as? [[String: Any]] else { return [] }
+            return content.compactMap { block in
+                guard let text = block["text"] as? String,
+                      let open = text.range(of: "<name>"),
+                      let close = text.range(of: "</name>", range: open.upperBound..<text.endIndex) else { return nil }
+                return skillName(String(text[open.upperBound..<close.lowerBound])).map {
+                    AgentSkill(name: $0, byPerson: true)
+                }
+            }
+        case "function_call", "custom_tool_call":
+            guard payload["name"] as? String != "apply_patch" else { return [] }
+            let command = payload["arguments"] as? String ?? payload["input"] as? String ?? ""
+            return command.components(separatedBy: "/SKILL.md").dropLast().compactMap {
+                $0.split(whereSeparator: { "/\"' ".contains($0) }).last.flatMap {
+                    skillName(String($0)).map { AgentSkill(name: $0, byPerson: false) }
+                }
+            }
+        default:
+            return []
+        }
+    }
+
+    private func skillName(_ raw: String) -> String? {
+        let name = raw.split(separator: ":").last.map(String.init) ?? ""
+        guard !name.isEmpty, name.count <= 80,
+              name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }) else { return nil }
+        return AgentLogParser.native(name)
     }
 }
