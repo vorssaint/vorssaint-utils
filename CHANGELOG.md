@@ -30,7 +30,7 @@ This update reduces the work Vorssaint does at startup and improves window switc
 - When Show over the menus is off, Dynamic Island leaves room for menu bar icons on macOS 27, including on displays without a camera notch. Thanks to @razeenwasif.
 - Drop images or videos from Finder onto the open Media tool in Dynamic Island. A new drop leaves an active conversion running. Thanks to @KushagraIndurkhya.
 - The disk image installer skips hidden mounts, temporary build images and folders marked with `.vorssaint-no-install`. For images outside Downloads that have no quarantine flag, the option to move the image to the Trash starts unchecked. Thanks to @Zekuath.
-- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. Bursts of device notifications still trigger an immediate mute check, and a failed manual unmute is reported. Thanks to @JosueM1109.
+- Mic Mute limits repeated writes to unresponsive virtual inputs, including the Teams loopback driver. It rechecks mute immediately on device notifications and keeps the observers for unchanged input controls. A failed manual unmute is reported. Thanks to @JosueM1109 and @hash00.
 - The volume mixer gives regular apps launched by another app their own controls and saved levels, including Steam games. Thanks to @binjamshid.
 - Clicking a control in the menu bar panel from another app activates the control and keeps the panel open. Thanks to @nodegan.
 - Window Layout still snaps a normal drag when macOS Option-drag tiling is enabled. Holding Option hands that drag to macOS. Thanks to @iva-zhu.
