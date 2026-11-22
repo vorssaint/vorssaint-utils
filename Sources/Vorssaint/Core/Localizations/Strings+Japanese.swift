@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "マイクを消音",
         micUnmuteName: "マイクを再開",
         micMuteCaption: "各マイクの消音または入力音量の設定を使用します。Siriや一部のアプリには声が届く場合があります。プライバシーを守るためにマイクへのアクセスを遮断する機能ではありません。",
+        micMuteFollowCallAppsToggle: "通話アプリによるマイクのミュート解除を許可",
+        micMuteFollowCallAppsCaption: "アプリが録音に使っているマイクの入力が再開すると、Vorssaint はミュートしたすべてのマイクを元に戻します。ゲインの自動調整でもミュートが解除されることがあります。",
         micMutedHUD: "マイク消音機能がオン",
         micUnmutedHUD: "マイク消音機能がオフ",
         micMutePartialHUD: "一部のマイクを消音できませんでした",

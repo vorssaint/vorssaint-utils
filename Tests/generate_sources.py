@@ -620,13 +620,15 @@ def main():
                         "    @objc private func workspaceDidWake(", "    @objc private func workspaceWillSleep(",
                         "    private func beginResume(", "    private func cancelResumeRetry(",
                         "    private func resumeDidFail(", "    private func scheduleResumeRetry(",
-                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:"])
+                        "    private func retryResume(", "    private func applyStatus(", "    private func apply(_ response:",
+                        "    private func requestStatus(", "    private func beginRequest(", "    private func finishRequest("])
           + "}\n}\n")
     write("FanControlRecovery.swift", "import Foundation\n"
           + "extension FanControlRecoveryContract {\nfinal class Controller: Fixture {\n"
           + "".join(declaration("Sources/FanControlHelper/main.swift", prefix)
                     .replace("private func", "func", 1) for prefix in [
                         "    private func requestedLevel(", "    private func performRestore(",
+                        "    private func watchdogStopReason()",
                         "    private func watchdogTick()", "    private func stopWatchdogIfIdle()"])
           + "}\n}\n")
     fan_hardware = "Sources/Vorssaint/Services/FanControl/FanControlHardware.swift"
@@ -640,13 +642,23 @@ def main():
                         "final class NotchAudioLevelService:")
           + "}\n")
     clipboard = "Sources/Vorssaint/Services/Clipboard/ClipboardHistoryService.swift"
-    pending_restore = [line for line in (ROOT / clipboard).read_text().splitlines(keepends=True)
-                       if line.startswith("    private var pendingRestore:")]
+    clipboard_lines = (ROOT / clipboard).read_text().splitlines(keepends=True)
+    pending_restore = [line for line in clipboard_lines if line.startswith("    private var pendingRestore:")]
     if len(pending_restore) != 1:
         raise ValueError("Expected one pending clipboard restore declaration")
+    capture_limits = [line for line in clipboard_lines if line.startswith((
+        "    private static let maxCopiedFiles =", "    private static let maxImageBytes =",
+        "    private static let maxRawImageBytes ="))]
+    if len(capture_limits) != 3:
+        raise ValueError("Expected three clipboard capture limits")
     write("ClipboardCaptureRestore.swift", "import AppKit\nimport Foundation\nimport Combine\n"
           + "extension ClipboardCaptureRestoreTests {\nfinal class Service: Fixture {\n"
           + pending_restore[0].replace("private ", "", 1)
+          + "".join(capture_limits)
+          + "".join(declaration(clipboard, prefix).replace("from pasteboard: NSPasteboard)",
+                                                           "from pasteboard: AppKit.NSPasteboard)")
+                    for prefix in ["    private static func copiedFilePaths(", "    private static func copiedPNGImage(",
+                                   "    private static func webURLString(", "    private static func isWebURL("])
           + declaration(clipboard, "    @Published private(set) var entries:")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    private enum CapturedContent", "    private func captureIfChanged(",
@@ -727,6 +739,10 @@ def main():
           + declaration("Sources/Vorssaint/Services/ResponsibleProcess.swift", "    static func displayName(")
           + "}\n}\n")
     disk_sampler = "Sources/Vorssaint/Services/Metrics/DiskSampler.swift"
+    disk_alerts = "Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift"
+    evaluate_disk = declaration(disk_alerts, "    private func evaluateDisk(").replace("private func", "func", 1)
+    if evaluate_disk.count("now: Date()") != 2:
+        raise ValueError("Expected clocks for disk evaluation and notification completion")
     write("DiskCapacity.swift", "import Foundation\nextension DiskCapacityTests {\n"
           + "final class Sampler: Fixture {\n"
           + "".join(declaration(disk_sampler, prefix).replace("    private ", "    ", 1)
@@ -736,10 +752,10 @@ def main():
                                    "    private static func mountedVolumes(", "    private static func importantFree(",
                                    "    private static func positiveUInt(_ value: Int?)",
                                    "    private static func positiveUInt(_ value: Int64?)"])
-          + "}\nfinal class Alerts {\n"
-          + declaration("Sources/Vorssaint/Services/SystemMonitor/MonitorAlertService.swift",
-                        "    private func lowDisk(").replace("private func", "func", 1)
-          + "}\n}\n")
+          + "}\n}\n"
+          + declaration(disk_alerts, "struct DiskAlertGate")
+          + "extension DiskCapacityTests.Delivery {\n"
+          + evaluate_disk.replace("now: Date()", "now: Self.now") + "}\n")
     write("SystemMonitorCPU.swift", "import Darwin\nimport Foundation\n"
           + "extension SystemMonitorCPUTests {\nfinal class Monitor: Fixture {\n"
           + declaration("Sources/Vorssaint/Services/SystemMonitor/SystemMonitor.swift",
@@ -960,7 +976,8 @@ def main():
                     .replace("private func", "func", 1) for prefix in [
                         "    var rowShortcuts:", "    private var storedAliases:",
                         "    private var storedPins:", "    private var storedHiddenKeys:",
-                        "    private func syncRowHotkeys(", "    func hasStoredApplicationState(",
+                        "    private func syncRowHotkeys(", "    private var needsPreparedPanel:",
+                        "    func hasStoredApplicationState(",
                         "    func removeApplicationState("])
           + "}\n}\n")
     dock = "Sources/Vorssaint/Services/DockPreview/DockPreviewService.swift"
@@ -1272,13 +1289,24 @@ def main():
           + "}\n}\n")
 
     super_key = "Sources/Vorssaint/Services/SuperKey/SuperKeyService.swift"
-    write("SuperKeyTap.swift", "import Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
+    write("SuperKeyTap.swift", "import AppKit\nimport Carbon.HIToolbox\nimport CoreGraphics\nimport Foundation\n"
+          + declaration(super_key, "enum SuperKeyMappingResult:")
           + "extension SuperKeyTapContract.State {\n"
           + declaration(super_key, "    var keyboardTapForRecording:")
             .replace("CGEvent.tapIsEnabled(tap: keyboard)", "CFMachPortIsValid(keyboard)")
           + "}\nextension SuperKeyTapContract {\nfinal class SuperKeyService: State {\n"
+          + declaration(super_key, "    private func stop(synchronously:")
+            .replace("private func", "func", 1).replace("CGEvent.tapEnable(", "Tap.enable(")
+          + declaration(super_key, "    private func applyMapping(")
+            .replace("private func", "func", 1).replace("UserDefaults.standard", "self.defaults")
+          + declaration(super_key, "    private func performMapping(")
+            .replace("private func", "func", 1).replace("Shell.run(", "runHidutil(")
+            .replace("UserDefaults.standard", "defaults").replace("SuperKeyMappingGuard.start(", "MappingGuard.start(")
           + "".join(declaration(super_key, prefix).replace("private func", "func", 1)
-                    for prefix in ["    private func runEventTap()", "    private func setMappingFailure(",
+                    for prefix in ["    private func runEventTap()", "    private func tapDidStart(",
+                                   "    private func setMappingFailure(",
+                                   "    private func confirmMapping(", "    private func mappingDidFinish(",
+                                   "    private func waitForKeyboard(", "    private func cancelKeyboardWait()",
                                    "    private func handle(", "    private static func classify(",
                                    "    private func repairMappingIfStale(", "    private func clearUnmappedCapsLock(",
                                    "    private func performSoloAction(", "    private func toggleCapsLock(",
@@ -1287,7 +1315,7 @@ def main():
           + "}\nfinal class ShortcutRecordingTap: RecordingState {\n"
           + "".join(declaration("Sources/Vorssaint/Services/ShortcutRecordingTap.swift", prefix)
                     .replace("private static func", "static func", 1)
-                    for prefix in ["    static func begin(", "    private static func handle("])
+                    for prefix in ["    static func begin(", "    static func resetSuperKey()", "    private static func handle("])
             .replace("CGEvent.tapCreate(", "Tap.create(")
           + "}\n}\n")
 
@@ -2019,6 +2047,8 @@ def main():
           + declaration(switcher_service, "    @Published private(set) var selectedIndex").replace("private(set) ", "", 1)
           + "".join(declaration(switcher_service, prefix).replace("private ", "", 1)
                     for prefix in ["    private func handle(type:", "    private func handleKeyDown(",
+                                   "    private func claimPendingKey(", "    private func setYieldsToExclusiveFullscreen(",
+                                   "    private func applyNativeHotkeySuppressionIfTapLive(",
                                    "    func select(index:", "    func hoverSelect(index:",
                                    "    func hoverSelectEnded(", "    func hoverSelectIconRow(index:",
                                    "    func hoverSelectIconRowEnded(", "    private var selectedItemID:",
@@ -2706,11 +2736,13 @@ def main():
                     .replace("AXIsProcessTrusted()", "WindowEdgeSnapRuntimeTests.accessibilityGranted")
                     for prefix in [
               "    private func observeEdgeSnapEvent(",
+              "    private func handlePointerTapEvent(",
               "    private static func seconds(of event: CGEvent)",
               "    private func handleEdgeSnapInput(",
               "    private func applyDelayedEdgeSnapIfMoved(",
               "    private func finishEdgeSnapRelease(",
               "    private func edgeSnapWindowFollowed(",
+              "    private func edgeSnapConflictsWithWindowGesture(",
               "    private func beginEdgeSnapResolve(",
               "    private func resolveEdgeSnapWindow(",
               "    private func makeEdgeSnapDrag(",
@@ -2772,9 +2804,16 @@ def main():
           + "".join(declaration(window_directional, prefix).replace("private ", "", 1)
                     .replace("AXIsProcessTrusted()", "WindowDirectionalModifierRuntimeTests.accessibilityGranted")
                     .replace("CGEvent.tapEnable(", "tapEnable(")
+                    .replace("CGEvent.tapCreate(", "createTap(")
+                    .replace("Unmanaged<WindowLayoutService>", "Unmanaged<Host>")
                     for prefix in [
               "    private func observeDirectionalModifierEvent(",
               "    private func beginDirectionalGesture(",
+              "    private func syncPointerTap(for demand:",
+              "    private func stopPointerTap()",
+              "    private func startDirectionalTap()",
+              "    private func stopDirectionalTap()",
+              "    private func observeDirectionalEvent(",
               "    private func updateDirectionalGesture(",
               "    private func finishDirectionalGesture()",
               "    private func cancelDirectionalGesture("])
@@ -2851,7 +2890,8 @@ def main():
           + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
                     .replace("private func", "func", 1)
                     .replace("func read(", "@discardableResult func read(", 1)
-                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged("])
+                    for prefix in ["    private func start(", "    private func read(", "    private func filesChanged(",
+                                   "    private func pollOpenLogs("])
           + "}\n}\n")
 
     write("AgentClaudeServerService.swift", "import Foundation\n"

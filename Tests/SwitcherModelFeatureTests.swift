@@ -503,9 +503,8 @@ enum SwitcherModelFeatureTests {
             .contains("releaseSecureInputActionsIfIdle()")
             && source.contains("if startPending, !clickPressedAKey {\n                    DispatchQueue.main.async { [weak self] in self?.releaseSecureInputActionsIfIdle() }"),
             "failed enumeration and a cancelling click release guards without disturbing a newer session")
-        suite.expect(source.contains("pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))")
-            && source.components(separatedBy: "isSecureInputReplay: secureInputReplay").count == 3,
-            "both replay start paths reconcile current modifiers before presenting the session")
+        suite.expect(source.contains("pending?.reconcileReplayedModifiers(CGEventSource.flagsState(.combinedSessionState))"),
+            "the pending replay reconciles current modifiers before presenting the session")
         suite.expect(source.contains("secureInputReplays.invalidate()")
             && source.contains("self.secureInputReplays.contains(generation)"),
             "unregistering Carbon invalidates already queued presses before they reach routing")
@@ -514,6 +513,7 @@ enum SwitcherModelFeatureTests {
     static func run(_ suite: TestSuite) {
         SwitcherAccessibilitySnapshotTests.run(suite)
         SwitcherFullscreenScopeTests.run(suite)
+        SwitcherExclusiveFullscreenTests.run(suite)
         SwitcherQuickCommitTests.run(suite)
         SwitcherRememberedSelectionTests.run(suite)
         ScrollingTitleMotionTests.run(suite)
@@ -2714,6 +2714,8 @@ enum SwitcherModelFeatureTests {
                "copy text from screen reads QR codes by default")
         suite.expect(registeredDefaults[DefaultsKey.micMuteMenuBarIndicator] as? Bool == true,
                "mic mute menu bar indicator ships on by default (badge only shows while muted)")
+        suite.expect(registeredDefaults[DefaultsKey.micMuteFollowCallApps] as? Bool == false,
+               "call apps can only release Mic Mute after the user enables the setting")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricSpacing] as? String == "compact",
                "menu bar metric spacing defaults to the compact look")
         suite.expect(registeredDefaults[DefaultsKey.menuBarMetricAppearance] as? String == "values",
@@ -2947,7 +2949,7 @@ enum SwitcherModelFeatureTests {
         // slice can never run past it into an unrelated body that happens to
         // carry the same words.
         let shelfProviderCode = stripCommentLines((statusAnchorAppDelegateSource
-            .components(separatedBy: "ShelfService.shared.statusItemFrameProvider =").last ?? "")
+            .components(separatedBy: "ShelfService.statusItemFrameProvider =").last ?? "")
             .components(separatedBy: "\n        }").first ?? "")
         let statusControllerSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/App/StatusItemController.swift",

@@ -26,8 +26,8 @@ extension AgentProvider {
         case .claude: ClaudeReader()
         case .codex: CodexReader()
         case .opencode: OpenCodeReader()
-        case .cursor: CursorReader()
         case .copilot: CopilotReader()
+        case .cursor: CursorReader()
         }
     }
 }

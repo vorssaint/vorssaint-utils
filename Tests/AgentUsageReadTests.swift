@@ -25,6 +25,11 @@ enum AgentUsageReadTests {
                 line($0)
             }
         }
+        static func readCursor(_ cursor: AgentLogCursor, into store: AgentUsageStore, now: Date,
+                               shouldContinue: () -> Bool, report: (AgentUsageEvent) -> Void) -> Bool {
+            AgentUsageProductionLogReader.readCursor(cursor, into: store, now: now,
+                                                    shouldContinue: shouldContinue, report: report)
+        }
         static func readAppended(_ cursor: AgentLogCursor, since horizon: Date = .distantPast, shouldContinue: () -> Bool,
                                  including: ((Data, Range<Int>) -> Bool)? = nil,
                                  line: (Data) -> Void) {
@@ -38,9 +43,10 @@ enum AgentUsageReadTests {
 
     enum AgentUsageArchive {
         static func load() -> AgentUsageReadProductionArchive.Contents? { nil }
-        static func resume(_ contents: AgentUsageReadProductionArchive.Contents, logs: Set<String>, since horizon: Date)
+        static func resume(_ contents: AgentUsageReadProductionArchive.Contents, logs: Set<String>, since horizon: Date,
+                           cursorRoot: URL? = nil)
             -> (store: AgentUsageStore, cursors: [String: AgentLogCursor], unchanged: Bool) {
-            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon)
+            AgentUsageReadProductionArchive.resume(contents, logs: logs, since: horizon, cursorRoot: cursorRoot)
         }
     }
 
@@ -122,13 +128,6 @@ enum AgentUsageReadTests {
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"token_count","rate_limits":{"plan_type":"pro","primary":{"used_percent":42,"window_minutes":300}}}}"#,
                 #"{"type":"event_msg","timestamp":\#(timestamp),"payload":{"type":"task_complete","duration_ms":20000}}"#
             ]),
-            (.cursor, [
-                #"{"role":"user","timestamp":\#(timestamp),"message":{"content":[{"type":"text","text":"look around"}]}}"#,
-                #"{"role":"assistant","timestamp":\#(timestamp),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":10,"output_tokens":2}}}"#,
-                #"{"role":"assistant","timestamp":\#(timestamp),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"done"}],"usage":{"input_tokens":10,"output_tokens":5}}}"#,
-                #"{"role":"assistant","timestamp":\#(timestamp + 2),"message":{"model":"gpt-6-sol","content":[{"type":"text","text":"more"}],"usage":{"input_tokens":20,"output_tokens":30}}}"#,
-                #"{"type":"turn_ended","timestamp":\#(timestamp + 40),"status":"success"}"#
-            ]),
             (.copilot, [
                 #"{"id":"start","timestamp":\#(timestamp),"type":"session.start","data":{"sessionId":"s","selectedModel":"gpt-6-sol","context":{"cwd":"/tmp/example"}}}"#,
                 #"{"id":"turn","timestamp":\#(timestamp),"type":"user.message","data":{"turnId":"0","content":"private"}}"#,
@@ -152,8 +151,8 @@ enum AgentUsageReadTests {
                 case .claude: entries += AgentLogParser.parseClaude(line, state: &cursor.state, now: now)
                 case .codex: entries += AgentLogParser.parseCodex(line, state: &cursor.state, now: now)
                 case .opencode: entries += AgentLogParser.parseOpenCode(line, state: &cursor.state, now: now)
-                case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
                 case .copilot: entries += AgentLogParser.parseCopilot(line, state: &cursor.state, now: now)
+                case .cursor: entries += AgentLogParser.parseCursor(line, state: &cursor.state, now: now)
                 }
             }
             if provider == .copilot {
@@ -188,6 +187,7 @@ enum AgentUsageReadTests {
         }
         startup(suite, folder: folder.appending(path: "home"), cases: cases)
         codexThreads(suite, folder: folder)
+        cursorPolling(suite, folder: folder, now: now)
 
         let openFile = folder.appending(path: "copilot-open.jsonl")
         let openLines = [
@@ -240,6 +240,61 @@ enum AgentUsageReadTests {
         watcher.filesChanged([], rescan: true)
         suite.expect(Set(watcher.cursors.keys) == [real.path] && watcher.store.records.count == 1,
                      "Copilot rescans use the same path boundary and do not duplicate live activity")
+    }
+
+    private static func cursorPolling(_ suite: TestSuite, folder: URL, now: Date) {
+        let host = Host()
+        let providers: Set<AgentProvider> = [.claude, .cursor]
+        let claude = folder.appending(path: "claude.jsonl")
+        _ = host.read(claude.path, provider: .claude)
+        let before = host.store.snapshot(plans: [:], providers: providers, now: now)
+        let projects = AgentLogRoot.canonical(folder).appending(path: ".cursor/projects", directoryHint: .isDirectory)
+        let directory = projects.appending(path: "demo/agent-transcripts")
+        let file = directory.appending(path: "session.jsonl")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let root = AgentLogRoot(provider: .cursor, url: AgentLogRoot.canonical(projects))
+            let prompt = Data((#"{"role":"user","message":{"content":[]}}"# + "\n").utf8)
+            try prompt.write(to: file)
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-10)], ofItemAtPath: file.path)
+            host.enabled = providers
+            suite.expect(host.read(file.path, provider: .cursor, cursorRoot: root.url)
+                            && host.store.live.contains { $0.provider == .cursor },
+                         "startup can read a Cursor prompt under its explicit root before the watcher starts")
+            host.watch([root])
+            // Replace the row in place, preserving its byte length and inode.
+            let bytes = Data((#"{"type":"turn_ended","status":"success"}"# + "\n").utf8)
+            suite.expect(bytes.count == prompt.count, "the polling fixture preserves the transcript size")
+            let handle = try FileHandle(forWritingTo: file)
+            defer { try? handle.close() }
+            try handle.write(contentsOf: bytes)
+            try FileManager.default.setAttributes([.modificationDate: now], ofItemAtPath: file.path)
+            suite.expect(host.pollOpenLogs(within: 60) && !host.store.live.contains { $0.provider == .cursor },
+                         "polling sees a same-size Cursor rewrite without a file event")
+            let after = host.store.snapshot(plans: [:], providers: providers, now: now, cursorProjectsFound: true)
+            suite.expect(before.usage(.today).total.tokens.total > 0 && before.periods == after.periods
+                            && before.days == after.days && before.hours == after.hours,
+                         "Cursor activity leaves the other agents' totals, chart units and rankings unchanged")
+            let outside = folder.appending(path: "empty-fixture.jsonl")
+            try Data().write(to: outside)
+            let linked = directory.appending(path: "linked.jsonl")
+            try FileManager.default.createSymbolicLink(at: linked, withDestinationURL: outside)
+            host.filesChanged([linked.path], rescan: false)
+            suite.expect(host.cursors[linked.path] == nil && host.store.live.isEmpty,
+                         "a file event for a linked transcript leaves no session or cursor")
+            try handle.seekToEnd()
+            try handle.write(contentsOf: prompt)
+            host.filesChanged([file.path], rescan: false)
+            suite.expect(host.store.live.contains { $0.provider == .cursor },
+                         "the same watcher continues to admit regular Cursor transcripts")
+            host.watch([])
+            _ = host.pollOpenLogs(within: 60)
+            suite.expect(host.cursors[file.path] == nil && !host.store.live.contains { $0.provider == .cursor }
+                            && host.events.isEmpty,
+                         "polling drops an active session whose root is no longer watched without issuing a finish")
+        } catch {
+            suite.expect(false, "could not prepare the Cursor polling fixture: \(error)")
+        }
     }
 
     private static func codexThreads(_ suite: TestSuite, folder: URL) {
@@ -399,10 +454,7 @@ enum AgentUsageReadTests {
                 suite.expect(false, "the startup fixture has a root for \(provider)")
                 return
             }
-            // Every log sits along its usual layout; a Cursor transcript
-            // under its project's agent-transcripts folder.
-            let file = root.url.appending(path: provider == .cursor
-                ? "sample-project/agent-transcripts/chat.jsonl" : "session/events.jsonl")
+            let file = root.url.appending(path: "session/events.jsonl")
             do {
                 try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try Data((lines.joined(separator: "\n") + "\n").utf8).write(to: file)

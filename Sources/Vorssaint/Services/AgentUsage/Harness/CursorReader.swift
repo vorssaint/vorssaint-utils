@@ -3,143 +3,179 @@
 
 import Foundation
 
-/// Reads Cursor's agent transcripts, the Anthropic-shaped JSONL lines the
-/// Cursor IDE and CLI keep under `~/.cursor/projects/`. A prompt opens a
-/// turn, a reply keeps it going and records its usage when the line carries
-/// one, and the transcript's own turn control line closes it. Only session
-/// identity, turn edges, model names and usage counters are decoded; the
-/// prompt and reply text is searched for the turn's time and left alone.
+/// Cursor transcripts always supply turn activity. Some replies also identify and date their token usage.
 struct CursorReader: AgentHarnessReader {
     var provider: AgentProvider { .cursor }
+    var replaying = false
 
     func parse(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        if AgentLogParser.contains(line, #""type":"turn_ended""#) { return turnEnded(line, state: &state, now: now) }
-        // A reply can quote a role field inside its text; the byte tests only
-        // keep candidate lines, the decoded role decides.
-        guard AgentLogParser.contains(line, #""role":"user""#) || AgentLogParser.contains(line, #""role":"assistant""#), let json = AgentLogParser.object(line), let message = json["message"] as? [String: Any] else { return [] }
-        switch json["role"] as? String {
-        case "user": return user(message, json: json, state: &state, now: now)
-        case "assistant": return assistant(json, message: message, state: &state, now: now)
-        default: return []
+        guard let envelope = AgentLogObject(line) else { return [] }
+        if let type = envelope.string("type") {
+            guard type == "turn_ended", state.turnOpen else { return [] }
+            state.turnOpen = false
+            state.cursorLastActivity = now
+            return [.turnEnded(now, completed: envelope.string("status") == "success", duration: nil)]
+        }
+
+        let context = AgentLogEntry.turnContext(model: state.model, project: state.project)
+        switch envelope.string("role") {
+        case "user":
+            state.cursorPromptCount += 1
+            let timestamp = Self.promptTimestamp(envelope)
+            state.cursorPromptTimestamp = timestamp?.date
+            // Cursor's prompt tag has minute precision. Measure a new turn
+            // from observation so a short task cannot earn a long-task alert.
+            // When attaching mid-turn, the latest possible start within that
+            // minute gives a lower bound on the elapsed time.
+            let date = replaying ? min(timestamp?.latest ?? now, now) : now
+            var entries: [AgentLogEntry] = []
+            if state.turnOpen { entries.append(.turnEnded(date, completed: false, duration: nil)) }
+            state.turnOpen = true
+            state.cursorLastActivity = replaying ? min(timestamp?.date ?? now, now) : now
+            entries.append(.turnBegan(date))
+            entries.append(context)
+            return entries
+        case "assistant":
+            let event: AgentLogEntry = state.turnOpen ? .turnActive(now) : .turnBegan(now)
+            state.turnOpen = true
+            state.cursorLastActivity = now
+            if let usage = Self.responseUsage(envelope, state: state) { return [event, context, usage] }
+            return [event, context]
+        default:
+            return []
         }
     }
 
-    private func user(_ message: [String: Any], json: [String: Any], state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        let date = AgentLogParser.timestamp(json["timestamp"]) ?? stamp(message) ?? now
-        var entries: [AgentLogEntry] = []
-        entries.append(state.turnOpen ? .turnActive(date) : .turnBegan(date))
-        state.turnOpen = true
-        // The transcript's path names the session and project: the turn
-        // keeps what the cursor gave it, whatever the lines say.
-        entries.append(.turnContext(model: state.model, project: state.project))
-        return entries
-    }
-
-    private func assistant(_ json: [String: Any], message: [String: Any], state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
-        var entries: [AgentLogEntry] = []
-        // Not every transcript writes a model; unknown stays the way the
-        // island shows an unknown model, empty.
-        if let model = model(message) { state.model = model }
-        if let usage = usage(message, date: date, state: state) {
-            entries.append(usage)
+    /// Replays, streamed updates and multiple replies in the same second need
+    /// an explicit message ID. The file's last write cannot date older replies.
+    private static func responseUsage(_ envelope: AgentLogObject, state: AgentLogState) -> AgentLogEntry? {
+        guard !state.session.isEmpty, let message = envelope.object("message"),
+              let usage = message.object("usage") else { return nil }
+        let ids = [usage.string("message_id", maxBytes: 256), message.string("id", maxBytes: 256)]
+        guard let id = ids.compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
+        let date: Date?
+        if let timestamp = envelope.string("timestamp", maxBytes: 64) {
+            date = AgentTimestamp.parseCursor(timestamp)
+        } else {
+            date = envelope.unsignedInteger("timestamp").flatMap { AgentLogParser.seconds($0) }
         }
-        entries.insert(state.turnOpen ? .turnActive(date) : .turnBegan(date), at: 0)
-        state.turnOpen = true
-        return entries
-    }
-
-    private func turnEnded(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        guard let json = AgentLogParser.object(line), state.turnOpen else { return [] }
-        state.turnOpen = false
-        let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
-        let status = AgentLogParser.native(json["status"] as? String ?? "")
-        let finished = !["error", "failed", "aborted", "interrupted", "cancelled"].contains(status.lowercased())
-        return [.turnEnded(date, completed: finished, duration: nil)]
-    }
-
-    /// The model a reply names, when the transcript carries one at all: the
-    /// flat field the manager writes beside the message, or Anthropic's
-    /// dictionary shape when present.
-    private func model(_ message: [String: Any]) -> String? {
-        if let model = message["model"] as? String, !model.isEmpty, !model.hasPrefix("<") {
-            return AgentLogParser.native(model)
+        guard let date else { return nil }
+        func count(_ field: String, in object: AgentLogObject) -> Int {
+            min(object.unsignedInteger(field) ?? 0, 1_000_000_000_000)
         }
-        if let model = (message["modelInfo"] as? [String: Any])?["modelId"] as? String, !model.isEmpty {
-            return AgentLogParser.native(model)
-        }
-        return nil
-    }
-
-    /// What one reply used, priced from the list when it knows the model.
-    /// Older or IDE transcripts carry no usage at all; a reply without any
-    /// is activity only, which is all the island has to show.
-    private func usage(_ message: [String: Any], date: Date, state: AgentLogState) -> AgentLogEntry? {
-        guard let usage = message["usage"] as? [String: Any] else { return nil }
-        let reasoning = AgentLogParser.int((usage["output_tokens_details"] as? [String: Any])?["thinking_tokens"])
-        let tokens = AgentTokens(
-            input: AgentLogParser.int(usage["input_tokens"]),
-            cacheWrite: AgentLogParser.int(usage["cache_creation_input_tokens"]),
-            cacheRead: AgentLogParser.int(usage["cache_read_input_tokens"]),
-            output: AgentLogParser.int(usage["output_tokens"]) + reasoning, reasoning: reasoning)
+        let output = count("output_tokens", in: usage)
+        let reasoning = usage.object("output_tokens_details").map { count("thinking_tokens", in: $0) } ?? 0
+        let tokens = AgentTokens(input: count("input_tokens", in: usage),
+                                 cacheWrite: count("cache_creation_input_tokens", in: usage),
+                                 cacheRead: count("cache_read_input_tokens", in: usage),
+                                 output: output, reasoning: min(reasoning, output))
         guard tokens.total > 0 else { return nil }
+        let candidates = [message.string("model", maxBytes: 256),
+                          message.object("modelInfo")?.string("modelId", maxBytes: 256)]
+        let model = candidates.compactMap { $0 }.first { !$0.isEmpty && !$0.hasPrefix("<") } ?? ""
         let billable = AgentBillable(tokens: tokens)
-        let priced = AgentPricing.cost(billable, model: state.model)
-        let id = AgentLogParser.native(usage["message_id"] as? String ?? "")
-        let key = id.isEmpty
-            ? "cursor:\(state.session):\(date.timeIntervalSince1970)"
-            : "cursor:\(state.session):\(id)"
-        let record = AgentUsageRecord(provider: .cursor, date: date, model: state.model, project: state.project,
-                                      session: state.session, tokens: tokens, cost: priced.cost,
-                                      savings: priced.savings)
-        return .usage(key: key, record: record, billable: billable)
+        let priced = AgentPricing.cost(billable, model: model)
+        let record = AgentUsageRecord(provider: .cursor, date: date, model: model, project: state.project,
+                                      session: state.session, tokens: tokens, cost: priced.cost, savings: priced.savings)
+        return .usage(key: "cursor-transcript:\(state.session.utf8.count):\(state.session):\(id)", record: record, billable: billable)
     }
 
-    // MARK: Times
-
-    /// The block Cursor writes ahead of a person's words:
-    /// `<timestamp>Sunday, Jul 26, 2026, 1:06 PM (UTC+3)</timestamp>`. The
-    /// rest of the text is looked at no further than this block.
-    private func stamp(_ message: [String: Any]) -> Date? {
-        for block in message["content"] as? [[String: Any]] ?? []
-        where block["type"] as? String == "text" {
-            if let date = turnStamp(block["text"] as? String ?? "") { return date }
+    /// Session id and project folder taken from the transcript path, so the
+    /// live strip has a name before any line is decoded.
+    static func adopt(path: String, into state: inout AgentLogState) {
+        if state.session.isEmpty {
+            let name = ((path as NSString).lastPathComponent as NSString).deletingPathExtension
+            if !name.isEmpty { state.session = AgentLogParser.native(name) }
         }
-        return nil
+        if state.project.isEmpty {
+            let project = AgentLogParser.cursorProject(from: path)
+            if !project.isEmpty { state.project = project }
+        }
     }
 
-    /// Reads that block without a regular expression: the block's own
-    /// layout is fixed, and the zone is an offset from UTC spelled the way
-    /// the shell prints it. A transcript without one, or with a shape this
-    /// cannot read, keeps the moment the line was read.
-    private func turnStamp(_ text: String) -> Date? {
-        guard let opening = text.range(of: "<timestamp>"),
-              let closing = text.range(of: "</timestamp>", range: opening.upperBound..<text.endIndex) else { return nil }
-        var stamp = String(text[opening.upperBound..<closing.lowerBound]).trimmingCharacters(in: .whitespaces)
-        var offsetSeconds = 0
-        // The day of the week the person's zone prints first is decoration;
-        // the date that follows it is all that is read.
-        if let comma = stamp.firstIndex(of: ","), !stamp[..<comma].contains(where: { $0.isNumber }) {
-            stamp = String(stamp[stamp.index(after: comma)...]).trimmingCharacters(in: .whitespaces)
-        }
-        if stamp.contains("(UTC"), let sign = stamp.first(where: { $0 == "+" || $0 == "-" }) {
-            let hoursMinutes = String(stamp[stamp.firstIndex(of: sign)!...]).dropFirst()
-                .prefix { $0.isNumber || $0 == ":" }
-            let parts = hoursMinutes.split(separator: ":")
-            guard let hours = Int(parts.first ?? ""), (0...14).contains(hours) else { return nil }
-            let minutes = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
-            offsetSeconds = (hours * 3600 + minutes * 60) * (sign == "+" ? 1 : -1)
-            stamp = String(stamp[..<(stamp.range(of: "(")!.lowerBound)]).trimmingCharacters(in: .whitespaces)
-        }
-        let format = Self.formats.first { $0.date(from: stamp) != nil }
-        guard let read = format?.date(from: stamp) else { return nil }
-        return read.addingTimeInterval(TimeInterval(-offsetSeconds))
+    /// Compared only within this process when a transcript is rewritten.
+    static func promptFingerprint(_ line: Data) -> UInt64 {
+        var hasher = Hasher()
+        line.withUnsafeBytes { hasher.combine(bytes: $0) }
+        return UInt64(bitPattern: Int64(hasher.finalize()))
     }
 
-    private static var formats: [DateFormatter] {
-        [
-            { let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX"); format.timeZone = TimeZone(secondsFromGMT: 0); format.dateFormat = "MMMM d, yyyy, h:mm a"; return format }(),
-            { let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX"); format.timeZone = TimeZone(secondsFromGMT: 0); format.dateFormat = "MMM d, yyyy, h:mm a"; return format }(),
-        ]
+    private static let tag = Data("<timestamp>".utf8)
+    private static let endTag = Data("</timestamp>".utf8)
+    private static let escapedEndTag = Data(#"<\/timestamp>"#.utf8)
+
+    /// Cursor prefixes the first user text block with metadata. Tags quoted
+    /// in the query, replies and tool inputs do not describe the turn.
+    private static func promptTimestamp(_ envelope: AgentLogObject) -> (date: Date, latest: Date)? {
+        guard let first = envelope.object("message")?.firstObject(inArray: "content"),
+              first.string("type") == "text", let prefix = first.stringPrefix("text", maxBytes: 160),
+              prefix.starts(with: tag) else { return nil }
+        let body = prefix.dropFirst(tag.count)
+        guard let close = body.firstIndex(of: 0x3C),
+              body[close...].starts(with: endTag) || body[close...].starts(with: escapedEndTag) else { return nil }
+        let text = String(decoding: body[..<close], as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let date = AgentTimestamp.parseCursor(text) else { return nil }
+        return (date, text.first?.isNumber == true ? date : date.addingTimeInterval(60))
+    }
+}
+
+extension AgentTimestamp {
+    private static let cursorWallClock: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "EEEE, MMM d, yyyy, h:mm a"
+        return formatter
+    }()
+
+    /// Cursor writes local time like `Wednesday, Nov 18, 2026, 6:09 PM (UTC+8)`.
+    static func parseCursor(_ text: String) -> Date? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.first?.isNumber == true {
+            guard validCursorISODay(trimmed),
+                  trimmed.hasSuffix("Z") || (trimmed.count >= 6 && cursorOffset(trimmed.suffix(6)) != nil)
+            else { return nil }
+            return parse(trimmed)
+        }
+        guard trimmed.hasSuffix(")"), let open = trimmed.range(of: " (UTC", options: .backwards),
+              let date = cursorWallClock.date(from: String(trimmed[..<open.lowerBound])) else { return nil }
+        let zone = trimmed[open.upperBound...].dropLast()
+        guard let offset = cursorOffset(zone) else { return nil }
+        return date.addingTimeInterval(-TimeInterval(offset))
+    }
+
+    /// The shared ISO reader converts days arithmetically, so an impossible
+    /// day would otherwise roll into the following month.
+    private static func validCursorISODay(_ text: String) -> Bool {
+        let fields = text.prefix(10).split(separator: "-", omittingEmptySubsequences: false)
+        guard fields.count == 3, fields[0].utf8.count == 4, fields[1].utf8.count == 2, fields[2].utf8.count == 2,
+              fields.allSatisfy({ $0.utf8.allSatisfy { (48...57).contains($0) } }),
+              let year = Int(fields[0]), let month = Int(fields[1]), let day = Int(fields[2]),
+              (1...12).contains(month) else { return false }
+        let lastDay: Int
+        switch month {
+        case 2:
+            let leap = year.isMultiple(of: 4) && (!year.isMultiple(of: 100) || year.isMultiple(of: 400))
+            lastDay = leap ? 29 : 28
+        case 4, 6, 9, 11: lastDay = 30
+        default: lastDay = 31
+        }
+        return (1...lastDay).contains(day)
+    }
+
+    private static func cursorOffset(_ zone: Substring) -> Int? {
+        if zone.isEmpty { return 0 }
+        guard zone.first == "+" || zone.first == "-" else { return nil }
+        let parts = zone.dropFirst().split(separator: ":", omittingEmptySubsequences: false)
+        guard (1...2).contains(parts.count), (1...2).contains(parts[0].utf8.count),
+              parts[0].utf8.allSatisfy({ (48...57).contains($0) }),
+              let hours = Int(parts[0]), hours <= 23 else { return nil }
+        var minutes = 0
+        if parts.count == 2 {
+            guard parts[1].utf8.count == 2, parts[1].utf8.allSatisfy({ (48...57).contains($0) }),
+                  let value = Int(parts[1]), value < 60 else { return nil }
+            minutes = value
+        }
+        return (hours * 3600 + minutes * 60) * (zone.first == "-" ? -1 : 1)
     }
 }

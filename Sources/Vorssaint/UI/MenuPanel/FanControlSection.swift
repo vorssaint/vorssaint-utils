@@ -125,7 +125,7 @@ struct FanControlCardContent: View {
                 case .curve:
                     FanControlCurveEditor(strings: strings,
                                           curves: $curves,
-                                          temperatures: snapshot.temperatures ?? [],
+                                          snapshot: snapshot,
                                           temperatureUnit: temperatureUnit,
                                           disabled: isWorking)
                     if !curveCanRun {
@@ -167,7 +167,7 @@ struct FanControlCardContent: View {
         let formatted: [String] = targets.compactMap { target -> String? in
             let (source, name) = target
             guard let reading = readings.first(where: { $0.source == source }) else {
-                return nil
+                return source == .hottestGPU && snapshot.gpuPoweredDown == true ? strings.gpuIdle : nil
             }
             return "\(name) \(MetricFormat.temperature(reading.celsius, unit: temperatureUnit))"
         }
@@ -414,7 +414,7 @@ struct FanControlCardContent: View {
 
     private var curveCanRun: Bool {
         guard FanControlPolicy.validCurves(curves) else { return false }
-        let available = Set((snapshot.temperatures ?? []).map(\.source))
+        let available = snapshot.availableTemperatureSources
         return curves.allSatisfy { available.contains($0.sensor) }
     }
 }

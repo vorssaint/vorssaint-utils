@@ -63,6 +63,22 @@ enum MicMuteSupport {
         !owned && captureSilenced
     }
 
+    struct InputControls {
+        enum Gain { case unavailable, unreadable, silent, audible }
+        let gain: Gain
+        let muteSwitch: UInt32?
+
+        var isSilenced: Bool {
+            gain == .silent || (gain == .unavailable && muteSwitch == 1)
+        }
+
+        /// A driver losing a readable gain control does not establish that it opened.
+        func opened(since previous: InputControls) -> Bool {
+            previous.isSilenced && ((previous.gain == .silent && gain == .audible)
+                || (previous.muteSwitch == 1 && muteSwitch == 0))
+        }
+    }
+
     /// What an unmute has to do to a device this app muted. The mute switch
     /// and the volume are separate controls: clearing one must not skip the
     /// other, or a mute that zeroed the level would leave the microphone dead.

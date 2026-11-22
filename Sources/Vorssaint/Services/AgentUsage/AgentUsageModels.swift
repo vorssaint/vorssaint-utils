@@ -6,7 +6,7 @@ import Foundation
 /// The coding agents whose session logs the island reads. Their names are
 /// product names and stay untranslated.
 enum AgentProvider: String, CaseIterable, Identifiable, Codable {
-    case claude, codex, opencode, cursor, copilot
+    case claude, codex, opencode, copilot, cursor
 
     var id: String { rawValue }
 
@@ -15,8 +15,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .claude: return "Claude"
         case .codex: return "Codex"
         case .opencode: return "OpenCode"
-        case .cursor: return "Cursor"
         case .copilot: return "GitHub Copilot"
+        case .cursor: return "Cursor"
         }
     }
 
@@ -25,8 +25,8 @@ enum AgentProvider: String, CaseIterable, Identifiable, Codable {
         case .claude: return "sparkle"
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .opencode: return "terminal"
-        case .cursor: return "cursorarrow.rays"
         case .copilot: return "infinity"
+        case .cursor: return "cursorarrow"
         }
     }
 

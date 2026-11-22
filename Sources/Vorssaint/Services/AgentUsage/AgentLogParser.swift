@@ -61,6 +61,11 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
+    /// Cursor's transcript has no message IDs. The ordinal and optional
+    /// prompt timestamp identify the turn when Cursor rewrites the file.
+    var cursorPromptCount = 0
+    var cursorPromptTimestamp: Date?
+    var cursorLastActivity: Date?
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -176,6 +181,60 @@ enum AgentLogParser {
         CopilotReader().parse(line, state: &state, now: now)
     }
 
+    // MARK: Cursor
+
+    /// Cursor agent transcripts under `~/.cursor/projects`. Only turn edges
+    /// and the project folder name are taken; prompts and replies are not.
+    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
+        CursorReader().parse(line, state: &state, now: now)
+    }
+
+    /// The workspace folder Cursor encodes in
+    /// `~/.cursor/projects/<slug>/agent-transcripts/…`.
+    static func cursorProject(from path: String) -> String {
+        let transcript = CursorTranscriptFiles(path: path)
+        let directory = transcript.flat.deletingLastPathComponent()
+        guard directory.lastPathComponent == "agent-transcripts" else { return "" }
+        let project = directory.deletingLastPathComponent()
+        let slug = project.lastPathComponent
+        // Home is taken from the transcript path, not this Mac's account, so
+        // fixtures and other users' copied logs still name the project.
+        let projects = project.deletingLastPathComponent()
+        let cursor = projects.deletingLastPathComponent()
+        guard projects.lastPathComponent == "projects", cursor.lastPathComponent == ".cursor" else { return native(slug) }
+        let homePath = cursor.deletingLastPathComponent().path
+        let encodedHome = homePath.split(separator: "/").joined(separator: "-")
+        if slug == encodedHome { return projectName(homePath) }
+        if !encodedHome.isEmpty, slug.hasPrefix(encodedHome + "-") {
+            let rest = String(slug.dropFirst(encodedHome.count + 1))
+            if let resolved = resolveHyphenatedPath(base: homePath, encoded: rest) {
+                return projectName(resolved)
+            }
+            return native(rest)
+        }
+        return native(slug)
+    }
+
+    /// Cursor replaces both separators and literal hyphens with the same
+    /// character. Only accept a reconstruction when the full directory exists.
+    private static func resolveHyphenatedPath(base: String, encoded: String) -> String? {
+        let tokens = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
+        return resolveHyphenatedPath(base: base, tokens: ArraySlice(tokens))
+    }
+
+    private static func resolveHyphenatedPath(base: String, tokens: ArraySlice<String>) -> String? {
+        guard !tokens.isEmpty else { return base }
+        for length in (1...tokens.count).reversed() {
+            let name = tokens.prefix(length).joined(separator: "-")
+            guard !name.isEmpty, name != ".", name != ".." else { continue }
+            let next = (base as NSString).appendingPathComponent(name)
+            var directory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: next, isDirectory: &directory), directory.boolValue,
+               let found = resolveHyphenatedPath(base: next, tokens: tokens.dropFirst(length)) { return found }
+        }
+        return nil
+    }
+
     static func copilotEvent(_ type: String) -> Bool {
         ["user.message", "assistant.turn_start", "assistant.message", "assistant.turn_end",
          "session.start", "session.context_changed", "session.model_change", "session.shutdown", "abort"].contains(type)
@@ -232,51 +291,6 @@ enum AgentLogParser {
     }
 
     // MARK: Shared values
-
-    // MARK: Cursor
-
-    static func parseCursor(_ line: Data, state: inout AgentLogState, now: Date) -> [AgentLogEntry] {
-        CursorReader().parse(line, state: &state, now: now)
-    }
-
-    /// Cursor writes the project's absolute path into the folder
-    /// `~/.cursor/projects/<encoded>/agent-transcripts/…`, `/` becoming a
-    /// dash: `Users-me-Nextcloud-Code` stands for `/Users/me/Nextcloud/Code`.
-    /// Dashes a real folder owns are lost to the same split, so the reading
-    /// is a walk over every dash position that follows directories this Mac
-    /// has, longest first. What is gone from disk reads as the last two
-    /// names, the way a person sees the folder.
-    static func cursorProject(from path: String) -> String {
-        guard let projects = path.range(of: "/projects/"),
-              let transcripts = path.range(of: "/agent-transcripts/", range: projects.upperBound..<path.endIndex) else { return "" }
-        let encoded = String(path[projects.upperBound..<transcripts.lowerBound])
-        let parts = encoded.split(separator: "-", omittingEmptySubsequences: false).map(String.init)
-        guard parts.count > 1 else { return parts.first.map { projectName("/" + $0) } ?? "" }
-        func directory(_ path: String) -> Bool {
-            var isDirectory: ObjCBool = false
-            return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) && isDirectory.boolValue
-        }
-        // From every level the longest reading is tried first: the folder the
-        // path spells out at whole beats any part of it, matching how the
-        // dash split loses real dashes but preserves every real folder this
-        // Mac still has.
-        func walk(_ segment: Int, _ base: String) -> String? {
-            for index in stride(from: parts.count - 1, through: segment, by: -1) {
-                let candidate = (base.isEmpty ? "" : base) + "/" + parts[segment...index].joined(separator: "-")
-                if index == parts.count - 1 {
-                    if directory(candidate) { return candidate }
-                } else if directory(candidate), let forward = walk(index + 1, candidate) {
-                    return forward
-                }
-            }
-            return nil
-        }
-        if let resolved = walk(0, "") { return projectName(resolved) }
-        // What is gone from disk reads as the folder its person knows, with
-        // the dashes it was written with back where they were.
-        let remaining = parts.suffix(2).filter { !$0.isEmpty }.joined(separator: "-")
-        return remaining.isEmpty ? "" : projectName("/" + remaining)
-    }
 
     /// The folder an agent ran in names the project. A worktree kept inside
     /// the repository still belongs to that repository.

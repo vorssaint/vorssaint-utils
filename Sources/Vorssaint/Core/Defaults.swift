@@ -628,6 +628,7 @@ enum DefaultsKey {
     static let screenOCRDetectQRCodes = "screenOCRDetectQRCodes" // QR content wins over OCR text
     static let micMuteShortcutEnabled = "micMuteShortcutEnabled"
     static let micMuteShortcut = "micMuteShortcut"
+    static let micMuteFollowCallApps = "micMuteFollowCallApps"
     static let quitAppsShortcutEnabled = "quitAppsShortcutEnabled"
     static let quitAppsShortcut = "quitAppsShortcut"
     static let quitAppsExceptFrontShortcutEnabled = "quitAppsExceptFrontShortcutEnabled"
@@ -926,8 +927,8 @@ enum DefaultsKey {
     /// The Codex homes, `CODEX_HOME` folders, that get limits cards of their own.
     static let notchAgentsCodexProfiles = "notchAgentsCodexProfiles"
     static let notchAgentsOpenCode = "notchAgentsOpenCode"
-    static let notchAgentsCursor = "notchAgentsCursor"
     static let notchAgentsCopilot = "notchAgentsCopilot"
+    static let notchAgentsCursor = "notchAgentsCursor"
     static let notchAgentsCardOrder = "notchAgentsCardOrder"
     static let notchAgentsHiddenCards = "notchAgentsHiddenCards"
     static let notchAgentsPeriod = "notchAgentsPeriod"
@@ -1535,8 +1536,8 @@ enum Defaults {
         DefaultsKey.notchAgentsCodex: true,
         DefaultsKey.notchAgentsCodexProfiles: "",
         DefaultsKey.notchAgentsOpenCode: true,
-        DefaultsKey.notchAgentsCursor: true,
         DefaultsKey.notchAgentsCopilot: true,
+        DefaultsKey.notchAgentsCursor: true,
         DefaultsKey.notchAgentsCardOrder: "",
         DefaultsKey.notchAgentsHiddenCards: "",
         DefaultsKey.notchAgentsPeriod: AgentPeriod.today.rawValue,
@@ -1876,6 +1877,7 @@ enum Defaults {
         DefaultsKey.screenOCRDetectQRCodes: true,
         DefaultsKey.micMuteShortcutEnabled: false,
         DefaultsKey.micMuteShortcut: GlobalShortcut.micMuteDefault.storageValue,
+        DefaultsKey.micMuteFollowCallApps: false,
         DefaultsKey.quitAppsShortcutEnabled: false,
         DefaultsKey.quitAppsShortcut: GlobalShortcut.quitAllDefault.storageValue,
         DefaultsKey.quitAppsExceptFrontShortcutEnabled: false,
