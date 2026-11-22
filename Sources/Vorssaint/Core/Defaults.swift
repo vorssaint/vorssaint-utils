@@ -903,6 +903,18 @@ enum DefaultsKey {
     static let lyricsLockScreenEnabled = "lyricsLockScreenEnabled"
     static let lyricsKeepAwake = "lyricsKeepAwake"
     static let agentAskEnabled = "agentAskEnabled"
+    static let convertJPEGQuality = "convertJPEGQuality"
+    static let convertEnabled = "convertEnabled"
+    static let convertHiddenFormats = "convertHiddenFormats"
+    static let convertKeyConvert = "convertKeyConvert"
+    static let convertKeyTools = "convertKeyTools"
+    static let convertKeyActions = "convertKeyActions"
+    static let convertRecents = "convertRecents"
+    static let convertFFmpegPath = "convertFFmpegPath"
+    static let convertOutputLocation = "convertOutputLocation"
+    static let convertRevealInFinder = "convertRevealInFinder"
+    static let convertCompressionPreset = "convertCompressionPreset"
+    static let convertResizeLongEdge = "convertResizeLongEdge"
     static let agentAskConsentAsked = "agentAskConsentAsked"
     static let lyricsWallpaperConsentAsked = "lyricsWallpaperConsentAsked"
     static let notchBrowserCovers = "notchBrowserCovers"
@@ -1559,6 +1571,10 @@ enum Defaults {
         DefaultsKey.lyricsLockScreenEnabled: true,
         DefaultsKey.lyricsKeepAwake: true,
         DefaultsKey.agentAskEnabled: true,
+        DefaultsKey.convertEnabled: true,
+        DefaultsKey.convertKeyConvert: true,
+        DefaultsKey.convertKeyTools: true,
+        DefaultsKey.convertKeyActions: true,
         DefaultsKey.agentAskConsentAsked: false,
         DefaultsKey.lyricsWallpaperConsentAsked: false,
         DefaultsKey.notchBrowserCovers: false,

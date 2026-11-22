@@ -177,6 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         FeatureRuntime.shared.syncAtLaunch()
         LyricsWallpaperService.shared.sync()
         AgentAskService.shared.sync()
+        ConvertDragMonitor.shared.onKeyDown = { NotchService.shared.presentConvertDrag($0, mode: $1) }
+        ConvertDragMonitor.shared.onModeChange = { NotchService.shared.switchConvertDrag(to: $0) }
+        ConvertDragMonitor.shared.onKeyUp = { NotchService.shared.dismissConvertDrag() }
+        ConvertDragMonitor.shared.onEnd = { NotchService.shared.dismissConvertDrag() }
+        ConvertDragMonitor.shared.sync()
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }

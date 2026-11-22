@@ -1,0 +1,27 @@
+Vorssaint (this fork) additions: Copyright (C) 2026 Vorssaint contributors, GPL-3.0-or-later.
+
+The file-conversion code under Sources/Vorssaint/Convert and
+Sources/Vorssaint/Services/Convert/ConvertDragMonitor.swift is adapted from
+Open Tangerine, Copyright (C) 2026 Sintax Error Private Limited, licensed
+GPL-3.0-only (https://github.com/sintaxerrorpvtltd/Open-Tangerine).
+Open Tangerine's native app is substantially based on Satsuma, Copyright (C)
+2026 plyght, MIT; its notice is reproduced in
+Sources/Vorssaint/Convert/LICENSE-Satsuma-MIT.txt.
+Open Tangerine is independent of Tangerine; no endorsement is implied.
+
+Because Open Tangerine's code is GPL-3.0-only, the combined application is
+distributed under the terms of the GPL, version 3. Files marked
+"GPL-3.0-or-later" remain usable under that licence's later versions on their
+own; the combination as a whole is GPL-3.0.
+
+The design of the converter's options and settings follows the author's own
+Windows project, https://github.com/signingoff-dubey/convert.
+
+ffmpeg, ffprobe and 7-Zip are bundled inside release builds, with the dynamic
+libraries ffmpeg needs, copied from Homebrew (ffmpeg is built with --enable-gpl).
+They run as separate programs and keep their own licences: ffmpeg
+(GPL-2.0-or-later, https://ffmpeg.org, source at https://ffmpeg.org/download.html),
+7-Zip (LGPL-2.1-or-later with unRAR restrictions, https://7-zip.org) and the
+libraries under Contents/Frameworks/converters (x264, x265, SVT-AV1, libvpx, lame,
+opus, vorbis, mpg123 and others, each GPL, LGPL or BSD). Their licence texts and
+sources are available from those projects; `brew info ffmpeg` lists the exact set.

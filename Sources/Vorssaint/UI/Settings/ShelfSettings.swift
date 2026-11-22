@@ -190,6 +190,7 @@ struct ShelfSettings: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            ConvertSettingsSections()
         }
         .formStyle(.grouped)
         // The island can be switched on or its modules changed elsewhere while this page is open.

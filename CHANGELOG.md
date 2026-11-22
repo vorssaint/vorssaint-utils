@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased] - fork additions
+
+### Added
+- File converter in the Dynamic Island: *Convert here* beside the shelf's drop area, format and options pages, tools and file actions, a progress ring and bar, and results. Hold ⇧ Shift, ⌘ Command (or ⌥ Option + ⇧ Shift) or ⌃ Control while dragging for the Convert, Tools or Actions page. See docs/CONVERT.md.
+- On-device OCR for pictures and scanned PDFs, background removal, and face and text redaction, using Apple's Vision framework.
+- Safe archive conversion and extraction with path-traversal and link checks.
+- Bundled ffmpeg, ffprobe and 7-Zip (`Tools/bundle-converters.sh`).
+- Settings → Shelf → Convert, and `Vorssaint --convert-selftest`.
+- Music wallpaper with synced lyrics in eight styles on the desktop and lock screen; Claude Code questions answered on the island; live Claude limits on the AI page.
+
+### Changed
+- AI limits show how much is used by default.
+- The island's lock screen option is on by default.
+
 ## [3.4.4] - 2026-11-11
 
 ### Summary

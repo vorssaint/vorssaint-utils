@@ -19,6 +19,9 @@ MouseAccelerationService.recoverPendingAtLaunch()
 if CommandLine.arguments.contains("--selftest") {
     SelfTest.runAndExit()
 }
+if CommandLine.arguments.contains("--convert-selftest") {
+    ConvertSelfTest.runAndExit()
+}
 if CommandLine.arguments.contains("--sensors") {
     SensorDump.runAndExit()
 }

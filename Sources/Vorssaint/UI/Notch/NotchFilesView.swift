@@ -13,6 +13,7 @@ struct NotchFilesView: View {
     @ObservedObject private var features = FeatureRuntime.shared
     @ObservedObject private var archives = NotchFileToolsService.shared
     @ObservedObject private var media = NotchFileToolsService.shared.media
+    @ObservedObject private var convert = ConvertService.shared
     @State private var actionInputs: [URL] = []
     @State private var supportedTools: [MediaTool] = []
     @State private var showingActions = false
@@ -22,7 +23,7 @@ struct NotchFilesView: View {
 
     /// Dragging media over the island asks where it goes.
     private var choosesDropDestination: Bool {
-        service.choosingFileDropDestination && AppFeature.mediaTools.isAvailable
+        service.choosingFileDropDestination
     }
 
     private var presentedMediaSession: NotchMediaSession? {
@@ -42,12 +43,14 @@ struct NotchFilesView: View {
         VStack(spacing: NotchLayout.rowSpacing) {
             if choosesDropDestination {
                 HStack(spacing: NotchFileToolsSupport.dropSpacing) {
-                    dropDestination(FeatureStrings.notch(l10n.language).files, symbol: "tray.and.arrow.down",
-                                    selected: !service.targetsMediaDrop)
-                    dropDestination(text.optimizeMedia, symbol: "wand.and.stars", selected: service.targetsMediaDrop,
-                                    available: archives.canAcceptMediaDrop)
+                    ConvertDropZone(title: FeatureStrings.notch(l10n.language).dropHint, symbol: "tray.and.arrow.down",
+                                    selected: !service.targetsMediaDrop, tint: .white)
+                    ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath", selected: service.targetsMediaDrop,
+                                    tint: Color(red: 1, green: 0.62, blue: 0.3))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if convert.isOpen {
+                ConvertPanelView(service: convert)
             } else if let session = presentedMediaSession {
                 MediaWorkspaceView(compact: true, onClose: archives.closeMedia,
                                    media: media, initialInputs: session.inputs,
@@ -96,6 +99,7 @@ struct NotchFilesView: View {
         .onChange(of: archives.mediaSession?.id) {
             service.refreshPresentation()
         }
+        .onChange(of: convert.isOpen) { service.refreshPresentation(transitionContent: .replace) }
         .onChange(of: archives.mediaPresented) { service.refreshPresentation() }
         .onChange(of: showingActions || outputPanel != nil) { _, active in service.keepFileInteractionOpen(active) }
         .onDisappear {

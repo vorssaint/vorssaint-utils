@@ -75,7 +75,7 @@ Per app volume, a real system monitor, a better app switcher, window snapping, D
 
 ## What this fork adds
 
-This is a fork of Vorssaint 3.4.4. Everything below is on top of the upstream app, which is otherwise unchanged. The release is signed with a local self-signed identity and is not notarized, so right-click Open on first launch.
+This is a fork of Vorssaint 3.4.4. Everything below is on top of the upstream app, which is otherwise unchanged. The converter is adapted from Open Tangerine (GPL-3.0-only), so the combined app is GPL-3.0; see `NOTICE`. The release is signed with a local self-signed identity and is not notarized, so right-click Open on first launch.
 
 ### Music wallpaper with synced lyrics
 
@@ -103,9 +103,19 @@ This works through two hooks in `~/.claude/settings.json` and a small local sock
 - **Layout.** Claude's card runs tall on the left with Resets at the top right at half width, and a card left without a partner keeps its half of the row.
 - **Used by default.** Limits show how much is used, not how much is left. Switch it back in the AI settings.
 
+### File converter
+
+Drag a file toward the island and its drop area splits in two: *Drop files here* and *Convert here*. Drop on Convert and the island opens full size with the formats the file can become, then the options for the one you choose (image quality, video resolution, GIF frame rate, bitrate…), a live progress bar and the results. Or hold a key while you drag and drop straight onto a tile: **⇧ Shift** for formats, **⌘ Command** (or **⌥ Option + ⇧ Shift**) for tools, **⌃ Control** for file actions.
+
+- **Convert** images, audio, video, PDFs, documents, subtitles and archives, with picture and scanned-PDF → text by on-device OCR.
+- **Tools:** compress, resize, rotate, crop, edit, add a background, collage, upscale, remove background, redact faces or text, merge and split PDFs, organize pages, trim, crop, speed up and join video, save video frames, split video, normalize and trim audio, strip metadata and more.
+- **Actions:** reveal, copy files and paths, duplicate, SHA-256, zip, move to, copy to, Terminal.
+- **Everything is configurable** in Settings → Shelf → Convert: keys, output folder, quality, which formats show, ffmpeg, a self-test button and recent results.
+- **Offline and private.** ffmpeg and 7-Zip are bundled; archives are checked before they are opened. See [docs/CONVERT.md](docs/CONVERT.md).
+
 ### Build it
 
-You need Xcode: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./build.sh --install`. `./Tools/make-dmg.sh` then packages the DMG into `dist/`.
+You need Xcode: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./build.sh --install`. To bundle the converters, first `brew install ffmpeg sevenzip dylibbundler`. `./Tools/make-dmg.sh` then packages the DMG into `dist/`. Check the converters with `Vorssaint --convert-selftest`.
 
 ## Install only what you use
 

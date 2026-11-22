@@ -714,6 +714,12 @@ cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
 cp CHANGELOG.md "$STAGE/Contents/Resources/CHANGELOG.md"
+# ffmpeg, ffprobe and 7-Zip with their libraries, so conversions work offline on any Mac.
+# Signed with the app's identity inside sign_bundle; skipped with a note when the tools are missing.
+CONVERTERS_STAGED=0
+if [[ -z "${VORSSAINT_SKIP_CONVERTERS:-}" ]] && ./Tools/bundle-converters.sh "$STAGE" - ; then
+    [[ -d "$STAGE/Contents/Resources/bin" ]] && CONVERTERS_STAGED=1
+fi
 for lproj in Resources/*.lproj(N); do
     cp -R "$lproj" "$STAGE/Contents/Resources/"
 done
@@ -817,6 +823,21 @@ codesign_now_playing_adapter() {
     fi
 }
 
+# ffmpeg, ffprobe, 7-Zip and their libraries, each signed on its own, libraries first.
+sign_converters() {
+    local bundle="$1" file
+    [[ -d "$bundle/Contents/Resources/bin" ]] || return 0
+    for file in "$bundle"/Contents/Frameworks/converters/*.dylib(N) "$bundle"/Contents/Resources/bin/*(N); do
+        if [[ -n "$DEVID" ]]; then
+            codesign_with_timestamp_retry --force --strip-disallowed-xattrs --options runtime --timestamp --sign "$DEVID" "$file" >/dev/null
+        elif legacy_identity_installed; then
+            codesign --force --strip-disallowed-xattrs --sign "$LEGACY_IDENTITY" "$file" >/dev/null
+        else
+            codesign --force --strip-disallowed-xattrs --sign - "$file" >/dev/null
+        fi
+    done
+}
+
 sign_bundle() {
     local bundle="$1"
     local executable="$bundle/Contents/MacOS/$EXECUTABLE"
@@ -830,6 +851,7 @@ sign_bundle() {
     else
         echo "  signing ad-hoc (no identity installed — run Tools/setup-signing.sh)"
     fi
+    sign_converters "$bundle"
     [[ -f "$helper" ]] && codesign_fan_helper "$helper"
     [[ -f "$adapter" ]] && codesign_now_playing_adapter "$adapter"
     codesign_app "$bundle"

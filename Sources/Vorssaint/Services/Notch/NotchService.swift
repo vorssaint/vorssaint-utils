@@ -835,7 +835,9 @@ final class NotchService: ObservableObject {
                         detail: selectedMetric != nil, panel: showingAppPanel,
                         detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
-                        fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
+                        fileMediaHeight: !choosingFileDropDestination && MainActor.assumeIsolated({ ConvertService.shared.isOpen })
+                            ? ConvertService.pageHeight
+                            : !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                         toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
                         capturePreviewHeight: captureContent == nil ? nil : captureContentHeight)
@@ -2289,19 +2291,72 @@ final class NotchService: ObservableObject {
             && UserDefaults.standard.bool(forKey: DefaultsKey.shelfEnabled)
     }
 
+    // MARK: Convert drag (the Convert key held)
+
+    /// The island opened for a drag with the key held, so it closes again if the drag ends elsewhere.
+    private var convertDragOpened = false
+
+    /// The key went down during a file drag: open on the formats, ready to drop on.
+    func presentConvertDrag(_ urls: [URL], mode: ConvertService.Mode = .convert) {
+        guard canAcceptFileDrop, MainActor.assumeIsolated({ ConvertService.shared.beginDrag(urls, mode: mode) }) else { return }
+        choosingFileDropDestination = false
+        convertDragOpened = true
+        open(.files, takeFocus: false)
+    }
+
+    /// A different key was pressed mid-drag: the page switches to its mode.
+    func switchConvertDrag(to mode: ConvertService.Mode) {
+        guard convertDragOpened else { return }
+        MainActor.assumeIsolated { ConvertService.shared.setMode(mode) }
+    }
+
+    /// The key came up or the drag ended without a drop on a format.
+    func dismissConvertDrag() {
+        guard convertDragOpened else { return }
+        convertDragOpened = false
+        MainActor.assumeIsolated { ConvertService.shared.cancelDrag() }
+        if !pinned { collapse() }
+    }
+
+    /// The format tile under a point of the island, from the same layout the page draws.
+    private func convertTile(at point: CGPoint) -> ConvertService.Tile? {
+        MainActor.assumeIsolated {
+            let tiles = ConvertService.shared.tiles
+            guard !tiles.isEmpty else { return nil }
+            let content = expandedGeometry.contentSize(for: surfaceSize)
+            let local = CGPoint(x: point.x - (surfaceSize.width - content.width) / 2,
+                                y: point.y - (expandedGeometry.pageTopInset + ConvertLayout.headerHeight + ConvertLayout.spacing))
+            for (index, tile) in tiles.enumerated()
+            where ConvertLayout.frame(index: index, count: tiles.count, width: content.width).contains(local) {
+                return tile
+            }
+            return nil
+        }
+    }
+
     func beginFileDrop(_ pasteboard: NSPasteboard) {
         guard canAcceptFileDrop else { return }
-        choosingFileDropDestination = NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
+        // Held with the key, the formats are already up and the drag simply carries on over them.
+        if MainActor.assumeIsolated({ ConvertService.shared.dragging }) { choosingFileDropDestination = false; return }
+        // Anything the converter can turn into something else offers a Convert zone beside the shelf.
+        let convertible = MainActor.assumeIsolated { ConvertService.shared.canConvert(pasteboard) }
+        choosingFileDropDestination = convertible || NotchFileToolsService.shared.mediaDropContent(for: pasteboard) != nil
         targetsMediaDrop = false
         open(.files, takeFocus: false)
     }
 
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
+        if MainActor.assumeIsolated({ ConvertService.shared.dragging }) {
+            let tile = convertTile(at: point)
+            MainActor.assumeIsolated { ConvertService.shared.setHover(tile) }
+            return true
+        }
         let targeted = choosingFileDropDestination
             && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
-        return !targeted || NotchFileToolsService.shared.canAcceptMediaDrop
+        // The Convert zone takes any drop; a media drop it cannot convert fails softly in accept().
+        return true
     }
 
     func endFileDrop() {
@@ -2319,8 +2374,17 @@ final class NotchService: ObservableObject {
     func accept(_ pasteboard: NSPasteboard) -> Bool {
         defer { endFileDrop() }
         guard canAcceptFileDrop else { return false }
-        let optimize = choosingFileDropDestination && targetsMediaDrop
-        let accepted = optimize
+        if MainActor.assumeIsolated({ ConvertService.shared.dragging }) {
+            let dropped = MainActor.assumeIsolated { ConvertService.shared.dropOnHover() }
+            if dropped { convertDragOpened = false; heldDrag = false; dragPlaceholder = false; open(.files) }
+            else { dismissConvertDrag() }
+            return dropped
+        }
+        let rightZone = choosingFileDropDestination && targetsMediaDrop
+        // The right zone converts; media the converter cannot take still goes to Optimize.
+        let convert = rightZone && MainActor.assumeIsolated { ConvertService.shared.begin(pasteboard) }
+        let optimize = rightZone && !convert
+        let accepted = convert ? true : optimize
             ? NotchFileToolsService.shared.openMediaDrop(pasteboard)
             : ShelfService.shared.acceptDrop(pasteboard: pasteboard)
         if accepted {
