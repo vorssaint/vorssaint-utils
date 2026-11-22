@@ -80,15 +80,25 @@ enum AgentUsageArchive {
             guard (saved.provider == .cursor) == (root?.accepts(saved.path) == true) else { continue }
             cursors[saved.path] = AgentLogCursor(saved: saved, cursorRoot: cursorRoot)
         }
+        // The archive holds one selected reading for copies of a Cursor reply.
+        // On replay verified open turns still get the reader's prefix check.
+        let sharedTranscripts = Set(contents.store.records.lazy
+            .filter { $0.record.provider == .cursor && $0.key.hasPrefix("cursor-transcript:") && $0.sources.count > 1 }
+            .flatMap(\.sources))
         var gone = store.files.subtracting(cursors.keys)
-        let sharing = store.files(sharingWith: gone).subtracting(gone)
+        let sharing = store.files(sharingWith: gone).subtracting(gone).subtracting(sharedTranscripts)
         for file in sharing { cursors[file] = nil }
         gone.formUnion(sharing)
         store.forget(files: gone)
+        let shared = sharedTranscripts.subtracting(gone)
+        if !shared.isEmpty {
+            store.forgetUsage(files: shared)
+            for path in shared { cursors[path]?.needsUsageReplay = true }
+        }
         // Prices may be newer than the ones the counts were saved with.
         store.reprice()
         store.dropRecords(before: horizon)
-        return (store, cursors, cursors.count == contents.cursors.count && store.saved == contents.store)
+        return (store, cursors, shared.isEmpty && cursors.count == contents.cursors.count && store.saved == contents.store)
     }
 
     static func remove() {

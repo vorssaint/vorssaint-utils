@@ -1274,14 +1274,15 @@ def main():
                     .replace("private static func", "static func", 1)
                     for name in ["scanLeftovers(", "appendLeftovers(", "scanCaches(", "scanLogs(",
                                  "scanOrphanedLaunchPlists(", "directorySize(", "fileSize(", "sorted(",
-                                 "scanScreenshots(", "isScreenCapture(", "extendedAttribute("])
+                                 "scanScreenshots(", "isScreenCapture(", "extendedAttribute(",
+                                 "installedAudioPluginBundleIDs("])
           + declaration(cleaner, "    private static func leftoverOwner(")
           + declaration(cleaner, "    private static func containerOwner(")
           + declaration(cleaner, "    private static func mayRemove(")
           + "static func owner(_ url: URL, metadata: Bool = false) -> String? {\n"
           + "leftoverOwner(entry: url.lastPathComponent, url: url, usesContainerMetadata: metadata)\n}\n"
-          + "static func canRemove(_ item: Item, installed: Set<String> = []) -> Bool {\n"
-          + "mayRemove(item, installed: installed)\n}\n}\n")
+          + "static func canRemove(_ item: Item, installed: Set<String> = [], audioPluginIDs: Set<String> = []) -> Bool {\n"
+          + "mayRemove(item, installed: installed, audioPluginIDs: audioPluginIDs)\n}\n}\n")
     write("CleanerScanFlow.swift", "import Foundation\nextension CleanerScanFlowTests {\n"
           + declaration(cleaner, "    enum Phase:")
           + "final class Scanner: ScannerState {\nstatic let shared = Scanner()\n"

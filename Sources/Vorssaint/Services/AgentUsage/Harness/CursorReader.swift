@@ -3,7 +3,7 @@
 
 import Foundation
 
-/// Cursor's transcript records turn edges but no token counts or prices.
+/// Cursor transcripts always supply turn activity. Some replies also identify and date their token usage.
 struct CursorReader: AgentHarnessReader {
     var provider: AgentProvider { .cursor }
     var replaying = false
@@ -39,10 +39,45 @@ struct CursorReader: AgentHarnessReader {
             let event: AgentLogEntry = state.turnOpen ? .turnActive(now) : .turnBegan(now)
             state.turnOpen = true
             state.cursorLastActivity = now
+            if let usage = Self.responseUsage(envelope, state: state) { return [event, context, usage] }
             return [event, context]
         default:
             return []
         }
+    }
+
+    /// Replays, streamed updates and multiple replies in the same second need
+    /// an explicit message ID. The file's last write cannot date older replies.
+    private static func responseUsage(_ envelope: AgentLogObject, state: AgentLogState) -> AgentLogEntry? {
+        guard !state.session.isEmpty, let message = envelope.object("message"),
+              let usage = message.object("usage") else { return nil }
+        let ids = [usage.string("message_id", maxBytes: 256), message.string("id", maxBytes: 256)]
+        guard let id = ids.compactMap({ $0 }).first(where: { !$0.isEmpty }) else { return nil }
+        let date: Date?
+        if let timestamp = envelope.string("timestamp", maxBytes: 64) {
+            date = AgentTimestamp.parseCursor(timestamp)
+        } else {
+            date = envelope.unsignedInteger("timestamp").flatMap { AgentLogParser.seconds($0) }
+        }
+        guard let date else { return nil }
+        func count(_ field: String, in object: AgentLogObject) -> Int {
+            min(object.unsignedInteger(field) ?? 0, 1_000_000_000_000)
+        }
+        let output = count("output_tokens", in: usage)
+        let reasoning = usage.object("output_tokens_details").map { count("thinking_tokens", in: $0) } ?? 0
+        let tokens = AgentTokens(input: count("input_tokens", in: usage),
+                                 cacheWrite: count("cache_creation_input_tokens", in: usage),
+                                 cacheRead: count("cache_read_input_tokens", in: usage),
+                                 output: output, reasoning: min(reasoning, output))
+        guard tokens.total > 0 else { return nil }
+        let candidates = [message.string("model", maxBytes: 256),
+                          message.object("modelInfo")?.string("modelId", maxBytes: 256)]
+        let model = candidates.compactMap { $0 }.first { !$0.isEmpty && !$0.hasPrefix("<") } ?? ""
+        let billable = AgentBillable(tokens: tokens)
+        let priced = AgentPricing.cost(billable, model: model)
+        let record = AgentUsageRecord(provider: .cursor, date: date, model: model, project: state.project,
+                                      session: state.session, tokens: tokens, cost: priced.cost, savings: priced.savings)
+        return .usage(key: "cursor-transcript:\(state.session.utf8.count):\(state.session):\(id)", record: record, billable: billable)
     }
 
     /// Session id and project folder taken from the transcript path, so the

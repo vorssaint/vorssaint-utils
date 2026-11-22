@@ -151,14 +151,14 @@ Reorder or hide panel sections, choose a compact layout, and export settings to 
 ### Everyday tools
 
 - **Dynamic Island.** Keep music, notifications, calendars, timers, downloads and everyday controls around the camera cutout, or a simulated one on other Macs. Customize sections and shortcuts, with optional lyrics, a live equalizer, camera preview and file tools.
-- **Pomodoro media control.** Optionally play the current system media during focus and pause it during breaks. Automatic phase transitions are a separate opt-in. See [Pomodoro settings](docs/pomodoro-media-control.md).
-- **AI agents.** Follow Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates. Cursor follows local agent transcripts under `~/.cursor/projects/*/agent-transcripts/` for live work and finish notices; plan credits are not read from the network.
+- **AI agents.** Follow Claude, Codex, OpenCode, GitHub Copilot and Cursor in the Dynamic Island: plan limits and when they reset where available, tokens, API value, models, projects and live work, with a notice when a long task finishes. Codex's banked resets can be used from there too, and each extra Codex account (`CODEX_HOME`) can have a limits card of its own. Copilot uses local CLI/app session logs; its token totals update when shutdown metrics arrive, and aggregate API-value estimates use base rates. Cursor follows local agent transcripts under `~/.cursor/projects/*/agent-transcripts/` for live work and finish notices. Replies that include token counts, a message ID and a timestamp also contribute to usage history. Cursor plan credits are not read from the network.
 - **Command Bar.** Search apps, windows, files, clipboard history, snippets and app menu commands from one field. Calculate, convert units, find emoji or run saved scripts.
 - **Quick panel.** Open a floating palette of favorite tools with ⌃⌘V.
 - **Quick toggles.** Switch appearance, hide desktop icons, eject disks, empty the Trash, lock the screen and more.
 - **Quit apps.** See every open app in one list and quit them one by one, all at once or all but the one in front.
 - **Radial menu.** Open a customizable wheel of apps, files, shortcuts and tools around the pointer, with profiles and submenus.
 - **Scratchpad.** Keep autosaved notes in tabs, with Markdown preview and export, in a floating window or Dynamic Island.
+- **Pomodoro media control.** Optionally play the current system media during focus and pause it during breaks. Automatic phase transitions are a separate opt-in. See [Pomodoro settings](docs/pomodoro-media-control.md).
 - **Cleaning Mode.** Lock keyboard input while cleaning, with a black screen or a small visible indicator.
 
 ### Capture and create
