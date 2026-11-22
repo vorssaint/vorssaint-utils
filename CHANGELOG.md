@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- The color picker can add a palette icon to the menu bar that opens the macOS color panel, with its color wheel and your own color palettes.
+
+## [Unreleased]
+
 ### Summary
 This update reduces the work Vorssaint does at startup and improves window switching, microphone and display controls, clipboard history and screenshots.
 

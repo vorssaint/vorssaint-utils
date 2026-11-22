@@ -11,8 +11,60 @@ final class ColorSamplerService: ObservableObject {
 
     /// The system sampler must stay referenced while its loupe is up.
     private var activeSampler: NSColorSampler?
+    /// Optional menu bar icon that opens the system color panel, whose wheel
+    /// and palettes tabs (including the person's own palettes) come for free.
+    private var panelStatusItem: NSStatusItem?
 
     private init() {}
+
+    func syncWithPreferences() {
+        let wanted = AppFeature.colorPicker.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.colorPickerMenuBarIcon)
+        if wanted, panelStatusItem == nil {
+            let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+            item.autosaveName = "VorssaintColorPanel"
+            item.behavior = []
+            item.isVisible = true
+            if let button = item.button {
+                let image = NSImage(systemSymbolName: "paintpalette", accessibilityDescription: nil)
+                image?.isTemplate = true
+                button.image = image
+                button.toolTip = L10n.shared.s.colorPickerPanelName
+                button.target = self
+                button.action = #selector(togglePanel(_:))
+            }
+            panelStatusItem = item
+        } else if !wanted, let item = panelStatusItem {
+            NSStatusBar.system.removeStatusItem(item)
+            panelStatusItem = nil
+            NSColorPanel.shared.orderOut(nil)
+        }
+    }
+
+    @objc private func togglePanel(_ sender: NSStatusBarButton) {
+        let panel = NSColorPanel.shared
+        if panel.isVisible {
+            panel.orderOut(nil)
+        } else {
+            showPanel(below: sender.window?.frame)
+        }
+    }
+
+    /// Opens the system color panel under the menu bar icon when there is
+    /// one, otherwise wherever the panel last sat.
+    func showPanel(below anchor: NSRect? = nil) {
+        let panel = NSColorPanel.shared
+        panel.showsAlpha = true
+        if let anchor,
+           let visible = NSScreen.screens.first(where: { $0.frame.intersects(anchor) })?.visibleFrame {
+            let size = panel.frame.size
+            let x = min(max(anchor.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+            panel.setFrameTopLeftPoint(NSPoint(x: x, y: min(anchor.minY, visible.maxY)))
+        }
+        // Accessory app: activate so the hex field accepts typing.
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKeyAndOrderFront(nil)
+    }
 
     func pick() {
         ScreenCaptureService.shared.capture(initial: .color)
