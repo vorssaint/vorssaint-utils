@@ -590,8 +590,8 @@ extension NotchAgentStrings {
 
     static let ca = NotchAgentStrings(
         title: "Agents d’IA",
-        hubDescription: "Segueix a la Dynamic Island els límits del pla, els segments, el valor d’API i la feina en curs del Claude, el Codex, l’OpenCode i el GitHub Copilot.",
-        settingsDescription: "Llegeix l’ús que el Claude Code, el Codex, l’OpenCode i el GitHub Copilot registren en aquest Mac i els límits del pla que desa l’app Claude. No es conserven mai instruccions, respostes ni arxius, i l’ús no surt mai del Mac.",
+        hubDescription: "Segueix a la Dynamic Island els límits del pla, els segments, el valor d’API i la feina en curs del Claude, el Codex, l’OpenCode, el GitHub Copilot i el Cursor.",
+        settingsDescription: "Llegeix l’ús que el Claude Code, el Codex, l’OpenCode, el GitHub Copilot i el Cursor registren en aquest Mac i els límits del pla que desa l’app Claude. No es conserven mai instruccions, respostes ni arxius, i l’ús no surt mai del Mac.",
         restingTitle: "Límits d’IA",
         limitsCard: "Límits",
         spendCard: "Despesa",
@@ -618,7 +618,7 @@ extension NotchAgentStrings {
         planMultipleFormat: "%1$@ el preu de %2$@",
         idle: "Inactiu",
         noActivity: "Res en aquest període",
-        empty: "Encara no hi ha cap ús del Claude Code, el Codex, l’OpenCode ni el GitHub Copilot. Apareixerà aquí tan bon punt algun d’aquests agents treballi en aquest Mac.",
+        empty: "Encara no hi ha cap ús del Claude Code, el Codex, l’OpenCode, el GitHub Copilot ni el Cursor. Apareixerà aquí tan bon punt algun d’aquests agents treballi en aquest Mac.",
         loading: "S’està llegint l’ús…",
         noCards: "Tria què mostra aquesta pàgina a la configuració de la Dynamic Island.",
         unpriced: "Alguns models no tenen preu conegut, així que això és un mínim.",

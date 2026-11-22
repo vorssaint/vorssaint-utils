@@ -3087,7 +3087,7 @@ struct MonitorAlertFeatureStrings {
 
     static let ca = MonitorAlertFeatureStrings(
         section: "Avisos",
-        caption: "Els avisos s’activen quan s’arriba als límits seleccionats. Els avisos d’ús de la CPU i de temperatura ignoren els pics de menys d’uns 12 segons. L’opció de repetició només limita les repeticions del mateix avís.",
+        caption: "Els avisos s’activen quan s’arriba als límits seleccionats. Els avisos d’ús de la CPU i de temperatura ignoren els pics de menys d’uns 12 segons. Els avisos d’espai en disc d’un mateix volum es repeteixen al cap de 6 hores, però se n’envia un abans si l’espai lliure baixa de la meitat del límit seleccionat. L’opció de repetició s’aplica per separat a cada un dels altres avisos.",
         notificationsDenied: "Les notificacions del Vorssaint estan desactivades a l’app Configuració del Sistema i, per això, els avisos no poden aparèixer.",
         cpu: "Ús alt de la CPU",
         // Shorter than “Temperatura alta de la CPU”, which took two lines in the alert block.
@@ -3112,7 +3112,7 @@ struct MonitorAlertFeatureStrings {
         memoryTitle: "Memòria crítica",
         memoryBody: "La pressió de memòria ha arribat al nivell crític.",
         diskTitle: "Poc espai al disc",
-        diskBodyFormat: "%@ té menys del %d %% d’espai lliure.",
+        diskBodyFormat: "%@ té menys del %@ %% d’espai lliure.",
         batteryTitle: "Bateria baixa",
         batteryBodyFormat: "La bateria és al %d %%.",
         batteryTemperature: "Temperatura alta de la bateria",

@@ -370,7 +370,7 @@ extension FeatureStrings {
             cameraSummary: "Un mirall per veure’t abans d’una trucada.",
             downloadsSummary: "Les descàrregues en curs i les que acaben de finalitzar.",
             scratchpadSummary: "Notes ràpides que es desen soles.",
-            agentsSummary: "Ús, límits i costos del Claude Code, el Codex, l’OpenCode i el GitHub Copilot.",
+            agentsSummary: "Ús, límits i costos del Claude Code, el Codex, l’OpenCode, el GitHub Copilot i el Cursor.",
             watchSummary: "Qualsevol part d’una finestra, llegida en directe, amb un avís quan canvia."
         )
         case .sk: return NotchEditorStrings(

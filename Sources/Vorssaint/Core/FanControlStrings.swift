@@ -351,6 +351,7 @@ extension FanControlFeatureStrings {
         averageCPU: "Mitjana de la CPU",
         hottestCPU: "CPU més calenta",
         hottestGPU: "GPU més calenta",
+        gpuIdle: "GPU en repòs",
         helperUnavailable: "El controlador protegit dels ventiladors no està disponible. Permet el Vorssaint a “Ítems d’inici de sessió” i torna-ho a provar.",
         resumeAfterRestart: "Reprèn després de reiniciar o de sortir del repòs"
     )

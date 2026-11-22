@@ -253,6 +253,8 @@ extension Strings {
         micMuteName: "Silencia el micròfon",
         micUnmuteName: "Activa el so del micròfon",
         micMuteCaption: "Fa servir els controls de silenci o de volum d’entrada de cada micròfon. Siri i algunes apps encara et poden sentir. No és un bloqueig de privacitat.",
+        micMuteFollowCallAppsToggle: "Permet que les apps de trucades activin el so del micròfon",
+        micMuteFollowCallAppsCaption: "Si es torna a activar el so d’un micròfon mentre una app hi enregistra, el Vorssaint restaura tots els micròfons que havia silenciat. Un canvi automàtic de guany també ho pot provocar.",
         micMutedHUD: "Silenci del micròfon activat",
         micUnmutedHUD: "Silenci del micròfon desactivat",
         micMutePartialHUD: "Alguns micròfons no s’han pogut silenciar",
