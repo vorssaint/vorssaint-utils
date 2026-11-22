@@ -281,10 +281,13 @@ enum CleanerEligibilityTests {
         try Data().write(to: preference)
         try Data().write(to: orphan)
 
+        func matches(_ item: Item, _ url: URL) -> Bool {
+            item.url.resolvingSymlinksInPath().path == url.resolvingSymlinksInPath().path
+        }
         let before = scan(pluginIDs: installedAudioPluginBundleIDs())
         guard let oldCache = before.first(where: { $0.category == .caches && $0.detail == synth }),
-              let oldLeftoverCache = before.first(where: { $0.url.path == caches.appendingPathComponent(reverb).path }),
-              let oldPreference = before.first(where: { $0.url.path == preference.path }) else {
+              let oldLeftoverCache = before.first(where: { matches($0, caches.appendingPathComponent(reverb)) }),
+              let oldPreference = before.first(where: { matches($0, preference) }) else {
             suite.expect(false, "the fixture must offer the two caches and preference before plugin installation")
             return
         }
@@ -306,8 +309,8 @@ enum CleanerEligibilityTests {
                      "the inventory includes deeply nested plugins and reads both libraries")
 
         let after = scan(pluginIDs: pluginIDs)
-        suite.expect(!after.contains { $0.url.path == preference.path }
-                     && after.contains { $0.url.path == orphan.path && $0.category == .leftovers },
+        suite.expect(!after.contains { matches($0, preference) }
+                     && after.contains { matches($0, orphan) && $0.category == .leftovers },
                      "only the uninstalled plugin's preference is offered")
         suite.expect(!canRemove(oldCache, audioPluginIDs: pluginIDs),
                      "installing Synth protects a stale recommended cache even in a cache-only selection")
