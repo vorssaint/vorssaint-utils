@@ -69,34 +69,35 @@ final class LyricsLockScreenService {
         // The lyrics fill the screen but let every click through to the login.
         let lyrics = Self.makePanel(frame: screen.frame, interactive: false,
                                     content: LyricsLockScreenView(service: LyricsWallpaperService.shared))
-        // The options sit low and centred, clear of the clock and the login, and
-        // are the one part that takes clicks.
-        let size = CGSize(width: 600, height: 60)
-        let controlsFrame = CGRect(x: screen.frame.midX - size.width / 2, y: screen.frame.minY + screen.frame.height * 0.06,
-                                   width: size.width, height: size.height)
+
+        // The song and the lyrics options sit at the left edge, in the room the
+        // login leaves clear: the name, picture and password field stay centred.
+        let room = (screen.frame.width - NotchLockScreenLayout.playerWidth) / 2
+        let width = min(300, max(220, room - 48))
+        let controlsFrame = CGRect(x: screen.frame.minX + 32, y: screen.frame.minY + 56, width: width, height: 168)
         let controls = Self.makePanel(frame: controlsFrame, interactive: true,
                                       content: LyricsLockControls(service: LyricsWallpaperService.shared))
-        // The island at the camera takes a click to open the style picker just
-        // under it; the picker is clear, so clicks pass through while it is shut.
+
+        // The island at the camera opens the styles. The window is the open size,
+        // clear, hung from the top edge; the black shape inside grows from the
+        // camera's own footprint.
         let island = Self.islandRect(on: screen)
         let notched = AppFeature.notch.isAvailable && NotchService.shared.geometry.isNotched
-        let hit = Self.makePanel(frame: island, interactive: true, content: LyricsLockIslandHit(model: model, visible: !notched))
-        // Opened, the island grows from the camera: black, hung from the top
-        // edge, with the styles below the camera's own row.
-        let pickerSize = CGSize(width: 540, height: island.height + 176)
-        let pickerFrame = CGRect(x: screen.frame.midX - pickerSize.width / 2,
-                                 y: screen.frame.maxY - pickerSize.height, width: pickerSize.width, height: pickerSize.height)
-        let picker = Self.makePanel(frame: pickerFrame, interactive: true,
-                                    content: LyricsLockStylePicker(model: model, cameraRow: island.height))
+        let expanded = CGSize(width: 540, height: island.height + 156)
+        let surfaceFrame = CGRect(x: screen.frame.midX - expanded.width / 2, y: screen.frame.maxY - expanded.height,
+                                  width: expanded.width, height: expanded.height)
         model.pickerOpen = false
-        for panel in [lyrics, controls, hit, picker] {
+        let surface = Self.makePanel(frame: surfaceFrame, interactive: true,
+                                     content: LyricsLockIslandSurface(model: model, collapsed: island.size,
+                                                                      expanded: expanded, visibleTarget: !notched))
+        for panel in [lyrics, controls, surface] {
             space.add(panel)
             panel.alphaValue = 0
             panel.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { $0.duration = 0.35; panel.animator().alphaValue = 1 }
         }
         self.space = space
-        self.panels = [lyrics, controls, hit, picker]
+        self.panels = [lyrics, controls, surface]
     }
 
     private func hide() {
@@ -148,53 +149,70 @@ private final class LyricsLockHostingView: NSHostingView<AnyView> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// The lock screen's one pill, low and centred: the song with its cover and
-/// buttons, then the lyrics options. Without a song only the options show.
+/// The song and the lyrics options in one frosted card at the left edge:
+/// the cover and title, the player's buttons, the style, the timing and a way
+/// to switch the lyrics off. Without a song only the lyrics options show.
 private struct LyricsLockControls: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
 
     var body: some View {
-        HStack(spacing: 4) {
+        VStack(alignment: .leading, spacing: 10) {
             if let playback = music.playback {
-                artwork
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(playback.track.title ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
-                    Text(playback.track.artist ?? "").font(.system(size: 11)).opacity(0.65).lineLimit(1)
+                HStack(spacing: 10) {
+                    artwork
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(playback.track.title ?? "").font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                        Text(playback.track.artist ?? "").font(.system(size: 11)).opacity(0.65).lineLimit(1)
+                    }
+                    .foregroundStyle(.white)
+                    Spacer(minLength: 0)
                 }
-                .foregroundStyle(.white).frame(width: 130, alignment: .leading).padding(.horizontal, 6)
-                button("backward.fill", "Previous") { _ = music.send(.previous, context: playback.commandContext) }
-                button(playback.isPlaying ? "pause.fill" : "play.fill", "Play or pause") {
-                    _ = music.send(.toggle, context: playback.commandContext)
+                HStack(spacing: 2) {
+                    button("backward.fill", "Previous") { _ = music.send(.previous, context: playback.commandContext) }
+                    button(playback.isPlaying ? "pause.fill" : "play.fill", "Play or pause") {
+                        _ = music.send(.toggle, context: playback.commandContext)
+                    }
+                    button("forward.fill", "Next") { _ = music.send(.next, context: playback.commandContext) }
+                    Spacer(minLength: 0)
+                    button(LyricsMode.from(style).symbol, "Next lyrics style (\(LyricsMode.from(style).next.title))") {
+                        style = LyricsMode.from(style).next.rawValue
+                    }
                 }
-                button("forward.fill", "Next") { _ = music.send(.next, context: playback.commandContext) }
-                Divider().frame(height: 20).padding(.horizontal, 4)
+            } else {
+                HStack(spacing: 2) {
+                    Text("Lyrics").font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
+                    Spacer(minLength: 0)
+                    button(LyricsMode.from(style).symbol, "Next lyrics style (\(LyricsMode.from(style).next.title))") {
+                        style = LyricsMode.from(style).next.rawValue
+                    }
+                }
             }
-            button(LyricsMode.from(style).symbol, "Next lyrics style (\(LyricsMode.from(style).next.title))") {
-                style = LyricsMode.from(style).next.rawValue
+            Divider().overlay(.white.opacity(0.15))
+            HStack(spacing: 2) {
+                button("minus", "Lyrics earlier") { service.adjustOffset(by: -0.25) }
+                Text(service.userOffset, format: .number.sign(strategy: .always()).precision(.fractionLength(2)))
+                    .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.75))
+                    .frame(minWidth: 42)
+                button("plus", "Lyrics later") { service.adjustOffset(by: 0.25) }
+                Spacer(minLength: 0)
+                button("xmark", "Turn off lyrics wallpaper") { service.setEnabled(false) }
             }
-            button("minus", "Lyrics earlier") { service.adjustOffset(by: -0.25) }
-            Text(service.offset, format: .number.sign(strategy: .always()).precision(.fractionLength(2)))
-                .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.7))
-                .frame(minWidth: 38)
-            button("plus", "Lyrics later") { service.adjustOffset(by: 0.25) }
-            Divider().frame(height: 20).padding(.horizontal, 4)
-            button("xmark", "Turn off lyrics wallpaper") { service.setEnabled(false) }
         }
-        .padding(.horizontal, 12)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(.white.opacity(0.18)))
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(.white.opacity(0.18)))
         .environment(\.colorScheme, .dark)
     }
 
     @ViewBuilder private var artwork: some View {
         if let image = service.cover ?? music.artwork {
             Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
-                .frame(width: 40, height: 40).clipShape(Circle())
+                .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         } else {
-            Circle().fill(.white.opacity(0.15)).frame(width: 40, height: 40)
+            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.15)).frame(width: 44, height: 44)
                 .overlay(Image(systemName: "music.note").foregroundStyle(.white.opacity(0.6)))
         }
     }
@@ -202,7 +220,7 @@ private struct LyricsLockControls: View {
     private func button(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: symbol).font(.system(size: 13, weight: .semibold)).foregroundStyle(.white)
-                .frame(width: 32, height: 32).contentShape(Rectangle())
+                .frame(width: 34, height: 30).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .help(title)
@@ -257,70 +275,62 @@ final class LyricsLockModel: ObservableObject {
     @Published var pickerOpen = false
 }
 
-/// A tap target over the island at the camera. It is nearly clear but not
-/// quite: a window passes clicks through pixels with no colour at all.
-private struct LyricsLockIslandHit: View {
+/// The island on the lock screen: a tap target at the camera that opens the
+/// styles as the island itself opens, growing from the camera's footprint.
+private struct LyricsLockIslandSurface: View {
     @ObservedObject var model: LyricsLockModel
-    let visible: Bool
-
-    var body: some View {
-        ZStack {
-            Color.black.opacity(visible ? 0.55 : 0.02)
-            if visible {
-                Label("Lyrics", systemImage: model.pickerOpen ? "chevron.up" : "chevron.down")
-                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
-            }
-        }
-        .clipShape(Capsule())
-        .contentShape(Rectangle())
-        .onTapGesture { withAnimation(.smooth(duration: 0.2)) { model.pickerOpen.toggle() } }
-    }
-}
-
-/// The styles to choose from, opened by tapping the island. Shut, it draws
-/// nothing at all, so the lock screen under it takes its clicks.
-private struct LyricsLockStylePicker: View {
-    @ObservedObject var model: LyricsLockModel
-    /// The camera's own row at the top, kept clear.
-    let cameraRow: CGFloat
+    let collapsed: CGSize
+    let expanded: CGSize
+    /// A display without a camera has no island to tap, so the target shows.
+    let visibleTarget: Bool
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
 
     var body: some View {
-        Group {
-            if model.pickerOpen {
+        ZStack(alignment: .top) {
+            // Nearly clear, not clear: a window passes clicks through pixels with no colour.
+            ZStack {
+                Color.black.opacity(visibleTarget ? 0.55 : 0.02)
+                if visibleTarget {
+                    Label("Lyrics", systemImage: "chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(.white)
+                }
+            }
+            .frame(width: collapsed.width, height: collapsed.height)
+            .clipShape(NotchLiveShape())
+            .contentShape(Rectangle())
+            .onTapGesture { model.pickerOpen = true }
+
+            NotchMorphSurface(open: model.pickerOpen, collapsed: collapsed, expanded: expanded) {
                 VStack(spacing: 8) {
-                    // Tapping the camera's row shuts it again.
-                    Color.black.frame(height: cameraRow)
+                    // The camera's own row stays clear; tapping it shuts the island.
+                    Color.clear.frame(height: collapsed.height)
                         .contentShape(Rectangle())
-                        .onTapGesture { withAnimation(.smooth(duration: 0.25)) { model.pickerOpen = false } }
+                        .onTapGesture { model.pickerOpen = false }
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
-                        ForEach(LyricsMode.allCases) { mode in
-                            let selected = LyricsMode.from(style) == mode
-                            Button {
-                                style = mode.rawValue
-                                withAnimation(.smooth(duration: 0.25)) { model.pickerOpen = false }
-                            } label: {
-                                VStack(spacing: 6) {
-                                    Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
-                                    Text(mode.title).font(.system(size: 11, weight: .medium))
-                                }
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity, minHeight: 62)
-                                .background(RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .fill(.white.opacity(selected ? 0.28 : 0.09)))
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        ForEach(LyricsMode.allCases) { mode in tile(mode) }
                     }
                     .padding(.horizontal, 16).padding(.bottom, 16)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .background(NotchShape(attached: true, radius: 28).fill(.black))
                 .environment(\.colorScheme, .dark)
-                .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    private func tile(_ mode: LyricsMode) -> some View {
+        let selected = LyricsMode.from(style) == mode
+        return Button {
+            style = mode.rawValue
+            model.pickerOpen = false
+        } label: {
+            VStack(spacing: 6) {
+                Image(systemName: mode.symbol).font(.system(size: 18, weight: .semibold))
+                Text(mode.title).font(.system(size: 11, weight: .medium))
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity, minHeight: 62)
+            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(selected ? 0.28 : 0.09)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }

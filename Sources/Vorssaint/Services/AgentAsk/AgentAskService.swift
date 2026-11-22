@@ -50,6 +50,7 @@ final class AgentAskService: ObservableObject {
     private var listener: DispatchSourceRead?
     private var space: NotchOverlaySpace?
     private var panel: NotchLockScreenPanel?
+    private var closeWork: DispatchWorkItem?
 
     private static let panelSize = CGSize(width: 580, height: 520)
     private static let patience: TimeInterval = 100
@@ -277,7 +278,13 @@ final class AgentAskService: ObservableObject {
     private func advance(removing request: AgentAskRequest?) {
         if let request { queue.removeAll { $0 === request } }
         current = queue.first
-        if current != nil { openPanel() } else { closePanel() }
+        closeWork?.cancel(); closeWork = nil
+        if current != nil { openPanel() } else {
+            // The island shrinks back to the camera before its window goes.
+            let work = DispatchWorkItem { [weak self] in self?.closePanel() }
+            closeWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6, execute: work)
+        }
     }
 
     // MARK: Panel

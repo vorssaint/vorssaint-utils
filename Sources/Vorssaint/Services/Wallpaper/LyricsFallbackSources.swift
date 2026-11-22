@@ -38,11 +38,11 @@ enum LyricsFallbackSources {
     /// no word can match.
     private static func plausible(title: String, artist: String, duration: Double, for track: NotchMusicIdentity) -> Bool {
         let distance = abs(duration - track.duration)
-        guard distance <= 1.6 else { return false }
+        guard distance <= 1.0 else { return false }
         let wanted = tokens(track.title).union(tokens(track.artist))
         let found = tokens(title).union(tokens(artist))
         if !wanted.isDisjoint(with: found) { return true }
-        return distance <= 1.0
+        return distance <= 0.6
     }
 
     private static func fetch(_ url: URL) async -> Data? {
@@ -62,22 +62,31 @@ enum LyricsFallbackSources {
     private static func relaxedLRCLIB(_ track: NotchMusicIdentity) async -> NotchLyrics? {
         let primaryArtist = track.artist.components(separatedBy: CharacterSet(charactersIn: ",&;/")).first ?? track.artist
         let queries = ["\(track.title) \(primaryArtist)", track.title]
+        // Every query's results compete: a different cut of the same song is
+        // what makes lyrics drift, so the one whose length is closest wins.
+        var best: (score: Double, lyrics: NotchLyrics)?
         for query in queries where !query.trimmingCharacters(in: .whitespaces).isEmpty {
             var components = URLComponents(string: "https://lrclib.net/api/search")!
             components.queryItems = [URLQueryItem(name: "q", value: query)]
             guard let url = components.url, let data = await fetch(url),
                   let objects = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { continue }
-            let best = objects.compactMap { object -> (Double, NotchLyrics)? in
+            for object in objects {
                 guard let duration = object["duration"] as? Double,
                       plausible(title: object["trackName"] as? String ?? "", artist: object["artistName"] as? String ?? "",
                                 duration: duration, for: track),
                       let synced = object["syncedLyrics"] as? String,
-                      let result = lyrics(from: synced, for: track) else { return nil }
-                return (abs(duration - track.duration), result)
-            }.min { $0.0 < $1.0 }
-            if let best { return best.1 }
+                      let result = lyrics(from: synced, for: track) else { continue }
+                // Lower is better: length difference first, then a title that
+                // reads the same, then the album the player named.
+                let title = (object["trackName"] as? String ?? "").lowercased() == track.title.lowercased() ? 0.0 : 0.4
+                let album = (object["albumName"] as? String ?? "").lowercased() == track.album.lowercased() ? 0.0 : 0.15
+                let score = abs(duration - track.duration) + title + album
+                if best == nil || score < best!.score { best = (score, result) }
+            }
+            // An all but exact fit needs no second query.
+            if let best, best.score < 0.3 { break }
         }
-        return nil
+        return best?.lyrics
     }
 
     // MARK: NetEase Cloud Music

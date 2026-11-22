@@ -3,22 +3,36 @@
 
 import SwiftUI
 
-/// The pop-up, as the island opened: a black shape hung from the camera that
-/// springs down from it. The window around it is clear.
+/// The pop-up, opening as the island does: from the camera's own footprint,
+/// the width and height on the island's springs, the corners true throughout.
 struct AgentAskView: View {
     @ObservedObject var service: AgentAskService
     let cameraInset: CGFloat
+    /// Kept while the island closes, so its content stays until it is gone.
+    @State private var shown: AgentAskRequest?
 
     var body: some View {
-        VStack(spacing: 0) {
-            if let request = service.current {
-                AgentAskCard(request: request, service: service, cameraInset: cameraInset)
-                    .id(request.id)
-                    .transition(.scale(scale: 0.5, anchor: .top).combined(with: .opacity))
-            }
+        let request = service.current ?? shown
+        NotchMorphSurface(open: service.current != nil,
+                          collapsed: CGSize(width: 200, height: max(cameraInset, 24)),
+                          expanded: Self.size(for: request, cameraInset: cameraInset)) {
+            if let request { AgentAskCard(request: request, service: service, cameraInset: cameraInset).id(request.id) }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .animation(.spring(response: 0.45, dampingFraction: 0.8), value: service.current?.id)
+        .onChange(of: service.current?.id) { _, _ in if let current = service.current { shown = current } }
+        .onAppear { shown = service.current }
+    }
+
+    /// The card's room, from what it holds; longer content scrolls inside it.
+    static func size(for request: AgentAskRequest?, cameraInset: CGFloat) -> CGSize {
+        var height = cameraInset + 96
+        switch request?.kind {
+        case .questions(let questions)?:
+            let question = questions.first
+            height += 70 + CGFloat(question?.options.count ?? 0) * 54 + (question?.multiSelect == true ? 44 : 0)
+        case .permission?: height += 170
+        case nil: break
+        }
+        return CGSize(width: 540, height: min(500, height))
     }
 }
 
@@ -34,17 +48,17 @@ private struct AgentAskCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Color.clear.frame(height: cameraInset)
             header
-            switch request.kind {
-            case .questions(let questions): questionBody(questions)
-            case .permission(let tool, let summary): permissionBody(tool: tool, summary: summary)
+            ScrollView(.vertical, showsIndicators: false) {
+                switch request.kind {
+                case .questions(let questions): questionBody(questions)
+                case .permission(let tool, let summary): permissionBody(tool: tool, summary: summary)
+                }
             }
             Button("Answer in terminal") { service.deferToTerminal(request) }
                 .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .padding(.horizontal, 22).padding(.bottom, 16)
-        .frame(width: 540)
-        .background(NotchShape(attached: true, radius: 30).fill(.black))
         .foregroundStyle(.white)
         .environment(\.colorScheme, .dark)
     }

@@ -77,8 +77,8 @@ struct LyricsLineClock {
         let spoken = gap <= natural + 2 ? gap * 0.94 : natural
         progress = min(1, max(0, (position - start) / spoken))
         let weights = words.map { word -> Double in
-            let pause = word.last.map { ",.;:!?…".contains($0) } == true ? 2.5 : 0
-            return Double(max(word.count, 2)) + pause
+            let pause = word.last.map { ",.;:!?…".contains($0) } == true ? 1.5 : 0
+            return Self.syllables(in: word) + pause
         }
         let total = max(weights.reduce(0, +), 1)
         var run = 0.0
@@ -86,6 +86,27 @@ struct LyricsLineClock {
             defer { run += weight }
             return (run / total, (run + weight) / total)
         }
+    }
+}
+
+extension LyricsLineClock {
+    /// A word's sung length, counted in syllables: runs of vowels in Latin
+    /// text, and half the characters elsewhere, where vowels do not mark them.
+    static func syllables(in word: String) -> Double {
+        let letters = word.lowercased().filter(\.isLetter)
+        guard !letters.isEmpty else { return 1 }
+        let latin = letters.allSatisfy { $0.isASCII }
+        guard latin else { return max(1, Double(letters.count) / 2) }
+        var count = 0
+        var inVowel = false
+        for character in letters {
+            let vowel = "aeiouy".contains(character)
+            if vowel && !inVowel { count += 1 }
+            inVowel = vowel
+        }
+        // A silent final e does not add a beat.
+        if letters.hasSuffix("e"), !letters.hasSuffix("le"), count > 1 { count -= 1 }
+        return Double(max(1, count))
     }
 }
 

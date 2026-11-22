@@ -27,7 +27,14 @@ final class LyricsWallpaperService: ObservableObject {
     @Published private(set) var palette: [Color] = []
 
     var lyrics: NotchLyrics? { finder.lyrics ?? extra }
-    var offset: Double { finder.offset }
+    /// How far ahead of the player's clock the words are shown. Lyrics read as
+    /// late far more readily than early, and Bluetooth output adds a lag the
+    /// player's clock never sees, so the display leads a little.
+    static let lead = 0.25
+    /// The person's own timing for this song, as the island's lyrics page keeps it.
+    var userOffset: Double { finder.offset }
+    /// The offset every lyrics view applies: the person's, less the lead.
+    var offset: Double { finder.offset - Self.lead }
     var state: State {
         if lyrics != nil { return .ready }
         switch finder.state {

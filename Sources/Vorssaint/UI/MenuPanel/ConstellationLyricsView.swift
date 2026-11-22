@@ -59,8 +59,8 @@ struct ConstellationLyricsView: View {
         // Longer words take longer, and a word before a comma or full stop
         // carries the pause that follows it.
         let weights = words.map { word -> Double in
-            let pause = word.last.map { ",.;:!?…".contains($0) } == true ? 2.5 : 0
-            return Double(max(word.count, 2)) + pause
+            let pause = word.last.map { ",.;:!?…".contains($0) } == true ? 1.5 : 0
+            return LyricsLineClock.syllables(in: word) + pause
         }
         let total = weights.reduce(0, +)
         var edges: [(Double, Double)] = []
