@@ -10,11 +10,16 @@ struct LyricsWallpaperView: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
+    private var mode: LyricsMode { LyricsMode.from(style) }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
             backdrop
-            if style == "constellation" { graph } else { scrolling }
+            switch mode {
+            case .constellation: graph
+            case .scroll: scrolling
+            default: textMode
+            }
         }
         .ignoresSafeArea()
     }
@@ -59,6 +64,21 @@ struct LyricsWallpaperView: View {
         ZStack(alignment: .bottomLeading) {
             if let (lyrics, playback) = playbackInfo {
                 ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset, accent: accent)
+            } else {
+                Text(service.state == .loading ? "…" : "♪").font(.system(size: 60, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.25)).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+            caption
+        }
+    }
+
+    /// Every other style: the lyrics across the middle of the screen, the
+    /// caption small in the corner.
+    private var textMode: some View {
+        ZStack(alignment: .bottomLeading) {
+            if let (lyrics, playback) = playbackInfo {
+                LyricsModeView(mode: mode, lyrics: lyrics, playback: playback, offset: service.offset, accent: accent)
+                    .padding(.horizontal, 140).padding(.vertical, 120)
             } else {
                 Text(service.state == .loading ? "…" : "♪").font(.system(size: 60, weight: .bold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.25)).frame(maxWidth: .infinity, maxHeight: .infinity)

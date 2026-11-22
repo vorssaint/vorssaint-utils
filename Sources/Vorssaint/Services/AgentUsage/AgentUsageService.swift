@@ -791,7 +791,12 @@ final class AgentUsageService: ObservableObject {
         // one at each save the app makes would read as a new window and warn
         // again; newer wins once the account reading is old.
         let recent = account.flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness ? $0 : nil }
-        if let latest = recent ?? [desktop, account].compactMap({ $0 }).max(by: { $0.observedAt < $1.observedAt }) {
+        // Claude Code reports the plan's allowances to its own status line with
+        // every refresh: the account's own numbers, a minute old at most while
+        // a session is open. When that is fresh it is the one to show.
+        let live = ClaudeStatus.latest(now: now).flatMap { $0.limits(now: now) }
+            .flatMap { now.timeIntervalSince($0.observedAt) < AgentClaudeAppUsage.freshness ? $0 : nil }
+        if let latest = live ?? recent ?? [desktop, account].compactMap({ $0 }).max(by: { $0.observedAt < $1.observedAt }) {
             store.setLimits(latest)
         } else {
             store.clearLimits(.claude)

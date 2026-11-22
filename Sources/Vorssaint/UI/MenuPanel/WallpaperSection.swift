@@ -137,11 +137,10 @@ struct WallpaperSection: View {
             .controlSize(.small)
 
             Picker("Lyrics style", selection: Binding(
-                get: { UserDefaults.standard.string(forKey: DefaultsKey.lyricsWallpaperStyle) ?? "constellation" },
+                get: { LyricsMode.current.rawValue },
                 set: { UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperStyle) }
             )) {
-                Text("Graph (constellation)").tag("constellation")
-                Text("Scrolling lyrics").tag("scroll")
+                ForEach(LyricsMode.allCases) { mode in Text(mode.title).tag(mode.rawValue) }
             }
             .pickerStyle(.menu).controlSize(.small)
 

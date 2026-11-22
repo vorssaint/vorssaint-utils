@@ -37,13 +37,19 @@ struct NotchAgentsView: View {
                 || ($0 == .claude && !usage.claudeProfile.isDefault) }
     }
 
-    private var rows: [[NotchAgentTile]] {
+    private var tiles: [NotchAgentTile] {
         // The strings are read here so a change in Settings redraws the page.
         _ = (cardOrder, hiddenCards)
-        return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
-                                                              codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
-                                      width: size.width)
+        return NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
+                                       codexAccounts: codexAccounts.map(\.id),
+                                       claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id)
+    }
+
+    /// Claude's card, tall, with two cards stacked beside it.
+    private var lead: NotchAgentSupport.Lead? { NotchAgentSupport.lead(tiles, width: size.width) }
+
+    private var rows: [[NotchAgentTile]] {
+        NotchAgentSupport.rows(lead?.rest ?? tiles, width: size.width)
     }
 
     var body: some View {
@@ -56,22 +62,25 @@ struct NotchAgentsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else if providers.isEmpty {
                 NotchEmptyView(symbol: "sparkles", message: text.empty)
-            } else if rows.isEmpty {
+            } else if rows.isEmpty && lead == nil {
                 NotchEmptyView(symbol: "square.grid.2x2", message: text.noCards)
             } else {
                 let rows = rows
+                let lead = lead
+                let content = NotchAgentSupport.contentHeight(rows)
+                    + (lead.map { $0.height + (rows.isEmpty ? 0 : NotchAgentSupport.spacing) } ?? 0)
                 TimelineView(.periodic(from: .now, by: 15)) { context in
-                    if NotchAgentSupport.contentHeight(rows) > size.height + 0.5 {
-                        ScrollView { grid(rows, now: context.date) }
+                    if content > size.height + 0.5 {
+                        ScrollView { grid(rows, lead: lead, now: context.date) }
                             .scrollIndicators(.automatic)
                     } else {
-                        grid(rows, now: context.date)
+                        grid(rows, lead: lead, now: context.date)
                     }
                 }
                 // The period drives several cards, so it sits in the island's
                 // top row, beside the camera, while any of them shows.
                 .notchBand(leading: {
-                    if rows.joined().contains(where: { $0.card.followsPeriod }) { periodMenu }
+                    if (rows.joined() + (lead.map { [$0.claude] + $0.stack + $0.rest } ?? [])).contains(where: { $0.card.followsPeriod }) { periodMenu }
                 })
             }
         }
@@ -96,11 +105,28 @@ struct NotchAgentsView: View {
         }
     }
 
-    private func grid(_ rows: [[NotchAgentTile]], now: Date) -> some View {
+    private func grid(_ rows: [[NotchAgentTile]], lead: NotchAgentSupport.Lead?, now: Date) -> some View {
         VStack(spacing: NotchAgentSupport.spacing) {
+            if let lead {
+                // Claude's card runs the height of the two beside it.
+                HStack(alignment: .top, spacing: NotchAgentSupport.spacing) {
+                    card(lead.claude, now: now, expanded: true)
+                    VStack(spacing: NotchAgentSupport.spacing) {
+                        ForEach(lead.stack) { tile in
+                            card(tile, now: now).frame(height: NotchAgentSupport.height(of: [tile]))
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .frame(height: lead.height)
+            }
             ForEach(rows, id: \.first?.id) { row in
                 HStack(spacing: NotchAgentSupport.spacing) {
                     ForEach(row) { tile in card(tile, now: now) }
+                    // A card left without a partner keeps its half of the row.
+                    if row.count == 1, !(row.first?.card.fullWidth ?? true), size.width >= NotchAgentSupport.pairWidth {
+                        Color.clear.frame(maxWidth: .infinity)
+                    }
                 }
                 .frame(height: NotchAgentSupport.height(of: row))
             }
@@ -108,7 +134,7 @@ struct NotchAgentsView: View {
         .frame(maxWidth: .infinity, alignment: .top)
     }
 
-    @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date) -> some View {
+    @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date, expanded: Bool = false) -> some View {
         let snapshot = usage.snapshot
         let shown = chosenPeriod
         switch tile.card {
@@ -117,7 +143,8 @@ struct NotchAgentsView: View {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
-                                     accountName: provider == .claude ? claudeAccountName : nil)
+                                     accountName: provider == .claude ? claudeAccountName : nil,
+                                     expanded: expanded)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -256,6 +283,8 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
+    /// Claude's tall card: its status line's details under the limits.
+    var expanded = false
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -327,6 +356,10 @@ private struct NotchAgentLimitsCard: View {
                 } else {
                     meters(windows)
                     if windows.count == 1 { caption }
+                }
+                if expanded, provider == .claude, account == nil {
+                    Divider().overlay(.white.opacity(0.12))
+                    NotchAgentClaudeStatus(now: now)
                 }
             }
         }
@@ -1049,5 +1082,83 @@ private struct NotchAgentResetsCard: View {
             .contentShape(Capsule(style: .continuous))
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+    }
+}
+
+
+// MARK: Claude's status line
+
+/// The details Claude Code gives its status line, under the limits on
+/// Claude's tall card: the model and branch, how full the context is, what the
+/// session has used and cost, and what it changed.
+private struct NotchAgentClaudeStatus: View {
+    let now: Date
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        if let status = ClaudeStatus.latest(now: now) {
+            let stale = now.timeIntervalSince(status.observedAt) > 900
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    if let model = status.model { NotchAgentChip(text: model, tint: AgentProvider.claude.tint) }
+                    if let branch = status.branch { NotchAgentChip(text: "⎇ " + branch) }
+                    if let style = status.outputStyle { NotchAgentChip(text: style) }
+                    if let agent = status.agent { NotchAgentChip(text: agent) }
+                    Spacer(minLength: 0)
+                    if let version = status.version {
+                        Text("v" + version).font(.system(size: 9)).foregroundStyle(.tertiary)
+                    }
+                }
+                if let percent = status.contextPercent {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("Context").font(.system(size: 10, weight: .medium)).foregroundStyle(.white.opacity(0.85))
+                            Spacer(minLength: 2)
+                            Text(Int(percent.rounded()).formatted() + "%" + (status.contextSize.map { " of " + Self.tokens($0) } ?? ""))
+                                .font(.system(size: 10.5, weight: .semibold, design: .rounded)).monospacedDigit()
+                                .foregroundStyle(percent >= 80 ? .red : percent >= 50 ? .yellow : .green)
+                        }
+                        NotchAgentMeter(value: min(1, max(0, percent / 100)), pace: nil,
+                                        tint: percent >= 80 ? .red : percent >= 50 ? .yellow : .green, height: 4)
+                    }
+                }
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 8, alignment: .leading),
+                                    GridItem(.flexible(), spacing: 8, alignment: .leading)], alignment: .leading, spacing: 2) {
+                    ForEach(stats(status), id: \.0) { stat in
+                        HStack(spacing: 4) {
+                            Text(stat.0).foregroundStyle(.secondary)
+                            Text(stat.1).foregroundStyle(.white.opacity(0.9)).monospacedDigit()
+                        }
+                        .font(.system(size: 9.5)).lineLimit(1)
+                    }
+                }
+                if stale {
+                    Text("Updated " + status.observedAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated).locale(locale)))
+                        .font(.system(size: 8.5)).foregroundStyle(.orange)
+                }
+            }
+            .opacity(stale ? 0.65 : 1)
+        } else {
+            Text("Run Claude Code to see its model, context, cost and session details here.")
+                .font(.system(size: 10)).foregroundStyle(.secondary).lineLimit(3)
+        }
+    }
+
+    private func stats(_ status: ClaudeStatus) -> [(String, String)] {
+        var items: [(String, String)] = []
+        if let input = status.tokensIn { items.append(("In", Self.tokens(input))) }
+        if let output = status.tokensOut { items.append(("Out", Self.tokens(output))) }
+        if let cache = status.cacheRead, cache > 0 { items.append(("Cache", Self.tokens(cache))) }
+        if let cost = status.cost { items.append(("Cost", AgentFormat.cost(cost, locale: locale))) }
+        if let wall = status.wallMilliseconds {
+            items.append(("Time", AgentFormat.duration(TimeInterval(wall) / 1000, locale: locale, units: 2)))
+        }
+        if let added = status.linesAdded, let removed = status.linesRemoved { items.append(("Lines", "+\(added) −\(removed)")) }
+        return items
+    }
+
+    private static func tokens(_ value: Int) -> String {
+        value >= 1_000_000 ? String(format: "%.1fM", Double(value) / 1e6)
+            : value >= 1_000 ? String(format: "%.1fk", Double(value) / 1e3) : String(value)
     }
 }

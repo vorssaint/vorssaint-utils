@@ -335,6 +335,28 @@ enum NotchAgentSupport {
         return rows
     }
 
+    /// The top block of the page: Claude's card on the left, tall, and two
+    /// half-width cards stacked beside it, the Resets card first. Nil when the
+    /// page is too narrow to pair, or there are not two cards to stack.
+    struct Lead {
+        let claude: NotchAgentTile
+        let stack: [NotchAgentTile]
+        let rest: [NotchAgentTile]
+        var height: CGFloat { stack.map { NotchAgentSupport.height(of: [$0]) }.reduce(0, +) + NotchAgentSupport.spacing }
+    }
+
+    static func lead(_ tiles: [NotchAgentTile], width: CGFloat) -> Lead? {
+        guard width >= pairWidth,
+              let index = tiles.firstIndex(where: { $0.card == .limits && $0.provider == .claude && $0.accountID == nil })
+        else { return nil }
+        var rest = tiles
+        let claude = rest.remove(at: index)
+        var stack: [NotchAgentTile] = []
+        if let resets = rest.firstIndex(where: { $0.card == .resets }) { stack.append(rest.remove(at: resets)) }
+        while stack.count < 2, let next = rest.firstIndex(where: { !$0.card.fullWidth }) { stack.append(rest.remove(at: next)) }
+        return stack.count == 2 ? Lead(claude: claude, stack: stack, rest: rest) : nil
+    }
+
     static func height(of row: [NotchAgentTile]) -> CGFloat {
         if row.contains(where: \.card.fullWidth) { return chartHeight }
         return row.contains { $0.accountID != nil || $0.namesDefaultAccount } ? accountCardHeight : cardHeight

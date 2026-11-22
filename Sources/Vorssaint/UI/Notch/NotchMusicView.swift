@@ -16,7 +16,7 @@ struct NotchMusicView: View {
     @AppStorage(DefaultsKey.notchQueueEnabled) private var queueEnabled = true
     @AppStorage(DefaultsKey.notchMusicShowVolume) private var showVolume = false
     @State private var extra: MusicExtra?
-    private enum MusicExtra { case lyrics, queue }
+    private enum MusicExtra { case lyrics, queue, wallpaper }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.notchBand) private var band
@@ -32,6 +32,7 @@ struct NotchMusicView: View {
         switch extra {
         case .lyrics: return showsLyrics ? .lyrics : nil
         case .queue: return showsQueue ? .queue : nil
+        case .wallpaper: return .wallpaper
         case nil: return nil
         }
     }
@@ -75,6 +76,7 @@ struct NotchMusicView: View {
                     switch openExtra {
                     case .lyrics: NotchLyricsView(playback: playback)
                     case .queue: NotchQueueView(playback: playback)
+                    case .wallpaper: NotchLyricsStylesView()
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
@@ -224,21 +226,9 @@ struct NotchMusicView: View {
         }
     }
 
-    /// Switches the lyrics wallpaper, desktop and lock screen, on or off at once.
+    /// Opens the lyrics wallpaper page, as Lyrics and Up next open theirs.
     private var wallpaperButton: some View {
-        NotchIconButton(symbol: lyricsWallpaperOn ? "sparkles.tv.fill" : "sparkles.tv",
-                        title: lyricsWallpaperOn ? "Turn off lyrics wallpaper" : "Turn on lyrics wallpaper",
-                        selected: lyricsWallpaperOn) {
-            LyricsWallpaperService.shared.setEnabled(!lyricsWallpaperOn)
-        }
-        .contextMenu {
-            Button("Lyrics earlier (-0.25 s)") { LyricsWallpaperService.shared.adjustOffset(by: -0.25) }
-            Button("Lyrics later (+0.25 s)") { LyricsWallpaperService.shared.adjustOffset(by: 0.25) }
-            Button("Reset timing") { LyricsWallpaperService.shared.resetOffset() }
-            Divider()
-            Button("Graph lyrics") { UserDefaults.standard.set("constellation", forKey: DefaultsKey.lyricsWallpaperStyle) }
-            Button("Scrolling lyrics") { UserDefaults.standard.set("scroll", forKey: DefaultsKey.lyricsWallpaperStyle) }
-        }
+        extraButton(.wallpaper, title: "Lyrics wallpaper", symbol: lyricsWallpaperOn ? "sparkles.tv.fill" : "sparkles.tv")
     }
 
     /// The island's way to its sections where its row does not hold it.

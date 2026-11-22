@@ -176,6 +176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // feature switched off in the hub never even instantiates here.
         FeatureRuntime.shared.syncAtLaunch()
         LyricsWallpaperService.shared.sync()
+        AgentAskService.shared.sync()
         if AppFeature.monitorPower.isAvailable, PowerSampler.hasInternalBattery {
             MaxCapacityProbe.shared.refreshIfStale()
         }
