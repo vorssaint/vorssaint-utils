@@ -111,7 +111,7 @@ final class NotchLockScreenService {
         if model.gates != gates { model.gates = gates }
         var scene: [NotchLockScreenPanel] = []
         // Without the Music section there is no player to show or to click.
-        if gates.music, let frame = frames.player {
+        if gates.music, !LyricsLockScreenService.takesOverPlayer, let frame = frames.player {
             // The one part that takes clicks: the player's buttons and timeline.
             scene.append(Self.makePanel(frame: frame, interactive: true,
                                         content: NotchLockScreenPlayer(model: model, size: frame.size)))

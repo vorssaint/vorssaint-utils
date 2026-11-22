@@ -17,6 +17,14 @@ final class LyricsLockScreenService {
 
     private init() {}
 
+    /// With the lyrics on the lock screen, one pill at the bottom carries the
+    /// player, so the island's large centred pane steps aside.
+    static var takesOverPlayer: Bool {
+        let defaults = UserDefaults.standard
+        return LyricsWallpaperService.isEnabled && defaults.bool(forKey: DefaultsKey.lyricsLockScreenEnabled)
+            && defaults.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked)
+    }
+
     func start() {
         guard observers.isEmpty else { return }
         let center = DistributedNotificationCenter.default()
@@ -62,8 +70,8 @@ final class LyricsLockScreenService {
                                     content: LyricsLockScreenView(service: LyricsWallpaperService.shared))
         // The options sit low and centred, clear of the clock and the login, and
         // are the one part that takes clicks.
-        let size = CGSize(width: 400, height: 46)
-        let controlsFrame = CGRect(x: screen.frame.midX - size.width / 2, y: screen.frame.minY + screen.frame.height * 0.09,
+        let size = CGSize(width: 600, height: 60)
+        let controlsFrame = CGRect(x: screen.frame.midX - size.width / 2, y: screen.frame.minY + screen.frame.height * 0.06,
                                    width: size.width, height: size.height)
         let controls = Self.makePanel(frame: controlsFrame, interactive: true,
                                       content: LyricsLockControls(service: LyricsWallpaperService.shared))
@@ -111,8 +119,8 @@ private final class LyricsLockHostingView: NSHostingView<AnyView> {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
-/// Options on the lock screen: the player's buttons, the lyrics style, timing
-/// and a way to switch the lyrics off. Without a song only the lyrics options show.
+/// The lock screen's one pill, low and centred: the song with its cover and
+/// buttons, then the lyrics options. Without a song only the options show.
 private struct LyricsLockControls: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
@@ -121,12 +129,18 @@ private struct LyricsLockControls: View {
     var body: some View {
         HStack(spacing: 4) {
             if let playback = music.playback {
+                artwork
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(playback.track.title ?? "").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+                    Text(playback.track.artist ?? "").font(.system(size: 11)).opacity(0.65).lineLimit(1)
+                }
+                .foregroundStyle(.white).frame(width: 130, alignment: .leading).padding(.horizontal, 6)
                 button("backward.fill", "Previous") { _ = music.send(.previous, context: playback.commandContext) }
                 button(playback.isPlaying ? "pause.fill" : "play.fill", "Play or pause") {
                     _ = music.send(.toggle, context: playback.commandContext)
                 }
                 button("forward.fill", "Next") { _ = music.send(.next, context: playback.commandContext) }
-                Divider().frame(height: 18).padding(.horizontal, 4)
+                Divider().frame(height: 20).padding(.horizontal, 4)
             }
             button(style == "constellation" ? "text.alignleft" : "sparkles",
                    style == "constellation" ? "Scrolling lyrics" : "Graph lyrics") {
@@ -135,9 +149,9 @@ private struct LyricsLockControls: View {
             button("minus", "Lyrics earlier") { service.adjustOffset(by: -0.25) }
             Text(service.offset, format: .number.sign(strategy: .always()).precision(.fractionLength(2)))
                 .font(.system(size: 11, weight: .medium).monospacedDigit()).foregroundStyle(.white.opacity(0.7))
-                .frame(minWidth: 40)
+                .frame(minWidth: 38)
             button("plus", "Lyrics later") { service.adjustOffset(by: 0.25) }
-            Divider().frame(height: 18).padding(.horizontal, 4)
+            Divider().frame(height: 20).padding(.horizontal, 4)
             button("xmark", "Turn off lyrics wallpaper") { service.setEnabled(false) }
         }
         .padding(.horizontal, 12)
@@ -145,6 +159,16 @@ private struct LyricsLockControls: View {
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(Capsule().strokeBorder(.white.opacity(0.18)))
         .environment(\.colorScheme, .dark)
+    }
+
+    @ViewBuilder private var artwork: some View {
+        if let image = service.cover ?? music.artwork {
+            Image(nsImage: image).resizable().interpolation(.high).scaledToFill()
+                .frame(width: 40, height: 40).clipShape(Circle())
+        } else {
+            Circle().fill(.white.opacity(0.15)).frame(width: 40, height: 40)
+                .overlay(Image(systemName: "music.note").foregroundStyle(.white.opacity(0.6)))
+        }
     }
 
     private func button(_ symbol: String, _ title: String, action: @escaping () -> Void) -> some View {
