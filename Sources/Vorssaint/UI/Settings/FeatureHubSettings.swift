@@ -1193,6 +1193,7 @@ extension AppFeature {
         case .notchNotifications: return FeatureStrings.notchNotifications(language).title
         case .notchLyrics: return FeatureStrings.notchMusicExtras(language).lyrics
         case .notchQueue: return FeatureStrings.notchMusicExtras(language).queue
+        case .notchSpotify: return FeatureStrings.notchSpotify(language).feature
         case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(language).liveEqualizer
         case .notchDownloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .notchCalendar: return FeatureStrings.notchCalendar(language).title
@@ -1280,6 +1281,7 @@ extension AppFeature {
         case .notchNotifications: return FeatureStrings.notchNotifications(L10n.shared.language).description
         case .notchLyrics: return FeatureStrings.notchMusicExtras(L10n.shared.language).lyricsDescription
         case .notchQueue: return FeatureStrings.notchMusicExtras(L10n.shared.language).queueDescription
+        case .notchSpotify: return FeatureStrings.notchSpotify(L10n.shared.language).accountHint
         case .notchLiveEqualizer: return FeatureStrings.notchMusicExtras(L10n.shared.language).liveEqualizerDescription
         case .notchDownloads: return FeatureStrings.notchFiles(L10n.shared.language).downloadsDescription
         case .notchCalendar: return FeatureStrings.notchCalendar(L10n.shared.language).description

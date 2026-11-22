@@ -272,7 +272,7 @@ enum SettingsDirectory {
                   notch: .layout, when: state.hardware.plainDisplay && state.capsule),
             .init([activities.keepAwakeActivity], notch: .module(.controls)),
             .init([notch.playingMusic, notchMusic.includeOtherPlayers, notchMusic.showVolume, notchMusic.preferredPlayer,
-                   notchMusic.enableLyrics, notchMusic.browserCovers, notchMusic.enableQueue, notchMusic.liveEqualizer,
+                   notchMusic.enableLyrics, notchMusic.browserCovers, notchMusic.enableQueue, notchMusic.liveEqualizer, notchMusic.sideButton,
                    "music"], notch: .module(.music)),
             .init([notchMusic.online], feature: .notchLyrics, notch: .module(.music), when: state.on(DefaultsKey.notchLyricsEnabled)),
             .init([notchCalendar.countdown, notchCalendar.countdownLead, notchCalendar.timeLeft, notchCalendar.weekNumbers],
