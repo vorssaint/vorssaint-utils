@@ -44,7 +44,7 @@ struct NotchAgentsView: View {
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
                                                               claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
-                                                              live: usage.snapshot.live),
+                                                              snapshot: usage.snapshot),
                                       width: size.width)
     }
 

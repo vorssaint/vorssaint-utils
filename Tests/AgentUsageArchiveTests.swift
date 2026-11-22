@@ -286,7 +286,7 @@ enum AgentUsageArchiveTests {
         let layouts: [(name: String, stored: [String], written: [String])] = [
             ("AgentUsageArchive.Contents", labels(contents), ["providers", "store", "cursors"]),
             ("AgentUsageStore", labels(first),
-             ["records", "billables", "sources", "index", "summary", "limits", "codexPlan", "codexPlanObserved",
+             ["records", "billables", "sources", "index", "cursorCopies", "summary", "limits", "codexPlan", "codexPlanObserved",
               "turns", "waiting", "registered", "settled", "replies", "reportsTransitions"]),
             ("AgentUsageStore.Saved", labels(sample),
              ["records", "limits", "codexPlan", "codexPlanObserved", "turns", "waiting"]),
@@ -302,7 +302,7 @@ enum AgentUsageArchiveTests {
              ["id", "provider", "started", "lastActivity", "model", "project", "tokens", "cost"]),
             ("AgentLogCursor", labels(cursor),
              ["path", "provider", "cursorAccess", "parent", "openCode", "offset", "identity", "pending", "discarding",
-              "state", "cursorPromptFingerprint", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
+              "state", "cursorPromptFingerprint", "needsUsageReplay", "modified", "restarted", "codexParentLog", "codexParentSearch", "fingerprinted"]),
             ("AgentLogCursor.Saved", labels(cursor.saved),
              ["path", "provider", "offset", "identity", "discarding", "modified", "state", "fingerprint"]),
             ("AgentLogState", labels(cursor.state),

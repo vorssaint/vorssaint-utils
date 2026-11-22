@@ -909,7 +909,7 @@ final class NotchService: ObservableObject {
         guard !providers.isEmpty else { return 0 }
         return NotchAgentSupport.contentHeight(NotchAgentSupport.rows(
             NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers, codexAccounts: accounts,
-                                    claudeAccount: claudeAccount, live: usage.live),
+                                    claudeAccount: claudeAccount, snapshot: usage),
             width: width))
     }
     var expandedGeometry: NotchGeometry {

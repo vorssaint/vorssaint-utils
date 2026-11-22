@@ -3252,13 +3252,22 @@ enum NotchAgentTests {
         suite.expect(cursorCards.map(\.card) == [.live] && NotchAgentSupport.contentHeight([cursorCards]) == NotchAgentSupport.cardHeight
                         && NotchAgentSupport.tiles(cards: [.spend, .projects], providers: [.cursor]).isEmpty,
                      "Cursor alone shows the Now card at its ordinary height and respects hiding it")
+        var cursorHistory = AgentUsageSnapshot()
+        let usage = AgentTotals(tokens: AgentTokens(output: 7), requests: 1)
+        cursorHistory.days = [AgentBucket(start: Date(), byProvider: [.claude: usage])]
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.live], "another provider's usage cannot unlock Cursor history")
+        cursorHistory.days[0].byProvider[.cursor] = usage
+        suite.expect(NotchAgentSupport.tiles(cards: NotchAgentCard.allCases, providers: [.cursor], snapshot: cursorHistory)
+                        .map(\.card) == [.spend, .live, .trend, .models, .projects, .activity],
+                     "recorded Cursor tokens enable history without offering plan limits or resets")
         let allProviders = AgentProvider.allCases
         let active = AgentLiveSession(id: "active", provider: .cursor, started: .now, lastActivity: .now,
                                       model: "", project: "demo", tokens: AgentTokens(), cost: 0)
         for count in 4...5 {
             let providers = Array(allProviders.suffix(count))
             let idle = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers)
-            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, live: [active])
+            let live = NotchAgentSupport.tiles(cards: [.live, .spend], providers: providers, snapshot: AgentUsageSnapshot(live: [active]))
             suite.expect(NotchAgentSupport.contentHeight([idle]) >= 44 + 15 * CGFloat(count) + 5 * CGFloat(count - 1)
                             && NotchAgentSupport.contentHeight([live]) == NotchAgentSupport.cardHeight,
                          "the Now card fits all \(count) idle rows and returns to its regular height while working")
