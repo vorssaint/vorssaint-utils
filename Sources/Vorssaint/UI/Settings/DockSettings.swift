@@ -255,14 +255,20 @@ struct DockSettings: View {
             Label(text.spacesOff, systemImage: "info.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-        } else if let dock = dockLock.displays.first(where: { $0.id == dockLock.dockDisplayID }) {
+        } else if !dockLock.anchorHasDockEdge {
+            Label(text.noDockEdge, systemImage: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
             HStack(spacing: 10) {
-                Label(String(format: text.dockLocationFormat, dock.name),
-                      systemImage: dock.id == dockLock.anchorID ? "checkmark.circle.fill" : "exclamationmark.circle")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let dock = dockLock.displays.first(where: { $0.id == dockLock.dockDisplayID }) {
+                    Label(String(format: text.dockLocationFormat, dock.name),
+                          systemImage: dock.id == dockLock.anchorID ? "checkmark.circle.fill" : "exclamationmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer()
-                if dock.id != dockLock.anchorID, permissions.accessibility {
+                if dockLock.dockDisplayID != dockLock.anchorID, permissions.accessibility {
                     Button(text.moveButton) { DockDisplayLockService.shared.moveDockToAnchor() }
                         .disabled(dockLock.isMovingDock)
                 }
@@ -287,11 +293,7 @@ struct DockSettings: View {
         } set: { target in
             dockDisplayLockTarget = target.storageValue
             DockDisplayLockService.shared.syncWithPreferences()
-            // Once the picker's menu has closed: called while it was still
-            // closing, the press on the edge left the Dock where it was.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                DockDisplayLockService.shared.moveDockToAnchor()
-            }
+            DockDisplayLockService.shared.moveDockAfterPickingDisplay()
         }
     }
 

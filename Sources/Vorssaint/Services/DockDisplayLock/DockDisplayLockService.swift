@@ -21,6 +21,7 @@ final class DockDisplayLockService: ObservableObject {
     /// The display the Dock is held to right now: the chosen one, or the main
     /// display while the chosen one is away.
     @Published private(set) var anchorID: CGDirectDisplayID?
+    @Published private(set) var anchorHasDockEdge = false
     /// Where the Dock sits, as last read through Accessibility.
     @Published private(set) var dockDisplayID: CGDirectDisplayID?
     @Published private(set) var isMovingDock = false
@@ -45,7 +46,9 @@ final class DockDisplayLockService: ObservableObject {
     private var observers: [(center: NotificationCenter, token: NSObjectProtocol)] = []
     private var preferencesTimer: Timer?
     private var pendingReturn: DispatchWorkItem?
-    private let moveQueue = DispatchQueue(label: "com.vorssaint.dock-display-lock.move", qos: .userInitiated)
+    private var pendingPickerMove: DispatchWorkItem?
+    private var moveGeneration: UInt = 0
+    private var pointerBeforeMove: CGPoint?
 
     /// Marks the moves this service posts to call the Dock over, so its own
     /// tap lets them through while it holds the real pointer still.
@@ -95,9 +98,18 @@ final class DockDisplayLockService: ObservableObject {
     func refresh(readingDock: Bool = true) {
         let displays = Self.readDisplays()
         let domain = UserDefaults.standard.persistentDomain(forName: Self.dockBundleID) ?? [:]
-        orientation = DockPreviewOrientation.sanitized(domain["orientation"] as? String)
+        let orientation = DockPreviewOrientation.sanitized(domain["orientation"] as? String)
+        if self.displays != displays || self.orientation != orientation {
+            cancelMove(restorePointer: self.displays == displays)
+        }
+        self.orientation = orientation
         hotCorners = DockDisplayLockCorner.actions(in: domain)
         let anchor = DockDisplayLockSupport.anchor(for: target, in: displays)
+        if anchorID != anchor?.id { cancelMove() }
+        let hasDockEdge = anchor.map { display in
+            !DockDisplayLockSupport.hardSegments(of: display, orientation: orientation,
+                                                 others: displays.filter { $0.id != display.id }).isEmpty
+        } ?? false
         // With one set of Spaces across all displays, macOS never moves the
         // Dock between them, so there is nothing to hold back. The setting
         // only changes with a new login.
@@ -111,6 +123,7 @@ final class DockDisplayLockService: ObservableObject {
         }
         if self.displays != displays { self.displays = displays }
         if anchorID != anchor?.id { anchorID = anchor?.id }
+        if anchorHasDockEdge != hasDockEdge { anchorHasDockEdge = hasDockEdge }
         if readingDock { readDockDisplay() }
     }
 
@@ -129,6 +142,14 @@ final class DockDisplayLockService: ObservableObject {
             (workspace, workspace.addObserver(forName: NSWorkspace.didWakeNotification,
                                               object: nil, queue: .main) { [weak self] _ in
                 self?.scheduleReturn(after: 3)
+            }),
+            (workspace, workspace.addObserver(forName: NSWorkspace.willSleepNotification,
+                                              object: nil, queue: .main) { [weak self] _ in
+                self?.cancelMove()
+            }),
+            (distributed, distributed.addObserver(forName: Notification.Name("com.apple.screenIsLocked"),
+                                                  object: nil, queue: .main) { [weak self] _ in
+                self?.cancelMove(restorePointer: false)
             }),
             // Only once someone is at the Mac: moving the pointer under the
             // lock screen would read as that someone (DockAnchor #39).
@@ -154,6 +175,8 @@ final class DockDisplayLockService: ObservableObject {
         preferencesTimer = nil
         pendingReturn?.cancel()
         pendingReturn = nil
+        pendingPickerMove?.cancel()
+        pendingPickerMove = nil
     }
 
     private func start() {
@@ -186,6 +209,7 @@ final class DockDisplayLockService: ObservableObject {
     }
 
     private func stop() {
+        cancelMove()
         zoneLock.withLock {
             zones = .none
             inCorner = false
@@ -334,12 +358,14 @@ final class DockDisplayLockService: ObservableObject {
             return Unmanaged.passUnretained(event)
         }
 
-        let isOwnMove = event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker
+        if event.getIntegerValueField(.eventSourceUserData) == Self.syntheticEventMarker {
+            return Unmanaged.passUnretained(event)
+        }
         let location = event.location
         let blocked = zoneLock.withLock { () -> Bool in
             // While the Dock is being called over, the real pointer waits so
             // it cannot pull the path off the edge.
-            if holdsPointerForMove { return !isOwnMove }
+            if holdsPointerForMove { return true }
             return DockDisplayLockSupport.blocks(location, zones: zones, inCorner: &inCorner)
         }
         return blocked ? nil : Unmanaged.passUnretained(event)
@@ -424,6 +450,7 @@ final class DockDisplayLockService: ObservableObject {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingReturn = nil
+            guard self.returnsAutomatically else { return }
             self.refresh()
             self.moveDockToAnchor()
         }
@@ -431,41 +458,79 @@ final class DockDisplayLockService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
+    /// Wait for the picker menu to close before pressing against the edge.
+    func moveDockAfterPickingDisplay() {
+        pendingPickerMove?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.pendingPickerMove = nil
+            self?.moveDockToAnchor()
+        }
+        pendingPickerMove = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
     /// Calls the Dock to the display it is held to, by pressing the pointer
     /// against that display's Dock edge the way a person would, and puts the
     /// pointer back. Nothing happens when the Dock is already there.
     func moveDockToAnchor() {
         guard isWanted, !isMovingDock, SessionActivity.shared.isActive, AXIsProcessTrusted(),
-              !Self.screenIsLocked, displays.count > 1,
+              !Self.screenIsLocked, NSScreen.screensHaveSeparateSpaces, displays.count > 1,
               let anchor = displays.first(where: { $0.id == anchorID })
         else { return }
+        let path = DockDisplayLockSupport.summonPath(to: anchor, among: displays, orientation: orientation)
+        guard !path.isEmpty, let original = CGEvent(source: nil)?.location else { return }
         readDockDisplay()
         guard dockDisplayID != anchor.id else { return }
 
+        moveGeneration &+= 1
+        pointerBeforeMove = original
         isMovingDock = true
-        let path = DockDisplayLockSupport.summonPath(to: anchor, orientation: orientation)
-        moveQueue.async { [weak self] in
-            guard let self else { return }
-            let source = CGEventSource(stateID: .hidSystemState)
-            let original = CGEvent(source: nil)?.location
-            self.zoneLock.withLock { self.holdsPointerForMove = true }
-            for (index, step) in path.enumerated() {
-                CGWarpMouseCursorPosition(step.point)
-                self.postMove(to: step.point, delta: step.delta, source: source)
-                Thread.sleep(forTimeInterval: index < path.count - 10 ? 0.015 : 0.025)
-            }
-            self.zoneLock.withLock { self.holdsPointerForMove = false }
-            if let original {
-                CGWarpMouseCursorPosition(original)
-                // A warp alone moves no event past the Dock, which then keeps
-                // its icons magnified under a pointer that left (DockAnchor #35).
-                self.postMove(to: original, delta: .zero, source: source)
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+        zoneLock.withLock { holdsPointerForMove = true }
+        runMove(path[...], generation: moveGeneration, source: CGEventSource(stateID: .hidSystemState))
+    }
+
+    // Run the short pointer press on the same queue as preference and session
+    // changes, so cancellation can stop the next synthetic move immediately.
+    private func runMove(_ path: ArraySlice<DockDisplayLockSupport.Step>, generation: UInt,
+                         source: CGEventSource?) {
+        guard generation == moveGeneration else { return }
+        guard let step = path.first else {
+            restorePointer(source: source)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+                guard let self, self.moveGeneration == generation else { return }
                 self.isMovingDock = false
                 self.readDockDisplay()
             }
+            return
         }
+        CGWarpMouseCursorPosition(step.point)
+        postMove(to: step.point, delta: step.delta, source: source)
+        let delay = path.count > 10 ? 0.015 : 0.025
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+            self?.runMove(path.dropFirst(), generation: generation, source: source)
+        }
+    }
+
+    private func cancelMove(restorePointer shouldRestore: Bool = true) {
+        guard isMovingDock else { return }
+        moveGeneration &+= 1
+        if shouldRestore {
+            restorePointer(source: nil)
+        } else {
+            pointerBeforeMove = nil
+            zoneLock.withLock { holdsPointerForMove = false }
+        }
+        isMovingDock = false
+    }
+
+    private func restorePointer(source: CGEventSource?) {
+        if let original = pointerBeforeMove, SessionActivity.shared.isActive, !Self.screenIsLocked {
+            CGWarpMouseCursorPosition(original)
+            // The Dock only clears magnification after receiving a move.
+            postMove(to: original, delta: .zero, source: source)
+        }
+        pointerBeforeMove = nil
+        zoneLock.withLock { holdsPointerForMove = false }
     }
 
     /// The lock screen is up, or a Mac woke to it: no pointer moves there.

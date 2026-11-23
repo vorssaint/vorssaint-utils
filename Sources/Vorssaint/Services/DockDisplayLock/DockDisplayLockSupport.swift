@@ -111,7 +111,9 @@ enum DockDisplayLockSupport {
                       orientation: DockPreviewOrientation,
                       hotCorners: Set<DockDisplayLockCorner>) -> Zones {
         // One display has nowhere to move the Dock to.
-        guard displays.count > 1, let anchorID, displays.contains(where: { $0.id == anchorID }) else {
+        guard displays.count > 1, let anchor = displays.first(where: { $0.id == anchorID }),
+              !hardSegments(of: anchor, orientation: orientation,
+                            others: displays.filter { $0.id != anchor.id }).isEmpty else {
             return .none
         }
         var zones = Zones.none
@@ -252,27 +254,31 @@ enum DockDisplayLockSupport {
     // MARK: - Calling the Dock over
 
     /// The pointer path that calls the Dock to `display`: a short approach
-    /// toward the middle of its Dock edge, then a few presses against it,
+    /// toward the middle of the longest hard segment, then a few presses against it,
     /// each with the push into the edge macOS reads as a request.
     struct Step: Equatable {
         let point: CGPoint
         let delta: CGVector
     }
 
-    static func summonPath(to display: DockDisplayLockDisplay,
+    static func summonPath(to display: DockDisplayLockDisplay, among displays: [DockDisplayLockDisplay],
                            orientation: DockPreviewOrientation) -> [Step] {
+        let segments = hardSegments(of: display, orientation: orientation,
+                                    others: displays.filter { $0.id != display.id })
+        guard let segment = segments.max(by: { length(of: $0) < length(of: $1) }) else { return [] }
+        let midpoint = segment.lowerBound + length(of: segment) / 2
         let frame = display.frame
         let edge: CGPoint
         let inward: CGVector
         switch orientation {
         case .bottom:
-            edge = CGPoint(x: frame.midX, y: frame.maxY - 1)
+            edge = CGPoint(x: midpoint, y: frame.maxY - 1)
             inward = CGVector(dx: 0, dy: 1)
         case .left:
-            edge = CGPoint(x: frame.minX, y: frame.midY)
+            edge = CGPoint(x: frame.minX, y: midpoint)
             inward = CGVector(dx: -1, dy: 0)
         case .right:
-            edge = CGPoint(x: frame.maxX - 1, y: frame.midY)
+            edge = CGPoint(x: frame.maxX - 1, y: midpoint)
             inward = CGVector(dx: 1, dy: 0)
         }
         let approachLength: CGFloat = 40
@@ -286,5 +292,9 @@ enum DockDisplayLockSupport {
         let presses = Array(repeating: Step(point: edge, delta: CGVector(dx: inward.dx * 4, dy: inward.dy * 4)),
                             count: 10)
         return approach + presses
+    }
+
+    private static func length(of segment: ClosedRange<CGFloat>) -> CGFloat {
+        segment.upperBound - segment.lowerBound
     }
 }

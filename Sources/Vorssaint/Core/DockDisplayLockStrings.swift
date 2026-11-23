@@ -21,6 +21,7 @@ struct DockDisplayLockStrings {
     let returnsCaption: String
     let singleDisplay: String
     let spacesOff: String
+    let noDockEdge: String
 }
 
 extension FeatureStrings {
@@ -60,7 +61,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Bring the Dock back after sleep and display changes",
         returnsCaption: "macOS puts the Dock on the main display after sleep. With this on, the pointer briefly presses on the chosen display’s Dock edge to call it back, only while the Mac is unlocked.",
         singleDisplay: "Only one display is connected, so the Dock has nowhere else to go.",
-        spacesOff: "\u{201C}Displays have separate Spaces\u{201D} is off, so macOS does not move the Dock between displays on its own."
+        spacesOff: "\u{201C}Displays have separate Spaces\u{201D} is off, so macOS does not move the Dock between displays on its own.",
+        noDockEdge: "The selected display has no exposed edge on the side of the Dock."
     )
 
     static let ptBR = DockDisplayLockStrings(
@@ -77,7 +79,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Trazer o Dock de volta após repouso e mudanças de tela",
         returnsCaption: "O macOS coloca o Dock na tela principal após o repouso. Com isto ligado, o ponteiro pressiona por um instante a borda do Dock da tela escolhida para trazê-lo de volta, só com o Mac desbloqueado.",
         singleDisplay: "Só uma tela está conectada, então o Dock não tem para onde ir.",
-        spacesOff: "\u{201C}As telas têm Espaços separados\u{201D} está desligado, então o macOS não move o Dock entre telas por conta própria."
+        spacesOff: "\u{201C}As telas têm Espaços separados\u{201D} está desligado, então o macOS não move o Dock entre telas por conta própria.",
+        noDockEdge: "A tela selecionada não tem uma borda livre no lado do Dock."
     )
 
     static let tr = DockDisplayLockStrings(
@@ -94,7 +97,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Uyku ve ekran değişikliklerinden sonra Dock’u geri getir",
         returnsCaption: "macOS uykudan sonra Dock’u ana ekrana koyar. Bu açıkken işaretçi, Dock’u geri çağırmak için seçilen ekranın Dock kenarına kısa bir an bastırır; yalnızca Mac’in kilidi açıkken.",
         singleDisplay: "Yalnızca bir ekran bağlı, bu yüzden Dock’un gidebileceği başka bir yer yok.",
-        spacesOff: "\u{201C}Ekranların ayrı Spaces alanları var\u{201D} kapalı, bu yüzden macOS Dock’u ekranlar arasında kendiliğinden taşımaz."
+        spacesOff: "\u{201C}Ekranların ayrı Spaces alanları var\u{201D} kapalı, bu yüzden macOS Dock’u ekranlar arasında kendiliğinden taşımaz.",
+        noDockEdge: "Seçilen ekranın Dock tarafında boşta kalan bir kenarı yok."
     )
 
     static let ru = DockDisplayLockStrings(
@@ -111,7 +115,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Возвращать Dock после сна и смены дисплеев",
         returnsCaption: "После сна macOS ставит Dock на основной дисплей. Когда это включено, указатель на мгновение упирается в край Dock на выбранном дисплее, чтобы вернуть его, и только когда Mac разблокирован.",
         singleDisplay: "Подключён только один дисплей, так что Dock некуда переезжать.",
-        spacesOff: "Параметр «Мониторы с отдельными пространствами Spaces» выключен, поэтому macOS сам не переносит Dock между дисплеями."
+        spacesOff: "Параметр «Мониторы с отдельными пространствами Spaces» выключен, поэтому macOS сам не переносит Dock между дисплеями.",
+        noDockEdge: "На выбранном дисплее нет свободного края со стороны Dock."
     )
 
     static let es = DockDisplayLockStrings(
@@ -128,7 +133,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Devolver el Dock tras el reposo y los cambios de pantalla",
         returnsCaption: "macOS pone el Dock en la pantalla principal tras el reposo. Con esto activado, el puntero presiona un instante el borde del Dock de la pantalla elegida para traerlo de vuelta, solo con el Mac desbloqueado.",
         singleDisplay: "Solo hay una pantalla conectada, así que el Dock no tiene adónde ir.",
-        spacesOff: "\u{201C}Las pantallas tienen espacios independientes\u{201D} está desactivado, así que macOS no mueve el Dock entre pantallas por su cuenta."
+        spacesOff: "\u{201C}Las pantallas tienen espacios independientes\u{201D} está desactivado, así que macOS no mueve el Dock entre pantallas por su cuenta.",
+        noDockEdge: "La pantalla seleccionada no tiene ningún borde libre en el lado del Dock."
     )
 
     static let sk = DockDisplayLockStrings(
@@ -145,7 +151,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Vrátiť Dock po spánku a zmene displejov",
         returnsCaption: "Po spánku macOS presunie Dock na hlavný displej. Keď je toto zapnuté, ukazovateľ na okamih zatlačí na okraj Docku vybraného displeja, aby ho vrátil, iba keď je Mac odomknutý.",
         singleDisplay: "Pripojený je iba jeden displej, takže Dock sa nemá kam presunúť.",
-        spacesOff: "Voľba \u{201E}Displeje majú samostatné plochy Spaces\u{201C} je vypnutá, takže macOS Dock medzi displejmi sám nepresúva."
+        spacesOff: "Voľba \u{201E}Displeje majú samostatné plochy Spaces\u{201C} je vypnutá, takže macOS Dock medzi displejmi sám nepresúva.",
+        noDockEdge: "Vybraný displej nemá na strane Docku voľný okraj."
     )
 
     static let de = DockDisplayLockStrings(
@@ -162,7 +169,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Dock nach dem Ruhezustand und Display-Änderungen zurückholen",
         returnsCaption: "Nach dem Ruhezustand setzt macOS das Dock auf das Hauptdisplay. Ist dies an, drückt der Zeiger kurz gegen den Dock-Rand des gewählten Displays, um es zurückzuholen, nur während der Mac entsperrt ist.",
         singleDisplay: "Es ist nur ein Display verbunden, das Dock kann also nirgendwo anders hin.",
-        spacesOff: "\u{201E}Monitore verwenden verschiedene Spaces\u{201C} ist aus, daher verschiebt macOS das Dock nicht von selbst zwischen Displays."
+        spacesOff: "\u{201E}Monitore verwenden verschiedene Spaces\u{201C} ist aus, daher verschiebt macOS das Dock nicht von selbst zwischen Displays.",
+        noDockEdge: "Am ausgewählten Bildschirm ist die Kante auf der Seite des Docks nicht frei."
     )
 
     static let fr = DockDisplayLockStrings(
@@ -179,7 +187,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Ramener le Dock après la suspension et les changements d’écran",
         returnsCaption: "Après la suspension, macOS place le Dock sur l’écran principal. Avec cette option, le pointeur appuie un instant sur le bord du Dock de l’écran choisi pour le rappeler, seulement quand le Mac est déverrouillé.",
         singleDisplay: "Un seul écran est connecté, le Dock n’a donc nulle part où aller.",
-        spacesOff: "«\u{00A0}Les écrans disposent d’espaces distincts\u{00A0}» est désactivé, donc macOS ne déplace pas le Dock d’un écran à l’autre de lui-même."
+        spacesOff: "«\u{00A0}Les écrans disposent d’espaces distincts\u{00A0}» est désactivé, donc macOS ne déplace pas le Dock d’un écran à l’autre de lui-même.",
+        noDockEdge: "L’écran sélectionné n’a pas de bord libre du côté du Dock."
     )
 
     static let it = DockDisplayLockStrings(
@@ -196,7 +205,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "Riporta il Dock dopo lo stop e i cambi di schermo",
         returnsCaption: "Dopo lo stop macOS mette il Dock sullo schermo principale. Con questa opzione il puntatore preme per un istante sul bordo del Dock dello schermo scelto per richiamarlo, solo con il Mac sbloccato.",
         singleDisplay: "È collegato un solo schermo, quindi il Dock non ha altro posto dove andare.",
-        spacesOff: "\u{201C}Gli schermi hanno spazi separati\u{201D} è disattivato, quindi macOS non sposta da solo il Dock tra gli schermi."
+        spacesOff: "\u{201C}Gli schermi hanno spazi separati\u{201D} è disattivato, quindi macOS non sposta da solo il Dock tra gli schermi.",
+        noDockEdge: "Lo schermo selezionato non ha un bordo libero sul lato del Dock."
     )
 
     static let ja = DockDisplayLockStrings(
@@ -213,7 +223,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "スリープやディスプレイの変更後に Dock を戻す",
         returnsCaption: "スリープ後、macOS は Dock をメインディスプレイに置きます。オンにすると、Mac のロックが解除されているときだけ、ポインタが選択したディスプレイの Dock の端を一瞬押して Dock を呼び戻します。",
         singleDisplay: "接続されているディスプレイは 1 台だけなので、Dock の移動先はありません。",
-        spacesOff: "「ディスプレイごとに個別の操作スペース」がオフなので、macOS が Dock をディスプレイ間で自動的に移すことはありません。"
+        spacesOff: "「ディスプレイごとに個別の操作スペース」がオフなので、macOS が Dock をディスプレイ間で自動的に移すことはありません。",
+        noDockEdge: "選択したディスプレイには、Dock 側に他のディスプレイと接していない端がありません。"
     )
 
     static let ko = DockDisplayLockStrings(
@@ -230,7 +241,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "잠자기 및 디스플레이 변경 후 Dock 되돌리기",
         returnsCaption: "잠자기 후 macOS는 Dock을 주 디스플레이에 둡니다. 이 옵션을 켜면 Mac 잠금이 해제된 동안에만 포인터가 선택한 디스플레이의 Dock 가장자리를 잠깐 밀어 Dock을 다시 불러옵니다.",
         singleDisplay: "연결된 디스플레이가 하나뿐이라 Dock이 옮겨 갈 곳이 없습니다.",
-        spacesOff: "‘디스플레이마다 개별 Spaces 사용’이 꺼져 있어 macOS가 Dock을 디스플레이 사이에서 스스로 옮기지 않습니다."
+        spacesOff: "‘디스플레이마다 개별 Spaces 사용’이 꺼져 있어 macOS가 Dock을 디스플레이 사이에서 스스로 옮기지 않습니다.",
+        noDockEdge: "선택한 디스플레이의 Dock 쪽 가장자리가 다른 디스플레이와 맞닿아 있습니다."
     )
 
     static let zhHans = DockDisplayLockStrings(
@@ -247,7 +259,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "睡眠和显示器变化后将程序坞移回",
         returnsCaption: "睡眠后 macOS 会把程序坞放到主显示器上。打开此项后，仅在 Mac 已解锁时，指针会短暂抵住所选显示器的程序坞边缘，把程序坞叫回来。",
         singleDisplay: "只连接了一个显示器，程序坞没有其他地方可去。",
-        spacesOff: "“显示器具有单独的空间”已关闭，因此 macOS 不会自行在显示器之间移动程序坞。"
+        spacesOff: "“显示器具有单独的空间”已关闭，因此 macOS 不会自行在显示器之间移动程序坞。",
+        noDockEdge: "所选显示器在程序坞一侧没有空出的边缘。"
     )
 
     static let zhTW = DockDisplayLockStrings(
@@ -264,7 +277,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "睡眠和顯示器變更後將 Dock 移回",
         returnsCaption: "睡眠後 macOS 會把 Dock 放到主顯示器上。開啟此項後，僅在 Mac 已解鎖時，指標會短暫抵住所選顯示器的 Dock 邊緣，把 Dock 叫回來。",
         singleDisplay: "只連接了一個顯示器，Dock 沒有其他地方可去。",
-        spacesOff: "「顯示器有個別的空間」已關閉，因此 macOS 不會自行在顯示器之間移動 Dock。"
+        spacesOff: "「顯示器有個別的空間」已關閉，因此 macOS 不會自行在顯示器之間移動 Dock。",
+        noDockEdge: "所選顯示器在 Dock 的一側沒有空出的邊緣。"
     )
 
     static let zhHK = DockDisplayLockStrings(
@@ -281,7 +295,8 @@ extension DockDisplayLockStrings {
         returnsToggle: "睡眠同顯示器變動之後將 Dock 移返",
         returnsCaption: "睡眠之後 macOS 會將 Dock 放喺主顯示器。開咗呢項之後，只會喺 Mac 已解鎖時，指標會短暫頂住所揀顯示器嘅 Dock 邊緣，將 Dock 叫返嚟。",
         singleDisplay: "只連接咗一個顯示器，Dock 冇其他地方可以去。",
-        spacesOff: "「顯示器有個別的空間」已經關閉，所以 macOS 唔會自己喺顯示器之間移動 Dock。"
+        spacesOff: "「顯示器有個別的空間」已經關閉，所以 macOS 唔會自己喺顯示器之間移動 Dock。",
+        noDockEdge: "所選顯示器在 Dock 的一側沒有空出的邊緣。"
     )
 
     static let uk = DockDisplayLockStrings(
@@ -298,6 +313,7 @@ extension DockDisplayLockStrings {
         returnsToggle: "Повертати Dock після сну та зміни дисплеїв",
         returnsCaption: "Після сну macOS ставить Dock на основний дисплей. Коли це ввімкнено, вказівник на мить упирається в край Dock на вибраному дисплеї, щоб повернути його, і лише коли Mac розблоковано.",
         singleDisplay: "Під’єднано лише один дисплей, тож Dock нікуди переїжджати.",
-        spacesOff: "Параметр «Монітори з окремими просторами Spaces» вимкнено, тому macOS сам не переносить Dock між дисплеями."
+        spacesOff: "Параметр «Монітори з окремими просторами Spaces» вимкнено, тому macOS сам не переносить Dock між дисплеями.",
+        noDockEdge: "На вибраному дисплеї немає вільного краю з боку Dock."
     )
 }

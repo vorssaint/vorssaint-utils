@@ -79,8 +79,13 @@ enum DockDisplayLockTests {
                      "a display whose left edge is fully shared has nowhere for a left Dock to be called")
         let leftOnSide = Support.zones(displays: [main, side], anchorID: side.id, orientation: .left,
                                        hotCorners: none)
-        suite.expect(blocks(CGPoint(x: 0.5, y: 700), leftOnSide) && !blocks(CGPoint(x: 5, y: 700), leftOnSide),
-                     "a left Dock is held off the main display's left edge")
+        suite.expect(leftOnSide.isEmpty,
+                     "pinning to a display with no usable Dock edge leaves other displays alone")
+        let leftOnBelow = Support.zones(displays: [main, side, below], anchorID: below.id,
+                                        orientation: .left, hotCorners: none)
+        suite.expect(blocks(CGPoint(x: 0.5, y: 700), leftOnBelow)
+                && !blocks(CGPoint(x: 5, y: 700), leftOnBelow),
+                     "a left Dock is held off the main display's left edge when the target has a left edge")
         let rightDock = Support.zones(displays: [main, side], anchorID: main.id, orientation: .right,
                                       hotCorners: none)
         suite.expect(blocks(CGPoint(x: 4479, y: 600), rightDock) && !blocks(CGPoint(x: 2559, y: 600), rightDock),
@@ -127,14 +132,19 @@ enum DockDisplayLockTests {
         suite.expect(Support.display(holdingDockFrame: .zero, orientation: .bottom, displays: displays) == nil,
                      "no frame, no answer")
 
-        let path = Support.summonPath(to: side, orientation: .bottom)
+        let path = Support.summonPath(to: side, among: displays, orientation: .bottom)
         suite.expect(path.last?.point == CGPoint(x: side.frame.midX, y: side.frame.maxY - 1)
                 && path.allSatisfy { side.frame.contains($0.point) && $0.delta.dy > 0 && $0.delta.dx == 0 },
                      "calling the Dock presses down on the chosen display's bottom edge, inside that display")
-        let leftPath = Support.summonPath(to: main, orientation: .left)
+        let leftPath = Support.summonPath(to: main, among: displays, orientation: .left)
         suite.expect(leftPath.last?.point == CGPoint(x: 0, y: main.frame.midY)
                 && leftPath.allSatisfy { $0.delta.dx < 0 && $0.delta.dy == 0 },
                      "a left Dock is called by pressing left")
+        let aboveLaptop = Support.summonPath(to: main, among: [main, below], orientation: .bottom)
+        suite.expect(aboveLaptop.last?.point == CGPoint(x: 320, y: main.frame.maxY - 1),
+                     "the Dock moves using an exposed edge when another display covers its midpoint")
+        suite.expect(Support.summonPath(to: side, among: displays, orientation: .left).isEmpty,
+                     "a fully shared edge cannot summon the Dock")
     }
 
     private static func catalog(_ suite: TestSuite) {
@@ -162,7 +172,7 @@ enum DockDisplayLockTests {
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.dockDisplayLock(language)
             let values = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            suite.expect(values.count == 14 && values.allSatisfy { !$0.isEmpty }
+            suite.expect(values.count == 15 && values.allSatisfy { !$0.isEmpty }
                     && strings.dockLocationFormat.components(separatedBy: "%@").count == 2,
                          "\(language.rawValue) has every Dock display string, the location with one name in it")
         }

@@ -1949,6 +1949,7 @@ struct QuickControlsSection: View {
         showDockClickHide = true
         showDockClickCycle = true
         showSpacesOrder = true
+        showDockDisplayLock = true
         showMiddleClick = true
         showTextSnippets = true
         showRadialMenu = true
