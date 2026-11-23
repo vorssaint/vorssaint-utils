@@ -3,26 +3,15 @@
 
 import Foundation
 
+extension CleanerEligibilityTests.Item {
+    init(url: URL, category: CleanerSupport.Category = .leftovers, detail: String, recommended: Bool = false) {
+        self.init(url: url, category: category, size: 1, detail: detail, recommended: recommended)
+    }
+}
+
 /// The generated scanners and removal guards use temporary home and system
 /// libraries and a controlled app inventory. No cleaning is performed.
 enum CleanerEligibilityTests {
-    struct Item {
-        let url: URL
-        let category: CleanerSupport.Category
-        let size: Int64
-        let recommended: Bool
-        init(url: URL, category: CleanerSupport.Category = .leftovers, size: Int64 = 1,
-             detail: String, recommended: Bool = false) {
-            self.url = url
-            self.category = category
-            self.size = size
-            self.detail = detail
-            self.recommended = recommended
-            self.fileIdentity = UninstallerSupport.fileIdentity(at: url)
-        }
-        let detail: String
-        let fileIdentity: UninstallerSupport.FileIdentity?
-    }
     static var fixtureRoot: URL?
     static func NSHomeDirectory() -> String { fixtureRoot!.path }
     static var systemLibrary: String {
@@ -187,7 +176,7 @@ enum CleanerEligibilityTests {
     private static func leftovers(in directory: URL, installed: Set<String>, metadata: Bool = false) -> [Item] {
         var items: [Item] = []
         appendLeftovers(in: directory.path, usesContainerMetadata: metadata,
-                        installed: installed, fm: .default, into: &items)
+                        installed: installed, audioPluginIDs: [], fm: .default, into: &items)
         return items
     }
 
@@ -210,7 +199,7 @@ enum CleanerEligibilityTests {
         let battlePath = battle.resolvingSymlinksInPath().path
         let sharedPath = shared.resolvingSymlinksInPath().path
         let otherPath = other.resolvingSymlinksInPath().path
-        let before = scanLeftovers(installed: [])
+        let before = scanLeftovers(installedApps: [], audioPluginIDs: [])
         suite.expect(!before.contains { $0.url.resolvingSymlinksInPath().path == otherPath }
                      && !canRemove(Item(url: other, detail: "Battle.net")),
                      "another user's support directory is outside the scan and removal roots")
@@ -222,7 +211,7 @@ enum CleanerEligibilityTests {
         suite.expect([row, sharedRow].allSatisfy { $0.detail == "Battle.net" && !$0.recommended && canRemove($0) },
                      "an uninstalled app's domain directories are optional leftovers")
         let installed: Set<String> = ["net.battle.app", "com.maker"]
-        let found = scanLeftovers(installed: installed)
+        let found = scanLeftovers(installedApps: installed, audioPluginIDs: [])
         suite.expect(!found.contains { $0.url.lastPathComponent == "Battle.net" }
                      && !canRemove(row, installed: installed) && !canRemove(sharedRow, installed: installed),
                      "an installed Battle.net is protected in both libraries at scan and after a stale selection")
@@ -257,19 +246,15 @@ enum CleanerEligibilityTests {
                 .write(to: contents.appendingPathComponent("Info.plist"))
         }
         let apps: Set<String> = ["com.synthmaker.editor", "org.paper.canvas"]
-        func scan(pluginIDs: Set<String>) -> [Item] {
-            let leftovers = scanLeftovers(installed: apps.union(pluginIDs))
-            let claimed = Set(leftovers.map { $0.url.standardizedFileURL.path })
-            return leftovers + scanCaches(excluding: claimed, audioPluginIDs: pluginIDs)
-        }
-
         let synth = "com.synthmaker.Synth"
         let reverb = "com.reverbco.Reverb"
+        let sibling = "com.reverbco.Delay"
         let family = [synth, synth + ".state", "com.synthmaker", reverb]
-        let ordinary = ["com.synthmaker.Editor", synth + "Lab", "org.paper.Canvas"]
+        let ordinary = ["com.synthmaker.Editor", synth + "Lab", "org.paper.Canvas", "Homebrew", "com.reverbco.2026"]
+        let optional = ["ms-playwright", "PlainVendorFolder", "com.apple.Music"]
         let excluded = "CloudKit.fixture"
         let caches = home.appendingPathComponent("Library/Caches", isDirectory: true)
-        for name in family + ordinary + [excluded] {
+        for name in family + ordinary + optional + [sibling, excluded] {
             let folder = caches.appendingPathComponent(name, isDirectory: true)
             try manager.createDirectory(at: folder, withIntermediateDirectories: true)
             try Data(repeating: 7, count: 4096).write(to: folder.appendingPathComponent("license.fixture"))
@@ -284,18 +269,23 @@ enum CleanerEligibilityTests {
         func matches(_ item: Item, _ url: URL) -> Bool {
             item.url.resolvingSymlinksInPath().path == url.resolvingSymlinksInPath().path
         }
-        let before = scan(pluginIDs: installedAudioPluginBundleIDs())
+        let before = CleanerScanFlowTests.scanFixture(installedApps: apps)
         guard let oldCache = before.first(where: { $0.category == .caches && $0.detail == synth }),
               let oldLeftoverCache = before.first(where: { matches($0, caches.appendingPathComponent(reverb)) }),
               let oldPreference = before.first(where: { matches($0, preference) }) else {
             suite.expect(false, "the fixture must offer the two caches and preference before plugin installation")
             return
         }
-        suite.expect(oldCache.recommended && canRemove(oldCache),
+        suite.expect(oldCache.recommended && canRemove(oldCache, installed: apps),
                      "the Synth cache starts recommended while a same-vendor app is installed")
         suite.expect([oldLeftoverCache, oldPreference].allSatisfy {
             $0.category == .leftovers && !$0.recommended && canRemove($0, installed: apps)
         }, "without an installed Reverb, its cache and preference are optional leftovers")
+        let siblingURL = caches.appendingPathComponent(sibling)
+        let beforeSibling = before.filter { matches($0, siblingURL) }
+        suite.expect(beforeSibling.count == 1 && beforeSibling.allSatisfy {
+            $0.category == .leftovers && !$0.recommended && !$0.include
+        }, "the absent Delay plugin starts with one unchecked leftover cache")
 
         try plugin("Audio/Plug-Ins/Components/Synth.component", id: synth)
         try plugin("Audio/Plug-Ins/VST3/Vendor/Suite/Reverbs/Reverb.vst3", id: reverb,
@@ -304,34 +294,66 @@ enum CleanerEligibilityTests {
                    in: URL(fileURLWithPath: systemLibrary))
         try plugin("Audio/Plug-Ins/Components/Readme.txt.d", id: "com.ignored.NotAPlugin")
         let pluginIDs = installedAudioPluginBundleIDs()
-        let installed = apps.union(pluginIDs)
         suite.expect(pluginIDs == [synth.lowercased(), reverb.lowercased(), "com.compco.comp"],
                      "the inventory includes deeply nested plugins and reads both libraries")
 
-        let after = scan(pluginIDs: pluginIDs)
+        let after = CleanerScanFlowTests.scanFixture(installedApps: apps)
         suite.expect(!after.contains { matches($0, preference) }
                      && after.contains { matches($0, orphan) && $0.category == .leftovers },
                      "only the uninstalled plugin's preference is offered")
-        suite.expect(!canRemove(oldCache, audioPluginIDs: pluginIDs),
+        suite.expect(!canRemove(oldCache, installed: apps, audioPluginIDs: pluginIDs),
                      "installing Synth protects a stale recommended cache even in a cache-only selection")
         suite.expect([oldLeftoverCache, oldPreference].allSatisfy {
-            !canRemove($0, installed: installed, audioPluginIDs: pluginIDs)
+            !canRemove($0, installed: apps, audioPluginIDs: pluginIDs)
         }, "installing Reverb protects its cache and preference even after a stale leftover selection")
         let listedCaches = after.filter { CleanerSupport.isDirectChild($0.url, of: caches) }
+        let afterSibling = listedCaches.filter { matches($0, siblingURL) }
+        suite.expect(afterSibling.count == 1 && afterSibling.allSatisfy { row in
+            var selected = row
+            selected.include = true
+            return row.category == .leftovers && !row.recommended && !row.include
+                && canRemove(selected, installed: apps, audioPluginIDs: pluginIDs)
+        }, "installing only Reverb leaves its sibling cache available solely for manual selection")
+        let vendorApps = apps.union([reverb.lowercased()])
+        let withApp = CleanerScanFlowTests.scanFixture(installedApps: vendorApps).filter { matches($0, siblingURL) }
+        suite.expect(withApp.count == 1 && withApp.allSatisfy { $0.category == .caches && $0.recommended && $0.include }
+                     && afterSibling.allSatisfy { !canRemove($0, installed: vendorApps, audioPluginIDs: pluginIDs) },
+                     "an app sharing the Reverb plugin ID owns sibling caches and invalidates the stale leftover")
+        if let selectedCache = withApp.first {
+            suite.expect(canRemove(selectedCache, installed: vendorApps, audioPluginIDs: pluginIDs),
+                         "the recommended sibling cache remains eligible while the vendor app is installed")
+            suite.expect(!canRemove(selectedCache, installed: apps, audioPluginIDs: pluginIDs),
+                         "removing the vendor app blocks the old recommendation when only its plugin remains")
+        }
         for name in family + [excluded] {
             suite.expect(!listedCaches.contains { $0.url.lastPathComponent == name }
                          && !CleanerPolicy.precheckCacheEntry(name, audioPluginIDs: pluginIDs),
                          "neither leftovers nor recommended caches offer \(name)")
         }
+        var appLookups = Set<String>()
+        func currentApps(for name: String) -> Set<String> {
+            appLookups.insert(name)
+            return apps
+        }
         for name in ordinary {
             suite.expect(listedCaches.contains {
-                $0.detail == name && $0.category == .caches && $0.recommended
-                    && canRemove($0, audioPluginIDs: pluginIDs)
-            }, "an ordinary app cache remains eligible at the plugin ID boundary: \(name)")
+                $0.detail == name && $0.category == .caches && $0.recommended && $0.include
+                    && canRemove($0, installed: currentApps(for: name), audioPluginIDs: pluginIDs)
+            }, "an ordinary cache remains selected in an unattended scan: \(name)")
         }
+        for name in optional {
+            suite.expect(listedCaches.contains { row in
+                var selected = row
+                selected.include = true
+                return row.detail == name && row.category == .caches && !row.recommended && !row.include
+                    && canRemove(selected, installed: currentApps(for: name), audioPluginIDs: pluginIDs)
+            }, "a review-only cache remains unchecked and can be selected manually: \(name)")
+        }
+        suite.expect(appLookups == ["com.synthmaker.Editor", synth + "Lab"],
+                     "only attributable cache siblings of a plugin consult the installed apps before removal")
         for category in [CleanerSupport.Category.caches, .leftovers] {
             let stale = Item(url: caches.appendingPathComponent(excluded), category: category, detail: excluded)
-            suite.expect(!canRemove(stale, installed: installed, audioPluginIDs: pluginIDs),
+            suite.expect(!canRemove(stale, installed: apps, audioPluginIDs: pluginIDs),
                          "an excluded cache cannot be removed through \(category)")
         }
     }
