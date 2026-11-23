@@ -103,7 +103,7 @@ def main():
           + "extension SettingsFileTests {\nenum Backup {\n"
           + "".join(declaration(backup, prefix) for prefix in [
               "    static func write(to ", "    static func readSettings(at ",
-              "    static func apply(settings:", "    static var configFileURL:",
+              "    static func apply(settings:", "    static var configFileURL:", "    static func writeConfigFile(",
               "    static func applyConfigFileAtLaunch(", "    static func anotherInstanceIsRunning("])
           + "}\n}\n")
     slider_area = "Sources/Vorssaint/UI/SliderScrollArea.swift"
