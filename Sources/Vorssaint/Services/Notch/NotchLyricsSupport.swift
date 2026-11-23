@@ -116,11 +116,19 @@ enum NotchLyricsSupport {
     static let maximumBytes = 128 * 1024
     static let maximumLines = 2000
 
-    /// The music wallpaper, switched on and consented to, runs the same finder
-    /// as the island's lyrics page, with or without the island.
+    /// Lyrics on the desktop, switched on and consented to, run the same
+    /// finder as the island's lyrics page, with or without the island. The
+    /// song wallpaper alone shows only the cover and looks nothing up.
     static func wallpaperActive(in defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: DefaultsKey.lyricsWallpaperEnabled)
+        showsLyricsOnDesktop(in: defaults)
             && defaults.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked)
+    }
+
+    /// "Show lyrics" on the desktop. Until it is set it follows the song
+    /// wallpaper's switch, which used to bring the lyrics along.
+    static func showsLyricsOnDesktop(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.lyricsOnWallpaper) as? Bool
+            ?? defaults.bool(forKey: DefaultsKey.lyricsWallpaperEnabled)
     }
 
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {

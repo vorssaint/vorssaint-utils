@@ -1958,6 +1958,7 @@ final class WindowLayoutService: ObservableObject {
         let target = layoutHit == nil
             ? edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now)) : nil
         if target != drag.target || layoutHit != drag.layoutHit {
+            if layoutHit != drag.layoutHit { noteSnapLayoutsHover(layoutHit, atQuartzPoint: location) }
             drag.target = target
             drag.layoutHit = layoutHit
             if case .zone(_, let action)? = layoutHit,
@@ -2015,18 +2016,69 @@ final class WindowLayoutService: ObservableObject {
                 DiagnosticLog.log("snap-layouts: macOS did not move window \(drag.key.windowID) to space \(space)")
                 NSSound.beep()
             }
-        case .zone(_, let action):
+        case .zone(let layout, let action):
             guard canSetFrame(on: drag.window), let currentFrame = frame(of: drag.window),
                   let placement = snapLayoutPlacement(action, atQuartzPoint: pointer) else { return }
             var processID = pid_t(0)
             guard AXUIElementGetPid(drag.window, &processID) == .success, processID == drag.key.processID else { return }
             pruneWindowState(keeping: drag.key)
+            coverSnapLanding(placement.frame)
+            defer { beginSnapAssist(layout: layout, placed: action, windowID: drag.key.windowID, pointer: pointer) }
             _ = applyPlacement(action,
                                to: WindowLayoutTarget(window: drag.window, key: drag.key, frame: currentFrame),
                                visibleFrame: placement.visibleFrame,
                                historyFrame: WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size),
                                cyclesRepeatedAction: false)
         }
+    }
+
+    /// A pause over another desktop takes the held window there; leaving it cancels.
+    private func noteSnapLayoutsHover(_ hit: WindowSnapLayoutsHit?, atQuartzPoint point: CGPoint) {
+        guard case .space(let space)? = hit, WindowSpaceCarry.canCarry else {
+            WindowSpaceCarry.shared.cancel()
+            return
+        }
+        WindowSpaceCarry.shared.hover(space, pointer: appKitPoint(fromQuartz: point)) {
+            NSEvent.pressedMouseButtons & 1 == 1
+        }
+    }
+
+    /// The new place is covered while the window is moved and resized there.
+    private func coverSnapLanding(_ frame: CGRect) {
+        WindowSnapLandingCover.shared.cover(frame)
+    }
+
+    /// The layout's other parts offer the remaining windows, as Windows' Snap Assist does.
+    private func beginSnapAssist(layout id: String, placed: WindowLayoutAction, windowID: CGWindowID, pointer: CGPoint) {
+        guard let layout = WindowSnapLayoutsSupport.layouts.first(where: { $0.id == id }) else { return }
+        let zones = layout.zones.filter { $0 != placed }.compactMap { action -> (action: WindowLayoutAction, frame: CGRect)? in
+            snapLayoutPlacement(action, atQuartzPoint: pointer).map { (action, $0.frame) }
+        }
+        let visibleFrame = snapLayoutPlacement(placed, atQuartzPoint: pointer)?.visibleFrame
+        WindowSnapAssist.shared.begin(zones: zones, excluding: windowID) { [weak self] candidate, action in
+            guard let self, let visibleFrame else { return }
+            self.placeAssisted(candidate, action: action, visibleFrame: visibleFrame)
+        }
+    }
+
+    /// Puts a window Snap Assist offered into its part, then brings it forward.
+    private func placeAssisted(_ candidate: WindowSnapAssistCandidate, action: WindowLayoutAction, visibleFrame: CGRect) {
+        guard AXIsProcessTrusted(),
+              let resolved = resolveEdgeSnapWindow(
+                pressCandidate: WindowServerWindowCandidate(pid: candidate.pid, windowID: candidate.windowID,
+                                                            frame: candidate.frame),
+                onScreenWindowIDs: onScreenWindowIDs()),
+              canSetFrame(on: resolved.window), let current = frame(of: resolved.window) else { return }
+        let target = WindowLayoutGeometry.rect(for: action, current: visibleFrame, visibleFrame: visibleFrame,
+                                               windowGap: WindowLayoutGaps.windowGap,
+                                               screenGap: WindowLayoutGaps.screenGap,
+                                               marginPercent: WindowLayoutMargin.percent)
+        coverSnapLanding(target.integral)
+        pruneWindowState(keeping: resolved.key)
+        _ = applyPlacement(action, to: WindowLayoutTarget(window: resolved.window, key: resolved.key, frame: current),
+                           visibleFrame: visibleFrame, historyFrame: current, cyclesRepeatedAction: false)
+        AXUIElementPerformAction(resolved.window, kAXRaiseAction as CFString)
+        NSRunningApplication(processIdentifier: candidate.pid)?.activate(options: [])
     }
 
     /// The moment a drag is confirmed to carry the window: when it was sitting

@@ -899,7 +899,8 @@ enum DefaultsKey {
     static let notchAccessoriesEnabled = "notchAccessoriesEnabled"
     static let notchLyricsEnabled = "notchLyricsEnabled"
     static let notchLyricsOnline = "notchLyricsOnline"
-    static let lyricsWallpaperEnabled = "lyricsWallpaperEnabled"
+    static let lyricsWallpaperEnabled = "lyricsWallpaperEnabled" // the song wallpaper: the cover across the desktop
+    static let lyricsOnWallpaper = "lyricsOnWallpaper" // synced lyrics on the desktop, over the song wallpaper or the normal one
     static let lyricsWallpaperStyle = "lyricsWallpaperStyle"
     static let lyricsLockScreenEnabled = "lyricsLockScreenEnabled"
     static let lyricsKeepAwake = "lyricsKeepAwake"

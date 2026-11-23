@@ -22,7 +22,12 @@ final class WindowSnapLayoutsPanel {
     private var panel: NSPanel?
     private var closeGeneration = 0
 
-    private init() {}
+    private var screen: NSScreen?
+
+    private init() {
+        // A desktop reached while the window is held is marked at once.
+        WindowSpaceCarry.shared.onArrival = { [weak self] in self?.refreshSpaces() }
+    }
 
     var isShowing: Bool { model.open }
 
@@ -30,9 +35,8 @@ final class WindowSnapLayoutsPanel {
     func show(near point: CGPoint) {
         guard let screen = NSScreen.screens.first(where: { NSMouseInRect(point, $0.frame, false) }) ?? NSScreen.main
         else { return }
-        let topInset = max(screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY, 24)
-        let geometry = WindowSnapLayoutsSupport.geometry(screen: screen.frame, topInset: topInset,
-                                                         spaces: Self.spaces(on: screen))
+        self.screen = screen
+        let geometry = Self.geometry(on: screen)
         closeGeneration += 1
         model.strings = WindowSnapLayoutsStrings.localized(L10n.shared.language)
         model.geometry = geometry
@@ -55,7 +59,19 @@ final class WindowSnapLayoutsPanel {
         return hit
     }
 
+    /// The desktops again, after one changed under the held window.
+    func refreshSpaces() {
+        guard model.open, let screen else { return }
+        model.geometry = Self.geometry(on: screen)
+    }
+
+    private static func geometry(on screen: NSScreen) -> WindowSnapLayoutsGeometry {
+        let topInset = max(screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY, 24)
+        return WindowSnapLayoutsSupport.geometry(screen: screen.frame, topInset: topInset, spaces: spaces(on: screen))
+    }
+
     func hide() {
+        WindowSpaceCarry.shared.cancel()
         guard model.open else { return }
         withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
             model.open = false

@@ -118,6 +118,14 @@ enum WindowSnapLayoutsSupport {
         return desktops.enumerated().map { WindowSnapLayoutsSpace(id: $1, number: $0 + 1, current: $1 == current) }
     }
 
+    /// How many "move a space" presses reach `target` from the desktop
+    /// showing: positive to the right. Nil when either is not in the row.
+    static func steps(to target: UInt64, topology row: (spaces: [UInt64], current: UInt64?)?) -> Int? {
+        guard let row, let current = row.current,
+              let from = row.spaces.firstIndex(of: current), let to = row.spaces.firstIndex(of: target) else { return nil }
+        return to - from
+    }
+
     /// `screen` is the display's frame and `topInset` the height of its menu
     /// bar or camera housing, both in AppKit points.
     static func geometry(screen: CGRect, topInset: CGFloat,

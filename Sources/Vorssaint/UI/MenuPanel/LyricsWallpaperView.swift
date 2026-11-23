@@ -3,9 +3,11 @@
 
 import SwiftUI
 
-/// Full-screen music wallpaper. The cover fills the screen under a veil, the
-/// cover's own colours drift over it, and the lyrics sit on top as a graph
-/// of stars or as an ordinary scrolling column, as the style says.
+/// Full-screen music on the desktop. With the song wallpaper on, the cover
+/// fills the screen under a veil and its own colours drift over it. With Show
+/// lyrics on, the lyrics sit on top as a graph of stars or as an ordinary
+/// scrolling column, as the style says, over the cover or, with the song
+/// wallpaper off, straight over the normal wallpaper.
 struct LyricsWallpaperView: View {
     @ObservedObject var service: LyricsWallpaperService
     @ObservedObject private var music = NotchMusicService.shared
@@ -14,11 +16,19 @@ struct LyricsWallpaperView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop
-            switch mode {
-            case .constellation: graph
-            case .scroll: scrolling
-            default: textMode
+            if service.songWallpaper { backdrop }
+            if service.showLyrics {
+                Group {
+                    switch mode {
+                    case .constellation: graph
+                    case .scroll: scrolling
+                    default: textMode
+                    }
+                }
+                // Over a wallpaper of any colour, a soft shadow keeps the words readable.
+                .shadow(color: .black.opacity(service.songWallpaper ? 0 : 0.6), radius: 10, y: 2)
+            } else {
+                caption
             }
         }
         .ignoresSafeArea()
@@ -27,10 +37,18 @@ struct LyricsWallpaperView: View {
     // MARK: Backdrop
 
     /// The cover, the palette's moving colour and a vignette; the first two
-    /// cross-fade together on a track change.
+    /// cross-fade together on a track change. The new cover fades in over the
+    /// old one, which stays opaque beneath it, so the change never passes
+    /// through black.
     private var backdrop: some View {
         ZStack {
             Color.black
+            if let previous = service.previousCover {
+                ZStack {
+                    Image(nsImage: previous).resizable().interpolation(.high).scaledToFill()
+                    Color.black.opacity(0.4)
+                }
+            }
             ZStack {
                 if let cover = service.cover {
                     Image(nsImage: cover).resizable().interpolation(.high).scaledToFill()
@@ -39,7 +57,7 @@ struct LyricsWallpaperView: View {
                 AuroraBackdrop(palette: service.palette).blendMode(.screen).opacity(0.75)
             }
             .id(service.coverID)
-            .transition(.opacity)
+            .transition(.asymmetric(insertion: .opacity, removal: .identity))
             RadialGradient(colors: [.clear, .black.opacity(0.5)], center: .center, startRadius: 220, endRadius: 1500)
         }
         .clipped()

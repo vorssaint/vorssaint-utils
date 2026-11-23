@@ -52,6 +52,11 @@ enum WindowSnapLayoutsTests {
                         && withSpaces.hit(at: CGPoint(x: chips[1].frame.midX, y: chips[1].frame.midY)) == nil,
                      "another desktop takes the window; the one already showing does not")
 
+        suite.expect(WindowSnapLayoutsSupport.steps(to: 9, topology: ([4, 7, 9], 4)) == 2
+                        && WindowSnapLayoutsSupport.steps(to: 4, topology: ([4, 7, 9], 9)) == -2
+                        && WindowSnapLayoutsSupport.steps(to: 5, topology: ([4, 7, 9], 4)) == nil,
+                     "a held window's trip to a desktop counts the steps either way, and none to one not in the row")
+
         let narrow = WindowSnapLayoutsSupport.geometry(screen: CGRect(x: 0, y: 0, width: 520, height: 800), topInset: 24)
         suite.expect(narrow.panel.width <= 520 && narrow.panel.minX >= 0,
                      "on a narrow display the cards shrink rather than run off the screen")

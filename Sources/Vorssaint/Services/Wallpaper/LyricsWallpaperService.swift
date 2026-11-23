@@ -6,10 +6,11 @@ import Combine
 import IOKit.pwr_mgt
 import SwiftUI
 
-/// Music wallpaper: while a song plays, the desktop shows its cover in full
-/// quality behind time-synced lyrics. The window sits at desktop level, below
-/// icons and every app, and disappears when nothing plays so the real
-/// wallpaper returns. Lyrics, their matching and their timing offset come from
+/// Music on the desktop, as two switches. The song wallpaper shows the cover
+/// in full quality across the desktop; Show lyrics puts time-synced lyrics on
+/// top of it, or, with the song wallpaper off, over the normal wallpaper. The
+/// window sits at desktop level, below icons and every app, and disappears
+/// when nothing plays so the real wallpaper returns. Lyrics, their matching and their timing offset come from
 /// Vorssaint's own lyrics finder (the one behind the island's lyrics page);
 /// only songs it cannot find go on to the extra catalogs for regional music.
 final class LyricsWallpaperService: ObservableObject {
@@ -25,6 +26,12 @@ final class LyricsWallpaperService: ObservableObject {
     @Published private(set) var coverID = 0
     /// The cover's dominant colours, most prominent first.
     @Published private(set) var palette: [Color] = []
+    /// The cover a new one fades in over, so a change of song never shows black between them.
+    @Published private(set) var previousCover: NSImage?
+    /// The cover fills the desktop. Off, the window is clear and only the lyrics show.
+    @Published private(set) var songWallpaper = false
+    /// The synced lyrics, over the cover or over the normal wallpaper.
+    @Published private(set) var showLyrics = false
 
     var lyrics: NotchLyrics? { finder.lyrics ?? extra }
     /// How far ahead of the player's clock the words are shown. Lyrics read as
@@ -48,6 +55,11 @@ final class LyricsWallpaperService: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var track: NotchMusicIdentity?
     private var coverSource: Data?
+    /// The song the cover on show belongs to; a new song's cover cross-fades, the same song's just replaces it.
+    private var coverTrack: NotchMusicIdentity?
+    /// The windows wait unseen for the first cover, so the desktop never flashes black while it decodes.
+    private var revealed = false
+    private var revealWork: DispatchWorkItem?
     private var extraLookup: Task<Void, Never>?
     private var hideWork: DispatchWorkItem?
     /// How long music may stay paused before the wallpaper goes, so a still screen is not kept animating for nothing.
@@ -59,24 +71,41 @@ final class LyricsWallpaperService: ObservableObject {
 
     private init() {}
 
+    /// The song wallpaper's switch.
     static var isEnabled: Bool { UserDefaults.standard.bool(forKey: DefaultsKey.lyricsWallpaperEnabled) }
+    /// The Show lyrics switch.
+    static var showsLyrics: Bool { NotchLyricsSupport.showsLyricsOnDesktop() }
 
-    /// Called once at launch and whenever the switch flips.
+    /// Called once at launch and whenever either switch flips.
     func sync() {
-        guard Self.isEnabled else { stop(); return }
-        // Lyrics are looked up online, so the first run asks before any song
-        // name leaves the Mac. Declining switches the wallpaper off.
-        guard UserDefaults.standard.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked) else {
+        let song = Self.isEnabled
+        let lyrics = Self.showsLyrics
+        guard song || lyrics else { stop(); return }
+        // Lyrics are looked up online, so the first time they are wanted the
+        // person is asked before any song name leaves the Mac. Declining turns
+        // the lyrics off and leaves the song wallpaper as it was.
+        if lyrics, !UserDefaults.standard.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked) {
             DispatchQueue.main.async { [weak self] in self?.askConsent() }
             return
         }
-        start()
+        let changed = song != songWallpaper || lyrics != showLyrics
+        let lyricsTurnedOn = lyrics && !showLyrics
+        songWallpaper = song
+        showLyrics = lyrics
+        guard running else { start(); return }
+        // A clear window and an opaque one are different windows.
+        if changed { rebuildWindows() }
+        if lyricsTurnedOn { playbackChanged(NotchMusicService.shared.playback) }
+        if !lyrics {
+            extraLookup?.cancel(); extraLookup = nil
+            extra = nil
+        }
     }
 
     private func askConsent() {
         let alert = NSAlert()
-        alert.messageText = "Allow the music wallpaper to look up lyrics?"
-        alert.informativeText = "While a song plays, Vorssaint shows its cover and synced lyrics on your desktop. "
+        alert.messageText = "Allow Vorssaint to look up lyrics for your desktop?"
+        alert.informativeText = "While a song plays, Vorssaint shows its synced lyrics on your desktop. "
             + "To find the lyrics it sends the song's title, artist, album and length to lrclib.net and, "
             + "for songs it does not have, the title and artist to music.163.com (NetEase). "
             + "Nothing else is sent, and nothing is recorded. You can turn this off any time in the Wallpaper panel."
@@ -86,7 +115,7 @@ final class LyricsWallpaperService: ObservableObject {
         let allowed = alert.runModal() == .alertFirstButtonReturn
         let defaults = UserDefaults.standard
         defaults.set(true, forKey: DefaultsKey.lyricsWallpaperConsentAsked)
-        defaults.set(allowed, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        if !allowed { defaults.set(false, forKey: DefaultsKey.lyricsOnWallpaper) }
         sync()
     }
 
@@ -94,6 +123,12 @@ final class LyricsWallpaperService: ObservableObject {
     /// close in the same turn, with no wait for a song or a lookup.
     func setEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        sync()
+    }
+
+    /// Show lyrics: on the song wallpaper, or over the normal one when that is off.
+    func setShowLyrics(_ shown: Bool) {
+        UserDefaults.standard.set(shown, forKey: DefaultsKey.lyricsOnWallpaper)
         sync()
     }
 
@@ -131,8 +166,12 @@ final class LyricsWallpaperService: ObservableObject {
         track = nil
         extra = nil
         cover = nil
+        previousCover = nil
+        coverTrack = nil
         palette = []
         coverSource = nil
+        songWallpaper = false
+        showLyrics = false
         setAwake(false)
         closeWindows()
         objectWillChange.send()
@@ -179,11 +218,12 @@ final class LyricsWallpaperService: ObservableObject {
         }
         showWindows()
         setAwake(playback.isPlaying)
-        updateCover(from: playback.track.artworkData)
-
         let identity = NotchMusicIdentity(playback)
+        updateCover(from: playback.track.artworkData, for: identity)
+
         // Vorssaint's finder does the matching, caching and offset memory.
-        finder.update(playback: playback, visible: true)
+        // The song wallpaper alone has no use for lyrics, so nothing is looked up.
+        if showLyrics { finder.update(playback: playback, visible: true) }
         guard identity != track else { return }
         track = identity
         extra = nil
@@ -193,7 +233,7 @@ final class LyricsWallpaperService: ObservableObject {
     private func finderChanged() {
         objectWillChange.send()
         // Not in its catalog: try the extra ones once for this song.
-        guard finder.lyrics == nil, extra == nil, extraLookup == nil, let identity = track,
+        guard showLyrics, finder.lyrics == nil, extra == nil, extraLookup == nil, let identity = track,
               finder.state == .unavailable || finder.state == .failed else { return }
         extraLookup = Task { [weak self] in
             let found = await LyricsFallbackSources.find(for: identity)
@@ -208,18 +248,40 @@ final class LyricsWallpaperService: ObservableObject {
     /// The cover at full quality, decoded once per image off the main thread:
     /// the island's own copy is a small thumbnail and looks soft across a
     /// whole display.
-    private func updateCover(from data: Data?) {
+    ///
+    /// A player often hands over the same song's artwork more than once as it
+    /// starts, a thumbnail and then the full image. Only a new song's cover
+    /// cross-fades; the same song's sharper copy simply replaces it, so the
+    /// desktop does not dip toward black on every copy.
+    private func updateCover(from data: Data?, for identity: NotchMusicIdentity) {
         guard data != coverSource else { return }
         coverSource = data
-        guard let data else { return }
+        guard let data else {
+            // A song with no artwork still lets the windows show.
+            if coverTrack != identity { reveal() }
+            return
+        }
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let image = ImageThumbnailer.thumbnail(data: data, pointSize: 1600, scale: 2)
             let colors = ArtworkPalette.colors(from: data).map { Color(nsColor: $0) }
             DispatchQueue.main.async {
                 guard let self, self.coverSource == data, let image else { return }
-                self.cover = image
-                self.palette = colors
-                self.coverID += 1
+                let newSong = self.coverTrack != identity || self.cover == nil
+                self.coverTrack = identity
+                if newSong {
+                    self.previousCover = self.cover
+                    self.cover = image
+                    self.palette = colors
+                    self.coverID += 1
+                } else {
+                    var plain = Transaction()
+                    plain.disablesAnimations = true
+                    withTransaction(plain) {
+                        self.cover = image
+                        self.palette = colors
+                    }
+                }
+                self.reveal()
             }
         }
     }
@@ -248,6 +310,19 @@ final class LyricsWallpaperService: ObservableObject {
 
     // MARK: Windows
 
+    /// Fades the waiting windows in. Lyrics alone show at once: a clear window has nothing to flash.
+    private func reveal() {
+        revealWork?.cancel(); revealWork = nil
+        guard !revealed else { return }
+        revealed = true
+        for window in windows.values where window.alphaValue < 1 {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.45
+                window.animator().alphaValue = 1
+            }
+        }
+    }
+
     private func showWindows() {
         let screens = NSScreen.screens
         let ids = Set(screens.map(\.displayID))
@@ -260,6 +335,15 @@ final class LyricsWallpaperService: ObservableObject {
             }
             windows[id] = makeWindow(for: screen)
         }
+        guard !revealed else { return }
+        if !songWallpaper || cover != nil {
+            reveal()
+        } else if revealWork == nil {
+            // A cover that never comes still lets the wallpaper show, a little later.
+            let work = DispatchWorkItem { [weak self] in self?.reveal() }
+            revealWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5, execute: work)
+        }
     }
 
     private func rebuildWindows() {
@@ -271,14 +355,18 @@ final class LyricsWallpaperService: ObservableObject {
     private func closeWindows() {
         windows.values.forEach { $0.orderOut(nil) }
         windows.removeAll()
+        revealed = false
+        revealWork?.cancel(); revealWork = nil
     }
 
     private func makeWindow(for screen: NSScreen) -> NSWindow {
         let window = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
         window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenNone]
-        window.isOpaque = true
-        window.backgroundColor = .black
+        // The song wallpaper covers the desktop; lyrics alone leave the normal wallpaper showing.
+        window.isOpaque = songWallpaper
+        window.backgroundColor = songWallpaper ? .black : .clear
+        window.alphaValue = revealed ? 1 : 0
         window.hasShadow = false
         window.ignoresMouseEvents = true
         window.isReleasedWhenClosed = false

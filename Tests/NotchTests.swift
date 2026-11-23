@@ -7,6 +7,31 @@ import AppKit
 import SwiftUI
 
 enum NotchTests {
+    /// Song wallpaper and Show lyrics are two switches; lyrics are looked up only for the second.
+    private static func desktopLyricsContracts(_ suite: TestSuite) {
+        let domain = "com.vorssaint.tests.desktop-lyrics"
+        let defaults = UserDefaults(suiteName: domain)!
+        defaults.removePersistentDomain(forName: domain)
+        defer { defaults.removePersistentDomain(forName: domain) }
+        defaults.set(true, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        defaults.set(true, forKey: DefaultsKey.lyricsWallpaperConsentAsked)
+        suite.expect(NotchLyricsSupport.showsLyricsOnDesktop(in: defaults) && NotchLyricsSupport.wallpaperActive(in: defaults),
+                     "until Show lyrics is set it follows the song wallpaper, as the one switch did before")
+        defaults.set(false, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        suite.expect(!NotchLyricsSupport.showsLyricsOnDesktop(in: defaults),
+                     "an untouched Show lyrics stays off with the song wallpaper off, so nothing appears unasked")
+        defaults.set(true, forKey: DefaultsKey.lyricsOnWallpaper)
+        suite.expect(NotchLyricsSupport.showsLyricsOnDesktop(in: defaults) && NotchLyricsSupport.wallpaperActive(in: defaults),
+                     "Show lyrics on its own puts the lyrics over the normal wallpaper")
+        defaults.set(true, forKey: DefaultsKey.lyricsWallpaperEnabled)
+        defaults.set(false, forKey: DefaultsKey.lyricsOnWallpaper)
+        suite.expect(!NotchLyricsSupport.wallpaperActive(in: defaults),
+                     "the song wallpaper alone looks no lyrics up")
+        defaults.set(true, forKey: DefaultsKey.lyricsOnWallpaper)
+        defaults.set(false, forKey: DefaultsKey.lyricsWallpaperConsentAsked)
+        suite.expect(!NotchLyricsSupport.wallpaperActive(in: defaults), "no lookup before the person has been asked")
+    }
+
     private static func railContracts(_ suite: TestSuite) {
         let domain = "com.vorssaint.tests.notch-fan-only"
         let defaults = UserDefaults(suiteName: domain)!
@@ -1762,6 +1787,7 @@ enum NotchTests {
         NotchMissionControlPollingTests.run(suite)
         activitySelectionContracts(suite)
         railContracts(suite)
+        desktopLyricsContracts(suite)
         musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)

@@ -226,9 +226,10 @@ struct NotchMusicView: View {
         }
     }
 
-    /// Opens the lyrics wallpaper page, as Lyrics and Up next open theirs.
+    /// Opens the song wallpaper page, as Lyrics and Up next open theirs.
     private var wallpaperButton: some View {
-        extraButton(.wallpaper, title: "Lyrics wallpaper", symbol: lyricsWallpaperOn ? "sparkles.tv.fill" : "sparkles.tv")
+        extraButton(.wallpaper, title: "Song wallpaper",
+                    symbol: lyricsWallpaperOn || NotchLyricsSupport.showsLyricsOnDesktop() ? "sparkles.tv.fill" : "sparkles.tv")
     }
 
     /// The island's way to its sections where its row does not hold it.

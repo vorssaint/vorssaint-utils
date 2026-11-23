@@ -339,6 +339,14 @@ enum WindowEdgeSnapRuntimeTests {
         var settleTimers: [CGWindowID: SettleTimer] = [:]
 
         func syncWithPreferences() {}
+        var landingCovers: [CGRect] = []
+        var assists: [(layout: String, placed: WindowLayoutAction)] = []
+        var hovers: [WindowSnapLayoutsHit?] = []
+        func noteSnapLayoutsHover(_ hit: WindowSnapLayoutsHit?, atQuartzPoint point: CGPoint) { hovers.append(hit) }
+        func coverSnapLanding(_ frame: CGRect) { landingCovers.append(frame) }
+        func beginSnapAssist(layout: String, placed: WindowLayoutAction, windowID: CGWindowID, pointer: CGPoint) {
+            assists.append((layout, placed))
+        }
         func edgeSnapConflictsWithWindowGesture(flags: CGEventFlags) -> Bool { false }
         func edgeSnapQuartzScreenFrames() -> [CGRect] { [CGRect(x: 0, y: 0, width: 1440, height: 900)] }
         var menuBarScreenTopY: CGFloat { NSScreen.primary.frame.maxY }
@@ -630,6 +638,9 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.main.drain()
         suite.expect(zone.placedActions == [.leftThird] && !picker.isShowing,
                      "dropping on a part places the window there and closes the picker")
+        suite.expect(zone.landingCovers.count == 1 && zone.assists.map(\.layout) == ["thirds"]
+                        && zone.assists.map(\.placed) == [.leftThird],
+                     "the new place is covered while the window lands, then the layout's other parts offer windows")
 
         reset()
         edgeSnappingEnabled = false
@@ -642,8 +653,9 @@ enum WindowEdgeSnapRuntimeTests {
         DispatchQueue.drainLookups()
         DispatchQueue.main.drain()
         suite.expect(SpaceWindowBridge.moves.map(\.1) == [42] && SpaceWindowBridge.moves.first?.0 == windowID
-                        && space.placedActions.isEmpty,
+                        && space.placedActions.isEmpty && space.assists.isEmpty,
                      "dropping on a desktop moves the window to that Space and leaves its frame alone")
+        suite.expect(space.hovers.contains(.space(42)), "resting on a desktop is noted while the window is still held (\(space.hovers))")
 
         reset()
         edgeSnappingEnabled = false

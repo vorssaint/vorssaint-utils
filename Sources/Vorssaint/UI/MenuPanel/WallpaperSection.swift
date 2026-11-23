@@ -109,12 +109,17 @@ struct WallpaperSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
-            Toggle("Music wallpaper with synced lyrics", isOn: Binding(
+            Toggle("Song wallpaper", isOn: Binding(
                 get: { UserDefaults.standard.bool(forKey: DefaultsKey.lyricsWallpaperEnabled) },
-                set: {
-                    UserDefaults.standard.set($0, forKey: DefaultsKey.lyricsWallpaperEnabled)
-                    LyricsWallpaperService.shared.sync()
-                }
+                set: { LyricsWallpaperService.shared.setEnabled($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            // Over the song wallpaper, or over the normal one while that is off.
+            Toggle("Show lyrics on the wallpaper", isOn: Binding(
+                get: { NotchLyricsSupport.showsLyricsOnDesktop() },
+                set: { LyricsWallpaperService.shared.setShowLyrics($0) }
             ))
             .toggleStyle(.switch)
             .controlSize(.small)
