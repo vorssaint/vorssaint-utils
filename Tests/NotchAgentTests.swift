@@ -10,6 +10,15 @@ enum NotchAgentTests {
         let previous = AgentPricing.list
         let shipped = (try? Data(contentsOf: URL(fileURLWithPath: "Resources/agent-prices.json"))).flatMap(AgentPriceList.decode)
         suite.expect(shipped != nil, "the price list that ships with the app is valid")
+        let tone = AgentAlertTone.cashRegister(rate: 8_000)
+        let pcm = tone.dropFirst(44).withUnsafeBytes { Array($0.bindMemory(to: Int16.self)) }
+        suite.expect(tone.prefix(4) == Data("RIFF".utf8) && tone.count == 44 + 8_000 * 9 / 10 * 2,
+                     "the finished sound is a complete WAV of nine tenths of a second")
+        suite.expect(pcm.contains { abs(Int($0)) > Int(Int16.max) / 2 } && pcm.allSatisfy { $0 != Int16.min },
+                     "the finished sound is loud enough to hear and never clips")
+        suite.expect(AgentInputKind(rawValue: "question") == .question && AgentInputKind(rawValue: "permission") == .permission
+                     && AgentInputKind(rawValue: "other") == nil,
+                     "only the two announced kinds of input reach the island")
         AgentPricing.install(shipped ?? .empty)
         defer { AgentPricing.install(previous) }
         priceList(suite, shipped: shipped ?? .empty)
