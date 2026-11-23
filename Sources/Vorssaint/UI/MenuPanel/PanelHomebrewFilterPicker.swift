@@ -133,6 +133,8 @@ private struct FilterControl: NSViewRepresentable {
                 window.makeFirstResponder(showSegments ? segments : buttons[selection.wrappedValue.rawValue])
             }
             old.removeFromSuperview()
+            // The island's panel keeps its key view loop when subviews change.
+            if let window, !window.autorecalculatesKeyViewLoop { window.recalculateKeyViewLoop() }
         }
 
         @objc private func chooseSegment() {

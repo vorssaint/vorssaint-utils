@@ -202,28 +202,33 @@ enum PanelHomebrewFilterPickerTests {
 
     @MainActor private static func checkFocusTransfers(_ suite: TestSuite, window: NSWindow,
                                                        usual: Fixture, changed: Fixture, width: CGFloat) {
-        let size = CGSize(width: width, height: 150)
+        let size = CGSize(width: width, height: 180)
         let content = NSView(frame: CGRect(origin: .zero, size: size))
         window.contentView = content
         window.setContentSize(size)
         let host = NSHostingView(rootView: usual)
         host.frame = CGRect(x: 0, y: 30, width: width, height: 120)
-        let field = NSTextField(string: "package name")
-        field.frame = CGRect(x: 0, y: 0, width: width, height: 24)
+        let before = NSTextField(string: "before filter")
+        before.frame = CGRect(x: 0, y: 154, width: width, height: 24)
+        let after = NSTextField(string: "package name")
+        after.frame = CGRect(x: 0, y: 0, width: width, height: 24)
+        content.addSubview(before)
         content.addSubview(host)
-        content.addSubview(field)
+        content.addSubview(after)
+        // The island hosts SwiftUI inside an AppKit panel with a fixed key view loop.
+        window.autorecalculatesKeyViewLoop = false
         func settle() {
             content.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.03))
             content.layoutSubtreeIfNeeded()
         }
-        func fieldHasFocus() -> Bool {
+        func fieldHasFocus(_ field: NSTextField) -> Bool {
             if window.firstResponder === field { return true }
             guard let editor = field.currentEditor() else { return false }
             return window.firstResponder === editor
         }
         func moveToField(_ context: String) {
-            suite.expect(window.makeFirstResponder(field) && fieldHasFocus(), "the text field receives focus: \(context)")
+            suite.expect(window.makeFirstResponder(after) && fieldHasFocus(after), "the text field receives focus: \(context)")
         }
         func activeControl(radio: Bool) -> NSControl? {
             if radio {
@@ -232,8 +237,32 @@ enum PanelHomebrewFilterPickerTests {
             }
             return segments(in: host)
         }
+        func checkTabOrder(_ target: NSControl, _ context: String) {
+            func filterHasFocus() -> Bool {
+                (window.firstResponder as? NSControl)?.isDescendant(of: host) == true
+            }
+            for backwards in [false, true] {
+                let key = backwards ? "Shift-Tab" : "Tab"
+                let destination = backwards ? before : after
+                if backwards { window.selectKeyView(preceding: after) }
+                else { window.selectKeyView(following: before) }
+                suite.expect(target.canBecomeKeyView ? filterHasFocus() : fieldHasFocus(destination),
+                             "\(key) enters the filter when Keyboard navigation allows it: \(context)")
+
+                // AppKit can visit each radio on the way out of the filter.
+                suite.expect(window.makeFirstResponder(target) && window.firstResponder === target,
+                             "the selected filter control has focus before pressing \(key): \(context)")
+                for _ in PanelHomebrewFilter.allCases where filterHasFocus() {
+                    if backwards { window.selectPreviousKeyView(nil) }
+                    else { window.selectNextKeyView(nil) }
+                }
+                suite.expect(fieldHasFocus(destination), "\(key) reaches the neighboring field: \(context)")
+            }
+        }
         usual.model.selection = .cask
         settle()
+        window.recalculateKeyViewLoop()
+        if let segments = segments(in: host) { checkTabOrder(segments, "initial segments") }
         for timing in FieldFocus.allCases {
             for toRadio in [true, false] {
                 let context = "\(toRadio ? "segments to radios" : "radios to segments"), \(timing), \(width) pt"
@@ -256,8 +285,9 @@ enum PanelHomebrewFilterPickerTests {
                     suite.expect(false, "the new control is visible: \(context)")
                     continue
                 }
-                let expected = timing == .keepFilterFocus ? window.firstResponder === target : fieldHasFocus()
+                let expected = timing == .keepFilterFocus ? window.firstResponder === target : fieldHasFocus(after)
                 suite.expect(expected, "focus stays with the user's control: \(context), got \(String(describing: window.firstResponder))")
+                if timing == .keepFilterFocus { checkTabOrder(target, context) }
             }
         }
     }
