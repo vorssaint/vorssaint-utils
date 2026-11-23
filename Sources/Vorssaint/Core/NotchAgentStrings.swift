@@ -621,7 +621,7 @@ extension NotchAgentStrings {
         empty: "Encara no hi ha cap ús del Claude Code, el Codex, l’OpenCode, el GitHub Copilot ni el Cursor. Apareixerà aquí tan bon punt algun d’aquests agents treballi en aquest Mac.",
         loading: "S’està llegint l’ús…",
         noCards: "Tria què mostra aquesta pàgina a la configuració de la Dynamic Island.",
-        unpriced: "Alguns models no tenen preu conegut, així que això és un mínim.",
+        partialCostNote: "Si falten recomptes de segments o preus de models, els costos poden quedar incomplets. Qualsevol import que es mostri és un mínim. Un guió indica que el cost és desconegut.",
         streak: "Dies seguits",
         activeDays: "Dies actius",
         busiestDay: "Dia de més activitat",

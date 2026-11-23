@@ -301,6 +301,8 @@ extension KeepAwakeAutomationStrings {
         externalDisplayActive: "Actiu mentre hi hagi una pantalla externa connectada",
         powerToggle: "Corrent",
         powerActive: "Actiu mentre estigui connectat al corrent",
+        powerDisconnectDelay: "Espera després de desconnectar el corrent",
+        waitingForPower: "S’està esperant que torni el corrent…",
         runningAppsToggle: "Apps",
         runningAppsActive: "Actiu mentre s’executi una app seleccionada",
         runningAppsListTitle: "Apps seleccionades",
