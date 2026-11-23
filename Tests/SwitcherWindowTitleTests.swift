@@ -97,8 +97,10 @@ enum SwitcherWindowTitleTests {
         let watcher = SwitcherWindowTitles()
         defer { watcher.stop() }
         var reads: [pid_t] = []
+        var attachedAtRead = 0
         watcher.onChange = { owner in
             reads.append(owner)
+            attachedAtRead = attached.count
             if owner == document.windowOwnerPID {
                 DispatchQueue.main.async { service.updateSessionTitles(from: [renamed]) }
             }
@@ -121,14 +123,34 @@ enum SwitcherWindowTitleTests {
         deliver()
         watcher.refreshUnobserved(in: service.sessionItems, accessibilityGranted: true)
         deliver()
-        suite.expect(reads == [11], "only the missing AX element needs a reread beside a watched window")
+        suite.expect(reads == [21, 11], "the new watch reconciles once and only the CG-only window rereads on demand")
         reads = []
         let appeared = AXUIElement(9)
-        watcher.update([1: healthy, 9: appeared])
-        deliver()
+        let elements: [CGWindowID: AXUIElement] = [1: healthy, 9: appeared]
+        watcher.update(elements)
+        service.appendSearchText(" final")
+        renamed.title = "Budget final"
+        DispatchQueue.worker.drain()
+        suite.expect(appeared.attempts == 1 && reads.isEmpty && service.windows.isEmpty,
+                     "a rename before the first subscription leaves the typed query waiting for reconciliation")
+        DispatchQueue.main.drain()
+        suite.expect(reads == [11] && attachedAtRead == 2 && service.searchQuery == "Budget final"
+                     && service.windows == [renamed] && service.selectedItemID == renamed.id,
+                     "attaching the first successful subscription finds and selects the renamed document without an event")
+
+        reads = []
+        watcher.update(elements)
         watcher.refreshUnobserved(in: service.sessionItems, accessibilityGranted: true)
-        suite.expect(appeared.attempts == 1 && reads.isEmpty,
-                     "a CG-only window stops requesting reads after its AX element appears and subscribes")
+        deliver()
+        suite.expect(createAttempts == 2 && healthy.attempts == 1 && appeared.attempts == 1 && reads.isEmpty,
+                     "readopting the same elements and opening again reuses both watches without another title read")
+
+        let replacement = AXUIElement(9)
+        watcher.update([1: healthy, 9: AXUIElement(9)])
+        watcher.update([1: healthy, 9: replacement])
+        deliver()
+        suite.expect(replacement.attempts == 1 && attached.count == 2 && reads.isEmpty,
+                     "replacing a pending AX handle for a covered window cannot attach twice or start another reread")
     }
 
     static func run(_ suite: TestSuite) {

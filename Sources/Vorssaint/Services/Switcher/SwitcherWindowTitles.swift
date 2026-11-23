@@ -37,20 +37,16 @@ final class SwitcherWindowTitles {
                 continue
             }
             elements[pid] = windows
-            observed.removeValue(forKey: pid)
             let request = UUID()
             let generation = generation
             pending[pid] = request
             queue.async { [self] in
                 func active() -> Bool { lifecycleLock.withLock { self.generation == generation } }
                 guard active() else { return }
-                var recovered = false
                 func register(_ operation: () -> AXError) -> AXError {
                     let result = operation()
                     guard result == .cannotComplete, active() else { return result }
-                    let retry = operation()
-                    if retry == .success || retry == .notificationAlreadyRegistered { recovered = true }
-                    return retry
+                    return operation()
                 }
                 var created: AXObserver?
                 let result = register { AXObserverCreate(pid, Self.callback, &created) }
@@ -67,16 +63,17 @@ final class SwitcherWindowTitles {
                         if added == .success || added == .notificationAlreadyRegistered { accepted.insert(id) }
                     }
                 }
-                DispatchQueue.main.async { [self, accepted, recovered] in
+                DispatchQueue.main.async { [self, accepted] in
                     guard self.generation == generation, pending[pid] == request else { return }
                     detach(pid: pid)
                     pending.removeValue(forKey: pid)
-                    observed[pid] = accepted
+                    let previouslyObserved = observed.updateValue(accepted, forKey: pid) ?? []
                     if let observer, !accepted.isEmpty {
                         observers[pid] = observer
                         CFRunLoopAddSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .commonModes)
-                        // A change before the retry succeeded won't produce a notification.
-                        if recovered { onChange?(pid) }
+                        // A newly covered window may have been renamed since the snapshot.
+                        // Compare window IDs so fresh AX handles from that reread cannot trigger another.
+                        if !accepted.isSubset(of: previouslyObserved) { onChange?(pid) }
                     }
                 }
             }
@@ -89,9 +86,10 @@ final class SwitcherWindowTitles {
         guard generation != nil, accessibilityGranted else { return }
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let owners = Set(items.compactMap { item -> pid_t? in
-            guard let id = item.windowID, item.pid != ownPID, item.windowOwnerPID != ownPID,
-                  observed[item.windowOwnerPID]?.contains(id) != true else { return nil }
-            return item.windowOwnerPID
+            let owner = item.windowOwnerPID
+            guard let id = item.windowID, item.pid != ownPID, owner != ownPID,
+                  pending[owner] != nil || observed[owner]?.contains(id) != true else { return nil }
+            return owner
         })
         for pid in owners { onChange?(pid) }
     }
