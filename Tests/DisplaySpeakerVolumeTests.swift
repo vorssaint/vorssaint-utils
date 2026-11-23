@@ -32,12 +32,19 @@ enum DisplaySpeakerVolumeTests {
         var isAvailable: Bool { true }
     }
     struct PreciseVolumeRollerService {
+        typealias UserDefaults = DisplaySpeakerVolumeTests.UserDefaults
+        struct Sound {
+            func stop() {}
+            func play() { Service.shared.clicks += 1 }
+        }
+        static let volumeFeedback: Sound? = Sound()
         static let shared = Self()
         func syncWithPreferences() {}
     }
     enum UserDefaults {
         static let standard = UserDefaults.self
         static func bool(forKey key: String) -> Bool {
+            if key == "com.apple.sound.beep.feedback" { return Service.shared.feedbackEnabled }
             if key == DefaultsKey.brightnessControlEnabled { return Service.shared.brightnessControlsEnabled }
             return key == DefaultsKey.displayVolumeKeysEnabled && Service.shared.wantsMonitorVolumeKeys
         }
@@ -91,6 +98,7 @@ enum DisplaySpeakerVolumeTests {
         var scannedAudio = false
         var audioScanQueued: Bool?
         var speakerLevelRevisions: [String: UInt64] = [:]
+        var speakerSliderIntents: [String: SpeakerSliderFeedback.Request] = [:]
         var pendingAudio: [PendingAudio] = []
         var audioWriteInFlight = false
         var audioOutputGeneration = 0
@@ -103,6 +111,7 @@ enum DisplaySpeakerVolumeTests {
         var unmutedReads: UInt16 = 2
         var rejectUnmute = false
         var rejectVolume = false
+        var rejectVolumeRead = false
         var ignoreVolume = false
         var ignoreMute = false
         var onSend: (() -> Void)?
@@ -115,6 +124,8 @@ enum DisplaySpeakerVolumeTests {
         var volumeOnUnmute: UInt16?
         var writes: [Write] = []
         var writtenIDs: [UInt32] = []
+        var feedbackEnabled = true
+        var clicks = 0
         var refreshes = 0
         var silentPaths: Set<String> = []
         var chips: [UInt32] = []
@@ -152,7 +163,9 @@ enum DisplaySpeakerVolumeTests {
             guard whileCurrent() else { return .dead }
             chips.append(chip)
             onRead?(code)
-            if code == BrightnessSupport.audioVolumeCode { return .replied(current: raw, maximum: maximum) }
+            if code == BrightnessSupport.audioVolumeCode {
+                return rejectVolumeRead ? .dead : .replied(current: raw, maximum: maximum)
+            }
             guard code == BrightnessSupport.audioMuteCode, let nativeMuted else { return .dead }
             return .replied(current: nativeMuted ? 1 : unmutedReads, maximum: 2)
         }
@@ -179,8 +192,7 @@ enum DisplaySpeakerVolumeTests {
             afterSend = nil
             after?()
             // The first DDC cycle reached the monitor. The next can lose its route.
-            if code == BrightnessSupport.audioMuteCode, value == 2 { return whileCurrent() || acceptPartialWrite }
-            return true
+            return whileCurrent() || acceptPartialWrite
         }
         func finish() {
             while !workQueue.jobs.isEmpty || !DispatchQueue.main.jobs.isEmpty {
@@ -239,8 +251,165 @@ enum DisplaySpeakerVolumeTests {
                      "a rejected unmute never counts as an accepted write when its repeat is cancelled")
     }
 
+    private static func checkSliderFeedback(_ suite: TestSuite) {
+        let mixer = MixerOutputAdjustmentContract.Mixer()
+        let target = BrightnessSupport.SpeakerTarget(displayID: 7, path: "port-a")
+        let feedback = SpeakerSliderFeedback()
+        var service = connect(mixer)
+        func set(_ volume: Double, completion: @escaping (Bool) -> Void = { _ in }) {
+            service.requestSpeakers(.set(volume: volume, muted: nil), target: target,
+                                    sliderFeedback: feedback.request(), completion: completion)
+        }
+        for releaseFirst in [false, true] {
+            for (muted, unmutedReads): (Bool?, UInt16) in [(true, 2), (nil, 2), (false, 0)] {
+                service = connect(mixer, raw: 0, muted: muted, unmutedReads: unmutedReads)
+                service.wantsMonitorVolumeKeys = releaseFirst
+                service.monitorVolumeKeySettings = .init(maximumPercent: 5)
+                feedback.editingChanged(true)
+                set(0.6)
+                if releaseFirst { feedback.editingChanged(false) } else { service.finish() }
+                suite.expect(service.clicks == 0, "the speaker slider waits for both release and confirmation")
+                // Only the selected output changed. This row still controls the same monitor.
+                service.removeAudioOutputObserver()
+                service.actualDevice = 32
+                if releaseFirst { service.finish() } else { feedback.editingChanged(false) }
+                feedback.editingChanged(false)
+                suite.expect(service.raw == 60 && service.clicks == 1,
+                             "native mute, volume-only and zero-latched monitors click once on a manual adjustment")
+            }
+        }
+
+        for (level, raw): (Double, UInt16) in [(0, 0), (1, 10), (0.41, 4)] {
+            service = connect(mixer, raw: raw, maximum: 10, muted: nil)
+            feedback.editingChanged(true)
+            set(level)
+            feedback.editingChanged(false)
+            service.finish()
+            suite.expect(service.writes.isEmpty && service.clicks == 0,
+                         "an endpoint or a rounded value already on the monitor makes no sound")
+        }
+        service = connect(mixer)
+        feedback.editingChanged(true)
+        feedback.editingChanged(false)
+        suite.expect(service.clicks == 0, "releasing without setting any volume stays silent")
+        set(0.7)
+        service.finish()
+        suite.expect(service.raw == 70 && service.clicks == 1,
+                     "a keyboard or accessibility adjustment without drag callbacks clicks after confirmation")
+        service.feedbackEnabled = false
+        set(0.8)
+        service.finish()
+        suite.expect(service.raw == 80 && service.clicks == 1, "disabling the system sound leaves a confirmed change silent")
+
+        service = connect(mixer)
+        feedback.editingChanged(true)
+        var replaced: [Bool] = []
+        set(0.5)
+        set(0.6) { replaced.append($0) }
+        set(0.7)
+        suite.expect(replaced == [false] && service.clicks == 0, "a coalesced setter completes synchronously")
+        feedback.editingChanged(false)
+        service.finish()
+        suite.expect(service.writes == [Write(BrightnessSupport.audioVolumeCode, 70)] && service.clicks == 1,
+                     "the newest setter survives the superseded callback without writing again on release")
+        feedback.editingChanged(true)
+        set(0.8)
+        service.finish()
+        set(0.801)
+        feedback.editingChanged(false)
+        service.finish()
+        suite.expect(service.clicks == 2 && service.writes.count == 2,
+                     "a final setter on the same hardware step preserves the drag's single confirmed change")
+
+        for (beforeReadback, rejectFinalRead) in [(false, false), (true, false), (false, true)] {
+            service = connect(mixer)
+            feedback.editingChanged(true)
+            if beforeReadback { service.afterSend = { set(0.801) } }
+            set(0.8)
+            service.workQueue.runOne()
+            if !beforeReadback { set(0.801) }
+            service.rejectVolumeRead = rejectFinalRead
+            feedback.editingChanged(false)
+            service.finish()
+            suite.expect(service.clicks == (rejectFinalRead ? 0 : 1) && service.raw == 80
+                         && service.writes == [Write(BrightnessSupport.audioVolumeCode, 80)],
+                         "an in-flight change requires the last setter's readback (before readback: \(beforeReadback), read fails: \(rejectFinalRead))")
+        }
+
+        service = connect(mixer)
+        feedback.editingChanged(true)
+        set(0.7)
+        service.finish()
+        service.requestSpeakers(.set(volume: 0.8, muted: nil), target: target)
+        service.finish()
+        set(0.801)
+        feedback.editingChanged(false)
+        service.finish()
+        suite.expect(service.clicks == 0 && service.writes.map(\.value) == [70, 80],
+                     "a final no-op cannot borrow an earlier drag change superseded by another control")
+
+        service = connect(mixer)
+        feedback.editingChanged(true)
+        set(0.5)
+        service.finish()
+        service.wantsMonitorVolume = false
+        var refused: Bool?
+        set(0.7) { refused = $0 }
+        service.wantsMonitorVolume = true
+        feedback.editingChanged(false)
+        suite.expect(refused == false && service.clicks == 0 && service.writes.count == 1,
+                     "a synchronously refused final setter revokes the earlier success before release")
+
+        for invalidate: (Service) -> Void in [
+            { $0.displays = [] }, { $0.invalidateSpeakerRoutes() }, { _ in feedback.cancel() },
+            { $0.displayFingerprint = "another-monitor" }, { $0.displayIsAsleep = true },
+            { $0.requestSpeakers(.set(volume: nil, muted: true), target: target) }
+        ] {
+            service = connect(mixer)
+            feedback.editingChanged(true)
+            set(0.7)
+            service.finish()
+            invalidate(service)
+            feedback.editingChanged(false)
+            service.finish()
+            suite.expect(service.clicks == 0, "a removed target, cancelled edit or newer intent revokes a waiting click")
+        }
+        service = connect(mixer)
+        feedback.editingChanged(true)
+        set(0.7)
+        feedback.editingChanged(false)
+        feedback.editingChanged(true)
+        service.finish()
+        feedback.editingChanged(false)
+        suite.expect(service.clicks == 0, "starting another drag invalidates a released edit awaiting its readback")
+        for interrupt: (Service) -> Void in [
+            { $0.rejectVolume = true }, { $0.ignoreVolume = true }, { $0.maximum = 0 },
+            { $0.wantsMonitorVolume = false }, { $0.invalidateSpeakerRoutes() }, { _ in feedback.cancel() }
+        ] {
+            service = connect(mixer)
+            feedback.editingChanged(true)
+            set(0.5)
+            service.finish()
+            set(0.7)
+            feedback.editingChanged(false)
+            interrupt(service)
+            service.finish()
+            suite.expect(service.clicks == 0,
+                         "a failed or cancelled final level stays silent even after an earlier level succeeded")
+        }
+        service = connect(mixer, raw: 0, muted: false, unmutedReads: 0)
+        service.rejectUnmute = true
+        feedback.editingChanged(true)
+        set(0.5)
+        feedback.editingChanged(false)
+        service.finish()
+        suite.expect(service.raw == 50 && service.clicks == 0,
+                     "accepting the new volume but failing to release the zero latch cannot sound a click")
+    }
+
     static func run(_ suite: TestSuite) {
         checkInterruptedDDCWrites(suite)
+        checkSliderFeedback(suite)
         suite.expect(BrightnessSupport.audioReply(current: 50, maximum: 100) == 0.5
                      && BrightnessSupport.audioReply(current: 100, maximum: 100) == 1,
                      "a volume reply is read against its own maximum")

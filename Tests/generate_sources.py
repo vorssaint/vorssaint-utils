@@ -483,11 +483,14 @@ def main():
               "    private func invalidateSpeakerRoutes(",
               "    private func cancelPendingAudio(",
               "    func requestSpeakers(", "    private func acceptsSpeakerTarget(", "    private func drainPendingAudio(",
-              "    private func isCurrentSpeakerChange(", "    private func writeSpeakers(",
+              "    private func isCurrentSpeakerChange(", "    private func confirmSliderWrite(",
+              "    private func writeSpeakers(",
               "    func monitorSpeakerOutput(", "    private func probeAudio("])
           + "}\n}\n"
           + "extension DisplaySpeakerVolumeTests.DDCWriter {\n"
           + declaration(brightness, "    private func ddcSend(").replace("private func", "func", 1)
+          + "}\nextension DisplaySpeakerVolumeTests.PreciseVolumeRollerService {\n"
+          + declaration("Sources/Vorssaint/Services/Audio/PreciseVolumeRollerService.swift", "    static func playVolumeFeedback(")
           + "}\n")
     write("BrightnessKeyRouting.swift", "import AppKit\nimport os\n"
           + "extension BrightnessKeyRoutingTests {\nfinal class Service: Fixture {\n"

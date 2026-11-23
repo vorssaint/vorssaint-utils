@@ -1227,3 +1227,61 @@ enum BrightnessSupport {
         return best.serviceOrdinal
     }
 }
+
+/// Each mounted slider waits for both the end of its edit and the monitor's
+/// confirmation of its last request. Either can arrive first.
+final class SpeakerSliderFeedback {
+    /// Consecutive requests from one drag can land on the same hardware step.
+    /// Only the serial DDC queue records and verifies these writes.
+    final class Writes {
+        var volume: BrightnessSupport.SpeakerLevel?
+        var muted: Bool?
+    }
+
+    final class Request {
+        private weak var owner: SpeakerSliderFeedback?
+        private(set) weak var previous: Request?
+        var writes = Writes()
+
+        fileprivate init(owner: SpeakerSliderFeedback, previous: Request?) {
+            self.owner = owner
+            self.previous = previous
+        }
+
+        func confirmed(_ play: @escaping () -> Void) {
+            guard let owner, owner.latest === self else { return }
+            owner.playOnRelease = play
+            owner.playIfReady()
+        }
+    }
+
+    private var editing = false
+    private var latest: Request?
+    private var playOnRelease: (() -> Void)?
+
+    func request() -> Request {
+        // Arrow keys and accessibility actions may send a single value write.
+        let request = Request(owner: self, previous: editing ? latest : nil)
+        latest = request
+        playOnRelease = nil
+        return request
+    }
+
+    func editingChanged(_ editing: Bool) {
+        if editing { cancel() }
+        self.editing = editing
+        playIfReady()
+    }
+
+    func cancel() {
+        editing = false
+        latest = nil
+        playOnRelease = nil
+    }
+
+    private func playIfReady() {
+        guard !editing, let play = playOnRelease else { return }
+        cancel()
+        play()
+    }
+}
