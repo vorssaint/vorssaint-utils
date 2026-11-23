@@ -435,23 +435,17 @@ private struct NotchAgentLimitsCard: View {
         } else if provider == .opencode {
             let todayUsage = snapshot.usage(.today).byProvider[.opencode]
             if let todayUsage, todayUsage.tokens.total > 0 || todayUsage.requests > 0 || todayUsage.cost > 0 {
-                let costText: String = {
-                    if todayUsage.unpriced > 0 {
-                        return todayUsage.cost > 0 ? "≥ " + AgentFormat.cost(todayUsage.cost) : "—"
-                    }
-                    return AgentFormat.cost(todayUsage.cost)
-                }()
                 VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 5) {
                         Text(text.period(.today))
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(.white.opacity(0.85))
                         Spacer(minLength: 2)
-                        Text(costText)
+                        Text(AgentFormat.cost(todayUsage.cost, partial: todayUsage.unpriced > 0))
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
                             .monospacedDigit()
                     }
-                    .help(todayUsage.unpriced > 0 ? text.unpriced : text.valueNote)
+                    .help(todayUsage.unpriced > 0 ? text.partialCostNote : text.valueNote)
                     HStack(spacing: 4) {
                         Text(AgentFormat.tokens(todayUsage.tokens.total))
                             .font(.system(size: 9.5))
@@ -523,13 +517,15 @@ private struct NotchAgentSpendCard: View {
 
     var body: some View {
         let usage = snapshot.usage(period)
+        let partial = snapshot.hasPartialCost(period)
+        let amount = AgentFormat.cost(snapshot, for: period)
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 5) {
                 NotchAgentCardHeader(title: text.spendCard, symbol: NotchAgentCard.spend.symbol) {
                     if period == .month { multiples(usage) }
                 }
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text((usage.fullyPriced ? "" : "≥ ") + AgentFormat.cost(usage.total.cost))
+                    Text(amount)
                         .font(.system(size: 22, weight: .medium, design: .rounded))
                         .monospacedDigit()
                         .contentTransition(.numericText())
@@ -541,7 +537,10 @@ private struct NotchAgentSpendCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 0)
                 }
-                .help(usage.fullyPriced ? text.valueNote : text.unpriced)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(text.apiValue)
+                .accessibilityValue(partial ? amount + " · " + text.partialCostNote : amount)
+                .help(partial ? text.partialCostNote : text.valueNote)
                 split(usage)
                 Text(footer(usage))
                     .font(.system(size: 10))

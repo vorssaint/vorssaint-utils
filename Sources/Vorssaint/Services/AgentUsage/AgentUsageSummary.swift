@@ -58,7 +58,7 @@ struct AgentPeriodUsage: Equatable {
     var models: [AgentShare] = []
     var projects: [AgentShare] = []
 
-    /// Whether every response in the period could be priced.
+    /// Whether every recorded usage entry in the period could be priced.
     var fullyPriced: Bool { total.unpriced == 0 }
 }
 
@@ -105,6 +105,14 @@ struct AgentUsageSnapshot: Equatable {
 
     func usage(_ period: AgentPeriod) -> AgentPeriodUsage { periods[period] ?? AgentPeriodUsage() }
     func working(_ provider: AgentProvider) -> [AgentLiveSession] { live.filter { $0.provider == provider } }
+
+    /// Cursor transcripts can omit counters even when all recorded usage has a price.
+    func hasPartialCost(_ period: AgentPeriod) -> Bool {
+        let usage = usage(period)
+        if !usage.fullyPriced || usage.byProvider[.cursor] != nil || seen == [.cursor] { return true }
+        guard let activity = lastActivity[.cursor], let start = days.suffix(period.days).first?.start else { return false }
+        return activity >= start && activity <= now
+    }
 }
 
 enum AgentUsageSummary {
