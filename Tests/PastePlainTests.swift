@@ -2,60 +2,156 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import UniformTypeIdentifiers
 
-/// Production paste routing with an in-memory clipboard and recorded
-/// shortcuts. Tests never read or replace the user's general pasteboard.
+/// Paste-plain decisions and paste routing with an in-memory clipboard and
+/// recorded shortcuts. Tests never read or replace the user's general
+/// pasteboard: the decision matrix and the transforms run against the real
+/// `PastePlainSupport`, and the service fixture is generated against the
+/// doubles below.
 enum PastePlainTests {
     final class NSPasteboard {
         typealias PasteboardType = AppKit.NSPasteboard.PasteboardType
         static let general = NSPasteboard()
-        var contents: [PasteboardType: Data] = [:]
+        /// The items on the board, in order, as their declared data.
+        private(set) var items: [[PasteboardType: Data]] = []
+        var changeCount = 0
         var reads = 0
         var dataReads = 0
-        var changeCount = 0
-        var types: [PasteboardType]? { Array(contents.keys) }
+        var clears = 0
+        var writeCount = 0
+
+        var types: [PasteboardType]? {
+            items.isEmpty ? nil : Array(Set(items.flatMap { Array($0.keys) }))
+        }
+
+        var pasteboardItems: [NSPasteboardItem]? {
+            items.isEmpty ? nil : items.map { item in
+                let copy = NSPasteboardItem()
+                copy.contents = item
+                return copy
+            }
+        }
+
+        func setItems(_ value: [[PasteboardType: Data]]) {
+            items = value
+            changeCount += 1
+        }
+
+        /// Like the real convenience setters, these address the first item
+        /// (creating one when the board is empty), which is how the strip
+        /// re-adds markers beside its single written item.
+        @discardableResult func setString(_ string: String, forType type: PasteboardType) -> Bool {
+            reads += 1
+            let data = Data(string.utf8)
+            if !items.isEmpty {
+                items[0][type] = data
+            } else {
+                items = [[type: data]]
+            }
+            return true
+        }
+
+        @discardableResult func setData(_ data: Data, forType type: PasteboardType) -> Bool {
+            if !items.isEmpty {
+                items[0][type] = data
+            } else {
+                items = [[type: data]]
+            }
+            return true
+        }
+
         func string(forType type: PasteboardType) -> String? {
             reads += 1
-            return contents[type].flatMap { String(data: $0, encoding: .utf8) }
+            return items.first?[type].flatMap { String(data: $0, encoding: .utf8) }
         }
+
         func data(forType type: PasteboardType) -> Data? {
             reads += 1
             dataReads += 1
-            return contents[type]
+            return items.first?[type]
+        }
+
+        func clearContents() {
+            items = []
+            changeCount += 1
+            clears += 1
+        }
+
+        func writeObjects(_ objects: [NSPasteboardItem]) {
+            items = objects.map(\.contents)
+            changeCount += 1
+            writeCount += 1
         }
     }
+
+    final class NSPasteboardItem {
+        typealias PasteboardType = AppKit.NSPasteboard.PasteboardType
+        var contents: [PasteboardType: Data] = [:]
+        var types: [PasteboardType] { Array(contents.keys) }
+        func data(forType type: PasteboardType) -> Data? {
+            NSPasteboard.general.dataReads += 1
+            return contents[type]
+        }
+        func string(forType type: PasteboardType) -> String? {
+            NSPasteboard.general.reads += 1
+            return contents[type].flatMap { String(data: $0, encoding: .utf8) }
+        }
+        @discardableResult func setString(_ string: String, forType type: PasteboardType) -> Bool {
+            contents[type] = Data(string.utf8)
+            return true
+        }
+        @discardableResult func setData(_ data: Data, forType type: PasteboardType) -> Bool {
+            contents[type] = data
+            return true
+        }
+    }
+
     final class GeneralPasteboardAccess {
         static let shared = GeneralPasteboardAccess()
         func async<T>(_ work: () -> T, then: (T) -> Void) { then(work()) }
+        func async<T>(timeout: TimeInterval, _ work: (_ isExpired: () -> Bool) -> T?,
+                      then: (T?) -> Void, didFinish: (T?) -> Void = { _ in }) {
+            let result = work({ false })
+            then(result)
+            didFinish(result)
+        }
     }
+
     struct GlobalShortcut {
         static var standardPaste = true
         static let pastePlainDefault = GlobalShortcut()
         static func saved(for key: String, fallback: GlobalShortcut) -> GlobalShortcut { GlobalShortcut() }
         var isStandardPasteCommand: Bool { Self.standardPaste }
     }
+
     final class Permissions {
         static let shared = Permissions()
         func requestAccessibility() {}
     }
+
     enum NSSound { static func beep() {} }
+
     final class Hotkey {
         var registered = true
         func unregister() { registered = false }
     }
+
+    final class ClipboardHistoryService {
+        static let shared = ClipboardHistoryService()
+        var ignoredCounts: [Int] = []
+        func ignoreNextChange(upTo changeCount: Int) { ignoredCounts.append(changeCount) }
+    }
+
     final class TransientPaste {
         static let shared = TransientPaste()
         var pastedText: String?
         var originalPastes = 0
         var registeredDuringPost: Bool?
         weak var host: Service?
-        func paste(_ text: String, willPostShortcut: (() -> Void)?,
-                   didPostShortcut: (() -> Void)?) -> Bool {
-            pastedText = text
-            return post(willPostShortcut, didPostShortcut)
-        }
         func pasteCurrentContents(willPostShortcut: (() -> Void)?,
-                                  didPostShortcut: (() -> Void)?) -> Bool {
+                                  didPostShortcut: (() -> Void)?,
+                                  didFail: (() -> Void)? = nil) -> Bool {
             originalPastes += 1
             return post(willPostShortcut, didPostShortcut)
         }
@@ -66,17 +162,44 @@ enum PastePlainTests {
             return true
         }
     }
+
+    /// The service state the generated fixture methods reach through `self`:
+    /// the same fields the real class owns, driven by hand.
     class Fixture {
+        var accessibilityTrusted = true
         var promptedForAccessibility = false
         let hotkey = Hotkey()
-        var hasNativeMatchStyle = false
-        var nativeAttempts = 0
-        func AXIsProcessTrusted() -> Bool { true }
+        func AXIsProcessTrusted() -> Bool { accessibilityTrusted }
         func syncWithPreferences() { hotkey.registered = true }
-        func pressNativeMatchStyleItem() -> Bool {
-            nativeAttempts += 1
-            return hasNativeMatchStyle
+
+        var lastChangeCount = 0
+        var lastStrippedChangeCount = 0
+        var originalItems: [NSPasteboardItem]?
+        var originalCapturedAt = Date()
+        var isRichPasteInFlight = false
+        var pendingRestripe = false
+        var repasteWork: DispatchWorkItem?
+        var pollInFlight = false
+        var pollToken: PollToken?
+
+        final class PollToken {
+            var isCancelled = false
+            func cancel() {}
         }
+
+        static let pasteboardTimeout: TimeInterval = 5
+        static let pollInterval: TimeInterval = 0.12
+        // The generated methods post the re-strip with asyncAfter; a zero
+        // delay lets the tests drain it by spinning the run loop.
+        static var repasteRestripDelay: TimeInterval = 0
+        static let snapshotLifetime: TimeInterval = 600
+    }
+
+    /// Mirrors the real nested transaction result, which the generator does
+    /// not copy out of the class body.
+    struct StripTransaction {
+        let changeCount: Int
+        let stripped: (originalItems: [NSPasteboardItem], plainText: String)?
     }
 
     /// Exercises the real forwarding method while the unchanged event-post
@@ -97,105 +220,372 @@ enum PastePlainTests {
     }
 
     static func run(_ suite: TestSuite) {
+        // The Command Bar action gates on availability like the app does.
+        // register() is volatile and covers only this feature's key, so no
+        // other suite's saved-switch checks can see it.
+        UserDefaults.standard.register(
+            defaults: [AppFeature.pastePlain.availabilityKey: true])
+        decisionMatrix(suite)
+        transforms(suite)
+        stripBehaviour(suite)
+        pasteRouting(suite)
+        NSPasteboard.general.setItems([])
+    }
+
+    // MARK: - Decision matrix
+
+    private static func decisionMatrix(_ suite: TestSuite) {
+        func decide(_ types: [String],
+                    itemCount: Int = 1,
+                    declaredSource: String? = nil,
+                    ownBundleID: String? = "com.vorssaint.tests",
+                    frontmost: String? = nil,
+                    excluded: Set<String> = [],
+                    isOwnLastWrite: Bool = false) -> PastePlainDecision {
+            PastePlainSupport.decision(types: types, itemCount: itemCount,
+                                       declaredSource: declaredSource,
+                                       ownBundleID: ownBundleID,
+                                       frontmostBundleID: frontmost,
+                                       excludedApps: excluded,
+                                       isOwnLastWrite: isOwnLastWrite)
+        }
+        let string = "public.utf8-plain-text"
+        let rtf = "public.rtf"
+        let html = "public.html"
+        suite.expect(decide([]) == .leaveAlone(.empty), "an empty clipboard is left alone")
+        for media in ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.adobe.pdf",
+                      "public.mp3", "public.mpeg-4", "com.apple.quicktime-movie", "public.movie"] {
+            suite.expect(decide([media]) == .leaveAlone(.protectedContent),
+                         "\(media) is never read or rewritten")
+            suite.expect(decide([media, string]) == .leaveAlone(.protectedContent),
+                         "\(media) beside its text keeps the whole copy")
+        }
+        for file in ["public.file-url", "NSFilenamesPboardType", "NSFileContentsPboardType",
+                     "com.apple.NSFilePromiseItemMetaData", "Apple files promise pasteboard type",
+                     "com.apple.pasteboard.promised-file-url"] {
+            suite.expect(decide([file, string]) == .leaveAlone(.protectedContent),
+                         "\(file) is a file copy, not text")
+        }
+        suite.expect(decide([string]) == .leaveAlone(.alreadyPlain),
+                     "plain text alone has nothing to lose")
+        suite.expect(decide([string, rtf]) == .strip, "RTF beside text is stripped")
+        suite.expect(decide([string, html]) == .strip, "HTML beside text is stripped")
+        suite.expect(decide([rtf]) == .strip, "RTF alone still strips to its text")
+        for legacy in ["NSRTFPboardType", "NSRTFDPboardType", "NSHTMLPboardType"] {
+            suite.expect(decide([string, legacy]) == .strip, "\(legacy) is rich text")
+        }
+        for item in ["org.nspasteboard.ConcealedType"] {
+            suite.expect(decide([string, rtf, item]) == .leaveAlone(.concealed),
+                         "\(item) is a secret")
+        }
+        for item in ["org.nspasteboard.TransientType", "org.nspasteboard.AutoGeneratedType"] {
+            suite.expect(decide([string, rtf, item]) == .leaveAlone(.transient),
+                         "\(item) is content an app owns")
+        }
+        suite.expect(decide([string, rtf], isOwnLastWrite: true) == .leaveAlone(.ownWrite),
+                     "the clipboard from our own last write is left alone")
+        suite.expect(decide([string, rtf], declaredSource: "com.vorssaint.tests")
+                     == .leaveAlone(.ownWrite),
+                     "a copy that names this app as its source is our own")
+        suite.expect(decide([string, rtf], declaredSource: "com.example.editor",
+                            excluded: ["com.example.editor"]) == .leaveAlone(.excludedApp),
+                     "a copy from an excluded app keeps its formatting")
+        suite.expect(decide([string, rtf], frontmost: "com.example.editor",
+                            excluded: ["com.example.editor"]) == .leaveAlone(.excludedApp),
+                     "an excluded app in front with no declared source keeps its formatting")
+        suite.expect(decide([string, rtf], declaredSource: "com.apple.Safari",
+                            frontmost: "com.example.editor",
+                            excluded: ["com.example.editor"]) == .strip,
+                     "a named, unexcluded source is believed over the frontmost app")
+        suite.expect(decide([string], itemCount: 2) == .strip,
+                     "two plain items strip so their texts do not paste run together")
+        suite.expect(decide([string, rtf], declaredSource: "com.example.files",
+                            excluded: []) == .strip,
+                     "a remote-clipboard copy strips locally like any other")
+    }
+
+    // MARK: - Transforms
+
+    private static func transforms(_ suite: TestSuite) {
+        let none = PastePlainSupport.TransformOptions()
+        let code = "let greeting = \"héllo\"\nif greeting == \"héllo\" {\n    print(greeting)\n}"
+        suite.expect(PastePlainSupport.applyTransforms(code, options: none) == code,
+                     "the default transform set leaves a code snippet unchanged")
+        // U+200B zero-width space, U+FEFF byte-order mark, U+2060 word joiner,
+        // U+00AD soft hyphen, U+E0001 tag character and U+E0041..E0047 tag
+        // letters: the watermark range.
+        let watermarked = "w\u{200B}o\u{FEFF}rd\u{2060}s and\u{00AD} hy\u{E0001}\u{E0041}\u{E0047}phens"
+        let cleaned = PastePlainSupport.removingInvisibleCharacters(watermarked)
+        suite.expect(cleaned == "words and hyphens", "invisible characters come out: got '\(cleaned)'")
+        suite.expect(PastePlainSupport.applyTransforms(watermarked, options: none) == watermarked,
+                     "invisible removal stays off by default")
+        let emoji = "👍🏽\u{200D}❤️\u{200C}text"
+        suite.expect(PastePlainSupport.removingInvisibleCharacters(emoji) == emoji,
+                     "emoji joiners and variation selectors survive")
+        let trimmedOptions = PastePlainSupport.TransformOptions(trimWhitespace: true)
+        suite.expect(PastePlainSupport.applyTransforms("\n  hi there  \n", options: trimmedOptions)
+                     == "hi there", "whitespace is trimmed when asked")
+        suite.expect(PastePlainSupport.applyTransforms("a\nb\n", options: trimmedOptions) == "a\nb",
+                     "interior line breaks survive a trim")
+        let link = "https://example.com/page?utm_source=rss&id=7"
+        let linkOptions = PastePlainSupport.TransformOptions(cleanLinks: true)
+        suite.expect(PastePlainSupport.applyTransforms(link, options: linkOptions)
+                     == "https://example.com/page?id=7",
+                     "a whole-copy link loses its trackers")
+        suite.expect(PastePlainSupport.applyTransforms("see \(link) here", options: linkOptions)
+                     == "see \(link) here",
+                     "text that is not one link is never rewritten")
+        suite.expect(PastePlainSupport.applyTransforms(code, options: linkOptions) == code,
+                     "a multi-line snippet is not read as a link")
+        // Order: an invisible character between the copy and its trailing
+        // space would otherwise hide the whitespace from the trim.
+        let padded = "\u{200B}  hello \u{FEFF}\n"
+        let bothOptions = PastePlainSupport.TransformOptions(cleanInvisible: true, trimWhitespace: true)
+        suite.expect(PastePlainSupport.applyTransforms(padded, options: bothOptions) == "hello",
+                     "invisible characters go before the trim")
+        suite.expect(PastePlainSupport.applyTransforms(
+            PastePlainSupport.applyTransforms(watermarked, options: bothOptions),
+            options: bothOptions) == "words and hyphens",
+            "the transforms are idempotent")
+    }
+
+    // MARK: - Strip behaviour
+
+    private static func stripBehaviour(_ suite: TestSuite) {
+        let board = NSPasteboard.general
+        func strip(since: Int? = nil,
+                   ownWrite: Int = 0,
+                   excluded: Set<String> = [],
+                   transforms: PastePlainSupport.TransformOptions = .init()) -> StripTransaction? {
+            board.reads = 0
+            board.dataReads = 0
+            board.writeCount = 0
+            return Service.stripPasteboard(board, sinceChangeCount: since,
+                                           ownLastWriteCount: ownWrite,
+                                           ownBundleID: "com.vorssaint.tests",
+                                           excludedApps: excluded,
+                                           frontmostBundleID: nil,
+                                           transforms: transforms,
+                                           isExpired: { false })
+        }
+        // A rich copy: rewritten as exactly one plain-text item, with the
+        // source and remote markers kept and both strip markers added.
+        board.setItems([[
+            .string: Data("hello world".utf8),
+            .rtf: Data(#"{\rtf1\ansi hello \b world\b0}"#.utf8),
+            AppKit.NSPasteboard.PasteboardType("org.nspasteboard.source"): Data("com.apple.Safari".utf8),
+            .remoteClipboard: Data(),
+        ]])
+        let before = board.changeCount
+        let result = strip()
+        suite.expect(result?.stripped?.plainText == "hello world"
+                     && result?.changeCount == before + 2,
+                     "a rich copy is stripped in one transaction")
+        suite.expect(board.writeCount == 1 && board.items.count == 1,
+                     "the strip writes exactly one item")
+        let written = board.items[0]
+        suite.expect(written[.string] == Data("hello world".utf8),
+                     "the plain text replaces the formatting")
+        suite.expect(written[AppKit.NSPasteboard.PasteboardType("org.nspasteboard.source")]
+                     == Data("com.apple.Safari".utf8),
+                     "the declared source survives the strip")
+        suite.expect(written[.remoteClipboard] == Data(),
+                     "the remote marker survives the strip")
+        suite.expect(written[AppKit.NSPasteboard.PasteboardType("x.nspasteboard.ModifiedType")] == Data()
+                     && written[AppKit.NSPasteboard.PasteboardType("com.vorssaint.PastePlain.hasRun")] == Data(),
+                     "the strip markers are added")
+        suite.expect(board.clears == 1, "the board is cleared before the write")
+
+        // Media: the types alone decide, so nothing is ever fetched.
+        for media: AppKit.NSPasteboard.PasteboardType in [.png, .tiff, .init("public.mpeg-4")] {
+            board.setItems([[media: Data([1, 2, 3])]])
+            let mediaResult = strip()
+            suite.expect(mediaResult?.stripped == nil && board.writeCount == 0
+                         && board.dataReads == 0,
+                         "\(media): media is left alone without a single data read")
+        }
+        // A file copy is left alone even when it also carries text.
+        board.setItems([[.string: Data("Report.pdf".utf8),
+                         AppKit.NSPasteboard.PasteboardType("public.file-url"): Data([1])]])
+        suite.expect(strip()?.stripped == nil && board.writeCount == 0,
+                     "a file copy with a name as text is never rewritten")
+
+        // Secrets and transient content stay exactly as the app wrote them.
+        for mark in ["org.nspasteboard.ConcealedType", "org.nspasteboard.TransientType",
+                     "org.nspasteboard.AutoGeneratedType"] {
+            board.setItems([[.string: Data("secret".utf8), .rtf: Data(#"{\rtf1 s}"#.utf8),
+                             AppKit.NSPasteboard.PasteboardType(mark): Data()]])
+            suite.expect(strip()?.stripped == nil && board.writeCount == 0,
+                         "\(mark) is never rewritten")
+        }
+
+        // Nothing to read back: the strip aborts instead of clearing content.
+        board.setItems([[.string: Data("  \n".utf8), .rtf: Data(#"{\rtf1 }"#.utf8)]])
+        suite.expect(strip()?.stripped == nil && board.writeCount == 0 && !board.items.isEmpty,
+                     "a strip with no usable text keeps the original")
+
+        // Plain-only text: no write at all, so the change count never moves.
+        board.setItems([[.string: Data("plain".utf8)]])
+        let plainCount = board.changeCount
+        suite.expect(strip()?.stripped == nil && board.changeCount == plainCount
+                     && board.writeCount == 0,
+                     "plain-only text is left without a write")
+
+        // Our own last write, a copy from this app, an excluded app, and an
+        // unchanged board are all left alone.
+        board.setItems([[.string: Data("hello".utf8), .rtf: Data(#"{\rtf1 h}"#.utf8)]])
+        let current = board.changeCount
+        suite.expect(strip(ownWrite: current)?.stripped == nil && board.writeCount == 0,
+                     "our own write is never stripped again")
+        suite.expect(strip(since: current)?.stripped == nil && board.writeCount == 0,
+                     "an unchanged board does nothing")
+        board.setItems([[.string: Data("hello".utf8), .rtf: Data(#"{\rtf1 h}"#.utf8),
+                         AppKit.NSPasteboard.PasteboardType("org.nspasteboard.source"):
+                            Data("com.vorssaint.tests".utf8)]])
+        suite.expect(strip()?.stripped == nil && board.writeCount == 0,
+                     "a copy that names this app is our own")
+        board.setItems([[.string: Data("hello".utf8), .rtf: Data(#"{\rtf1 h}"#.utf8),
+                         AppKit.NSPasteboard.PasteboardType("org.nspasteboard.source"):
+                            Data("com.example.editor".utf8)]])
+        suite.expect(strip(excluded: ["com.example.editor"])?.stripped == nil
+                     && board.writeCount == 0,
+                     "an excluded app's copy is never rewritten")
+
+        // Optional transforms run inside the strip.
+        let dirty = "w\u{200B}ords"
+        board.setItems([[.string: Data(dirty.utf8), .rtf: Data(#"{\rtf1 w}"#.utf8)]])
+        _ = strip(transforms: .init(cleanInvisible: true))
+        suite.expect(board.items.first?[.string] == Data("words".utf8),
+                     "the enabled transforms shape the plain write")
+
+        // Several plain items join in order.
+        board.setItems([[.string: Data("first".utf8)], [.string: Data("second".utf8)]])
+        let joined = strip()
+        suite.expect(joined?.stripped?.plainText == "first\nsecond"
+                     && board.items.count == 1,
+                     "multiple items strip to one item joined with line breaks")
+    }
+
+    // MARK: - Paste routing
+
+    private static func pasteRouting(_ suite: TestSuite) {
         let board = NSPasteboard.general
         let transient = TransientPaste.shared
         func service(_ contents: [AppKit.NSPasteboard.PasteboardType: Data]) -> Service {
-            board.contents = contents
+            board.setItems([contents])
             board.reads = 0
             board.dataReads = 0
+            board.writeCount = 0
             transient.pastedText = nil
             transient.originalPastes = 0
             transient.registeredDuringPost = nil
+            ClipboardHistoryService.shared.ignoredCounts = []
             GlobalShortcut.standardPaste = true
+            Fixture.repasteRestripDelay = 0
             let host = Service()
+            host.lastStrippedChangeCount = 0
+            host.originalItems = nil
+            host.isRichPasteInFlight = false
+            host.pendingRestripe = false
+            host.lastChangeCount = board.changeCount
             transient.host = host
             return host
         }
-        // The alternate string is common for images copied in a browser and
-        // files copied in Finder. It must not replace the image or file.
-        let fileTypes = ["public.file-url", "NSFilenamesPboardType",
-                         "NSFileContentsPboardType", "com.apple.NSFilePromiseItemMetaData",
-                         "Apple files promise pasteboard type", "com.apple.pasteboard.promised-file-url"]
-        let mediaTypes = ["public.png", "public.tiff", "public.jpeg", "public.heic",
-                          "public.mpeg-4", "public.video", "com.apple.quicktime-movie",
-                          "public.mp3", "com.adobe.pdf"]
-        let fallbacks: [String?] = [nil, "https://example.com/image.png", "IMG_1234.HEIC",
-                                    "data:image/png;base64,AAAA", "  \n"]
-        for type in fileTypes + mediaTypes {
-            for fallback in fallbacks {
-                var content = [AppKit.NSPasteboard.PasteboardType(type): Data([0, 1, 2, 3])]
-                if let fallback { content[.string] = Data(fallback.utf8) }
-                let host = service(content)
-                host.hasNativeMatchStyle = true
-                host.performPastePlain()
-                suite.expect(transient.originalPastes == 1 && transient.pastedText == nil
-                             && host.nativeAttempts == 0,
-                             "\(type), text=\(fallback ?? "none"): media bypasses text conversion and matching-style paste")
-                suite.expect(board.contents == content && board.dataReads == 0
-                             && (!fileTypes.contains(type) || board.reads == 0),
-                             "\(type): media and promised contents are neither fetched nor rewritten")
-                suite.expect(transient.registeredDuringPost == false && host.hotkey.registered,
-                             "\(type): a captured Cmd-V is released for forwarding and registered afterward")
-            }
-        }
-        // Spreadsheets, slides and documents put a picture or PDF of what was
-        // copied beside its text. That text still pastes plain.
-        let table = "Item\tQty\nA\t1"
-        for (text, extras) in [(table, ["com.adobe.pdf", "public.tiff"]),
-                               (table, ["public.png"]),
-                               ("Total", ["com.adobe.pdf"]),
-                               ("Total:", ["public.tiff"]),
-                               ("1.2.3", ["com.adobe.pdf"]),
-                               ("example.com", ["com.adobe.pdf"]),
-                               ("2.4GHz", ["public.tiff"]),
-                               ("john@example.com", ["com.adobe.pdf"]),
-                               ("https://example.com/report", ["com.adobe.pdf", "public.rtf"]),
-                               ("photo.png", ["public.tiff", "public.rtf"])] {
-            var content: [AppKit.NSPasteboard.PasteboardType: Data] = [
-                .string: Data(text.utf8), .html: Data("<table><tr><td>\(text)</td></tr></table>".utf8)]
-            for extra in extras { content[AppKit.NSPasteboard.PasteboardType(extra)] = Data([0, 1, 2, 3]) }
-            let host = service(content)
-            host.performPastePlain()
-            suite.expect(transient.pastedText == text && transient.originalPastes == 0
-                         && host.nativeAttempts == 1 && board.dataReads == 0,
-                         "\(text) with \(extras): copied text with a picture of itself still pastes plain")
-        }
-        let filed = service([.string: Data(table.utf8), AppKit.NSPasteboard.PasteboardType("public.file-url"): Data([1])])
-        filed.performPastePlain()
-        suite.expect(transient.originalPastes == 1 && transient.pastedText == nil,
-                     "a file copy pastes the file even when it also carries text")
+        let rtfData = Data(#"{\rtf1\ansi hello \b world\b0}"#.utf8)
 
-        for content: [AppKit.NSPasteboard.PasteboardType: Data] in [[:], [.string: Data()]] {
-            let host = service(content)
-            host.performPastePlain()
-            suite.expect(transient.originalPastes == 1 && transient.pastedText == nil,
-                         "an empty or non-text result still forwards the original paste")
-        }
-        let richText = Data(#"{\rtf1\ansi hello \b world\b0}"#.utf8)
+        // No snapshot: whatever is on the clipboard is what the user wants,
+        // so the paste is only forwarded.
         for content: [AppKit.NSPasteboard.PasteboardType: Data] in [
-            [.string: Data("hello world".utf8)], [.rtf: richText],
-            [.string: Data("hello world".utf8), .rtf: richText],
+            [.string: Data("hello world".utf8)],
+            [.png: Data([1, 2])],
+            [AppKit.NSPasteboard.PasteboardType("public.file-url"): Data([1])],
+            [:],
         ] {
             let host = service(content)
             host.performPastePlain()
-            suite.expect(transient.pastedText == "hello world" && transient.originalPastes == 0
-                         && host.nativeAttempts == 1,
-                         "plain and formatted text keep the existing text-only paste")
+            suite.expect(transient.originalPastes == 1 && transient.pastedText == nil
+                         && board.writeCount == 0,
+                         "\(content): no snapshot forwards the original paste")
             suite.expect(transient.registeredDuringPost == false && host.hotkey.registered,
-                         "text fallback still releases Cmd-V while posting the paste")
+                         "\(content): a captured ⌘V is released for forwarding and registered afterward")
         }
-        let native = service([.string: Data("hello".utf8)])
-        native.hasNativeMatchStyle = true
-        native.performPastePlain()
-        suite.expect(native.nativeAttempts == 1 && transient.originalPastes == 0
-                     && transient.pastedText == nil && native.hotkey.registered,
-                     "text still prefers the destination's native matching-style command")
 
-        let custom = service([.png: Data([0, 1])])
+        // With a snapshot valid for the current count: the original comes
+        // back, the paste is posted, and the clipboard is stripped again.
+        let sourceType = AppKit.NSPasteboard.PasteboardType("org.nspasteboard.source")
+        let original: [AppKit.NSPasteboard.PasteboardType: Data] = [
+            .string: Data("hello world".utf8), .rtf: rtfData,
+            sourceType: Data("com.apple.Safari".utf8),
+        ]
+        board.setItems([original])
+        let host = service(original)
+        host.lastStrippedChangeCount = board.changeCount
+        host.originalItems = board.pasteboardItems
+        host.performPastePlain()
+        suite.expect(transient.originalPastes == 1 && host.isRichPasteInFlight,
+                     "a rich paste posts the paste while holding the watcher")
+        suite.expect(board.items == [original] && board.writeCount == 1,
+                     "the snapshot is written back before the paste")
+        let restoredCount = board.changeCount
+        let deadline = Date().addingTimeInterval(5)
+        while host.isRichPasteInFlight, Date() < deadline {
+            RunLoop.main.run(mode: .default, before: Date().addingTimeInterval(0.01))
+        }
+        suite.expect(ClipboardHistoryService.shared.ignoredCounts == [restoredCount],
+                     "the restored rich content is not recorded as a second copy")
+        suite.expect(!host.isRichPasteInFlight, "the re-strip completes after the paste")
+        suite.expect(board.items == [[.string: Data("hello world".utf8),
+                                       sourceType: Data("com.apple.Safari".utf8),
+                                       AppKit.NSPasteboard.PasteboardType("x.nspasteboard.ModifiedType"): Data(),
+                                       AppKit.NSPasteboard.PasteboardType("com.vorssaint.PastePlain.hasRun"): Data()]],
+                     "the clipboard is plain again, with the source kept")
+        suite.expect(host.lastStrippedChangeCount == board.changeCount
+                     && host.originalItems?.first?.contents == original,
+                     "the original stays restorable for the next press")
+        suite.expect(transient.originalPastes == 1, "no second paste is posted")
+
+        // A stale snapshot (the user copied since the strip) only forwards.
+        board.setItems([original])
+        let stale = service(original)
+        stale.lastStrippedChangeCount = board.changeCount - 1
+        stale.originalItems = [NSPasteboardItem()]
+        stale.performPastePlain()
+        suite.expect(transient.originalPastes == 1 && board.items == [original],
+                     "a stale snapshot forwards instead of restoring")
+
+        // Without Accessibility the shortcut says so instead of pasting.
+        board.setItems([original])
+        let untrusted = service(original)
+        untrusted.accessibilityTrusted = false
+        untrusted.performPastePlain()
+        suite.expect(untrusted.promptedForAccessibility && transient.originalPastes == 0,
+                     "a shortcut without Accessibility prompts once")
+        untrusted.performPastePlain()
+        suite.expect(transient.originalPastes == 0, "the prompt does not repeat")
+
+        // A custom shortcut is not the plain ⌘V, so no hotkey release dance.
+        let custom = service([.string: Data("hello".utf8)])
         GlobalShortcut.standardPaste = false
         custom.performPastePlain()
         suite.expect(transient.originalPastes == 1 && transient.registeredDuringPost == true,
-                     "a custom plain-text shortcut forwards media without releasing an unrelated hotkey")
+                     "a custom shortcut forwards without releasing an unrelated hotkey")
+
+        // Clear formatting now: strips the clipboard without pasting, and
+        // does nothing to a clipboard that is already plain.
+        board.setItems([original])
+        let clearer = service(original)
+        clearer.clearFormattingNow()
+        suite.expect(transient.originalPastes == 0
+                     && board.items == [[.string: Data("hello world".utf8),
+                                         sourceType: Data("com.apple.Safari".utf8),
+                                         AppKit.NSPasteboard.PasteboardType("x.nspasteboard.ModifiedType"): Data(),
+                                         AppKit.NSPasteboard.PasteboardType("com.vorssaint.PastePlain.hasRun"): Data()]]
+                     && clearer.lastStrippedChangeCount == board.changeCount,
+                     "clear formatting strips without pasting")
+        let afterClear = board.changeCount
+        clearer.clearFormattingNow()
+        suite.expect(board.changeCount == afterClear,
+                     "an already plain clipboard is not rewritten again")
 
         let forwarding = OriginalPasteHost()
         var events: [String] = []
@@ -209,7 +599,9 @@ enum PastePlainTests {
         OriginalPasteHost.pending = nil
         suite.expect(events == ["will", "did"] && !forwarding.isPerforming,
                      "forwarding brackets the post and clears its busy state on completion")
-        board.contents = [:]
+        board.setItems([])
         transient.host = nil
+        GlobalShortcut.standardPaste = true
+        Fixture.repasteRestripDelay = 0
     }
 }

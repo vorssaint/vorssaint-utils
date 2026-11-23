@@ -489,14 +489,21 @@ enum CommandBarCatalog {
                 run: { _ in afterBeat { ShelfService.shared.summon() } }))
         }
         if AppFeature.pastePlain.isAvailable {
+            let pastePlain = FeatureStrings.pastePlain(language)
             entries.append(CommandBarEntry(
                 id: "action.pastePlain",
-                title: s.pastePlainName,
-                subtitle: area(.pastePlain, under: s.pastePlainName),
-                icon: .symbol("doc.plaintext"),
+                title: pastePlain.pasteWithFormatting,
+                subtitle: area(.pastePlain, under: pastePlain.pasteWithFormatting),
+                icon: .symbol("doc.richtext"),
                 shortcut: roleShortcut(.pastePlain),
                 trouble: accessibilityTrouble(),
                 run: { _ in afterBeat { PastePlainService.shared.performPastePlain() } }))
+            entries.append(CommandBarEntry(
+                id: "action.pastePlain.clearFormatting",
+                title: pastePlain.clearFormatting,
+                subtitle: area(.pastePlain, under: pastePlain.clearFormatting),
+                icon: .symbol("doc.plaintext"),
+                run: { _ in afterBeat { PastePlainService.shared.clearFormattingNow() } }))
         }
         if AppFeature.cleaningMode.isAvailable {
             entries.append(CommandBarEntry(

@@ -10,7 +10,10 @@ struct ClipboardSettings: View {
     @ObservedObject private var pastePlain = PastePlainService.shared
     @ObservedObject private var permissions = Permissions.shared
     @State private var clearingIDs: [UUID: Date]?
-    @AppStorage(DefaultsKey.pastePlainEnabled) private var pastePlainEnabled = false
+    @AppStorage(DefaultsKey.pastePlainEnabled) private var pastePlainEnabled = true
+    @AppStorage(DefaultsKey.pastePlainCleanInvisible) private var pastePlainCleanInvisible = false
+    @AppStorage(DefaultsKey.pastePlainTrimWhitespace) private var pastePlainTrimWhitespace = false
+    @AppStorage(DefaultsKey.pastePlainCleanLinks) private var pastePlainCleanLinks = false
     @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var enabled = false
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var limit = 50
     @AppStorage(DefaultsKey.clipboardHistoryRetentionDays) private var retentionDays = 0
@@ -37,6 +40,10 @@ struct ClipboardSettings: View {
 
     private var retentionText: ClipboardRetentionStrings {
         FeatureStrings.clipboardRetention(l10n.language)
+    }
+
+    private var pastePlainText: PastePlainStrings {
+        FeatureStrings.pastePlain(l10n.language)
     }
 
     var body: some View {
@@ -130,7 +137,8 @@ struct ClipboardSettings: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ShortcutPreferenceRow(role: .pastePlain,
-                                          isEnabled: pastePlainEnabled) {
+                                          isEnabled: pastePlainEnabled,
+                                          label: pastePlainText.pasteWithFormatting) {
                         PastePlainService.shared.syncWithPreferences()
                     }
                     if pastePlainEnabled, pastePlain.shortcutRegistrationFailed {
@@ -140,6 +148,24 @@ struct ClipboardSettings: View {
                     }
                     if pastePlainEnabled, !permissions.accessibility {
                         PermissionRow(kind: .accessibility)
+                    }
+                    if pastePlainEnabled {
+                        Toggle(pastePlainText.cleanInvisibleToggle, isOn: $pastePlainCleanInvisible)
+                        Text(pastePlainText.cleanInvisibleCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(pastePlainText.trimWhitespaceToggle, isOn: $pastePlainTrimWhitespace)
+                        Text(pastePlainText.trimWhitespaceCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Toggle(pastePlainText.cleanLinksToggle, isOn: $pastePlainCleanLinks)
+                        Text(pastePlainText.cleanLinksCaption)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        // The strips read these choices on every transaction, so
+                        // unlike the capture toggles there is no service to sync:
+                        // the next strip simply picks them up.
+                        PastePlainExcludedAppsList()
                     }
                 } header: {
                     Text(l10n.s.pastePlainName)

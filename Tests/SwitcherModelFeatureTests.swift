@@ -5335,60 +5335,6 @@ enum SwitcherModelFeatureTests {
         suite.expect(QuickToolsSupport.openableURL(from: "example.com") == nil,
                "a bare host with no scheme is not opened")
 
-        for fallback in ["", " \n", "https://example.com/a.png", "data:image/png;base64,AAAA",
-                         "blob:https://example.com/1", "IMG_1234.HEIC", "photo.jpeg", "clip.mp4", "scan.pdf"] {
-            suite.expect(QuickToolsSupport.isMediaTextFallback(fallback),
-                         "'\(fallback)' is the text a lone picture or clip carries")
-        }
-        for text in ["Total", "Total:", "1.2.3", "3.14", "e.g.", "Item\tQty\nA\t1", "see https://example.com",
-                     "two words", "U.S.", "example.com", "2.4GHz", "12.5kg", "config.yaml", "john@example.com"] {
-            suite.expect(!QuickToolsSupport.isMediaTextFallback(text),
-                         "'\(text)' is copied text that still pastes plain")
-        }
-        // Paste plain delegates only to the universal ⌥⇧⌘V equivalent
-        // (shift = 1, option = 2 in the AX modifier mask); anything else in
-        // an app's menus is some other edit command and must not be pressed.
-        suite.expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                        modifierMask: 3,
-                                                        isEnabled: true),
-               "V with shift+option is an app's own matching-style paste")
-        suite.expect(QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "v",
-                                                        modifierMask: 3,
-                                                        isEnabled: true),
-               "the command character match ignores case")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: 0,
-                                                         isEnabled: true),
-               "plain ⌘V is the regular paste, never pressed as match style")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: 1,
-                                                         isEnabled: true),
-               "⇧⌘V alone is a different command in several apps")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: 3 | 4,
-                                                         isEnabled: true),
-               "a control variant is not the matching-style paste")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: 3 | 8,
-                                                         isEnabled: true),
-               "an equivalent without the command key does not qualify")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "C",
-                                                         modifierMask: 3,
-                                                         isEnabled: true),
-               "other command characters never match")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: nil,
-                                                         modifierMask: 3,
-                                                         isEnabled: true),
-               "an item with no key equivalent never matches")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: nil,
-                                                         isEnabled: true),
-               "an unreadable modifier mask never matches")
-        suite.expect(!QuickToolsSupport.isMatchStyleEquivalent(commandCharacter: "V",
-                                                         modifierMask: 3,
-                                                         isEnabled: false),
-               "a disabled item is left alone so the fallback paste still runs")
-
         // Launcher grid: 8 items in 3 columns (rows of 3, 3, 2).
         suite.expect(QuickToolsSupport.gridIndex(after: 0, count: 8, columns: 3, direction: .right) == 1,
                "launcher grid moves right within a row")

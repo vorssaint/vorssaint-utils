@@ -209,7 +209,7 @@ extension Strings {
         micMuteMenuBarToggle: "Bei aktiver Funktion in der Menüleiste anzeigen",
         micMuteMenuBarCaption: "Das rote Mikrofon in der Menüleiste zeigt an, dass die Funktion aktiv ist. Es garantiert nicht, dass alle Apps die Audioaufnahme beenden.",
         pastePlainName: "Als reinen Text einsetzen",
-        pastePlainCaption: "Setzt Kopiertes ohne Farben, Schriften oder Formatierung ein. Das Original bleibt in der Zwischenablage.",
+        pastePlainCaption: "Die Zwischenablage bleibt reiner Text, also setzt ⌘V überall ohne Formatierung ein. Der Kurzbefehl setzt das Original mit seiner Formatierung ein.",
         launcherName: "Schnellpanel",
         launcherCaption: "Ein schwebendes Panel mit deinen Lieblingswerkzeugen, per Kurzbefehl von überall aufrufbar.",
         launcherOpenNow: "Schnellpanel öffnen",

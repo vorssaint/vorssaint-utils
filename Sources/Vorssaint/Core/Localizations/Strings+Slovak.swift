@@ -209,7 +209,7 @@ extension Strings {
         micMuteMenuBarToggle: "Zobraziť v lište s ponukami, keď je funkcia zapnutá",
         micMuteMenuBarCaption: "Červený mikrofón v lište s ponukami označuje zapnutú funkciu. Nezaručuje, že všetky aplikácie prestali zachytávať zvuk.",
         pastePlainName: "Vložiť ako čistý text",
-        pastePlainCaption: "Vloží skopírovaný obsah bez farieb, písiem a formátovania. Originál ostáva v schránke.",
+        pastePlainCaption: "Schránka zostáva ako čistý text, takže ⌘V vlepuje všade bez formátovania. Skratka vlepí originál s jeho formátovaním.",
         launcherName: "Rýchly panel",
         launcherCaption: "Plávajúci panel s vašimi obľúbenými nástrojmi, vyvolaný skratkou odkiaľkoľvek.",
         launcherOpenNow: "Otvoriť rýchly panel",

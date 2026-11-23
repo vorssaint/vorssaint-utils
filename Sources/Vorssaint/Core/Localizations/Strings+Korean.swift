@@ -208,9 +208,8 @@ extension Strings {
         micUnmutePartialHUD: "일부 마이크가 아직 음소거되어 있습니다",
         micMuteMenuBarToggle: "기능이 켜져 있을 때 메뉴 막대에 표시",
         micMuteMenuBarCaption: "메뉴 막대의 빨간 마이크는 이 기능이 켜져 있음을 나타냅니다. 모든 앱의 오디오 수집이 중단되었음을 보장하지는 않습니다.",
-
         pastePlainName: "일반 텍스트로 붙여넣기",
-        pastePlainCaption: "색상, 글꼴, 서식 없이 복사한 내용을 붙여넣습니다. 원본은 클립보드에 유지됩니다.",
+        pastePlainCaption: "클립보드는 항상 일반 텍스트로 유지되어 ⌘V로 어디서든 서식 없이 붙여넣습니다. 단축키는 원본의 서식대로 붙여넣습니다.",
         launcherName: "빠른 패널",
         launcherCaption: "즐겨 쓰는 도구를 모아 둔 떠 있는 패널입니다. 어디서나 단축키로 열 수 있습니다.",
         launcherOpenNow: "빠른 패널 열기",

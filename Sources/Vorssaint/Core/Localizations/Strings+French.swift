@@ -209,7 +209,7 @@ extension Strings {
         micMuteMenuBarToggle: "Afficher dans la barre des menus quand la fonction est active",
         micMuteMenuBarCaption: "Le micro rouge dans la barre des menus indique que la fonction est active. Il ne garantit pas que toutes les apps cessent de capter le son.",
         pastePlainName: "Coller en texte brut",
-        pastePlainCaption: "Colle ce qui a été copié sans couleurs, polices ni mise en forme. L’original reste dans le presse-papiers.",
+        pastePlainCaption: "Le presse-papiers est conservé en texte brut, donc ⌘V colle sans mise en forme partout. Le raccourci colle l’original avec sa mise en forme.",
         launcherName: "Panneau rapide",
         launcherCaption: "Un panneau flottant avec vos outils préférés, appelé par un raccourci depuis n’importe où.",
         launcherOpenNow: "Ouvrir le panneau rapide",

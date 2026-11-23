@@ -183,10 +183,11 @@ struct GlobalShortcut: Equatable, Hashable {
     // free control-option-command layer.
     static let pointerNextDisplayDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_Z),
                                                           modifiers: [.control, .option, .command])
-    // Quick tools. Paste plain follows the universal "Paste and Match Style"
-    // combination; the others use the free ⌃⌥⌘ letters.
+    // Quick tools. Paste as plain text holds the clipboard plain, so its
+    // shortcut pastes the original formatting instead; ⌥⌘V sits beside plain
+    // ⌘V without touching either of them.
     static let pastePlainDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_V),
-                                                  modifiers: [.shift, .option, .command])
+                                                  modifiers: [.option, .command])
     static let finderRenameDefault = GlobalShortcut(keyCode: Int64(kVK_F2), modifiers: [])
     static let colorPickerDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C),
                                                    modifiers: [.control, .option, .command])

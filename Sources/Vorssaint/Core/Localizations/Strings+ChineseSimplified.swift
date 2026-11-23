@@ -209,7 +209,7 @@ extension Strings {
         micMuteMenuBarToggle: "功能开启时在菜单栏显示",
         micMuteMenuBarCaption: "菜单栏中的红色麦克风表示此功能已开启，并不保证所有 App 都已停止采集音频。",
         pastePlainName: "粘贴为纯文本",
-        pastePlainCaption: "粘贴拷贝的内容时去除颜色、字体和格式。原始内容仍保留在剪贴板中。",
+        pastePlainCaption: "剪贴板始终保留为纯文本，⌘V 在任何地方粘贴都无格式。快捷键则按原格式粘贴。",
         launcherName: "快捷面板",
         launcherCaption: "一个汇集你最爱工具的悬浮面板，随时随地用快捷键唤出。",
         launcherOpenNow: "打开快捷面板",

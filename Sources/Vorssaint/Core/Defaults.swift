@@ -619,6 +619,12 @@ enum DefaultsKey {
     // Quick tools: paste as plain text, color picker, screen OCR, mic mute.
     static let pastePlainEnabled = "pastePlainEnabled"
     static let pastePlainShortcut = "pastePlainShortcut"
+    // Apps whose copies keep their formatting instead of being stripped.
+    static let pastePlainExcludedApps = "pastePlainExcludedApps"
+    // Optional cleanups applied to the plain text a strip writes.
+    static let pastePlainCleanInvisible = "pastePlainCleanInvisible"
+    static let pastePlainTrimWhitespace = "pastePlainTrimWhitespace"
+    static let pastePlainCleanLinks = "pastePlainCleanLinks"
     static let colorPickerShortcutEnabled = "colorPickerShortcutEnabled"
     static let colorPickerShortcut = "colorPickerShortcut"
     static let colorPickerFormat = "colorPickerFormat"       // hex | rgb | hsl | swiftui
@@ -1863,8 +1869,15 @@ enum Defaults {
         DefaultsKey.windowPreviewExcludedApps: [String](),
         DefaultsKey.switcherPreviewExcludedApps: [String](),
         DefaultsKey.diskEjectExcludedVolumes: [String](),
-        DefaultsKey.pastePlainEnabled: false,
+        // The point of the feature is that ⌘V pastes plain everywhere, so it
+        // is on out of the box (an explicit off choice is persisted and wins
+        // over this default, like any other).
+        DefaultsKey.pastePlainEnabled: true,
         DefaultsKey.pastePlainShortcut: GlobalShortcut.pastePlainDefault.storageValue,
+        DefaultsKey.pastePlainExcludedApps: [String](),
+        DefaultsKey.pastePlainCleanInvisible: false,
+        DefaultsKey.pastePlainTrimWhitespace: false,
+        DefaultsKey.pastePlainCleanLinks: false,
         DefaultsKey.finderRenameEnabled: false,
         DefaultsKey.finderRenameShortcut: GlobalShortcut.finderRenameDefault.storageValue,
         DefaultsKey.diskImageInstallerUseUserApplications: false,
