@@ -1497,6 +1497,7 @@ def main():
           + "".join(declaration(canvas, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func syncMissionControlMonitoring()", "    private var missionControlCheckInterval:",
               "    private func updateMissionControlTimer()", "    private func refreshMissionControlState("])
+              .replace("NSEvent.pressedMouseButtons & 1 == 1", "primaryButtonDown")
           + "}\n}\n")
     # Exercise the capsule's production music branch with the hover fixture.
     # Other activity services are unrelated to this sizing contract.
@@ -2811,6 +2812,7 @@ def main():
                     for prefix in ["    private func readClaudePlan(", "    private func readClaudeApp(", "    private func checkLimits(",
                                    "    private func reportRenewals(", "    private func claudeLimitsDue(",
                                    "    private func noteClaudeCheck(", "    private func networkChanged("])
+              .replace("ClaudeStatus.latest(now: now).flatMap { $0.limits(now: now) }", "claudeStatusLimits")
           + "}\n}\n")
 
     write("AgentUsagePolling.swift", "import Foundation\n"

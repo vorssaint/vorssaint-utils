@@ -57,6 +57,8 @@ enum NotchMusicVisibilityTests {
             primary == .timer ? timerCompanions : []
         }
         var showsCompactActivityPicker = false
+        /// The converter's taller drag hint; off, so the placeholder keeps its plain height.
+        var convertDragHint = false
         var compactActivityPickerLayout = NotchActivityPickerLayout(
             count: 2, labelWidth: 80, stripSize: CGSize(width: 300, height: 32), screenWidth: 1440)
         var hiddenInFullscreen = false

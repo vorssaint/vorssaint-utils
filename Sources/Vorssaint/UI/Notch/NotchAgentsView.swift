@@ -1158,7 +1158,7 @@ private struct NotchAgentClaudeStatus: View {
     }
 
     private static func tokens(_ value: Int) -> String {
-        value >= 1_000_000 ? String(format: "%.1fM", Double(value) / 1e6)
-            : value >= 1_000 ? String(format: "%.1fk", Double(value) / 1e3) : String(value)
+        value >= 1_000_000 ? String(format: "%.1fM", locale: .current, Double(value) / 1e6)
+            : value >= 1_000 ? String(format: "%.1fk", locale: .current, Double(value) / 1e3) : String(value)
     }
 }

@@ -155,7 +155,7 @@ enum FFmpeg {
         let hours = Int(clamped) / 3600
         let minutes = (Int(clamped) % 3600) / 60
         let secs = clamped - Double(hours * 3600 + minutes * 60)
-        return String(format: "%02d:%02d:%06.3f", hours, minutes, secs)
+        return String(format: "%02d:%02d:%06.3f", locale: Locale(identifier: "en_US_POSIX"), hours, minutes, secs)
     }
 }
 

@@ -25,7 +25,7 @@ struct ToolField: Identifiable {
     var showsFor: (ToolID, [FileFormat]) -> Bool = { _, _ in true }
 }
 
-struct ToolValues {
+struct ToolValues: Equatable {
     var n: [String: Double] = [:]
     var s: [String: String] = [:]
     var b: [String: Bool] = [:]
@@ -156,6 +156,31 @@ enum ConvertTools {
         return values
     }
 
+    /// The photo edit's settings; the preview and the run read them the same way.
+    static func adjustments(_ v: ToolValues) -> PhotoAdjustments {
+        var a = PhotoAdjustments()
+        a.exposure = v.n["exposure"] ?? 0; a.contrast = v.n["contrast"] ?? 1; a.saturation = v.n["saturation"] ?? 1
+        a.sharpness = v.n["sharpness"] ?? 0; a.vignette = v.n["vignette"] ?? 0; a.monochrome = v.b["mono"] ?? false
+        return a
+    }
+
+    /// The background tool's settings. `scale` shrinks the pixel-sized corner for a reduced copy.
+    static func frameOptions(_ v: ToolValues, scale: CGFloat = 1) -> ImageOps.FrameOptions {
+        var options = ImageOps.FrameOptions()
+        let aspect = Double(v.s["aspect"] ?? "0") ?? 0
+        options.aspect = aspect > 0 ? CGSize(width: aspect, height: 1) : nil
+        options.padding = CGFloat(v.n["padding"] ?? 0.08)
+        options.cornerRadius = CGFloat(v.n["corner"] ?? 24) * scale
+        options.shadow *= scale
+        switch v.s["bg"] {
+        case "black": options.background = .color(.black)
+        case "sunset": options.background = .gradient(NSColor(red: 1, green: 0.55, blue: 0.3, alpha: 1), NSColor(red: 0.8, green: 0.2, blue: 0.5, alpha: 1), angle: 45)
+        case "ocean": options.background = .gradient(NSColor(red: 0.2, green: 0.6, blue: 0.95, alpha: 1), NSColor(red: 0.1, green: 0.2, blue: 0.6, alpha: 1), angle: 45)
+        default: options.background = .color(.white)
+        }
+        return options
+    }
+
     /// The trim fields start at the whole file.
     static func prepare(_ tool: ToolID, urls: [URL], values: inout ToolValues) async {
         guard tool == .trimVideo || tool == .trimAudio, let url = urls.first else { return }
@@ -234,26 +259,14 @@ enum ConvertToolRunner {
                 return [destination]
             }
         case .editImage:
-            var a = PhotoAdjustments()
-            a.exposure = v.n["exposure"] ?? 0; a.contrast = v.n["contrast"] ?? 1; a.saturation = v.n["saturation"] ?? 1
-            a.sharpness = v.n["sharpness"] ?? 0; a.vignette = v.n["vignette"] ?? 0; a.monochrome = v.b["mono"] ?? false
+            let a = ConvertTools.adjustments(v)
             each { url, _ in
                 let image = try ImageIOBridge.load(url)
                 guard let result = ImageOps.render(ImageOps.adjusted(ImageOps.ciImage(image), a)) else { throw OpenTangerineError.encodeFailed(url.lastPathComponent) }
                 return [try await writeImage(result, like: url, suffix: "edited")]
             }
         case .frameImage:
-            var options = ImageOps.FrameOptions()
-            let aspect = Double(v.s["aspect"] ?? "0") ?? 0
-            options.aspect = aspect > 0 ? CGSize(width: aspect, height: 1) : nil
-            options.padding = CGFloat(v.n["padding"] ?? 0.08)
-            options.cornerRadius = CGFloat(v.n["corner"] ?? 24)
-            switch v.s["bg"] {
-            case "black": options.background = .color(.black)
-            case "sunset": options.background = .gradient(NSColor(red: 1, green: 0.55, blue: 0.3, alpha: 1), NSColor(red: 0.8, green: 0.2, blue: 0.5, alpha: 1), angle: 45)
-            case "ocean": options.background = .gradient(NSColor(red: 0.2, green: 0.6, blue: 0.95, alpha: 1), NSColor(red: 0.1, green: 0.2, blue: 0.6, alpha: 1), angle: 45)
-            default: options.background = .color(.white)
-            }
+            let options = ConvertTools.frameOptions(v)
             each { url, _ in
                 let image = try ImageIOBridge.load(url)
                 guard let result = ImageOps.framed(image, options: options) else { throw OpenTangerineError.encodeFailed(url.lastPathComponent) }
@@ -421,7 +434,7 @@ enum ConvertToolRunner {
                     try Task.checkCancellation()
                     let image = try await VideoOps.snapshot(url, at: time)
                     count += 1
-                    try ImageIOBridge.write(image, to: directory.appendingPathComponent(String(format: "frame-%04d.%@", count, ext)),
+                    try ImageIOBridge.write(image, to: directory.appendingPathComponent(String(format: "frame-%04d.%@", locale: Locale(identifier: "en_US_POSIX"), count, ext)),
                                             format: ext == "png" ? .png : .jpg, quality: 0.9)
                     time += step
                     progress(min(1, Double(count) / Double(min(maxCount, max(1, Int(info.duration / step))))))

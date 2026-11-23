@@ -110,9 +110,12 @@ struct NotchView: View {
                 ConvertDropZone(title: "Convert here", symbol: "arrow.triangle.2.circlepath", selected: false,
                                 tint: Color(red: 1, green: 0.62, blue: 0.3), compact: true)
             }
-            .frame(maxWidth: .infinity, minHeight: 52)
-            .padding(.horizontal, 18)
-            .padding(.top, service.geometry.safeContentTop)
+            // Rounded boxes that run nearly end to end and use the whole height. Their corners are wide
+            // enough to follow the island's round bottom, so the dotted edge stays inside the shape.
+            .frame(maxWidth: .infinity)
+            .frame(height: 60)
+            .padding(.horizontal, 16)
+            .padding(.top, service.geometry.safeContentTop + 2)
         } else if service.dragPlaceholder {
             Group {
                 if service.mascotOn {

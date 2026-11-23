@@ -46,6 +46,8 @@ final class ConvertService: ObservableObject {
     @Published private(set) var session: Session?
     @Published private(set) var stage: Stage = .tiles
     @Published private(set) var mode: Mode = .convert
+    /// Which way the last change of page went: +1 toward Actions, -1 toward Convert.
+    @Published private(set) var modeStep = 1
     @Published var options = ConvertOptions()
     @Published var toolValues = ToolValues()
     /// A short line after an action that finishes at once, such as "Paths copied".
@@ -53,7 +55,17 @@ final class ConvertService: ObservableObject {
     private var noteWork: DispatchWorkItem?
 
     /// The page's height while it is open, as the island sizes its files page.
-    static let pageHeight: CGFloat = 292
+    static let pageHeight: CGFloat = 312
+    /// The extra height a tool with a live preview gives the island, for the picture under its controls.
+    static let previewHeight: CGFloat = 196
+
+    /// The page's height now: taller while a tool that shows a live preview is open.
+    var currentPageHeight: CGFloat {
+        if case .tool(let tool) = stage, let session, ConvertPreview.supports(tool, category: session.category) {
+            return Self.pageHeight + Self.previewHeight
+        }
+        return Self.pageHeight
+    }
 
     private var autoCloseWork: DispatchWorkItem?
     private var pointerInside = false
@@ -178,9 +190,22 @@ final class ConvertService: ObservableObject {
         }
     }
 
+    /// A swipe: the next page in that direction that has something to offer. False at either end.
+    @discardableResult
+    func stepMode(by step: Int) -> Bool {
+        guard session != nil, stage == .tiles, let index = Mode.allCases.firstIndex(of: mode) else { return false }
+        var candidate = index + step
+        while Mode.allCases.indices.contains(candidate) {
+            if modeHasTiles(Mode.allCases[candidate]) { setMode(Mode.allCases[candidate]); return true }
+            candidate += step
+        }
+        return false
+    }
+
     func setMode(_ next: Mode) {
         defer { rearmAutoClose() }
         guard mode != next || stage != .tiles else { return }
+        if mode != next, let from = Mode.allCases.firstIndex(of: mode), let to = Mode.allCases.firstIndex(of: next) { modeStep = to > from ? 1 : -1 }
         mode = next
         if case .running = stage {} else { stage = .tiles }
         hoverTile = nil

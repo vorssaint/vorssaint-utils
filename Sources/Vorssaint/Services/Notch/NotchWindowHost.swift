@@ -661,6 +661,10 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
     }
 
     private func refreshMissionControlState(now immediate: Bool = false) {
+        // Reading the window list waits on the window server, which is busiest while a file is held
+        // over the island. With the button down and no overview up there is nothing to learn, so the
+        // main thread is not left waiting; the timer keeps running and reads again once the button is up.
+        if !immediate, !overviewWasVisible, !concealedForMissionControl, NSEvent.pressedMouseButtons & 1 == 1 { return }
         let now = ProcessInfo.processInfo.systemUptime
         guard immediate || now - lastMissionControlCheck >= missionControlCheckInterval else { return }
         lastMissionControlCheck = now

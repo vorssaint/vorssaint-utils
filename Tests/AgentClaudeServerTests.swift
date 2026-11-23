@@ -32,6 +32,8 @@ enum AgentClaudeServerTests {
         var claudeAppModified: Date?
         var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
         var claudeAccountLimits: AgentLimits?
+        /// Stands in for the limits Claude Code last wrote to its status line.
+        var claudeStatusLimits: AgentLimits?
         let store = AgentUsageStore()
         var previousLimits: [AgentProvider: AgentLimits] = [:]
         var warned: [String: (provider: AgentProvider, window: AgentLimitWindow)] = [:]

@@ -223,6 +223,9 @@ final class ShelfService: ObservableObject {
     /// as a content drag (issue #240).
     private var sawGestureStart = false
     private var dragBeganInDock = false
+    /// The press already asked whether it began in the Dock; asking again on every drag event
+    /// costs a round trip to the window server each time and was never going to answer differently.
+    private var dockCheckedForDrag = false
     private var dragSourceBundleIdentifier: String?
     private var activeInternalDragIDs: [UUID] = []
     private var internalDragHoldsPackageContent = false
@@ -452,6 +455,7 @@ final class ShelfService: ObservableObject {
         guard mouseMonitor == nil else { return }
         closeDragGesture()
         dragBeganInDock = false
+        dockCheckedForDrag = false
         mouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .leftMouseDragged, .leftMouseUp]) { [weak self] event in
             guard let self else { return }
             switch event.type {
@@ -466,7 +470,10 @@ final class ShelfService: ObservableObject {
                 if !self.sawGestureStart {
                     self.beginDragGesture(with: event)
                 }
-                self.dragBeganInDock = self.dragBeganInDock || self.eventBelongsToDock(event)
+                if !self.dragBeganInDock, !self.dockCheckedForDrag {
+                    self.dockCheckedForDrag = true
+                    self.dragBeganInDock = self.eventBelongsToDock(event)
+                }
                 if NotchSupport.routesShelf() {
                     if self.automaticOpenAllowed, self.isContentDragActive() {
                         NotchService.shared.fileDragChanged(true)
@@ -560,6 +567,7 @@ final class ShelfService: ObservableObject {
         sawGestureStart = true
         dragBaselineChangeCount = NSPasteboard(name: .drag).changeCount
         dragBeganInDock = eventBelongsToDock(event)
+        dockCheckedForDrag = true
         dragSourceBundleIdentifier = sourceBundleIdentifier(for: event)
     }
 

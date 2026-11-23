@@ -23,8 +23,9 @@ struct ConvertPanelView: View {
                     case .tiles:
                         ConvertTileGrid(service: service)
                             .id(service.mode)
-                            .transition(.asymmetric(insertion: .opacity.combined(with: .offset(x: -28)),
-                                                    removal: .opacity.combined(with: .offset(x: -28))))
+                            .transition(.asymmetric(
+                                insertion: .opacity.combined(with: .offset(x: CGFloat(service.modeStep) * 90)).combined(with: .scale(scale: 0.88)),
+                                removal: .opacity.combined(with: .offset(x: CGFloat(-service.modeStep) * 90)).combined(with: .scale(scale: 0.88))))
                     case .options(let format):
                         ConvertOptionsPane(session: session, format: format, service: service)
                             .transition(.asymmetric(insertion: .opacity.combined(with: .offset(x: 28)),
@@ -51,14 +52,46 @@ struct ConvertPanelView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.84), value: service.stage)
-                .animation(reduceMotion ? nil : .spring(response: 0.5, dampingFraction: 0.84), value: jobsFinished)
+                .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.84), value: service.stage)
+                .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.84), value: jobsFinished)
                 .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: service.note)
+                ConvertPageDots(service: service)
+                    .frame(height: 8)
+                    .opacity(service.stage == .tiles ? 1 : 0)
             }
             // The pointer on the island holds the countdown that puts it back to normal.
             .contentShape(Rectangle())
             .onHover { service.setPointerInside($0) }
         }
+    }
+}
+
+// MARK: Page dots
+
+/// Three dots for Convert, Tools and Actions. The page you are on is a short white line; the others
+/// are grey dots. Moving to another page stretches the line over to it as the old one shrinks back.
+private struct ConvertPageDots: View {
+    @ObservedObject var service: ConvertService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ForEach(ConvertService.Mode.allCases) { mode in
+                let current = service.mode == mode
+                Capsule()
+                    .fill(current ? Color.white : Color.white.opacity(service.modeHasTiles(mode) ? 0.3 : 0.14))
+                    .frame(width: current ? 24 : 6, height: 6)
+                    .shadow(color: .white.opacity(current ? 0.45 : 0), radius: 4)
+                    .contentShape(Rectangle().inset(by: -6))
+                    .onTapGesture {
+                        guard service.modeHasTiles(mode) else { return }
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.68)) { service.setMode(mode) }
+                    }
+            }
+        }
+        .animation(reduceMotion ? nil : .spring(response: 0.45, dampingFraction: 0.62), value: service.mode)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Page \((ConvertService.Mode.allCases.firstIndex(of: service.mode) ?? 0) + 1) of 3")
     }
 }
 
@@ -149,7 +182,7 @@ private struct ConvertTileGrid: View {
             ZStack(alignment: .topLeading) {
                 ForEach(Array(tiles.enumerated()), id: \.element) { index, tile in
                     let frame = ConvertLayout.frame(index: index, count: tiles.count, width: proxy.size.width)
-                    ConvertTile(tile: tile, delay: Double(index) * 0.03, shown: shown, lit: service.hoverTile == tile) { service.choose(tile) }
+                    ConvertTile(tile: tile, delay: Double(index) * 0.012, shown: shown, lit: service.hoverTile == tile) { service.choose(tile) }
                         .frame(width: frame.width, height: frame.height)
                         .offset(x: frame.minX, y: frame.minY)
                 }
@@ -226,9 +259,9 @@ private struct ConvertTile: View {
         .animation(.spring(response: 0.2, dampingFraction: 0.65), value: pressed)
         // The cascade: each tile rises, sharpens and lands in turn.
         .opacity(shown ? 1 : 0)
-        .offset(y: shown ? 0 : 14)
-        .blur(radius: shown ? 0 : 6)
-        .animation(.spring(response: 0.5, dampingFraction: 0.78).delay(delay), value: shown)
+        .offset(y: shown ? 0 : 8)
+        .blur(radius: shown ? 0 : 3)
+        .animation(.spring(response: 0.26, dampingFraction: 0.8).delay(delay), value: shown)
     }
 
     static func tint(for tile: ConvertService.Tile) -> Color {
@@ -265,6 +298,9 @@ private struct ConvertToolPane: View {
     let session: ConvertService.Session
     let tool: ToolID
     @ObservedObject var service: ConvertService
+    @StateObject private var preview = ConvertPreview()
+
+    private var hasPreview: Bool { ConvertPreview.supports(tool, category: session.category) }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -285,7 +321,16 @@ private struct ConvertToolPane: View {
                 .padding(.vertical, 2)
             }
             ConvertGoButton(title: "Run") { service.runTool(tool) }
+            // The island grows taller for this: the live picture sits in the new space below the controls.
+            if hasPreview {
+                ConvertPreviewPane(preview: preview)
+                    .frame(height: ConvertService.previewHeight - 10)
+                    .transition(.opacity)
+            }
         }
+        .onAppear { if hasPreview { preview.update(tool, urls: session.urls, values: service.toolValues) } }
+        .onChange(of: service.toolValues) { _, values in if hasPreview { preview.update(tool, urls: session.urls, values: values) } }
+        .onDisappear { preview.reset() }
     }
 
     @ViewBuilder private func fieldView(_ field: ToolField) -> some View {
@@ -296,7 +341,7 @@ private struct ConvertToolPane: View {
         case .slider(let range, _, let unit, _):
             ConvertSlider(title: field.title, value: Binding(get: { service.toolValues.n[field.id] ?? range.lowerBound },
                                                              set: { service.toolValues.n[field.id] = $0 }),
-                          range: range, label: { range.upperBound <= 3 ? String(format: "%.2f", $0) : "\(Int($0))\(unit)" })
+                          range: range, label: { range.upperBound <= 3 ? String(format: "%.2f", locale: .current, $0) : "\(Int($0))\(unit)" })
         case .number(let unit, _):
             VStack(alignment: .leading, spacing: 6) {
                 Text(field.title).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.55))
@@ -317,6 +362,39 @@ private struct ConvertToolPane: View {
                     .textFieldStyle(.plain).font(.system(size: 12, design: .rounded))
                     .padding(.horizontal, 12).frame(height: 30).background(.white.opacity(0.09), in: Capsule())
             }
+        }
+    }
+}
+
+/// The live picture beside a tool's controls. Holding it down shows the file as it is now.
+private struct ConvertPreviewPane: View {
+    @ObservedObject var preview: ConvertPreview
+    @State private var comparing = false
+
+    var body: some View {
+        let shown = comparing ? (preview.original ?? preview.image) : preview.image
+        VStack(spacing: 6) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white.opacity(0.06))
+                if let shown {
+                    Image(nsImage: shown).resizable().interpolation(.medium).scaledToFit().padding(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                if preview.working, preview.image == nil { ProgressView().controlSize(.small) }
+                if comparing {
+                    Text("Before").font(.system(size: 10, weight: .bold)).foregroundStyle(.black)
+                        .padding(.horizontal, 7).frame(height: 18).background(.white, in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading).padding(8)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.1), lineWidth: 0.75))
+            .contentShape(Rectangle())
+            .onLongPressGesture(minimumDuration: 0, maximumDistance: 40, pressing: { down in
+                if preview.original != nil { comparing = down }
+            }, perform: {})
+            Text(preview.caption.isEmpty ? (preview.original != nil ? "Hold to compare" : " ") : preview.caption)
+                .font(.system(size: 10)).foregroundStyle(.white.opacity(0.5)).lineLimit(1).minimumScaleFactor(0.8)
         }
     }
 }
@@ -546,7 +624,7 @@ private struct ConvertRing: View {
     let progress: Double
 
     var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
             let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 2.4) / 2.4
             ZStack {
                 Circle().stroke(.white.opacity(0.1), lineWidth: 7)
@@ -698,7 +776,7 @@ private struct ConvertBurst: View {
     }
 
     var body: some View {
-        TimelineView(.animation) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
             let t = min(1, context.date.timeIntervalSince(start) / 0.9)
             Canvas { gc, size in
                 guard t < 1 else { return }

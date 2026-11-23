@@ -13,7 +13,10 @@ enum NotchLyricsContract {
     enum Preferences {
         static var enabled = true
         static var online = false
+        /// The music wallpaper keeps the finder running without the island's page.
+        static var wallpaper = false
         static func isEnabled() -> Bool { enabled }
+        static func wallpaperActive() -> Bool { wallpaper }
         static func onlineEnabled() -> Bool { enabled && online }
         static let maximumBytes = ProductionLyricsParser.maximumBytes
         static let maximumSearchBytes = ProductionLyricsParser.maximumSearchBytes

@@ -96,6 +96,8 @@ struct NotchStrings {
     let translucentBackground: String
     let translucentBackgroundHint: String
     let translucentBackgroundGlassHint: String
+    let claudeQuestions: String
+    let claudeQuestionsHint: String
 }
 
 extension FeatureStrings {
@@ -213,7 +215,9 @@ extension NotchStrings {
         quickAccessRight: "Right",
         translucentBackground: "Translucent background",
         translucentBackgroundHint: "When open, Dynamic Island blurs what is behind it with the system’s own material.",
-        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead."
+        translucentBackgroundGlassHint: "Liquid Glass is on, so Dynamic Island uses it instead.",
+        claudeQuestions: "Show Claude Code questions on the island",
+        claudeQuestionsHint: "Questions and permission requests pop up here to answer with a click. Adds two hooks to ~/.claude/settings.json."
     )
 
     static let ptBR = NotchStrings(
@@ -308,7 +312,9 @@ extension NotchStrings {
         quickAccessRight: "Direito",
         translucentBackground: "Fundo translúcido",
         translucentBackgroundHint: "Quando aberta, a Dynamic Island desfoca o que está atrás dela com o material do próprio sistema.",
-        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar."
+        translucentBackgroundGlassHint: "O Liquid Glass está ativado, então a Dynamic Island o usa no lugar.",
+        claudeQuestions: "Mostrar perguntas do Claude Code na ilha",
+        claudeQuestionsHint: "Perguntas e pedidos de permissão aparecem aqui para responder com um clique. Adiciona dois hooks a ~/.claude/settings.json."
     )
 
     static let es = NotchStrings(
@@ -403,7 +409,9 @@ extension NotchStrings {
         quickAccessRight: "Derecho",
         translucentBackground: "Fondo translúcido",
         translucentBackgroundHint: "Al abrirse, Dynamic Island desenfoca lo que hay detrás con el material del propio sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar."
+        translucentBackgroundGlassHint: "Liquid Glass está activado, así que Dynamic Island lo usa en su lugar.",
+        claudeQuestions: "Mostrar preguntas de Claude Code en la isla",
+        claudeQuestionsHint: "Las preguntas y solicitudes de permiso aparecen aquí para responder con un clic. Añade dos hooks a ~/.claude/settings.json."
     )
 
     static let sk = NotchStrings(
@@ -498,7 +506,9 @@ extension NotchStrings {
         quickAccessRight: "Vpravo",
         translucentBackground: "Priesvitné pozadie",
         translucentBackgroundHint: "Otvorený Dynamic Island rozmazáva obsah za sebou pomocou systémového materiálu.",
-        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu."
+        translucentBackgroundGlassHint: "Liquid Glass je zapnuté, preto ho Dynamic Island používa namiesto systémového materiálu.",
+        claudeQuestions: "Zobraziť otázky Claude Code na ostrove",
+        claudeQuestionsHint: "Otázky a žiadosti o povolenie sa zobrazia tu a odpoviete na ne jedným kliknutím. Pridá dva hooky do ~/.claude/settings.json."
     )
 
     static let de = NotchStrings(
@@ -593,7 +603,9 @@ extension NotchStrings {
         quickAccessRight: "Rechts",
         translucentBackground: "Durchscheinender Hintergrund",
         translucentBackgroundHint: "Geöffnet zeichnet Dynamic Island den Hintergrund mit dem Material des Systems unscharf.",
-        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass."
+        translucentBackgroundGlassHint: "Liquid Glass ist aktiv, daher verwendet Dynamic Island stattdessen Liquid Glass.",
+        claudeQuestions: "Fragen von Claude Code auf der Insel zeigen",
+        claudeQuestionsHint: "Fragen und Berechtigungsanfragen erscheinen hier und lassen sich mit einem Klick beantworten. Fügt zwei Hooks zu ~/.claude/settings.json hinzu."
     )
 
     static let fr = NotchStrings(
@@ -688,7 +700,9 @@ extension NotchStrings {
         quickAccessRight: "Droite",
         translucentBackground: "Fond translucide",
         translucentBackgroundHint: "Ouverte, Dynamic Island floute ce qui se trouve derrière avec le matériau du système.",
-        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place."
+        translucentBackgroundGlassHint: "Liquid Glass est activé, Dynamic Island l’utilise donc à la place.",
+        claudeQuestions: "Afficher les questions de Claude Code sur l’île",
+        claudeQuestionsHint: "Les questions et demandes d’autorisation s’affichent ici pour y répondre d’un clic. Ajoute deux hooks à ~/.claude/settings.json."
     )
 
     static let it = NotchStrings(
@@ -783,7 +797,9 @@ extension NotchStrings {
         quickAccessRight: "Destra",
         translucentBackground: "Sfondo traslucido",
         translucentBackgroundHint: "Quando è aperta, Dynamic Island sfoca ciò che si trova dietro con il materiale del sistema.",
-        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello."
+        translucentBackgroundGlassHint: "Liquid Glass è attivo, quindi Dynamic Island usa quello.",
+        claudeQuestions: "Mostra le domande di Claude Code sull’isola",
+        claudeQuestionsHint: "Domande e richieste di autorizzazione compaiono qui per rispondere con un clic. Aggiunge due hook a ~/.claude/settings.json."
     )
 
     static let ru = NotchStrings(
@@ -878,7 +894,9 @@ extension NotchStrings {
         quickAccessRight: "Справа",
         translucentBackground: "Полупрозрачный фон",
         translucentBackgroundHint: "Открытый Dynamic Island размывает то, что под ним, системным материалом.",
-        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его."
+        translucentBackgroundGlassHint: "Включено Liquid Glass, поэтому Dynamic Island использует его.",
+        claudeQuestions: "Показывать вопросы Claude Code на острове",
+        claudeQuestionsHint: "Вопросы и запросы разрешений появляются здесь, чтобы ответить одним щелчком. Добавляет два хука в ~/.claude/settings.json."
     )
 
     static let tr = NotchStrings(
@@ -973,7 +991,9 @@ extension NotchStrings {
         quickAccessRight: "Sağ",
         translucentBackground: "Yarı saydam arka plan",
         translucentBackgroundHint: "Dynamic Island açıkken arkasındakini sistemin kendi malzemesiyle bulanıklaştırır.",
-        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır."
+        translucentBackgroundGlassHint: "Liquid Glass açık olduğundan Dynamic Island onu kullanır.",
+        claudeQuestions: "Claude Code sorularını adada göster",
+        claudeQuestionsHint: "Sorular ve izin istekleri burada açılır, tek tıkla yanıtlarsınız. ~/.claude/settings.json dosyasına iki hook ekler."
     )
 
     static let ja = NotchStrings(
@@ -1068,7 +1088,9 @@ extension NotchStrings {
         quickAccessRight: "右",
         translucentBackground: "半透明の背景",
         translucentBackgroundHint: "開いた Dynamic Island の背後をシステムの素材でぼかします。",
-        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。"
+        translucentBackgroundGlassHint: "Liquid Glass がオンのため、Dynamic Island はそちらを使います。",
+        claudeQuestions: "Claude Code の質問をアイランドに表示",
+        claudeQuestionsHint: "質問や許可のリクエストがここに表示され、クリックで回答できます。~/.claude/settings.json に 2 つのフックを追加します。"
     )
 
     static let ko = NotchStrings(
@@ -1163,7 +1185,9 @@ extension NotchStrings {
         quickAccessRight: "오른쪽",
         translucentBackground: "반투명 배경",
         translucentBackgroundHint: "열린 Dynamic Island가 시스템 재질로 뒤쪽을 흐리게 표시합니다.",
-        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다."
+        translucentBackgroundGlassHint: "Liquid Glass가 켜져 있어 Dynamic Island가 대신 사용합니다.",
+        claudeQuestions: "Claude Code 질문을 아일랜드에 표시",
+        claudeQuestionsHint: "질문과 권한 요청이 여기에 나타나 클릭 한 번으로 답할 수 있습니다. ~/.claude/settings.json에 훅 두 개를 추가합니다."
     )
 
     static let zhHans = NotchStrings(
@@ -1258,7 +1282,9 @@ extension NotchStrings {
         quickAccessRight: "右侧",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展开的 Dynamic Island 会用系统材质模糊其背后的内容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已开启，Dynamic Island 将改用 Liquid Glass。",
+        claudeQuestions: "在岛上显示 Claude Code 的提问",
+        claudeQuestionsHint: "提问和权限请求会在这里弹出，点一下即可回答。会向 ~/.claude/settings.json 添加两个钩子。"
     )
 
     static let zhTW = NotchStrings(
@@ -1353,7 +1379,9 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        claudeQuestions: "在島上顯示 Claude Code 的提問",
+        claudeQuestionsHint: "提問和權限請求會在這裡彈出，按一下即可回答。會在 ~/.claude/settings.json 加入兩個掛鉤。"
     )
 
     static let zhHK = NotchStrings(
@@ -1448,7 +1476,9 @@ extension NotchStrings {
         quickAccessRight: "右側",
         translucentBackground: "半透明背景",
         translucentBackgroundHint: "展開的 Dynamic Island 會以系統材質模糊背後的內容。",
-        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。"
+        translucentBackgroundGlassHint: "Liquid Glass 已開啟，Dynamic Island 會改用 Liquid Glass。",
+        claudeQuestions: "在島上顯示 Claude Code 的提問",
+        claudeQuestionsHint: "提問和權限請求會喺呢度彈出，㩒一下就可以回答。會喺 ~/.claude/settings.json 加入兩個掛鉤。"
     )
 
     static let uk = NotchStrings(
@@ -1543,7 +1573,9 @@ extension NotchStrings {
         quickAccessRight: "Праворуч",
         translucentBackground: "Напівпрозоре тло",
         translucentBackgroundHint: "Відкритий Dynamic Island розмиває вміст позаду за допомогою системного матеріалу.",
-        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його."
+        translucentBackgroundGlassHint: "Liquid Glass увімкнено, тому Dynamic Island використовує його.",
+        claudeQuestions: "Показувати запитання Claude Code на острові",
+        claudeQuestionsHint: "Запитання та запити дозволів з’являються тут, щоб відповісти одним клацанням. Додає два хуки до ~/.claude/settings.json."
     )
 
 }

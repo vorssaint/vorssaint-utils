@@ -101,6 +101,8 @@ enum NotchSectionPagingTests {
         var movedRows = 0, gestureCalls = 0
         func scrollSections(by rows: Int) { movedRows += rows }
         func handleGesture(_ event: NSEvent) -> Bool { gestureCalls += 1; return false }
+        /// The converter is closed in these fixtures, so its swipe never claims the scroll.
+        func handleConvertSwipe(_ event: NSEvent) -> Bool { false }
     }
 
     private static func routing(_ suite: TestSuite) {

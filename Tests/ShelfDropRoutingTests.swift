@@ -67,11 +67,34 @@ enum ShelfDropRoutingContract {
         var surfaceSize: CGSize { geometry.expandedSize(module: .files) }
         var opened: [NotchModule] = []
         var reactions: [NotchMascotReaction] = []
+        var convertDragOpened = false
+        var dropSplitX: CGFloat = 0
+        var dropSplitReadAt: TimeInterval = 0
+        var convertDragDismissals = 0
+        func dismissConvertDrag() { convertDragDismissals += 1 }
+        func convertTile(at point: CGPoint) -> ConvertService.Tile? { nil }
         func refreshPresentation() {}
         func reactMascot(_ reaction: NotchMascotReaction, patience: TimeInterval = 8) { reactions.append(reaction) }
         func open(_ module: NotchModule, pinned: Bool = false, takeFocus: Bool = true) {
             opened.append(module)
             if pinned { self.pinned = true }
+        }
+    }
+    /// The converter, off for these routes: nothing is held with its key and no file is
+    /// offered to it, so the drops reach the shelf and the optimizer as before.
+    final class ConvertService {
+        enum Tile: Hashable { case format }
+        static var shared = ConvertService()
+        var dragging = false
+        var convertible = false
+        var begun: [NSPasteboard] = []
+        func canConvert(_ pasteboard: NSPasteboard) -> Bool { convertible }
+        func setHover(_ tile: Tile?) {}
+        func dropOnHover() -> Bool { false }
+        func begin(_ pasteboard: NSPasteboard) -> Bool {
+            guard convertible else { return false }
+            begun.append(pasteboard)
+            return true
         }
     }
     class FileToolsState {
@@ -305,9 +328,13 @@ enum ShelfDropRoutingTests {
                 files.media.state = .running
                 repeatDrop.beginFileDrop(board)
                 let area = NotchFileToolsSupport.mediaDropArea(in: repeatDrop.geometry, size: repeatDrop.surfaceSize)
+                // The right box also converts, so the drag is always taken there; media that is
+                // still running is what refuses the drop, softly, when it lands.
                 suite.expect(repeatDrop.choosingFileDropDestination
-                       && !repeatDrop.updateFileDrop(at: CGPoint(x: area.midX, y: area.midY)),
+                       && repeatDrop.updateFileDrop(at: CGPoint(x: area.midX, y: area.midY))
+                       && !repeatDrop.accept(board) && files.media.state == .running && files.mediaSession?.id == id,
                        "running media keeps the chooser available but cannot be overwritten by another drop")
+                repeatDrop.beginFileDrop(board)
                 suite.expect(repeatDrop.updateFileDrop(at: CGPoint(x: 40, y: area.midY)) && repeatDrop.accept(board)
                        && !files.mediaPresented && files.media.state == .running,
                        "the shelf remains usable while an optimization continues without interruption")

@@ -165,8 +165,7 @@ struct NotchSettings: View {
                     PermissionRow(kind: .accessibility)
                 }
             }
-            switchRow("terminal", "Show Claude Code questions on the island",
-                      caption: "Questions and permission requests pop up here to answer with a click. Adds two hooks to ~/.claude/settings.json.",
+            switchRow("terminal", text.claudeQuestions, caption: text.claudeQuestionsHint,
                       isOn: Binding(get: { AgentAskService.isEnabled }, set: { AgentAskService.shared.setEnabled($0) }))
             NotchSettingsTabRow(tab: $tab, language: l10n.language, showsCompanion: features.isAvailable(.notchMascot),
                                 canOpen: enabled) { NotchService.shared.open() }

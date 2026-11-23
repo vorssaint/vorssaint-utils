@@ -50,6 +50,10 @@ final class LyricsWallpaperService: ObservableObject {
     private var coverSource: Data?
     private var extraLookup: Task<Void, Never>?
     private var hideWork: DispatchWorkItem?
+    /// How long music may stay paused before the wallpaper goes, so a still screen is not kept animating for nothing.
+    private static let idleLimit: TimeInterval = 120
+    private var idleWork: DispatchWorkItem?
+    private var idleHidden = false
     private var running = false
     private var awakeAssertion = IOPMAssertionID(0)
 
@@ -121,6 +125,8 @@ final class LyricsWallpaperService: ObservableObject {
         LyricsLockScreenService.shared.stop()
         cancellables.removeAll()
         hideWork?.cancel(); hideWork = nil
+        idleWork?.cancel(); idleWork = nil
+        idleHidden = false
         extraLookup?.cancel(); extraLookup = nil
         track = nil
         extra = nil
@@ -151,6 +157,26 @@ final class LyricsWallpaperService: ObservableObject {
         }
         hideWork?.cancel()
         hideWork = nil
+        if playback.isPlaying {
+            // Playing again: the wallpaper comes back at once.
+            idleWork?.cancel(); idleWork = nil
+            idleHidden = false
+        } else if idleHidden {
+            // Paused long enough that the wallpaper went away; it stays away until the music resumes.
+            setAwake(false)
+            return
+        } else if idleWork == nil {
+            // Paused: the wallpaper stays up for a while, then goes if nothing plays.
+            let work = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.idleWork = nil
+                self.idleHidden = true
+                self.setAwake(false)
+                self.closeWindows()
+            }
+            idleWork = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.idleLimit, execute: work)
+        }
         showWindows()
         setAwake(playback.isPlaying)
         updateCover(from: playback.track.artworkData)

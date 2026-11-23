@@ -100,6 +100,8 @@ struct NotchFilesView: View {
             service.refreshPresentation()
         }
         .onChange(of: convert.isOpen) { service.refreshPresentation(transitionContent: .replace) }
+        // A tool with a live preview makes the island taller for the picture, and shorter again on leaving it.
+        .onChange(of: convert.currentPageHeight) { service.refreshPresentation() }
         .onChange(of: archives.mediaPresented) { service.refreshPresentation() }
         .onChange(of: showingActions || outputPanel != nil) { _, active in service.keepFileInteractionOpen(active) }
         .onDisappear {

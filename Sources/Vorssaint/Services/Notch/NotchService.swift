@@ -836,7 +836,7 @@ final class NotchService: ObservableObject {
                         detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                         fileMediaHeight: !choosingFileDropDestination && MainActor.assumeIsolated({ ConvertService.shared.isOpen })
-                            ? ConvertService.pageHeight
+                            ? MainActor.assumeIsolated({ ConvertService.shared.currentPageHeight })
                             : !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
                         toolCount: launcher.isEditing || launcher.activeUtility != nil ? nil : launcher.visibleItems.count,
@@ -974,7 +974,7 @@ final class NotchService: ObservableObject {
             return captureControlsLayout.size
         }
         if expanded { return showingCommandBar ? commandBarSurfaceSize : expandedSize }
-        if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + 66) }
+        if dragPlaceholder { return CGSize(width: geometry.peek.width, height: geometry.safeContentTop + (convertDragHint ? 74 : 66)) }
         if let notice {
             guard noticeExpanded else { return geometry.noticeSize(wings: notice.wings(in: geometry)) }
             return geometry.notificationPreviewSize(
@@ -2033,9 +2033,10 @@ final class NotchService: ObservableObject {
         heldDrag = active && internalDrag
         if !heldDrag { shelfDragExitWork?.cancel(); shelfDragExitWork = nil }
         if active, !internalDrag, NotchSupport.revealsShelfDrag(), !expanded {
-            mutatePresentation { dragPlaceholder = true; peeking = false }
+            // Reported on every move of the drag: lay the island out once, not on each event.
+            if !dragPlaceholder || peeking { mutatePresentation { dragPlaceholder = true; peeking = false } }
         } else if !active {
-            mutatePresentation { dragPlaceholder = false }
+            if dragPlaceholder { mutatePresentation { dragPlaceholder = false } }
             inside = windowHost?.containsHover(NSEvent.mouseLocation) == true
             if !inside, !pinned { hover(false) }
         }
@@ -2352,6 +2353,9 @@ final class NotchService: ObservableObject {
         open(.files, takeFocus: false)
     }
 
+    private var dropSplitX: CGFloat = 0
+    private var dropSplitReadAt: TimeInterval = 0
+
     @discardableResult
     func updateFileDrop(at point: CGPoint) -> Bool {
         if MainActor.assumeIsolated({ ConvertService.shared.dragging }) {
@@ -2359,14 +2363,20 @@ final class NotchService: ObservableObject {
             MainActor.assumeIsolated { ConvertService.shared.setHover(tile) }
             return true
         }
-        let targeted = choosingFileDropDestination
-            && NotchFileToolsSupport.mediaDropArea(in: expandedGeometry, size: surfaceSize).contains(point)
+        // The two boxes are the island's left and right halves. Only the side is tested, so the
+        // highlight follows the file even while the island is still growing under it.
+        // The island's width is worked out from many settings, so it is read a few times a second,
+        // not on every move of the drag.
+        let now = ProcessInfo.processInfo.systemUptime
+        if now - dropSplitReadAt > 0.1 || dropSplitX == 0 { dropSplitX = surfaceSize.width / 2; dropSplitReadAt = now }
+        let targeted = choosingFileDropDestination && point.x >= dropSplitX
         if targetsMediaDrop != targeted { targetsMediaDrop = targeted }
         // The Convert zone takes any drop; a media drop it cannot convert fails softly in accept().
         return true
     }
 
     func endFileDrop() {
+        dropSplitX = 0
         let changed = choosingFileDropDestination
         if changed { choosingFileDropDestination = false }
         if targetsMediaDrop { targetsMediaDrop = false }
@@ -4105,7 +4115,36 @@ final class NotchService: ObservableObject {
     /// The gallery steps its rows from the wheel; every other scroll over the
     /// island is a gesture candidate.
     private func handleScroll(_ event: NSEvent) -> Bool {
-        handleSectionScroll(event) || handleGesture(event)
+        handleConvertSwipe(event) || handleSectionScroll(event) || handleGesture(event)
+    }
+
+    private var convertSwipe = ConvertSwipe()
+
+    /// The taller pair of drop boxes shows while a drag is up and the converter is on.
+    private var convertDragHint: Bool { UserDefaults.standard.bool(forKey: DefaultsKey.convertEnabled) }
+
+    /// Two fingers swiping sideways over the converter's tiles move between Convert, Tools and Actions.
+    private func handleConvertSwipe(_ event: NSEvent) -> Bool {
+        guard running, !suspended, expanded, let panel, !trackingMenu, !heldDrag,
+              event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+              MainActor.assumeIsolated({ ConvertService.shared.isOpen && ConvertService.shared.stage == .tiles }),
+              windowHost?.containsSurface(panel.convertPoint(toScreen: event.locationInWindow)) == true else {
+            convertSwipe = ConvertSwipe()
+            return false
+        }
+        let result = convertSwipe.handle(deltaX: Double(event.scrollingDeltaX), deltaY: Double(event.scrollingDeltaY),
+                                         began: event.phase.contains(.began),
+                                         ended: !event.phase.intersection([.ended, .cancelled]).isEmpty
+                                            || !event.momentumPhase.intersection([.ended, .cancelled]).isEmpty,
+                                         momentum: !event.momentumPhase.isEmpty, precise: event.hasPreciseScrollingDeltas,
+                                         hasPhase: !event.phase.isEmpty,
+                                         fingersMoveWithContent: event.isDirectionInvertedFromDevice)
+        if result.step != 0 {
+            MainActor.assumeIsolated {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.72)) { _ = ConvertService.shared.stepMode(by: result.step) }
+            }
+        }
+        return result.consumed
     }
 
     private func handleSectionScroll(_ event: NSEvent) -> Bool {

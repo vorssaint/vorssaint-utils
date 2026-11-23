@@ -120,7 +120,7 @@ enum VideoOps {
         var parts: [String] = []
         while remaining > 2.0 { parts.append("atempo=2.0"); remaining /= 2.0 }
         while remaining < 0.5 { parts.append("atempo=0.5"); remaining /= 0.5 }
-        parts.append(String(format: "atempo=%.4f", remaining))
+        parts.append(String(format: "atempo=%.4f", locale: Locale(identifier: "en_US_POSIX"), remaining))
         return parts.joined(separator: ",")
     }
 

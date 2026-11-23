@@ -73,7 +73,7 @@ enum TimeFormatter {
         let clamped = max(0, seconds)
         let minutes = Int(clamped) / 60
         let secs = clamped - Double(minutes * 60)
-        return String(format: "%d:%0\(3 + fractionDigits).\(fractionDigits)f", minutes, secs)
+        return String(format: "%d:%0\(3 + fractionDigits).\(fractionDigits)f", locale: Locale(identifier: "en_US_POSIX"), minutes, secs)
     }
 
     static func parseClock(_ text: String) -> Double? {

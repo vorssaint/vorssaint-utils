@@ -75,7 +75,7 @@ enum MetadataOps {
         let info = await MediaInfo.load(url)
         if info.duration > 0 { fields.append(MetadataField(id: "media.duration", group: "Media", key: "Duration", value: TimeFormatter.clock(info.duration), editable: false, sensitive: false)) }
         if info.hasVideo { fields.append(MetadataField(id: "media.size", group: "Media", key: "Dimensions", value: "\(Int(info.naturalSize.width)) × \(Int(info.naturalSize.height))", editable: false, sensitive: false)) }
-        if info.frameRate > 0 { fields.append(MetadataField(id: "media.fps", group: "Media", key: "Frame rate", value: String(format: "%.2f fps", info.frameRate), editable: false, sensitive: false)) }
+        if info.frameRate > 0 { fields.append(MetadataField(id: "media.fps", group: "Media", key: "Frame rate", value: String(format: "%.2f fps", locale: .current, info.frameRate), editable: false, sensitive: false)) }
         if info.channelCount > 0 { fields.append(MetadataField(id: "media.channels", group: "Media", key: "Channels", value: "\(info.channelCount)", editable: false, sensitive: false)) }
         if info.sampleRate > 0 { fields.append(MetadataField(id: "media.rate", group: "Media", key: "Sample rate", value: "\(Int(info.sampleRate)) Hz", editable: false, sensitive: false)) }
         let items = (try? await asset.load(.metadata)) ?? []

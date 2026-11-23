@@ -49,9 +49,9 @@ enum NotchLockScreenTests {
     }
 
     static func preferenceContracts(_ suite: TestSuite) {
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLockScreen] as? Bool == false
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.notchLockScreen] as? Bool == true
                      && Defaults.registeredDefaults[DefaultsKey.notchLockSounds] as? Bool == false,
-                     "the lock screen and its sounds are both opt-in")
+                     "the island lock screen is on by default and its sounds stay opt-in")
         suite.expect(SettingsBackupSupport.exportKeys().isSuperset(of: [DefaultsKey.notchLockScreen, DefaultsKey.notchLockSounds]),
                      "settings backups carry the lock screen preferences")
         let domain = "com.vorssaint.tests.notch-lock-screen"

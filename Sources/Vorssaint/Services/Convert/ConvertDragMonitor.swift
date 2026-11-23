@@ -25,6 +25,7 @@ final class ConvertDragMonitor {
     private var activity: NSObjectProtocol?
     private var pressChangeCount = 0
     private var lastReadChange = 0
+    private var urlsReadChange = -1
     private var activeURLs: [URL] = []
     private var dragInFlight = false
     private var presenting = false
@@ -33,8 +34,8 @@ final class ConvertDragMonitor {
     private var pressTime = Date.distantPast
     private var pressInFinder = false
 
-    private static let idleInterval = 1.0 / 20.0
-    private static let dragInterval = 1.0 / 60.0
+    /// The timer runs only while a drag is under way; a click or an idle desktop costs nothing.
+    private static let dragInterval = 1.0 / 30.0
     private static let fallbackDragDistance: CGFloat = 24
     private static let fallbackDelay: TimeInterval = 0.3
 
@@ -54,30 +55,39 @@ final class ConvertDragMonitor {
         guard monitors.isEmpty else { return }
         let dragged = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDragged]) { [weak self] _ in
             self?.beginPressIfNeeded()
-            self?.poll()
+            self?.ensurePollTimer()
         }
         let down = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown]) { [weak self] _ in self?.beginPressIfNeeded() }
         let up = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseUp]) { [weak self] _ in self?.finishPress() }
         monitors = [dragged, down, up].compactMap { $0 }
-        schedulePoll(interval: Self.idleInterval)
     }
 
     func stop() {
         monitors.forEach { NSEvent.removeMonitor($0) }
         monitors.removeAll()
-        pollTimer?.invalidate()
-        pollTimer = nil
+        stopPollTimer()
         if presenting { presenting = false; presentedMode = nil; onEnd?() }
         mouseDown = false
         endActivity()
     }
 
-    private func schedulePoll(interval: TimeInterval) {
-        pollTimer?.invalidate()
-        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in self?.poll() }
-        timer.tolerance = interval / 4
+    private func ensurePollTimer() {
+        guard pollTimer == nil else { return }
+        let timer = Timer(timeInterval: Self.dragInterval, repeats: true) { [weak self] _ in self?.poll() }
+        timer.tolerance = Self.dragInterval / 4
         RunLoop.main.add(timer, forMode: .common)
         pollTimer = timer
+    }
+
+    private func stopPollTimer() {
+        pollTimer?.invalidate()
+        pollTimer = nil
+    }
+
+    /// Keeps timers on time while a file drag is followed, and only then.
+    private func beginActivityIfNeeded() {
+        guard activity == nil else { return }
+        activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiated], reason: "Tracking a file drag")
     }
 
     private var buttonPressed: Bool { NSEvent.pressedMouseButtons & 1 == 1 }
@@ -100,15 +110,13 @@ final class ConvertDragMonitor {
         mouseDown = true
         dragInFlight = false
         activeURLs = []
+        urlsReadChange = -1
         pressOrigin = NSEvent.mouseLocation
         pressTime = Date()
         pressInFinder = NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder"
         pressChangeCount = NSPasteboard(name: .drag).changeCount
         lastReadChange = pressChangeCount
         DiagnosticLog.log("convert-drag: press in \(NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "?") changeCount=\(pressChangeCount)")
-        activity = ProcessInfo.processInfo.beginActivity(options: [.userInitiatedAllowingIdleSystemSleep, .latencyCritical],
-                                                         reason: "Tracking a file drag")
-        schedulePoll(interval: Self.dragInterval)
     }
 
     private func poll() {
@@ -117,6 +125,7 @@ final class ConvertDragMonitor {
             return
         }
         beginPressIfNeeded()
+        ensurePollTimer()
         refreshDragPasteboard()
         // Finder can start a drag before it fills the drag pasteboard, so movement stands in for it.
         if !dragInFlight, pressInFinder, keyHeld, Date().timeIntervalSince(pressTime) >= Self.fallbackDelay,
@@ -124,7 +133,10 @@ final class ConvertDragMonitor {
             dragInFlight = true
         }
         guard dragInFlight else { return }
+        beginActivityIfNeeded()
         let mode = heldMode
+        // The files are read once, and only when a key is held: most drags never need them.
+        if mode != nil, activeURLs.isEmpty { loadURLsIfReady() }
         if mode != nil || presenting { DiagnosticLog.log("convert-drag: mode=\(String(describing: mode)) presenting=\(presenting) urls=\(activeURLs.count)") }
         if let mode, !presenting, !activeURLs.isEmpty {
             presenting = true
@@ -146,9 +158,20 @@ final class ConvertDragMonitor {
         guard change != lastReadChange else { return }
         lastReadChange = change
         guard change > pressChangeCount else { return }
-        activeURLs = Self.fileURLs(on: pasteboard)
-        dragInFlight = !activeURLs.isEmpty || (pasteboard.types ?? []).contains(.fileURL)
-        DiagnosticLog.log("convert-drag: pasteboard change=\(change) urls=\(activeURLs.count) inFlight=\(dragInFlight)")
+        activeURLs = []
+        let types = pasteboard.types ?? []
+        dragInFlight = types.contains(.fileURL) || types.contains(Self.legacyFilenames)
+        DiagnosticLog.log("convert-drag: pasteboard change=\(change) inFlight=\(dragInFlight)")
+    }
+
+    private static let legacyFilenames = NSPasteboard.PasteboardType("NSFilenamesPboardType")
+
+    /// Reads the dragged files, once per pasteboard change, and never from the pasteboard of an earlier drag.
+    private func loadURLsIfReady() {
+        guard lastReadChange > pressChangeCount, urlsReadChange != lastReadChange else { return }
+        urlsReadChange = lastReadChange
+        activeURLs = Self.fileURLs(on: NSPasteboard(name: .drag))
+        DiagnosticLog.log("convert-drag: read urls=\(activeURLs.count)")
     }
 
     static func fileURLs(on pasteboard: NSPasteboard) -> [URL] {
@@ -171,7 +194,7 @@ final class ConvertDragMonitor {
         dragInFlight = false
         activeURLs = []
         endActivity()
-        schedulePoll(interval: Self.idleInterval)
+        stopPollTimer()
         if presenting {
             presenting = false
             onEnd?()

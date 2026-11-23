@@ -21,6 +21,8 @@ enum NotchMissionControlPollingTests {
         var missionControlTimer: Timer?
         var concealedForMissionControl = false
         var overviewWasVisible = false
+        /// Stands in for the primary mouse button being held, as while a file is dragged.
+        var primaryButtonDown = false
         var lastMissionControlCheck: TimeInterval = -.infinity
         var lastMissionControlProbe: TimeInterval = -.infinity
         var currentGeometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -46,6 +48,13 @@ enum NotchMissionControlPollingTests {
         ProcessInfo.processInfo.systemUptime += 0.1
         host.refreshMissionControlState()
         suite.expect(NotchFrameProbe.reads == before, "incidental idle checks respect the reduced cadence")
+        host.primaryButtonDown = true
+        ProcessInfo.processInfo.systemUptime += 1
+        let checkedBeforeHold = host.lastMissionControlCheck
+        host.refreshMissionControlState()
+        suite.expect(host.lastMissionControlCheck == checkedBeforeHold,
+                     "a held button with no overview up skips the window-list read")
+        host.primaryButtonDown = false
         NotchFrameProbe.visible = true
         host.refreshMissionControlState(now: true)
         suite.expect(host.missionControlTimer?.timeInterval == 0.08 && !idleTimer.isValid && host.frameReads == 1,

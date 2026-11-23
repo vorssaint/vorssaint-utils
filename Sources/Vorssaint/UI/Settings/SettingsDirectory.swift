@@ -264,6 +264,8 @@ enum SettingsDirectory {
         let tintedBattery = batteryRest && state.on(DefaultsKey.notchLowBatteryTint)
         let islandTerms: [SettingsSearchTerms] = [
             .init([notchEditor.layout, notch.size, notch.translucentBackground, notch.showOutline], notch: .layout),
+            // Shown above the tabs, so it belongs to no one tab.
+            .init([notch.claudeQuestions]),
             .init([notch.width, notch.maximumHeight], notch: .layout, when: state.customSize),
             .init([notch.cameraFit, notch.hideMenuBarGap, notch.width, notch.height],
                   notch: .layout, when: state.hardware.notchedDisplay),
