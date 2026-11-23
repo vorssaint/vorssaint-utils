@@ -140,7 +140,16 @@ enum MixerInputVolumeContract {
         static var mute: [UInt32: UInt32] = [:]
         static var muteElements: [Key: UInt32] = [:]
         static var writes: [Key] = []
-        private static var notifications: [Key: () -> Void] = [:]
+        private struct ListenerIdentity: Hashable {
+            let procedure: UInt
+            let client: UnsafeMutableRawPointer?
+
+            init(_ callback: @escaping AudioObjectPropertyListenerProc, _ client: UnsafeMutableRawPointer?) {
+                procedure = unsafeBitCast(callback, to: UInt.self)
+                self.client = client
+            }
+        }
+        private static var notifications: [Key: [ListenerIdentity: AudioObjectPropertyListenerProc]] = [:]
         static var listeners: Set<Key> { Set(notifications.keys) }
         static var listenerAdds: [Key] = []
         static var listenerRemovals: [Key] = []
@@ -157,6 +166,7 @@ enum MixerInputVolumeContract {
         static var streamChannels: [UInt32: [UInt32]] = [:]
         static var streamReadFails = false
         static var afterWrite: (() -> Void)?
+        static var afterGainRead: [Key: () -> Void] = [:]
         static var afterUIDRead: (() -> Void)?
         /// The audio server's process list: each process, whether it is
         /// recording, and from which devices.
@@ -186,7 +196,6 @@ enum MixerInputVolumeContract {
             mute = [:]
             muteElements = [:]
             writes = []
-            notifications = [:]
             listenerAdds = []
             listenerRemovals = []
             afterListenerAdd = [:]
@@ -207,12 +216,17 @@ enum MixerInputVolumeContract {
             streamChannels = [:]
             streamReadFails = false
             afterWrite = nil
+            afterGainRead = [:]
             afterUIDRead = nil
             processes = []
             processListReads = 0
             afterProcessListRead = nil
             UserDefaults.standard.values = [:]
             AppFeature.micMuteAvailable = true
+            relaunchClient()
+        }
+        static func relaunchClient() {
+            notifications.removeAll()
             MicMuteService.shared = MicMuteService()
         }
         static func HasProperty(_ d: UInt32, _ a: UnsafePointer<AudioObjectPropertyAddress>) -> Bool {
@@ -277,6 +291,7 @@ enum MixerInputVolumeContract {
             if readFails.contains(k) { return -1 }
             if let v = levels[k] {
                 p.storeBytes(of: v, as: Float.self)
+                afterGainRead.removeValue(forKey: k)?()
                 return noErr
             }
             switch a.pointee.mSelector {
@@ -377,30 +392,47 @@ enum MixerInputVolumeContract {
             let key = Key(d, a.pointee)
             listenerAdds.append(key)
             if listenerFails || failedListenerKeys.contains(key) { return -1 }
-            let address = a.pointee
-            notifications[key] = {
-                var changed = address
-                _ = cb(d, 1, &changed, client)
-            }
+            notifications[key, default: [:]][ListenerIdentity(cb, client)] = cb
             afterListenerAdd.removeValue(forKey: key)?()
             return noErr
         }
         @discardableResult
         static func RemovePropertyListener(
             _ d: UInt32, _ a: UnsafePointer<AudioObjectPropertyAddress>,
-            _ cb: AudioObjectPropertyListenerProc, _ client: UnsafeMutableRawPointer?
+            _ cb: @escaping AudioObjectPropertyListenerProc, _ client: UnsafeMutableRawPointer?
         ) -> OSStatus {
             let key = Key(d, a.pointee)
             listenerRemovals.append(key)
             if failedListenerRemovals.contains(key) { return kAudioHardwareNotReadyError }
-            notifications.removeValue(forKey: key)
+            if notifications[key] != nil {
+                guard notifications[key]?.removeValue(forKey: ListenerIdentity(cb, client)) != nil
+                else { return kAudioHardwareIllegalOperationError }
+                if notifications[key]?.isEmpty == true { notifications.removeValue(forKey: key) }
+            }
             afterListenerRemoval.removeValue(forKey: key)?()
             return noErr
         }
-        static func pendingNotification(for key: Key) -> (() -> Void)? { notifications[key] }
+        static func soleListenerClient(for key: Key) -> UnsafeMutableRawPointer? {
+            guard let registrations = notifications[key], registrations.count == 1 else { return nil }
+            return registrations.keys.first?.client
+        }
+        static func pendingNotification(for key: Key, changes: [Key]? = nil) -> (() -> Void)? {
+            guard let callbacks = notifications[key] else { return nil }
+            let changed = changes ?? [key]
+            guard !changed.isEmpty, changed.allSatisfy({ $0.d == key.d }) else { return nil }
+            let addresses = changed.map { AudioObjectPropertyAddress(mSelector: $0.s, mScope: $0.scope, mElement: $0.e) }
+            return {
+                addresses.withUnsafeBufferPointer { buffer in
+                    guard let first = buffer.baseAddress else { return }
+                    for (identity, callback) in callbacks {
+                        _ = callback(key.d, UInt32(buffer.count), first, identity.client)
+                    }
+                }
+            }
+        }
         @discardableResult
-        static func notifyIfRegistered(_ key: Key) -> Bool {
-            guard let notify = notifications[key] else { return false }
+        static func notifyIfRegistered(_ key: Key, changes: [Key]? = nil) -> Bool {
+            guard let notify = pendingNotification(for: key, changes: changes) else { return false }
             notify()
             return true
         }
@@ -408,7 +440,7 @@ enum MixerInputVolumeContract {
         static func restartAudioService() -> Bool {
             let reset = key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyServiceRestarted,
                             scope: kAudioObjectPropertyScopeGlobal)
-            let notify = notifications[reset]
+            let notify = pendingNotification(for: reset)
             notifications.removeAll()
             notify?()
             return notify != nil
@@ -420,6 +452,9 @@ enum MixerInputVolumeContract {
     static func run(_ suite: TestSuite) {
         func check(_ condition: @autoclosure () -> Bool, _ name: String) {
             suite.expect(condition(), name)
+        }
+        func signal(_ key: Key) {
+            check(HAL.notifyIfRegistered(key), "the HAL delivers the registered property notification")
         }
         func near(_ x: Double?, _ y: Double) -> Bool { x.map { abs($0 - y) < 0.0001 } ?? false }
         func manager() -> AudioInputDeviceManager {
@@ -1193,7 +1228,7 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10, 2)] = 0.6
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
-        MicMuteService.shared = MicMuteService()
+        HAL.relaunchClient()
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
         MicMuteService.shared.setMuted(false)
@@ -1210,10 +1245,7 @@ enum MixerInputVolumeContract {
         let raisedChannel = HAL.key(10, 3)
         check(HAL.listeners.contains(raisedChannel), "mute watches channels beyond the stereo pair")
         HAL.levels[raisedChannel] = 0.9
-        var changedAddress = AudioObjectPropertyAddress(mSelector: raisedChannel.s,
-                                                        mScope: kAudioDevicePropertyScopeInput,
-                                                        mElement: raisedChannel.e)
-        _ = MicMuteService.listenerCallback(10, 1, &changedAddress, MicMuteService.shared.listenerClient)
+        signal(raisedChannel)
         DispatchQueue.drain()
         check(HAL.levels[raisedChannel] == 0 && MicMuteService.inputControls(10).isSilenced,
               "a listener reasserts mute when a later channel rises while the first stays at zero")
@@ -1267,16 +1299,12 @@ enum MixerInputVolumeContract {
         AppFeature.micMuteAvailable = false
         MicMuteService.shared.syncWithPreferences()
         DispatchQueue.drain()
-        var devicesChanged = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
-                                                        mScope: kAudioObjectPropertyScopeGlobal,
-                                                        mElement: kAudioObjectPropertyElementMain)
         let system = AudioObjectID(kAudioObjectSystemObject)
-        check(HAL.listeners.contains(Key(system, devicesChanged)),
+        let devicesChanged = HAL.key(system, 0, kAudioHardwarePropertyDevices, scope: kAudioObjectPropertyScopeGlobal)
+        check(HAL.listeners.contains(devicesChanged),
               "disabling mic mute keeps device discovery until an unplugged microphone is restored")
         HAL.devices = [10]
-        if HAL.listeners.contains(Key(system, devicesChanged)) {
-            _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, MicMuteService.shared.listenerClient)
-        }
+        signal(devicesChanged)
         DispatchQueue.drain()
         check(HAL.levels[HAL.key(10)] == 0.5 && !MicMuteService.shared.hasOutstandingClaims && HAL.listeners.isEmpty,
               "a claimed microphone regains its volume on reconnection with the feature disabled")
@@ -1354,11 +1382,8 @@ enum MixerInputVolumeContract {
         HAL.ignoredWrites.insert(HAL.key(10))
         retryService.setMuted(true)
         DispatchQueue.drain()
-        var refusedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                                      mScope: kAudioDevicePropertyScopeInput,
-                                                      mElement: kAudioObjectPropertyElementMain)
         func changed(_ device: UInt32) {
-            _ = MicMuteService.listenerCallback(device, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+            signal(HAL.key(device))
             DispatchQueue.drain()
         }
         for _ in 0..<10 { changed(10) }
@@ -1368,7 +1393,7 @@ enum MixerInputVolumeContract {
         let backoffGeneration = retryService.applyGeneration
         UserDefaults.standard.writtenKeys = []
         for _ in 0..<8 {
-            _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, retryService.listenerClient)
+            signal(HAL.key(10))
         }
         DispatchQueue.drain()
         check(retryService.applyGeneration == backoffGeneration + 1 && UserDefaults.standard.writtenKeys.isEmpty
@@ -1441,9 +1466,7 @@ enum MixerInputVolumeContract {
         HAL.listenerAdds = []
         HAL.listenerRemovals = []
         HAL.running = [10]
-        var runningAddress = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-                                                        mScope: kAudioObjectPropertyScopeGlobal, mElement: 0)
-        _ = MicMuteService.listenerCallback(10, 1, &runningAddress, MicMuteService.shared.listenerClient)
+        signal(runningKey)
         DispatchQueue.drain()
         for _ in 0..<5 {
             HAL.levels[HAL.key(10)] = 1
@@ -1528,7 +1551,7 @@ enum MixerInputVolumeContract {
         DispatchQueue.drain()
         HAL.levels[HAL.key(10)] = 0.5
         HAL.afterWrite = { HAL.levels[HAL.key(10)] = 0.5 }
-        _ = MicMuteService.listenerCallback(10, 1, &refusedLevel, MicMuteService.shared.listenerClient)
+        signal(HAL.key(10))
         DispatchQueue.drain()
         check(HAL.listeners.contains(HAL.key(10)),
               "a gain raised again right after the re-mute keeps the microphone watched")
@@ -1537,13 +1560,11 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10)] = 0.5
         MicMuteService.shared.setMuted(true)
         DispatchQueue.drain()
-        var changedLevel = AudioObjectPropertyAddress(mSelector: kAudioDevicePropertyVolumeScalar,
-                                                      mScope: kAudioDevicePropertyScopeInput,
-                                                      mElement: kAudioObjectPropertyElementMain)
+        let gain = HAL.key(10)
         let sweepsBefore = MicMuteService.shared.applyGeneration
         UserDefaults.standard.writtenKeys = []
         for _ in 0..<5 {
-            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, MicMuteService.shared.listenerClient)
+            signal(gain)
         }
         DispatchQueue.drain()
         check(MicMuteService.shared.applyGeneration == sweepsBefore + 1,
@@ -1553,14 +1574,14 @@ enum MixerInputVolumeContract {
         let service = MicMuteService.shared
         let timersBefore = DispatchQueue.main.timedEnqueues
         HAL.levels[HAL.key(10)] = 0.5
-        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        signal(gain)
         DispatchQueue.main.run()
         check(DispatchQueue.main.timedEnqueues == timersBefore && service.halQueue.work.count == 1,
               "the first callback queues an audio sweep immediately, without a mute delay")
         let firstSweep = service.applyGeneration
         // Let main handle each arrival separately while the audio queue is busy.
         for _ in 0..<8 {
-            _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+            signal(gain)
             DispatchQueue.main.run()
         }
         check(service.applyGeneration == firstSweep && service.halQueue.work.count == 1,
@@ -1573,7 +1594,7 @@ enum MixerInputVolumeContract {
 
         HAL.writeFails.insert(HAL.key(10))
         QuickToolHUD.messages = []
-        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, service.listenerClient)
+        signal(gain)
         service.setMuted(false)
         DispatchQueue.main.run()
         service.syncWithPreferences()
@@ -1595,7 +1616,7 @@ enum MixerInputVolumeContract {
         stopped.toggle()
         check(!stopped.wantsMute, "a second toggle cancels a mute that is still on the audio queue")
         QuickToolHUD.messages = []
-        _ = MicMuteService.listenerCallback(10, 1, &changedLevel, stopped.listenerClient)
+        signal(devicesChanged)
         stopped.unmuteForTeardown()
         check(stopped.halQueue.work.isEmpty && HAL.levels[HAL.key(10)] == 0.65 && HAL.mute[20] == 1,
               "teardown drains a queued mute and unmute without opening a user-muted input")
@@ -1608,9 +1629,11 @@ enum MixerInputVolumeContract {
         HAL.levels[HAL.key(10)] = 0.6
         removed.setMuted(true)
         DispatchQueue.drain()
+        let lateDeviceChange = HAL.pendingNotification(for: devicesChanged)
+        check(lateDeviceChange != nil, "the HAL retained the device-list delivery before teardown")
         HAL.devices = []
         removed.unmuteForTeardown()
-        _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, removed.listenerClient)
+        lateDeviceChange?()
         DispatchQueue.drain()
         check(removed.hasOutstandingClaims && HAL.listeners.isEmpty,
               "a late HAL callback for an absent claim cannot reinstall listeners after teardown")
@@ -1629,7 +1652,7 @@ enum MixerInputVolumeContract {
                 HAL.devices = [10]
             }
             pending.setMuted(mute)
-            _ = MicMuteService.listenerCallback(system, 1, &devicesChanged, pending.listenerClient)
+            signal(devicesChanged)
             DispatchQueue.main.run()
             check(UserDefaults.standard.bool(forKey: DefaultsKey.micMuteActive) != mute
                     && pending.halQueue.work.count == 1,
@@ -2004,6 +2027,8 @@ enum MixerInputVolumeContract {
     private static func runCallAppUnmuteTests(_ suite: TestSuite) {
         let microphone = HAL.key(10)
         let secondInput = HAL.key(20)
+        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
+                                     scope: kAudioObjectPropertyScopeGlobal)
         let ownPID = ProcessInfo.processInfo.processIdentifier
         let callPID: Int32 = ownPID == 4242 ? 4243 : 4242
         func prepare(_ followCalls: Bool? = true) {
@@ -2022,20 +2047,15 @@ enum MixerInputVolumeContract {
             HAL.processes = [(object: 100, pid: callPID, recording: true, devices: [device])]
         }
         func signal(_ device: UInt32, selector: AudioObjectPropertySelector) {
-            var address = AudioObjectPropertyAddress(mSelector: selector, mScope: kAudioObjectPropertyScopeInput,
-                                                     mElement: kAudioObjectPropertyElementMain)
-            _ = MicMuteService.listenerCallback(device, 1, &address, MicMuteService.shared.listenerClient)
+            suite.expect(HAL.notifyIfRegistered(HAL.key(device, 0, selector)),
+                         "the HAL delivers the change to the registered input listener")
         }
         func notify(_ device: UInt32 = 10, selector: AudioObjectPropertySelector = kAudioDevicePropertyVolumeScalar) {
             signal(device, selector: selector)
             DispatchQueue.drain()
         }
         func topologyChanged() {
-            var address = AudioObjectPropertyAddress(mSelector: kAudioHardwarePropertyDevices,
-                                                     mScope: kAudioObjectPropertyScopeGlobal,
-                                                     mElement: kAudioObjectPropertyElementMain)
-            _ = MicMuteService.listenerCallback(AudioObjectID(kAudioObjectSystemObject), 1, &address,
-                                                MicMuteService.shared.listenerClient)
+            suite.expect(HAL.notifyIfRegistered(devicesChanged), "the HAL delivers the device-list notification")
             DispatchQueue.drain()
         }
         func resetAudioService() {
@@ -2259,8 +2279,6 @@ enum MixerInputVolumeContract {
                          "a fresh unmute on the returning headset restores the original saved level")
         }
 
-        let devicesChanged = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDevices,
-                                     scope: kAudioObjectPropertyScopeGlobal)
         let otherStreams = HAL.key(30, 0, kAudioDevicePropertyStreams)
         enum Reconnect: CaseIterable {
             case headsetOnly, withNewDevice, oldGainAfterList, oldGainDuringRemoval, oldGainDuringRegistration
@@ -2334,6 +2352,254 @@ enum MixerInputVolumeContract {
         }
         let defaultInput = HAL.key(AudioObjectID(kAudioObjectSystemObject), 0, kAudioHardwarePropertyDefaultInputDevice,
                                    scope: kAudioObjectPropertyScopeGlobal)
+        let channelGain = HAL.key(10, 3)
+        enum GainDelivery: CaseIterable { case afterConfirmation, oldAtAdd, newAtAdd, pendingAtRemoval, noNotification }
+        for delivery in GainDelivery.allCases {
+            prepare()
+            HAL.devices = [10, 20]
+            HAL.streamChannels[10] = [3]
+            HAL.levels[channelGain] = 0.625
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+            guard let oldGain = HAL.pendingNotification(for: channelGain) else {
+                suite.expect(false, "the original channel has a gain listener")
+                continue
+            }
+            HAL.writes = []
+            if delivery == .pendingAtRemoval {
+                // The sweep already read the quiet channel under its original registration.
+                HAL.afterGainRead[secondInput] = {
+                    oldGain()
+                    HAL.levels[channelGain] = nil
+                }
+            } else {
+                HAL.levels[channelGain] = nil
+            }
+            // A normal sweep discovers the disappearing property without a device-list or layout callback.
+            suite.expect(HAL.notifyIfRegistered(defaultInput), "the HAL requests an inventory check")
+            DispatchQueue.main.run()
+            MicMuteService.shared.halQueue.run()
+            suite.expect(!HAL.listeners.contains(channelGain) && HAL.afterGainRead[secondInput] == nil,
+                         "the obsolete registration is removed even when its delivery is already queued")
+            if delivery != .pendingAtRemoval { DispatchQueue.drain() }
+
+            HAL.levels[channelGain] = 0
+            if delivery != .afterConfirmation {
+                HAL.afterListenerAdd[channelGain] = {
+                    HAL.levels[channelGain] = 0.8
+                    if delivery == .oldAtAdd { oldGain() }
+                    if delivery == .newAtAdd {
+                        suite.expect(HAL.notifyIfRegistered(channelGain), "the replacement reports gain during its installation")
+                    }
+                }
+            }
+            if delivery == .pendingAtRemoval {
+                // Preference sync reconciles listeners while the first sweep is still awaiting publication.
+                MicMuteService.shared.syncWithPreferences()
+                MicMuteService.shared.halQueue.run()
+                suite.expect(HAL.listeners.contains(channelGain), "the replacement is installed before the queued notice is processed")
+            }
+            notifyRegistered(defaultInput)
+            suite.expect(HAL.listeners.contains(channelGain) && HAL.afterListenerAdd[channelGain] == nil,
+                         "the same channel address is registered again on the same input")
+            if delivery == .afterConfirmation {
+                suite.expect(HAL.levels[channelGain] == 0 && MicMuteService.shared.isMuted,
+                             "the replacement channel has settled at zero before the old callback arrives")
+                HAL.levels[channelGain] = 0.8
+                oldGain()
+                DispatchQueue.drain()
+            }
+            suite.expect(MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && HAL.levels[channelGain] == 0
+                         && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                         "a replaced channel cannot release mute from an unconfirmed opening or an old delivery (\(delivery))")
+            HAL.levels[channelGain] = 0.7
+            notifyRegistered(channelGain)
+            suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[channelGain] == 0.625
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "a new delivery from the confirmed replacement restores the saved gains")
+        }
+
+        prepare()
+        mute()
+        let retiredGain = HAL.pendingNotification(for: microphone)
+        let oldClient = HAL.soleListenerClient(for: microphone)
+        suite.expect(AudioListenerClients.owner(of: oldClient) === MicMuteService.shared,
+                     "the original gain listener has a registered service owner")
+        HAL.failedListenerRemovals = [microphone]
+        MicMuteService.shared.unmuteForTeardown()
+        DispatchQueue.drain()
+        suite.expect(oldClient != nil && HAL.soleListenerClient(for: microphone) == oldClient
+                     && AudioListenerClients.owner(of: oldClient) == nil,
+                     "the refused HAL removal retains the opaque client but releases its owner registration")
+        suite.expect(retiredGain != nil && HAL.notifyIfRegistered(microphone) && DispatchQueue.main.work.isEmpty
+                     && !MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5,
+                     "a refused removal can still deliver after teardown without waking the main queue")
+        HAL.failedListenerRemovals = []
+        HAL.listenerAdds = []
+        HAL.listenerRemovals = []
+        mute()
+        let newClient = HAL.soleListenerClient(for: microphone)
+        suite.expect(newClient != oldClient && AudioListenerClients.owner(of: newClient) === MicMuteService.shared,
+                     "reactivation registers a distinct opaque client owned by the service")
+        record()
+        HAL.levels[microphone] = 0.8
+        retiredGain?()
+        DispatchQueue.drain()
+        suite.expect(HAL.listenerRemovals.contains(microphone) && HAL.listenerAdds.contains(microphone)
+                     && MicMuteService.shared.isMuted && HAL.levels[microphone] == 0 && QuickToolHUD.messages.isEmpty,
+                     "reactivation replaces the retired listener and rejects its old delivery as an unmute")
+        HAL.levels[microphone] = 0.7
+        notifyRegistered(microphone)
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5 && QuickToolHUD.messages == ["unmuted"],
+                     "the replacement gain listener follows the next real click after reactivation")
+        suite.expect(newClient != nil && !HAL.listeners.contains(microphone) && AudioListenerClients.owner(of: newClient) == nil,
+                     "unmute releases the replacement's HAL registration and registry entry")
+
+        prepare()
+        HAL.devices = [10, 20]
+        HAL.streamChannels[10] = [3]
+        let firstChannel = HAL.key(10, 1)
+        HAL.levels[firstChannel] = 0.25
+        HAL.levels[channelGain] = 0.625
+        HAL.levels[secondInput] = 0.75
+        mute()
+        record()
+        HAL.writes = []
+        HAL.levels[channelGain] = 0.8
+        suite.expect(HAL.notifyIfRegistered(firstChannel, changes: [firstChannel, channelGain]),
+                     "the first channel's registration delivers a mixed address array")
+        DispatchQueue.drain()
+        suite.expect(MicMuteService.shared.isMuted && HAL.levels[firstChannel] == 0 && HAL.levels[channelGain] == 0
+                     && HAL.levels[secondInput] == 0 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                     "an extra address in another channel's delivery cannot authorize the open channel")
+        HAL.levels[channelGain] = 0.7
+        suite.expect(HAL.notifyIfRegistered(channelGain, changes: [firstChannel, channelGain]),
+                     "the third channel's own registration reports its changed gain in a mixed delivery")
+        DispatchQueue.drain()
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[firstChannel] == 0.25 && HAL.levels[channelGain] == 0.625
+                     && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                     "the registration's own address remains valid within a mixed callback")
+
+        for topology in [HAL.key(10, 0, kAudioDevicePropertyStreams),
+                         HAL.key(10, 0, kAudioObjectPropertyControlList, scope: kAudioObjectPropertyScopeGlobal)] {
+            prepare()
+            HAL.devices = [10, 20]
+            HAL.streamChannels[10] = [3]
+            HAL.levels[channelGain] = 0.625
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+            let delayedTopology = HAL.pendingNotification(for: topology)
+            HAL.levels[channelGain] = 0.8
+            HAL.writes = []
+            suite.expect(HAL.notifyIfRegistered(channelGain, changes: [channelGain, topology]),
+                         "the gain listener reports the opening and a structural change in one delivery")
+            DispatchQueue.drain()
+            suite.expect(delayedTopology != nil && MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
+                         && HAL.levels[channelGain] == 0 && HAL.levels[secondInput] == 0
+                         && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                         "the mixed delivery keeps both inputs muted before the dedicated topology callback arrives")
+            delayedTopology?()
+            DispatchQueue.drain()
+            suite.expect(MicMuteService.shared.isMuted && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                         "the delayed topology delivery cannot release the other input")
+            HAL.levels[channelGain] = 0.7
+            notifyRegistered(channelGain)
+            suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5 && HAL.levels[channelGain] == 0.625
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "the next confirmed gain click restores both inputs after a mixed structural delivery")
+        }
+
+        prepare()
+        HAL.devices = [10, 20]
+        HAL.levels[secondInput] = 0.75
+        mute()
+        record()
+        HAL.writes = []
+        var deliveries = 0
+        var deliveriesBeforeSilence: Int?
+        func changeGainDuringRead() {
+            deliveries += 1
+            HAL.levels[microphone] = deliveries.isMultiple(of: 2) ? 0.7 : 0.9
+            suite.expect(HAL.notifyIfRegistered(microphone), "the active gain listener reports the changing level")
+            if deliveries < 48 { HAL.afterGainRead[microphone] = changeGainDuringRead }
+        }
+        HAL.afterGainRead[microphone] = changeGainDuringRead
+        HAL.afterWrite = {
+            if HAL.levels[microphone] == 0 { deliveriesBeforeSilence = deliveries }
+            HAL.afterGainRead[microphone] = nil
+        }
+        HAL.levels[microphone] = 0.7
+        notifyRegistered(microphone)
+        suite.expect((1...16).contains(deliveriesBeforeSilence ?? 0) && MicMuteService.shared.isMuted
+                     && HAL.levels[microphone] == 0 && HAL.levels[secondInput] == 0
+                     && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                     "a continuously changing gain is silenced after bounded work while callbacks are still arriving")
+        HAL.levels[microphone] = 0.7
+        notifyRegistered(microphone)
+        suite.expect(!MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                     && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                     "the first stable click after the gain callback storm restores both inputs")
+
+        enum DuringScan: CaseIterable {
+            case beforeHeadsetRead, afterHeadsetRead, defaultInputOnly, rereadQuietChannel, processLookup, quietNoticeBeforeLookup
+        }
+        for moment in DuringScan.allCases {
+            prepare()
+            HAL.devices = moment == .beforeHeadsetRead || moment == .defaultInputOnly ? [20, 10] : [10, 20]
+            HAL.streamChannels[10] = [3]
+            HAL.levels[firstChannel] = 0.25
+            HAL.levels[channelGain] = 0.625
+            HAL.levels[secondInput] = 0.75
+            mute()
+            record()
+            var delivered = false
+            func clickThirdChannel() {
+                HAL.levels[channelGain] = 0.8
+                delivered = HAL.notifyIfRegistered(channelGain)
+            }
+            switch moment {
+            case .beforeHeadsetRead, .afterHeadsetRead, .defaultInputOnly:
+                HAL.afterGainRead[secondInput] = clickThirdChannel
+                notifyRegistered(moment == .defaultInputOnly ? defaultInput : secondInput)
+            case .rereadQuietChannel:
+                HAL.afterGainRead[secondInput] = {
+                    suite.expect(HAL.notifyIfRegistered(firstChannel), "the quiet first channel notifies after its initial read")
+                    HAL.afterGainRead[firstChannel] = clickThirdChannel
+                }
+                notifyRegistered(defaultInput)
+            case .processLookup, .quietNoticeBeforeLookup:
+                HAL.levels[firstChannel] = 0.7
+                HAL.writes = []
+                if moment == .quietNoticeBeforeLookup {
+                    suite.expect(HAL.levels[channelGain] == 0 && HAL.notifyIfRegistered(channelGain),
+                                 "the third channel reports zero in the same batch as the first channel's opening")
+                }
+                HAL.afterProcessListRead = {
+                    HAL.levels[firstChannel] = 0
+                    if moment == .processLookup {
+                        clickThirdChannel()
+                    } else {
+                        HAL.levels[channelGain] = 0.8
+                    }
+                }
+                notifyRegistered(firstChannel)
+                if moment == .quietNoticeBeforeLookup {
+                    suite.expect(HAL.afterProcessListRead == nil && MicMuteService.shared.isMuted && HAL.levels[microphone] == 0
+                                 && HAL.levels[firstChannel] == 0 && HAL.levels[channelGain] == 0 && HAL.levels[secondInput] == 0
+                                 && !HAL.writes.contains(secondInput) && QuickToolHUD.messages.isEmpty,
+                                 "a third-channel opening without a new callback cannot reuse its earlier quiet notification")
+                    clickThirdChannel()
+                    DispatchQueue.drain()
+                }
+            }
+            suite.expect(delivered && !MicMuteService.shared.isMuted && HAL.levels[microphone] == 0.5
+                         && HAL.levels[firstChannel] == 0.25 && HAL.levels[channelGain] == 0.625
+                         && HAL.levels[secondInput] == 0.75 && QuickToolHUD.messages == ["unmuted"],
+                         "the new third-channel click during \(moment) restores all saved gains without a second click")
+        }
+
         let deviceChanges = [
             HAL.key(10, 0, kAudioDevicePropertyDeviceIsAlive, scope: kAudioObjectPropertyScopeGlobal),
             HAL.key(10, 0, kAudioDevicePropertyDeviceHasChanged, scope: kAudioObjectPropertyScopeGlobal),
