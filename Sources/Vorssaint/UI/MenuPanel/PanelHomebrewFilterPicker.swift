@@ -35,8 +35,8 @@ struct PanelHomebrewFilterPicker: View {
             }
             .labelsHidden()
             .pickerStyle(.radioGroup)
-            .controlSize(.small)
         }
+        .controlSize(.small)
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
@@ -48,13 +48,27 @@ private struct FilterSegments: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(selection: $selection) }
 
-    func makeNSView(context: Context) -> NSSegmentedControl {
-        let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne,
-                                         target: context.coordinator, action: #selector(Coordinator.selectFilter(_:)))
+    private func makeSegments() -> NSSegmentedControl {
+        let control = NSSegmentedControl(labels: labels, trackingMode: .selectOne, target: nil, action: nil)
         control.controlSize = .small
-        control.font = .systemFont(ofSize: NSFont.systemFontSize(for: .small))
         control.segmentDistribution = .fit
         return control
+    }
+
+    func makeNSView(context: Context) -> NSSegmentedControl {
+        let control = makeSegments()
+        control.target = context.coordinator
+        control.action = #selector(Coordinator.selectFilter(_:))
+        return control
+    }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSSegmentedControl, context: Context) -> CGSize? {
+        // After setLabel, the mounted control can still report its previous width.
+        // ViewThatFits also needs the new width while only the radios are visible.
+        if let measured = context.coordinator.measured, measured.labels == labels { return measured.size }
+        let size = makeSegments().intrinsicContentSize
+        context.coordinator.measured = (labels, size)
+        return size
     }
 
     func updateNSView(_ control: NSSegmentedControl, context: Context) {
@@ -71,6 +85,7 @@ private struct FilterSegments: NSViewRepresentable {
 
     @MainActor final class Coordinator: NSObject {
         var selection: Binding<PanelHomebrewFilter>
+        var measured: (labels: [String], size: CGSize)?
 
         init(selection: Binding<PanelHomebrewFilter>) { self.selection = selection }
 
