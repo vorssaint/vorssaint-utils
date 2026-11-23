@@ -270,6 +270,7 @@ enum SwitcherHoverSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        checkSessionTitleSearch(suite)
         checkSessionPreviewCancellation(suite)
         checkTapRecovery(suite)
         let defaults = UserDefaults.standard
@@ -582,6 +583,43 @@ enum SwitcherHoverSelectionTests {
                          && service.windows.count == 6 && Activator.activated.isEmpty,
                          "an old \(retry ? "retry" : "initial refresh") cannot inspect or mutate the next session")
         }
+    }
+
+    private static func checkSessionTitleSearch(_ suite: TestSuite) {
+        func document(_ id: CGWindowID, _ title: String, pid: pid_t = 10, owner: pid_t = 11,
+                      frame: CGRect = .zero) -> SwitcherItem {
+            .window(id: id, title: title, appName: "Editor", pid: pid, windowOwnerPID: owner,
+                    isOnScreen: true, frame: frame)
+        }
+        let service = Service()
+        let cover = document(1, "Cover"), report = document(2, "Report"), notes = document(3, "Notes")
+        let closed = document(4, "Appendix"), app = SwitcherItem.appOnly(appName: "Finder", pid: 20)
+        service.sessionActive = true
+        service.sessionItems = [cover, report, notes, closed, app]
+        service.windows = service.sessionItems
+        service.applyClosedWindowRemoval(itemID: closed.id, windowID: 4)
+        service.appendSearchText("Budget")
+        suite.expect(service.windows.isEmpty, "the typed query initially has no matching document")
+        let budget = document(2, "Budget")
+        service.updateSessionTitles(from: [document(2, "Budget", frame: CGRect(x: 10, y: 20, width: 30, height: 40))])
+        suite.expect(service.windows == [budget], "a recovered title appears in the existing search without changing its frame")
+
+        let budgetCover = document(1, "Budget cover")
+        service.hoveredWindowIndex = 0
+        service.iconRowEdgeHoverIndex = 0
+        service.updateSessionTitles(from: [closed, budget, document(3, "Budget notes", owner: 99), budgetCover])
+        suite.expect(service.sessionItems == [budgetCover, budget, notes, app] && service.windows == [budgetCover, budget]
+                     && service.selectedItemID == budget.id,
+                     "recovering titles preserves order, selection and app entries, skips a new owner and keeps closed windows out")
+        suite.expect(service.hoveredWindowIndex == nil && service.iconRowEdgeHoverIndex == nil,
+                     "a search result inserted under the pointer cannot inherit the previous document's hover actions")
+        service.updateSessionTitles(from: [document(3, "Budget notes", pid: 99), cover, report])
+        suite.expect(service.searchQuery == "Budget" && service.windows.isEmpty,
+                     "the old query loses its matches and a different host cannot rename a session entry")
+        service.sessionActive = false
+        service.updateSessionTitles(from: [budget])
+        suite.expect(service.sessionItems == [cover, report, notes, app] && service.windows.isEmpty,
+                     "an inactive session ignores a late title update")
     }
 
     private static func checkSessionPreviewCancellation(_ suite: TestSuite) {

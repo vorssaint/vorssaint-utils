@@ -209,10 +209,13 @@ final class AppSwitcher: ObservableObject {
 
     private init() {
         SessionActivity.shared.onChange { [weak self] _ in self?.syncWithPreferences() }
-        windowInventory.onReady = { [weak self] in
-            guard let self,
-                  let generation = self.routeLock.withLock({ self.routePendingSessionStart?.generation }) else { return }
-            self.beginPendingSession(generation: generation)
+        windowInventory.onReady = { [weak self] items in
+            guard let self else { return }
+            if let generation = self.routeLock.withLock({ self.routePendingSessionStart?.generation }) {
+                self.beginPendingSession(generation: generation)
+            } else {
+                self.updateSessionTitles(from: items)
+            }
         }
     }
 
@@ -1471,6 +1474,28 @@ final class AppSwitcher: ObservableObject {
         isSearchPinned = true
         recomputeLayouts(for: windows)
         resizePanel()
+    }
+
+    private func updateSessionTitles(from current: [SwitcherItem]) {
+        guard sessionActive else { return }
+        let byID = Dictionary(current.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        var changed = false
+        for index in sessionItems.indices {
+            let item = sessionItems[index]
+            guard let updated = byID[item.id], updated.pid == item.pid,
+                  updated.windowOwnerPID == item.windowOwnerPID, updated.title != item.title else { continue }
+            sessionItems[index].title = updated.title
+            changed = true
+        }
+        guard changed else { return }
+        let previousIDs = windows.map(\.id)
+        applySearchFilter(preferredItemID: selectedItemID)
+        if !windows.lazy.map(\.id).elementsEqual(previousIDs) {
+            // A stationary pointer may now be over a different document.
+            hoveredWindowIndex = nil
+            hoverAnchor = NSEvent.mouseLocation
+            cancelIconRowEdgeHover()
+        }
     }
 
     private func applySearchFilter(preferredItemID: String?) {

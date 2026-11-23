@@ -197,6 +197,11 @@ def main():
           + declaration("Sources/Vorssaint/Services/Switcher/WindowUseTracker.swift",
                         "    func reconcile(")
           + "}\n")
+    write("SwitcherWindowTitles.swift", "import AppKit\nimport ApplicationServices\n"
+          + "extension SwitcherWindowTitleTests {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowTitles.swift",
+                        "final class SwitcherWindowTitles {")
+          + "}\n")
     write("SwitcherRememberedSelection.swift", "import AppKit\nimport ApplicationServices\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
                         "struct SwitcherInventorySpaces {")
@@ -2159,6 +2164,7 @@ def main():
                                    "    private func moveIconRowSelection(", "    private func printableSearchText(",
                                    "    private func sanitizedSearchInput(", "    private func appendSearchText(",
                                    "    private func removeLastSearchCharacter(", "    private func applySearchFilter(",
+                                   "    private func updateSessionTitles(",
                                    "    private func pinSearch(", "    func closeWindow(",
                                    "    private func closeSelectedWindow(", "    private func finishClosingWindow(",
                                    "    private func applyClosedWindowRemoval(", "    private func finishTrackingClose(",
