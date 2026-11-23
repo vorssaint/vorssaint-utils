@@ -113,6 +113,21 @@ enum NotchAgentLimitReadingTests {
             nodes.contains { $0.accessibilityLabel?() == reading || readingText($0) == reading }
         }
 
+        let earlier = today.addingTimeInterval(-4 * 86_400)
+        let earlierReply = reply(.cursor, "fixture", earlier, 1.25)
+        let undated = CursorTranscriptActivity(project: "fixture", undatedThrough: now)
+        let baseline = nodes(NotchAgentActivityCard(snapshot: snapshot([earlierReply], missing: [undated]), text: text))
+        suite.expect(announces(baseline, "1") && !announces(baseline, text.streak),
+                     "an undated reply leaves the activity count at one measured day with no streak")
+        let yesterdayMinute = Int(yesterday.timeIntervalSince1970 / 60)
+        let dated = CursorTranscriptActivity(project: "fixture", minutes: IndexSet([yesterdayMinute - 1440, yesterdayMinute]))
+        let observed = nodes(NotchAgentActivityCard(snapshot: snapshot([earlierReply], missing: [dated, undated]), text: text))
+        suite.expect(announces(observed, "3") && announces(observed, text.streak),
+                     "two consecutive unmetered Cursor days count toward activity and sustain the streak through yesterday")
+        let onlyObserved = nodes(NotchAgentActivityCard(snapshot: snapshot([], missing: [dated]), text: text))
+        suite.expect(!announces(onlyObserved, text.busiestDay) && announces(onlyObserved, "— · " + text.partialCostNote),
+                     "observed days without measured usage supply neither a busiest day nor a cost")
+
         let metered = reply(.cursor, "partial", yesterday, 1.25)
         let cursorOnly = nodes(NotchAgentTrendCard(snapshot: snapshot([metered]), providers: [.cursor],
                                                   period: .week, text: text))
