@@ -826,11 +826,15 @@ private struct NotchAgentActivityCard: View {
     @State private var hovered: Date?
     @Environment(\.locale) private var locale
 
+    private func hasActivity(_ day: AgentBucket) -> Bool {
+        day.observedCursorActivity || day.byProvider.values.contains { $0.requests > 0 }
+    }
+
     /// Days in a row with any use, counting today only once it has some.
     private var streak: Int {
         var count = 0
         for day in snapshot.days.reversed() {
-            if day.total.requests > 0 { count += 1 }
+            if hasActivity(day) { count += 1 }
             else if count > 0 || day.id != snapshot.days.last?.id { break }
         }
         return count
@@ -868,8 +872,9 @@ private struct NotchAgentActivityCard: View {
     /// The total for the whole map, its active days and its busiest day; a
     /// hovered day takes the place of the busiest one.
     private func figures(total: AgentTotals, byCost: Bool) -> some View {
-        let active = snapshot.days.filter { $0.total.requests > 0 }
-        let busiest = active.max { $0.total.weight(byCost: byCost) < $1.total.weight(byCost: byCost) }
+        let activeDays = snapshot.days.lazy.filter(hasActivity).count
+        let busiest = snapshot.days.lazy.filter { $0.total.requests > 0 }
+            .max { $0.total.weight(byCost: byCost) < $1.total.weight(byCost: byCost) }
         let pointed = hovered.flatMap { date in snapshot.days.first { $0.start == date } }
         let partial = byCost && total.hasPartialCost
         let amount = value(total, byCost: byCost, partial: partial)
@@ -883,7 +888,7 @@ private struct NotchAgentActivityCard: View {
             Text(AgentFormat.span(days: snapshot.days.count, locale: locale))
                 .font(.system(size: 9.5)).foregroundStyle(.secondary).lineLimit(1)
             Spacer(minLength: 4)
-            figure(text.activeDays, "\(active.count)")
+            figure(text.activeDays, "\(activeDays)")
             if let day = pointed ?? busiest {
                 let dayPartial = byCost && day.total.hasPartialCost
                 let date = day.start.formatted(.dateTime.day().month(.abbreviated).locale(locale))
