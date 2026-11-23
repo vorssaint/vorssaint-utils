@@ -136,6 +136,48 @@ enum MonitorVolumeKeySettingsTests {
         suite.expect(service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)]
                      && service.nativeMuted == true && Keys.NotchService.shared.shownLevels.isEmpty,
                      "a monitor that restores a loud level on native unmute is muted again after readback")
+        for restored: UInt16 in [5, 80] {
+            service = connect(raw: 40, muted: true)
+            service.volumeOnUnmute = restored
+            var readAfterUnmute = false
+            service.afterUnmute = { [weak service] in
+                service?.wantsMonitorVolumeKeys = false
+                service?.onRead = { code in
+                    if code == volume { readAfterUnmute = true }
+                }
+            }
+            press(.mute)
+            service.finish()
+            let tooLoud = restored > 5
+            let expected = [Write(volume, 5), Write(mute, 2)] + (tooLoud ? [Write(mute, 1)] : [])
+            suite.expect(readAfterUnmute && service.raw == restored && service.nativeMuted == tooLoud
+                         && service.writes == expected && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "disabling keys just after unmute checks the restored \(restored)% and silences only an unsafe level")
+        }
+        service = connect(raw: 40, muted: true)
+        service.afterUnmute = { [weak service] in service?.actualDevice = 32 }
+        press(.mute)
+        service.finish()
+        suite.expect(service.raw == 5 && service.nativeMuted == false && service.writes == [Write(volume, 5), Write(mute, 2)]
+                     && Keys.NotchService.shared.shownLevels.isEmpty,
+                     "a quiet unmute cannot announce success after the output changes ahead of its listener")
+
+        service = connect(raw: 40, muted: true)
+        service.afterSend = { [weak service] in service?.wantsMonitorVolumeKeys = false }
+        press(.mute)
+        service.finish()
+        suite.expect(service.writes == [Write(volume, 5)] && service.nativeMuted == true,
+                     "disabling keys after the capped level write still cancels the pending unmute")
+        service = connect(raw: 40, muted: true)
+        service.afterUnmute = { [weak service] in
+            service?.monitorVolumeKeySettings = .init(stepPercent: 1, maximumPercent: 3)
+        }
+        press(.mute)
+        service.finish()
+        suite.expect(service.writes == [Write(volume, 5), Write(mute, 2), Write(mute, 1)] && service.nativeMuted == true
+                     && Keys.NotchService.shared.shownLevels.isEmpty,
+                     "lowering the ceiling to three percent just after unmute silences a monitor still at five")
+
         for chip in [BrightnessSupport.chipAddress, BrightnessSupport.hdmiConverterChipAddress] {
             service = connect(raw: 0, unmutedReads: 0, chip: chip)
             service.volumeOnUnmute = 80
@@ -146,6 +188,65 @@ enum MonitorVolumeKeySettingsTests {
                          && service.chips.allSatisfy { $0 == chip },
                          "a nonstandard unmute that restores a loud volume is silenced on the original DDC route")
         }
+        let converter = BrightnessSupport.hdmiConverterChipAddress
+        for nativeMute in [true, false] {
+            service = nativeMute ? connect(raw: 40, muted: true, chip: converter)
+                                 : connect(raw: 0, unmutedReads: 0, chip: converter)
+            service.audioRoutes[8] = .init(path: "port-b", fingerprint: service.displayFingerprint,
+                                           service: NSObject(), chipAddress: BrightnessSupport.chipAddress,
+                                           hasNativeMute: true, unmutesLeavingZero: false)
+            let otherTarget = BrightnessSupport.SpeakerTarget(displayID: 8, path: "port-b")
+            service.displays.append(.init(id: 8, name: "Monitor B", audio: .init(target: otherTarget, volume: 0.5, muted: false)))
+            service.volumeOnUnmute = 80
+            service.ignoreMute = true
+            var checkedMute = false
+            service.onRead = { [weak service] code in
+                if code == mute, service?.writes.last == Write(mute, 1) { checkedMute = true }
+            }
+            service.afterUnmute = { [weak service] in
+                guard let service else { return }
+                service.actualDevice = 32
+                service.selectedAudioOutput = (32, "Monitor B")
+                service.audioOutputGeneration += 1
+                Keys.AppVolumeMixer.shared.monitorOutput = service.monitorSpeakerOutput()
+            }
+            press(nativeMute ? .mute : .volumeUp)
+            service.finish()
+            let expected = [Write(volume, nativeMute ? 5 : 1), Write(mute, 2), Write(mute, 1), Write(volume, 0)]
+            suite.expect(checkedMute && service.nativeMuted == false && service.raw == 0 && service.writes == expected
+                         && service.writtenIDs == [7, 7, 7, 7] && service.chips.allSatisfy { $0 == converter }
+                         && Keys.AppVolumeMixer.shared.monitorOutput?.target.displayID == 8
+                         && Keys.AppVolumeMixer.shared.systemOutputVolume == 0.5
+                         && Hardware.writes.isEmpty && Keys.NotchService.shared.shownLevels.isEmpty,
+                         "after switching outputs, an ignored re-mute falls back to zero on the original monitor (native mute: \(nativeMute))")
+        }
+
+        service = connect(raw: 40, muted: true)
+        service.volumeOnUnmute = 80
+        service.afterUnmute = { [weak service] in
+            service?.onSend = { [weak service] in service?.displayFingerprint = "replacement" }
+        }
+        press(.mute)
+        service.finish()
+        suite.expect(service.displayFingerprint == "replacement" && service.writes == [Write(volume, 5), Write(mute, 2)]
+                     && Keys.NotchService.shared.shownLevels.isEmpty,
+                     "a monitor that replaces the original during re-mute pacing never receives its safety write")
+
+        service = connect(raw: 40, muted: true)
+        service.volumeOnUnmute = 80
+        var readsAfterReplacement = 0
+        service.afterUnmute = { [weak service] in
+            guard let service, let old = service.audioRoutes[7] else { return }
+            service.audioRoutes[7] = .init(path: old.path, fingerprint: old.fingerprint, service: NSObject(),
+                                           chipAddress: old.chipAddress, hasNativeMute: true, unmutesLeavingZero: false)
+            service.onRead = { _ in readsAfterReplacement += 1 }
+        }
+        press(.mute)
+        service.finish()
+        suite.expect(readsAfterReplacement == 0 && service.writes == [Write(volume, 5), Write(mute, 2)]
+                     && Keys.NotchService.shared.shownLevels.isEmpty,
+                     "a new DDC endpoint on the same port cannot inherit the original monitor's verification or re-mute")
+
         service = connect(raw: 40, muted: nil, settings: .init(stepPercent: 1, minimumPercent: 3, maximumPercent: 5))
         press(.mute)
         service.finish()
