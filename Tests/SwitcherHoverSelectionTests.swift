@@ -18,11 +18,43 @@ enum SwitcherHoverSelectionTests {
     typealias SwitcherAppIconCache = IconCache
     typealias ScrollWheelHIDStage = HIDStage
     typealias MouseAppExceptions = Exceptions
+    typealias CFMachPort = Tap
+
+    final class Thread {
+        var name: String?
+        var qualityOfService: QualityOfService = .default
+        private let work: () -> Void
+        init(_ work: @escaping () -> Void) { self.work = work }
+        func start() { work() }
+    }
 
     enum Pointer { static var mouseLocation = NSPoint(x: 100, y: 100) }
     enum Permissions {
         static let shared = State()
         final class State { var accessibility = true }
+    }
+    final class Tap {
+        var valid = true
+        var enabled = false
+        var acceptsEnable = true
+        var enables = 0
+        var onEnable: (() -> Void)?
+        var onDisable: (() -> Void)?
+        static func isValid(_ tap: Tap) -> Bool { tap.valid }
+        static func isEnabled(tap: Tap) -> Bool { tap.enabled }
+        static func enable(tap: Tap, enable: Bool) {
+            tap.enabled = enable && tap.acceptsEnable
+            if enable {
+                tap.enables += 1
+                tap.onEnable?()
+            } else {
+                tap.onDisable?()
+            }
+        }
+    }
+    final class SessionActivity {
+        static let shared = SessionActivity()
+        var isActive = true
     }
     enum Workspace {
         static let shared = State()
@@ -61,7 +93,16 @@ enum SwitcherHoverSelectionTests {
         static let main = Scheduler()
         static var time: TimeInterval = 0
         static var jobs: [(Instant, DispatchWorkItem)] = []
+        static var mainIsBusy = false
+        static var waitsWhileBusy = 0
         struct Scheduler {
+            func async(execute body: @escaping () -> Void) {
+                asyncAfter(deadline: .now(), execute: body)
+            }
+            func sync(execute body: () -> Void) {
+                if Queue.mainIsBusy { Queue.waitsWhileBusy += 1 }
+                else { body() }
+            }
             func asyncAfter(deadline: Instant, execute work: DispatchWorkItem) {
                 Queue.jobs.append((deadline, work))
             }
@@ -115,15 +156,60 @@ enum SwitcherHoverSelectionTests {
     final class Inventory {
         var removedIDs: Set<String> = []
         func contains(_ item: SwitcherItem) -> Bool { !removedIDs.contains(item.id) }
+        func stop() {}
     }
+    struct SecureInputWatch { func stop() {} }
 
     class Fixture {
         let windowInventory = Inventory()
         var sessionActive = false
         let routeLock = NSLock()
+        let lifecycleLock = NSLock()
+        var tap: Tap? {
+            didSet {
+                tap?.onDisable = { [weak self] in
+                    self?.tapLifecycle.append("remove")
+                    self?.onRemoveTap?()
+                }
+            }
+        }
+        var tapThread: Thread?
+        var tapRunLoop: CFRunLoop?
+        var runLoopSource: CFRunLoopSource?
+        var shouldStopTapThread = false
+        var pendingStartAfterStop = false
+        var tapLifecycleGeneration: UInt = 0
+        var startedTaps = 0
+        var refusesPortCreation = false
+        func createPort() -> Tap? { refusesPortCreation ? nil : Tap() }
+        var routeTapRecoveryPending = false
+        var tapIsWanted: Bool { Permissions.shared.accessibility && SessionActivity.shared.isActive }
+        var startedGenerations: [UInt64] = []
+        var wantedAtPreferenceSync: Bool?
+        let secureInputWatch = SecureInputWatch()
+        func stopObservingExclusiveFullscreen() {}
+        func stopObservingWake() {}
+        var routeSessionActive: Bool { sessionActive }
+        var routeCanStartSession = true
+        var routeCapturing = false
+        var yieldsToExclusiveFullscreen = false
+        var routeYieldsToExclusiveFullscreen = false
+        var routePendingSessionStart: SwitcherPendingSessionStart?
+        var secureInputReplays = SwitcherSecureInputReplayState()
+        var tapLifecycle: [String] = []
+        var onRemoveTap: (() -> Void)?
+        var restoredHotkeys = 0
+        var appliedHotkeys = 0
+        func restoreNativeHotkeys() {
+            restoredHotkeys += 1
+            tapLifecycle.append("restore")
+        }
+        func updateSecureInputHotKeys() {}
+        func applyNativeHotkeySuppression() { appliedHotkeys += 1 }
         var sessionStartGeneration: UInt64 = 0
         let routeShortcut = GlobalShortcut.switcherDefault
         let routeWindowShortcut = GlobalShortcut.switcherWindowDefault
+        var routeAllWindowsShortcut: GlobalShortcut?
         var sessionShortcut: GlobalShortcut?
         var sessionScope: SwitcherSessionScope = .allApps
         var windows: [SwitcherItem] = []
@@ -165,7 +251,6 @@ enum SwitcherHoverSelectionTests {
         func cancelLetterConfirmation() {}
         func stopObservingTermination() {}
         func cancelPendingPreviewBatch() {}
-        func invalidateSecureInputReplays() {}
         func unregisterSecureInputActionHotKeys() {}
         func recordUse(_ item: SwitcherItem, previous: CGWindowID?) {}
         func runProtectedLetterAction(_ action: SwitcherLetterAction) {
@@ -174,6 +259,7 @@ enum SwitcherHoverSelectionTests {
     }
 
     static func run(_ suite: TestSuite) {
+        checkTapRecovery(suite)
         let defaults = UserDefaults.standard
         let key = DefaultsKey.switcherIgnoreHoverSelection
         let previous = defaults.object(forKey: key)
@@ -288,6 +374,48 @@ enum SwitcherHoverSelectionTests {
         let expectedKeyboard = keyboard.windows[3].id
         _ = keyboard.handle(type: .keyDown, event: keyEvent(KeyCode.enter))
         suite.expect(Activator.activated == [expectedKeyboard], "Enter still commits pinned selection")
+
+        let routing = Service()
+        var gameCoversDisplay = false
+        let watch = SwitcherExclusiveFullscreenWatch(frontmostPID: { 400 },
+            read: { _, complete in complete(gameCoversDisplay) },
+            onObservation: routing.setYieldsToExclusiveFullscreen)
+        watch.start()
+        let match = (shortcut: GlobalShortcut.switcherDefault, scope: SwitcherSessionScope.allApps, reversed: false)
+        let initial = routing.claimPendingKey(match: match, secureInputReplay: true)
+        suite.expect(initial?.generation != nil && routing.routePendingSessionStart?.isSecureInputReplay == true,
+                     "a Carbon press starts a pending replay before the game takes focus")
+        routing.routePendingSessionStart?.commitWhenReady = true
+        let replaced = routing.claimPendingKey(match: match, secureInputReplay: true)
+        suite.expect(replaced?.generation != nil && replaced?.generation != initial?.generation
+                     && routing.routePendingSessionStart?.isSecureInputReplay == true,
+                     "a Carbon press replacing an already released chord retains its replay flag")
+        _ = routing.secureInputReplays.enqueue(shortcut: match.shortcut)
+        gameCoversDisplay = true
+        watch.refresh()
+        let staleMatch = routing.claimPendingKey(match: match, secureInputReplay: false)
+        suite.expect(routing.restoredHotkeys == 1 && routing.routePendingSessionStart == nil
+                     && !routing.secureInputReplays.hasPending && staleMatch == nil,
+                     "a hand-back with a disabled tap restores the keys, discards pending work and rejects a stale shortcut match")
+        suite.expect(routing.windows.isEmpty && routing.claimPendingKey(match: match, secureInputReplay: false) == nil,
+                     "a second shortcut with no eligible windows still belongs to macOS")
+        let queued = keyEvent(KeyCode.tab, flags: .maskCommand)
+        suite.expect(routing.handle(type: .keyDown, event: queued)?.takeUnretainedValue() === queued,
+                     "a key already queued on main passes unchanged after the hand-back")
+        routing.tap = Tap()
+        routing.tap?.enabled = true
+        gameCoversDisplay = false
+        watch.refresh()
+        watch.stop()
+        let resumed = routing.claimPendingKey(match: match, secureInputReplay: false)
+        suite.expect(routing.appliedHotkeys == 1 && resumed?.generation != nil
+                     && routing.routePendingSessionStart?.isSecureInputReplay == false,
+                     "the live tap resumes ownership and accepts the next physical shortcut after full screen")
+        let visibleSwitcher = fresh()
+        visibleSwitcher.setYieldsToExclusiveFullscreen(true)
+        suite.expect(!visibleSwitcher.sessionActive && visibleSwitcher.panel?.isVisible == false
+                     && visibleSwitcher.restoredHotkeys == 1,
+                     "a hand-back dismisses the visible switcher and releases its shortcuts")
 
         let middle = fresh()
         Pointer.mouseLocation.x += 10
@@ -443,11 +571,224 @@ enum SwitcherHoverSelectionTests {
                          "an old \(retry ? "retry" : "initial refresh") cannot inspect or mutate the next session")
         }
     }
+
+    private static func checkTapRecovery(_ suite: TestSuite) {
+        let letter = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true)!
+        let shortcut = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(KeyCode.tab), keyDown: true)!
+        shortcut.flags = .maskCommand
+        let release = CGEvent(source: nil)!
+        release.type = .flagsChanged
+        let click = CGEvent(mouseEventSource: nil, mouseType: .leftMouseDown,
+                            mouseCursorPosition: .zero, mouseButton: .left)!
+        let middleDown = CGEvent(mouseEventSource: nil, mouseType: .otherMouseDown,
+                                 mouseCursorPosition: CGPoint(x: 100, y: 100), mouseButton: .center)!
+        let middleUp = CGEvent(mouseEventSource: nil, mouseType: .otherMouseUp,
+                               mouseCursorPosition: middleDown.location, mouseButton: .center)!
+        let notice = CGEvent(source: nil)!
+        defer {
+            Queue.mainIsBusy = false
+            Queue.jobs.removeAll()
+            Permissions.shared.accessibility = true
+            SessionActivity.shared.isActive = true
+        }
+        for disabled in [CGEventType.tapDisabledByTimeout, .tapDisabledByUserInput] {
+            let service = Service()
+            service.open()
+            let port = Tap()
+            service.tap = port
+            service.hoveredWindowIndex = 1
+            suite.expect(service.route(type: .otherMouseDown, event: middleDown) == nil && service.swallowingMiddleMouseUp,
+                         "closing a window by middle click claims its matching release before the timeout")
+            var cancelledBeforeEnable = false
+            port.onEnable = { [weak service] in cancelledBeforeEnable = service?.panel?.isVisible == false }
+            _ = service.secureInputReplays.enqueue(shortcut: service.routeShortcut)
+            Queue.waitsWhileBusy = 0
+            Queue.mainIsBusy = true
+            suite.expect(service.keyboardInputOwnership.isOwned && service.scrollNavigationActive,
+                         "the switcher owns keyboard and wheel routing while its session is open")
+            _ = service.route(type: disabled, event: notice)
+            _ = service.route(type: disabled, event: notice)
+            for event in [letter, shortcut, click, middleUp, release] {
+                suite.expect(service.route(type: event.type, event: event)?.takeUnretainedValue() === event,
+                             "input passes unchanged while main cannot recover the disabled switcher")
+            }
+            suite.expect(service.route(type: .keyDown, event: shortcut, secureInputReplay: true)?.takeUnretainedValue() === shortcut
+                         && !service.secureInputReplays.hasPending && service.routePendingSessionStart == nil,
+                         "disabled routing drops pending replays and cannot claim another shortcut")
+            suite.expect(!service.keyboardInputOwnership.isOwned && !service.scrollNavigationActive
+                         && Queue.waitsWhileBusy == 0 && port.enables == 0 && Queue.jobs.count == 1,
+                         "duplicate disable notices yield ownership and schedule one recovery without waiting on main or enabling the tap")
+            Queue.mainIsBusy = false
+            Queue.advance(to: Queue.time)
+            suite.expect(port.enables == 1 && cancelledBeforeEnable && !service.sessionActive && service.appliedHotkeys == 1,
+                         "the responsive main queue closes the old panel before enabling the current tap once")
+            suite.expect(service.route(type: .keyDown, event: letter)?.takeUnretainedValue() === letter
+                         && service.route(type: .leftMouseDown, event: click)?.takeUnretainedValue() === click
+                         && service.route(type: .keyDown, event: shortcut) == nil,
+                         "recovered routing passes unrelated input and claims the configured shortcut")
+            let claimed = service.routePendingSessionStart?.generation
+            Queue.advance(to: Queue.time)
+            suite.expect(service.startedGenerations.count == 1 && service.startedGenerations.first == claimed && service.sessionActive,
+                         "only the new shortcut schedules a session after recovery")
+            suite.expect(service.route(type: .otherMouseUp, event: middleUp)?.takeUnretainedValue() === middleUp,
+                         "a new session does not swallow a release owed to the session lost during the timeout")
+        }
+
+        for replacing in [true, false] {
+            let service = Service()
+            let original = Tap()
+            let replacement = Tap()
+            service.tap = original
+            let match = (shortcut: service.routeShortcut, scope: SwitcherSessionScope.allApps, reversed: false)
+            _ = service.claimPendingKey(match: match, secureInputReplay: false)
+            _ = service.route(type: .tapDisabledByTimeout, event: notice)
+            suite.expect(service.routePendingSessionStart == nil,
+                         "the disabled tap discards a shortcut awaiting a session before main resumes")
+            if replacing { service.tap = replacement } else { service.shouldStopTapThread = true }
+            service.open()
+            Queue.advance(to: Queue.time)
+            suite.expect(service.sessionActive && service.panel?.isVisible == true && service.tapLifecycle.isEmpty
+                         && original.enables == 0 && replacement.enables == 0 && service.appliedHotkeys == 0,
+                         "work for a replaced or stopping port leaves the new session and its shortcuts alone")
+        }
+        for invalid in [true, false] {
+            let service = Service()
+            let port = Tap()
+            service.tap = port
+            _ = service.route(type: .tapDisabledByTimeout, event: notice)
+            port.valid = !invalid
+            port.acceptsEnable = false
+            Queue.advance(to: Queue.time)
+            suite.expect(port.enables == (invalid ? 0 : 1) && service.tapLifecycle == ["restore", "remove", "sync"]
+                         && service.wantedAtPreferenceSync == true && service.appliedHotkeys == 0,
+                         "a dead port or unsuccessful re-enable returns the shortcuts and removes the tap before resyncing")
+        }
+        for permissionLost in [true, false] {
+            let service = Service()
+            let port = Tap()
+            service.tap = port
+            _ = service.route(type: .tapDisabledByTimeout, event: notice)
+            Permissions.shared.accessibility = !permissionLost
+            SessionActivity.shared.isActive = permissionLost
+            Queue.advance(to: Queue.time)
+            suite.expect(port.enables == 0 && service.tapLifecycle == ["restore", "remove", "sync"]
+                         && service.wantedAtPreferenceSync == false && service.appliedHotkeys == 0,
+                         "a lost permission or inactive session leaves the old tap stopped after the preference check")
+            Permissions.shared.accessibility = true
+            SessionActivity.shared.isActive = true
+        }
+        let regranted = Service()
+        regranted.installTap()
+        guard let oldPort = regranted.tap else {
+            suite.expect(false, "the eligible switcher publishes its initial port")
+            return
+        }
+        _ = regranted.route(type: .tapDisabledByTimeout, event: notice)
+        Permissions.shared.accessibility = false
+        regranted.onRemoveTap = { Permissions.shared.accessibility = true }
+        Queue.advance(to: Queue.time)
+        suite.expect(oldPort.enables == 0 && regranted.tapLifecycle == ["restore", "remove", "sync"]
+                     && regranted.shouldStopTapThread && regranted.pendingStartAfterStop && regranted.wantedAtPreferenceSync == true
+                     && regranted.appliedHotkeys == 0,
+                     "permission restored during teardown is visible to the next install decision with the old tap already stopping")
+        checkTapReplacement(suite, notice: notice, shortcut: shortcut, middleDown: middleDown, middleUp: middleUp)
+    }
+
+    private static func checkTapReplacement(_ suite: TestSuite, notice: CGEvent, shortcut: CGEvent,
+                                            middleDown: CGEvent, middleUp: CGEvent) {
+        let service = Service()
+        service.installTap()
+        let retired = service.tap
+        service.open()
+        service.hoveredWindowIndex = 1
+        suite.expect(service.route(type: .otherMouseDown, event: middleDown) == nil && service.swallowingMiddleMouseUp,
+                     "the original tap claims the middle down that closes a card")
+        _ = service.route(type: .tapDisabledByTimeout, event: notice)
+        suite.expect(service.route(type: .otherMouseUp, event: middleUp)?.takeUnretainedValue() === middleUp,
+                     "the release during the interruption passes before main can dismiss the session")
+        service.removeTap()
+        service.installTap()
+        service.installTap()
+        suite.expect(service.shouldStopTapThread && service.pendingStartAfterStop && service.startedTaps == 1,
+                     "repeated install requests wait for the retiring tap thread")
+        service.finishEventTapThread()
+        suite.expect(service.tap == nil && service.tapThread == nil && service.startedTaps == 1,
+                     "the outgoing tap thread leaves the replacement decision to main")
+        Queue.advance(to: Queue.time)
+        suite.expect(service.startedTaps == 2 && service.tap !== retired && service.isTapLive,
+                     "an eligible restart publishes just one live replacement")
+        let outside = CGEvent(mouseEventSource: nil, mouseType: .otherMouseDown,
+                              mouseCursorPosition: CGPoint(x: 900, y: 900), mouseButton: .center)!
+        let outsideUp = CGEvent(mouseEventSource: nil, mouseType: .otherMouseUp,
+                                mouseCursorPosition: outside.location, mouseButton: .center)!
+        suite.expect(service.route(type: .otherMouseDown, event: outside)?.takeUnretainedValue() === outside
+                     && service.route(type: .keyDown, event: shortcut) == nil,
+                     "the app receives a fresh middle down outside the panel and the next shortcut belongs to the switcher")
+        let claimed = service.routePendingSessionStart?.generation
+        Queue.advance(to: Queue.time)
+        suite.expect(service.startedGenerations.count == 1 && service.startedGenerations.first == claimed && service.sessionActive,
+                     "the replacement claims exactly one session opening for the shortcut")
+        suite.expect(service.route(type: .otherMouseUp, event: outsideUp)?.takeUnretainedValue() === outsideUp,
+                     "opening the replacement switcher between the app's down and up preserves their pairing")
+        guard service.windows.indices.contains(service.selectedIndex) else {
+            suite.expect(false, "the replacement session has a selected fixture window")
+            return
+        }
+        let selected = service.windows[service.selectedIndex].id
+        let previousActivations = Activator.activated
+        let released = CGEvent(source: nil)!
+        released.type = .flagsChanged
+        released.flags = []
+        suite.expect(service.route(type: .flagsChanged, event: released)?.takeUnretainedValue() === released
+                     && !service.sessionActive && Activator.activated == previousActivations + [selected],
+                     "releasing the recovered shortcut finishes the session and activates only the selected window")
+
+        for suspended in [true, false] {
+            let stopping = Service()
+            stopping.installTap()
+            stopping.tap?.acceptsEnable = false
+            _ = stopping.route(type: .tapDisabledByTimeout, event: notice)
+            Queue.advance(to: Queue.time)
+            suite.expect(stopping.shouldStopTapThread && stopping.pendingStartAfterStop,
+                         "a failed re-enable requests a replacement while the retired thread still exists")
+            stopping.finishEventTapThread()
+            if suspended { stopping.suspend() } else { Permissions.shared.accessibility = false }
+            Queue.advance(to: Queue.time)
+            suite.expect(stopping.tap == nil && stopping.tapThread == nil && stopping.startedTaps == 1,
+                         "a restart captured before suspension or permission loss cannot revive the tap")
+            Permissions.shared.accessibility = true
+        }
+        for superseded in [false, true] {
+            let failed = Service()
+            failed.refusesPortCreation = true
+            failed.installTap()
+            if superseded {
+                failed.refusesPortCreation = false
+                failed.installTap()
+            }
+            Queue.advance(to: Queue.time)
+            suite.expect(failed.restoredHotkeys == (superseded ? 0 : 1) && failed.isTapLive == superseded,
+                         "a failed creation restores native shortcuts only if a newer installation has not claimed them")
+        }
+    }
 }
 
 extension SwitcherHoverSelectionTests.Service {
-    func open(icons: Bool = false, windowRow: Bool = false) {
-        sessionStartGeneration &+= 1
+    // Substitute the window inventory and presentation for the claimed generation.
+    func beginPendingSession(generation: UInt64) {
+        startedGenerations.append(generation)
+        guard routePendingSessionStart?.generation == generation else { return }
+        routePendingSessionStart = nil
+        open(generation: generation)
+    }
+    func syncWithPreferences() {
+        tapLifecycle.append("sync")
+        wantedAtPreferenceSync = tapIsWanted
+        routeCanStartSession = tapIsWanted
+        if routeCanStartSession { installTap() }
+    }
+    func open(icons: Bool = false, windowRow: Bool = false, generation: UInt64? = nil) {
+        sessionStartGeneration = generation ?? (sessionStartGeneration &+ 1)
         sessionActive = true
         usesIconRowLayout = icons
         usesWindowRow = windowRow

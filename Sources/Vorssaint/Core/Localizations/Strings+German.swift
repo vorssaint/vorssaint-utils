@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "Mikrofon stummschalten",
         micUnmuteName: "Mikrofon wieder aktivieren",
         micMuteCaption: "Verwendet den Stummschalter oder den Eingangslautstärkeregler jedes Mikrofons. Siri und einige Apps können dich weiterhin hören. Diese Funktion blockiert nicht jeden Zugriff auf das Mikrofon.",
+        micMuteFollowCallAppsToggle: "Anruf-Apps erlauben, das Mikrofon zu aktivieren",
+        micMuteFollowCallAppsCaption: "Wird ein Mikrofon wieder aktiv, während eine App damit aufnimmt, stellt Vorssaint alle von ihm stummgeschalteten Mikrofone wieder her. Auch eine automatische Pegelanpassung kann dies auslösen.",
         micMutedHUD: "Mikrofon-Stummschaltung an",
         micUnmutedHUD: "Mikrofon-Stummschaltung aus",
         micMutePartialHUD: "Einige Mikrofone konnten nicht stummgeschaltet werden",

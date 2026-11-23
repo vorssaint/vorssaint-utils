@@ -184,7 +184,9 @@ final class StatusItemController {
             .sink { [weak self] _ in self?.updateIconAppearance() }
             .store(in: &cancellables)
 
-        KeepAwakeManager.shared.$endDate
+        let awake = KeepAwakeManager.shared
+        awake.$endDate.combineLatest(awake.$activeAutomationConditions, awake.$waitingForPower)
+            .removeDuplicates { $0 == $1 }
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.refresh() }
             .store(in: &cancellables)
@@ -566,7 +568,8 @@ final class StatusItemController {
         if manager.isActive {
             if manager.sessionTrigger == .automation {
                 toolTip = FeatureStrings.keepAwakeAutomation(L10n.shared.language)
-                    .activeStatus(for: manager.activeAutomationConditions)
+                    .activeStatus(for: manager.activeAutomationConditions,
+                                  waitingForPower: manager.waitingForPower)
             } else if let end = manager.endDate {
                 toolTip = "\(strings.statusActiveUntil) \(Self.timeFormatter.string(from: end))"
             } else {

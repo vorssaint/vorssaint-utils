@@ -32,6 +32,9 @@ enum FanControlResumeContract {
         var invalidated = false
         func invalidate() { invalidated = true }
     }
+    struct StatusProxy {
+        func status(withReply reply: () -> Void) { reply() }
+    }
     class Fixture {
         enum AccessState { case notRegistered, requiresApproval, enabled, unavailable }
         static let shared = Service()
@@ -40,6 +43,9 @@ enum FanControlResumeContract {
         var accessState = AccessState.enabled
         var snapshot = FanControlSnapshot.empty
         var error: FanControlErrorCode?
+        var statusResponse: FanControlResponse?
+        var requestGeneration = 0
+        var requestInFlight = false
         var panelIsVisible = false
         var timer: Invalidating?
         var connection: Invalidating?
@@ -50,6 +56,10 @@ enum FanControlResumeContract {
         var scheduledResumes: [TimeInterval] = []
         var applied: [FanControlConfiguration] = []
         var events: [String] = []
+        func send(_ operation: (StatusProxy, () -> Void) -> Void,
+                  completion: @escaping (FanControlResponse?) -> Void) {
+            operation(StatusProxy()) { completion(self.statusResponse) }
+        }
         func refreshAccessState() {}
         func applyConfiguration(_ configuration: FanControlConfiguration, resuming: Bool) {
             applied.append(configuration)
@@ -81,6 +91,9 @@ enum FanControlResumeContract {
             }
             service.accessState = .enabled
             service.snapshot = .empty
+            service.error = nil
+            service.statusResponse = nil
+            service.requestInFlight = false
             service.panelIsVisible = false
             service.timer = Invalidating()
             service.connection = Invalidating()
@@ -134,6 +147,55 @@ enum FanControlResumeContract {
         defaults.values[DefaultsKey.fanControlHelperVersion] = Service.helperVersion
         Service.recoverIfNeeded()
         suite.expect(service.applied == [manual], "the registered helper resumes as before")
+
+        reset(recovery: true)
+        defaults.values[DefaultsKey.fanControlHelperVersion] = "previous"
+        var legacy = FanControlSnapshot.empty
+        legacy.isCooling = true
+        service.statusResponse = .success(legacy)
+        service.requestStatus()
+        suite.expect(service.snapshot == legacy && Service.helperAwaitsRegistration,
+                     "a status reply from the older helper during recovery leaves its registration pending")
+        service.statusResponse = .success(.empty)
+        service.requestStatus()
+        suite.expect(!defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded) && Service.helperAwaitsRegistration,
+                     "after recovery clears, the old helper still needs replacement")
+        defaults.removeObject(forKey: DefaultsKey.fanControlHelperVersion)
+        service.requestStatus()
+        suite.expect(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) == Service.helperVersion,
+                     "a compatible status reply still initializes an unversioned registration")
+
+        reset(recovery: true)
+        defaults.values[DefaultsKey.fanControlHelperVersion] = Service.helperVersion
+        var idle = FanControlSnapshot.empty
+        idle.isCooling = true
+        idle.fans = [.init(index: 0, actualRPM: 2_000, minimumRPM: 1_200, maximumRPM: 5_800,
+                           targetRPM: 2_000, isManuallyControlled: true)]
+        idle.temperatures = [.init(source: .hottestCPU, celsius: 45)]
+        idle.gpuPoweredDown = true
+        service.statusResponse = .success(idle)
+        service.requestStatus()
+        let obsolete = service.beginRequest()
+        let current = service.beginRequest()
+        suite.expect(!service.finishRequest(obsolete, response: nil) && service.snapshot == idle
+                        && service.requestInFlight && service.error == nil,
+                     "a superseded IPC failure preserves the current sample and in-flight request")
+        _ = service.finishRequest(current, response: .success(idle))
+        service.statusResponse = nil
+        service.requestStatus()
+        suite.expect(service.snapshot.availableTemperatureSources.isEmpty
+                        && service.snapshot.temperatures == nil && service.snapshot.gpuPoweredDown == nil
+                        && service.snapshot.isCooling && service.snapshot.fans == idle.fans
+                        && defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
+                        && service.error == .helperUnavailable,
+                     "losing the helper clears live readings and GPU sleep while retaining control for recovery")
+        var awake = idle
+        awake.gpuPoweredDown = false
+        awake.temperatures = [.init(source: .hottestGPU, celsius: 54)]
+        service.statusResponse = .failure(.alreadyControlled, snapshot: awake)
+        service.requestStatus()
+        suite.expect(service.snapshot == awake && service.error == .alreadyControlled,
+                     "a fresh snapshot from a refused request replaces the lost sample and keeps its error")
 
         reset(resume: false, stored: nil)
         service.rememberForResume(manual)

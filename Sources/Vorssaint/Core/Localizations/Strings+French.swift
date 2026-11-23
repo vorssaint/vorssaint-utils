@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "Couper le micro",
         micUnmuteName: "Réactiver le micro",
         micMuteCaption: "Utilise les commandes de coupure ou de volume d’entrée de chaque micro. Siri et certaines apps peuvent encore vous entendre. Cette fonction ne bloque pas tout accès au micro.",
+        micMuteFollowCallAppsToggle: "Autoriser les apps d’appel à réactiver le micro",
+        micMuteFollowCallAppsCaption: "Si un micro se réactive alors qu’une app l’utilise pour enregistrer, Vorssaint rétablit tous les micros qu’il avait coupés. Un réglage automatique du gain peut aussi déclencher cette action.",
         micMutedHUD: "Coupure du micro activée",
         micUnmutedHUD: "Coupure du micro désactivée",
         micMutePartialHUD: "Certains micros n’ont pas pu être coupés",

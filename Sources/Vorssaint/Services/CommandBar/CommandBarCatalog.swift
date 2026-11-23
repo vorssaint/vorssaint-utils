@@ -52,6 +52,8 @@ struct CommandBarEntry: Identifiable {
     let answerValue: String?
     /// The calculator's row: pinned above everything and styled as a result.
     let isAnswer: Bool
+    /// The expression Tab puts back in the field for this answer.
+    let reusableExpression: String?
     /// Only durable identities may retain habits; window IDs and PIDs are reused.
     let countsUsage: Bool
     /// The text the ranking reads instead of the title, for the rows whose
@@ -101,7 +103,7 @@ struct CommandBarEntry: Identifiable {
                         menuShortcut: menuShortcut, isActive: isActive, trouble: trouble,
                         numericRange: numericRange, numericIsOptional: numericIsOptional,
                         confirmationPrompt: confirmationPrompt, answerValue: answerValue,
-                        isAnswer: isAnswer, countsUsage: countsUsage,
+                        isAnswer: isAnswer, reusableExpression: reusableExpression, countsUsage: countsUsage,
                         matchTitle: matchTitle, keepsBarOpen: keepsBarOpen,
                         takesArgument: takesArgument, revealPath: revealPath,
                         uninstallAppURL: uninstallAppURL, run: run)
@@ -144,6 +146,7 @@ struct CommandBarEntry: Identifiable {
          confirmationPrompt: String? = nil,
          answerValue: String? = nil,
          isAnswer: Bool = false,
+         reusableExpression: String? = nil,
          countsUsage: Bool = true,
          matchTitle: String? = nil,
          keepsBarOpen: Bool = false,
@@ -167,6 +170,7 @@ struct CommandBarEntry: Identifiable {
         self.confirmationPrompt = confirmationPrompt
         self.answerValue = answerValue
         self.isAnswer = isAnswer
+        self.reusableExpression = reusableExpression
         self.countsUsage = countsUsage
         self.matchTitle = matchTitle
         self.keepsBarOpen = keepsBarOpen
@@ -1723,8 +1727,9 @@ enum CommandBarCatalog {
 
     /// The pinned first row when what was typed is a sum or a conversion.
     /// Enter copies it.
-    static func answerEntry(for query: String, bar: CommandBarFeatureStrings) -> CommandBarEntry? {
-        if let result = CommandBarMath.evaluate(query) {
+    static func answerEntry(for query: String, bar: CommandBarFeatureStrings, enabled: Bool = true) -> CommandBarEntry? {
+        guard enabled else { return nil }
+        if let result = CommandBarCalculator.evaluate(query) {
             var expression = query.trimmingCharacters(in: .whitespacesAndNewlines)
             if expression.hasSuffix("=") { expression.removeLast() }
             let completed = result.closingBrackets.isEmpty ? ""
@@ -1735,18 +1740,9 @@ enum CommandBarCatalog {
                 subtitle: completed + bar.copyHint,
                 icon: .symbol("equal.square"),
                 isAnswer: true,
+                reusableExpression: result.reusableExpression,
                 countsUsage: false,
                 run: { _ in copyAnswer(result.formatted) })
-        }
-        if let converted = CommandBarUnits.convert(query) {
-            return CommandBarEntry(
-                id: "units.result",
-                title: converted.formatted,
-                subtitle: bar.copyHint,
-                icon: .symbol("arrow.left.arrow.right"),
-                isAnswer: true,
-                countsUsage: false,
-                run: { _ in copyAnswer(converted.formatted) })
         }
         if let converted = CommandBarColors.convert(query) {
             return CommandBarEntry(

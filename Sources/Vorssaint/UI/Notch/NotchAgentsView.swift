@@ -18,6 +18,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
     @AppStorage(DefaultsKey.notchAgentsAgy) private var agy = true
     @AppStorage(DefaultsKey.notchAgentsAgyWindowFilter) private var agyFilter = "all"
 
@@ -34,9 +35,9 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil, agy ? .agy : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
-                || ($0 == .claude && !usage.claudeProfile.isDefault) }
+        _ = (claude, codex, opencode, copilot, cursor, agy)
+        return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
+                                               hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
 
     private var rows: [[NotchAgentTile]] {
@@ -44,7 +45,8 @@ struct NotchAgentsView: View {
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
                                                               codexAccounts: codexAccounts.map(\.id),
-                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id),
+                                                              claudeAccount: usage.claudeProfile.isDefault ? nil : usage.claudeProfile.id,
+                                                              snapshot: usage.snapshot),
                                       width: size.width)
     }
 
@@ -939,19 +941,21 @@ private struct NotchAgentLiveCard: View {
             // Tokens the agent wrote, as its own window counts them; every
             // call also reads the whole context again, which the tooltip and
             // the cost include.
-            let costString: String = {
-                guard session.cost > 0 else { return "" }
-                return (session.provider == .agy ? "≥ " : "") + AgentFormat.cost(session.cost)
-            }()
-            Text([AgentPricing.displayName(session.model),
-                  session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
-                  costString]
-                    .filter { !$0.isEmpty }.joined(separator: " · "))
-                .font(.system(size: 9.5))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
+            if session.provider != .cursor {
+                let costString: String = {
+                    guard session.cost > 0 else { return "" }
+                    return (session.provider == .agy ? "≥ " : "") + AgentFormat.cost(session.cost)
+                }()
+                Text([AgentPricing.displayName(session.model),
+                      session.tokens.output > 0 ? text.written(AgentFormat.tokens(session.tokens.output)) : "",
+                      costString]
+                        .filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
-        .help(text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
+        .help(session.provider == .cursor ? session.provider.displayName : text.tokens(AgentFormat.tokens(session.tokens.total)) + " · "
               + text.cached(AgentFormat.percent(session.tokens.cacheHitRate ?? 0)))
     }
 
