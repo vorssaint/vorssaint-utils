@@ -18,7 +18,7 @@ struct SwitcherInventorySpaces {
 final class SwitcherWindowInventory {
     private var remembered = WindowEnumerator.WindowList(items: [], sourceItems: [])
     private var observers: [NSObjectProtocol] = []
-    private var screenObserver: NSObjectProtocol?
+    private var screenObservers: [NSObjectProtocol] = []
     private var pendingRefresh: DispatchWorkItem?
     private var refreshInFlight = false
     private var spaces = SwitcherInventorySpaces()
@@ -68,13 +68,22 @@ final class SwitcherWindowInventory {
                 }
             }
         }
-        screenObserver = NotificationCenter.default.addObserver(
-            forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in self?.invalidate() }
+        screenObservers = observeScreenChanges()
         needsFullRefresh = true
         refresh()
+    }
+
+    private func observeScreenChanges(in center: NotificationCenter = .default) -> [NSObjectProtocol] {
+        let displays = center.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
+                                          object: nil, queue: .main) { [weak self] _ in self?.invalidate() }
+        // Displays can share a Space, and receive(_:) ignores WindowServer moves for our own windows.
+        let windowScreen = center.addObserver(forName: NSWindow.didChangeScreenNotification,
+                                              object: nil, queue: .main) { [weak self] note in
+            guard let window = note.object as? NSWindow, window.level == .normal,
+                  WindowEnumerator.ownWindowID(for: window) != nil else { return }
+            self?.invalidate(pid: ProcessInfo.processInfo.processIdentifier)
+        }
+        return [displays, windowScreen]
     }
 
     private func setFallbackPolling(_ needed: Bool) {
@@ -98,8 +107,8 @@ final class SwitcherWindowInventory {
         pendingWindowIDs = []
         for observer in observers { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
         observers = []
-        if let screenObserver { NotificationCenter.default.removeObserver(screenObserver) }
-        screenObserver = nil
+        for observer in screenObservers { NotificationCenter.default.removeObserver(observer) }
+        screenObservers = []
         SwitcherWindowEvents.shared.stop()
         titles.stop()
         remembered = WindowEnumerator.WindowList(items: [], sourceItems: [])
