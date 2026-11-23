@@ -1176,35 +1176,36 @@ enum BrightnessSupport {
                 return (displayIndex: display.index, serviceOrdinal: service.ordinal, score: score)
             }
         }
-        let usable = scores.filter { pair in
-            candidates.contains(pair.displayIndex) && pair.score > 0
-                && !scores.contains { other in
-                    other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex
-                        && other.score >= pair.score
-                }
-        }
-        let assigned = assignServices(scores: usable)
+        let assigned = assignServices(scores: scores)
         if assigned.isEmpty, displays.count == 1, services.count == 1, let display = displays.first,
            candidates.contains(display.index), let service = services.first {
             if let serial = display.identity.serialNumber, serial != 0, service.serialNumber != 0,
                serial != service.serialNumber { return [:] }
             return [display.index: service.ordinal]
         }
-        return assigned
+        return assigned.filter { candidates.contains($0.key) }
     }
 
-    /// Greedy assignment, best scores first: each display and each service is
-    /// used at most once, and zero-score pairs never match. Returns display
-    /// index to service ordinal.
+    /// Keep each service's strongest possible owners. A tie can resolve once
+    /// another display has claimed its own service, provided the remaining
+    /// display also has a unique best choice.
     static func assignServices(scores: [(displayIndex: Int, serviceOrdinal: Int, score: Int)])
         -> [Int: Int] {
+        var remaining = scores.filter { pair in
+            pair.score > 0 && !scores.contains {
+                $0.serviceOrdinal == pair.serviceOrdinal && $0.score > pair.score
+            }
+        }
         var assignment: [Int: Int] = [:]
-        var takenServices = Set<Int>()
-        for entry in scores.sorted(by: { $0.score > $1.score }) where entry.score > 0 {
-            guard assignment[entry.displayIndex] == nil,
-                  !takenServices.contains(entry.serviceOrdinal) else { continue }
-            assignment[entry.displayIndex] = entry.serviceOrdinal
-            takenServices.insert(entry.serviceOrdinal)
+        while let match = remaining.first(where: { pair in
+            !remaining.contains { other in
+                (other.serviceOrdinal == pair.serviceOrdinal && other.displayIndex != pair.displayIndex)
+                    || (other.displayIndex == pair.displayIndex && other.serviceOrdinal != pair.serviceOrdinal
+                        && other.score >= pair.score)
+            }
+        }) {
+            assignment[match.displayIndex] = match.serviceOrdinal
+            remaining.removeAll { $0.displayIndex == match.displayIndex || $0.serviceOrdinal == match.serviceOrdinal }
         }
         return assignment
     }
