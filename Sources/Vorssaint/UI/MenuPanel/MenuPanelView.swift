@@ -466,9 +466,10 @@ struct MenuPanelView: View {
                 appDelegate()?.openSettingsWindow()
             }
 
-            footerButton(l10n.s.panelQuit,
-                         systemImage: "power",
-                         horizontalPadding: 7) {
+            HoldToQuitButton(title: l10n.s.panelQuit,
+                             holdHint: l10n.s.panelQuitHoldHint,
+                             fill: footerFill,
+                             border: PanelSurface.border(for: colorScheme)) {
                 NSApp.terminate(nil)
             }
         }
@@ -477,30 +478,104 @@ struct MenuPanelView: View {
         .padding(.top, 4)
     }
 
+    private var footerFill: Color {
+        notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme)
+    }
+
     private func footerButton(_ title: String, systemImage: String,
                               horizontalPadding: CGFloat = 8,
                               action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 11, weight: .medium))
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .minimumScaleFactor(0.78)
-                .labelStyle(.titleAndIcon)
-                .padding(.horizontal, horizontalPadding)
-                .frame(maxWidth: .infinity, minHeight: 28)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(notchSize != nil ? .black : PanelSurface.cardFill(for: colorScheme))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .strokeBorder(PanelSurface.border(for: colorScheme), lineWidth: 0.8)
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+            PanelFooterLabel(title: title, systemImage: systemImage,
+                             horizontalPadding: horizontalPadding,
+                             fill: footerFill,
+                             border: PanelSurface.border(for: colorScheme))
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
+    }
+}
+
+private struct PanelFooterLabel: View {
+    let title: String
+    let systemImage: String
+    var horizontalPadding: CGFloat = 8
+    let fill: Color
+    let border: Color
+    /// How far a hold has filled the button, from 0 to 1.
+    var progress: CGFloat = 0
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+        Label(title, systemImage: systemImage)
+            .font(.system(size: 11, weight: .medium))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .minimumScaleFactor(0.78)
+            .labelStyle(.titleAndIcon)
+            .padding(.horizontal, horizontalPadding)
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .background(
+                shape.fill(fill)
+                    .overlay(alignment: .leading) {
+                        GeometryReader { proxy in
+                            Rectangle()
+                                .fill(Color.red.opacity(0.28))
+                                .frame(width: proxy.size.width * progress)
+                        }
+                    }
+                    .clipShape(shape)
+            )
+            .overlay(shape.strokeBorder(border, lineWidth: 0.8))
+            .contentShape(shape)
+    }
+}
+
+/// Quit only after a deliberate hold, so a stray click on the panel cannot
+/// end every running utility. A short click explains what to do instead.
+/// VoiceOver's default action still quits at once, since holding is not
+/// something it can do.
+private struct HoldToQuitButton: View {
+    let title: String
+    let holdHint: String
+    let fill: Color
+    let border: Color
+    let quit: () -> Void
+
+    @State private var progress: CGFloat = 0
+    @State private var showsHint = false
+    @State private var hideHint: DispatchWorkItem?
+
+    var body: some View {
+        PanelFooterLabel(title: showsHint ? holdHint : title,
+                         systemImage: "power",
+                         horizontalPadding: 7,
+                         fill: fill,
+                         border: border,
+                         progress: progress)
+            .foregroundStyle(.secondary)
+            .onLongPressGesture(minimumDuration: PanelQuitHold.duration,
+                                maximumDistance: PanelQuitHold.maximumDrift,
+                                perform: quit,
+                                onPressingChanged: pressingChanged)
+            .accessibilityElement(children: .ignore)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(title)
+            .accessibilityHint(holdHint)
+            .accessibilityAction { quit() }
+    }
+
+    private func pressingChanged(_ pressing: Bool) {
+        hideHint?.cancel()
+        if pressing {
+            showsHint = true
+            withAnimation(.linear(duration: PanelQuitHold.duration)) { progress = 1 }
+        } else {
+            withAnimation(.easeOut(duration: 0.15)) { progress = 0 }
+            let work = DispatchWorkItem { showsHint = false }
+            hideHint = work
+            DispatchQueue.main.asyncAfter(deadline: .now() + PanelQuitHold.hintLinger, execute: work)
+        }
     }
 }
 

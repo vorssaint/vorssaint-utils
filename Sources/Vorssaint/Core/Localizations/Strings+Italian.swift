@@ -49,6 +49,7 @@ extension Strings {
 
         panelSettings: "Impostazioni",
         panelQuit: "Esci",
+        panelQuitHoldHint: "Tieni premuto per uscire",
         panelHotkeyHint: "La scorciatoia attiva/disattiva",
 
         keepAwakeTitle: "Mantieni attivo",

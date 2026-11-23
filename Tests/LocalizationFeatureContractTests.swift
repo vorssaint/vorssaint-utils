@@ -263,6 +263,9 @@ enum LocalizationFeatureContractTests {
             suite.expect(!strings.launchAtLoginNeedsApplications.isEmpty
                    && !strings.launchAtLoginNeedsApplications.contains("—"),
                    "\(prefix) launch at login location note is present without em dash")
+            suite.expect(!strings.panelQuitHoldHint.isEmpty
+                   && strings.panelQuitHoldHint != strings.panelQuit,
+                   "\(prefix) a short click on Quit explains the hold instead of repeating the label")
             // Shortcut recording: the waiting cap, the two hints under the row
             // and the honest message for a combination that never arrived (#308).
             let shortcutCaptureStrings = [strings.shortcutPressKeys, strings.shortcutEscapeHint,

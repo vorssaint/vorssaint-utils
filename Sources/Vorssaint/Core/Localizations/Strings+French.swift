@@ -49,6 +49,7 @@ extension Strings {
 
         panelSettings: "Réglages",
         panelQuit: "Quitter",
+        panelQuitHoldHint: "Maintenez pour quitter",
         panelHotkeyHint: "Le raccourci bascule",
 
         keepAwakeTitle: "Garder éveillé",

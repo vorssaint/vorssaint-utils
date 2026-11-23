@@ -202,6 +202,7 @@ struct Strings {
     // MARK: Panel — header & footer
     let panelSettings: String
     let panelQuit: String
+    let panelQuitHoldHint: String     // shown while the Quit button is held
     let panelHotkeyHint: String
 
     // MARK: Panel — keep awake card
@@ -1386,6 +1387,7 @@ extension Strings {
 
         panelSettings: "Ajustes",
         panelQuit: "Sair",
+        panelQuitHoldHint: "Segure para sair",
         panelHotkeyHint: "Atalho alterna",
 
         keepAwakeTitle: "Manter acordado",
@@ -2519,6 +2521,7 @@ extension Strings {
 
         panelSettings: "Settings",
         panelQuit: "Quit",
+        panelQuitHoldHint: "Hold to quit",
         panelHotkeyHint: "Shortcut toggles",
 
         keepAwakeTitle: "Keep awake",
