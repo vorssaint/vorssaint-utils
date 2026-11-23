@@ -368,6 +368,14 @@ enum CommandBarFeatureTests {
         suite.expect(math("4 squared") == "16" && math("3 cubed") == "27"
                      && math("2 to the power of 10") == "1,024",
                      "spoken square, cube and power notation")
+        for (query, expected) in [("2 to the power sqrt(9)", 8.0), ("2 to the power of sqrt(9)", 8),
+                                  ("2 to the power 3^2", 512), ("2 to the power minus 2", 0.25),
+                                  ("2 to the 3", 8)] {
+            suite.expect(mathValue(query) == expected, "\(query) evaluates the full exponent")
+        }
+        for query in ["2 to the power typo(9)", "2 to the power of"] {
+            suite.expect(calculate(query) == nil, "\(query) requires a valid exponent")
+        }
         suite.expect(math("10 mod 3") == "1" && math("-10 mod 3") == "-1",
                      "modulo keeps the sign of its left operand")
         suite.expect(math("1e5") == "100,000" && math("10k") == "10,000",
@@ -478,7 +486,7 @@ enum CommandBarFeatureTests {
                 "virtual closers preserve bracket kind and nesting")
         suite.expect(mathValue("sqrt(81") == 9 && mathValue("2*(3+[4") == 14,
                "functions and nested brackets evaluate before closers are typed")
-        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)",
+        for expression in ["(2+3]", "2+3)", "2*(3+", "sqrt(", "sin2", "log100(2)", "2pix2", "2πxx2",
                            "sqrt(-1)", "log(0)", "acos(2)", "1e309+0", "7=+3", "7+3=="] {
             suite.expect(mathValue(expression) == nil
                     && CommandBarCalculator.evaluate(expression)?.closingBrackets == nil,
@@ -490,6 +498,7 @@ enum CommandBarFeatureTests {
             ("ln(exp(1))+log(100)+log10(100)", 5.0),
             ("floor(1.9)+ceil(1.1)+round(1.5)", 5.0),
             ("2pi", 2 * Double.pi), ("π+e", Double.pi + Foundation.exp(1)),
+            ("2πx2", 4 * Double.pi), ("πsin(pi/2)", Double.pi),
             ("2x3+2 x 4", 14.0), ("2(3)+(2)(3)+2[3]", 18.0), ("1e-9*1e9", 1.0),
         ] {
             suite.expect(mathValue(expression).map { abs($0 - expected) < 1e-7 } ?? false,
@@ -1465,6 +1474,7 @@ enum CommandBarFeatureTests {
             ("1kg/m3 to g/cm3", 0.001),
             ("how many feet in a mile", 5_280),
             ("cm in 5 inches", 12.7),
+            ("5 m to in in cm", 500),
             ("convert 5 km into miles", 3.106_855_961),
             ("10l / 2min to l/min", 5),
             ("10 km/h to min/km", 6),
@@ -1555,14 +1565,17 @@ enum CommandBarFeatureTests {
                "the number and the unit do not need a space between them")
         suite.expect(unitValue("5 in to cm").map { abs($0 - 12.7) < 0.001 } == true,
                "the word that also means inches is read correctly on both sides")
-        for query in ["5ft 11 in cm", "5ft 11in in cm", "5ft11in to cm", "5 ft 11 in to cm", "5 feet 11 inches to cm",
+        for query in ["5ft 11 in cm", "5ft 11in in cm", "5 ft 11 in in cm", "5ft11in to cm",
+                      "5 ft 11 in to cm", "5 ft 11 in a cm", "5 feet 11 inches to cm",
                       #"5'11" in cm"#, "5′ 11″ in cm", "5’11” in cm"] {
             suite.expect(unitValue(query).map { abs($0 - 180.34) < 0.001 } == true,
                          "\(query) converts five feet and eleven inches")
         }
         for (query, expected) in [("5' in cm", 152.4), ("5′ in cm", 152.4), ("11in in cm", 27.94),
                                   ("11″ in cm", 27.94), ("-5ft 11in to in", -71), ("-0′6″ to in", -6),
-                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0)] {
+                                  ("5.5ft to in", 66), ("0ft 0in to cm", 0),
+                                  ("5 ft 11 in in", 71), ("5 ft 11 in in in", 71),
+                                  ("5 ft 11 in in to cm", 180.34)] {
             suite.expect(unitValue(query).map { abs($0 - expected) < 0.001 } == true,
                          "\(query) converts to \(expected)")
         }
@@ -1572,7 +1585,8 @@ enum CommandBarFeatureTests {
                      "mixed lengths use the same localized names and decimal parser as single units")
         for query in ["5ft 11in", "5ft 11in cm", "5ft 11in in kg", "5in 11ft in cm", "5m 11 in cm",
                       "5ft 11cm in cm", "5ft 11in 1in in cm", "5ft 11in in cm today",
-                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm"] {
+                      "5.5ft 1in to cm", "5ft -1in to cm", "5ft 12in to cm", "1'003 in cm",
+                      "5 ft 12 in in cm", "5 ft 11 in in kg"] {
             suite.expect(units(query) == nil, "\(query) stays a search")
         }
 
