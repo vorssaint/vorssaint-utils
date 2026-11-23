@@ -33,7 +33,7 @@ final class AgentUsageService: ObservableObject {
     let events = PassthroughSubject<AgentUsageEvent, Never>()
 
     /// The history the island can show: thirteen weeks for the activity map.
-    static let horizon = TimeInterval(AgentUsageSnapshot.dayCount) * 86_400
+    static let horizon = AgentUsageSnapshot.historyDuration
     private static let tick: TimeInterval = 30
     /// File events report a written file only once it closes, and some
     /// agents keep their log open for the whole session: logs written in the
@@ -176,7 +176,7 @@ final class AgentUsageService: ObservableObject {
         startTimer()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
-            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) })
+            watch(AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile, providers: enabled))
             filesChanged([], rescan: true)
             startPolling()
             // Time went by meanwhile: a window or the day may have moved on.
@@ -298,11 +298,17 @@ final class AgentUsageService: ObservableObject {
             loadPrices()
             // Keep the loading state until all initial history has been read.
             let horizon = Date().addingTimeInterval(-Self.horizon)
-            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile).filter { providers.contains($0.provider) }
+            let roots = AgentLogRoot.all(home: home, claudeProfile: claudeProfile, providers: providers)
+            let cursorRoot = roots.first { $0.provider == .cursor }?.url
             let files = AgentLogReader.discover(roots, since: horizon)
             // Resumes where the last launch stopped, among the logs there now.
             if let saved = AgentUsageArchive.load(), saved.providers == providers {
-                let resumed = AgentUsageArchive.resume(saved, logs: Set(files.map(\.path)), since: horizon)
+                guard let resumed = AgentUsageArchive.resume(saved, logs: Set(files.map(\.path)), since: horizon, cursorRoot: cursorRoot,
+                                                            shouldContinue: { !cancellation.isCancelled }) else {
+                    // Stopping here keeps the last complete checkpoint on disk.
+                    readerSession = -1
+                    return
+                }
                 (store, cursors) = (resumed.store, resumed.cursors)
                 // What the resume took back leaves the disk at the next save.
                 if resumed.unchanged { savedMark = progressMark }
@@ -310,7 +316,7 @@ final class AgentUsageService: ObservableObject {
             for file in files {
                 // A stop while reading leaves the rest for the next start.
                 guard !cancellation.isCancelled else { return }
-                read(file.path, provider: file.provider)
+                read(file.path, provider: file.provider, cursorRoot: cursorRoot)
             }
             guard !cancellation.isCancelled else { return }
             let now = Date()
@@ -348,16 +354,24 @@ final class AgentUsageService: ObservableObject {
 
     /// Saves what was read, when reading moved on since the last save. Runs
     /// on `queue`.
-    private func saveProgress() {
-        guard readerSession >= 0 else { return }
+    private func saveProgress(now: Date = Date()) {
+        // Restored copies have no individual readings until replay. A stop
+        // between them must keep the archive that still contains their total.
+        guard readerSession >= 0, !cursors.values.contains(where: \.needsUsageReplay) else { return }
+        // Quiet transcripts can age out without another read.
+        let horizon = now.addingTimeInterval(-AgentUsageSnapshot.historyDuration)
+        for cursor in cursors.values where cursor.provider == .cursor {
+            cursor.dropCursorCoverage(before: horizon)
+        }
         let mark = progressMark
-        lastSave = Date()
+        lastSave = now
         guard mark != savedMark else { return }
         // A log that started over while running still counts what its old
         // contents gave. Left out, the next launch reads it as rewritten.
+        // Cursor retracts the old readings when it replays a transcript.
         // Nothing from OpenCode's database is saved. Its open replies and
         // sessions live only in memory, so each launch reads it again.
-        let kept = cursors.values.filter { !$0.restarted && $0.provider != .opencode }
+        let kept = cursors.values.filter { $0.provider == .cursor || (!$0.restarted && $0.provider != .opencode) }
         let contents = AgentUsageArchive.Contents(providers: enabled, store: store.saved, cursors: kept.map(\.saved))
         if AgentUsageArchive.save(contents) { savedMark = mark }
     }
@@ -372,6 +386,14 @@ final class AgentUsageService: ObservableObject {
             hasher.combine(cursor.path)
             hasher.combine(cursor.offset)
             hasher.combine(cursor.identity)
+            if cursor.provider == .cursor {
+                hasher.combine(cursor.modified)
+                hasher.combine(cursor.cursorPrefix.boundaryChecksum)
+                hasher.combine(cursor.cursorPrefix.needsVerification)
+                hasher.combine(cursor.state.cursorUnmeteredMinutes.count)
+                hasher.combine(cursor.state.cursorUnmeteredResponses.count)
+                hasher.combine(cursor.state.cursorUndatedResponseThrough)
+            }
             return mark &+ hasher.finalize()
         }
     }
@@ -411,7 +433,7 @@ final class AgentUsageService: ObservableObject {
     private func syncPolling(now: Date = Date()) {
         guard let poller else { return }
         let wanted = !store.turns.isEmpty || !store.waiting.isEmpty
-            || cursors.values.contains { now.timeIntervalSince($0.modified) < Self.pollWindow }
+            || cursors.values.contains { $0.cursorPrefix.needsVerification || now.timeIntervalSince($0.modified) < Self.pollWindow }
         guard wanted != polling else { return }
         polling = wanted
         if wanted {
@@ -435,8 +457,19 @@ final class AgentUsageService: ObservableObject {
             if let mark = key.firstIndex(of: "#") { working.insert(String(key[..<mark])) }
         }
         var changed = false
-        for (path, cursor) in cursors
-        where working.contains(path) || now.timeIntervalSince(cursor.modified) < window {
+        let cursorRoot = watchedRoots.first { $0.provider == .cursor }?.url
+        for (path, cursor) in cursors {
+            if cursor.provider == .cursor && (cursorRoot == nil || cursor.cursorAccess?.root.path != cursorRoot?.path) {
+                cursors[path] = nil
+                store.forget(files: [path])
+                changed = true
+                continue
+            }
+            if cursor.cursorPrefix.needsVerification {
+                if read(path, provider: cursor.provider) { changed = true }
+                continue
+            }
+            guard working.contains(path) || now.timeIntervalSince(cursor.modified) < window else { continue }
             if cursor.provider == .opencode {
                 // A database changes in place: its write-ahead log grows instead.
                 if let modified = AgentOpenCodeReader.modified(path), modified <= cursor.modified { continue }
@@ -444,9 +477,20 @@ final class AgentUsageService: ObservableObject {
                 continue
             }
             var info = stat()
-            let exists = stat(path, &info) == 0
+            let exists: Bool
+            if cursor.provider == .cursor {
+                if let checked = cursor.cursorAccess?.info(at: path) {
+                    info = checked
+                    exists = true
+                } else {
+                    exists = false
+                }
+            } else {
+                exists = stat(path, &info) == 0
+            }
+            let cursorRewrite = cursor.provider == .cursor && exists && AgentLogCursor.modificationDate(info) != cursor.modified
             guard !exists || UInt64(max(0, info.st_size)) != cursor.offset
-                    || UInt64(info.st_ino) != cursor.identity else { continue }
+                    || UInt64(info.st_ino) != cursor.identity || cursorRewrite else { continue }
             if read(path, provider: cursor.provider) { changed = true }
         }
         return changed
@@ -497,16 +541,28 @@ final class AgentUsageService: ObservableObject {
     /// True when the log had entries to apply, or was gone and took a
     /// working turn with it.
     @discardableResult
-    private func read(_ path: String, provider: AgentProvider) -> Bool {
+    private func read(_ changedPath: String, provider: AgentProvider, cursorRoot: URL? = nil) -> Bool {
         guard let cancellation = readerCancellation, !cancellation.isCancelled else { return false }
+        if provider == .cursor {
+            guard let root = cursorRoot ?? watchedRoots.first(where: { $0.provider == .cursor })?.url,
+                  AgentLogRoot(provider: .cursor, url: root).accepts(changedPath) else { return false }
+            let selection = CursorTranscriptFiles(path: changedPath).select(root: root, cursors: &cursors, store: store)
+            guard let path = selection.path else { return selection.changed }
+            let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: .cursor, cursorRoot: root)
+            cursors[path] = cursor
+            let now = Date()
+            return AgentLogReader.readCursor(cursor, into: store, now: now, since: now.addingTimeInterval(-Self.horizon),
+                                             shouldContinue: { !cancellation.isCancelled }, report: report) || selection.changed
+        }
+        let path = changedPath
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
             return store.forget(file: path)
         }
         let cursor = cursors[path] ?? AgentLogCursor(path: path, provider: provider)
         cursors[path] = cursor
-        var changed = false
         let now = Date()
+        var changed = false
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
@@ -533,6 +589,11 @@ final class AgentUsageService: ObservableObject {
 
     private func watch(_ roots: [AgentLogRoot]) {
         let existing = roots.filter(\.exists)
+        let cursorRoot = existing.first { $0.provider == .cursor }?.url
+        for (path, cursor) in cursors where cursor.provider == .cursor && cursor.cursorAccess?.root.path != cursorRoot?.path {
+            cursors[path] = nil
+            store.forget(files: [path])
+        }
         watchedRoots = existing
         lastRootCheck = Date()
         if watcher == nil {
@@ -548,7 +609,14 @@ final class AgentUsageService: ObservableObject {
         defer { syncPolling() }
         var changed = false
         if rescan {
-            for file in AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon)) {
+            let files = AgentLogReader.discover(watchedRoots, since: Date().addingTimeInterval(-Self.horizon))
+            let cursorFiles = Set(files.lazy.filter { $0.provider == .cursor }.map(\.path))
+            for (path, cursor) in cursors where cursor.provider == .cursor && !cursorFiles.contains(path) {
+                cursors[path] = nil
+                store.forget(files: [path])
+                changed = true
+            }
+            for file in files {
                 if read(file.path, provider: file.provider) { changed = true }
             }
         } else {
@@ -592,10 +660,12 @@ final class AgentUsageService: ObservableObject {
             // A folder that appears later, like a first Codex session, is
             // picked up without a restart.
             if now.timeIntervalSince(lastRootCheck) > 300 {
-                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile).filter { enabled.contains($0.provider) }
+                let roots = AgentLogRoot.all(home: home, claudeProfile: readerClaudeProfile, providers: enabled)
                 if roots.filter(\.exists) != watchedRoots {
+                    changed = true
+                    let cursorRoot = roots.first { $0.provider == .cursor }?.url
                     for file in AgentLogReader.discover(roots, since: now.addingTimeInterval(-Self.horizon)) {
-                        if read(file.path, provider: file.provider) { changed = true }
+                        if read(file.path, provider: file.provider, cursorRoot: cursorRoot) { changed = true }
                     }
                     watch(roots)
                 }
@@ -605,7 +675,7 @@ final class AgentUsageService: ObservableObject {
             readClaudeApp(now: now)
             checkLimits()
             reportRenewals(now: now)
-            if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress() }
+            if now.timeIntervalSince(lastSave) >= Self.saveInterval { saveProgress(now: now) }
             // Publish only when stored values or sliding time windows change.
             if changed || inputs != before || AgentUsageSummary.movesWithClock(published, now: now) {
                 schedulePublish()
@@ -639,7 +709,11 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        let hasCursor = watchedRoots.contains { $0.provider == .cursor }
+        let transcripts = hasCursor ? cursors.values.filter { $0.provider == .cursor } : []
+        let next = store.snapshot(plans: plans, providers: enabled, now: Date(), cursorProjectsFound: hasCursor,
+                                  cursorActivity: transcripts.map { $0.transcriptActivity(in: store) },
+                                  cursorLastActivity: transcripts.compactMap(\.state.cursorLastActivity).max())
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -716,7 +790,7 @@ final class AgentUsageService: ObservableObject {
         let spent = snapshot.usage(.today).total.cost
         guard spent >= budget, budgetDay != today else { return }
         budgetDay = today
-        report(.budgetReached(spent: spent, budget: budget))
+        report(.budgetReached(spent: spent, budget: budget, partial: snapshot.hasPartialCost(.today)))
     }
 
     // MARK: Plans and limits

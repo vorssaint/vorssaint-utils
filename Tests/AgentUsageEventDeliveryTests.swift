@@ -26,6 +26,8 @@ enum AgentUsageEventDeliveryTests {
         var readerSession = 1
         var providers: [AgentProvider] = [.claude, .codex, .copilot]
         let events = Events()
+        let store = AgentUsageStore()
+        var budgetDay: Date?
     }
 
     static func run(_ suite: TestSuite) {
@@ -50,7 +52,7 @@ enum AgentUsageEventDeliveryTests {
                                       usedPercent: 90, resetsAt: nil)
         let events: [AgentUsageEvent] = [finished, .limitWarning(provider: .claude, window: window),
                                        .limitReset(provider: .claude, window: window),
-                                       .budgetReached(spent: 2, budget: 1)]
+                                       .budgetReached(spent: 2, budget: 1, partial: false)]
         for event in events { host.report(event) }
         // Stop/restart can finish on main before any queued event is delivered.
         host.session += 1
@@ -64,6 +66,23 @@ enum AgentUsageEventDeliveryTests {
         drain()
         suite.expect(host.events.values == events,
                      "the current session still delivers completion, warning, renewal and budget events")
+
+        for partial in [false, true] {
+            let budgetHost = Host()
+            budgetHost.store.reportsTransitions = true
+            let now = Date(timeIntervalSince1970: 2_000_000)
+            let record = AgentUsageRecord(provider: .cursor, date: now, model: "fixture", project: "", session: "example",
+                                          tokens: AgentTokens(output: 100), cost: 2, savings: 0)
+            var snapshot = AgentUsageSummary.snapshot(records: [record], limits: [:], live: [], plans: [:],
+                                                      providers: [.cursor], now: now)
+            if partial {
+                snapshot.includeCursorActivity([CursorTranscriptActivity(project: "", undatedThrough: now)])
+            }
+            budgetHost.checkBudget(snapshot)
+            drain()
+            suite.expect(budgetHost.events.values == [.budgetReached(spent: 2, budget: 1, partial: partial)],
+                         "the budget notice carries the coverage of the daily subtotal that crossed the threshold")
+        }
 
         host.events.values.removeAll()
         host.report(finished)
