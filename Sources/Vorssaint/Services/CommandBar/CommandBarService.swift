@@ -1853,9 +1853,7 @@ final class CommandBarService: ObservableObject {
         // A sum is answered, not searched: the result leads and the rest of
         // the list carries on underneath. Its row carries no id prefix of its
         // own, so the switch has to be read here or it would do nothing.
-        let answer = isEnabled(.calculator)
-            ? CommandBarCatalog.answerEntry(for: trimmed, bar: bar)
-            : nil
+        let answer = CommandBarCatalog.answerEntry(for: trimmed, bar: bar, enabled: isEnabled(.calculator))
         // A web address typed into the bar is opened, not searched: the row
         // leads so Return opens it at once, the way a sum's answer does.
         let openURL = CommandBarCatalog.openURLEntry(for: trimmed, bar: bar)
@@ -2064,8 +2062,7 @@ final class CommandBarService: ObservableObject {
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
-        if entry.id == "math.result", let result = CommandBarMath.evaluate(query) {
-            let completion = CommandBarMath.reusableExpression(for: result)
+        if let completion = entry.reusableExpression {
             if let editor = panel?.firstResponder as? NSTextView, editor.string == query {
                 // Native replacement keeps undo and puts the caret after the reused value.
                 editor.insertText(completion, replacementRange: NSRange(location: 0, length: (query as NSString).length))
