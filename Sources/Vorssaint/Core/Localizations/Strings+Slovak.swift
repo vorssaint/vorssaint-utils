@@ -200,6 +200,8 @@ extension Strings {
         micMuteName: "Stlmiť mikrofón",
         micUnmuteName: "Zrušiť stlmenie mikrofónu",
         micMuteCaption: "Používa ovládanie stlmenia alebo vstupnej hlasitosti každého mikrofónu. Siri a niektoré aplikácie vás môžu naďalej počuť. Táto funkcia neblokuje všetok prístup k mikrofónu.",
+        micMuteFollowCallAppsToggle: "Povoliť aplikáciám na hovory zapnúť mikrofón",
+        micMuteFollowCallAppsCaption: "Ak sa mikrofón zapne, kým ho aplikácia používa na nahrávanie, Vorssaint obnoví všetky mikrofóny, ktoré stlmil. Môže sa to stať aj pri automatickej úprave zosilnenia.",
         micMutedHUD: "Stlmenie mikrofónu zapnuté",
         micUnmutedHUD: "Stlmenie mikrofónu vypnuté",
         micMutePartialHUD: "Niektoré mikrofóny sa nepodarilo stlmiť",
@@ -652,6 +654,7 @@ extension Strings {
         audioPriorityMoveUp: "Presunúť nahor",
         audioPriorityMoveDown: "Presunúť nadol",
         audioPriorityUnavailable: "Nedostupné",
+        audioPriorityRemove: "Odstrániť",
         audioPriorityCurrent: "Používa sa",
         audioPriorityCaption: "Zariadenia sa vyberajú podľa poradia priority. Keď sa pripojí zariadenie s vyššou prioritou, začne sa používať. Keď sa aktívne zariadenie odpojí, nahradí ho ďalšie dostupné.",
 
