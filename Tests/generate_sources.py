@@ -1311,6 +1311,7 @@ def main():
           + declaration(cleaner, "    struct Item:")
           + declaration(cleaner, "    private static let leftoverRoots:", closing="]")
           + declaration(cleaner, "    private static func isDirectLeftoverRootChild(")
+          + declaration(cleaner, "    private static func usesAppOwnersForLeftovers(")
           + declaration(cleaner, "    private static func hasLivingOwner(")
           + declaration(cleaner, "    private static func hasLivingLeftoverOwner(")
           + "".join(declaration(cleaner, "    private static func " + name)

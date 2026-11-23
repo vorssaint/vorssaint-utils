@@ -4,7 +4,7 @@
 import Foundation
 
 /// Production scan and reset use a manual queue. The audio plugin fixture
-/// also runs the production leftover and cache scanners in temporary libraries.
+/// also runs the leftover, cache and log scanners in temporary libraries.
 enum CleanerScanFlowTests {
     typealias Item = CleanerEligibilityTests.Item
     enum Queue {
@@ -51,7 +51,12 @@ enum CleanerScanFlowTests {
             }
             return record(.caches)
         }
-        static func scanLogs(excluding: Set<String>) -> [Item] { record(.logs) }
+        static func scanLogs(excluding: Set<String>) -> [Item] {
+            if fixtureApps != nil {
+                return CleanerEligibilityTests.scanLogs(excluding: excluding)
+            }
+            return record(.logs)
+        }
         static func scanDeveloperJunk() -> [Item] { record(.developer) }
         static func scanTrash() -> [Item] { record(.trash) }
         static func scanDeviceBackups() -> [Item] { record(.deviceBackups) }
@@ -59,11 +64,11 @@ enum CleanerScanFlowTests {
         static func scanScreenshots(in folders: [URL], days: Int) -> [Item] { record(.screenshots) }
     }
 
-    static func scanFixture(installedApps: Set<String>) -> [Item] {
+    static func scanFixture(installedApps: Set<String>, attended: Bool = false) -> [Item] {
         Scanner.fixtureApps = installedApps
         defer { Scanner.fixtureApps = nil }
         let cleaner = Scanner()
-        cleaner.scan(attended: false)
+        cleaner.scan(attended: attended)
         Queue.drain()
         return cleaner.items
     }
