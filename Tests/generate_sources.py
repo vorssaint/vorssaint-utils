@@ -342,8 +342,11 @@ def main():
           + "}\n}\n")
     write("ScreenshotCanvasModel.swift",
           "import AppKit\nextension ScreenshotCanvasModelTests {\nfinal class Host: Fixture {\n"
+          + declaration(editor, "    @Published var editingTextID:").replace("@Published ", "", 1)
           + "".join(declaration(editor, prefix) for prefix in [
               "    func pasteImage(", "    func commitCanvasExpansion(",
+              "    private var trimmedEditingText:", "    var hasPendingTextChanges:", "    func commitText(",
+              "    func markExported()", "    private func recordCleanState()", "    private func refreshDirtyState()",
               "    private func registerUndo(", "    private func trimHistory(",
               "    func applyCrop()", "    func undo()", "    func redo()",
               "    private func restore(", "    private func refreshUndoFlags()",
@@ -354,7 +357,9 @@ def main():
               "    private func beginSelectDrag(", "    private func finishSelectDrag(",
               "    private func syncControls(", "    func wordIndex("])
           + declaration(editor, "    private func continueSelectDrag(").replace("private func", "func", 1)
-          + "}\n}\n")
+          + "}\n}\nextension ScreenshotCanvasModelTests.CloseController {\n"
+          + declaration(editor, "    func windowShouldClose(")
+          + "}\n")
     write("ScreenshotEditorPaste.swift",
           "import AppKit\nextension ScreenshotCanvasModelTests.Paste {\nfinal class Host: Fixture {\n"
           + declaration(editor, "    private func pasteImageFromClipboard()").replace("private func", "func", 1)
