@@ -65,6 +65,8 @@ final class AgentUsageService: ObservableObject {
     private var cancellation = Cancellation()
     private var timer: Timer?
     private var providers: [AgentProvider] = []
+    private var antigravityRequest: BoundedProcessCancellation?
+    private var antigravityAttempted = Date.distantPast
     private var pricesInFlight = false
     private var pricesAttempted = Date.distantPast
     private var pricesFailed = false
@@ -146,6 +148,7 @@ final class AgentUsageService: ObservableObject {
             resume()
         }
         syncPrices()
+        refreshAntigravityQuota()
         refreshClaudeLimits()
     }
 
@@ -159,6 +162,7 @@ final class AgentUsageService: ObservableObject {
         pageVisible = false
         guard running, !paused else { return }
         paused = true
+        cancelAntigravityQuota()
         cancelClaudeLimits()
         timer?.invalidate()
         timer = nil
@@ -193,6 +197,7 @@ final class AgentUsageService: ObservableObject {
         settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
         guard running else { return }
         running = false
+        cancelAntigravityQuota()
         cancelClaudeLimits()
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
@@ -253,6 +258,7 @@ final class AgentUsageService: ObservableObject {
     /// limits. A Settings preview reads too, without counting as the page.
     func pageDidAppear(preview: Bool = false) {
         if !preview { pageVisible = true }
+        refreshAntigravityQuota(pageShows: true)
         guard running else { return }
         refreshClaudeLimits(pageShows: true)
         queue.async { [self] in
@@ -554,6 +560,7 @@ final class AgentUsageService: ObservableObject {
             return AgentLogReader.readCursor(cursor, into: store, now: now, since: now.addingTimeInterval(-Self.horizon),
                                              shouldContinue: { !cancellation.isCancelled }, report: report) || selection.changed
         }
+        guard let reader = provider.reader else { return false }
         let path = changedPath
         guard FileManager.default.fileExists(atPath: path) else {
             cursors[path] = nil
@@ -566,7 +573,7 @@ final class AgentUsageService: ObservableObject {
         let consume: (Data) -> Void = { [self] line in
             // Apply in log order while the chunk is alive instead of retaining
             // every parsed entry until a potentially multi-gigabyte file ends.
-            let entries = provider.reader.parse(line, state: &cursor.state, now: now)
+            let entries = reader.parse(line, state: &cursor.state, now: now)
             guard !entries.isEmpty else { return }
             changed = true
             let isSubagent = provider == .opencode && !cursor.state.parentSession.isEmpty
@@ -578,7 +585,7 @@ final class AgentUsageService: ObservableObject {
                                        parent: parent, modified: cursor.modified, now: now)
             finished.forEach(report)
         }
-        if provider.reader.readsFullHistoryFirst && cursor.offset == 0 {
+        if reader.readsFullHistoryFirst && cursor.offset == 0 {
             AgentLogReader.readCopilotHistory(cursor, shouldContinue: { !cancellation.isCancelled }, line: consume)
         } else {
             AgentLogReader.readAppended(cursor, since: now.addingTimeInterval(-Self.horizon),
@@ -646,6 +653,7 @@ final class AgentUsageService: ObservableObject {
     private func tickTimer() {
         guard running else { return }
         syncPrices()
+        refreshAntigravityQuota()
         refreshClaudeLimits()
         queue.async { [self] in
             guard readerSession >= 0 else { return }
@@ -911,6 +919,36 @@ final class AgentUsageService: ObservableObject {
                 }
             }
         }
+    }
+
+    private func refreshAntigravityQuota(pageShows: Bool = false) {
+        guard running, !paused, online, providers.contains(.antigravity), antigravityRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows),
+              Date().timeIntervalSince(antigravityAttempted) >= (pageVisible ? 60 : 300) else { return }
+        antigravityAttempted = Date()
+        let request = BoundedProcessCancellation()
+        antigravityRequest = request
+        let session = self.session
+        DispatchQueue.global(qos: .utility).async {
+            let limits = AntigravityQuota.read(cancellation: request)
+            DispatchQueue.main.async {
+                guard self.antigravityRequest === request else { return }
+                self.antigravityRequest = nil
+                guard let limits else { return }
+                self.queue.async {
+                    guard self.readerSession == session, self.enabled.contains(.antigravity) else { return }
+                    self.store.setLimits(limits)
+                    self.checkLimits()
+                    self.schedulePublish()
+                }
+            }
+        }
+    }
+
+    private func cancelAntigravityQuota() {
+        antigravityRequest?.cancel()
+        antigravityRequest = nil
+        antigravityAttempted = .distantPast
     }
 
     private func cancelClaudeLimits() {

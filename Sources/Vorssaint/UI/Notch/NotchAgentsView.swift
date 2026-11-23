@@ -18,6 +18,7 @@ struct NotchAgentsView: View {
     @AppStorage(DefaultsKey.notchAgentsCodex) private var codex = true
     @AppStorage(DefaultsKey.notchAgentsOpenCode) private var opencode = true
     @AppStorage(DefaultsKey.notchAgentsCopilot) private var copilot = true
+    @AppStorage(DefaultsKey.notchAgentsAntigravity) private var antigravity = false
     @AppStorage(DefaultsKey.notchAgentsCursor) private var cursor = true
 
     private var text: NotchAgentStrings { FeatureStrings.notchAgents(l10n.language) }
@@ -33,7 +34,7 @@ struct NotchAgentsView: View {
     /// Only agents that left something on this Mac, or whose accounts were
     /// added, get cards.
     private var providers: [AgentProvider] {
-        _ = (claude, codex, opencode, copilot, cursor)
+        _ = (claude, codex, opencode, copilot, cursor, antigravity)
         return NotchAgentSupport.pageProviders(snapshot: usage.snapshot, hasCodexAccounts: !codexAccounts.isEmpty,
                                                hasClaudeAccount: !usage.claudeProfile.isDefault)
     }
@@ -113,20 +114,22 @@ struct NotchAgentsView: View {
     @ViewBuilder private func card(_ tile: NotchAgentTile, now: Date) -> some View {
         let snapshot = usage.snapshot
         let shown = chosenPeriod
+        let historyProviders = providers.filter { $0 != .antigravity }
         switch tile.card {
         case .limits:
             if let provider = tile.provider {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
                                      account: account(tile, now: now),
-                                     accountName: provider == .claude ? claudeAccountName : nil)
+                                     accountName: provider == .claude ? claudeAccountName : tile.quotaGroup,
+                                     quotaGroup: tile.quotaGroup)
             }
         case .spend:
-            NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            NotchAgentSpendCard(snapshot: snapshot, providers: historyProviders, period: shown, text: text)
         case .live:
-            NotchAgentLiveCard(snapshot: snapshot, providers: providers, text: text)
+            NotchAgentLiveCard(snapshot: snapshot, providers: historyProviders, text: text)
         case .trend:
-            NotchAgentTrendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
+            NotchAgentTrendCard(snapshot: snapshot, providers: historyProviders, period: shown, text: text)
         case .models:
             NotchAgentShareCard(title: text.modelsCard, symbol: NotchAgentCard.models.symbol,
                                 shares: snapshot.usage(shown).models, byCost: snapshot.usage(shown).fullyPriced, text: text)
@@ -258,6 +261,7 @@ private struct NotchAgentLimitsCard: View {
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
     var accountName: String? = nil
+    var quotaGroup: String? = nil
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -273,7 +277,7 @@ private struct NotchAgentLimitsCard: View {
 
     /// Two rows fit: the session and whichever longer window binds first.
     private var windows: [AgentLimitWindow] {
-        let all = (limits?.windows ?? []).map { AgentLimitSupport.current($0, at: now) }
+        let all = (limits?.windows ?? []).filter { quotaGroup == nil || $0.scope == quotaGroup }.map { AgentLimitSupport.current($0, at: now) }
         let session = all.first { $0.kind == .session }
         let longer = all.filter { $0.kind != .session }.max { $0.usedPercent < $1.usedPercent }
         return [session, longer].compactMap { $0 }
@@ -377,7 +381,9 @@ private struct NotchAgentLimitsCard: View {
     private func label(_ window: AgentLimitWindow) -> String {
         switch window.kind {
         case .session: return text.session
-        case .weekly: return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
+        case .weekly:
+            if quotaGroup != nil { return text.weekly }
+            return window.scope.map { "\(text.weekly) · \($0)" } ?? text.weekly
         case .other:
             guard let minutes = window.minutes else { return window.scope ?? text.readoutLimit }
             return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
