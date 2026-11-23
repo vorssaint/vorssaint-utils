@@ -384,7 +384,7 @@ MUTATIONS = [
     ("a timed session hands over on one condition", "keep-awake", "Sources/Vorssaint/Services/KeepAwakeManager.swift",
      "        guard KeepAwakeAutomationSupport.conditionsSatisfied(\n"
      "                matching: matches,\n"
-     "                enabled: currentEnabledAutomationConditions(),\n"
+     "                enabled: enabled,\n"
      "                requireAll: automationRequiresAllConditions()) else { return false }\n",
      "        guard !matches.isEmpty else { return false }\n",
      "a timer running out on battery hands nothing over to an All automation"),
