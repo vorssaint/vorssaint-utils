@@ -46,6 +46,7 @@ enum WindowEdgeSnapRuntimeTests {
     static var reserveStageManager = false
     static var restoreEnabled = false
     static var edgeSnappingEnabled = true
+    static var snapLayoutsEnabled = false
     enum ResizeResponse { case accept, refuse, clamp(CGSize), delayed }
     static var resizeResponse = ResizeResponse.accept
     static var pendingSize: CGSize?
@@ -79,6 +80,7 @@ enum WindowEdgeSnapRuntimeTests {
                 switch key {
                 case DefaultsKey.windowEdgeSnapEnabled: return edgeSnappingEnabled
                 case DefaultsKey.windowEdgeSnapRestoreOnDrag: return restoreEnabled
+                case DefaultsKey.windowSnapLayoutsEnabled: return snapLayoutsEnabled
                 default: return false
                 }
             }
@@ -193,7 +195,27 @@ enum WindowEdgeSnapRuntimeTests {
         static let beside = NSScreen(frame: CGRect(x: 1440, y: 0, width: 1920, height: 1080),
                                      visibleFrame: CGRect(x: 1440, y: 0, width: 1920, height: 1055))
         static var screens = [primary]
+        static var main: NSScreen? { primary }
     }
+    /// The island's snap-layout picker: records what it was asked and answers with `hit`.
+    final class WindowSnapLayoutsPanel {
+        static let shared = WindowSnapLayoutsPanel()
+        var isShowing = false
+        var shows = 0
+        var hit: WindowSnapLayoutsHit?
+        func show(near point: CGPoint) { isShowing = true; shows += 1 }
+        @discardableResult func update(pointer point: CGPoint) -> WindowSnapLayoutsHit? { isShowing ? hit : nil }
+        func hide() { isShowing = false }
+    }
+    enum SpaceWindowBridge {
+        static var moves: [(CGWindowID, UInt64)] = []
+        static var accepts = true
+        static func move(_ windowID: CGWindowID, toSpace space: UInt64) -> Bool {
+            moves.append((windowID, space))
+            return accepts
+        }
+    }
+    enum DiagnosticLog { static func log(_ message: String) {} }
     enum WindowServerWindowHitTest {
         static func candidate(at point: CGPoint,
                               pidIsEligible: (pid_t) -> Bool) -> WindowServerWindowCandidate? {
@@ -432,6 +454,12 @@ enum WindowEdgeSnapRuntimeTests {
         reserveStageManager = false
         restoreEnabled = false
         edgeSnappingEnabled = true
+        snapLayoutsEnabled = false
+        WindowSnapLayoutsPanel.shared.isShowing = false
+        WindowSnapLayoutsPanel.shared.shows = 0
+        WindowSnapLayoutsPanel.shared.hit = nil
+        SpaceWindowBridge.moves.removeAll()
+        SpaceWindowBridge.accepts = true
         resizeResponse = .accept
         pendingSize = nil
         sizeWrites.removeAll()
@@ -582,6 +610,61 @@ enum WindowEdgeSnapRuntimeTests {
             DispatchQueue.main.runDue()
         }
         return point
+    }
+
+    /// The island's picker rides on the same drag tracking as the edges.
+    private static func runSnapLayoutTests(_ suite: TestSuite) {
+        reset()
+        edgeSnappingEnabled = false
+        snapLayoutsEnabled = true
+        let picker = WindowSnapLayoutsPanel.shared
+        let zone = Host()
+        pressAndTrack(zone)
+        suite.expect(picker.isShowing && picker.shows == 1,
+                     "a window on the move opens the island's layouts, even with edge snapping off")
+        picker.hit = .zone(layout: "thirds", action: .leftThird)
+        move(zone, to: CGPoint(x: 700, y: 10))
+        suite.expect(zone.previewShown, "the part under the pointer previews where the window goes")
+        send(zone, .leftMouseUp, CGPoint(x: 700, y: 10))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(zone.placedActions == [.leftThird] && !picker.isShowing,
+                     "dropping on a part places the window there and closes the picker")
+
+        reset()
+        edgeSnappingEnabled = false
+        snapLayoutsEnabled = true
+        let space = Host()
+        pressAndTrack(space)
+        WindowSnapLayoutsPanel.shared.hit = .space(42)
+        move(space, to: CGPoint(x: 700, y: 60))
+        send(space, .leftMouseUp, CGPoint(x: 700, y: 60))
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(SpaceWindowBridge.moves.map(\.1) == [42] && SpaceWindowBridge.moves.first?.0 == windowID
+                        && space.placedActions.isEmpty,
+                     "dropping on a desktop moves the window to that Space and leaves its frame alone")
+
+        reset()
+        edgeSnappingEnabled = false
+        snapLayoutsEnabled = true
+        let nowhere = Host()
+        pressAndTrack(nowhere)
+        move(nowhere, to: edgePoint)
+        send(nowhere, .leftMouseUp, edgePoint)
+        DispatchQueue.drainLookups()
+        DispatchQueue.main.drain()
+        suite.expect(nowhere.placedActions.isEmpty && SpaceWindowBridge.moves.isEmpty && !WindowSnapLayoutsPanel.shared.isShowing,
+                     "away from the picker, with edge snapping off, a drop at an edge does nothing")
+
+        reset()
+        snapLayoutsEnabled = false
+        let off = Host()
+        pressAndTrack(off)
+        suite.expect(!WindowSnapLayoutsPanel.shared.isShowing && WindowSnapLayoutsPanel.shared.shows == 0,
+                     "with the picker switched off, a drag never opens it")
+        send(off, .leftMouseUp, CGPoint(x: 240, y: 200))
+        reset()
     }
 
     private static func runRestoreTests(_ suite: TestSuite) {
@@ -815,6 +898,7 @@ enum WindowEdgeSnapRuntimeTests {
     static func run(_ suite: TestSuite) {
         defer { reset() }
         runRestoreTests(suite)
+        runSnapLayoutTests(suite)
 
         reset()
         reserveStageManager = true

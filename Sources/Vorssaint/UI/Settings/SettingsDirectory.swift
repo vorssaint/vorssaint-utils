@@ -470,6 +470,7 @@ enum SettingsDirectory {
                                         (.windowLayout, [s.dockClickCycleWindows,
                                                          FeatureStrings.windowLayout(language).edgeSnapEnable,
                                                          WindowEdgeSnapRestoreStrings.localized(language).title,
+                                                         WindowSnapLayoutsStrings.localized(language).title,
                                                          FeatureStrings.windowLayout(language).gestureEnable,
                                                          FeatureStrings.windowLayout(language).gestureResize,
                                                          FeatureStrings.windowLayoutIgnoredApps(language).listTitle]),

@@ -18,6 +18,7 @@ enum WindowLayoutFeatureTests {
         WindowDirectionalModifierRuntimeTests.run(suite)
         WindowEdgeSnapRuntimeTests.run(suite)
         WindowEdgeSnapRestoreTests.run(suite)
+        WindowSnapLayoutsTests.run(suite)
         WindowGestureApplyRuntimeTests.run(suite)
         WindowGestureTargetRuntimeTests.run(suite)
         let modifierTrigger = WindowDirectionalTrigger(storageValue: "modifiers:control+command")

@@ -1488,6 +1488,7 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapDrag = nil
         edgeSnapFollowsMoveGesture = false
         hideEdgeSnapPreview(immediately: true)
+        WindowSnapLayoutsPanel.shared.hide()
         if let edgeSnapRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), edgeSnapRunLoopSource, .commonModes)
         }
@@ -1516,7 +1517,8 @@ final class WindowLayoutService: ObservableObject {
         else { return Unmanaged.passUnretained(event) }
 
         if type == .leftMouseDown {
-            edgeSnapSequenceSuppressed = WindowEdgeSnapSupport.isSystemTilingEnabled
+            // macOS's own tiling owns the edges, but the island's picker still opens.
+            edgeSnapSequenceSuppressed = WindowEdgeSnapSupport.isSystemTilingEnabled && !snapLayoutsRun
         } else if edgeSnapSequenceSuppressed {
             if type == .leftMouseUp { edgeSnapSequenceSuppressed = false }
             return Unmanaged.passUnretained(event)
@@ -1637,6 +1639,9 @@ final class WindowLayoutService: ObservableObject {
             scheduleEdgeSnapStillCheck()
 
         case .up(let location, let time):
+            // Read before the picker closes: the drop goes where the pointer let go.
+            let layoutHit = snapLayoutsHit(atQuartzPoint: location)
+            WindowSnapLayoutsPanel.shared.hide()
             let pressOrigin = edgeSnapPressOrigin
             let pressCandidate = edgeSnapPressCandidate
             let followsMoveGesture = edgeSnapFollowsMoveGesture
@@ -1653,7 +1658,7 @@ final class WindowLayoutService: ObservableObject {
                 WindowGestureSupport.exceedsDragSlop(from: $0, to: location)
             } ?? false
             let releasedOverZone = releasedAfterDrag
-                && edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil
+                && (layoutHit != nil || edgeSnapTarget(atQuartzPoint: location, velocity: velocity) != nil)
             let mayRestore = releasedAfterDrag && !followsMoveGesture
                 && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapRestoreOnDrag)
                 && pressCandidate.map { candidate in
@@ -1695,7 +1700,8 @@ final class WindowLayoutService: ObservableObject {
                           let delayed = self.makeEdgeSnapDrag(pointerStart: pressOrigin,
                                                               pressCandidate: pressCandidate)
                     else { return }
-                    self.applyDelayedEdgeSnapIfMoved(delayed, releaseLocation: location, velocity: velocity)
+                    self.applyDelayedEdgeSnapIfMoved(delayed, releaseLocation: location, velocity: velocity,
+                                                     layoutHit: layoutHit)
                 }
                 return
             }
@@ -1705,11 +1711,13 @@ final class WindowLayoutService: ObservableObject {
                 else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
                     guard let self, generation == self.edgeSnapSequenceGeneration else { return }
-                    self.applyDelayedEdgeSnapIfMoved(completed, releaseLocation: location, velocity: velocity)
+                    self.applyDelayedEdgeSnapIfMoved(completed, releaseLocation: location, velocity: velocity,
+                                                     layoutHit: layoutHit)
                 }
                 return
             }
-            finishEdgeSnapRelease(completed, target: completed.target, pointer: location)
+            finishEdgeSnapRelease(completed, target: layoutHit == nil ? completed.target : nil,
+                                  layoutHit: layoutHit, pointer: location)
         }
     }
 
@@ -1719,7 +1727,8 @@ final class WindowLayoutService: ObservableObject {
     /// to a placement or an opt-in size restoration that asks its app.
     private func applyDelayedEdgeSnapIfMoved(_ drag: WindowEdgeSnapDrag,
                                              releaseLocation: CGPoint,
-                                             velocity: CGVector) {
+                                             velocity: CGVector,
+                                             layoutHit: WindowSnapLayoutsHit? = nil) {
         guard let current = WindowServerSupport.frame(ofWindowID: drag.key.windowID),
               WindowEdgeSnapSupport.classify(
                 initialFrame: drag.initialFrame,
@@ -1731,7 +1740,9 @@ final class WindowLayoutService: ObservableObject {
         var completed = drag
         restoreSnappedWindowIfNeeded(&completed, pointer: releaseLocation)
         finishEdgeSnapRelease(completed,
-                              target: edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity),
+                              target: layoutHit == nil
+                                ? edgeSnapTarget(atQuartzPoint: releaseLocation, velocity: velocity) : nil,
+                              layoutHit: layoutHit,
                               pointer: releaseLocation)
     }
 
@@ -1739,8 +1750,9 @@ final class WindowLayoutService: ObservableObject {
     /// Observe once more, without repeating the resize or touching a newer drag.
     private func finishEdgeSnapRelease(_ drag: WindowEdgeSnapDrag,
                                        target: WindowEdgeSnapTarget?,
+                                       layoutHit: WindowSnapLayoutsHit? = nil,
                                        pointer: CGPoint) {
-        guard drag.restorePending || target != nil else { return }
+        guard drag.restorePending || target != nil || layoutHit != nil else { return }
         let generation = edgeSnapSequenceGeneration
         let finish = { [weak self] in
             guard let self, generation == self.edgeSnapSequenceGeneration else { return }
@@ -1757,7 +1769,11 @@ final class WindowLayoutService: ObservableObject {
                     self.settledFrames[completed.key] = WindowLayoutSettledFrame(requested: actual, actual: actual)
                 }
             }
-            if let target { self.applyEdgeSnap(completed, target: target) }
+            if let layoutHit {
+                self.applySnapLayout(completed, hit: layoutHit, pointer: pointer)
+            } else if let target {
+                self.applyEdgeSnap(completed, target: target)
+            }
         }
         // The mouse-up was already forwarded. Give a pending resize one bounded
         // read-back; ordinary snapping still takes just the next main-loop turn.
@@ -1814,7 +1830,7 @@ final class WindowLayoutService: ObservableObject {
         let generation = edgeSnapSequenceGeneration
         // NSScreen is main-thread only, so the geometry is captured before leaving.
         let screenFrames = edgeSnapQuartzScreenFrames()
-        let zones = enabledEdgeSnapZones
+        let zones = edgeSnapProtectedZones
         let protectsTop = WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled
         let onScreen = onScreenWindowIDs()
         edgeSnapResolveQueue.async { [weak self] in
@@ -1882,7 +1898,7 @@ final class WindowLayoutService: ObservableObject {
                                   pointerStart: pointerStart,
                                   protectsSystemTopEdge: WindowEdgeSnapSupport.isSystemTopWindowOverviewDragEnabled,
                                   quartzScreenFrames: edgeSnapQuartzScreenFrames(),
-                                  enabledZones: enabledEdgeSnapZones,
+                                  enabledZones: edgeSnapProtectedZones,
                                   lastSampleAt: 0,
                                   mismatchCount: 0,
                                   isMoving: edgeSnapFollowsMoveGesture,
@@ -1919,6 +1935,10 @@ final class WindowLayoutService: ObservableObject {
                 drag.isMoving = true
                 drag.mismatchCount = 0
                 restoreSnappedWindowIfNeeded(&drag, pointer: location)
+                // The window is on the move: the island opens with the layouts.
+                if snapLayoutsRun, edgeSnapWindowIsEligibleForLayouts(drag) {
+                    WindowSnapLayoutsPanel.shared.show(near: appKitPoint(fromQuartz: location))
+                }
             case .resizing:
                 cancelEdgeSnapTracking()
                 return
@@ -1933,16 +1953,80 @@ final class WindowLayoutService: ObservableObject {
             }
         }
 
-        let target = edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now))
-        if target != drag.target {
+        // Over the picker, the picker decides; the edges only elsewhere.
+        let layoutHit = snapLayoutsHit(atQuartzPoint: location)
+        let target = layoutHit == nil
+            ? edgeSnapTarget(atQuartzPoint: location, velocity: edgeSnapTrail.velocity(at: now)) : nil
+        if target != drag.target || layoutHit != drag.layoutHit {
             drag.target = target
-            if let target {
+            drag.layoutHit = layoutHit
+            if case .zone(_, let action)? = layoutHit,
+               let placement = snapLayoutPlacement(action, atQuartzPoint: location) {
+                showEdgeSnapPreview(frame: placement.frame)
+            } else if let target {
                 showEdgeSnapPreview(frame: target.frame)
             } else {
                 hideEdgeSnapPreview(immediately: false)
             }
         }
         edgeSnapDrag = drag
+    }
+
+    // MARK: Snap layouts
+
+    private func appKitPoint(fromQuartz point: CGPoint) -> CGPoint {
+        CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
+    }
+
+    /// What the dragged window is over in the open picker, if anything.
+    private func snapLayoutsHit(atQuartzPoint point: CGPoint) -> WindowSnapLayoutsHit? {
+        guard WindowSnapLayoutsPanel.shared.isShowing else { return nil }
+        return WindowSnapLayoutsPanel.shared.update(pointer: appKitPoint(fromQuartz: point))
+    }
+
+    /// A listed app's window is left to itself, as edge snapping leaves it.
+    private func edgeSnapWindowIsEligibleForLayouts(_ drag: WindowEdgeSnapDrag) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: drag.key.processID), !app.isTerminated else { return false }
+        return !WindowLayoutIgnoredApps.shared.contains(bundleID: app.bundleIdentifier,
+                                                        executablePath: app.executableURL?.path)
+    }
+
+    /// Where a layout's part puts a window on the display under the pointer,
+    /// with the same gaps and margins as every other placement.
+    private func snapLayoutPlacement(_ action: WindowLayoutAction,
+                                     atQuartzPoint point: CGPoint) -> (frame: CGRect, visibleFrame: CGRect)? {
+        let appKit = appKitPoint(fromQuartz: point)
+        guard let screen = NSScreen.screens.first(where: { NSMouseInRect(appKit, $0.frame, false) }) ?? NSScreen.main
+        else { return nil }
+        let visible = screen.windowLayoutVisibleFrame
+        let frame = WindowLayoutGeometry.rect(for: action, current: visible, visibleFrame: visible,
+                                              windowGap: WindowLayoutGaps.windowGap,
+                                              screenGap: WindowLayoutGaps.screenGap,
+                                              marginPercent: WindowLayoutMargin.percent)
+        return (frame.integral, visible)
+    }
+
+    private func applySnapLayout(_ drag: WindowEdgeSnapDrag, hit: WindowSnapLayoutsHit, pointer: CGPoint) {
+        guard snapLayoutsRun, AXIsProcessTrusted(), edgeSnapWindowIsEligibleForLayouts(drag),
+              AXWindowResolver.windowID(for: drag.window) == drag.key.windowID else { return }
+        switch hit {
+        case .space(let space):
+            if !SpaceWindowBridge.move(drag.key.windowID, toSpace: space) {
+                DiagnosticLog.log("snap-layouts: macOS did not move window \(drag.key.windowID) to space \(space)")
+                NSSound.beep()
+            }
+        case .zone(_, let action):
+            guard canSetFrame(on: drag.window), let currentFrame = frame(of: drag.window),
+                  let placement = snapLayoutPlacement(action, atQuartzPoint: pointer) else { return }
+            var processID = pid_t(0)
+            guard AXUIElementGetPid(drag.window, &processID) == .success, processID == drag.key.processID else { return }
+            pruneWindowState(keeping: drag.key)
+            _ = applyPlacement(action,
+                               to: WindowLayoutTarget(window: drag.window, key: drag.key, frame: currentFrame),
+                               visibleFrame: placement.visibleFrame,
+                               historyFrame: WindowLayoutFrame(origin: drag.initialFrame.origin, size: drag.initialFrame.size),
+                               cyclesRepeatedAction: false)
+        }
     }
 
     /// The moment a drag is confirmed to carry the window: when it was sitting
@@ -2010,6 +2094,7 @@ final class WindowLayoutService: ObservableObject {
 
     /// `velocity` is in Quartz points per second, like the point.
     private func edgeSnapTarget(atQuartzPoint point: CGPoint, velocity: CGVector) -> WindowEdgeSnapTarget? {
+        guard edgeSnapZonesRun else { return nil }
         let appKitPoint = CGPoint(x: point.x, y: menuBarScreenTopY - point.y)
         let screens = NSScreen.screens.map {
             WindowEdgeSnapScreen(frame: $0.frame, visibleFrame: $0.windowLayoutVisibleFrame)
@@ -2111,16 +2196,33 @@ final class WindowLayoutService: ObservableObject {
         edgeSnapDrag = nil
         edgeSnapFollowsMoveGesture = false
         hideEdgeSnapPreview(immediately: false)
+        WindowSnapLayoutsPanel.shared.hide()
     }
 
     /// Whether a new drag may be tracked toward an edge, asked at every press
     /// whichever tap saw it.
     private var edgeSnapCanTrack: Bool {
+        (edgeSnapZonesRun || snapLayoutsRun) && AXIsProcessTrusted()
+    }
+
+    /// Edge snapping proper: switched on, some zone left on, and macOS's own tiling off.
+    private var edgeSnapZonesRun: Bool {
         AppFeature.windowLayout.isAvailable
             && UserDefaults.standard.bool(forKey: DefaultsKey.windowEdgeSnapEnabled)
             && !enabledEdgeSnapZones.isEmpty
             && !WindowEdgeSnapSupport.isSystemTilingEnabled
-            && AXIsProcessTrusted()
+    }
+
+    /// The island's snap-layout picker, which opens whenever a window is dragged.
+    private var snapLayoutsRun: Bool {
+        AppFeature.windowLayout.isAvailable
+            && UserDefaults.standard.bool(forKey: DefaultsKey.windowSnapLayoutsEnabled)
+    }
+
+    /// The top edge kept from macOS's "drag to the top" overview: all of it
+    /// while the picker is on, since the picker sits there.
+    private var edgeSnapProtectedZones: Set<WindowEdgeSnapZone> {
+        snapLayoutsRun ? WindowEdgeSnapZone.allEnabled : enabledEdgeSnapZones
     }
 
     private var enabledEdgeSnapZones: Set<WindowEdgeSnapZone> {
@@ -3243,6 +3345,8 @@ private struct WindowEdgeSnapDrag {
     var isMoving: Bool
     var target: WindowEdgeSnapTarget?
     var restorePending = false
+    /// What the window is over in the island's snap-layout picker.
+    var layoutHit: WindowSnapLayoutsHit? = nil
 }
 
 /// A press the tap is holding while it is still undecided. It keeps the

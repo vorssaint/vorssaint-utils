@@ -241,6 +241,17 @@ enum SpaceWindowBridge {
         return true
     }
 
+    /// Moves one window onto a chosen desktop. True only when the window
+    /// server then lists the window on that Space: macOS may refuse the move
+    /// for another app's window, and the caller says so rather than guessing.
+    @discardableResult
+    static func move(_ windowID: CGWindowID, toSpace destination: UInt64) -> Bool {
+        guard connection != 0, let moveWindowsToManagedSpace else { return false }
+        guard !spaces(of: windowID).contains(destination) else { return true }
+        moveWindowsToManagedSpace(connection, [NSNumber(value: windowID)] as CFArray, destination)
+        return spaces(of: windowID).contains(destination)
+    }
+
     /// Whether the window sits on at least one Space and none of them is
     /// visible. False when the Space queries are unavailable, so every caller
     /// falls back to the pre-existing behavior.

@@ -20,6 +20,7 @@ struct WindowLayoutSettings: View {
     @AppStorage(DefaultsKey.windowEdgeSnapDisabledZones) private var edgeSnapDisabledZones = ""
     @AppStorage(DefaultsKey.windowEdgeSnapZoneActions) private var edgeSnapZoneActions = ""
     @AppStorage(DefaultsKey.windowEdgeSnapRestoreOnDrag) private var edgeSnapRestoreOnDrag = false
+    @AppStorage(DefaultsKey.windowSnapLayoutsEnabled) private var snapLayoutsEnabled = false
     @AppStorage(DefaultsKey.windowGestureEnabled) private var gestureEnabled = false
     @AppStorage(DefaultsKey.windowGestureModifiers) private var gestureModifiers = WindowGestureSupport.defaultModifierStorageValue
     @AppStorage(DefaultsKey.windowGestureRaiseWindow) private var gestureRaiseWindow = false
@@ -98,6 +99,13 @@ struct WindowLayoutSettings: View {
                            isOn: $edgeSnapRestoreOnDrag)
                         .disabled(!edgeSnapEnabled)
                     Text(WindowEdgeSnapRestoreStrings.localized(l10n.language).caption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Toggle(WindowSnapLayoutsStrings.localized(l10n.language).title, isOn: $snapLayoutsEnabled)
+                        .onChange(of: snapLayoutsEnabled) { _, _ in
+                            WindowLayoutService.shared.syncWithPreferences()
+                        }
+                    Text(WindowSnapLayoutsStrings.localized(l10n.language).caption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if systemTilingEnabled {

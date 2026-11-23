@@ -80,6 +80,7 @@ extension AppFeature {
                     && !WindowEdgeSnapZone.enabledZones(
                         from: edgeSnapDisabledZones
                     ).isEmpty)
+                || boolFor(DefaultsKey.windowSnapLayoutsEnabled)
         // Watch asks when an area is chosen and checks on every reading. The
         // companion uses no permission at all.
         case .screenOCR, .cleaningMode, .screenshot, .commandBar, .screenRecorder, .wallpaper, .notchWatch,
