@@ -546,7 +546,41 @@ final class PastePlainService: ObservableObject {
 
     private func poll() {
         guard !isRichPasteInFlight, !pollInFlight else { return }
-        stripOnce(sinceChangeCount: lastChangeCount)
+        // The change count alone decides whether there is anything to strip,
+        // and it is read on the lane instead of the main thread. Asking first
+        // keeps an idle poll to one cheap pasteboard query: the context a
+        // strip needs — the app in front through LaunchServices, the excluded
+        // list, the transforms — is gathered only for a copy that actually
+        // arrived, not eight times a second for an answer that is thrown away.
+        pollInFlight = true
+        let token = PollToken()
+        pollToken = token
+        GeneralPasteboardAccess.shared.async { [weak self] in
+            let changeCount = NSPasteboard.general.changeCount
+            DispatchQueue.main.async {
+                guard let self, self.pollToken === token else { return }
+                // The watcher stopped since this query was queued, and the
+                // answer belongs to the session that closed.
+                self.pollToken = nil
+                self.pollInFlight = false
+                guard self.clipboardNeedsStrip(changeCount: changeCount) else { return }
+                self.stripOnce(sinceChangeCount: self.lastChangeCount)
+            }
+        }
+    }
+
+    /// True when the clipboard holds something the watcher has not settled: a
+    /// copy it has not seen yet, or one the last attempt could not read back
+    /// and whose backoff window has passed. A copy that stayed unreadable is
+    /// not asked about on every tick: the retry it deserves is the one
+    /// `retryBackoff` schedules, and the lane is left free in between.
+    private func clipboardNeedsStrip(changeCount: Int) -> Bool {
+        guard changeCount != lastChangeCount else { return false }
+        if changeCount == lastFailedChangeCount,
+           Date().timeIntervalSince(lastFailedAt) < Self.retryBackoff {
+            return false
+        }
+        return true
     }
 
     private func stopWatching() {

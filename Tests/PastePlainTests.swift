@@ -238,6 +238,7 @@ enum PastePlainTests {
             defaults: [AppFeature.pastePlain.availabilityKey: true])
         decisionMatrix(suite)
         transforms(suite)
+        pollGate(suite)
         stripBehaviour(suite)
         pasteRouting(suite)
         NSPasteboard.general.setItems([])
@@ -557,6 +558,33 @@ enum PastePlainTests {
         suite.expect(joined?.stripped?.plainText == "first\nsecond"
                      && board.items.count == 1,
                      "multiple items strip to one item joined with line breaks")
+    }
+
+    // MARK: - Poll gate
+
+    /// The poll runs every 120 ms for as long as the feature is on, so the
+    /// gate in front of it is checked on its own: a copy the watcher already
+    /// settled costs one change-count query, a new one goes through, and a
+    /// copy that could not be read waits out its backoff instead of being
+    /// asked about on every tick.
+    private static func pollGate(_ suite: TestSuite) {
+        let gate = Service()
+        gate.lastChangeCount = 7
+        suite.expect(!gate.clipboardNeedsStrip(changeCount: 7),
+                     "a copy the watcher already settled is not asked about again")
+        suite.expect(gate.clipboardNeedsStrip(changeCount: 8),
+                     "a copy that arrived since the last poll is stripped")
+        gate.lastFailedChangeCount = 8
+        gate.lastFailedAt = Date()
+        suite.expect(!gate.clipboardNeedsStrip(changeCount: 8),
+                     "an unreadable copy is not retried inside its backoff window")
+        gate.lastFailedAt = Date().addingTimeInterval(-Service.retryBackoff - 1)
+        suite.expect(gate.clipboardNeedsStrip(changeCount: 8),
+                     "the retry runs once the backoff window has passed")
+        gate.lastFailedChangeCount = nil
+        gate.lastFailedAt = .distantPast
+        suite.expect(gate.clipboardNeedsStrip(changeCount: 9),
+                     "a newer copy is not held back by an older failure")
     }
 
     // MARK: - Paste routing

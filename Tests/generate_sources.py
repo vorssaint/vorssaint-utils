@@ -854,6 +854,7 @@ def main():
                         "    private func restripeAfterPaste()",
                         "    private func runPendingRestripe()",
                         "    func clearFormattingNow(attempt: Int = 0) {",
+                        "    private func clipboardNeedsStrip(changeCount:",
                         "    private func stripOnce(sinceChangeCount:",
                         "    private func applyStrip(_ result:",
                         "    private static func stripPasteboard(_ pasteboard:",
