@@ -694,6 +694,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "オンになったときに最前面にあったのは %@ で、このアプリが保持している可能性があります。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。パスワード欄からフォーカスを外すか、アプリを終了すると解除されます。",
         secureInputSwitcherUnattributed: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。開いているパスワード欄からフォーカスを外すか、ログアウトしてから再度ログインすると解除されます。",
         secureInputSwitcherUnidentified: "保持しているアプリを特定できません。セキュア入力がオンの間は、macOS がスイッチャーからキー入力を隠し、⌘Tab では代わりに macOS のスイッチャーが開きます。",
+        secureInputSwitcherLimited: "Vorssaint のスイッチャーは引き続き開けます。セキュア入力が解除されるまで W、Q、S キーは使えません。",
+        secureInputSwitcherLimitedAppFormat: "セキュア入力が始まったときに %@ が最前面にあり、現在もセキュア入力を維持している可能性があります。",
 
         aboutDescription: "あなたの Mac のためのユーティリティハブ。\n省エネルギー、システムモニタ、スクロール、ウインドウスイッチャーを、メニューバーから。",
         versionPrefix: "バージョン",

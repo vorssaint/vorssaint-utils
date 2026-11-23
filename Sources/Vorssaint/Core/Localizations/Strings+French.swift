@@ -694,6 +694,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "%@ était l’app au premier plan quand elle s’est activée et la maintient peut-être. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place. Quittez son champ de mot de passe, ou fermez l’app, pour la libérer.",
         secureInputSwitcherUnattributed: "Impossible de savoir quelle app la maintient. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place. Quittez tout champ de mot de passe ouvert, ou déconnectez-vous puis reconnectez-vous, pour l’effacer.",
         secureInputSwitcherUnidentified: "L’app qui la maintient n’a pas pu être identifiée. Tant que la saisie sécurisée reste activée, macOS cache au sélecteur les touches que vous tapez et ⌘Tab ouvre le sélecteur de macOS à la place.",
+        secureInputSwitcherLimited: "Le sélecteur de Vorssaint s’ouvre toujours. W, Q et S sont désactivées jusqu’à la fin de la saisie sécurisée.",
+        secureInputSwitcherLimitedAppFormat: "%@ était au premier plan au début de la saisie sécurisée et la maintient peut-être active.",
 
         aboutDescription: "Un centre d’utilitaires pour votre Mac.\nÉnergie, moniteur système, défilement et sélecteur de fenêtres, directement dans la barre des menus.",
         versionPrefix: "Version",

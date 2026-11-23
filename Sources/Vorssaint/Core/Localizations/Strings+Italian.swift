@@ -694,6 +694,8 @@ extension Strings {
         secureInputSwitcherHeldFormat: "%@ era l’app in primo piano quando si è attivato e potrebbe trattenerlo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Esci dal suo campo password, o chiudi l’app, per rilasciarlo.",
         secureInputSwitcherUnattributed: "Non è possibile sapere quale app lo stia trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS. Chiudi qualsiasi campo password aperto, oppure esci e accedi di nuovo, per azzerarlo.",
         secureInputSwitcherUnidentified: "Non è stato possibile identificare l’app che lo sta trattenendo. Finché resta attivo, macOS nasconde al commutatore i tasti che premi e ⌘Tab apre invece il commutatore di macOS.",
+        secureInputSwitcherLimited: "Il commutatore di Vorssaint si apre ancora. W, Q e S sono sospesi fino al termine dell’input sicuro.",
+        secureInputSwitcherLimitedAppFormat: "%@ era in primo piano quando si è attivato l’input sicuro e potrebbe mantenerlo attivo.",
 
         aboutDescription: "Un centro di utilità per il tuo Mac.\nEnergia, monitoraggio del sistema, scorrimento e un commutatore di finestre, direttamente nella barra dei menu.",
         versionPrefix: "Versione",

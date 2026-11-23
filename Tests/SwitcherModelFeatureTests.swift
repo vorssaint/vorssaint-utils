@@ -6635,10 +6635,10 @@ enum SwitcherModelFeatureTests {
             contentsOfFile: "Sources/Vorssaint/UI/Settings/SwitcherSettings.swift",
             encoding: .utf8)) ?? ""
         suite.expect(switcherSettingsSource.contains(
-                         "secureInput.holder != .off, !switcherCoversSecureInput {")
+                         "SecureInputRow(blocking: switcherCoversSecureInput ? .switcherLimited : .switcher)")
                && switcherSettingsSource.contains(
                    ".onReceive(AppSwitcher.shared.$coversSecureInput) { switcherCoversSecureInput = $0 }"),
-               "Settings explains the macOS switcher under secure input only when no Carbon stand-in covers it")
+               "Settings explains what secure input suspends whether or not the switcher can still open")
         let secureInputSuspend = sourceBody(of: secureInputSwitcher, from: "func suspend() {",
                                             to: "\n    }")
         suite.expect(secureInputSuspend.contains("secureInputWatch.stop()")

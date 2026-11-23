@@ -186,12 +186,8 @@ struct SwitcherSettings: View {
                             AppSwitcher.shared.syncWithPreferences()
                         }
                 }
-                // Secure input hides every key from the switcher's tap. When
-                // its Carbon stand-ins cannot register, ⌘Tab goes back to macOS
-                // until it ends, and without a word here the macOS switcher
-                // looks like the replacement stopped working.
-                if switcherReplacesSystemShortcuts, secureInput.holder != .off, !switcherCoversSecureInput {
-                    SecureInputRow(blocking: .switcher)
+                if switcherReplacesSystemShortcuts, secureInput.holder != .off {
+                    SecureInputRow(blocking: switcherCoversSecureInput ? .switcherLimited : .switcher)
                         .padding(.leading, settingsRowTextInset)
                 }
                 Text(String(format: l10n.s.switcherUsageHintFormat,

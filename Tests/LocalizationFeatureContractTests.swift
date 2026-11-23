@@ -89,6 +89,10 @@ enum LocalizationFeatureContractTests {
             suite.expect([strings.secureInputSwitcherHeldFormat, strings.secureInputSwitcherUnattributed,
                           strings.secureInputSwitcherUnidentified].allSatisfy { $0.contains("⌘Tab") },
                    "\(prefix) switcher secure input copy names ⌘Tab")
+            expectFormat(strings.secureInputSwitcherLimitedAppFormat, ["@"],
+                         "\(prefix) limited switcher secure input holder format")
+            suite.expect(["W", "Q", "S"].allSatisfy { strings.secureInputSwitcherLimited.contains($0) },
+                         "\(prefix) limited switcher notice names the suspended shortcuts")
             // macOS records the app that was active when secure input turned
             // on, never the one holding it, so the switcher page gives the
             // typing pages' advice for the same state and offers that app in
