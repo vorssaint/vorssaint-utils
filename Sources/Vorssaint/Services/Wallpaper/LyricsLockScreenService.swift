@@ -230,7 +230,6 @@ private struct LyricsLockControls: View {
 
 private struct LyricsLockScreenView: View {
     @ObservedObject var service: LyricsWallpaperService
-    @ObservedObject private var music = NotchMusicService.shared
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
 
     private static let band = LinearGradient(
@@ -243,16 +242,22 @@ private struct LyricsLockScreenView: View {
             ?? Color(red: 0.43, green: 0.61, blue: 1.0)
     }
 
+    /// Spotify is playing. Paused, stopped or another player, and the lock screen is left as macOS draws it.
+    private var playing: Bool { service.playback?.isPlaying == true }
+
     var body: some View {
         ZStack {
             // The clock and login stay clear: the cover's colours and a dark
-            // band live only between them, fading out at both edges.
+            // band live only between them, fading out at both edges. Only while
+            // a song plays: the last cover's colours must not linger as a glow.
             ZStack {
                 Color.black.opacity(0.45)
                 AuroraBackdrop(palette: service.palette).blendMode(.screen)
             }
             .mask(Self.band)
-            if let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition {
+            .opacity(playing ? 1 : 0)
+            .animation(.easeInOut(duration: 0.6), value: playing)
+            if let lyrics = service.lyrics, let playback = service.playback, !lyrics.lines.isEmpty, playback.hasPosition {
                 if LyricsMode.from(style) == .constellation {
                     ConstellationLyricsView(lyrics: lyrics, playback: playback, offset: service.offset,
                                             compact: true, accent: accent)
@@ -268,6 +273,8 @@ private struct LyricsLockScreenView: View {
             }
         }
         .ignoresSafeArea()
+        // Hidden, the glow stops redrawing too.
+        .environment(\.lyricsAnimationsActive, playing)
     }
 }
 

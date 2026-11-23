@@ -38,10 +38,11 @@ struct AgentAskView: View {
 
 private struct AgentAskCard: View {
     let request: AgentAskRequest
-    let service: AgentAskService
+    @ObservedObject var service: AgentAskService
     let cameraInset: CGFloat
     @State private var step = 0
-    @State private var answers: [String: String] = [:]
+    /// The chosen option's position in each question answered so far.
+    @State private var chosen: [Int] = []
     @State private var picked: [String] = []
 
     var body: some View {
@@ -54,7 +55,12 @@ private struct AgentAskCard: View {
                 case .permission(let tool, let summary): permissionBody(tool: tool, summary: summary)
                 }
             }
-            Button("Answer in terminal") { service.deferToTerminal(request) }
+            if let note = service.note {
+                Text(note).font(.system(size: 11, weight: .medium)).foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .center)
+            }
+            // The same prompt is waiting in the terminal; either place answers it.
+            Button("Go to terminal") { service.goToTerminal(request) }
                 .buttonStyle(.plain).font(.system(size: 11)).foregroundStyle(.white.opacity(0.5))
                 .frame(maxWidth: .infinity, alignment: .center)
         }
@@ -88,12 +94,13 @@ private struct AgentAskCard: View {
                 ForEach(question.options) { option in optionRow(option, in: question, of: questions.count) }
             }
             if question.multiSelect {
-                Button { commit(question, labels: picked, of: questions.count) } label: {
-                    Text("Send").font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 34)
-                        .background(Capsule().fill(.white.opacity(picked.isEmpty ? 0.15 : 0.95)))
-                        .foregroundStyle(picked.isEmpty ? .white.opacity(0.5) : .black)
+                // Several choices are ticked in the terminal itself.
+                Button { service.goToTerminal(request) } label: {
+                    Text("Choose in terminal").font(.system(size: 13, weight: .semibold)).frame(maxWidth: .infinity, minHeight: 34)
+                        .background(Capsule().fill(.white.opacity(0.95)))
+                        .foregroundStyle(.black)
                 }
-                .buttonStyle(.plain).disabled(picked.isEmpty)
+                .buttonStyle(.plain)
             }
         }
     }
@@ -104,7 +111,7 @@ private struct AgentAskCard: View {
             if question.multiSelect {
                 if selected { picked.removeAll { $0 == option.label } } else { picked.append(option.label) }
             } else {
-                commit(question, labels: [option.label], of: count)
+                commit(question, option: option, of: count)
             }
         } label: {
             HStack(alignment: .top, spacing: 10) {
@@ -128,10 +135,11 @@ private struct AgentAskCard: View {
         .buttonStyle(.plain)
     }
 
-    private func commit(_ question: AgentAskQuestion, labels: [String], of count: Int) {
-        answers[question.text] = labels.joined(separator: ", ")
+    private func commit(_ question: AgentAskQuestion, option: AgentAskQuestion.Option, of count: Int) {
+        guard let index = question.options.firstIndex(where: { $0.id == option.id }) else { return }
+        chosen.append(index)
         picked = []
-        if step + 1 < count { step += 1 } else { service.answer(request, answers: answers) }
+        if step + 1 < count { step += 1 } else { service.answer(request, chosen: chosen) }
     }
 
     // MARK: Permission

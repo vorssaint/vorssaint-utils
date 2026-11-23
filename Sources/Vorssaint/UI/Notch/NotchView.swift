@@ -147,7 +147,8 @@ struct NotchView: View {
                     .padding(.top, service.geometry.safeContentTop)
                     .padding(.bottom, NotchLayout.bottomInset)
                     .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
-                    .id(notice.clickTarget)
+                    // A stack keeps one identity, so a message joining it slides in rather than replacing the preview.
+                    .id(notice.threadID.map { AnyHashable($0) } ?? AnyHashable(notice.clickTarget))
             } else {
                 Button {
                     service.activateNotice(notice)

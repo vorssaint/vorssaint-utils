@@ -10,6 +10,8 @@ final class WindowSnapLayoutsModel: ObservableObject {
     @Published var hovered: WindowSnapLayoutsHit?
     @Published var open = false
     @Published var strings = WindowSnapLayoutsStrings.localized(.enUS)
+    /// The island's size at rest on this display, which the picker grows out of.
+    @Published var collapsed = CGSize(width: 200, height: 32)
 }
 
 /// The island grown into a snap-layout picker while a window is dragged. It
@@ -41,11 +43,16 @@ final class WindowSnapLayoutsPanel {
         model.strings = WindowSnapLayoutsStrings.localized(L10n.shared.language)
         model.geometry = geometry
         model.hovered = nil
+        model.collapsed = Self.restingIsland(on: screen)
         let panel = self.panel ?? makePanel()
         self.panel = panel
-        panel.setFrame(geometry.panel, display: false)
+        // Room past the picker's own edges, so the island's spring can swing out without being cut.
+        let picker = geometry.panel
+        panel.setFrame(CGRect(x: picker.minX - Self.swing, y: picker.minY - Self.swing,
+                              width: picker.width + 2 * Self.swing, height: picker.height + Self.swing), display: false)
         panel.orderFrontRegardless()
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.8)) { model.open = true }
+        // The surface itself runs the island's springs; this only says it should be open.
+        model.open = true
     }
 
     /// The hit under `point`, shown as lit. Nil while the picker is closed.
@@ -73,16 +80,27 @@ final class WindowSnapLayoutsPanel {
     func hide() {
         WindowSpaceCarry.shared.cancel()
         guard model.open else { return }
-        withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-            model.open = false
-            model.hovered = nil
-        }
+        model.open = false
+        model.hovered = nil
         closeGeneration += 1
         let generation = closeGeneration
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        // The content fades, then the island shrinks back into the camera, as it does when it closes.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12 + NotchMotion.shrinkingWidth.duration + 0.1) { [weak self] in
             guard let self, generation == self.closeGeneration else { return }
             self.panel?.orderOut(nil)
         }
+    }
+
+    /// Past the picker on each side and below, for the spring's overshoot.
+    static let swing: CGFloat = 28
+
+    /// The island at rest: the camera's footprint on a notched display, a small pill elsewhere.
+    private static func restingIsland(on screen: NSScreen) -> CGSize {
+        let top = screen.safeAreaInsets.top
+        if top > 0, let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            return CGSize(width: max(120, right.minX - left.maxX), height: top)
+        }
+        return CGSize(width: 200, height: max(24, screen.frame.maxY - screen.visibleFrame.maxY))
     }
 
     private static func spaces(on screen: NSScreen) -> [WindowSnapLayoutsSpace] {
@@ -114,34 +132,42 @@ final class WindowSnapLayoutsPanel {
     }
 }
 
-/// Black like the island, flush with the top of the screen, rounded below.
+/// The island itself, grown into the picker: its own shape, black, opening
+/// from the camera on the island's springs, with its tiles and highlights.
 private struct WindowSnapLayoutsView: View {
     @ObservedObject var model: WindowSnapLayoutsModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        GeometryReader { proxy in
-            if let geometry = model.geometry {
-                let origin = CGPoint(x: geometry.panel.minX, y: geometry.panel.maxY)
-                ZStack(alignment: .topLeading) {
-                    UnevenRoundedRectangle(bottomLeadingRadius: 26, bottomTrailingRadius: 26, style: .continuous)
-                        .fill(Color.black)
-                    ForEach(Array(geometry.cards.enumerated()), id: \.offset) { _, card in
-                        cardView(card, origin: origin)
-                    }
-                    ForEach(Array(geometry.chips.enumerated()), id: \.offset) { _, chip in
-                        chipView(chip, origin: origin)
-                    }
-                }
-                .frame(width: proxy.size.width, height: proxy.size.height, alignment: .topLeading)
-                // Grows out of the camera housing: narrow and short at first, then the whole picker.
-                .scaleEffect(x: model.open ? 1 : 0.32, y: model.open ? 1 : 0.2, anchor: .top)
-                .opacity(model.open ? 1 : (reduceMotion ? 0 : 0.2))
+        if let geometry = model.geometry {
+            // The island's outline curves out into the screen edge at its top corners; its
+            // body sits inside those shoulders, so the shape is wider than the picker by them.
+            let shoulder = NotchLayout.shoulder(height: geometry.panel.height)
+            NotchMorphSurface(open: model.open, collapsed: model.collapsed,
+                              expanded: CGSize(width: geometry.panel.width + 2 * shoulder, height: geometry.panel.height)) {
+                content(geometry)
             }
+            // The window is wider than the picker by the spring's room on each side.
+            .frame(width: geometry.panel.width + 2 * WindowSnapLayoutsPanel.swing,
+                   height: geometry.panel.height + WindowSnapLayoutsPanel.swing, alignment: .top)
+            .environment(\.colorScheme, .dark)
         }
     }
 
-    /// AppKit points, y up, into the panel's own coordinates, y down.
+    private func content(_ geometry: WindowSnapLayoutsGeometry) -> some View {
+        let origin = CGPoint(x: geometry.panel.minX, y: geometry.panel.maxY)
+        return ZStack(alignment: .topLeading) {
+            ForEach(Array(geometry.cards.enumerated()), id: \.offset) { _, card in
+                cardView(card, origin: origin)
+            }
+            ForEach(Array(geometry.chips.enumerated()), id: \.offset) { _, chip in
+                chipView(chip, origin: origin)
+            }
+        }
+        .frame(width: geometry.panel.width, height: geometry.panel.height, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// AppKit points, y up, into the picker's own coordinates, y down.
     private func local(_ rect: CGRect, origin: CGPoint) -> CGRect {
         CGRect(x: rect.minX - origin.x, y: origin.y - rect.maxY, width: rect.width, height: rect.height)
     }
@@ -151,19 +177,21 @@ private struct WindowSnapLayoutsView: View {
         let lit = { (action: WindowLayoutAction) in model.hovered == .zone(layout: card.layout.id, action: action) }
         let cardLit = card.zones.contains { lit($0.action) }
         return ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(Color.white.opacity(cardLit ? 0.12 : 0.06))
+            // The island's tile: white over black, a little brighter while the window is over it.
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(cardLit ? 0.12 : 0.06))
                 .frame(width: frame.width, height: frame.height)
             ForEach(Array(card.zones.enumerated()), id: \.offset) { _, zone in
                 let rect = local(zone.frame, origin: CGPoint(x: card.frame.minX, y: card.frame.maxY))
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(lit(zone.action) ? Color.accentColor : Color.white.opacity(0.22))
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(.white.opacity(lit(zone.action) ? 0.92 : 0.2))
                     .frame(width: rect.width, height: rect.height)
                     .offset(x: rect.minX, y: rect.minY)
             }
         }
         .frame(width: frame.width, height: frame.height, alignment: .topLeading)
         .scaleEffect(cardLit ? 1.04 : 1)
+        .animation(.spring(duration: 0.24, bounce: 0.2), value: cardLit)
         .offset(x: frame.minX, y: frame.minY)
     }
 
@@ -171,13 +199,14 @@ private struct WindowSnapLayoutsView: View {
         let frame = local(chip.frame, origin: origin)
         let lit = model.hovered == .space(chip.space.id)
         return Text(model.strings.desktop(chip.space.number))
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 11, weight: .semibold))
             .lineLimit(1)
             .minimumScaleFactor(0.7)
-            .foregroundStyle(chip.space.current ? Color.white.opacity(0.35) : Color.white.opacity(lit ? 1 : 0.8))
+            .foregroundStyle(lit ? .black : .white.opacity(chip.space.current ? 0.35 : 0.85))
             .frame(width: frame.width, height: frame.height)
-            .background(Capsule().fill(lit ? Color.accentColor : Color.white.opacity(chip.space.current ? 0.04 : 0.1)))
-            .overlay(Capsule().strokeBorder(Color.white.opacity(chip.space.current ? 0.12 : 0), lineWidth: 1))
+            .background(Capsule().fill(.white.opacity(lit ? 0.92 : chip.space.current ? 0.04 : 0.1)))
+            .overlay(Capsule().strokeBorder(.white.opacity(chip.space.current ? 0.14 : 0), lineWidth: 0.75))
+            .animation(.easeOut(duration: 0.12), value: lit)
             .offset(x: frame.minX, y: frame.minY)
     }
 }

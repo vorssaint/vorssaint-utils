@@ -14,8 +14,9 @@ struct AgentAskQuestion: Identifiable {
     let multiSelect: Bool
 }
 
-/// One question or permission request from a coding agent, held until the
-/// person answers on the island. The agent's hook is waiting on `fd`.
+/// One question or permission request from a coding agent. It is asked in
+/// the terminal as usual and shown on the island too; an answer clicked on the
+/// island is typed into that terminal, at `tty`.
 final class AgentAskRequest: Identifiable {
     enum Kind {
         case questions([AgentAskQuestion])
@@ -25,27 +26,33 @@ final class AgentAskRequest: Identifiable {
     let agent: String
     let project: String
     let kind: Kind
-    /// The tool's own input, sent back with the answers added.
+    /// The tool's own input.
     let toolInput: [String: Any]
-    fileprivate let fd: Int32
-    fileprivate var watcher: DispatchSourceRead?
+    /// The terminal Claude Code is waiting in, when the hook could tell.
+    let tty: String?
+    /// Claude Code's session, so its moving on closes the card.
+    let session: String
     fileprivate var timeout: DispatchWorkItem?
 
-    fileprivate init(agent: String, project: String, kind: Kind, toolInput: [String: Any], fd: Int32) {
-        self.agent = agent; self.project = project; self.kind = kind; self.toolInput = toolInput; self.fd = fd
+    fileprivate init(agent: String, project: String, kind: Kind, toolInput: [String: Any], tty: String?, session: String) {
+        self.agent = agent; self.project = project; self.kind = kind; self.toolInput = toolInput
+        self.tty = tty; self.session = session
     }
 }
 
-/// Questions from Claude Code, as pop-ups on the island. A hook in Claude
-/// Code's settings sends each question to this socket and waits; the answer
-/// clicked on the island goes back through it, and Claude Code carries on as
-/// if it had been answered in the terminal. "Answer in terminal" hands the
-/// question back untouched. Every request stays on this Mac, in a socket only
-/// the person's own account can open.
+/// Questions from Claude Code, in both places: the terminal asks as it always
+/// does, and the island shows the same question. A hook in Claude Code's
+/// settings passes each question to this socket and returns at once, so the
+/// terminal is never kept waiting. An answer clicked on the island is typed
+/// into that terminal's prompt; answering in the terminal closes the card, as
+/// Claude Code's next step comes through the same hook. Every request stays
+/// on this Mac, in a socket only the person's own account can open.
 final class AgentAskService: ObservableObject {
     static let shared = AgentAskService()
 
     @Published private(set) var current: AgentAskRequest?
+    /// Shown on the card when an answer could not be typed into the terminal.
+    @Published private(set) var note: String?
     private var queue: [AgentAskRequest] = []
     private var listener: DispatchSourceRead?
     private var space: NotchOverlaySpace?
@@ -81,7 +88,7 @@ final class AgentAskService: ObservableObject {
     private func askConsent() {
         let alert = NSAlert()
         alert.messageText = "Show Claude Code's questions on the island?"
-        alert.informativeText = "When Claude Code asks a question or for permission, it can pop up on the island so you can click an answer there. "
+        alert.informativeText = "When Claude Code asks a question or for permission, it also pops up on the island, and the answer you click there is typed into the terminal for you. "
             + "To do this Vorssaint adds two hooks to ~/.claude/settings.json and puts a small wrapper in front of your status line, "
             + "which runs your own status line unchanged and lets the AI page show its details. A backup of the file is kept next to it. "
             + "Everything stays on this Mac. You can turn this off any time and your original settings are put back."
@@ -143,7 +150,7 @@ final class AgentAskService: ObservableObject {
     private func stop() {
         listener?.cancel()
         listener = nil
-        for request in queue { finish(request, response: nil) }
+        for request in queue { request.timeout?.cancel() }
         queue.removeAll()
         current = nil
         closePanel()
@@ -162,20 +169,30 @@ final class AgentAskService: ObservableObject {
             let count = read(fd, &buffer, buffer.count)
             if count <= 0 { break }
             data.append(buffer, count: count)
-            if buffer[count - 1] == 10 { break }
         }
-        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { close(fd); return }
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { close(fd); return }
-            self.enqueue(object, fd: fd)
-        }
+        close(fd)
+        // The hook never waits for an answer: it hands the question over and lets the terminal ask.
+        let (tty, payload) = AgentTerminalKeys.split(String(decoding: data, as: UTF8.self))
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(payload.utf8))) as? [String: Any] else { return }
+        DispatchQueue.main.async { [weak self] in self?.enqueue(object, tty: tty) }
     }
 
     // MARK: Requests
 
-    private func enqueue(_ object: [String: Any], fd: Int32) {
-        guard Self.isEnabled, let event = object["hook_event_name"] as? String,
-              let tool = object["tool_name"] as? String else { reply(fd, nil); return }
+    private func enqueue(_ object: [String: Any], tty: String?) {
+        guard Self.isEnabled, let event = object["hook_event_name"] as? String else { return }
+        let session = object["session_id"] as? String ?? ""
+        // Claude Code moving on means the prompt was answered, wherever that happened.
+        switch event {
+        case "PostToolUse":
+            resolve(session: session, tool: object["tool_name"] as? String)
+            return
+        case "Stop", "UserPromptSubmit":
+            resolve(session: session, tool: nil)
+            return
+        default: break
+        }
+        guard let tool = object["tool_name"] as? String else { return }
         let input = object["tool_input"] as? [String: Any] ?? [:]
         let project = (object["cwd"] as? String).map { URL(fileURLWithPath: $0).lastPathComponent } ?? ""
         let kind: AgentAskRequest.Kind
@@ -189,24 +206,17 @@ final class AgentAskService: ObservableObject {
                 return AgentAskQuestion(text: text, header: item["header"] as? String ?? "", options: options,
                                         multiSelect: item["multiSelect"] as? Bool == true)
             }
-            guard !questions.isEmpty, questions.allSatisfy({ !$0.options.isEmpty }) else { reply(fd, nil); return }
+            guard !questions.isEmpty, questions.allSatisfy({ !$0.options.isEmpty }) else { return }
             kind = .questions(questions)
         } else if event == "PermissionRequest", tool != "AskUserQuestion" {
             kind = .permission(tool: tool, summary: Self.summary(of: input))
         } else {
-            reply(fd, nil); return
+            return
         }
-        let request = AgentAskRequest(agent: "Claude Code", project: project, kind: kind, toolInput: input, fd: fd)
-        // The hook going away (answered in the terminal, or timed out) drops the pop-up.
-        let watcher = DispatchSource.makeReadSource(fileDescriptor: fd, queue: .main)
-        watcher.setEventHandler { [weak self, weak request] in
-            var byte: UInt8 = 0
-            if recv(fd, &byte, 1, MSG_PEEK | MSG_DONTWAIT) == 0, let self, let request { self.drop(request) }
-        }
-        watcher.resume()
-        request.watcher = watcher
+        let request = AgentAskRequest(agent: "Claude Code", project: project, kind: kind, toolInput: input,
+                                      tty: tty, session: session)
         let work = DispatchWorkItem { [weak self, weak request] in
-            if let self, let request { self.finish(request, response: nil); self.advance(removing: request) }
+            if let self, let request { self.advance(removing: request) }
         }
         request.timeout = work
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.patience, execute: work)
@@ -224,58 +234,51 @@ final class AgentAskService: ObservableObject {
 
     // MARK: Answering
 
-    func answer(_ request: AgentAskRequest, answers: [String: String]) {
-        var input = request.toolInput
-        input["answers"] = answers
-        let output: [String: Any] = ["hookSpecificOutput": [
-            "hookEventName": "PreToolUse", "permissionDecision": "allow",
-            "permissionDecisionReason": "Answered on the Vorssaint island", "updatedInput": input]]
-        finish(request, response: output)
-        advance(removing: request)
+    /// `chosen` is the picked option's position in each question, in order.
+    func answer(_ request: AgentAskRequest, chosen: [Int]) {
+        guard let keys = AgentTerminalKeys.answers(chosen) else { goToTerminal(request); return }
+        type(keys, for: request)
     }
 
     func decide(_ request: AgentAskRequest, allow: Bool) {
-        let decision: [String: Any] = allow ? ["behavior": "allow"]
-            : ["behavior": "deny", "message": "Denied on the Vorssaint island"]
-        finish(request, response: ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]])
-        advance(removing: request)
+        type(AgentTerminalKeys.permission(allow: allow), for: request)
     }
 
-    /// Hands the question back: the hook says nothing, and the agent asks in
-    /// its terminal as it would have without Vorssaint.
-    func deferToTerminal(_ request: AgentAskRequest) {
-        finish(request, response: nil)
-        advance(removing: request)
+    /// Brings the terminal tab forward to answer there; the card stays until Claude Code moves on.
+    func goToTerminal(_ request: AgentAskRequest) {
+        guard let tty = request.tty else { advance(removing: request); return }
+        AgentTerminalTyper.focus(tty: tty) { [weak self] found in
+            if found { self?.advance(removing: request) } else { self?.note = Self.unreachable }
+        }
     }
 
-    private func drop(_ request: AgentAskRequest) {
-        finish(request, response: nil)
-        advance(removing: request)
+    private static let unreachable = "Couldn't reach that terminal. Answer it there."
+
+    private func type(_ keys: [AgentTerminalKey], for request: AgentAskRequest) {
+        guard let tty = request.tty else { note = Self.unreachable; return }
+        note = nil
+        AgentTerminalTyper.send(keys, tty: tty) { [weak self] sent in
+            guard let self else { return }
+            if sent { self.advance(removing: request) } else { self.note = Self.unreachable }
+        }
     }
 
-    private func finish(_ request: AgentAskRequest, response: [String: Any]?) {
-        request.timeout?.cancel(); request.timeout = nil
-        request.watcher?.cancel(); request.watcher = nil
-        reply(request.fd, response)
-    }
-
-    private func reply(_ fd: Int32, _ response: [String: Any]?) {
-        if let response, let data = try? JSONSerialization.data(withJSONObject: response, options: [.withoutEscapingSlashes]) {
-            var line = data
-            line.append(10)
-            line.withUnsafeBytes { raw in
-                var offset = 0
-                while offset < raw.count {
-                    let written = write(fd, raw.baseAddress!.advanced(by: offset), raw.count - offset)
-                    if written <= 0 { break }
-                    offset += written
-                }
+    /// The prompt was answered: in the terminal, or by the keys typed for the island.
+    private func resolve(session: String, tool: String?) {
+        let answered = queue.filter { request in
+            guard request.session == session else { return false }
+            guard let tool else { return true }
+            switch request.kind {
+            case .questions: return tool == "AskUserQuestion"
+            case .permission(let asked, _): return asked == tool
             }
         }
-        close(fd)
+        answered.forEach { advance(removing: $0) }
     }
 
     private func advance(removing request: AgentAskRequest?) {
+        request?.timeout?.cancel()
+        note = nil
         if let request { queue.removeAll { $0 === request } }
         current = queue.first
         closeWork?.cancel(); closeWork = nil
@@ -351,14 +354,24 @@ enum AgentAskInstaller {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/settings.json")
     }
 
-    /// Talks to the socket and prints the answer. Silent on any failure, so
-    /// Claude Code just asks in its terminal.
+    /// Hands the event to the socket and returns at once, printing nothing, so
+    /// Claude Code always asks in its terminal too. For a question it first
+    /// names the terminal it runs in, so an island answer can be typed there.
     private static let script = """
     use strict; use IO::Socket::UNIX;
-    my $s = IO::Socket::UNIX->new(Peer => $ARGV[0]) or exit 0;
     local $/; my $in = <STDIN>; $in = '' unless defined $in; $in =~ s/\\s+\\z//;
-    print $s "$in\\n"; $s->flush;
-    $/ = "\\n"; my $out = <$s>; print $out if defined $out;
+    my $tty = '';
+    if ($in =~ /"hook_event_name"\\s*:\\s*"(PreToolUse|PermissionRequest)"/) {
+        my $pid = $$;
+        for (1 .. 6) {
+            my $t = `/bin/ps -o tty= -p $pid 2>/dev/null`; $t =~ s/\\s+//g;
+            if ($t ne '' && $t ne '??') { $tty = "/dev/$t"; last; }
+            my $up = `/bin/ps -o ppid= -p $pid 2>/dev/null`; $up =~ s/\\s+//g;
+            last if $up eq '' || $up <= 1; $pid = $up;
+        }
+    }
+    my $s = IO::Socket::UNIX->new(Peer => $ARGV[0]) or exit 0;
+    print $s "tty:$tty\\n$in\\n"; $s->flush; close $s;
     exit 0;
     """
 
@@ -372,10 +385,10 @@ enum AgentAskInstaller {
             try script.write(to: scriptURL, atomically: true, encoding: .utf8)
             var settings = readSettings() ?? [:]
             var hooks = settings["hooks"] as? [String: Any] ?? [:]
-            for (event, matcher) in [("PreToolUse", "AskUserQuestion"), ("PermissionRequest", "*")] {
+            for (event, matcher) in Self.events {
                 var groups = (hooks[event] as? [[String: Any]] ?? []).filter { !isOurs($0) }
                 groups.append(["matcher": matcher,
-                               "hooks": [["type": "command", "command": command(), "timeout": 120]]])
+                               "hooks": [["type": "command", "command": command(), "timeout": 10]]])
                 hooks[event] = groups
             }
             settings["hooks"] = hooks
@@ -392,7 +405,7 @@ enum AgentAskInstaller {
         let before = NSDictionary(dictionary: settings)
         ClaudeStatusInstaller.uninstall(from: &settings)
         if var hooks = settings["hooks"] as? [String: Any] {
-            for event in ["PreToolUse", "PermissionRequest"] {
+            for event in Self.events.map(\.event) {
                 guard let groups = hooks[event] as? [[String: Any]] else { continue }
                 let kept = groups.filter { !isOurs($0) }
                 hooks[event] = kept.isEmpty ? nil : kept
@@ -403,6 +416,12 @@ enum AgentAskInstaller {
         guard !before.isEqual(to: settings) else { return }
         try? write(settings)
     }
+
+    /// The question and permission prompts, and the events that show Claude Code has moved on from them.
+    private static let events: [(event: String, matcher: String)] = [
+        ("PreToolUse", "AskUserQuestion"), ("PermissionRequest", "*"),
+        ("PostToolUse", "*"), ("Stop", "*"), ("UserPromptSubmit", "*"),
+    ]
 
     private static func isOurs(_ group: [String: Any]) -> Bool {
         (group["hooks"] as? [[String: Any]] ?? []).contains { ($0["command"] as? String)?.contains(marker) == true }

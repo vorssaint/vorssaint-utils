@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import Foundation
-#if VORSSAINT_DEVELOPMENT
-import Security
 import CryptoKit
-#endif
+import Foundation
+import Security
 
 enum FanControlIdentifiers {
     static let teamID = "3D485NHW29"
@@ -26,6 +24,12 @@ enum FanControlIdentifiers {
         }
         return "identifier \"\(appBundleID)\" and certificate leaf = H\"\(hash)\""
         #else
+        // A local build signed with the owner's own certificate has no Apple team
+        // to name; it is pinned to that exact certificate instead, as the
+        // developer variant is. An Apple-signed build keeps the team requirement.
+        if !isAppleSigned, let hash = currentLeafCertificateSHA1() {
+            return "identifier \"\(appBundleID)\" and certificate leaf = H\"\(hash)\""
+        }
         return "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(appBundleID)\""
         #endif
     }
@@ -37,11 +41,25 @@ enum FanControlIdentifiers {
         }
         return "identifier \"\(helperID)\" and certificate leaf = H\"\(hash)\""
         #else
+        if !isAppleSigned, let hash = currentLeafCertificateSHA1() {
+            return "identifier \"\(helperID)\" and certificate leaf = H\"\(hash)\""
+        }
         return "anchor apple generic and certificate leaf[subject.OU] = \"\(teamID)\" and identifier \"\(helperID)\""
         #endif
     }
 
-    #if VORSSAINT_DEVELOPMENT
+    /// Whether this running code carries an Apple-issued signature. Checked
+    /// against the code itself, so neither side can be talked into the pinned
+    /// rule by anything but how it was really signed.
+    private static let isAppleSigned: Bool = {
+        var code: SecCode?
+        var requirement: SecRequirement?
+        guard SecCodeCopySelf([], &code) == errSecSuccess, let code,
+              SecRequirementCreateWithString("anchor apple generic" as CFString, [], &requirement) == errSecSuccess,
+              let requirement else { return true }
+        return SecCodeCheckValidity(code, [], requirement) == errSecSuccess
+    }()
+
     private static func currentLeafCertificateSHA1() -> String? {
         var dynamicCode: SecCode?
         guard SecCodeCopySelf([], &dynamicCode) == errSecSuccess,
@@ -70,7 +88,6 @@ enum FanControlIdentifiers {
         let digest = Insecure.SHA1.hash(data: data)
         return digest.map { String(format: "%02x", $0) }.joined()
     }
-    #endif
 }
 
 @objc protocol FanControlXPCProtocol {

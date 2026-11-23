@@ -320,6 +320,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/CodexProfileLimitsService.swift
         Sources/Vorssaint/Services/AgentUsage/AgentOpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentKiloReader.swift
+        Sources/Vorssaint/Services/AgentAsk/AgentTerminalKeys.swift
+        Sources/Vorssaint/Convert/Core/JobProgressEstimate.swift
         Sources/Vorssaint/Services/Notch/NotchGestureSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSectionPaging.swift
         Sources/Vorssaint/Services/Notch/NotchSliderEditing.swift

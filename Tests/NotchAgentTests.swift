@@ -40,6 +40,8 @@ enum NotchAgentTests {
         ClaudeAccountProfileTests.run(suite)
         CodexAccountLimitsTests.run(suite)
         AgentKiloTests.run(suite)
+        AgentTerminalKeysTests.run(suite)
+        JobProgressEstimateTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)

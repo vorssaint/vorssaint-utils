@@ -22,6 +22,12 @@ struct NotchNotice: Equatable {
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
+    /// Messages from the same chat app that came before this one while its
+    /// preview was open, oldest first: they stack above it, as a phone shows them.
+    var earlier: [NotchNotificationContent] = []
+    /// The open stack this message joined, so the preview keeps its place
+    /// and only the newest message slides in.
+    var threadID: UUID? = nil
 
     enum ClickTarget: Hashable {
         case event(NotchEvent, title: String, detail: String?)
@@ -110,6 +116,7 @@ struct NotchNotice: Equatable {
     func previewContentHeight(width: CGFloat) -> CGFloat {
         guard let notification else { return 0 }
         return NotchNotificationPreviewLayout.contentHeight(for: notification, width: width)
+            + NotchNotificationPreviewLayout.stackHeight(for: earlier, width: width)
     }
 }
 
@@ -1905,9 +1912,28 @@ final class NotchService: ObservableObject {
         return true
     }
 
+    /// The page the island first opens on: Controls, or the one chosen as home in Settings.
+    var homeDestination: (module: NotchModule, appPanel: Bool, sections: Bool) {
+        let saved = UserDefaults.standard.bool(forKey: DefaultsKey.notchReturnHome)
+            ? UserDefaults.standard.string(forKey: DefaultsKey.notchHomeModule) ?? "" : ""
+        switch NotchReopeningDestination(rawValue: saved) {
+        case .appPanel: return (modules.contains(.controls) ? .controls : modules.first ?? .controls, true, false)
+        case .explore: return (selected, false, true)
+        case nil:
+            let home = NotchModule(rawValue: saved) ?? .controls
+            return (modules.contains(home) ? home : modules.first ?? .controls, false, false)
+        }
+    }
+
+    func openHome() {
+        let home = homeDestination
+        open(home.module, appPanel: home.appPanel, sections: home.sections)
+    }
+
     func activateQuickAction(_ action: NotchQuickAction) {
         guard NotchSupport.isEnabled(), action.isAvailable() else { return }
         switch action {
+        case .home: openHome()
         case .explore: toggleSections()
         case .settings: openSettings()
         case .pin: pinned.toggle()
@@ -2424,19 +2450,37 @@ final class NotchService: ObservableObject {
         if incoming.notification != nil, let shown = notice, shown.notification != nil, noticeCanPresent, !noticeExpanded {
             incoming.minimumWings = shown.wings(in: geometry)
         }
+        // Another message from the same chat app while its preview is open joins
+        // it: the earlier ones stay above, the island grows, the new one slides in.
+        var joinsStack = false
+        if noticeExpanded, let shown = notice, let previous = shown.notification, let next = incoming.notification,
+           previous.app == next.app, NotchNotificationSupport.opensOnArrival(app: next.app) {
+            incoming.earlier = Array((shown.earlier + [previous]).suffix(NotchNotificationPreviewLayout.stackLimit))
+            incoming.threadID = shown.threadID ?? shown.notificationID
+            joinsStack = true
+        }
         let keepsPreview = noticeExpanded && incoming.notificationID != nil
             && windowHost?.containsHover(NSEvent.mouseLocation) == true
+        // A chat message opens the whole preview at once, as on a phone, rather
+        // than waiting for the pointer.
+        let opensPreview = incoming.notificationID != nil && noticeCanPresent && !hiddenUntilHover
+            && !expanded && !keepsWorkingSurface
+            && NotchNotificationSupport.opensOnArrival(app: incoming.notification?.app)
         // Slider and key bursts only replace the displayed value. They never
         // restart a window resize or enqueue another layout animation.
-        let transition: NotchContentTransition = !noticeCanPresent ? .none
+        let transition: NotchContentTransition = !noticeCanPresent || joinsStack ? .none
+            : opensPreview ? (noticeExpanded ? .replace : .reveal)
             : notice == nil ? .reveal : notice?.event != incoming.event || noticeExpanded ? .replace : .none
         let mascotFrom = mascotNoticeBridgeStart(for: incoming)
         // The same notice with a new reading only fits its width, steadily.
-        noticeFitsInPlace = noticeCanPresent && !noticeExpanded && !keepsPreview && notice?.event == incoming.event
+        noticeFitsInPlace = noticeCanPresent && !noticeExpanded && !keepsPreview && !opensPreview
+            && notice?.event == incoming.event
         mutatePresentation(transitionContent: transition) {
             notice = incoming
-            noticeExpanded = keepsPreview
+            noticeExpanded = keepsPreview || opensPreview
+            if opensPreview { peeking = false }
         }
+        if opensPreview, !keepsPreview { provideHapticFeedback() }
         if let mascotFrom { bridgeMascotIntoNotice(incoming, from: mascotFrom) }
         // A banner arriving under the pointer is held at once, whether the
         // pointer was already inside or an opening was pending.
@@ -2445,7 +2489,7 @@ final class NotchService: ObservableObject {
             inside = true
             holdNotification(id)
         } else {
-            scheduleNoticeDismissal(after: incoming.event.duration)
+            scheduleNoticeDismissal(after: opensPreview ? NotchNotificationSupport.openPreviewDuration : incoming.event.duration)
         }
         return true
     }

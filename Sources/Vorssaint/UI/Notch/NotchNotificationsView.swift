@@ -155,6 +155,11 @@ struct NotchNotificationPreviewView: View {
                 NotchIconButton(symbol: "xmark", title: text.dismiss) { service.dismissNotification(notice) }
             }
             .frame(height: NotchNotificationPreviewLayout.headerHeight)
+            // Earlier messages of the same chat, oldest first, quieter than the newest.
+            ForEach(Array(notice.earlier.enumerated()), id: \.offset) { _, message in
+                NotchNotificationStackRow(message: message)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .move(edge: .bottom)), removal: .opacity))
+            }
             if !content.title.isEmpty {
                 Text(content.title)
                     .font(Font(NotchNotificationPreviewLayout.titleFont as CTFont))
@@ -206,9 +211,35 @@ struct NotchNotificationPreviewView: View {
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxHeight: .infinity, alignment: .top)
         .clipped()
+        .animation(.spring(duration: NotchMotion.growingHeight.duration, bounce: NotchMotion.growingHeight.bounce),
+                   value: notice.earlier.count)
         .accessibilityElement(children: .contain)
         .accessibilityLabel(notice.accessibilityText)
         .environment(\.locale, l10n.language.formattingLocale())
+    }
+}
+
+/// One earlier message in an open stack: who wrote it and its first lines.
+struct NotchNotificationStackRow: View {
+    let message: NotchNotificationContent
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(message.title.isEmpty ? message.app : message.title)
+                .font(Font(NotchNotificationPreviewLayout.stackTitleFont as CTFont))
+                .foregroundStyle(.white.opacity(0.7))
+                .lineLimit(1)
+            if !message.compactDetail.isEmpty {
+                Text(message.compactDetail)
+                    .font(Font(NotchNotificationPreviewLayout.stackBodyFont as CTFont))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(NotchNotificationPreviewLayout.stackBodyLines)
+            }
+        }
+        .padding(NotchNotificationPreviewLayout.stackRowPadding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

@@ -74,9 +74,7 @@ final class WindowSnapAssist {
             panel.contentView = FirstMouseHostingView(rootView: WindowSnapAssistZoneView(model: model) { [weak self] candidate in
                 self?.choose(candidate, for: zone.action)
             })
-            panel.alphaValue = 0
             panel.orderFrontRegardless()
-            NSAnimationContext.runAnimationGroup { $0.duration = 0.16; panel.animator().alphaValue = 1 }
             panels[zone.action] = panel
         }
         loadThumbnails(for: candidates)
@@ -178,6 +176,8 @@ private final class FirstMouseHostingView<Content: View>: NSHostingView<Content>
 private struct WindowSnapAssistZoneView: View {
     @ObservedObject var model: WindowSnapAssistModel
     let choose: (WindowSnapAssistCandidate) -> Void
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { proxy in
@@ -193,9 +193,16 @@ private struct WindowSnapAssistZoneView: View {
                 .padding(18)
             }
             .frame(width: proxy.size.width, height: proxy.size.height)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(.white.opacity(0.18), lineWidth: 1))
-            .padding(4)
+            // The island's surface: black, its corner, a hairline edge.
+            .background(Color.black.opacity(0.92), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white.opacity(0.12), lineWidth: 0.75))
+            .padding(6)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.94)
+            .opacity(shown ? 1 : 0)
+        }
+        .environment(\.colorScheme, .dark)
+        .onAppear {
+            withAnimation(.spring(duration: NotchMotion.growingHeight.duration, bounce: NotchMotion.growingHeight.bounce)) { shown = true }
         }
     }
 }
@@ -210,7 +217,7 @@ private struct WindowSnapAssistCard: View {
         Button(action: choose) {
             VStack(alignment: .leading, spacing: 6) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.black.opacity(0.25))
+                    RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.06))
                     if let thumbnail {
                         Image(nsImage: thumbnail).resizable().interpolation(.medium).scaledToFit().padding(4)
                     } else if let icon = NSRunningApplication(processIdentifier: candidate.pid)?.icon {
@@ -222,14 +229,15 @@ private struct WindowSnapAssistCard: View {
                     if let icon = NSRunningApplication(processIdentifier: candidate.pid)?.icon {
                         Image(nsImage: icon).resizable().frame(width: 14, height: 14)
                     }
-                    Text(candidate.title).font(.system(size: 11, weight: .medium)).lineLimit(1)
+                    Text(candidate.title).font(.system(size: 11, weight: .semibold)).lineLimit(1)
+                        .foregroundStyle(.white.opacity(0.85))
                 }
             }
             .padding(6)
-            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(hovered ? 0.16 : 0.0)))
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(.white.opacity(hovered ? 0.12 : 0)))
             .scaleEffect(hovered ? 1.03 : 1)
-            .animation(.easeOut(duration: 0.12), value: hovered)
+            .animation(.spring(duration: 0.24, bounce: 0.2), value: hovered)
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
@@ -277,14 +285,15 @@ final class WindowSnapLandingCover {
         panel.level = .statusBar
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient, .ignoresCycle]
         panel.animationBehavior = .none
-        let effect = NSVisualEffectView()
-        effect.material = .hudWindow
-        effect.blendingMode = .behindWindow
-        effect.state = .active
-        effect.wantsLayer = true
-        effect.layer?.cornerRadius = 12
-        effect.layer?.masksToBounds = true
-        panel.contentView = effect
+        // The island's black, with its tile corner, rather than a grey system material.
+        let cover = NSView()
+        cover.wantsLayer = true
+        cover.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.9).cgColor
+        cover.layer?.cornerRadius = 14
+        cover.layer?.cornerCurve = .continuous
+        cover.layer?.borderColor = NSColor.white.withAlphaComponent(0.12).cgColor
+        cover.layer?.borderWidth = 0.75
+        panel.contentView = cover
         return panel
     }
 }

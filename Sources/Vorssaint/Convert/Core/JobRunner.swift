@@ -14,6 +14,10 @@ final class Job: ObservableObject, Identifiable {
     @Published var status: Status = .waiting
     var outputs: [URL] = []
     var task: Task<Void, Never>?
+    /// About how long the work should take, for the estimate shown between real readings.
+    var expectedSeconds: TimeInterval = 4
+    fileprivate var startedAt: TimeInterval?
+    fileprivate var lastReadingAt: TimeInterval?
 
     enum Status: Equatable {
         case waiting, running, done, cancelled
@@ -48,6 +52,8 @@ final class JobRunner: ObservableObject {
     /// Set when a batch has finished, so the island can show its results.
     let finishedBatch = PassthroughSubject<[Job], Never>()
 
+    private var estimateTimer: Timer?
+
     private init() {}
 
     var hasWork: Bool { jobs.contains { !$0.status.isFinished } }
@@ -56,6 +62,9 @@ final class JobRunner: ObservableObject {
         DiagnosticLog.log("convert \(urls.map(\.lastPathComponent)) -> \(target.displayName)")
         for url in urls {
             let job = Job(title: "Converting to \(target.displayName)", detail: url.lastPathComponent, symbol: target.category.symbol)
+            job.expectedSeconds = JobProgressEstimate.expectedSeconds(
+                bytes: (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Double.init) ?? 0,
+                category: FileFormat.detect(url)?.category ?? target.category)
             guard let source = FileFormat.detect(url) else {
                 enqueue(job) { _ in
                     throw OpenTangerineError.invalidInput("Unsupported file type: \(url.lastPathComponent)")
@@ -97,10 +106,15 @@ final class JobRunner: ObservableObject {
                 return
             }
             job.status = .running
+            job.startedAt = ProcessInfo.processInfo.systemUptime
+            startEstimates()
             let progress: (Double) -> Void = { value in
                 Task { @MainActor in
                     guard !job.status.isFinished, value.isFinite else { return }
-                    job.progress = min(max(value, 0), 1)
+                    job.lastReadingAt = ProcessInfo.processInfo.systemUptime
+                    // A reading never takes the bar back past what was already shown.
+                    let reading = min(max(value, 0), 1)
+                    if reading > job.progress { job.progress = reading }
                 }
             }
             do {
@@ -122,6 +136,36 @@ final class JobRunner: ObservableObject {
             }
             await semaphore.signal()
             finishBatchIfDone()
+        }
+    }
+
+    /// Between real readings, and for work that reports none, the bar eases
+    /// forward on an estimate from the file's size and kind, so it is never
+    /// left sitting at zero. A real reading always wins, and the estimate stops
+    /// short of the end, which only the finished work reaches.
+    private func startEstimates() {
+        guard estimateTimer == nil else { return }
+        let timer = Timer(timeInterval: 0.1, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.advanceEstimates() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        estimateTimer = timer
+    }
+
+    private func advanceEstimates() {
+        let now = ProcessInfo.processInfo.systemUptime
+        let running = jobs.filter { $0.status == .running }
+        guard !running.isEmpty else {
+            estimateTimer?.invalidate()
+            estimateTimer = nil
+            return
+        }
+        for job in running {
+            guard let started = job.startedAt else { continue }
+            let quiet = job.lastReadingAt.map { now - $0 } ?? .infinity
+            guard quiet > JobProgressEstimate.readingGrace else { continue }
+            let estimate = JobProgressEstimate.estimate(elapsed: now - started, expected: job.expectedSeconds)
+            if estimate > job.progress + 0.002 { job.progress = estimate }
         }
     }
 
@@ -175,5 +219,21 @@ actor AsyncSemaphore {
         } else {
             count = max(0, count - 1)
         }
+    }
+}
+
+extension JobProgressEstimate {
+    /// Bytes per second each kind of work gets through, roughly, on Apple silicon.
+    static func expectedSeconds(bytes: Double, category: FormatCategory) -> TimeInterval {
+        let rate: Double
+        switch category {
+        case .image: rate = 25_000_000
+        case .audio: rate = 12_000_000
+        case .video: rate = 6_000_000
+        case .document: rate = 4_000_000
+        case .subtitle: rate = 50_000_000
+        case .archive: rate = 60_000_000
+        }
+        return expectedSeconds(bytes: bytes, bytesPerSecond: rate)
     }
 }

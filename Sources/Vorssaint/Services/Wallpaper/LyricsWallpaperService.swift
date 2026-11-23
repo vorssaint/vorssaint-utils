@@ -71,6 +71,9 @@ final class LyricsWallpaperService: ObservableObject {
     private static let idleLimit: TimeInterval = 120
     private var idleWork: DispatchWorkItem?
     private var idleHidden = false
+    /// When the music last stopped moving. Kept through dropouts in the player's
+    /// feed and rebuilt windows, so a pause is timed from when it really began.
+    private var pausedSince: Date?
     private var running = false
     private var awakeAssertion = IOPMAssertionID(0)
 
@@ -167,6 +170,7 @@ final class LyricsWallpaperService: ObservableObject {
         hideWork?.cancel(); hideWork = nil
         idleWork?.cancel(); idleWork = nil
         idleHidden = false
+        pausedSince = nil
         extraLookup?.cancel(); extraLookup = nil
         track = nil
         extra = nil
@@ -215,29 +219,34 @@ final class LyricsWallpaperService: ObservableObject {
         }
         hideWork?.cancel()
         hideWork = nil
-        if playback.isPlaying {
+        // A paused player can still say it is playing; only music that is moving counts.
+        let moving = playback.isPlaying && playback.rate > 0
+        if moving {
             // Playing again: the wallpaper comes back at once.
             idleWork?.cancel(); idleWork = nil
             idleHidden = false
-        } else if idleHidden {
-            // Paused long enough that the wallpaper went away; it stays away until the music resumes.
-            setAwake(false)
-            return
-        } else if idleWork == nil {
-            // Paused: the wallpaper stays up for a while, then goes if nothing plays.
-            let work = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                self.idleWork = nil
-                self.idleHidden = true
-                self.setAwake(false)
-                self.closeWindows()
-                self.releaseImages()
+            pausedSince = nil
+        } else {
+            let since = pausedSince ?? Date()
+            pausedSince = since
+            let waited = Date().timeIntervalSince(since)
+            if idleHidden || waited >= Self.idleLimit {
+                // Paused long enough that the wallpaper went away; it stays away until the music resumes.
+                goIdle()
+                return
             }
-            idleWork = work
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.idleLimit, execute: work)
+            if idleWork == nil {
+                // Paused: the wallpaper stays up for what is left of the wait, then goes if nothing plays.
+                let work = DispatchWorkItem { [weak self] in
+                    self?.idleWork = nil
+                    self?.goIdle()
+                }
+                idleWork = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + (Self.idleLimit - waited), execute: work)
+            }
         }
         showWindows()
-        setAwake(playback.isPlaying)
+        setAwake(moving)
         let identity = NotchMusicIdentity(playback)
         updateCover(from: playback.track.artworkData, for: identity)
 
@@ -330,7 +339,7 @@ final class LyricsWallpaperService: ObservableObject {
     /// takes, held on its own so it never touches a session of the person's.
     func refreshAwake() {
         let playback = NotchMusicService.shared.playback
-        setAwake(playback.map { Self.isSpotify($0) && $0.isPlaying } == true)
+        setAwake(playback.map { Self.isSpotify($0) && $0.isPlaying && $0.rate > 0 } == true)
     }
 
     private func setAwake(_ playing: Bool) {
@@ -368,6 +377,8 @@ final class LyricsWallpaperService: ObservableObject {
         previousCover = nil
         coverSource = nil
         coverTrack = nil
+        // The colours go with the cover, so nothing keeps tinting a screen after the song.
+        palette = []
     }
 
     /// Fades the waiting windows in. Lyrics alone show at once: a clear window has nothing to flash.
@@ -409,13 +420,22 @@ final class LyricsWallpaperService: ObservableObject {
     }
 
     private func rebuildWindows() {
-        guard !windows.isEmpty else { return }
+        guard !windows.isEmpty, !idleHidden else { return }
         closeWindows()
         showWindows()
     }
 
+    /// A long pause: the normal wallpaper comes back and stays until the music moves again.
+    private func goIdle() {
+        idleWork?.cancel(); idleWork = nil
+        idleHidden = true
+        setAwake(false)
+        guard !windows.isEmpty else { return }
+        fadeOutWindows(whenIdle: true)
+    }
+
     /// The windows fade away, then close; a Spotify reading in the meantime keeps them.
-    private func fadeOutWindows() {
+    private func fadeOutWindows(whenIdle: Bool = false) {
         guard !windows.isEmpty else { return }
         revealWork?.cancel(); revealWork = nil
         // Spotify coming back mid-fade shows them again from where they are.
@@ -425,14 +445,16 @@ final class LyricsWallpaperService: ObservableObject {
             context.duration = 0.4
             shown.forEach { $0.animator().alphaValue = 0 }
         }, completionHandler: { [weak self] in
-            guard let self, self.playback == nil else { return }
+            // Music moving again in the meantime keeps the windows.
+            guard let self, whenIdle ? self.idleHidden : self.playback == nil else { return }
             self.closeWindows()
             self.releaseImages()
         })
     }
 
     private func closeWindows() {
-        windows.values.forEach { $0.orderOut(nil) }
+        // Closed, not only ordered out: an ordered-out window stays alive with its whole SwiftUI tree.
+        windows.values.forEach { $0.orderOut(nil); $0.close() }
         windows.removeAll()
         occlusionObservers.forEach(NotificationCenter.default.removeObserver)
         occlusionObservers.removeAll()

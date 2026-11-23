@@ -3,6 +3,22 @@
 
 import AppKit
 
+extension NotchNotificationSupport {
+    /// Chat apps whose messages open the island's full preview as they arrive,
+    /// the way a phone shows a message, instead of only its compact banner.
+    static let openOnArrivalApps: Set<String> = ["whatsapp"]
+
+    /// How long an opened message stays before the island closes again; the
+    /// pointer over it keeps it open.
+    static let openPreviewDuration: TimeInterval = 5
+
+    static func opensOnArrival(app: String?) -> Bool {
+        guard let app else { return false }
+        let name = app.lowercased().filter { !$0.isWhitespace }
+        return openOnArrivalApps.contains { name.hasPrefix($0) }
+    }
+}
+
 struct NotchNotificationContent: Equatable, Sendable {
     let app: String
     let title: String
@@ -276,6 +292,24 @@ enum NotchNotificationPreviewLayout {
                       textHeight(content.subtitle, font: subtitleFont, lines: subtitleLines, width: width),
                       textHeight(content.body, font: bodyFont, lines: bodyLines, width: width)].filter { $0 > 0 }
         return headerHeight + (blocks + [actionHeight]).reduce(0) { $0 + spacing + $1 }
+    }
+
+    /// How many earlier messages stay above the newest in an open stack.
+    static let stackLimit = 3
+    static let stackTitleFont = NSFont.systemFont(ofSize: 12, weight: .semibold)
+    static let stackBodyFont = NSFont.systemFont(ofSize: 12)
+    static let stackBodyLines = 2
+    static let stackRowPadding: CGFloat = 8
+
+    /// The earlier messages of a stack, each a compact row above the newest.
+    static func stackHeight(for earlier: [NotchNotificationContent], width: CGFloat) -> CGFloat {
+        earlier.reduce(0) { total, message in
+            let rowWidth = max(0, width - stackRowPadding * 2)
+            let title = textHeight(message.title.isEmpty ? message.app : message.title, font: stackTitleFont,
+                                   lines: 1, width: rowWidth)
+            let body = textHeight(message.compactDetail, font: stackBodyFont, lines: stackBodyLines, width: rowWidth)
+            return total + title + (body > 0 ? 2 + body : 0) + stackRowPadding * 2 + spacing
+        }
     }
 
     static func textHeight(_ text: String, font: NSFont, lines: Int, width: CGFloat) -> CGFloat {
