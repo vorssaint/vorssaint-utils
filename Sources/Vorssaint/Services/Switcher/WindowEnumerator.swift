@@ -268,19 +268,20 @@ enum WindowEnumerator {
         }
     }
 
+    static func ownWindowID(for window: NSWindow) -> CGWindowID? {
+        guard window.styleMask.contains(.titled), window.canBecomeKey,
+              window.isVisible || window.isMiniaturized else { return nil }
+        let number = window.windowNumber
+        return number > 0 ? CGWindowID(exactly: number) : nil
+    }
+
     /// Copies all AppKit-owned enumeration inputs into values that can safely
     /// cross to the serial enumeration queue.
     static func snapshot(includingRunningApps: Bool = true) -> Snapshot {
         dispatchPrecondition(condition: .onQueue(.main))
         var ownWindowTitles: [CGWindowID: String] = [:]
         for window in NSApp.windows {
-            guard window.windowNumber > 0,
-                  let windowID = CGWindowID(exactly: window.windowNumber),
-                  window.styleMask.contains(.titled),
-                  window.canBecomeKey,
-                  window.isVisible || window.isMiniaturized
-            else { continue }
-            guard ownWindowTitles[windowID] == nil else { continue }
+            guard let windowID = ownWindowID(for: window), ownWindowTitles[windowID] == nil else { continue }
             ownWindowTitles[windowID] = window.title.isEmpty ? AppInfo.name : window.title
         }
         return Snapshot(accessibilityGranted: Permissions.shared.accessibility,

@@ -164,6 +164,7 @@ def main():
                     .replace("private ", "", 1) for prefix in [
                         "    struct DisplayScope:", "    struct WindowList {", "    struct AppSnapshot:",
                         "    struct Snapshot:", "    static func enumerateSwitcherWindows(",
+                        "    static func rememberSwitcherWindows(",
                         "    static func beginSourcePrefetch(",
                         "    private struct WalkApps {",
                         "    private static func walkApps(",
@@ -211,6 +212,12 @@ def main():
           + "}\nextension SwitcherRememberedSelectionTests.WindowEvents {\n"
           + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowEvents.swift",
                         "    static func matchesWindowNumber(")
+          + "}\nextension SwitcherRememberedSelectionTests.Inventory.WindowEnumerator {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/WindowEnumerator.swift",
+                        "    static func ownWindowID(")
+          + "}\nextension SwitcherRememberedSelectionTests.Inventory {\n"
+          + declaration("Sources/Vorssaint/Services/Switcher/SwitcherWindowInventory.swift",
+                        "    private func observeScreenChanges(").replace("private func", "func", 1)
           + "}\n")
     write("RecorderSystemAudioTapLifecycle.swift", "import CoreAudio\nimport Foundation\n"
           + "extension RecorderSystemAudioTapLifecycleTests {\nfinal class Tap: Fixture, @unchecked Sendable {\n"
