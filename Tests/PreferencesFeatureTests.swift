@@ -130,6 +130,16 @@ enum PreferencesFeatureTests {
                "external-display Keep Awake is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeConnectedToPower] as? Bool == false,
                "power-connected Keep Awake is opt-in")
+        suite.expect(registeredDefaults[DefaultsKey.keepAwakePowerDisconnectDelay] as? Int == 0,
+               "power-connected Keep Awake ends without delay by default")
+        suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.keepAwakePowerDisconnectDelay),
+               "the power disconnect delay follows settings backups")
+        suite.expect(Defaults.sanitizedKeepAwakePowerDisconnectDelay(15) == 15
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(60) == 60
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(-5) == 0
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(7) == 0
+                && Defaults.sanitizedKeepAwakePowerDisconnectDelay(65) == 0,
+               "the power disconnect delay accepts only the offered five-second steps")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeRunningApps] as? Bool == false,
                "running-apps Keep Awake is opt-in")
         suite.expect(registeredDefaults[DefaultsKey.keepAwakeRunningAppBundleIDs] as? [String] == [],
@@ -314,6 +324,16 @@ enum PreferencesFeatureTests {
         let matchModeWidth = 308.0 - 20 - 19 - 22
         for language in AppLanguage.allCases {
             let strings = FeatureStrings.keepAwakeAutomation(language)
+            suite.expect(strings.activeStatus(for: [], waitingForPower: true) == strings.waitingForPower
+                   && strings.activeStatus(for: [.externalDisplay], waitingForPower: true) == strings.waitingForPower
+                   && strings.activeStatus(for: [.externalDisplay], waitingForPower: false) == strings.externalDisplayActive
+                   && strings.activeStatus(for: [], waitingForPower: false) == strings.automationActive,
+                   "\(language.rawValue): only a session waiting for power shows the waiting message")
+            if language != .enUS {
+                suite.expect(strings.powerDisconnectDelay != KeepAwakeAutomationStrings.enUS.powerDisconnectDelay
+                       && strings.waitingForPower != KeepAwakeAutomationStrings.enUS.waitingForPower,
+                       "\(language.rawValue): the power disconnect delay and waiting message are translated")
+            }
             let control = NSSegmentedControl(labels: [strings.matchAny, strings.matchAll],
                                              trackingMode: .selectOne, target: nil, action: nil)
             control.controlSize = .small

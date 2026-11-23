@@ -12,6 +12,7 @@ enum HarnessReaderContractTests {
         codexGolden(suite)
         openCodeGolden(suite)
         copilotGolden(suite)
+        cursorGolden(suite)
     }
 
     private static func line(_ json: String) -> Data { Data(json.utf8) }
@@ -141,5 +142,29 @@ enum HarnessReaderContractTests {
         let checkpoint = line(#"{"id":"c","timestamp":1790088020,"type":"session.usage_checkpoint","data":{}}"#)
         suite.expect(reader.parse(checkpoint, state: &state, now: now).isEmpty,
                      "a Copilot usage checkpoint parses to nothing")
+    }
+
+    private static func cursorGolden(_ suite: TestSuite) {
+        let now = Date(timeIntervalSince1970: 1_790_088_000)
+        var state = AgentLogState()
+        CursorReader.adopt(
+            path: "/Users/me/.cursor/projects/Users-me-code-app/agent-transcripts/s/s.jsonl",
+            into: &state)
+        let reader = AgentProvider.cursor.reader
+        suite.expect(state.session == "s" && !state.project.isEmpty,
+                     "a Cursor transcript path names the session and project")
+        let prompt = line(#"{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Wednesday, Nov 18, 2026, 6:00 PM (UTC+0)</timestamp>\n<user_query>hi</user_query>"}]}}"#)
+        let began = reader.parse(prompt, state: &state, now: now)
+        suite.expect(began == [.turnBegan(now), .turnContext(model: "", project: state.project)]
+                        && state.turnOpen && state.cursorPromptCount == 1,
+                     "a Cursor user prompt supplies turn activity without inventing usage")
+        let step = line(#"{"role":"assistant","message":{"content":[{"type":"tool_use","name":"Shell","input":{}}]}}"#)
+        suite.expect(reader.parse(step, state: &state, now: now).contains {
+            if case .turnActive = $0 { return true }; return false
+        } && state.turnOpen, "a Cursor tool step keeps the turn active")
+        let end = line(#"{"type":"turn_ended","status":"success"}"#)
+        suite.expect(reader.parse(end, state: &state, now: now)
+                        == [.turnEnded(now, completed: true, duration: nil)] && !state.turnOpen,
+                     "a Cursor turn_ended finishes its turn")
     }
 }
