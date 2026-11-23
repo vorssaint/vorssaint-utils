@@ -12,6 +12,7 @@ struct KeepAwakeAutomationStrings {
     let powerToggle: String
     let powerActive: String
     let powerDisconnectDelay: String
+    let waitingForPower: String
     let runningAppsToggle: String
     let runningAppsActive: String
     let runningAppsListTitle: String
@@ -32,7 +33,8 @@ struct KeepAwakeAutomationStrings {
         requireAll ? automationCaptionAll : automationCaption
     }
 
-    func activeStatus(for conditions: Set<KeepAwakeAutomationCondition>) -> String {
+    func activeStatus(for conditions: Set<KeepAwakeAutomationCondition>, waitingForPower: Bool) -> String {
+        if waitingForPower { return self.waitingForPower }
         if conditions == [.externalDisplay] { return externalDisplayActive }
         if conditions == [.power] { return powerActive }
         if conditions == [.runningApps] { return runningAppsActive }
@@ -173,6 +175,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Power",
         powerActive: "Active while connected to power",
         powerDisconnectDelay: "Delay after unplugging power",
+        waitingForPower: "Waiting for power to return…",
         runningAppsToggle: "Applications",
         runningAppsActive: "Active while a selected app is running",
         runningAppsListTitle: "Selected apps",
@@ -196,6 +199,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Energia",
         powerActive: "Ativo enquanto está conectado à energia",
         powerDisconnectDelay: "Atraso ao desconectar da energia",
+        waitingForPower: "Aguardando a energia voltar…",
         runningAppsToggle: "Aplicativos",
         runningAppsActive: "Ativo enquanto um app selecionado estiver aberto",
         runningAppsListTitle: "Apps selecionados",
@@ -219,6 +223,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Güç",
         powerActive: "Güce bağlı olduğu sürece etkin",
         powerDisconnectDelay: "Güç kesildikten sonra bekleme süresi",
+        waitingForPower: "Güç bağlantısı bekleniyor…",
         runningAppsToggle: "Uygulamalar",
         runningAppsActive: "Seçili bir uygulama çalışırken etkin",
         runningAppsListTitle: "Seçili uygulamalar",
@@ -242,6 +247,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Питание",
         powerActive: "Активно, пока подключено питание",
         powerDisconnectDelay: "Задержка после отключения питания",
+        waitingForPower: "Ожидание восстановления питания…",
         runningAppsToggle: "Приложения",
         runningAppsActive: "Активно, пока запущено выбранное приложение",
         runningAppsListTitle: "Выбранные приложения",
@@ -265,6 +271,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Corriente",
         powerActive: "Activo mientras está conectado a la corriente",
         powerDisconnectDelay: "Espera tras desconectar la corriente",
+        waitingForPower: "Esperando a que vuelva la corriente…",
         runningAppsToggle: "Aplicaciones",
         runningAppsActive: "Activo mientras se ejecuta una app seleccionada",
         runningAppsListTitle: "Apps seleccionadas",
@@ -288,6 +295,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Napájanie",
         powerActive: "Aktívne, kým je pripojené napájanie",
         powerDisconnectDelay: "Oneskorenie po odpojení napájania",
+        waitingForPower: "Čaká sa na obnovenie napájania…",
         runningAppsToggle: "Aplikácie",
         runningAppsActive: "Aktívne, kým beží vybraná aplikácia",
         runningAppsListTitle: "Vybrané aplikácie",
@@ -311,6 +319,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Strom",
         powerActive: "Aktiv, solange Strom verbunden ist",
         powerDisconnectDelay: "Verzögerung nach Trennen vom Strom",
+        waitingForPower: "Warten auf die Stromversorgung …",
         runningAppsToggle: "Apps",
         runningAppsActive: "Aktiv, solange eine ausgewählte App läuft",
         runningAppsListTitle: "Ausgewählte Apps",
@@ -334,6 +343,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Secteur",
         powerActive: "Actif tant que le Mac est branché sur secteur",
         powerDisconnectDelay: "Délai après débranchement du secteur",
+        waitingForPower: "En attente du retour de l’alimentation…",
         runningAppsToggle: "Applications",
         runningAppsActive: "Actif tant qu’une app sélectionnée est ouverte",
         runningAppsListTitle: "Apps sélectionnées",
@@ -357,6 +367,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Alimentazione",
         powerActive: "Attivo mentre è collegato all’alimentazione",
         powerDisconnectDelay: "Ritardo dopo lo scollegamento dall’alimentazione",
+        waitingForPower: "In attesa del ripristino dell’alimentazione…",
         runningAppsToggle: "App",
         runningAppsActive: "Attivo mentre un’app selezionata è in esecuzione",
         runningAppsListTitle: "App selezionate",
@@ -380,6 +391,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "電源",
         powerActive: "電源に接続されている間は有効",
         powerDisconnectDelay: "電源を外してからの待機時間",
+        waitingForPower: "電源の復帰を待機中…",
         runningAppsToggle: "アプリケーション",
         runningAppsActive: "選択したアプリの実行中は有効",
         runningAppsListTitle: "選択したアプリ",
@@ -403,6 +415,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "전원",
         powerActive: "전원에 연결된 동안 활성화",
         powerDisconnectDelay: "전원 분리 후 대기 시간",
+        waitingForPower: "전원이 다시 연결되기를 기다리는 중…",
         runningAppsToggle: "앱",
         runningAppsActive: "선택한 앱이 실행 중일 때 활성화",
         runningAppsListTitle: "선택한 앱",
@@ -426,6 +439,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "电源",
         powerActive: "连接电源期间保持唤醒",
         powerDisconnectDelay: "断开电源后的延迟",
+        waitingForPower: "正在等待恢复供电…",
         runningAppsToggle: "App",
         runningAppsActive: "所选 App 运行期间保持唤醒",
         runningAppsListTitle: "所选 App",
@@ -449,6 +463,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "電源",
         powerActive: "連接電源期間保持喚醒",
         powerDisconnectDelay: "拔除電源後的延遲",
+        waitingForPower: "正在等待恢復供電…",
         runningAppsToggle: "應用程式",
         runningAppsActive: "所選 App 執行期間保持喚醒",
         runningAppsListTitle: "所選 App",
@@ -472,6 +487,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "電源",
         powerActive: "連接電源期間保持喚醒",
         powerDisconnectDelay: "拔除電源後的延遲",
+        waitingForPower: "正在等候恢復供電…",
         runningAppsToggle: "應用程式",
         runningAppsActive: "所選 App 執行期間保持喚醒",
         runningAppsListTitle: "所選 App",
@@ -494,6 +510,7 @@ extension KeepAwakeAutomationStrings {
         powerToggle: "Живлення",
         powerActive: "Активно при підключеному живленні",
         powerDisconnectDelay: "Затримка після відʼєднання живлення",
+        waitingForPower: "Очікування відновлення живлення…",
         runningAppsToggle: "Програми",
         runningAppsActive: "Активно, поки запущена обрана програма",
         runningAppsListTitle: "Обрані програми",

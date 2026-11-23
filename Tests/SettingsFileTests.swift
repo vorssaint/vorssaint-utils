@@ -36,6 +36,8 @@ enum SettingsFileTests {
         do {
             defaults.set(snippets, forKey: DefaultsKey.textSnippets)
             defaults.set("light", forKey: DefaultsKey.appearance)
+            let delayKey = DefaultsKey.keepAwakePowerDisconnectDelay
+            defaults.set(20, forKey: delayKey)
             suite.expect(Backup.write(to: target, from: defaults),
                          "an explicit export bootstraps its parent folder and snapshot")
             let permissions = try manager.attributesOfItem(atPath: target.path)[.posixPermissions] as? NSNumber
@@ -49,7 +51,10 @@ enum SettingsFileTests {
             suite.expect(destination == target.path, "export leaves the user's link in place")
             if let exported = Backup.readSettings(at: link) {
                 defaults.removeObject(forKey: DefaultsKey.textSnippets)
+                defaults.set(5, forKey: delayKey)
                 Backup.apply(settings: exported, in: defaults)
+                suite.expect(defaults.integer(forKey: delayKey) == 20,
+                             "restoring a backup replaces the local Keep Awake power disconnect delay")
                 let restored = TextSnippetSupport.decode(defaults.data(forKey: DefaultsKey.textSnippets))
                 suite.expect(restored.count == 1 && restored[0].replacement == "Hello"
                              && restored[0].showsInLibrary && restored[0].folder.isEmpty,
@@ -186,7 +191,10 @@ enum SettingsFileTests {
             try exerciseExternalEdits(of: target, defaults: defaults, launch: { _ = launch() }, suite: suite)
             try partial.write(to: target, options: .atomic)
             if let imported = Backup.readSettings(at: target) {
+                defaults.set(15, forKey: delayKey)
                 Backup.apply(settings: imported, in: defaults)
+                suite.expect(defaults.integer(forKey: delayKey) == 0,
+                             "restoring a backup from before the Keep Awake delay resets it to zero")
                 suite.expect(defaults.data(forKey: DefaultsKey.textSnippets) == nil,
                              "an explicit full restore still clears omitted exportable settings")
                 suite.expect(defaults.string(forKey: DefaultsKey.notchDisplay) == "pointer",
