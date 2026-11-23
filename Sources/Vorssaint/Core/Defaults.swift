@@ -594,11 +594,21 @@ enum DefaultsKey {
     static let clipboardHistoryRetentionDays = "clipboardHistoryRetentionDays" // 0 keeps items until the limit drops them
     // A separate opt-in from the old, enabled-by-default text heuristic.
     static let clipboardHistoryFilterSensitiveText = "clipboardHistoryFilterSensitiveText"
+    static let clipboardHistoryIgnoreTransient = "clipboardHistoryIgnoreTransient"
     static let clipboardHistoryIncludeImagesFiles = "clipboardHistoryIncludeImagesFiles" // capture copied images and files too
     static let clipboardHistoryIgnoredApps = "clipboardHistoryIgnoredApps" // apps whose copies are never saved
     static let clipboardHistoryQuickPreview = "clipboardHistoryQuickPreview"
     static let clipboardHistoryShowSourceAppIcons = "clipboardHistoryShowSourceAppIcons" // source app icons beside list entries
     static let clipboardHistoryLayout = "clipboardHistoryLayout" // cards | list, how the history window shows entries
+
+    static let clipboardShelfEdge = "clipboardShelfEdge"
+    static let clipboardShelfClick = "clipboardShelfClick"
+
+    static let clipboardShelfSuggestions = "clipboardShelfSuggestions"
+    static let clipboardShelfLinkPreviews = "clipboardShelfLinkPreviews"
+    static let clipboardShelfPrivacyMode = "clipboardShelfPrivacyMode"
+
+    static let clipboardPinboards = "clipboardPinboards"
     static let clipboardHistoryWindowWidth = "clipboardHistoryWindowWidth" // the list window's chosen size
     static let clipboardHistoryWindowHeight = "clipboardHistoryWindowHeight"
     static let clipboardHistoryWindowX = "clipboardHistoryWindowX"
@@ -1854,12 +1864,19 @@ enum Defaults {
         DefaultsKey.clipboardHistoryLimit: 50,
         DefaultsKey.clipboardHistoryRetentionDays: 0,
         DefaultsKey.clipboardHistoryFilterSensitiveText: false,
+        DefaultsKey.clipboardHistoryIgnoreTransient: true,
         DefaultsKey.clipboardHistoryIncludeImagesFiles: true,
         DefaultsKey.clipboardHistoryIgnoredApps: [String](),
         DefaultsKey.windowLayoutIgnoredApps: [String](),
         DefaultsKey.clipboardHistoryQuickPreview: false,
         DefaultsKey.clipboardHistoryShowSourceAppIcons: false,
         DefaultsKey.clipboardHistoryLayout: ClipboardHistoryLayout.list.rawValue,
+        DefaultsKey.clipboardShelfEdge: ClipboardShelfEdge.bottom.rawValue,
+        DefaultsKey.clipboardShelfClick: ClipboardShelfClick.select.rawValue,
+        DefaultsKey.clipboardShelfSuggestions: true,
+        DefaultsKey.clipboardShelfLinkPreviews: false,
+        DefaultsKey.clipboardShelfPrivacyMode: false,
+        DefaultsKey.clipboardPinboards: Data(),
         DefaultsKey.clipboardHistoryWindowWidth: 0.0,
         DefaultsKey.clipboardHistoryWindowHeight: 0.0,
         DefaultsKey.clipboardHistoryMenuBarPreview: false,

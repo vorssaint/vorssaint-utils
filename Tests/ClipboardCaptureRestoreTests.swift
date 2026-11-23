@@ -128,6 +128,14 @@ enum ClipboardCaptureRestoreTests {
                          "a marked temporary write restores the saved entry without another notice")
         }
 
+        let savedTemporary = start()
+        Fixture.UserDefaults.standard.ignoreTransient = false
+        copy("Temporary text", to: savedTemporary, mark: transient)
+        copy("Concealed text", to: savedTemporary, mark: "org.nspasteboard.ConcealedType")
+        suite.expect(savedTemporary.entries.map(\.text) == ["Temporary text"],
+                     "allowing temporary copies never admits concealed content")
+        Fixture.UserDefaults.standard.ignoreTransient = true
+
         for excluded in [false, true] {
             let service = start()
             var notices = 0

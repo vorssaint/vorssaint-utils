@@ -631,6 +631,10 @@ enum SettingsFeatureTests {
                 DefaultsKey.clipboardHistoryShowSourceAppIcons] as? Bool == value,
                 "the list source app icons choice survives a settings backup round trip: \(value)")
         }
+        suite.expect(backupKeys.contains(DefaultsKey.clipboardShelfEdge)
+                        && backupKeys.contains(DefaultsKey.clipboardShelfClick)
+                        && !backupKeys.contains(DefaultsKey.clipboardPinboards),
+                     "shelf controls travel with settings but user pinboard names stay local")
         suite.expect(backupKeys.contains(DefaultsKey.clipboardHistoryLayout),
                "the clipboard history layout travels with the settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryWindowWidth)

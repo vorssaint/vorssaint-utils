@@ -19,7 +19,7 @@ struct ClipboardHistoryWriteTests {
             pasteboard.rejectedOperations = [requiredOperation]
             let result = write.write(to: pasteboard, isExpired: { false })
             suite.expect(result?.succeeded == false, "failed \(name) write reports failure")
-            suite.expect(result?.changeCount == 12, "failed \(name) preserves final change count")
+            suite.expect(result?.changeCount == 11, "failed \(name) preserves the acquired change count")
             suite.expect(pasteboard.operations == ["clear", requiredOperation, "count"],
                    "failed \(name) skips optional representations")
         }
@@ -35,7 +35,7 @@ struct ClipboardHistoryWriteTests {
                    "successful \(name) remains successful if optional representation fails")
             suite.expect(pasteboard.operations.contains(optionalOperation),
                    "successful \(name) attempts optional representation")
-            suite.expect(result?.changeCount == 13, "\(name) returns count after optional write")
+            suite.expect(result?.changeCount == 11, "\(name) retains its acquired count after optional writes")
         }
 
         for (name, write, _) in writes {
@@ -45,7 +45,7 @@ struct ClipboardHistoryWriteTests {
         }
 
         // Expire before clear, after each mutation, and during the final
-        // count read. Timed-out mutations still need history bookkeeping.
+        // ownership check. Timed-out mutations still need history bookkeeping.
         for (name, write, requiredOperation) in writes {
             var mutations = ["clear", requiredOperation]
             if name == "PNG" { mutations.append("tiff") }
@@ -62,13 +62,19 @@ struct ClipboardHistoryWriteTests {
                     let expectedMutations = Array(mutations.prefix(allowedCalls))
                     suite.expect(result?.succeeded == false,
                            "expired \(name) reports failure at boundary \(allowedCalls)")
-                    suite.expect(result?.changeCount == 10 + expectedMutations.count,
-                           "expired \(name) retains final change count at boundary \(allowedCalls)")
+                    suite.expect(result?.changeCount == 11,
+                           "expired \(name) retains its acquired count at boundary \(allowedCalls)")
                     suite.expect(pasteboard.operations == expectedMutations + ["count"],
                            "expired \(name) only reads count after boundary \(allowedCalls)")
                 }
             }
         }
+
+        let replaced = FakeHistoryPasteboard()
+        replaced.replacedBeforeCountRead = true
+        let interrupted = ClipboardHistoryWrite.text("our clip").write(to: replaced, isExpired: { false })
+        suite.expect(interrupted?.succeeded == false && interrupted?.changeCount == 11,
+                     "a replacement after writing cannot be mistaken for the history write")
 
         let textPasteboard = FakeHistoryPasteboard()
         _ = ClipboardHistoryWrite.text("exact saved text").write(to: textPasteboard, isExpired: { false })
@@ -84,15 +90,18 @@ private final class FakeHistoryPasteboard: ClipboardHistoryPasteboard {
     var rejectedOperations: Set<String> = []
     var strings: [String] = []
     var data: [Data] = []
+    var replacedBeforeCountRead = false
     private var count = 10
 
     var changeCount: Int {
         operations.append("count")
+        if replacedBeforeCountRead { count += 1 }
         return count
     }
 
     func clearContents() -> Int {
         _ = mutate("clear")
+        count += 1
         return count
     }
 
@@ -112,7 +121,6 @@ private final class FakeHistoryPasteboard: ClipboardHistoryPasteboard {
 
     private func mutate(_ operation: String) -> Bool {
         operations.append(operation)
-        count += 1
         return !rejectedOperations.contains(operation)
     }
 }

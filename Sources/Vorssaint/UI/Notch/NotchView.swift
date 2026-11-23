@@ -713,7 +713,7 @@ struct NotchRestingStrip: View {
                     }
                     .frame(width: geometry.restingWingWidth)
                     .opacity(wingStepsAside(.left) ? 0 : 1)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.left))
+                    .animation(OverlayPanelMotion.edgeSlide(reduceMotion: reduceMotion), value: wingStepsAside(.left))
                     Color.clear.frame(width: geometry.cameraWidth)
                     ZStack(alignment: .leading) {
                         Color.clear
@@ -738,7 +738,7 @@ struct NotchRestingStrip: View {
                     }
                     .frame(width: geometry.restingWingWidth)
                     .opacity(wingStepsAside(.right) ? 0 : 1)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: wingStepsAside(.right))
+                    .animation(OverlayPanelMotion.edgeSlide(reduceMotion: reduceMotion), value: wingStepsAside(.right))
                 } else { Color.clear }
             }
             if service.mascotShows(on: geometry) {

@@ -9,6 +9,7 @@ import CryptoKit
 import Foundation
 import ImageIO
 import SwiftUI
+import os
 
 enum ClipboardHistoryMoveDirection {
     case up
@@ -55,10 +56,26 @@ final class ClipboardHistoryService: ObservableObject {
     @Published var quickQuery = "" {
         didSet {
             if quickQuery != oldValue {
+                quickSourcePickerPresented = false
+                quickTypePickerPresented = false
                 resetQuickSelection()
             }
         }
     }
+    @Published var quickSourcePickerPresented = false
+    @Published var quickTypePickerPresented = false
+    @Published private(set) var quickFilter = ClipboardShelfFilter()
+    @Published private(set) var quickShelfEdge = ClipboardShelfEdge.bottom
+    @Published private(set) var quickShelfTopInset: CGFloat = 0
+    @Published private(set) var quickShelfPresented = false
+    @Published private(set) var quickShelfClick = ClipboardShelfClick.select
+    @Published private(set) var pinboards = ClipboardPinboard.decode(
+        UserDefaults.standard.data(forKey: DefaultsKey.clipboardPinboards)
+    )
+
+    var quickSourceBundleID: String? { quickFilter.bundleID }
+    var quickShelfIsVertical: Bool { quickLayout == .cards && quickShelfEdge.isVertical }
+
     /// The highlighted entry itself, not its row: a copy arriving while the
     /// window is open inserts above it, and a position would then point at
     /// a different entry than the one Return is about to paste.
@@ -95,9 +112,16 @@ final class ClipboardHistoryService: ObservableObject {
     private var copyInFlight = false
     private static let pasteboardTimeout: TimeInterval = 5
     private var panel: NSPanel?
+    private var shelfPreviewPanel: NSPanel?
+    private let shelfPasteSession = OSAllocatedUnfairLock(initialState: UUID())
     private var panelResizeObserver: NSObjectProtocol?
     private var panelMoveObserver: NSObjectProtocol?
     private var adjustingPanelFrame = false
+    private var shelfIsClosing = false
+    private var reopenWhenShelfCloses = false
+    var focusedShelfLinkPreviewID: UUID?
+    var quickPinboardEditorIsActive = false
+    var quickFilterChoiceIsFocused = false
     private var panelSizeLimit: ClipboardPanelSizeLimit?
     private var keyMonitor: Any?
     private var localClickMonitor: Any?
@@ -153,22 +177,20 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func copy(_ entry: ClipboardHistoryEntry, completion: @escaping (Bool) -> Void) {
-        writeToPasteboard([entry]) { [weak self] copied in
-            if copied {
-                self?.touch([entry.id])
-                self?.latestPasteboardEntry = entry
-            }
-            completion(copied)
-        }
+        copy([entry], completion: completion)
     }
 
     func copy(_ selectedEntries: [ClipboardHistoryEntry], completion: @escaping (Bool) -> Void) {
+        copyEntries(selectedEntries) { completion($0 != nil) }
+    }
+
+    private func copyEntries(_ selectedEntries: [ClipboardHistoryEntry], completion: @escaping (Int?) -> Void) {
         guard !selectedEntries.isEmpty else {
-            completion(false)
+            completion(nil)
             return
         }
-        writeToPasteboard(selectedEntries) { [weak self] copied in
-            if copied {
+        writeToPasteboard(selectedEntries) { [weak self] changeCount in
+            if changeCount != nil {
                 self?.touch(selectedEntries.map(\.id))
                 // A single-entry selection mirrors the entry above; a real
                 // batch no longer matches any one saved entry's text, so the
@@ -176,23 +198,23 @@ final class ClipboardHistoryService: ObservableObject {
                 // single-entry snapshot on display.
                 self?.latestPasteboardEntry = selectedEntries.count == 1 ? selectedEntries[0] : nil
             }
-            completion(copied)
+            completion(changeCount)
         }
     }
 
     /// Failure includes an expired request. The lane remains serialized and
     /// admission stays occupied until the underlying operation actually ends.
     private func writeToPasteboard(_ list: [ClipboardHistoryEntry],
-                                   completion: @escaping (Bool) -> Void) {
+                                   completion: @escaping (Int?) -> Void) {
         guard !copyInFlight, let write = Self.plannedWrite(for: list) else {
-            completion(false)
+            completion(nil)
             return
         }
         copyInFlight = true
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired in
             write.write(to: NSPasteboard.general, isExpired: isExpired)
         }, then: { result in
-            completion(result?.succeeded == true)
+            completion(result?.succeeded == true ? result?.changeCount : nil)
         }, didFinish: { [weak self] result in
             guard let self else { return }
             self.copyInFlight = false
@@ -352,6 +374,69 @@ final class ClipboardHistoryService: ObservableObject {
         save()
     }
 
+    func createPinboard(named name: String, emoji: String? = nil) {
+        guard let name = ClipboardPinboard.name(from: name) else { return }
+        let board = ClipboardPinboard(id: UUID(), name: name, emoji: emoji.flatMap(ClipboardPinboard.emoji(from:)))
+        storePinboards(pinboards + [board])
+        setQuickCollection(.pinboard(board.id))
+    }
+
+    func renamePinboard(_ id: UUID, to name: String, emoji: String? = nil) {
+        guard let name = ClipboardPinboard.name(from: name),
+              let index = pinboards.firstIndex(where: { $0.id == id }) else { return }
+        var updated = pinboards
+        updated[index].name = name
+        updated[index].emoji = emoji.flatMap(ClipboardPinboard.emoji(from:))
+        storePinboards(updated)
+    }
+
+    func deletePinboard(_ id: UUID) {
+        guard pinboards.contains(where: { $0.id == id }) else { return }
+        storePinboards(pinboards.filter { $0.id != id })
+        entries = entries.map { entry in
+            guard entry.pinboardID == id else { return entry }
+            var unfiled = entry
+            unfiled.pinboardID = nil
+            return unfiled
+        }
+        if quickFilter.collection == .pinboard(id) {
+            setQuickCollection(.pinned)
+        }
+        save()
+    }
+
+    func assignPinboard(_ id: UUID?, to entry: ClipboardHistoryEntry) {
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }),
+              entries[index].pinboardID != id else { return }
+        if let id, !pinboards.contains(where: { $0.id == id }) { return }
+
+        var updated = entries
+        var clip = updated[index]
+        clip.pinboardID = id
+        if clip.isPinned {
+            updated[index] = clip
+        } else {
+            clip.pinnedAt = Date()
+            updated.remove(at: index)
+            updated.insert(clip, at: 0)
+        }
+
+        guard ClipboardHistoryEditing.pinnedEntriesFit(updated, byteLimit: encodedHistoryByteLimit) else {
+            NSSound.beep()
+            return
+        }
+        entries = updated
+        clearQuickBatchSelection()
+        resetQuickSelection()
+        save()
+    }
+
+    private func storePinboards(_ boards: [ClipboardPinboard]) {
+        guard let data = try? JSONEncoder().encode(boards) else { return }
+        UserDefaults.standard.set(data, forKey: DefaultsKey.clipboardPinboards)
+        pinboards = boards
+    }
+
     func remove(_ entry: ClipboardHistoryEntry) {
         entries.removeAll { $0.id == entry.id }
         var selected = quickBatchEntryIDs
@@ -418,8 +503,84 @@ final class ClipboardHistoryService: ObservableObject {
         Dictionary(recentEntries.map { ($0.id, $0.copiedAt) }, uniquingKeysWith: { first, _ in first })
     }
 
+    private var quickSearchSurface: ClipboardHistorySearchSurface {
+        quickFilter.isActive ? .shelf(quickFilter) : .quick
+    }
+
+    var quickSearchIsActive: Bool {
+        quickFilter.isActive || !quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     var filteredQuickEntries: [ClipboardHistoryEntry] {
-        filteredEntries(matching: quickQuery)
+        filteredEntries(matching: quickQuery, surface: quickSearchSurface)
+    }
+
+    var hasQuickSourceApps: Bool {
+        entries.contains { $0.sourceBundleID != nil }
+    }
+
+    var quickSourceApps: [ClipboardHistorySourceApp] {
+        if let cache = quickSourceAppsCache, cache.stamp == entriesStamp { return cache.apps }
+        let apps = ClipboardHistorySourceApp.fromEntries(entries)
+        quickSourceAppsCache = (entriesStamp, apps)
+        return apps
+    }
+
+    var quickSourceSuggestions: [ClipboardHistorySourceApp] {
+        guard !quickSourcePickerPresented, !quickTypePickerPresented, quickSourceBundleID == nil,
+              !quickQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
+        return ClipboardHistorySourceApp.suggestions(in: quickSourceApps, for: quickQuery)
+    }
+
+    func setQuickSourceApp(_ bundleID: String?, completingQuery: Bool = false) {
+        var filter = quickFilter
+        filter.bundleID = bundleID
+        if completingQuery { quickQuery = "" }
+        setQuickFilter(filter)
+    }
+
+    func setQuickContentType(_ type: ClipboardShelfContentType?) {
+        var filter = quickFilter
+        filter.type = type
+        setQuickFilter(filter)
+    }
+
+    var canSuggestQuickEntries: Bool {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfSuggestions) else { return false }
+        guard let bundleID = pasteTargetApp?.bundleIdentifier else { return true }
+        return !ClipboardIgnoredApps.shared.apps.contains(bundleID)
+    }
+
+    func toggleQuickSuggestions() {
+        if case .suggestions = quickFilter.collection {
+            setQuickCollection(.history)
+        } else if canSuggestQuickEntries {
+            setQuickCollection(.suggestions(pasteTargetApp?.bundleIdentifier))
+        }
+    }
+
+    func setQuickCollection(_ collection: ClipboardShelfCollection) {
+        var filter = quickFilter
+        filter.collection = collection
+        setQuickFilter(filter)
+    }
+
+    private func setQuickFilter(_ filter: ClipboardShelfFilter) {
+        guard filter != quickFilter else { return }
+        cancelSearch(on: quickSearchSurface)
+        quickSourcePickerPresented = false
+        quickTypePickerPresented = false
+        quickFilter = filter
+        // A changed filter must not leave an invisible batch as Return's target.
+        clearQuickBatchSelection()
+        resetQuickSelection()
+    }
+
+    func selectQuickEntry(_ entry: ClipboardHistoryEntry) {
+        guard filteredQuickEntries.contains(where: { $0.id == entry.id }) else { return }
+        if !quickBatchEntryIDs.contains(entry.id) { clearQuickBatchSelection() }
+        quickSelectionID = entry.id
+        quickSelectionIsVisible = true
     }
 
     var selectedQuickEntryID: UUID? {
@@ -485,6 +646,7 @@ final class ClipboardHistoryService: ObservableObject {
     private var entriesStamp = 0
     private var filterCache: [ClipboardHistorySearchSurface: ClipboardHistorySearchResults] = [:]
     private var searchCache = ClipboardHistorySearchCache()
+    private var quickSourceAppsCache: (stamp: Int, apps: [ClipboardHistorySourceApp])?
     private var deferredSearchWork: [ClipboardHistorySearchSurface: Task<Void, Never>] = [:]
 
     func cancelSearch(on surface: ClipboardHistorySearchSurface) {
@@ -509,14 +671,18 @@ final class ClipboardHistoryService: ObservableObject {
             filterCache[surface] = (query, entriesStamp, imageLabel, [])
             return []
         }
+        let scopedEntries = surface.scopedEntries(from: entries)
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
         if trimmedQuery.isEmpty {
-            filterCache[surface] = (query, entriesStamp, imageLabel, entries)
-            return entries
+            let result = scopedEntries ?? entries
+            filterCache[surface] = (query, entriesStamp, imageLabel, result)
+            return result
         }
-        let candidates = searchCache.candidates(for: entries,
-                                                stamp: entriesStamp,
-                                                imageLabel: imageLabel)
+        let allCandidates = searchCache.candidates(for: entries, stamp: entriesStamp, imageLabel: imageLabel)
+        let candidates = scopedEntries.map { scoped in
+            let ids = Set(scoped.map(\.id))
+            return allCandidates.filter { ids.contains(entries[$0.index].id) }
+        } ?? allCandidates
         let ranked = ClipboardHistorySearch.rankedIndexes(candidates: candidates, matching: query)
         let result = ranked.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
         filterCache[surface] = (query, entriesStamp, imageLabel, result)
@@ -622,33 +788,39 @@ final class ClipboardHistoryService: ObservableObject {
         quickSelectionIsVisible = true
     }
 
-    /// The window leaves the screen at once; the paste waits for the write,
-    /// because pasting before it lands would paste whatever the user had
-    /// copied before. A stale entry leaves the clipboard untouched and pastes
-    /// nothing at all.
     func copyQuickEntry(_ entry: ClipboardHistoryEntry) {
-        let target = pasteTargetApp
-        hideHistoryWindow()
-        pasteTargetApp = nil
-        copy(entry) { [weak self] copied in
-            guard copied else {
-                NSSound.beep()
-                return
-            }
-            self?.pasteIntoPreviousApp(target)
-        }
+        copyQuickEntries([entry])
     }
 
     func copyQuickEntries(_ selectedEntries: [ClipboardHistoryEntry]) {
+        guard !shelfIsClosing else {
+            NSSound.beep()
+            return
+        }
         let target = pasteTargetApp
-        hideHistoryWindow()
+        let shelfPresentation = quickLayout == .cards && panel?.isVisible == true ? quickWindowPresentationID : nil
         pasteTargetApp = nil
-        copy(selectedEntries) { [weak self] copied in
-            guard copied else {
+        // Start the write on selection. A copy made during the animation
+        // can then supersede it while the paste waits for the shelf to close.
+        var closed = false
+        var writtenChangeCount: Int?
+        func pasteWhenReady() {
+            guard closed, let writtenChangeCount else { return }
+            let shelfPaste = shelfPresentation.map { (changeCount: writtenChangeCount, presentation: $0) }
+            pasteIntoPreviousApp(target, shelfPaste: shelfPaste)
+        }
+
+        hideHistoryWindow {
+            closed = true
+            pasteWhenReady()
+        }
+        copyEntries(selectedEntries) { changeCount in
+            guard let changeCount else {
                 NSSound.beep()
                 return
             }
-            self?.pasteIntoPreviousApp(target)
+            writtenChangeCount = changeCount
+            pasteWhenReady()
         }
     }
 
@@ -747,6 +919,7 @@ final class ClipboardHistoryService: ObservableObject {
         let sinceChangeCount = lastChangeCount
         let includeImagesFiles = UserDefaults.standard.bool(
             forKey: DefaultsKey.clipboardHistoryIncludeImagesFiles)
+        let ignoreTransient = UserDefaults.standard.bool(forKey: DefaultsKey.clipboardHistoryIgnoreTransient)
         // Taken before the read, which may answer only after the panel took
         // the keys: a copy made before it opened came from the app behind.
         // A closing panel counts as holding them, since the click outside
@@ -763,7 +936,7 @@ final class ClipboardHistoryService: ObservableObject {
             // nil right after launch even though the last real copy is still
             // sitting there. Matched against the saved entries below.
             let content: CapturedContent? = (baseline || changeCount != sinceChangeCount)
-                ? Self.readPasteboard(includeImagesFiles: includeImagesFiles)
+                ? Self.readPasteboard(includeImagesFiles: includeImagesFiles, ignoreTransient: ignoreTransient)
                 : nil
             return (changeCount, content,
                     content == nil ? nil : NSPasteboard.general.string(forType: .source),
@@ -873,18 +1046,18 @@ final class ClipboardHistoryService: ObservableObject {
 
     /// Runs on the shared pasteboard lane: everything in here may block behind
     /// the pasteboard server, which is exactly why it stays off the main thread.
-    private static func readPasteboard(includeImagesFiles: Bool) -> CapturedContent? {
+    private static func readPasteboard(includeImagesFiles: Bool,
+                                       ignoreTransient: Bool) -> CapturedContent? {
         let pasteboard = NSPasteboard.general
         // An app can mark what it puts on the pasteboard as a secret, which is
         // what the apps that keep passwords do when they hand one over. Said
         // that plainly by the app itself, it is taken at its word and the
         // content is never even read, whatever the other options say.
-        // Content its app is about to take back, which is how a dictation
-        // app types, is no copy either, and is left unread the same way.
+        // By default, temporary markings also leave the payload unread.
         let types = pasteboard.types ?? []
         let names = types.map(\.rawValue)
         if ClipboardHistorySensitiveText.isConcealed(names) { return nil }
-        if ClipboardHistorySensitiveText.isTransient(names) { return .transient }
+        if ignoreTransient, ClipboardHistorySensitiveText.isTransient(names) { return .transient }
         // Files first: a Finder copy also carries name strings, and a browser
         // image copy also carries URL text, so richer content wins over its
         // own textual fallbacks.
@@ -964,7 +1137,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  imageFile: existing.imageFile,
                                                  imageHash: hash,
                                                  imageWidth: existing.imageWidth,
-                                                 imageHeight: existing.imageHeight),
+                                                 imageHeight: existing.imageHeight,
+                                                 pinboardID: existing.pinboardID),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             guard let name = ClipboardImageStore.store(image.data) else { return }
@@ -989,7 +1163,8 @@ final class ClipboardHistoryService: ObservableObject {
                                                  copiedAt: Date(),
                                                  pinnedAt: existing.pinnedAt,
                                                  kind: .files,
-                                                 filePaths: paths),
+                                                 filePaths: paths,
+                                                 pinboardID: existing.pinboardID),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: "", kind: .files, filePaths: paths), source: source)
@@ -1039,7 +1214,8 @@ final class ClipboardHistoryService: ObservableObject {
             insertPromoted(ClipboardHistoryEntry(id: existing.id,
                                                  text: text,
                                                  copiedAt: Date(),
-                                                 pinnedAt: existing.pinnedAt),
+                                                 pinnedAt: existing.pinnedAt,
+                                                 pinboardID: existing.pinboardID),
                            source: keepsSource ? existing.sourceBundleID : source)
         } else {
             insertPromoted(ClipboardHistoryEntry(text: text), source: source)
@@ -1153,7 +1329,13 @@ final class ClipboardHistoryService: ObservableObject {
             // round trip) would sit in the preferences plist forever.
             UserDefaults.standard.removeObject(forKey: DefaultsKey.clipboardHistoryEntries)
         }
-        entries = decoded
+        let validBoards = Set(pinboards.map(\.id))
+        entries = decoded.map { entry in
+            guard let id = entry.pinboardID, !validBoards.contains(id) else { return entry }
+            var unfiled = entry
+            unfiled.pinboardID = nil
+            return unfiled
+        }
         normalizeEntryOrder()
         trimToLimit()
         // latestPasteboardEntry is deliberately left nil here rather than
@@ -1314,8 +1496,7 @@ final class ClipboardHistoryService: ObservableObject {
         guard presented != quickPreviewPresented else { return }
         quickPreviewPresented = presented
         UserDefaults.standard.set(presented, forKey: DefaultsKey.clipboardHistoryQuickPreview)
-        // The list window grows to make room for the preview. The shelf keeps
-        // its frame and gives the preview part of the strip.
+        // The List window grows to make room for its inspector.
         guard quickLayout == .list, let panel, panel.isVisible else { return }
         let previousFrame = panel.frame
         resize(panel, to: preferredPanelSize(visibleFrame: panel.screen?.visibleFrame
@@ -1323,8 +1504,59 @@ final class ClipboardHistoryService: ObservableObject {
                around: previousFrame, animated: true)
     }
 
+    func previewQuickSelection() {
+        if quickLayout == .list {
+            toggleQuickPreview()
+        } else if let entry = selectedQuickEntry {
+            showShelfPreview(entry)
+        }
+    }
+
+    func showShelfPreview(_ entry: ClipboardHistoryEntry) {
+        guard quickLayout == .cards, let shelf = panel, shelf.isVisible, !shelfIsClosing,
+              let screen = shelf.screen,
+              !UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode) else { return }
+
+        closeShelfPreview()
+        let text = FeatureStrings.clipboard(L10n.shared.language)
+        let frame = quickShelfEdge.previewFrame(beside: shelf.frame, within: screen.visibleFrame)
+        let preview = ClipboardShelfPreviewPanel(contentRect: frame,
+                                                 styleMask: [.titled, .closable, .nonactivatingPanel],
+                                                 backing: .buffered, defer: false)
+        preview.onClose = { [weak self] in self?.closeShelfPreview(restoreFocus: true) }
+        preview.title = text.previewLabel
+        preview.appearance = shelf.appearance ?? NSAppearance(named: .darkAqua)
+        preview.isReleasedWhenClosed = false
+        preview.collectionBehavior = [.fullScreenAuxiliary, .ignoresCycle]
+        preview.level = shelf.level
+        preview.contentViewController = NSHostingController(rootView: ClipboardShelfPreviewView(entry: entry, text: text))
+        preview.setFrame(frame, display: false)
+        shelfPreviewPanel = preview
+        shelf.addChildWindow(preview, ordered: .above)
+        preview.makeKeyAndOrderFront(nil)
+    }
+
+    func closeShelfPreview(restoreFocus: Bool = false) {
+        guard let preview = shelfPreviewPanel else { return }
+        shelfPreviewPanel = nil
+        preview.parent?.removeChildWindow(preview)
+        preview.close()
+        if restoreFocus, panel?.isVisible == true { panel?.makeKey() }
+    }
+
+    private func routeHistoryToIsland(toggle: Bool = false) -> Bool {
+        guard ClipboardHistoryLayout.current() == .list, NotchSupport.routesClipboardWindow() else {
+            return false
+        }
+        return NotchService.shared.showClipboard(toggle: toggle)
+    }
+
     func toggleHistoryWindow() {
-        if NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard(toggle: true) { return }
+        if shelfIsClosing {
+            reopenWhenShelfCloses.toggle()
+            return
+        }
+        if routeHistoryToIsland(toggle: true) { return }
         if panel?.isVisible == true {
             hideHistoryWindow()
         } else {
@@ -1333,15 +1565,33 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     func showHistoryWindow(preferNotch: Bool = true) {
-        if preferNotch, NotchSupport.routesClipboardWindow(), NotchService.shared.showClipboard() { return }
+        if shelfIsClosing {
+            reopenWhenShelfCloses = true
+            return
+        }
+        if preferNotch, routeHistoryToIsland() { return }
         let panel = ensurePanel()
         rememberPasteTarget()
         refreshQuickLayout()
+
+        quickSourceAppsCache = nil
+        quickSourcePickerPresented = false
+        quickTypePickerPresented = false
+        setQuickFilter(ClipboardShelfFilter())
+        closeShelfPreview()
+
         quickWindowPresentationID = UUID()
+        shelfPasteSession.withLock { $0 = quickWindowPresentationID }
         quickQuery = ""
         clearQuickBatchSelection()
         resetQuickSelection()
-        position(panel)
+        let screen = NSScreen.withMouse
+        let hasShelf = quickLayout == .cards
+        let topInset = hasShelf && quickShelfEdge != .bottom ? screen?.safeAreaInsets.top ?? 0 : 0
+        quickShelfTopInset = topInset
+        quickShelfPresented = false
+        (panel as? ClipboardEdgePanel)?.setEdgeStyle(hasShelf)
+        position(panel, shelfScreenFrame: screen?.frame, topInset: topInset)
         installKeyMonitor(for: panel)
         installDismissMonitors(for: panel)
         // A copy made just before opening is read while the panel does not
@@ -1350,20 +1600,58 @@ final class ClipboardHistoryService: ObservableObject {
         panel.alphaValue = 1
         panel.orderFrontRegardless()
         panel.makeKey()
+        let presentation = quickWindowPresentationID
+        DispatchQueue.main.async { [weak self, weak panel] in
+            guard let self, panel?.isVisible == true, !self.shelfIsClosing,
+                  self.quickWindowPresentationID == presentation else { return }
+            let motion = OverlayPanelMotion.edgeSlide(
+                reduceMotion: NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            )
+            withAnimation(motion) { self.quickShelfPresented = true }
+        }
     }
 
-    func hideHistoryWindow() {
-        cancelSearch(on: .quick)
+    func hideHistoryWindow(afterClosing completion: (() -> Void)? = nil) {
+        guard !shelfIsClosing else { return }
+        closeShelfPreview()
+        cancelSearch(on: quickSearchSurface)
         // What was copied in the panel is read now, as the panel's, so a copy
         // made right after in the app behind is credited to that app.
         if panel?.isVisible == true { captureIfChanged(historyPanelClosing: true) }
-        removeKeyMonitor()
         removeDismissMonitors()
         // Ordering out keeps an open confirmation attached, and it would come
         // back with its old count the next time the window opens.
         if let panel, let sheet = panel.attachedSheet { panel.endSheet(sheet) }
+        let shouldSlide = quickLayout == .cards && quickShelfPresented && panel?.isVisible == true
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        if shouldSlide {
+            shelfIsClosing = true
+            panel?.ignoresMouseEvents = true
+            withAnimation(OverlayPanelMotion.edgeSlide(reduceMotion: false)) {
+                quickShelfPresented = false
+            } completion: { [weak self] in
+                self?.finishHistoryWindowClose(completion: completion)
+            }
+        } else {
+            quickShelfPresented = false
+            finishHistoryWindowClose(completion: completion)
+        }
+    }
+
+    private func finishHistoryWindowClose(completion: (() -> Void)?) {
+        removeKeyMonitor()
         panel?.orderOut(nil)
+        panel?.ignoresMouseEvents = false
+        shelfIsClosing = false
         clearQuickBatchSelection()
+        focusedShelfLinkPreviewID = nil
+        quickPinboardEditorIsActive = false
+        quickFilterChoiceIsFocused = false
+        completion?()
+        if reopenWhenShelfCloses {
+            reopenWhenShelfCloses = false
+            showHistoryWindow()
+        }
     }
 
     func rememberPasteTarget() {
@@ -1383,13 +1671,18 @@ final class ClipboardHistoryService: ObservableObject {
     /// says so the way Paste as Plain Text does (#186) instead of doing nothing.
     /// No target means the window opened over Vorssaint itself or an app
     /// without a Dock icon, where a pick is only a copy and stays silent.
-    private func pasteIntoPreviousApp(_ app: NSRunningApplication?) {
+    private func pasteIntoPreviousApp(_ app: NSRunningApplication?,
+                                      shelfPaste: (changeCount: Int, presentation: UUID)? = nil) {
         guard let app else { return }
         guard !app.isTerminated else {
             NSSound.beep()
             return
         }
-        app.activate(options: [])
+        if let shelfPaste {
+            guard quickWindowPresentationID == shelfPaste.presentation, isFrontmost(app) else { return }
+        } else {
+            app.activate(options: [])
+        }
         guard ClipboardHistoryPasteTarget.acceptsSyntheticPaste(bundleID: app.bundleIdentifier) else { return }
         guard AXIsProcessTrusted() else {
             if promptedForAccessibility {
@@ -1401,11 +1694,34 @@ final class ClipboardHistoryService: ObservableObject {
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            Self.postPasteShortcut()
+            if let shelfPaste {
+                self.verifyAndPostShelfPaste(to: app, expectedChangeCount: shelfPaste.changeCount,
+                                             presentation: shelfPaste.presentation)
+            } else {
+                Self.postPasteShortcut()
+            }
         }
     }
 
-    private static func postPasteShortcut() {
+    private func isFrontmost(_ app: NSRunningApplication) -> Bool {
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier
+    }
+
+    private func verifyAndPostShelfPaste(to app: NSRunningApplication, expectedChangeCount: Int, presentation: UUID) {
+        guard panel?.isVisible != true, isFrontmost(app), quickWindowPresentationID == presentation else { return }
+        let session = shelfPasteSession
+        let processID = app.processIdentifier
+        GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired -> Bool in
+            guard NSPasteboard.general.changeCount == expectedChangeCount, !isExpired(), app.isActive else { return false }
+            return session.withLock { current in
+                guard current == presentation else { return false }
+                Self.postPasteShortcut(to: processID)
+                return true
+            }
+        }, then: { _ in })
+    }
+
+    private static func postPasteShortcut(to processID: pid_t? = nil) {
         guard let source = CGEventSource(stateID: .hidSystemState),
               let keyDown = CGEvent(keyboardEventSource: source,
                                     virtualKey: CGKeyCode(kVK_ANSI_V),
@@ -1416,23 +1732,21 @@ final class ClipboardHistoryService: ObservableObject {
         else { return }
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
+        if let processID {
+            keyDown.postToPid(processID)
+            keyUp.postToPid(processID)
+        } else {
+            keyDown.post(tap: .cghidEventTap)
+            keyUp.post(tap: .cghidEventTap)
+        }
     }
 
     private func ensurePanel() -> NSPanel {
         if let panel { return panel }
-        let panel = OverlayPanel(contentRect: .zero,
-                                 styleMask: [.titled, .closable,
-                                             .fullSizeContentView, .nonactivatingPanel],
-                                 backing: .buffered,
-                                 defer: false)
+        let panel = ClipboardEdgePanel(contentRect: .zero,
+                                       styleMask: ClipboardEdgePanel.listStyle,
+                                       backing: .buffered, defer: false)
         panel.title = FeatureStrings.clipboard(L10n.shared.language).title
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        panel.standardWindowButton(.closeButton)?.isHidden = true
-        panel.standardWindowButton(.miniaturizeButton)?.isHidden = true
-        panel.standardWindowButton(.zoomButton)?.isHidden = true
         panel.isReleasedWhenClosed = false
         // Movable-by-background turns ⌘-click into a window-background grab
         // before any row sees it, which silently broke modifier clicks on
@@ -1475,8 +1789,13 @@ final class ClipboardHistoryService: ObservableObject {
     /// Read on every opening, so a layout picked in Settings applies the next
     /// time the window opens.
     private func refreshQuickLayout() {
-        let layout = ClipboardHistoryLayout.current(in: UserDefaults.standard)
+        let defaults = UserDefaults.standard
+        let layout = ClipboardHistoryLayout.current(in: defaults)
         if quickLayout != layout { quickLayout = layout }
+        quickShelfEdge = defaults.string(forKey: DefaultsKey.clipboardShelfEdge)
+            .flatMap(ClipboardShelfEdge.init(rawValue:)) ?? .bottom
+        quickShelfClick = defaults.string(forKey: DefaultsKey.clipboardShelfClick)
+            .flatMap(ClipboardShelfClick.init(rawValue:)) ?? .select
     }
 
     /// The list keeps room for the batch actions and the preview while the
@@ -1511,21 +1830,27 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     /// Placed again on every open, so a changed display never strands it.
-    /// Cards make a shelf along the bottom of the screen the pointer is on.
+    /// Cards use the chosen edge of the screen under the pointer.
     /// The list keeps its chosen location when that display is still usable.
-    private func position(_ panel: NSPanel) {
+    private func position(_ panel: NSPanel, shelfScreenFrame: CGRect? = nil, topInset: CGFloat = 0) {
         adjustingPanelFrame = true
         defer { adjustingPanelFrame = false }
         let screen = NSScreen.pointerVisibleFrame
         switch quickLayout {
         case .cards:
             panel.styleMask.remove(.resizable)
-            panel.setFrame(NSRect(x: screen.minX + 16, y: screen.minY + 8,
-                                  width: screen.width - 32, height: min(318, screen.height - 16)),
-                           display: true,
-                           animate: false)
+            panel.isMovable = false
+            panel.isOpaque = false
+            panel.backgroundColor = .clear
+            panel.level = .statusBar
+            let frame = quickShelfEdge.frame(in: shelfScreenFrame ?? screen, topInset: topInset)
+            panel.setFrame(frame, display: true, animate: false)
         case .list:
             panel.styleMask.insert(.resizable)
+            panel.level = .floating
+            panel.isMovable = true
+            panel.isOpaque = true
+            panel.backgroundColor = .windowBackgroundColor
             let defaults = UserDefaults.standard
             if defaults.object(forKey: DefaultsKey.clipboardHistoryWindowX) != nil,
                defaults.object(forKey: DefaultsKey.clipboardHistoryWindowY) != nil,
@@ -1571,19 +1896,37 @@ final class ClipboardHistoryService: ObservableObject {
         removeKeyMonitor()
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak panel] event in
             // An open confirmation owns Return and Escape.
-            guard let self, let panel, event.window === panel, panel.attachedSheet == nil else { return event }
+            guard let self, let panel else { return event }
+            if let preview = self.shelfPreviewPanel, event.window === preview {
+                return self.handleShelfPreviewKey(event)
+            }
+            guard event.window === panel, panel.attachedSheet == nil else { return event }
+            if self.shelfIsClosing { return nil }
             // A multiline editor owns its normal editing keys, and any field
             // still composing owns them too. Outside composition the search
             // box keeps the list's shortcuts, as does the read-only preview:
             // only ⌘C and ⌘A, which the list declines below when nothing is
             // batch-selected, reach it.
-            if let textView = panel.firstResponder as? NSTextView,
-               ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
+            if UserDefaults.standard.bool(forKey: DefaultsKey.clipboardShelfPrivacyMode) {
+                if event.keyCode == UInt16(kVK_Escape) { self.hideHistoryWindow() }
+                return nil
+            }
+            if self.quickPinboardEditorIsActive { return event }
+            let textEditor = panel.firstResponder as? NSTextView
+            if let textView = textEditor, ClipboardHistoryFocus.textViewOwnsKeys(isComposing: textView.hasMarkedText(),
                                                       isFieldEditor: textView.isFieldEditor,
                                                       isEditable: textView.isEditable) {
                 return event
             }
             let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+
+            let plainTab = event.keyCode == UInt16(kVK_Tab) && modifiers.isEmpty
+            if plainTab, textEditor?.isFieldEditor == true {
+                guard let suggestion = self.quickSourceSuggestions.first else { return event }
+                self.setQuickSourceApp(suggestion.id, completingQuery: true)
+                return nil
+            }
+
             if event.keyCode == UInt16(kVK_Escape) {
                 switch ClipboardHistoryEscape.action(batchCount: self.quickBatchCount) {
                 case .clearBatchSelection: self.clearQuickBatchSelection()
@@ -1591,12 +1934,15 @@ final class ClipboardHistoryService: ObservableObject {
                 }
                 return nil
             }
-            // Finder-style Quick Look without stealing ordinary spaces typed
-            // into search: the list claims Space only after arrow navigation.
+            let isActivationKey = [kVK_Space, kVK_Return, kVK_ANSI_KeypadEnter].contains(Int(event.keyCode))
+            let controlOwnsActivation = self.focusedShelfLinkPreviewID != nil || self.quickFilterChoiceIsFocused
+            if controlOwnsActivation, modifiers.isEmpty, isActivationKey { return event }
+            // Space previews an explicitly highlighted result. Before a card
+            // is selected, spaces still go into the search field.
             if event.keyCode == UInt16(kVK_Space),
                ClipboardHistoryPreview.handlesSpace(selectionIsVisible: self.quickSelectionIsVisible,
                                                      hasModifiers: !modifiers.isEmpty) {
-                self.toggleQuickPreview()
+                if !event.isARepeat { self.previewQuickSelection() }
                 return nil
             }
             if event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) {
@@ -1642,7 +1988,7 @@ final class ClipboardHistoryService: ObservableObject {
                 return nil
             }
             if let step = ClipboardHistoryNavigation.step(keyCode: event.keyCode, modifiers: modifiers,
-                                                          key: key, layout: self.quickLayout) {
+                                                          key: key, layout: self.quickShelfIsVertical ? .list : self.quickLayout) {
                 self.moveQuickSelection(step)
                 return nil
             }
@@ -1655,18 +2001,29 @@ final class ClipboardHistoryService: ObservableObject {
         }
     }
 
+    private func handleShelfPreviewKey(_ event: NSEvent) -> NSEvent? {
+        let modifiers = event.modifierFlags.intersection([.command, .option, .shift, .control])
+        let dismisses = event.keyCode == UInt16(kVK_Escape) || event.keyCode == UInt16(kVK_Space)
+        guard modifiers.isEmpty, dismisses else { return event }
+        if !event.isARepeat { closeShelfPreview(restoreFocus: true) }
+        return nil
+    }
+
     private func installDismissMonitors(for panel: NSPanel) {
         removeDismissMonitors()
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
-            guard let self, let panel, panel.isVisible else { return event }
+            guard let self, let panel, panel.isVisible, panel.attachedSheet == nil else { return event }
+            if let preview = self.shelfPreviewPanel, event.window === preview { return event }
             if event.window !== panel, !Self.mouseIsInside(panel) {
                 self.hideHistoryWindow()
+            } else {
+                self.closeShelfPreview()
             }
             return event
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
-            guard let self, let panel, panel.isVisible else { return }
+            guard let self, let panel, panel.isVisible, panel.attachedSheet == nil else { return }
             if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
                // Every key on the Accessibility Keyboard is a click outside this
                // panel. Dismissing on those makes the panel impossible to type into.
@@ -1720,6 +2077,10 @@ final class ClipboardHistoryService: ObservableObject {
     }
 
     private var quickBatchEntries: [ClipboardHistoryEntry] {
+        guard !quickBatchEntryIDs.isEmpty else { return [] }
+        if quickSearchIsActive {
+            return filteredQuickEntries.filter { quickBatchEntryIDs.contains($0.id) }
+        }
         let allIDs = entries.map(\.id)
         let indexes = ClipboardHistoryBatch.orderedSelectedIndexes(allIDs: allIDs,
                                                                   selectedIDs: quickBatchEntryIDs)
@@ -1756,6 +2117,40 @@ final class ClipboardHistoryService: ObservableObject {
     /// A highlighted entry that left the results falls back to the first.
     private func selectedQuickIndex(in matches: [ClipboardHistoryEntry]) -> Int {
         matches.firstIndex { $0.id == quickSelectionID } ?? 0
+    }
+}
+
+private final class ClipboardShelfPreviewPanel: OverlayPanel {
+    var onClose: (() -> Void)?
+
+    override func performClose(_ sender: Any?) {
+        if let onClose { onClose() } else { super.performClose(sender) }
+    }
+}
+
+private final class ClipboardEdgePanel: OverlayPanel {
+    static let listStyle: NSWindow.StyleMask = [.titled, .closable, .resizable, .fullSizeContentView, .nonactivatingPanel]
+    private static let edgeStyle: NSWindow.StyleMask = [.borderless, .nonactivatingPanel]
+
+    override var canBecomeKey: Bool { true }
+
+    func setEdgeStyle(_ usesEdge: Bool) {
+        let style = usesEdge ? Self.edgeStyle : Self.listStyle
+        if styleMask != style { styleMask = style }
+        hasShadow = !usesEdge
+        guard !usesEdge else { return }
+        titlebarAppearsTransparent = true
+        titleVisibility = .hidden
+        standardWindowButton(.closeButton)?.isHidden = true
+        standardWindowButton(.miniaturizeButton)?.isHidden = true
+        standardWindowButton(.zoomButton)?.isHidden = true
+    }
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        // A titled AppKit panel rounds all four corners and fits to the
+        // visible frame. The borderless shelf draws only its inward corners.
+        if styleMask == Self.edgeStyle { return frameRect }
+        return super.constrainFrameRect(frameRect, to: screen)
     }
 }
 

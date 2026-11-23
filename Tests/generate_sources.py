@@ -790,9 +790,15 @@ def main():
           + declaration(clipboard, "    func updateText(")
           + "".join(declaration(clipboard, prefix).replace("private ", "", 1) for prefix in [
               "    func togglePin(", "    func clearRecent(", "    var recentEntries:", "    var recentEntriesSnapshot:",
-              "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func touch(",
+              "    func copy(_ entry:", "    func copy(_ selectedEntries:", "    private func copyEntries(",
+              "    private func touch(", "    var quickSearchIsActive:",
               "    private var firstRecentIndex:", "    private func normalizeEntryOrder(",
               "    func cancelSearch(", "    func filteredEntries(", "    var filteredQuickEntries:", "    var selectedQuickEntry:",
+              "    private var quickSearchSurface:", "    func setQuickSourceApp(",
+              "    func setQuickContentType(", "    func setQuickCollection(", "    private func setQuickFilter(",
+              "    func createPinboard(", "    func renamePinboard(", "    func deletePinboard(",
+              "    func assignPinboard(", "    private func storePinboards(",
+              "    private func resetQuickSelection(", "    func clearQuickBatchSelection(",
               "    private func scheduleDeferredSearch(",
               "    func moveQuickSelection(", "    func removeSelectedQuickEntries(",
               "    private var quickBatchEntries:", "    private func quickEntriesForPrimaryAction(",

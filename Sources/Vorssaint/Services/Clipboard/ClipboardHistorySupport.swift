@@ -23,6 +23,148 @@ enum ClipboardHistoryLayout: String, CaseIterable {
     var sideArrowsMoveSelection: Bool { self == .cards }
 }
 
+enum ClipboardShelfEdge: String, CaseIterable {
+    case top, bottom, left, right
+
+    var isVertical: Bool { self == .left || self == .right }
+
+    func frame(in screen: CGRect, topInset: CGFloat = 0) -> CGRect {
+        let width = isVertical ? min(336, screen.width) : screen.width
+        let height = isVertical ? screen.height : min(366 + topInset, screen.height)
+        let x = self == .right ? screen.maxX - width : screen.minX
+        let y = self == .top ? screen.maxY - height : screen.minY
+        return CGRect(x: x, y: y, width: width, height: height)
+    }
+
+    func cornerRadii(_ radius: CGFloat) -> RectangleCornerRadii {
+        switch self {
+        case .top: return RectangleCornerRadii(bottomLeading: radius, bottomTrailing: radius)
+        case .bottom: return RectangleCornerRadii(topLeading: radius, topTrailing: radius)
+        case .left: return RectangleCornerRadii(bottomTrailing: radius, topTrailing: radius)
+        case .right: return RectangleCornerRadii(topLeading: radius, bottomLeading: radius)
+        }
+    }
+
+    func previewFrame(beside shelf: CGRect, within screen: CGRect) -> CGRect {
+        let available: CGRect
+        switch self {
+        case .top: available = screen.divided(atDistance: max(0, shelf.minY - screen.minY), from: .minYEdge).slice
+        case .bottom: available = screen.divided(atDistance: max(0, shelf.maxY - screen.minY), from: .minYEdge).remainder
+        case .left: available = screen.divided(atDistance: max(0, shelf.maxX - screen.minX), from: .minXEdge).remainder
+        case .right: available = screen.divided(atDistance: max(0, shelf.minX - screen.minX), from: .minXEdge).slice
+        }
+        let area = available.width >= 280 && available.height >= 200 ? available : screen
+        let width = min(640, area.width * 0.94)
+        let height = min(500, area.height * 0.94)
+        return CGRect(x: area.midX - width / 2, y: area.midY - height / 2, width: width, height: height)
+    }
+
+    func hiddenOffset(for size: CGSize) -> CGSize {
+        switch self {
+        case .top: return CGSize(width: 0, height: -size.height)
+        case .bottom: return CGSize(width: 0, height: size.height)
+        case .left: return CGSize(width: -size.width, height: 0)
+        case .right: return CGSize(width: size.width, height: 0)
+        }
+    }
+}
+
+enum ClipboardShelfCardLayout {
+    static let inset: CGFloat = 12
+    static let spacing: CGFloat = 10
+
+    static func cardSize(in viewport: CGSize, entryCount: Int, vertical: Bool,
+                         legacyScrollerWidth: CGFloat = 0) -> CGSize {
+        let width = max(1, viewport.width - 2 * inset)
+        let height = max(1, viewport.height - 2 * inset)
+        let scrollingLength = vertical ? height : width
+        let minimum: CGFloat = vertical ? 210 : 184
+        let capacity = max(1, Int((scrollingLength + spacing) / (minimum + spacing)))
+        let visibleCount = CGFloat(max(1, min(entryCount, capacity)))
+        let cardLength = (scrollingLength - spacing * (visibleCount - 1)) / visibleCount
+
+        let scroller = entryCount > capacity ? legacyScrollerWidth : 0
+        let crossLength = max(1, (vertical ? width : height) - scroller)
+        return vertical ? CGSize(width: crossLength, height: cardLength)
+                        : CGSize(width: cardLength, height: crossLength)
+    }
+}
+
+enum ClipboardShelfClick: String, CaseIterable {
+    case select, paste
+}
+
+enum ClipboardShelfContentType: String, CaseIterable, Hashable {
+    case text, link, color, image, file
+
+    var symbol: String {
+        switch self {
+        case .text: return "text.alignleft"
+        case .link: return "link"
+        case .color: return "paintpalette"
+        case .image: return "photo"
+        case .file: return "doc"
+        }
+    }
+}
+
+struct ClipboardPinboard: Codable, Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var emoji: String? = nil
+
+    var label: String { emoji.map { "\($0) \(name)" } ?? name }
+
+    static func name(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func emoji(from text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count == 1 else { return nil }
+        let scalars = trimmed.unicodeScalars
+        let hasEmojiPresentation = scalars.contains { $0.properties.isEmojiPresentation }
+        let isEmojiVariant = scalars.contains("\u{FE0F}") && scalars.contains { $0.properties.isEmoji }
+        return hasEmojiPresentation || isEmojiVariant ? trimmed : nil
+    }
+
+    static func decode(_ data: Data?) -> [Self] {
+        guard let data, let boards = try? JSONDecoder().decode([Self].self, from: data) else { return [] }
+        var ids = Set<UUID>()
+        return boards.compactMap { board in
+            guard let name = Self.name(from: board.name), ids.insert(board.id).inserted else { return nil }
+            return Self(id: board.id, name: name, emoji: board.emoji.flatMap(Self.emoji(from:)))
+        }
+    }
+}
+
+enum ClipboardShelfCollection: Hashable {
+    case history, pinned, pinboard(UUID), suggestions(String?)
+
+    func includes(_ entry: ClipboardHistoryEntry) -> Bool {
+        switch self {
+        case .history, .suggestions: return true
+        case .pinned: return entry.isPinned && entry.pinboardID == nil
+        case .pinboard(let id): return entry.isPinned && entry.pinboardID == id
+        }
+    }
+}
+
+struct ClipboardShelfFilter: Hashable {
+    var collection: ClipboardShelfCollection = .history
+    var bundleID: String?
+    var type: ClipboardShelfContentType?
+
+    var isActive: Bool { collection != .history || bundleID != nil || type != nil }
+
+    func includes(_ entry: ClipboardHistoryEntry) -> Bool {
+        collection.includes(entry)
+            && (bundleID == nil || entry.sourceBundleID == bundleID)
+            && (type == nil || entry.shelfContentType == type)
+    }
+}
+
 enum ClipboardHistoryWindowSizing {
     static let compactDefault = NSSize(width: 560, height: 420)
     static let compactMinimum = NSSize(width: 560, height: 300)
@@ -204,6 +346,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
     /// a history written before it existed still decodes, and an older
     /// version reading this file skips the key.
     var sourceBundleID: String?
+    var pinboardID: UUID?
 
     init(id: UUID = UUID(),
          text: String,
@@ -214,7 +357,8 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
          imageFile: String? = nil,
          imageHash: String? = nil,
          imageWidth: Int? = nil,
-         imageHeight: Int? = nil) {
+         imageHeight: Int? = nil,
+         pinboardID: UUID? = nil) {
         self.id = id
         self.text = text
         self.copiedAt = copiedAt
@@ -225,10 +369,30 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         self.imageHash = imageHash
         self.imageWidth = imageWidth
         self.imageHeight = imageHeight
+        self.pinboardID = pinnedAt == nil ? nil : pinboardID
     }
 
     var isPinned: Bool {
         pinnedAt != nil
+    }
+
+    var shelfContentType: ClipboardShelfContentType {
+        switch kind {
+        case .image: return .image
+        case .files: return .file
+        case .text:
+            if shelfLink != nil { return .link }
+            return color == nil ? .text : .color
+        }
+    }
+
+    var shelfLink: URL? {
+        guard kind == .text, text.utf8.count <= Self.indexCharacters else { return nil }
+        let candidate = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.contains(where: \.isWhitespace), let url = URL(string: candidate),
+              let scheme = url.scheme?.lowercased(), scheme == "https" || scheme == "http",
+              url.host != nil else { return nil }
+        return url
     }
 
     var fileNames: [String] {
@@ -337,7 +501,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, text, copiedAt, pinnedAt, kind, filePaths, imageFile, imageHash, imageWidth, imageHeight
-        case sourceBundleID
+        case sourceBundleID, pinboardID
     }
 
     init(from decoder: Decoder) throws {
@@ -354,6 +518,7 @@ struct ClipboardHistoryEntry: Codable, Equatable, Identifiable {
         imageWidth = try container.decodeIfPresent(Int.self, forKey: .imageWidth)
         imageHeight = try container.decodeIfPresent(Int.self, forKey: .imageHeight)
         sourceBundleID = try container.decodeIfPresent(String.self, forKey: .sourceBundleID)
+        pinboardID = pinnedAt == nil ? nil : (try? container.decodeIfPresent(UUID.self, forKey: .pinboardID))
     }
 }
 
@@ -397,6 +562,7 @@ enum ClipboardHistoryEditing {
     static func unpinned(_ entry: ClipboardHistoryEntry, now: Date = Date()) -> ClipboardHistoryEntry {
         var entry = entry
         entry.pinnedAt = nil
+        entry.pinboardID = nil
         entry.copiedAt = now
         return entry
     }
@@ -750,7 +916,80 @@ struct ClipboardHistorySearchCache {
     }
 }
 
-enum ClipboardHistorySearchSurface: Hashable { case quick, view(UUID), commandBar }
+enum ClipboardHistorySearchSurface: Hashable {
+    case quick
+    case shelf(ClipboardShelfFilter)
+    case view(UUID)
+    case commandBar
+
+    func scopedEntries(from entries: [ClipboardHistoryEntry]) -> [ClipboardHistoryEntry]? {
+        guard case .shelf(let filter) = self else { return nil }
+        let matching = entries.filter(filter.includes)
+        guard case .suggestions(let target) = filter.collection else { return matching }
+        return ClipboardShelfSuggestions.rank(matching, for: target)
+    }
+}
+
+enum ClipboardShelfSuggestions {
+    static func rank(_ entries: [ClipboardHistoryEntry], for bundleID: String?) -> [ClipboardHistoryEntry] {
+        let ranked = entries.sorted { lhs, rhs in
+            if let bundleID {
+                let lhsMatches = lhs.sourceBundleID == bundleID
+                let rhsMatches = rhs.sourceBundleID == bundleID
+                if lhsMatches != rhsMatches { return lhsMatches }
+            }
+            return lhs.copiedAt > rhs.copiedAt
+        }
+        return Array(ranked.prefix(8))
+    }
+}
+
+struct ClipboardHistorySourceApp: Identifiable {
+    let id: String
+    let name: String
+    var url: URL? = nil
+
+    static func resolve(_ bundleID: String) -> Self {
+        // Sources from the pasteboard are bundle identifiers, never file paths.
+        guard let url = InstalledApps.url(for: bundleID) else {
+            return Self(id: bundleID, name: bundleID)
+        }
+        let finderName = FileManager.default.displayName(atPath: url.path)
+        let name = InstalledApps.displayName(fromFinderName: finderName)
+        return Self(id: bundleID, name: name, url: url)
+    }
+
+    var icon: NSImage? {
+        url.map { NSWorkspace.shared.icon(forFile: $0.path) }
+    }
+
+    static func fromEntries(_ entries: [ClipboardHistoryEntry],
+                            resolve: (String) -> Self = Self.resolve) -> [Self] {
+        Set(entries.compactMap(\.sourceBundleID)).map(resolve).sorted {
+            let order = $0.name.localizedStandardCompare($1.name)
+            return order == .orderedSame ? $0.id < $1.id : order == .orderedAscending
+        }
+    }
+
+    static func suggestions(in apps: [Self], for query: String) -> [Self] {
+        let term = ClipboardHistorySearch.normalized(query)
+        guard !term.isEmpty else { return [] }
+        var exact: [Self] = []
+        var prefixes: [Self] = []
+        var otherMatches: [Self] = []
+        for app in apps {
+            let name = ClipboardHistorySearch.normalized(app.name)
+            if name == term {
+                exact.append(app)
+            } else if name.hasPrefix(term) {
+                prefixes.append(app)
+            } else if name.contains(term) {
+                otherMatches.append(app)
+            }
+        }
+        return Array((exact + prefixes + otherMatches).prefix(3))
+    }
+}
 typealias ClipboardHistorySearchResults = (query: String, stamp: Int, imageLabel: String, result: [ClipboardHistoryEntry])
 
 enum ClipboardHistorySearch {
@@ -972,6 +1211,8 @@ enum ClipboardHistoryEscape {
 }
 
 enum ClipboardHistoryFocus {
+    static let buttonConfirmationKeys: Set<KeyEquivalent> = [.return, KeyEquivalent("\u{3}")]
+
     /// Which side owns an ordinary key press while a text view holds focus in
     /// the quick panel. A composing input method always wins: Return confirms
     /// the candidate, the arrows walk it and Esc drops it, so claiming those

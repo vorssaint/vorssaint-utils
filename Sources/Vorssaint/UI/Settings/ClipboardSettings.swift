@@ -15,10 +15,21 @@ struct ClipboardSettings: View {
     @AppStorage(DefaultsKey.clipboardHistoryLimit) private var limit = 50
     @AppStorage(DefaultsKey.clipboardHistoryRetentionDays) private var retentionDays = 0
     @AppStorage(DefaultsKey.clipboardHistoryFilterSensitiveText) private var skipSensitive = false
+
+    @AppStorage(DefaultsKey.clipboardHistoryIgnoreTransient) private var skipTransient = true
+
     @AppStorage(DefaultsKey.clipboardHistoryIncludeImagesFiles) private var includeImagesFiles = true
     @AppStorage(DefaultsKey.clipboardHistoryShortcutEnabled) private var shortcutEnabled = true
     @AppStorage(DefaultsKey.clipboardHistoryShowSourceAppIcons) private var showSourceAppIcons = false
     @AppStorage(DefaultsKey.clipboardHistoryLayout) private var historyLayout = ClipboardHistoryLayout.list
+
+    @AppStorage(DefaultsKey.clipboardShelfEdge) private var shelfEdge = ClipboardShelfEdge.bottom
+    @AppStorage(DefaultsKey.clipboardShelfClick) private var shelfClick = ClipboardShelfClick.select
+
+    @AppStorage(DefaultsKey.clipboardShelfSuggestions) private var shelfSuggestions = true
+    @AppStorage(DefaultsKey.clipboardShelfLinkPreviews) private var shelfLinkPreviews = false
+    @AppStorage(DefaultsKey.clipboardShelfPrivacyMode) private var shelfPrivacyMode = false
+
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreview) private var menuBarPreview = false
     @AppStorage(DefaultsKey.clipboardHistoryMenuBarPreviewLength)
     private var menuBarPreviewLength = Defaults.defaultClipboardMenuBarPreviewLength
@@ -37,6 +48,10 @@ struct ClipboardSettings: View {
 
     private var retentionText: ClipboardRetentionStrings {
         FeatureStrings.clipboardRetention(l10n.language)
+    }
+
+    private var shelfText: ClipboardShelfStrings {
+        ClipboardShelfStrings.forLanguage(l10n.language)
     }
 
     var body: some View {
@@ -62,6 +77,7 @@ struct ClipboardSettings: View {
                 .settingsFormSectionAnchor(.clipboardHistory)
 
                 clipboardShortcutSection
+                clipboardShelfBehaviorSection
                 clipboardMenuBarPreviewSection
 
                 Section {
@@ -70,13 +86,7 @@ struct ClipboardSettings: View {
                     Text(text.includeImagesFilesCaption)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Toggle(text.skipSensitive, isOn: $skipSensitive)
-                        .disabled(!enabled)
-                    Text(text.skipSensitiveCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    ClipboardIgnoredAppsList()
-                        .disabled(!enabled)
+                    capturePrivacyControls
                     Picker(text.limit, selection: $limit) {
                         ForEach(Defaults.allowedClipboardHistoryLimits, id: \.self) { value in
                             Text(value == 0 ? text.limitUnlimited : "\(value)").tag(value)
@@ -183,6 +193,22 @@ struct ClipboardSettings: View {
     }
 
     @ViewBuilder
+    private var capturePrivacyControls: some View {
+        Toggle(text.skipSensitive, isOn: $skipSensitive)
+            .disabled(!enabled)
+        Text(text.skipSensitiveCaption)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        Toggle(shelfText.ignoreTransient, isOn: $skipTransient)
+            .disabled(!enabled)
+        Text(shelfText.ignoreTransientCaption)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        ClipboardIgnoredAppsList()
+            .disabled(!enabled)
+    }
+
+    @ViewBuilder
     private var clipboardShortcutSection: some View {
         Section(text.shortcut) {
             Toggle(text.shortcut, isOn: $shortcutEnabled)
@@ -210,6 +236,18 @@ struct ClipboardSettings: View {
                 Text(text.historyLayoutCards).tag(ClipboardHistoryLayout.cards)
             }
             .pickerStyle(.segmented)
+            if historyLayout == .cards {
+                Picker(shelfText.edge, selection: $shelfEdge) {
+                    ForEach(ClipboardShelfEdge.allCases, id: \.self) { edge in
+                        Text(shelfText.edgeName(edge)).tag(edge)
+                    }
+                }
+                Picker(shelfText.click, selection: $shelfClick) {
+                    ForEach(ClipboardShelfClick.allCases, id: \.self) { click in
+                        Text(shelfText.clickName(click)).tag(click)
+                    }
+                }
+            }
             Toggle(text.showSourceAppIconsInList, isOn: $showSourceAppIcons)
             Button {
                 ClipboardHistoryService.shared.showHistoryWindow()
@@ -217,6 +255,23 @@ struct ClipboardSettings: View {
                 Label(text.shortcut, systemImage: "doc.on.clipboard")
             }
             .disabled(history.entries.isEmpty)
+        }
+    }
+
+    private var clipboardShelfBehaviorSection: some View {
+        Section {
+            Toggle(shelfText.suggestions, isOn: $shelfSuggestions)
+            Text(shelfText.suggestionsCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(shelfText.linkPreviews, isOn: $shelfLinkPreviews)
+            Text(shelfText.linkPreviewsCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Toggle(shelfText.privacyMode, isOn: $shelfPrivacyMode)
+            Text(shelfText.privacyModeCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
