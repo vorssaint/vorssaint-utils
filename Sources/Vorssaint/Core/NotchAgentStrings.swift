@@ -106,6 +106,9 @@ struct NotchAgentStrings {
     func cached(_ share: String) -> String { String(format: cachedFormat, share) }
     func written(_ count: String) -> String { String(format: writtenFormat, count) }
     func saved(_ amount: String) -> String { String(format: savedFormat, amount) }
+    func costDescription(_ reading: String, partial: Bool) -> String {
+        partial ? reading + " · " + partialCostNote : reading
+    }
     func planMultiple(_ multiple: String, plan: String) -> String { String(format: planMultipleFormat, multiple, plan) }
     func finished(_ agent: String) -> String { String(format: finishedFormat, agent) }
     func left(_ share: String) -> String { String(format: leftFormat, share) }
@@ -1012,7 +1015,7 @@ extension NotchAgentStrings {
         empty: "Пока нет данных об использовании Claude Code, Codex, OpenCode, GitHub Copilot или Cursor. Они появятся здесь, как только один из них начнёт работу на этом Mac.",
         loading: "Чтение данных…",
         noCards: "Выберите, что показывает эта страница, в настройках Dynamic Island.",
-        partialCostNote: "Данные о количестве токенов или ценах моделей могут быть неполными. Показанная сумма — нижняя граница. Тире означает, что стоимость неизвестна.",
+        partialCostNote: "Данные о количестве токенов или ценах моделей могут быть неполными. Общая стоимость не ниже указанной суммы. Тире означает, что стоимость неизвестна.",
         streak: "Дней подряд",
         activeDays: "Активные дни",
         busiestDay: "Самый активный день",

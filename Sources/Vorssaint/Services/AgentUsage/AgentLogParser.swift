@@ -28,6 +28,17 @@ enum AgentLogEntry: Equatable {
     case reset(Date)
 }
 
+/// A reply without usable counters, identified across stream updates and transcript copies.
+struct CursorUnmeteredResponse: Equatable {
+    var minute: Int?
+    var model = ""
+    var undatedThrough: Date?
+
+    var observation: Date {
+        minute.map { Date(timeIntervalSince1970: Double($0) * 60) } ?? undatedThrough ?? .distantPast
+    }
+}
+
 /// Per-file context carried from line to line.
 struct AgentLogState: Equatable {
     var session = ""
@@ -61,11 +72,20 @@ struct AgentLogState: Equatable {
     var copilotReportedRequests: [String: Int] = [:]
     var copilotTurnID: String?
     var copilotFinalResponse = false
-    /// Cursor's transcript has no message IDs. The ordinal and optional
-    /// prompt timestamp identify the turn when Cursor rewrites the file.
+    /// The prompt ordinal and optional timestamp identify the turn when Cursor rewrites the file.
     var cursorPromptCount = 0
     var cursorPromptTimestamp: Date?
     var cursorLastActivity: Date?
+    /// Absolute minutes with an explicitly dated reply that supplied no usable counters.
+    var cursorUnmeteredMinutes = IndexSet()
+    /// Latest dated gap for each model explicitly named by an unmetered reply.
+    var cursorUnmeteredModelMinutes: [String: Int] = [:]
+    /// A file observation only bounds an undated reply; it cannot place it in a chart cell.
+    var cursorUndatedResponseThrough: Date?
+    /// An identified reply can report counters in a later update or a second copy.
+    private(set) var cursorUnmeteredResponses: [String: CursorUnmeteredResponse] = [:]
+    /// Derived from the responses; a usual append need not inspect them all for expiry.
+    private(set) var cursorEarliestUnmeteredResponse: Date?
     /// The parent session when a database row belongs to a subagent.
     var parentSession = ""
     /// OpenCode stores all sessions in one database, tracking per-session state.
@@ -73,6 +93,44 @@ struct AgentLogState: Equatable {
     /// Claude's shell commands still waiting for their result, by tool call.
     /// They run on the Mac, so the turn goes on without the network.
     var runningCommands: Set<String> = []
+
+    mutating func setUnmeteredResponse(_ response: CursorUnmeteredResponse?, id: String) {
+        let previous = cursorUnmeteredResponses[id]
+        guard previous != response else { return }
+        cursorUnmeteredResponses[id] = response
+        if let previous, previous.observation == cursorEarliestUnmeteredResponse,
+           response.map({ $0.observation > previous.observation }) ?? true {
+            cursorEarliestUnmeteredResponse = cursorUnmeteredResponses.values.lazy.map(\.observation).min()
+        } else if let response {
+            cursorEarliestUnmeteredResponse = min(cursorEarliestUnmeteredResponse ?? response.observation, response.observation)
+        }
+    }
+
+    mutating func restoreUnmeteredResponses(_ responses: [String: CursorUnmeteredResponse]) {
+        cursorUnmeteredResponses = responses
+        cursorEarliestUnmeteredResponse = responses.values.lazy.map(\.observation).min()
+    }
+
+    @discardableResult
+    mutating func dropCursorCoverage(before horizon: Date) -> Bool {
+        var changed = false
+        let cutoff = Int((horizon.timeIntervalSince1970 / 60).rounded(.down))
+        if let first = cursorUnmeteredMinutes.first, first < cutoff {
+            cursorUnmeteredMinutes.remove(integersIn: 0..<cutoff)
+            cursorUnmeteredModelMinutes = cursorUnmeteredModelMinutes.filter { $0.value >= cutoff }
+            changed = true
+        }
+        let firstMinute = Date(timeIntervalSince1970: Double(cutoff) * 60)
+        if let earliest = cursorEarliestUnmeteredResponse, earliest < firstMinute {
+            restoreUnmeteredResponses(cursorUnmeteredResponses.filter { $0.value.observation >= firstMinute })
+            changed = true
+        }
+        if let through = cursorUndatedResponseThrough, through < horizon {
+            cursorUndatedResponseThrough = nil
+            return true
+        }
+        return changed
+    }
 }
 
 /// Per-session turn and model tracking for OpenCode databases.

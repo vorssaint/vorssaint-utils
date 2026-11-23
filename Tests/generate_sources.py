@@ -1560,7 +1560,11 @@ def main():
     write("NotchNotice.swift", "import AppKit\n" + declaration(notch, "struct NotchNotice:"))
     agent_view = "Sources/Vorssaint/UI/Notch/NotchAgentsView.swift"
     write("NotchAgentLimitReading.swift", "import SwiftUI\nextension NotchAgentLimitReadingTests {\n"
-          + declaration(agent_view, "private struct NotchAgentLimitReading:").replace("private struct", "struct", 1)
+          # Seed chart selection in the offscreen host without sending pointer events.
+          + "".join(declaration(agent_view, "private struct " + name + ":").replace("private struct", "struct", 1)
+                    .replace("@State private var hovered: Date?", "@State var hovered: Date? = nil")
+                    for name in ["NotchAgentLimitReading", "NotchAgentTrendCard", "NotchAgentActivityCard",
+                                 "NotchAgentShareCard"])
           + declaration(agent_view, "private struct NotchAgentInlineLabel:")
           + "}\n")
     recorder = "Sources/Vorssaint/Services/Recorder/RecorderEditorController.swift"
@@ -2999,8 +3003,8 @@ def main():
 
     write("AgentUsageEventDelivery.swift", "import Foundation\n"
           + "extension AgentUsageEventDeliveryTests {\nfinal class Host: Fixture {\n"
-          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
-                        "    private func report(").replace("private func", "func", 1)
+          + "".join(declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift", prefix)
+                    .replace("private func", "func", 1) for prefix in ["    private func report(", "    private func checkBudget("])
           + "}\n}\n")
 
     write("ScrollingTitleMotion.swift", "import Foundation\n"
@@ -3011,6 +3015,8 @@ def main():
 
     write("AgentUsageArchiveSave.swift", "import Foundation\n"
           + "extension AgentUsageArchiveSaveTests {\nfinal class Host: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
+                        "    private var progressMark:").replace("private var", "var", 1)
           + declaration("Sources/Vorssaint/Services/AgentUsage/AgentUsageService.swift",
                         "    private func saveProgress(").replace("private func", "func", 1)
           + "}\n}\n")

@@ -56,6 +56,9 @@ enum CursorTranscriptReadTests {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try history(suite, directory)
             try meteredReplies(suite, directory)
+            try streamedCoverage(suite, directory)
+            try unmeteredReplies(suite, directory)
+            try inactiveCoverage(suite, directory)
             try editedWhileGrowing(suite, directory)
             try cancelVerification(suite, directory)
             try sharedMeteredReplies(suite, directory)
@@ -65,6 +68,51 @@ enum CursorTranscriptReadTests {
         } catch {
             suite.expect(false, "could not exercise the Cursor transcript reader: \(error)")
         }
+    }
+
+    private static func inactiveCoverage(_ suite: TestSuite, _ directory: URL) throws {
+        typealias Archive = AgentUsageArchiveSaveTests.AgentUsageArchive
+        let prior = Archive.saved
+        defer { Archive.saved = prior }
+        let quiet = Log(directory, "quiet")
+        let active = Log(directory, "active")
+        active.store = quiet.store
+        let host = AgentUsageArchiveSaveTests.Host()
+        host.enabled = [.cursor]
+        host.store = quiet.store
+        host.cursors = [quiet.file.path: quiet.cursor, active.file.path: active.cursor]
+        let window = AgentUsageSnapshot.historyDuration
+        func gap(_ id: String, after seconds: TimeInterval) -> String {
+            let stamp = ISO8601DateFormatter().string(from: start.addingTimeInterval(seconds))
+            return #"{"role":"assistant","timestamp":"\#(stamp)","message":{"id":"\#(id)"}}"#
+        }
+        let anonymous = #"{"role":"assistant","timestamp":"2026-11-18T12:00:10Z","message":{"model":"old-model"}}"#
+        try quiet.write([gap("old", after: 0), anonymous, assistant], at: 10)
+        quiet.read(at: 10)
+        try active.write([gap("old", after: 0)], at: 0)
+        active.read(at: 0)
+        try active.write([gap("recent", after: window - 60)], at: window - 60, append: true)
+        active.read(at: window - 60)
+        host.saveProgress(now: start.addingTimeInterval(window - 60))
+        let quietActivity = quiet.cursor.transcriptActivity(in: host.store)
+        suite.expect(quietActivity.minutes.count == 1 && quietActivity.modelMinutes["old-model"] != nil
+                     && quietActivity.undatedThrough == start.addingTimeInterval(10)
+                     && active.cursor.transcriptActivity(in: host.store).minutes.count == 2,
+                     "both transcripts publish their dated gaps before the first one expires")
+
+        let later = start.addingTimeInterval(window + 60)
+        host.saveProgress(now: later)
+        let saved = Archive.saved.last?.cursors
+        let quietState = saved?.first { $0.path == quiet.file.path }?.state
+        suite.expect(Archive.saved.count == prior.count + 2
+                     && quietState?.cursorUnmeteredResponses.isEmpty == true && quietState?.cursorUnmeteredMinutes.isEmpty == true
+                     && quietState?.cursorUnmeteredModelMinutes.isEmpty == true && quietState?.cursorUndatedResponseThrough == nil
+                     && saved?.first(where: { $0.path == active.file.path })?.state.cursorUnmeteredResponses.keys.sorted() == ["recent"]
+                     && quiet.cursor.transcriptActivity(in: host.store).minutes.isEmpty
+                     && active.cursor.transcriptActivity(in: host.store).minutes.count == 1,
+                     "the save expires quiet and active transcripts from the checkpoint and their cached coverage without another read")
+        host.saveProgress(now: later)
+        suite.expect(Archive.saved.count == prior.count + 2, "the same checkpoint stays clean after the expiry was saved")
     }
 
     private static func history(_ suite: TestSuite, _ directory: URL) throws {
@@ -166,6 +214,165 @@ enum CursorTranscriptReadTests {
         try FileManager.default.removeItem(at: log.file)
         read(18)
         suite.expect(log.store.records.isEmpty, "a removed Cursor transcript takes its response counters back")
+    }
+
+    private static func streamedCoverage(_ suite: TestSuite, _ directory: URL) throws {
+        let name = "streamed-coverage"
+        let original = Log(directory, name)
+        let model = "gpt-5.2", otherModel = "gpt-6-astra"
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        func reply(_ id: String, metered: Bool, model: String, dated: Bool = true) -> String {
+            let usage = metered ? #","usage":{"message_id":"\#(id)","output_tokens":1000}"# : ""
+            let timestamp = dated ? #""timestamp":"2026-11-18T12:00:00Z","# : ""
+            return #"{"role":"assistant",\#(timestamp)"message":{"id":"\#(id)","model":"\#(model)"\#(usage)}}"#
+        }
+        func today(_ logs: [Log]) -> AgentPeriodUsage {
+            let store = original.store
+            return store.snapshot(plans: [:], providers: [.cursor], now: start.addingTimeInterval(60), calendar: calendar,
+                                  cursorActivity: logs.map { $0.cursor.transcriptActivity(in: store) }).usage(.today)
+        }
+
+        try original.write([reply("first", metered: false, model: model), reply("second", metered: true, model: model),
+                            reply("anchor", metered: true, model: otherModel), reply("third", metered: false, model: otherModel)], at: 1)
+        original.read(at: 2)
+        suite.expect(today([original]).total.hasPartialCost, "an unresolved stream begins with partial coverage")
+        try original.write([reply("first", metered: true, model: model),
+                            reply("second", metered: false, model: model, dated: false)], at: 3, append: true)
+        original.read(at: 4)
+        let mixed = today([original])
+        suite.expect(mixed.total.requests == 3 && mixed.total.hasPartialCost
+                     && mixed.models.first { $0.name == AgentPricing.displayName(model) }?.totals.hasPartialCost == false
+                     && mixed.models.first { $0.name == AgentPricing.displayName(otherModel) }?.totals.hasPartialCost == true,
+                     "resolving a response preserves another ID's gap in the same minute and only its model stays partial")
+        try original.write([reply("third", metered: true, model: otherModel)], at: 5, append: true)
+        original.read(at: 6)
+        let complete = today([original])
+        suite.expect(complete.total.requests == 4 && complete.total.tokens.output == 4000 && !complete.total.hasPartialCost,
+                     "counters supersede undated or dated fragments of the same response in either stream order")
+
+        try original.write([reply("shared", metered: false, model: model)], at: 7, append: true)
+        original.read(at: 8)
+        suite.expect(today([original]).total.hasPartialCost, "a new ID remains unresolved before its metered copy arrives")
+        let folder = original.root.appending(path: "coverage-copy/agent-transcripts")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let copy = Log(folder, name)
+        copy.store = original.store
+        try copy.write([reply("shared", metered: true, model: model)], at: 9)
+        copy.read(at: 10)
+        let copied = today([original, copy])
+        suite.expect(copied.total.requests == 5 && !copied.total.hasPartialCost,
+                     "a metered copy resolves a gap from another transcript of the same session")
+
+        let saved = AgentUsageArchive.Contents(providers: [.cursor], store: original.store.saved,
+                                               cursors: [original.cursor.saved, copy.cursor.saved])
+        let data = AgentUsageArchive.encode(saved, build: name)
+        guard let decoded = AgentUsageArchive.decode(data, build: name) else {
+            return suite.expect(false, "the streamed coverage checkpoint decodes")
+        }
+        let resumed = AgentUsageArchive.resume(decoded, logs: [original.file.path, copy.file.path],
+                                              since: .distantPast, cursorRoot: original.root)
+        guard let restoredOriginal = resumed.cursors[original.file.path], let restoredCopy = resumed.cursors[copy.file.path] else {
+            return suite.expect(false, "both Cursor streams resume from the checkpoint")
+        }
+        original.cursor = restoredOriginal
+        copy.cursor = restoredCopy
+        copy.store = resumed.store
+        original.store = resumed.store
+        copy.read(at: 11)
+        original.read(at: 12)
+        suite.expect(today([original, copy]) == copied, "restoring the streams preserves reconciled coverage and usage")
+        try FileManager.default.removeItem(at: copy.file)
+        copy.read(at: 13)
+        let remaining = today([original])
+        suite.expect(remaining.total.requests == 4 && remaining.total.hasPartialCost
+                     && remaining.projects.first { $0.name == "workspace" }?.totals.hasPartialCost == true,
+                     "removing the only metered copy exposes the original project's unresolved response again")
+        try original.write([reply("shared", metered: true, model: model),
+                            reply("unknown", metered: false, model: "fixture-no-price"),
+                            reply("unknown", metered: true, model: "fixture-no-price")], at: 14, append: true)
+        original.read(at: 15)
+        let unpriced = today([original]).total
+        suite.expect(unpriced.requests == 6 && unpriced.unpriced == 1 && unpriced.hasPartialCost
+                     && !unpriced.includesUnmeteredCursorActivity,
+                     "an unpriced model's counters resolve its missing usage while its cost remains partial")
+    }
+
+    private static func unmeteredReplies(_ suite: TestSuite, _ directory: URL) throws {
+        let log = Log(directory, "unmetered")
+        func reply(_ date: String, model: String = "") -> String {
+            #"{"role":"assistant","timestamp":"\#(date)","message":{"model":"\#(model)"}}"#
+        }
+        func minute(_ date: Date) -> Int { Int(date.timeIntervalSince1970 / 60) }
+        // Local midnight in UTC+05:45 splits these two minutes.
+        let before = AgentTimestamp.parse("2026-11-17T18:14:00Z")!
+        let after = before.addingTimeInterval(60)
+        let minutes = IndexSet([minute(before), minute(after), minute(start)])
+        let stable = CursorUnmeteredResponse(minute: minute(start), model: "named", undatedThrough: nil)
+        try log.write([reply("2026-11-17T18:14:59.999Z", model: "first"), reply("2026-11-17T18:15:00Z", model: "first"),
+                       reply("2026-11-17T18:15:32Z"), reply("2026-11-18T12:00:01Z", model: "second"),
+                       reply("2025-01-01T00:00:00Z"), reply("2027-01-01T00:00:00Z"),
+                       #"{"role":"assistant","message":{"id":"expired"}}"#,
+                       #"{"role":"assistant","timestamp":"2025-01-01T00:00:00Z","message":{"id":"expired"}}"#,
+                       #"{"role":"assistant","message":{"id":"stream","model":"named"}}"#,
+                       #"{"role":"assistant","timestamp":"2026-11-18T12:00:01Z","message":{"id":"other","usage":{"message_id":"stream"}}}"#,
+                       #"{"role":"assistant","message":{"model":"undated"}}"#, finished], at: -1)
+        log.read(at: 2)
+        suite.expect(log.cursor.state.cursorUnmeteredMinutes == minutes
+                     && log.cursor.state.cursorUnmeteredModelMinutes == ["first": minute(after), "second": minute(start)]
+                     && log.cursor.state.cursorUndatedResponseThrough == start.addingTimeInterval(-1)
+                     && log.cursor.state.cursorUnmeteredResponses == ["stream": stable]
+                     && log.cursor.state.cursorEarliestUnmeteredResponse == start
+                     && log.store.records.isEmpty && log.events.isEmpty,
+                     "dated unmetered replies keep their own minutes and an undated reply keeps only the observed upper bound")
+        let saved = AgentUsageArchive.Contents(providers: [.cursor], store: log.store.saved, cursors: [log.cursor.saved])
+        let data = AgentUsageArchive.encode(saved, build: "unmetered")
+        var inconsistent = saved
+        log.cursor.state.setUnmeteredResponse(CursorUnmeteredResponse(minute: minute(start), undatedThrough: start), id: "invalid")
+        inconsistent.cursors = [log.cursor.saved]
+        suite.expect(AgentUsageArchive.decode(AgentUsageArchive.encode(inconsistent, build: "unmetered"), build: "unmetered") == nil,
+                     "the cache rejects a response with both a dated minute and an undated bound even under a valid checksum")
+        guard let decoded = AgentUsageArchive.decode(data, build: "unmetered"), decoded == saved,
+              let cursor = AgentUsageArchive.resume(decoded, logs: [log.file.path], since: .distantPast,
+                                                    cursorRoot: log.root).cursors[log.file.path] else {
+            return suite.expect(false, "unmetered Cursor coverage survives the binary archive and resumes at its offset")
+        }
+        log.cursor = cursor
+        let pruned = AgentUsageArchive.resume(saved, logs: [log.file.path], since: start, cursorRoot: log.root)
+        suite.expect(!pruned.unchanged && pruned.cursors[log.file.path]?.state.cursorUnmeteredMinutes == IndexSet(integer: minute(start))
+                     && pruned.cursors[log.file.path]?.state.cursorUnmeteredModelMinutes == ["second": minute(start)]
+                     && pruned.cursors[log.file.path]?.state.cursorUndatedResponseThrough == nil,
+                     "resuming after earlier gaps expire keeps only the current minute and schedules a new checkpoint")
+        let measured = #"{"role":"assistant","timestamp":"2026-11-18T12:00:01Z","message":{"id":"stream","model":"named","usage":{"output_tokens":5}}}"#
+        try log.write([reply("2026-11-18T11:20:01Z"), measured,
+                       #"{"role":"assistant","message":{"id":"bounded"}}"#], at: 5, append: true)
+        log.read(at: 6)
+        let appended = minute(start.addingTimeInterval(-40 * 60))
+        suite.expect(cursor.state.cursorUnmeteredMinutes == minutes.union(IndexSet(integer: appended))
+                     && cursor.state.cursorUndatedResponseThrough == start.addingTimeInterval(-1)
+                     && cursor.state.cursorUnmeteredResponses["bounded"]?.undatedThrough == start.addingTimeInterval(5)
+                     && cursor.state.cursorUnmeteredResponses["stream"] == stable && log.store.records.count == 1,
+                     "an identified gap keeps its source evidence when counters arrive, independently of anonymous and undated replies")
+        let expired = AgentUsageArchive.resume(saved, logs: [log.file.path], since: start.addingTimeInterval(60), cursorRoot: log.root)
+        suite.expect(expired.cursors[log.file.path]?.state.cursorUnmeteredResponses.isEmpty == true,
+                     "restored response IDs expire at their dated minute, including a reply first seen without a date")
+
+        try log.write([reply("2026-11-18T11:20:01Z"), finished], at: 7)
+        log.read(at: 8)
+        suite.expect(cursor.state.cursorUnmeteredMinutes == IndexSet(integer: appended) && cursor.state.cursorUndatedResponseThrough == nil
+                     && cursor.state.cursorUnmeteredModelMinutes.isEmpty,
+                     "a rewritten transcript withdraws dated and undated gaps from its removed replies")
+        let later = AgentUsageSnapshot.historyDuration + 86_400
+        let recent = start.addingTimeInterval(later)
+        let unix = Int(recent.timeIntervalSince1970)
+        try log.write([#"{"role":"assistant","timestamp":\#(unix),"message":{}}"#], at: 7, append: true)
+        log.read(at: later + 1)
+        suite.expect(cursor.state.cursorUnmeteredMinutes == IndexSet(integer: minute(recent)) && cursor.state.cursorUndatedResponseThrough == nil,
+                     "a long-lived transcript drops expired minutes even when its append preserves the modification time")
+        try FileManager.default.removeItem(at: log.file)
+        log.read(at: later + 2)
+        suite.expect(cursor.state.cursorUndatedResponseThrough == nil && cursor.state.cursorUnmeteredMinutes.isEmpty,
+                     "removing a transcript removes its remaining coverage")
     }
 
     private static func editedWhileGrowing(_ suite: TestSuite, _ directory: URL) throws {
