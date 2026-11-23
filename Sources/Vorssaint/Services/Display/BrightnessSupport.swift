@@ -935,7 +935,7 @@ enum BrightnessSupport {
     /// monitor reported. The transport checks the target before each write.
     static func applySpeakerChange(
         _ change: SpeakerChange, hasNativeMute: Bool, unmutesLeavingZero: Bool,
-        keySettings: MonitorVolumeKeySettings, unmuteCeiling: (UInt16) -> UInt16,
+        keySettings: MonitorVolumeKeySettings, unmuteCeiling: (UInt16) -> UInt16, canVerifyUnmute: () -> Bool,
         restore: inout SpeakerLevel?, needsUnmute: inout Bool,
         read: (UInt8) -> VCPReading?, write: (UInt8, UInt16) -> Bool
     ) -> (level: SpeakerLevel, muted: Bool?)? {
@@ -1009,7 +1009,11 @@ enum BrightnessSupport {
             guard target > 0 else { return (initial, muted) }
         }
 
-        if unmutesLeavingZero && initial.raw == 0 && target > 0 { needsUnmute = true }
+        let releasesZeroLatch = !hasNativeMute && unmutesLeavingZero && target > 0 && (initial.raw == 0 || needsUnmute)
+        if (hasNativeMute && desiredMute == false) || releasesZeroLatch {
+            guard canVerifyUnmute() else { return nil }
+        }
+        if releasesZeroLatch { needsUnmute = true }
         var confirmed = initial
         if target != initial.raw {
             guard write(audioVolumeCode, target),
@@ -1018,7 +1022,7 @@ enum BrightnessSupport {
             confirmed = actual
         }
         if !hasNativeMute {
-            if unmutesLeavingZero, needsUnmute, confirmed.raw > 0 {
+            if releasesZeroLatch {
                 guard confirmed.raw <= keySettings.ceiling(for: confirmed.maximum),
                       write(audioMuteCode, audioUnmutedValue) else { return nil }
                 // Firmware can restore its previous (loud) level as part of unmute.
