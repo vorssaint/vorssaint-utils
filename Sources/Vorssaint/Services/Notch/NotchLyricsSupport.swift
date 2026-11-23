@@ -124,6 +124,14 @@ enum NotchLyricsSupport {
             && defaults.bool(forKey: DefaultsKey.lyricsWallpaperConsentAsked)
     }
 
+    /// The desktop follows Spotify alone: video, a browser or any other player
+    /// reporting what it plays leaves the wallpaper as it is.
+    static let desktopPlayer = "com.spotify.client"
+
+    static func drivesDesktop(bundleIdentifier: String?) -> Bool {
+        bundleIdentifier == desktopPlayer
+    }
+
     /// "Show lyrics" on the desktop. Until it is set it follows the song
     /// wallpaper's switch, which used to bring the lyrics along.
     static func showsLyricsOnDesktop(in defaults: UserDefaults = .standard) -> Bool {

@@ -30,6 +30,11 @@ enum NotchTests {
         defaults.set(true, forKey: DefaultsKey.lyricsOnWallpaper)
         defaults.set(false, forKey: DefaultsKey.lyricsWallpaperConsentAsked)
         suite.expect(!NotchLyricsSupport.wallpaperActive(in: defaults), "no lookup before the person has been asked")
+        suite.expect(NotchLyricsSupport.drivesDesktop(bundleIdentifier: "com.spotify.client")
+                        && !NotchLyricsSupport.drivesDesktop(bundleIdentifier: "com.netflix.Netflix")
+                        && !NotchLyricsSupport.drivesDesktop(bundleIdentifier: "com.google.Chrome")
+                        && !NotchLyricsSupport.drivesDesktop(bundleIdentifier: nil),
+                     "only Spotify changes the desktop; video and other players leave it alone")
     }
 
     private static func railContracts(_ suite: TestSuite) {

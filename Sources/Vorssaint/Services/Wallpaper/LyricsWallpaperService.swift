@@ -32,6 +32,8 @@ final class LyricsWallpaperService: ObservableObject {
     @Published private(set) var songWallpaper = false
     /// The synced lyrics, over the cover or over the normal wallpaper.
     @Published private(set) var showLyrics = false
+    /// Spotify's reading, the only player the desktop follows; nil while anything else plays.
+    @Published private(set) var playback: NotchPlayback?
 
     var lyrics: NotchLyrics? { finder.lyrics ?? extra }
     /// How far ahead of the player's clock the words are shown. Lyrics read as
@@ -172,6 +174,7 @@ final class LyricsWallpaperService: ObservableObject {
         coverSource = nil
         songWallpaper = false
         showLyrics = false
+        playback = nil
         setAwake(false)
         closeWindows()
         objectWillChange.send()
@@ -182,8 +185,19 @@ final class LyricsWallpaperService: ObservableObject {
 
     // MARK: Playback
 
-    private func playbackChanged(_ playback: NotchPlayback?) {
+    private func playbackChanged(_ reading: NotchPlayback?) {
         guard running else { return }
+        // Only Spotify drives the desktop; anything else playing counts as nothing playing.
+        let playback = reading.flatMap { Self.isSpotify($0) ? $0 : nil }
+        if self.playback != playback { self.playback = playback }
+        // Another player took over (a video, a browser): the normal wallpaper
+        // comes back now, rather than a dimmed cover waiting out the grace below.
+        if playback == nil, let reading, reading.track.title?.isEmpty == false {
+            hideWork?.cancel(); hideWork = nil
+            setAwake(false)
+            fadeOutWindows()
+            return
+        }
         guard let playback, playback.track.title?.isEmpty == false else {
             // A player between songs, or the feed restarting around a lock, reports
             // nothing for a moment. The windows stay up through that so nothing
@@ -286,12 +300,22 @@ final class LyricsWallpaperService: ObservableObject {
         }
     }
 
+    /// The reading's player, by bundle id or, when the reading has none, by its process.
+    private static func isSpotify(_ playback: NotchPlayback) -> Bool {
+        let bundle = playback.track.appBundleIdentifier
+            ?? playback.track.appPID.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+        return NotchLyricsSupport.drivesDesktop(bundleIdentifier: bundle)
+    }
+
     // MARK: Keep awake
 
     /// While a song plays and the lyrics are up, the display stays on, on the
     /// desktop and the lock screen alike. It is the same assertion Keep Awake
     /// takes, held on its own so it never touches a session of the person's.
-    func refreshAwake() { setAwake(NotchMusicService.shared.playback?.isPlaying == true) }
+    func refreshAwake() {
+        let playback = NotchMusicService.shared.playback
+        setAwake(playback.map { Self.isSpotify($0) && $0.isPlaying } == true)
+    }
 
     private func setAwake(_ playing: Bool) {
         let wanted = running && playing && UserDefaults.standard.bool(forKey: DefaultsKey.lyricsKeepAwake)
@@ -350,6 +374,22 @@ final class LyricsWallpaperService: ObservableObject {
         guard !windows.isEmpty else { return }
         closeWindows()
         showWindows()
+    }
+
+    /// The windows fade away, then close; a Spotify reading in the meantime keeps them.
+    private func fadeOutWindows() {
+        guard !windows.isEmpty else { return }
+        revealWork?.cancel(); revealWork = nil
+        // Spotify coming back mid-fade shows them again from where they are.
+        revealed = false
+        let shown = Array(windows.values)
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.4
+            shown.forEach { $0.animator().alphaValue = 0 }
+        }, completionHandler: { [weak self] in
+            guard let self, self.playback == nil else { return }
+            self.closeWindows()
+        })
     }
 
     private func closeWindows() {

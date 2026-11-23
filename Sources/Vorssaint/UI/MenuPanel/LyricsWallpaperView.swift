@@ -10,7 +10,6 @@ import SwiftUI
 /// wallpaper off, straight over the normal wallpaper.
 struct LyricsWallpaperView: View {
     @ObservedObject var service: LyricsWallpaperService
-    @ObservedObject private var music = NotchMusicService.shared
     @AppStorage(DefaultsKey.lyricsWallpaperStyle) private var style = "constellation"
     private var mode: LyricsMode { LyricsMode.from(style) }
 
@@ -71,7 +70,7 @@ struct LyricsWallpaperView: View {
     }
 
     private var playbackInfo: (NotchLyrics, NotchPlayback)? {
-        guard let lyrics = service.lyrics, let playback = music.playback, !lyrics.lines.isEmpty, playback.hasPosition
+        guard let lyrics = service.lyrics, let playback = service.playback, !lyrics.lines.isEmpty, playback.hasPosition
         else { return nil }
         return (lyrics, playback)
     }
@@ -107,8 +106,8 @@ struct LyricsWallpaperView: View {
 
     private var caption: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(music.playback?.track.title ?? "").font(.system(size: 16, weight: .semibold))
-            Text(music.playback?.track.artist ?? "").font(.system(size: 13)).opacity(0.7)
+            Text(service.playback?.track.title ?? "").font(.system(size: 16, weight: .semibold))
+            Text(service.playback?.track.artist ?? "").font(.system(size: 13)).opacity(0.7)
         }
         .foregroundStyle(.white.opacity(0.6)).padding(40)
     }
@@ -126,7 +125,7 @@ struct LyricsWallpaperView: View {
     private var coverCard: some View {
         VStack(alignment: .leading, spacing: 18) {
             Group {
-                if let cover = service.cover ?? music.artwork {
+                if let cover = service.cover {
                     Image(nsImage: cover).resizable().interpolation(.high).scaledToFill()
                 } else {
                     Rectangle().fill(.white.opacity(0.1))
@@ -137,8 +136,8 @@ struct LyricsWallpaperView: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: .black.opacity(0.5), radius: 40, y: 20)
             VStack(alignment: .leading, spacing: 4) {
-                Text(music.playback?.track.title ?? "").font(.system(size: 26, weight: .bold))
-                Text(music.playback?.track.artist ?? "").font(.system(size: 18, weight: .medium)).opacity(0.7)
+                Text(service.playback?.track.title ?? "").font(.system(size: 26, weight: .bold))
+                Text(service.playback?.track.artist ?? "").font(.system(size: 18, weight: .medium)).opacity(0.7)
             }
             .foregroundStyle(.white).lineLimit(2).frame(width: 380, alignment: .leading)
         }
