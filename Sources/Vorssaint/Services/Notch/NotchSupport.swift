@@ -1365,11 +1365,13 @@ enum NotchQuickAccessSide: String, CaseIterable, Codable {
 
 enum NotchQuickAction: Hashable, Identifiable {
     /// `home` returns to the island's first page: Controls, or the page chosen as home in Settings.
-    case home, explore, settings, pin, module(NotchModule), control(NotchControlItem)
+    /// `recognizeMusic` listens through the microphone and names the song playing.
+    case home, recognizeMusic, explore, settings, pin, module(NotchModule), control(NotchControlItem)
 
     var id: String {
         switch self {
         case .home: return "home"
+        case .recognizeMusic: return "recognizeMusic"
         case .explore: return "explore"
         case .settings: return "settings"
         case .pin: return "pin"
@@ -1381,6 +1383,7 @@ enum NotchQuickAction: Hashable, Identifiable {
     init?(id: String) {
         switch id {
         case "home": self = .home
+        case "recognizeMusic": self = .recognizeMusic
         case "explore": self = .explore
         case "settings": self = .settings
         case "pin": self = .pin
@@ -1393,7 +1396,7 @@ enum NotchQuickAction: Hashable, Identifiable {
     }
 
     static var optionalActions: [Self] {
-        [.home, .explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
+        [.home, .recognizeMusic, .explore, .settings, .pin] + NotchModule.allCases.map(Self.module)
             + NotchControlItem.allCases.filter { !$0.isLevel }.map(Self.control)
     }
 
@@ -1424,16 +1427,19 @@ struct NotchQuickButton: Codable, Equatable, Identifiable {
 
 struct NotchQuickAccessConfiguration: Equatable, Codable {
     var buttons: [NotchQuickButton]
-    private var version = 2
-    /// The columns beside the island hold three; the row below holds five.
+    private var version = 3
+    /// The columns beside the island hold three; the row below holds six.
     static let maximumPerSide = 3
-    static let maximumBelow = 5
+    static let maximumBelow = 6
     static func maximum(on side: NotchQuickAccessSide) -> Int { side == .bottom ? maximumBelow : maximumPerSide }
     /// Home opens the row below; Notifications closes it.
     static let homeButton = NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000006")!,
                                              action: .home, side: .bottom)
     static let notificationsButton = NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000007")!,
                                                       action: .module(.notifications), side: .bottom)
+    /// Recognise music comes last on the row below.
+    static let recognizeMusicButton = NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000008")!,
+                                                       action: .recognizeMusic, side: .bottom)
     static let initial = Self(buttons: [
         homeButton,
         NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!, action: .explore, side: .left),
@@ -1442,6 +1448,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
         NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000004")!, action: .module(.mixer), side: .right),
         NotchQuickButton(id: UUID(uuidString: "00000000-0000-4000-8000-000000000005")!, action: .module(.music), side: .bottom),
         notificationsButton,
+        recognizeMusicButton,
     ])
 
     /// A layout saved before the row below held five gains Home at its start
@@ -1449,7 +1456,7 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
     /// with room left, so a deliberate arrangement is otherwise kept.
     func addingHomeAndNotifications() -> Self {
         var result = self
-        result.version = 2
+        result.version = 3
         let has = { (action: NotchQuickAction) in result.buttons.contains { $0.action == action } }
         let below = { result.buttons.filter { $0.side == .bottom }.count }
         if !has(.home), below() < Self.maximumBelow {
@@ -1460,6 +1467,17 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
             let last = result.buttons.lastIndex { $0.side == .bottom }.map { $0 + 1 } ?? result.buttons.endIndex
             result.buttons.insert(Self.notificationsButton, at: last)
         }
+        return result.addingRecognizeMusic()
+    }
+
+    /// Layouts saved before the row below held six gain Recognise music at its end, once, with room left.
+    func addingRecognizeMusic() -> Self {
+        var result = self
+        result.version = 3
+        guard !result.buttons.contains(where: { $0.action == .recognizeMusic }),
+              result.buttons.filter({ $0.side == .bottom }).count < Self.maximumBelow else { return result }
+        let last = result.buttons.lastIndex { $0.side == .bottom }.map { $0 + 1 } ?? result.buttons.endIndex
+        result.buttons.insert(Self.recognizeMusicButton, at: last)
         return result
     }
     var actions: [NotchQuickAction] { buttons.compactMap(\.action) }
@@ -1501,8 +1519,10 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
 
     static func stored(in defaults: UserDefaults = .standard) -> Self {
         if let data = defaults.data(forKey: DefaultsKey.notchQuickAccessLayout), !data.isEmpty, data.count <= 32_768,
-           let value = try? JSONDecoder().decode(Self.self, from: data), (1...2).contains(value.version) {
-            return (value.version == 1 ? value.addingHomeAndNotifications() : value).sanitized()
+           let value = try? JSONDecoder().decode(Self.self, from: data), (1...3).contains(value.version) {
+            let updated = value.version == 1 ? value.addingHomeAndNotifications()
+                : value.version == 2 ? value.addingRecognizeMusic() : value
+            return updated.sanitized()
         }
         // These retired keys have no registration defaults, so even an empty
         // saved value is an explicit legacy choice rather than a fresh install.

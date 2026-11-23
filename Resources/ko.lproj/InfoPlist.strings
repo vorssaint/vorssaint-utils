@@ -2,13 +2,13 @@
 "NSAppleEventsUsageDescription" = "Vorssaint는 파일 이동, 항목을 휴지통으로 보내기, 요청한 명령 열기 및 미디어 앱의 재생 제어에 자동화를 사용합니다.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하고 Dynamic Island의 음악 막대를 움직이며 시작한 화면 기록에 Mac의 소리를 담기 위해 각 앱의 오디오를 사용합니다. 어떤 것도 Mac 밖으로 나가지 않습니다.";
+"NSAudioCaptureUsageDescription" = "Vorssaint는 믹서에서 앱별 볼륨을 조절하고, Dynamic Island의 음악 막대를 움직이고, 시작한 화면 기록에 Mac의 소리를 담고, 요청할 때 영화나 동영상 속 노래를 인식하기 위해 각 앱의 오디오를 사용합니다. 노래 인식에는 소리 시그니처만 Shazam으로 전송되며, 그 밖에는 아무것도 Mac 밖으로 나가지 않습니다.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint는 연결된 주변 기기의 배터리 잔량을 읽는 데만 Bluetooth를 사용합니다. 어떤 데이터도 Mac 밖으로 전송되지 않습니다.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint는 화면 녹화에서 마이크를 켠 경우에만 음성을 녹음합니다. 임시 링크를 만들지 않는 한 오디오는 Mac에만 보관됩니다.";
+"NSMicrophoneUsageDescription" = "Vorssaint는 화면 녹화에서 마이크를 켠 경우와 노래 인식을 요청한 몇 초 동안에만 마이크를 사용합니다. 임시 링크를 만들지 않는 한 녹음은 Mac에만 보관되며, 노래 인식에는 소리 시그니처만 Shazam으로 전송됩니다.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint는 사용자가 연 미리보기 윈도우에만 카메라를 표시하여 통화 전에 모습을 확인할 수 있도록 합니다. 아무것도 녹화되지 않으며 Mac 밖으로 전송되지 않습니다.";

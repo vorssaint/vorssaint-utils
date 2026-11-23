@@ -8,14 +8,46 @@ extension NotchNotificationSupport {
     /// the way a phone shows a message, instead of only its compact banner.
     static let openOnArrivalApps: Set<String> = ["whatsapp"]
 
+    /// Mail apps by the name their banners carry, without spaces: Apple Mail
+    /// fetching the person's Gmail and other accounts in the background, a Gmail
+    /// web app made by Chrome or Safari, or Mimestream, a native Gmail client.
+    static let mailApps: Set<String> = ["mail", "gmail", "mimestream"]
+    /// Gmail open in a browser, as the browser names it on its banners.
+    static let webMailSites = ["mail.google.com", "gmail.com"]
+    static let browsers: Set<String> = ["googlechrome", "chrome", "safari", "arc", "microsoftedge", "brave",
+                                        "bravebrowser", "firefox", "opera", "vivaldi", "orion", "dia", "zen"]
+
     /// How long an opened message stays before the island closes again; the
     /// pointer over it keeps it open.
     static let openPreviewDuration: TimeInterval = 5
 
+    private static func key(_ text: String) -> String { text.lowercased().filter { !$0.isWhitespace } }
+
     static func opensOnArrival(app: String?) -> Bool {
         guard let app else { return false }
-        let name = app.lowercased().filter { !$0.isWhitespace }
-        return openOnArrivalApps.contains { name.hasPrefix($0) }
+        let name = key(app)
+        return openOnArrivalApps.contains { name.hasPrefix($0) } || mailApps.contains(name)
+    }
+
+    /// An email: from a mail app, or from Gmail in a browser.
+    static func isMail(_ content: NotchNotificationContent) -> Bool {
+        let app = key(content.app)
+        if mailApps.contains(app) { return true }
+        guard browsers.contains(app) else { return false }
+        let text = [content.title, content.subtitle, content.body].joined(separator: " ").lowercased()
+        return webMailSites.contains { text.contains($0) }
+    }
+
+    /// Messages and emails open the island as they arrive, and stack while it is open.
+    static func opensOnArrival(_ content: NotchNotificationContent?) -> Bool {
+        guard let content else { return false }
+        return opensOnArrival(app: content.app) || isMail(content)
+    }
+
+    /// Whether a new message joins the open one: the same chat app, or email after email.
+    static func stacks(_ next: NotchNotificationContent, onto previous: NotchNotificationContent) -> Bool {
+        guard opensOnArrival(next), opensOnArrival(previous) else { return false }
+        return isMail(next) ? isMail(previous) : previous.app == next.app
     }
 }
 
@@ -41,6 +73,8 @@ struct NotchSystemNotification: Equatable, Identifiable, Sendable {
     let content: NotchNotificationContent
     let received: Date
     var canOpen: Bool
+    /// The app offers a reply right in its notification, as WhatsApp does for a message.
+    var canReply = false
 }
 
 struct NotchNotificationInbox {
@@ -186,6 +220,23 @@ enum NotchNotificationSupport {
 
     static func dismissesNative(in defaults: UserDefaults = .standard) -> Bool {
         isEnabled(in: defaults) && defaults.bool(forKey: DefaultsKey.notchDismissNativeNotifications)
+    }
+
+    /// A notification's action by its title, as macOS names it: "Name:Reply", often with an
+    /// invisible direction mark before the title. Nil when there is none, or more than one.
+    static func namedAction(in actions: [String], titles: [String]) -> String? {
+        let wanted = Set(titles.map(plainTitle))
+        let matches = actions.filter { action in
+            guard let first = action.components(separatedBy: "\n").first, first.hasPrefix("Name:") else { return false }
+            return wanted.contains(plainTitle(String(first.dropFirst(5))))
+        }
+        return matches.count == 1 ? matches.first : nil
+    }
+
+    /// A title without direction marks or surrounding space, compared without case.
+    static func plainTitle(_ title: String) -> String {
+        title.unicodeScalars.filter { !["\u{200E}", "\u{200F}", "\u{202A}", "\u{202C}"].contains($0) }
+            .map(String.init).joined().trimmingCharacters(in: .whitespaces).lowercased()
     }
 
     static func closeAction(in actions: [String], title: String) -> String? {

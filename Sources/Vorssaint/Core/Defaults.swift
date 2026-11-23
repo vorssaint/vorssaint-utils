@@ -791,6 +791,8 @@ enum DefaultsKey {
     static let pointerDisplayEnabled = "pointerDisplayEnabled"
     static let pointerDisplayShortcut = "pointerDisplayShortcut"
     static let windowEdgeSnapEnabled = "windowEdgeSnapEnabled"
+    static let musicRecognitionAudDKey = "musicRecognitionAudDKey" // optional AudD API key, a third engine when set
+    static let musicRecognitionChromeProfile = "musicRecognitionChromeProfile" // the Chrome profile, by name or account, YouTube opens in
     static let windowSnapLayoutsEnabled = "windowSnapLayoutsEnabled" // dragging a window opens the island's snap-layout picker
     static let windowEdgeSnapDisabledZones = "windowEdgeSnapDisabledZones" // comma-separated visual zone ids
     static let windowEdgeSnapZoneActions = "windowEdgeSnapZoneActions" // zone=action entries, + between split areas

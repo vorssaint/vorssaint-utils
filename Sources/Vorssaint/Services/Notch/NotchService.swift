@@ -1934,6 +1934,10 @@ final class NotchService: ObservableObject {
         guard NotchSupport.isEnabled(), action.isAvailable() else { return }
         switch action {
         case .home: openHome()
+        case .recognizeMusic:
+            // The island steps back and grows again from the camera to listen.
+            collapse()
+            MainActor.assumeIsolated { MusicRecognitionPanel.shared.show() }
         case .explore: toggleSections()
         case .settings: openSettings()
         case .pin: pinned.toggle()
@@ -2454,7 +2458,7 @@ final class NotchService: ObservableObject {
         // it: the earlier ones stay above, the island grows, the new one slides in.
         var joinsStack = false
         if noticeExpanded, let shown = notice, let previous = shown.notification, let next = incoming.notification,
-           previous.app == next.app, NotchNotificationSupport.opensOnArrival(app: next.app) {
+           NotchNotificationSupport.stacks(next, onto: previous) {
             incoming.earlier = Array((shown.earlier + [previous]).suffix(NotchNotificationPreviewLayout.stackLimit))
             incoming.threadID = shown.threadID ?? shown.notificationID
             joinsStack = true
@@ -2465,7 +2469,7 @@ final class NotchService: ObservableObject {
         // than waiting for the pointer.
         let opensPreview = incoming.notificationID != nil && noticeCanPresent && !hiddenUntilHover
             && !expanded && !keepsWorkingSurface
-            && NotchNotificationSupport.opensOnArrival(app: incoming.notification?.app)
+            && NotchNotificationSupport.opensOnArrival(incoming.notification)
         // Slider and key bursts only replace the displayed value. They never
         // restart a window resize or enqueue another layout animation.
         let transition: NotchContentTransition = !noticeCanPresent || joinsStack ? .none

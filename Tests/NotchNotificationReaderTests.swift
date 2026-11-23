@@ -52,6 +52,8 @@ enum NotchNotificationReaderTests {
         }
         func children(_ element: Node) throws -> [Node] { try reading("children", element); return element.children }
         func perform(_ action: String, on element: Node) -> Bool { performed.append(action); return pressSucceeds }
+        var written: [(String, String)] = []
+        func setString(_ value: String, _ attribute: String, on element: Node) -> Bool { written.append((attribute, value)); return true }
         func actions(_ element: Node) throws -> [String] { try reading("actions", element); return element.actions }
         func frame(_ element: Node) throws -> CGRect? {
             try reading("frame", element)

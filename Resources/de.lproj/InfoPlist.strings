@@ -2,13 +2,13 @@
 "NSAppleEventsUsageDescription" = "Vorssaint verwendet Automation, um Dateien zu verschieben, Objekte in den Papierkorb zu legen, angeforderte Befehle zu öffnen und die Wiedergabe in deinen Medienapps zu steuern.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint nutzt den Ton jeder App, um ihre Lautstärke im Mixer zu regeln, die Musikbalken von Dynamic Island zu bewegen und den Ton des Mac in die Bildschirmaufnahmen aufzunehmen, die du startest. Nichts verlässt deinen Mac.";
+"NSAudioCaptureUsageDescription" = "Vorssaint nutzt den Ton jeder App, um ihre Lautstärke im Mixer zu regeln, die Musikbalken der Dynamic Island zu bewegen, den Mac-Ton in deine Bildschirmaufnahmen aufzunehmen und auf Wunsch einen Song in einem Film oder Video zu erkennen. Dafür wird nur eine Klangsignatur an Shazam gesendet; sonst verlässt nichts deinen Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint verwendet Bluetooth nur, um den Akkustand verbundener Peripheriegeräte zu lesen. Nichts verlässt deinen Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint nimmt dein Mikrofon nur auf, wenn du es für eine Bildschirmaufnahme einschaltest. Der Ton bleibt auf deinem Mac, außer du erstellst einen temporären Link.";
+"NSMicrophoneUsageDescription" = "Vorssaint nutzt dein Mikrofon nur, wenn du es für eine Bildschirmaufnahme einschaltest, oder ein paar Sekunden lang, wenn du einen Song erkennen lässt. Die Aufnahme bleibt auf deinem Mac, außer du erstellst einen temporären Link; für einen Song wird nur eine Klangsignatur an Shazam gesendet.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint zeigt deine Kamera nur im Vorschaufenster, das du öffnest, damit du vor einem Anruf prüfen kannst, wie du aussiehst. Es wird nichts aufgezeichnet und nichts verlässt deinen Mac.";

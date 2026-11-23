@@ -16,6 +16,8 @@ protocol NotchNotificationAccess {
     func frame(_ element: Element) throws -> CGRect?
     func press(_ element: Element) -> Bool
     func perform(_ action: String, on element: Element) -> Bool
+    /// Writes a value, such as a reply's text into its field.
+    func setString(_ value: String, _ attribute: String, on element: Element) -> Bool
     func move(_ element: Element, to origin: CGPoint) -> Bool
     func same(_ lhs: Element, _ rhs: Element) -> Bool
 }
@@ -41,6 +43,12 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
     private let sourceApplicationName: ([String]) -> String?
     private let allowsNativeClose: () -> Bool
     private let nativeCloseTitle: String
+    /// "Reply" and "Send" as macOS names them in the person's language, and in English.
+    private let replyTitles: [String]
+    private let sendTitles: [String]
+    /// Notifications with their reply box open. Opening it empties the banner's own text,
+    /// so these are held as they were, and matched by their element rather than their content.
+    private var replying: [UUID: Target] = [:]
     private let displays: () -> [CGRect]
     private var targets: [Target] = []
     /// Windows moved off screen, with the place the center had given them.
@@ -68,6 +76,7 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
          receivedDate: @escaping () -> Date = Date.init,
          sourceApplicationName: @escaping ([String]) -> String? = { _ in nil },
          allowsNativeClose: @escaping () -> Bool = { false }, nativeCloseTitle: String = "",
+         replyTitles: [String] = ["Reply"], sendTitles: [String] = ["Send"],
          displays: @escaping () -> [CGRect] = { [] }) {
         self.access = access
         self.allowed = allowed
@@ -76,6 +85,8 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         self.sourceApplicationName = sourceApplicationName
         self.allowsNativeClose = allowsNativeClose
         self.nativeCloseTitle = nativeCloseTitle
+        self.replyTitles = replyTitles
+        self.sendTitles = sendTitles
         self.displays = displays
     }
 
@@ -128,6 +139,14 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         var untaken: [Access.Element] = []
         for candidate in roots {
             let root = candidate.root
+            // A reply box being typed into keeps its message, whatever the banner now shows.
+            if let held = replying.values.first(where: { access.same($0.root, root) }) {
+                guard currentIDs.insert(held.item.id).inserted else { continue }
+                nextTargets.removeAll { $0.item.id == held.item.id }
+                nextTargets.append(held)
+                items.append(held.item)
+                continue
+            }
             guard let content = content(root) else {
                 if !candidate.transient, !untaken.contains(where: { access.same($0, candidate.window) }) {
                     untaken.append(candidate.window)
@@ -144,7 +163,8 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
             guard currentIDs.insert(id).inserted else { continue }
             let rootActions = actions(root)
             let item = NotchSystemNotification(id: id, content: content, received: old?.item.received ?? receivedDate(),
-                canOpen: rootActions.contains("AXPress"))
+                canOpen: rootActions.contains("AXPress"),
+                canReply: NotchNotificationSupport.namedAction(in: rootActions, titles: replyTitles) != nil)
             nextTargets.removeAll { $0.item.id == id }
             nextTargets.append(Target(root: root, window: candidate.window, transient: candidate.transient,
                                       nativeIdentity: identity, item: item))
@@ -168,6 +188,60 @@ final class NotchNotificationReaderCore<Access: NotchNotificationAccess> {
         beginRead()
         guard let target = validatedTarget(id), actions(target.root).contains("AXPress"), usable else { return .unavailable }
         return access.press(target.root) ? .handedOff : .uncertain
+    }
+
+    // MARK: Replies
+
+    /// Opens the notification's own reply box. It keeps the banner from expiring while the
+    /// reply is written on the island. True once the box is there to type into.
+    func beginReply(_ id: UUID) -> Bool {
+        if let held = replying[id] { beginRead(); return replyField(in: held.root) != nil }
+        beginRead()
+        guard let target = validatedTarget(id),
+              let action = NotchNotificationSupport.namedAction(in: actions(target.root), titles: replyTitles), usable
+        else { return false }
+        // macOS reports a failure for this action even when the box opens, so the box itself is the answer.
+        _ = access.perform(action, on: target.root)
+        for _ in 0..<8 {
+            beginRead()
+            if replyField(in: target.root) != nil {
+                replying[id] = target
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return false
+    }
+
+    /// Types the reply into the notification's box and presses its Send. True when it was sent.
+    func sendReply(_ id: UUID, text: String) -> Bool {
+        let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty, let target = replying[id] else { return false }
+        beginRead()
+        guard let field = replyField(in: target.root), access.setString(message, "AXValue", on: field),
+              let send = NotchNotificationSupport.namedAction(in: actions(target.root), titles: sendTitles), usable
+        else { return false }
+        let sent = access.perform(send, on: target.root)
+        if sent { replying[id] = nil }
+        return sent
+    }
+
+    /// Closes a reply box that was not sent; the notification goes back to how it was.
+    func cancelReply(_ id: UUID) {
+        guard let target = replying.removeValue(forKey: id) else { return }
+        beginRead()
+        let hide = actions(target.root).first {
+            ($0.components(separatedBy: "\n").first ?? "").localizedCaseInsensitiveContains("Hide")
+        }
+        if let hide { _ = access.perform(hide, on: target.root) }
+    }
+
+    private func replyField(in root: Access.Element) -> Access.Element? {
+        var field: Access.Element?
+        walk(root, depth: 0) { node, role in
+            if field == nil, role == "AXTextArea" || role == "AXTextField" { field = node }
+        }
+        return usable ? field : nil
     }
 
     func closeNative(_ id: UUID) -> Bool {

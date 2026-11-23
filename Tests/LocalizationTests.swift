@@ -89,6 +89,8 @@ enum LocalizationTests {
                 ("stageManager", { WindowStageManagerStrings.localized($0) }),
                 ("edgeSnapRestore", { WindowEdgeSnapRestoreStrings.localized($0) }),
                 ("snapLayouts", { WindowSnapLayoutsStrings.localized($0) }),
+                ("musicRecognition", { MusicRecognitionStrings.localized($0) }),
+                ("notificationReply", { NotificationReplyStrings.localized($0) }),
                 ("pointerDisplay", { PointerDisplayStrings.localized($0) }),
                 ("graphScale", { GraphScaleStrings.localized($0) }),
                 ("notchLowBattery", { NotchLowBatteryStrings.localized($0) }),

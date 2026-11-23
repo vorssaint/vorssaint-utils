@@ -81,6 +81,13 @@ private struct NotchNotificationRow: View {
     @ObservedObject var service: NotchNotificationService
     let text: NotchNotificationStrings
     @State private var feedback: String?
+    @ObservedObject private var l10n = L10n.shared
+    @State private var draft = ""
+    @State private var opening = false
+    @State private var sending = false
+    @FocusState private var typing: Bool
+    private var replyText: NotificationReplyStrings { NotificationReplyStrings.localized(l10n.language) }
+    private var replying: Bool { service.replyingID == item.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -110,18 +117,100 @@ private struct NotchNotificationRow: View {
             if !item.content.subtitle.isEmpty { Text(item.content.subtitle).font(.system(size: 12)).lineLimit(1) }
             if !item.content.body.isEmpty {
                 Text(item.content.body).font(.system(size: 12)).foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(replying ? 1 : nil)
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                Spacer(minLength: 0)
             }
             if let message = feedback ?? (service.unavailableID == item.id ? text.unavailable : nil) {
-                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(1)
+                Text(message).font(.caption).foregroundStyle(.orange).lineLimit(2)
+                if message == replyText.unavailable {
+                    Button(replyText.keepAlerts) { service.openAlertSettings(item.id) }
+                        .buttonStyle(.plain).font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.85))
+                }
+            }
+            if replying {
+                composer
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+            } else if item.canReply {
+                replyPill
+                    .transition(.opacity)
             }
         }
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
         .clipped()
+        .animation(.spring(duration: 0.28, bounce: 0.15), value: replying)
         .accessibilityElement(children: .contain)
+        .onDisappear { if replying { service.cancelReply(item.id) } }
+    }
+
+    /// Reply, under every message its app lets you answer from the notification.
+    private var replyPill: some View {
+        Button {
+            feedback = nil
+            opening = true
+            service.beginReply(item.id) { opened in
+                opening = false
+                if opened { typing = true } else { feedback = replyText.unavailable }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if opening { ProgressView().controlSize(.mini) }
+                else { Image(systemName: "arrowshape.turn.up.left.fill").font(.system(size: 10, weight: .semibold)) }
+                Text(replyText.reply).font(.system(size: 11, weight: .semibold))
+            }
+            .padding(.horizontal, 11)
+            .frame(height: 24)
+            .background(.white.opacity(0.12), in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 12))
+        .disabled(opening || service.replyingID != nil)
+        .help(replyText.reply)
+    }
+
+    /// The reply box, sent through the app's own reply in its notification.
+    private var composer: some View {
+        HStack(spacing: 6) {
+            TextField(replyText.placeholder, text: $draft)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+                .focused($typing)
+                .onSubmit(send)
+                .onExitCommand { service.cancelReply(item.id); draft = "" }
+                .padding(.horizontal, 10)
+                .frame(height: 28)
+                .background(.white.opacity(0.1), in: Capsule())
+            Button(action: send) {
+                Group {
+                    if sending { ProgressView().controlSize(.mini) }
+                    else { Image(systemName: "arrow.up").font(.system(size: 12, weight: .bold)) }
+                }
+                .foregroundStyle(.black)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(.white.opacity(draft.trimmingCharacters(in: .whitespaces).isEmpty ? 0.35 : 0.95)))
+            }
+            .buttonStyle(.plain)
+            .disabled(sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .help(replyText.send)
+            NotchIconButton(symbol: "xmark", title: FeatureStrings.clipboard(l10n.language).cancel) {
+                service.cancelReply(item.id)
+                draft = ""
+            }
+        }
+    }
+
+    private func send() {
+        let message = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty, !sending else { return }
+        sending = true
+        service.sendReply(item.id, text: message) { sent in
+            sending = false
+            if sent { draft = ""; feedback = nil } else { feedback = replyText.unavailable }
+        }
     }
 }
 

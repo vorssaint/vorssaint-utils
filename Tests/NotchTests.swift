@@ -1808,9 +1808,23 @@ enum NotchTests {
         desktopLyricsContracts(suite)
         suite.expect(NotchNotificationSupport.opensOnArrival(app: "WhatsApp")
                         && NotchNotificationSupport.opensOnArrival(app: "Whats App")
-                        && !NotchNotificationSupport.opensOnArrival(app: "Mail")
+                        && NotchNotificationSupport.opensOnArrival(app: "Mail")
                         && !NotchNotificationSupport.opensOnArrival(app: nil),
-                     "a WhatsApp message opens the island's preview as it arrives; other apps keep the compact banner")
+                     "a WhatsApp message or an email opens the island's preview as it arrives; other apps keep the compact banner")
+        func content(_ app: String, _ title: String = "", _ subtitle: String = "") -> NotchNotificationContent {
+            NotchNotificationContent(app: app, title: title, subtitle: subtitle, body: "hello")
+        }
+        suite.expect(NotchNotificationSupport.opensOnArrival(content("Gmail", "Asha"))
+                        && NotchNotificationSupport.opensOnArrival(content("Mimestream"))
+                        && NotchNotificationSupport.opensOnArrival(content("Google Chrome", "Inbox", "mail.google.com"))
+                        && NotchNotificationSupport.opensOnArrival(content("Mail", "Asha"))
+                        && !NotchNotificationSupport.opensOnArrival(content("Microsoft Outlook"))
+                        && !NotchNotificationSupport.opensOnArrival(content("Google Chrome", "News", "example.com")),
+                     "email from Mail, a Gmail app or Gmail in a browser opens the island; Outlook and other browser alerts do not")
+        suite.expect(NotchNotificationSupport.stacks(content("Gmail"), onto: content("Google Chrome", "x", "mail.google.com"))
+                        && !NotchNotificationSupport.stacks(content("WhatsApp"), onto: content("Gmail"))
+                        && NotchNotificationSupport.stacks(content("WhatsApp"), onto: content("WhatsApp")),
+                     "Gmail stacks with Gmail however it arrives, chats only with their own app")
         musicVolumeLayoutContracts(suite)
         presentationSpacingContracts(suite)
         captureControlsLayoutContracts(suite)
@@ -2169,14 +2183,14 @@ enum NotchTests {
         suite.expect(initialLayout.buttons.filter { $0.side == .left }.compactMap(\.action) == [.explore, .module(.timer)]
                && initialLayout.buttons.filter { $0.side == .right }.compactMap(\.action) == [.settings, .module(.mixer)]
                && initialLayout.buttons.filter { $0.side == .bottom }.compactMap(\.action)
-                    == [.home, .module(.music)] + notificationsButton(in: defaults),
-               "a fresh layout places Explore and Timer left, Settings and Mixer right, and Home, music and Notifications below")
+                    == [.home, .module(.music)] + notificationsButton(in: defaults) + [.recognizeMusic],
+               "a fresh layout places Explore and Timer left, Settings and Mixer right, and Home, music, Notifications and Recognise music below")
         suite.expect(initialLayout == NotchQuickAccessConfiguration.current(in: defaults),
                "default buttons keep stable identities across preference refreshes")
         defaults.set(false, forKey: AppFeature.mixer.availabilityKey)
         defaults.set(false, forKey: AppFeature.notchTimer.availabilityKey)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions
-                        == [.home, .explore, .settings, .module(.music)] + notificationsButton(in: defaults)
+                        == [.home, .explore, .settings, .module(.music)] + notificationsButton(in: defaults) + [.recognizeMusic]
                && !NotchQuickAction.module(.mixer).isAvailable(in: defaults)
                && !NotchQuickAction.control(.mixer).isAvailable(in: defaults),
                "uninstalled utilities leave no default buttons or available mixer actions")
@@ -2188,7 +2202,8 @@ enum NotchTests {
                "reinstalled utilities return to their original positions")
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions
-                        == [.home, .explore, .module(.timer), .settings, .module(.mixer)] + notificationsButton(in: defaults),
+                        == [.home, .explore, .module(.timer), .settings, .module(.mixer)] + notificationsButton(in: defaults)
+                            + [.recognizeMusic],
                "a section switched off takes its button out of the island")
         var held = NotchQuickAccessConfiguration(side: .left, actions: [.explore, .module(.music), .settings])
         let incoming = NotchQuickButton(action: .control(.panel), side: .right)
@@ -2666,7 +2681,8 @@ enum NotchTests {
         defaults.set("timer", forKey: DefaultsKey.notchQuickAccessSecond)
         defaults.set("../../unknown", forKey: DefaultsKey.notchQuickAccessThird)
         defaults.set("timer", forKey: DefaultsKey.notchHiddenModules)
-        suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions == [.explore, .home] + notificationsButton(in: defaults),
+        suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions
+                        == [.explore, .home] + notificationsButton(in: defaults) + [.recognizeMusic],
                "hidden destinations and unrecognized action identifiers cannot create a floating action")
         defaults.set("", forKey: DefaultsKey.notchHiddenModules)
         for side in [NotchQuickAccessSide.left, .right] {
@@ -2752,18 +2768,23 @@ enum NotchTests {
                "moving a button preserves its identity and inserts it in the chosen order")
         let crowded = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
         defaults.set(crowded.encoded, forKey: DefaultsKey.notchQuickAccessLayout)
-        suite.expect(crowded.sanitized().buttons.count == 5 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 5,
-               "restored layouts cannot overfill an edge: five below")
+        suite.expect(crowded.sanitized().buttons.count == 6 && NotchQuickAccessConfiguration.current(in: defaults).buttons.count == 6,
+               "restored layouts cannot overfill an edge: six below")
         let crowdedSide = NotchQuickAccessConfiguration(buttons: (0..<12).map { _ in NotchQuickButton(action: .settings, side: .left) })
         suite.expect(crowdedSide.sanitized().buttons.count == 3, "and three in a column beside the island")
         let savedBefore = NotchQuickAccessConfiguration(buttons: [
             NotchQuickButton(action: .module(.clipboard), side: .bottom), NotchQuickButton(action: .module(.music), side: .bottom),
             NotchQuickButton(action: .module(.scratchpad), side: .bottom)])
         suite.expect(savedBefore.addingHomeAndNotifications().buttons.compactMap(\.action)
-                        == [.home, .module(.clipboard), .module(.music), .module(.scratchpad), .module(.notifications)]
+                        == [.home, .module(.clipboard), .module(.music), .module(.scratchpad), .module(.notifications),
+                            .recognizeMusic]
                         && savedBefore.addingHomeAndNotifications().addingHomeAndNotifications()
                             == savedBefore.addingHomeAndNotifications(),
-                     "an older row of three gains Home first and Notifications last, once")
+                     "an older row of three gains Home first, then Notifications and Recognise music last, once")
+        let rowOfFive = NotchQuickAccessConfiguration(buttons: (0..<5).map { _ in NotchQuickButton(action: .settings, side: .bottom) })
+        suite.expect(rowOfFive.addingRecognizeMusic().buttons.last?.action == .recognizeMusic
+                        && rowOfFive.addingRecognizeMusic().addingRecognizeMusic().buttons.count == 6,
+                     "a row of five gains Recognise music as its sixth, once")
         var invalidButton = NotchQuickButton(action: .settings, side: .left, label: "  Name\nwith line  ")
         invalidButton.actionID = "unrecognized-action"
         suite.expect(NotchQuickAccessConfiguration(buttons: [invalidButton]).sanitized().buttons.isEmpty,

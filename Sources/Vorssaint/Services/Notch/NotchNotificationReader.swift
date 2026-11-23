@@ -10,12 +10,16 @@ extension NotchNotificationReaderCore where Access == NotchNativeNotificationAcc
     convenience init(pid: pid_t, cancellation: DispatchWorkItem) {
         let bundle = Bundle(path: "/System/Library/CoreServices/NotificationCenter.app")
         let closeTitle = bundle?.localizedString(forKey: "Close", value: "Close", table: "Localizable") ?? "Close"
+        let localized = { (key: String) in
+            Array(Set([key, bundle?.localizedString(forKey: key, value: key, table: "Localizable") ?? key]))
+        }
         self.init(access: NotchNativeNotificationAccess(pid: pid),
                   allowed: { !cancellation.isCancelled && NotchNotificationSupport.isEnabled() && AXIsProcessTrusted() },
                   sourceApplicationName: { labels in
                       guard !labels.isEmpty else { return nil }
                       return NotchNotificationSources.source(for: labels)?.name
                   }, allowsNativeClose: { NotchNotificationSupport.dismissesNative() }, nativeCloseTitle: closeTitle,
+                  replyTitles: localized("Reply"), sendTitles: localized("Send"),
                   displays: {
                       var count: UInt32 = 0
                       guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return [] }
@@ -136,6 +140,11 @@ struct NotchNativeNotificationAccess: NotchNotificationAccess {
     func perform(_ action: String, on element: AXUIElement) -> Bool {
         AXUIElementSetMessagingTimeout(element, 0.1)
         return AXUIElementPerformAction(element, action as CFString) == .success
+    }
+
+    func setString(_ value: String, _ attribute: String, on element: AXUIElement) -> Bool {
+        AXUIElementSetMessagingTimeout(element, 0.25)
+        return AXUIElementSetAttributeValue(element, attribute as CFString, value as CFString) == .success
     }
 
     func move(_ element: AXUIElement, to origin: CGPoint) -> Bool {

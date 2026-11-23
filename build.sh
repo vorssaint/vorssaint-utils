@@ -586,6 +586,11 @@ if (( TEST )); then
         Sources/Vorssaint/Core/WindowStageManagerStrings.swift
         Sources/Vorssaint/Core/WindowEdgeSnapRestoreStrings.swift
         Sources/Vorssaint/Core/WindowSnapLayoutsStrings.swift
+        Sources/Vorssaint/Core/MusicRecognitionStrings.swift
+        Sources/Vorssaint/Core/NotificationReplyStrings.swift
+        Sources/Vorssaint/Services/MusicRecognition/MusicRecognitionLinks.swift
+        Sources/Vorssaint/Services/MusicRecognition/ShazamSignature.swift
+        Sources/Vorssaint/Services/MusicRecognition/MusicRecognitionScoring.swift
         Sources/Vorssaint/Services/WindowLayout/WindowGestureSupport.swift
         Sources/Vorssaint/Services/WindowLayout/WindowSnapLayoutsSupport.swift
         Sources/Vorssaint/Core/WindowDirectionalStrings.swift

@@ -42,6 +42,8 @@ enum NotchAgentTests {
         AgentKiloTests.run(suite)
         AgentTerminalKeysTests.run(suite)
         JobProgressEstimateTests.run(suite)
+        MusicRecognitionLinksTests.run(suite)
+        MusicRecognitionEngineTests.run(suite)
         preferences(suite)
         limitUse(suite)
         agentDefaults(suite)

@@ -57,11 +57,11 @@
 	<key>NSAppleEventsUsageDescription</key>
 	<string>Vorssaint uses Automation to move files, send items to the Trash, open requested commands and control playback in your media apps.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vorssaint uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
+	<string>Vorssaint uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars, to include the Mac's sound in the screen recordings you start and, when you ask, to recognise a song in a film or video. For that, only a sound signature is sent to Shazam; nothing else leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Vorssaint uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Vorssaint records your microphone only when you turn it on for a screen recording. The audio stays on your Mac unless you choose to create a temporary link.</string>
+	<string>Vorssaint uses your microphone only when you turn it on for a screen recording, or for a few seconds when you ask it to recognise a song. Audio for a recording stays on your Mac unless you choose to create a temporary link; for a song, only a sound signature is sent to Shazam.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Show your upcoming appointments in the notch. Calendar events stay on this Mac.</string>
 	<key>NSCameraUsageDescription</key>

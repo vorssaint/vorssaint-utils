@@ -296,6 +296,53 @@ final class NotchNotificationService: ObservableObject {
         }
     }
 
+    /// The message whose reply box is open on the island, if any.
+    @Published private(set) var replyingID: UUID?
+
+    /// Opens the message's own reply box, which keeps it from expiring while the reply is written.
+    func beginReply(_ id: UUID, completion: @escaping (Bool) -> Void) {
+        guard monitoring, items.contains(where: { $0.id == id && $0.canReply }), let reader else { completion(false); return }
+        if let current = replyingID, current != id { cancelReply(current) }
+        let requested = generation
+        queue.async { [weak self] in
+            let opened = reader.beginReply(id)
+            DispatchQueue.main.async {
+                guard let self, self.generation == requested else { completion(false); return }
+                if opened { self.replyingID = id }
+                completion(opened)
+            }
+        }
+    }
+
+    /// Sends the text through the app's own reply. True when it went.
+    func sendReply(_ id: UUID, text: String, completion: @escaping (Bool) -> Void) {
+        guard let reader, replyingID == id else { completion(false); return }
+        queue.async { [weak self] in
+            let sent = reader.sendReply(id, text: text)
+            DispatchQueue.main.async {
+                if sent { self?.replyingID = nil }
+                completion(sent)
+                self?.scheduleScan()
+            }
+        }
+    }
+
+    /// Opens the message's app in Notifications settings, where its alerts can be made Persistent:
+    /// a persistent alert stays in reach, so it can be answered from the island later.
+    func openAlertSettings(_ id: UUID) {
+        let app = sourceApplications[id].map { "?id=\($0)" } ?? ""
+        if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension\(app)") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func cancelReply(_ id: UUID) {
+        guard replyingID == id else { return }
+        replyingID = nil
+        guard let reader else { return }
+        queue.async { reader.cancelReply(id) }
+    }
+
     func canOpen(_ item: NotchSystemNotification) -> Bool {
         item.canOpen || sourceApplications[item.id] != nil
     }

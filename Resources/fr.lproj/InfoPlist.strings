@@ -2,13 +2,13 @@
 "NSAppleEventsUsageDescription" = "Vorssaint utilise Automatisation pour déplacer des fichiers, placer des éléments dans la Corbeille, ouvrir les commandes demandées et contrôler la lecture dans vos apps multimédias.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint utilise le son de chaque app pour régler son volume dans le mixeur, pour animer les barres de musique de Dynamic Island et pour inclure le son du Mac dans les enregistrements d'écran que vous lancez. Rien ne quitte votre Mac.";
+"NSAudioCaptureUsageDescription" = "Vorssaint utilise le son de chaque app pour régler son volume dans le mixeur, animer les barres musicales de Dynamic Island, inclure le son du Mac dans vos enregistrements d’écran et, à votre demande, reconnaître un morceau dans un film ou une vidéo. Seule une signature sonore est alors envoyée à Shazam ; rien d’autre ne quitte votre Mac.";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint utilise le Bluetooth uniquement pour lire la batterie des périphériques connectés. Rien ne quitte votre Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint enregistre votre micro uniquement quand vous l’activez pour un enregistrement d’écran. Le son reste sur votre Mac, sauf si vous créez un lien temporaire.";
+"NSMicrophoneUsageDescription" = "Vorssaint utilise votre micro uniquement quand vous l’activez pour un enregistrement d’écran, ou quelques secondes quand vous lui demandez de reconnaître un morceau. L’enregistrement reste sur votre Mac sauf si vous créez un lien temporaire ; pour un morceau, seule une signature sonore est envoyée à Shazam.";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint affiche votre caméra uniquement dans la fenêtre d'aperçu que vous ouvrez, pour vérifier votre apparence avant un appel. Rien n'est enregistré et rien ne quitte votre Mac.";

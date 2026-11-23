@@ -2,13 +2,13 @@
 "NSAppleEventsUsageDescription" = "Vorssaint 使用自動化來移動檔案、將項目移至垃圾桶、開啟要求的指令，以及控制媒體 App 的播放。";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "Vorssaint 會使用個別 App 的音訊，用作在混音器中調整它們的音量、驅動 Dynamic Island 的音樂音柱，以及在你開始的螢幕錄製中加入 Mac 的聲音。不會有任何資料離開你的 Mac。";
+"NSAudioCaptureUsageDescription" = "Vorssaint 會使用個別 App 的音訊，用作在混音器中調整它們的音量、驅動 Dynamic Island 的音樂音柱、在你開始的螢幕錄製中加入 Mac 的聲音，以及在你需要時辨識電影或影片中的歌曲。辨識時只會向 Shazam 傳送聲音特徵，其他內容都不會離開 Mac。";
 
 /* macOS Bluetooth permission prompt. */
 "NSBluetoothAlwaysUsageDescription" = "Vorssaint 只會使用藍牙讀取已連接周邊裝置的電池電量。不會有任何資料離開你的 Mac。";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "Vorssaint 只會在你為螢幕錄製開啟咪高風時錄音。除非你選擇建立臨時連結，否則音訊只會保留在 Mac 上。";
+"NSMicrophoneUsageDescription" = "Vorssaint 只會在你為螢幕錄製開啟咪高峰時，或在你要求辨識歌曲時的幾秒內使用咪高峰。除非你建立臨時連結，錄製內容只會保留在 Mac 上；辨識歌曲時只會向 Shazam 傳送聲音特徵。";
 
 /* macOS Camera permission prompt. */
 "NSCameraUsageDescription" = "Vorssaint 只會在你開啟的預覽視窗中顯示相機畫面，讓你在通話前確認自己的狀態。不會錄製任何內容，也不會有任何資料離開你的 Mac。";
