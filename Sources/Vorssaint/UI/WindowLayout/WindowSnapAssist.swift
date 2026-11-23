@@ -103,6 +103,9 @@ final class WindowSnapAssist {
         for panel in panels.values { fadeOut(panel) }
         panels.removeAll()
         place = nil
+        // The window thumbnails are full captures; none is kept once the choice is over.
+        model.candidates = []
+        model.thumbnails = [:]
     }
 
     private func choose(_ candidate: WindowSnapAssistCandidate, for action: WindowLayoutAction) {
@@ -117,16 +120,38 @@ final class WindowSnapAssist {
                                              completionHandler: { panel.orderOut(nil) })
     }
 
+    /// Captures shrunk to card size: a full window capture can run to tens of megabytes.
+    private static let thumbnailEdge = 480
+
     private func loadThumbnails(for candidates: [WindowSnapAssistCandidate]) {
+        let model = self.model
         for candidate in candidates.prefix(12) {
-            Task { [weak self] in
+            Task {
                 guard let image = await WindowPreviewProvider.captureViaWindowServer(candidate.windowID,
-                                                                                     waitingForOtherCaptures: false)
+                                                                                     waitingForOtherCaptures: false),
+                      let small = Self.shrunk(image, to: Self.thumbnailEdge)
                 else { return }
-                let thumbnail = NSImage(cgImage: image, size: NSSize(width: image.width, height: image.height))
-                await MainActor.run { self?.model.thumbnails[candidate.windowID] = thumbnail }
+                let thumbnail = NSImage(cgImage: small, size: NSSize(width: small.width, height: small.height))
+                await MainActor.run {
+                    // A capture that comes back after the choice is over is dropped.
+                    guard model.candidates.contains(where: { $0.windowID == candidate.windowID }) else { return }
+                    model.thumbnails[candidate.windowID] = thumbnail
+                }
             }
         }
+    }
+
+    private static func shrunk(_ image: CGImage, to edge: Int) -> CGImage? {
+        let longest = max(image.width, image.height)
+        guard longest > edge else { return image }
+        let factor = CGFloat(edge) / CGFloat(longest)
+        let width = max(1, Int(CGFloat(image.width) * factor)), height = max(1, Int(CGFloat(image.height) * factor))
+        guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue) else { return nil }
+        context.interpolationQuality = .medium
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        return context.makeImage()
     }
 
     private func makePanel(frame: CGRect) -> NSPanel {

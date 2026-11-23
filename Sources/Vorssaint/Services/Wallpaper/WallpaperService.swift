@@ -624,6 +624,8 @@ enum WallpaperThumbnailCache {
     private static let cache: NSCache<NSString, NSImage> = {
         let cache = NSCache<NSString, NSImage>()
         cache.countLimit = 400
+        // Counted by bytes too, so a folder of large thumbnails cannot grow it past this.
+        cache.totalCostLimit = 24 * 1024 * 1024
         return cache
     }()
 
@@ -641,7 +643,8 @@ enum WallpaperThumbnailCache {
     }
 
     static func store(_ image: NSImage, for url: URL, maxPixel: Int = 160) {
-        cache.setObject(image, forKey: key(url, maxPixel))
+        let pixels = image.representations.map { $0.pixelsWide * $0.pixelsHigh }.max() ?? maxPixel * maxPixel
+        cache.setObject(image, forKey: key(url, maxPixel), cost: pixels * 4)
     }
 
     static func clear() {

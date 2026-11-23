@@ -31,6 +31,8 @@ struct LyricsWallpaperView: View {
             }
         }
         .ignoresSafeArea()
+        // Behind every app, or with the song paused, nothing on the desktop needs to move.
+        .environment(\.lyricsAnimationsActive, service.onScreen && service.playback?.isPlaying == true)
     }
 
     // MARK: Backdrop

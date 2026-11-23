@@ -8,6 +8,7 @@ import SwiftUI
 /// glowing blue headline with a halo. Word timing is estimated from the
 /// line's timing, weighted by word length, since catalogs time whole lines.
 struct ConstellationLyricsView: View {
+    @Environment(\.lyricsAnimationsActive) private var active
     let lyrics: NotchLyrics
     let playback: NotchPlayback
     let offset: Double
@@ -33,7 +34,7 @@ struct ConstellationLyricsView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playback.isPlaying)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playback.isPlaying || !active)) { context in
             Canvas { gc, size in draw(&gc, size: size, now: context.date) }
         }
     }

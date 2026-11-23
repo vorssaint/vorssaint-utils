@@ -34,6 +34,9 @@ final class LyricsWallpaperService: ObservableObject {
     @Published private(set) var showLyrics = false
     /// Spotify's reading, the only player the desktop follows; nil while anything else plays.
     @Published private(set) var playback: NotchPlayback?
+    /// Some part of the desktop windows can be seen. Covered by apps, the animations stop.
+    @Published private(set) var onScreen = true
+    private var occlusionObservers: [NSObjectProtocol] = []
 
     var lyrics: NotchLyrics? { finder.lyrics ?? extra }
     /// How far ahead of the player's clock the words are shown. Lyrics read as
@@ -203,7 +206,9 @@ final class LyricsWallpaperService: ObservableObject {
             // nothing for a moment. The windows stay up through that so nothing
             // flashes, and leave only if the silence lasts.
             guard hideWork == nil else { return }
-            let work = DispatchWorkItem { [weak self] in self?.hideWork = nil; self?.setAwake(false); self?.closeWindows() }
+            let work = DispatchWorkItem { [weak self] in
+                self?.hideWork = nil; self?.setAwake(false); self?.closeWindows(); self?.releaseImages()
+            }
             hideWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + 6, execute: work)
             return
@@ -226,6 +231,7 @@ final class LyricsWallpaperService: ObservableObject {
                 self.idleHidden = true
                 self.setAwake(false)
                 self.closeWindows()
+                self.releaseImages()
             }
             idleWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.idleLimit, execute: work)
@@ -275,8 +281,12 @@ final class LyricsWallpaperService: ObservableObject {
             if coverTrack != identity { reveal() }
             return
         }
+        // Decoded no larger than the biggest display needs: a cover fills the screen, so its
+        // longer edge in pixels. A fixed 3200 px square held some 40 MB per cover.
+        let edge = Self.coverPointSize
+        let scale = NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let image = ImageThumbnailer.thumbnail(data: data, pointSize: 1600, scale: 2)
+            let image = ImageThumbnailer.thumbnail(data: data, pointSize: edge, scale: scale)
             let colors = ArtworkPalette.colors(from: data).map { Color(nsColor: $0) }
             DispatchQueue.main.async {
                 guard let self, self.coverSource == data, let image else { return }
@@ -287,6 +297,12 @@ final class LyricsWallpaperService: ObservableObject {
                     self.cover = image
                     self.palette = colors
                     self.coverID += 1
+                    // The old cover is only the floor under the cross-fade; once that is done it goes.
+                    let fade = self.coverID
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                        guard let self, self.coverID == fade else { return }
+                        self.previousCover = nil
+                    }
                 } else {
                     var plain = Transaction()
                     plain.disablesAnimations = true
@@ -334,6 +350,26 @@ final class LyricsWallpaperService: ObservableObject {
 
     // MARK: Windows
 
+    private func refreshOnScreen() {
+        let visible = windows.values.contains { $0.occlusionState.contains(.visible) }
+        if visible != onScreen { onScreen = visible }
+    }
+
+    /// The longest screen edge, in points, that a cover has to fill.
+    private static var coverPointSize: CGFloat {
+        min(1600, NSScreen.screens.map { max($0.frame.width, $0.frame.height) }.max() ?? 1600)
+    }
+
+    /// Once the windows are gone the decoded covers are too, a few dozen megabytes
+    /// each. The next song, or this one resuming, decodes its cover again.
+    private func releaseImages() {
+        guard windows.isEmpty else { return }
+        cover = nil
+        previousCover = nil
+        coverSource = nil
+        coverTrack = nil
+    }
+
     /// Fades the waiting windows in. Lyrics alone show at once: a clear window has nothing to flash.
     private func reveal() {
         revealWork?.cancel(); revealWork = nil
@@ -359,6 +395,8 @@ final class LyricsWallpaperService: ObservableObject {
             }
             windows[id] = makeWindow(for: screen)
         }
+        // A new window learns whether it can be seen once the window server has placed it.
+        DispatchQueue.main.async { [weak self] in self?.refreshOnScreen() }
         guard !revealed else { return }
         if !songWallpaper || cover != nil {
             reveal()
@@ -389,12 +427,15 @@ final class LyricsWallpaperService: ObservableObject {
         }, completionHandler: { [weak self] in
             guard let self, self.playback == nil else { return }
             self.closeWindows()
+            self.releaseImages()
         })
     }
 
     private func closeWindows() {
         windows.values.forEach { $0.orderOut(nil) }
         windows.removeAll()
+        occlusionObservers.forEach(NotificationCenter.default.removeObserver)
+        occlusionObservers.removeAll()
         revealed = false
         revealWork?.cancel(); revealWork = nil
     }
@@ -412,6 +453,9 @@ final class LyricsWallpaperService: ObservableObject {
         window.isReleasedWhenClosed = false
         window.animationBehavior = .none
         window.contentView = NSHostingView(rootView: LyricsWallpaperView(service: self))
+        occlusionObservers.append(NotificationCenter.default.addObserver(
+            forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
+        ) { [weak self] _ in self?.refreshOnScreen() })
         window.setFrame(screen.frame, display: true)
         window.orderFrontRegardless()
         return window

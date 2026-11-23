@@ -179,6 +179,7 @@ struct LyricsModeView: View {
 }
 
 struct LyricsTextModeView: View {
+    @Environment(\.lyricsAnimationsActive) private var active
     let mode: LyricsMode
     let lyrics: NotchLyrics
     let playback: NotchPlayback
@@ -188,7 +189,7 @@ struct LyricsTextModeView: View {
     var body: some View {
         GeometryReader { proxy in
             let unit = max(proxy.size.height / 10, 8)
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playback.isPlaying)) { context in
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !playback.isPlaying || !active)) { context in
                 if let clock = LyricsLineClock(lyrics: lyrics, playback: playback, offset: offset, date: context.date) {
                     content(clock, unit: unit, date: context.date)
                         .frame(width: proxy.size.width, height: proxy.size.height)

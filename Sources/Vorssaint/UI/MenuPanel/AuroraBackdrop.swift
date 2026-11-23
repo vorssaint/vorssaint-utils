@@ -6,8 +6,22 @@ import SwiftUI
 /// Slow-drifting washes of the cover's colours with a scatter of rising
 /// particles, drawn behind the lyrics. Cheap by design: a few radial
 /// gradients and dots at 30 frames a second, no blur filters.
+/// Whether the lyrics visuals may redraw. The desktop turns them off while
+/// its windows are hidden behind apps or the song is paused; elsewhere it stays on.
+private struct LyricsAnimationsActiveKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+extension EnvironmentValues {
+    var lyricsAnimationsActive: Bool {
+        get { self[LyricsAnimationsActiveKey.self] }
+        set { self[LyricsAnimationsActiveKey.self] = newValue }
+    }
+}
+
 struct AuroraBackdrop: View {
     let palette: [Color]
+    @Environment(\.lyricsAnimationsActive) private var active
 
     private struct Particle {
         let x: Double, y: Double, speed: Double, radius: Double, phase: Double, sway: Double, tone: Int
@@ -26,7 +40,7 @@ struct AuroraBackdrop: View {
     }()
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !active)) { context in
             Canvas { gc, size in
                 let colors = palette.isEmpty ? [Color(red: 0.35, green: 0.45, blue: 0.8)] : palette
                 let t = context.date.timeIntervalSinceReferenceDate
