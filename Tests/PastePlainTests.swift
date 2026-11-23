@@ -184,6 +184,7 @@ enum PastePlainTests {
         var originalItems: [NSPasteboardItem]?
         var originalCapturedAt = Date()
         var isRichPasteInFlight = false
+        var restoredChangeCount: Int?
         var pendingRestripe = false
         var repasteWork: DispatchWorkItem?
         var pollInFlight = false
@@ -191,6 +192,7 @@ enum PastePlainTests {
 
         final class PollToken {
             var isCancelled = false
+            var hasFinished = false
             func cancel() {}
         }
 
@@ -389,6 +391,7 @@ enum PastePlainTests {
     private static func stripBehaviour(_ suite: TestSuite) {
         let board = NSPasteboard.general
         func strip(since: Int? = nil,
+                   onlyIf: Int? = nil,
                    ownWrite: Int = 0,
                    excluded: Set<String> = [],
                    failed: (count: Int, at: Date)? = nil,
@@ -397,6 +400,7 @@ enum PastePlainTests {
             board.dataReads = 0
             board.writeCount = 0
             return Service.stripPasteboard(board, sinceChangeCount: since,
+                                           onlyIfChangeCount: onlyIf,
                                            ownLastWriteCount: ownWrite,
                                            ownBundleID: "com.vorssaint.tests",
                                            excludedApps: excluded,
@@ -433,6 +437,17 @@ enum PastePlainTests {
                      && written[AppKit.NSPasteboard.PasteboardType("com.vorssaint.PastePlain.hasRun")] == Data(),
                      "the strip markers are added")
         suite.expect(board.clears == 1, "the board is cleared before the write")
+
+        // A re-strip after a rich paste only takes back the snapshot that
+        // paste put there; a copy made in the meantime is left to the poll,
+        // which would otherwise read it as already seen and keep it rich.
+        board.setItems([[.string: Data("later".utf8),
+                         .rtf: Data(#"{\rtf1\ansi later}"#.utf8)]])
+        let newer = board.changeCount
+        suite.expect(strip(onlyIf: newer - 1) == nil && board.writeCount == 0,
+                     "a re-strip over a newer copy does nothing")
+        suite.expect(strip(onlyIf: newer)?.stripped != nil,
+                     "a re-strip over the restored snapshot still strips it")
 
         // Media beside its text: a document's snapshot of a selection strips
         // to the text, while a picture copied on its own is left whole.
@@ -564,6 +579,7 @@ enum PastePlainTests {
             host.lastStrippedChangeCount = 0
             host.originalItems = nil
             host.isRichPasteInFlight = false
+            host.restoredChangeCount = nil
             host.pendingRestripe = false
             host.lastChangeCount = board.changeCount
             transient.host = host

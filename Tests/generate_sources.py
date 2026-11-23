@@ -848,12 +848,12 @@ def main():
                     .replace("private static func", "static func", 1)
                     for prefix in [
                         "    func performPastePlain()",
-                        "    private func forwardPaste()",
+                        "    private func forwardPaste(attempt: Int = 0) {",
                         "    private func pasteRich(original items:",
                         "    private func scheduleRestripe()",
                         "    private func restripeAfterPaste()",
                         "    private func runPendingRestripe()",
-                        "    func clearFormattingNow()",
+                        "    func clearFormattingNow(attempt: Int = 0) {",
                         "    private func stripOnce(sinceChangeCount:",
                         "    private func applyStrip(_ result:",
                         "    private static func stripPasteboard(_ pasteboard:",

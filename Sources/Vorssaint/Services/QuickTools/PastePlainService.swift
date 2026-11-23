@@ -47,6 +47,9 @@ final class PastePlainService: ObservableObject {
     private final class PollToken {
         private let lock = NSLock()
         private var cancelled = false
+        /// Main-thread only: this transaction already handed its admission
+        /// back, whichever answer came first.
+        var hasFinished = false
 
         func cancel() {
             lock.lock()
@@ -93,6 +96,11 @@ final class PastePlainService: ObservableObject {
     /// Set when a re-strip is owed after a rich paste, and consumed as soon
     /// as the lane admission is free.
     private var pendingRestripe = false
+    /// The change count of the snapshot written back for a rich paste, so the
+    /// re-strip that follows only takes what this paste restored: a copy made
+    /// in the meantime belongs to the next poll, which strips it like any
+    /// other copy.
+    private var restoredChangeCount: Int?
     private var repasteWork: DispatchWorkItem?
 
     private init() {
@@ -139,7 +147,9 @@ final class PastePlainService: ObservableObject {
         GeneralPasteboardAccess.shared.async({ NSPasteboard.general.changeCount },
                                             then: { [weak self] changeCount in
             guard let self, !self.isRichPasteInFlight else { return }
-            if changeCount == self.lastStrippedChangeCount, let original = self.originalItems {
+            if changeCount == self.lastStrippedChangeCount,
+               let original = self.originalItems,
+               Date().timeIntervalSince(self.originalCapturedAt) <= Self.snapshotLifetime {
                 self.pasteRich(original: original, changeCount: changeCount)
             } else {
                 self.forwardPaste()
@@ -151,7 +161,7 @@ final class PastePlainService: ObservableObject {
     /// wants — plain text after a strip, a picture, a file, or a copy from an
     /// excluded app — so the paste is only forwarded, without reading or
     /// replacing anything.
-    private func forwardPaste() {
+    private func forwardPaste(attempt: Int = 0) {
         var releaseHotkey = false
         let willPostShortcut = { [weak self] in
             guard let self else { return }
@@ -163,8 +173,15 @@ final class PastePlainService: ObservableObject {
         let didPostShortcut = { [weak self] in
             if releaseHotkey { self?.syncWithPreferences() }
         }
-        _ = TransientPaste.shared.pasteCurrentContents(willPostShortcut: willPostShortcut,
-                                                       didPostShortcut: didPostShortcut)
+        let posted = TransientPaste.shared.pasteCurrentContents(willPostShortcut: willPostShortcut,
+                                                                didPostShortcut: didPostShortcut)
+        // A transient paste of our own — a snippet, a history entry — can be
+        // between its write and its key-up. It clears in a fraction of a
+        // second, so the press is tried again instead of being swallowed.
+        guard !posted, attempt < 2 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            self?.forwardPaste(attempt: attempt + 1)
+        }
     }
 
     /// Restores the original the last strip set aside, pastes it, and lets
@@ -193,11 +210,12 @@ final class PastePlainService: ObservableObject {
             pasteboard.clearContents()
             pasteboard.writeObjects(items)
             let restoredCount = pasteboard.changeCount
-            DispatchQueue.main.async {
+            DispatchQueue.main.async { [weak self] in
                 // The history already holds the plain copy this strip
                 // produced; the restored content is that same copy coming
                 // back with its formatting, not a new one.
                 ClipboardHistoryService.shared.ignoreNextChange(upTo: restoredCount)
+                self?.restoredChangeCount = restoredCount
             }
             return true
         }, then: { (restored: Bool) in
@@ -205,9 +223,16 @@ final class PastePlainService: ObservableObject {
                 didFail()
                 return
             }
-            _ = TransientPaste.shared.pasteCurrentContents(willPostShortcut: willPostShortcut,
-                                                           didPostShortcut: didPostShortcut,
-                                                           didFail: didFail)
+            let posted = TransientPaste.shared.pasteCurrentContents(willPostShortcut: willPostShortcut,
+                                                                   didPostShortcut: didPostShortcut,
+                                                                   didFail: didFail)
+            // Another transient paste holds the lane right now. The restored
+            // content stays on the clipboard, so releasing the guard is the
+            // whole fix: the watcher strips it again on its next look.
+            guard posted else {
+                didFail()
+                return
+            }
         })
     }
 
@@ -234,7 +259,7 @@ final class PastePlainService: ObservableObject {
     private func runPendingRestripe() {
         guard pendingRestripe, !pollInFlight else { return }
         pendingRestripe = false
-        stripOnce(sinceChangeCount: nil) { [weak self] in
+        stripOnce(sinceChangeCount: nil, onlyIfChangeCount: restoredChangeCount) { [weak self] in
             self?.isRichPasteInFlight = false
         }
     }
@@ -244,15 +269,26 @@ final class PastePlainService: ObservableObject {
     /// Command Bar action: takes the formatting out of the current clipboard
     /// without pasting. A clipboard the watcher already stripped is plain
     /// only, so the decision leaves it alone and this does nothing.
-    func clearFormattingNow() {
+    func clearFormattingNow(attempt: Int = 0) {
         guard AppFeature.pastePlain.isAvailable else { return }
+        // A poll in flight owns the lane for a moment; a press that lands in
+        // that window is retried rather than dropped in silence.
+        guard !pollInFlight else {
+            guard attempt < 4 else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak self] in
+                self?.clearFormattingNow(attempt: attempt + 1)
+            }
+            return
+        }
         stripOnce(sinceChangeCount: nil)
     }
 
     /// Runs one strip transaction on the lane. `sinceChangeCount` nil makes
     /// the strip run regardless of whether anything changed since the last
     /// look ("Clear formatting now", the re-strip after a rich paste).
-    private func stripOnce(sinceChangeCount: Int?, then: (() -> Void)? = nil) {
+    private func stripOnce(sinceChangeCount: Int?,
+                           onlyIfChangeCount: Int? = nil,
+                           then: (() -> Void)? = nil) {
         guard !pollInFlight else { return }
         pollInFlight = true
         let token = PollToken()
@@ -267,10 +303,23 @@ final class PastePlainService: ObservableObject {
         let transforms = Self.readTransformOptions()
         let failedCount = lastFailedChangeCount
         let failedAt = lastFailedAt
+        // Admission is released exactly once per transaction, whichever
+        // arrives first: the lane's own finish, or the deadline when a
+        // provider that never renders holds it. A lane held for good would
+        // otherwise stop every later strip until the app is relaunched.
+        let finish = { [weak self] in
+            guard let self, !token.hasFinished else { return }
+            token.hasFinished = true
+            self.pollToken = nil
+            self.pollInFlight = false
+            then?()
+            if self.pendingRestripe { self.runPendingRestripe() }
+        }
         GeneralPasteboardAccess.shared.async(timeout: Self.pasteboardTimeout, { isExpired in
             guard !token.isCancelled, !isExpired() else { return nil }
             return Self.stripPasteboard(NSPasteboard.general,
                                         sinceChangeCount: sinceChangeCount,
+                                        onlyIfChangeCount: onlyIfChangeCount,
                                         ownLastWriteCount: ownWrite,
                                         ownBundleID: ownBundleID,
                                         excludedApps: excluded,
@@ -282,13 +331,25 @@ final class PastePlainService: ObservableObject {
         }, then: { [weak self] (result: StripTransaction?) in
             guard let self, !token.isCancelled else { return }
             self.applyStrip(result)
+            // Nil is the deadline's answer, or a transaction that had
+            // nothing to do and left without touching anything: either way
+            // the lane is owed no more waiting.
+            if result == nil { finish() }
         }, didFinish: { [weak self] (_: StripTransaction?) in
+            // Only the transaction that still owns the admission releases it:
+            // a fallback may already have handed it to a newer one.
             guard let self, self.pollToken === token else { return }
-            self.pollToken = nil
-            self.pollInFlight = false
-            then?()
-            if self.pendingRestripe { self.runPendingRestripe() }
+            finish()
         })
+        // A provider that never renders keeps the lane busy past the
+        // deadline, and the deadline only stops the answer, not the work.
+        // Without this the admission would stay taken and every later strip
+        // would be dropped until the app was relaunched.
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardTimeout + 1) { [weak self] in
+            guard let self, self.pollToken === token else { return }
+            token.cancel()
+            finish()
+        }
     }
 
     /// Applies a finished transaction on the main thread: remembers the write
@@ -312,6 +373,7 @@ final class PastePlainService: ObservableObject {
             lastStrippedChangeCount = result.changeCount
             originalItems = stripped.originalItems
             originalCapturedAt = Date()
+            restoredChangeCount = nil
         } else if result.changeCount != lastStrippedChangeCount {
             originalItems = nil
         }
@@ -328,6 +390,7 @@ final class PastePlainService: ObservableObject {
     /// picture is fetched.
     private static func stripPasteboard(_ pasteboard: NSPasteboard,
                                         sinceChangeCount: Int?,
+                                        onlyIfChangeCount: Int?,
                                         ownLastWriteCount: Int,
                                         ownBundleID: String?,
                                         excludedApps: Set<String>,
@@ -338,6 +401,10 @@ final class PastePlainService: ObservableObject {
                                         isExpired: () -> Bool) -> StripTransaction? {
         let changeCount = pasteboard.changeCount
         guard !isExpired() else { return nil }
+        // A re-strip after a rich paste only takes back what that paste put
+        // there. Anything copied since is left for the poll, which would
+        // otherwise read it as already seen and leave it formatted.
+        if let onlyIfChangeCount, changeCount != onlyIfChangeCount { return nil }
         if let sinceChangeCount, changeCount == sinceChangeCount {
             return StripTransaction(changeCount: changeCount, stripped: nil, aborted: false)
         }
@@ -492,6 +559,7 @@ final class PastePlainService: ObservableObject {
         pollInFlight = false
         pendingRestripe = false
         isRichPasteInFlight = false
+        restoredChangeCount = nil
         originalItems = nil
         lastStrippedChangeCount = 0
         lastFailedChangeCount = nil
