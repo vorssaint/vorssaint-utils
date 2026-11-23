@@ -28,6 +28,7 @@ enum CursorAgentTests {
     static func run(_ suite: TestSuite) {
         turns(suite)
         history(suite)
+        partialCost(suite)
         timestamps(suite)
         CursorAgentDiscoveryTests.run(suite)
         CursorTranscriptReadTests.run(suite)
@@ -94,6 +95,46 @@ enum CursorAgentTests {
         suite.expect(log.state.cursorPromptTimestamp == AgentTimestamp.parse(future)
                         && log.store.live.first?.started == log.now,
                      "a future prompt clock cannot make historical work start beyond its file time")
+    }
+
+    private static func partialCost(_ suite: TestSuite) {
+        let log = Log()
+        log.feed(prompt)
+        log.feed(#"{"role":"assistant","timestamp":"2026-11-18T10:00:32Z","message":{"id":"one","model":"gpt-5.2","usage":{"output_tokens":1000}}}"#)
+        log.feed(#"{"role":"assistant","timestamp":"2026-11-18T10:00:40Z","message":{"id":"two","model":"gpt-5.2"}}"#)
+        log.feed(ended)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let snapshot = log.store.snapshot(plans: [:], providers: [.cursor], now: log.now, calendar: calendar,
+                                          cursorLastActivity: log.state.cursorLastActivity)
+        let usage = snapshot.usage(.today)
+        let locale = Locale(identifier: "en_US")
+        let minimum = AgentFormat.cost(usage.total.cost, partial: true, locale: locale)
+        suite.expect(usage.fullyPriced && usage.total.requests == 1 && usage.total.tokens.total == 1000
+                     && usage.total.cost > 0 && snapshot.live.isEmpty
+                     && AgentFormat.cost(snapshot, for: .today, locale: locale) == minimum,
+                     "a priced Cursor reply and an unmetered reply leave only a lower bound on today's idle cost")
+
+        let tomorrow = log.store.snapshot(plans: [:], providers: [.cursor], now: log.now.addingTimeInterval(86_400),
+                                          calendar: calendar, cursorLastActivity: log.state.cursorLastActivity)
+        suite.expect(AgentFormat.cost(tomorrow, for: .today, locale: locale) == "—"
+                     && AgentFormat.cost(tomorrow, for: .week, locale: locale) == minimum,
+                     "an idle day with only Cursor keeps the unknown daily cost separate from the week's known spend")
+
+        let codex = AgentUsageRecord(provider: .codex, date: log.now, model: "test", project: "", session: "other",
+                                     tokens: AgentTokens(input: 100), cost: 1, savings: 0)
+        var mixed = AgentUsageSummary.snapshot(records: [codex], limits: [:], live: [], plans: [:],
+                                               providers: [.codex, .cursor], now: log.now, calendar: calendar)
+        mixed.cursorProjectsFound = true
+        suite.expect(AgentFormat.cost(mixed, for: .today, locale: locale) == AgentFormat.cost(1, locale: locale),
+                     "an installed Cursor without activity leaves known costs complete")
+        mixed.seen.insert(.cursor)
+        mixed.lastActivity[.cursor] = calendar.startOfDay(for: log.now).addingTimeInterval(-1)
+        suite.expect(!mixed.hasPartialCost(.today) && mixed.hasPartialCost(.week) && mixed.hasPartialCost(.month),
+                     "unmetered Cursor activity only qualifies mixed totals in periods covering it")
+        mixed.lastActivity[.cursor] = calendar.startOfDay(for: log.now)
+        suite.expect(AgentFormat.cost(mixed, for: .today, locale: locale) == "≥ $1.00",
+                     "unmetered Cursor activity since midnight qualifies other providers' known daily spend")
     }
 
     private static func timestamps(_ suite: TestSuite) {
