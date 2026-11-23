@@ -542,10 +542,15 @@ def main():
                     for prefix in ["    static func runningApplication(",
                                    "    static func playerApplication(", "    static func open("])
           + "}\n")
-    write("WindowServerCapture.swift", "import CoreGraphics\nimport Foundation\n"
+    preview_provider = "Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift"
+    write("WindowServerCapture.swift", "import CoreGraphics\nimport CoreImage\nimport Foundation\nimport ScreenCaptureKit\n"
           + "extension WindowServerCaptureContract.Provider {\n"
-          + declaration("Sources/Vorssaint/Services/Switcher/WindowPreviewProvider.swift",
-                        "    static func captureViaWindowServer(")
+          + "".join(declaration(preview_provider, prefix) for prefix in [
+              "    func refreshPreviews(", "    static func captureViaWindowServer(", "    func cachedPreview(",
+              "    private func store(", "    private static func rectifiedStripCapture(",
+              "    private static func bitmapCopy(", "    private struct PreviewTarget {",
+              "    private static func bestWindowMatch(", "    private static func titlesMatch(",
+              "    private static func frameDistance("])
           + "}\n")
     write("ScreenshotAttachedCapture.swift", "import AppKit\nimport ScreenCaptureKit\n"
           + "extension ScreenshotAttachedCaptureTests {\nenum Engine {\n"
@@ -2119,6 +2124,7 @@ def main():
           + declaration(switcher_service, "    private func route(type:").replace("private func", "func", 1)
               .replace("CGEvent.tapEnable(", "Tap.enable(")
               .replace("CFMachPortIsValid(", "Tap.isValid(")
+              .replace("self.syncWithPreferences()", "self.recordTapRecoveryPreferenceSync()")
           + declaration(switcher_service, "    private var isTapLive:").replace("private var", "var", 1)
               .replace("CFMachPortIsValid(", "Tap.isValid(").replace("CGEvent.tapIsEnabled(", "Tap.isEnabled(")
           + declaration(switcher_service, "    private func removeTap(").replace("private func", "func", 1)
@@ -2147,6 +2153,9 @@ def main():
                                    "    private func applyClosedWindowRemoval(", "    private func finishTrackingClose(",
                                    "    func commitSession(", "    private func resumePendingCommitAfterClose(",
                                    "    private func cancelSession(", "    private func endSession(",
+                                   "    private func refreshSessionPreviews(", "    private func enqueuePreviewUpdate(",
+                                   "    private func cancelSessionPreviews(", "    func syncWithPreferences(",
+                                   "    private static var allWindowsShortcut:",
                                    "    private func dismissForClickOutsidePanel(", "    private var iconRowItemCount:",
                                    "    private func iconRowIndex(", "    private func selectionIndex(forIconRowIndex",
                                    "    private func revealSelectedIconInVisibleRow(", "    private func beginIconRowEdgeHoverIfNeeded(",
